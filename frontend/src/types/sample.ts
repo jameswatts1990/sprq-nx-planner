@@ -1,0 +1,33 @@
+import type { SampleStatus } from "./common";
+
+export interface SampleOut {
+  id: number;
+  external_id: string;
+  parent_sample: string | null;
+  sanger_ids: string[];
+  oplc: number | null;
+  volume: number | null;
+  status: SampleStatus;
+  barcodes: string[];
+  import_batch_id: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SampleCellUseOut {
+  id: number;
+  cycle_id: number;
+  schedule_id: number;
+  cell_id: number;
+  cell_code: string;
+  use_index: number;
+  well: string;
+  status: string;
+  started_at: string | null;
+  completed_at: string | null;
+  outcome_notes: string | null;
+}
+
+export interface SampleDetailOut extends SampleOut {
+  cell_uses: SampleCellUseOut[];
+}

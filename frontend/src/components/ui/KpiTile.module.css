@@ -1,0 +1,54 @@
+.kpi {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 15px 16px;
+  box-shadow: var(--shadow-sm);
+  position: relative;
+  overflow: hidden;
+}
+.kpi::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: var(--magenta);
+}
+.kpi.blue::before {
+  background: var(--blue);
+}
+.kpi.teal::before {
+  background: var(--teal);
+}
+.kpi.purple::before {
+  background: var(--purple);
+}
+.label {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--grey);
+  font-weight: 700;
+}
+.val {
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  margin-top: 4px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.unit {
+  font-size: 13px;
+  color: var(--faint);
+  font-weight: 600;
+  margin-top: 5px;
+}
+.val.up {
+  color: var(--red);
+}
+.val.down {
+  color: var(--green);
+}

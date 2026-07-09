@@ -1,0 +1,17 @@
+import { api, buildQuery } from "./client";
+import type { Page } from "@/types/common";
+import type { SampleDetailOut, SampleOut } from "@/types/sample";
+
+export interface ListSamplesParams {
+  status?: string;
+  q?: string;
+  page?: number;
+  page_size?: number;
+}
+
+export const samplesApi = {
+  list: (params: ListSamplesParams = {}) => api.get<Page<SampleOut>>(`/api/samples${buildQuery(params)}`),
+  get: (id: number) => api.get<SampleDetailOut>(`/api/samples/${id}`),
+  cancel: (id: number) => api.post<SampleOut>(`/api/samples/${id}/cancel`),
+  requeue: (id: number) => api.post<SampleOut>(`/api/samples/${id}/requeue`),
+};

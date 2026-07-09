@@ -1,0 +1,50 @@
+import { Link } from "react-router-dom";
+
+import { BarcodeChips } from "@/components/shared/BarcodeChips";
+import { Badge } from "@/components/ui/Badge";
+import type { CellOut } from "@/types/cell";
+import { CELL_STATUS_LABEL, CELL_STATUS_TONE } from "@/utils/cellStatus";
+
+import styles from "./CellStatusCard.module.css";
+import { WindowMeter } from "./WindowMeter";
+
+export interface CellStatusCardProps {
+  cell: CellOut;
+}
+
+/** Live-cell sibling of CellCard, backed by CellOut rather than the preview-time
+ * PackedCellOut; links through to the cell detail page. */
+export function CellStatusCard({ cell }: CellStatusCardProps) {
+  const showWindowMeter =
+    cell.status !== "exhausted" && cell.status !== "retired" && cell.window_hours_elapsed !== null;
+
+  return (
+    <Link to={`/cells/${cell.id}`} className={styles.card}>
+      <div className={styles.head}>
+        <span className={styles.cid}>{cell.code}</span>
+        <Badge tone={CELL_STATUS_TONE[cell.status]}>{CELL_STATUS_LABEL[cell.status]}</Badge>
+        <span className={styles.uses}>
+          {cell.uses_consumed} / {cell.max_uses} uses
+        </span>
+      </div>
+      <div className={styles.body}>
+        {cell.current_instrument_serial && (
+          <div className={styles.row}>
+            <span>Instrument</span>
+            <b>
+              {cell.current_instrument_serial}
+              {cell.current_well ? ` · ${cell.current_well}` : ""}
+            </b>
+          </div>
+        )}
+        {cell.burned_barcodes.length > 0 && (
+          <div className={styles.burned}>
+            <span>Burned:</span>
+            <BarcodeChips barcodes={cell.burned_barcodes} />
+          </div>
+        )}
+        {showWindowMeter && <WindowMeter windowHours={cell.window_hours_elapsed as number} />}
+      </div>
+    </Link>
+  );
+}

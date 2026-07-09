@@ -1,0 +1,207 @@
+"""Cell derivation, serialization, and the two one-off cutover actions (bootstrap/retire).
+
+The core rule lives in derive_cell_state(): a cell's live capacity and burned-barcode
+set are always computed from its real cell_uses, never manually re-entered. This is
+what replaces the prototype's free-text "in-progress cells" panel.
+"""
+from __future__ import annotations
+
+from datetime import datetime
+
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.engine.constants import CELL_LIFETIME_H
+from app.models.audit import AuditLog
+from app.models.cell import Cell
+from app.models.instrument import Instrument
+from app.models.schedule import CellUse, CellUseBarcode, Cycle, RunBatch, Schedule
+from app.schemas.cell import CellBootstrapRequest, CellDetailOut, CellOut, CellUseHistoryOut
+from app.timeutil import ensure_aware, utcnow
+
+
+def recompute_status(cell: Cell, at: datetime | None = None) -> None:
+    """The single place cell.status is derived - called any time a cell's uses change
+    (committing new uses onto it, or recording a real-world outcome), so the persisted
+    status never goes stale relative to derive_cell_state()."""
+    if cell.status == "retired":
+        return
+    at = at or utcnow()
+    if cell.first_use_started_at:
+        elapsed_h = (at - ensure_aware(cell.first_use_started_at)).total_seconds() / 3600
+        if elapsed_h > CELL_LIFETIME_H:
+            cell.window_breached = True
+
+    _uses_consumed, remaining, _burned = derive_cell_state(cell)
+    if remaining <= 0:
+        cell.status = "exhausted"
+    elif cell.window_breached:
+        cell.status = "window_expired"
+    else:
+        cell.status = "open"
+
+
+def derive_cell_state(cell: Cell) -> tuple[int, int, list[str]]:
+    active_uses = [cu for cu in cell.cell_uses if cu.status != "cancelled"]
+    uses_consumed = len(active_uses)
+    remaining = max(0, cell.max_uses - uses_consumed)
+    burned: list[str] = []
+    seen: set[str] = set()
+    for cu in active_uses:
+        for b in cu.barcode_list:
+            if b not in seen:
+                seen.add(b)
+                burned.append(b)
+    return uses_consumed, remaining, burned
+
+
+def current_location(cell: Cell) -> tuple[str | None, str | None]:
+    active_uses = [cu for cu in cell.cell_uses if cu.status != "cancelled"]
+    if not active_uses:
+        return None, None
+    last = max(active_uses, key=lambda cu: cu.id)
+    run_batch = last.cycle.run_batch if last.cycle else None
+    instrument = run_batch.instrument if run_batch else None
+    return (instrument.serial_number if instrument else None), last.well
+
+
+def window_hours_elapsed(cell: Cell) -> float | None:
+    if cell.first_use_started_at is None:
+        return None
+    started = ensure_aware(cell.first_use_started_at)
+    return (utcnow() - started).total_seconds() / 3600
+
+
+def serialize_cell(cell: Cell) -> CellOut:
+    uses_consumed, remaining, burned = derive_cell_state(cell)
+    instrument_serial, well = current_location(cell)
+    return CellOut(
+        id=cell.id,
+        code=cell.code,
+        max_uses=cell.max_uses,
+        status=cell.status,
+        uses_consumed=uses_consumed,
+        uses_remaining=remaining,
+        burned_barcodes=burned,
+        window_hours_elapsed=window_hours_elapsed(cell),
+        window_breached=cell.window_breached,
+        current_instrument_serial=instrument_serial,
+        current_well=well,
+        first_use_started_at=cell.first_use_started_at,
+        created_at=cell.created_at,
+    )
+
+
+def serialize_cell_detail(cell: Cell) -> CellDetailOut:
+    base = serialize_cell(cell)
+    history: list[CellUseHistoryOut] = []
+    for cu in sorted(cell.cell_uses, key=lambda x: x.id):
+        run_batch = cu.cycle.run_batch if cu.cycle else None
+        history.append(
+            CellUseHistoryOut(
+                id=cu.id,
+                schedule_id=run_batch.schedule_id if run_batch else -1,
+                cycle_id=cu.cycle_id,
+                use_index=cu.use_index,
+                well=cu.well,
+                status=cu.status,
+                sample_id=cu.sample_id,
+                sample_external_id=cu.sample.external_id if cu.sample else None,
+                barcodes=cu.barcode_list,
+                instrument_serial=(run_batch.instrument.serial_number if run_batch and run_batch.instrument else None),
+                started_at=cu.started_at,
+                completed_at=cu.completed_at,
+                outcome_notes=cu.outcome_notes,
+            )
+        )
+    return CellDetailOut(**base.model_dump(), use_history=history)
+
+
+def bootstrap_cell(db: Session, req: CellBootstrapRequest) -> Cell:
+    """One-time cutover tool: register a cell that's already physically in progress on
+    an instrument before this system existed. Not a routine workflow - see the backend
+    plan's "porting the algorithms" deviation #1."""
+    instrument = db.scalars(select(Instrument)).first()
+    if instrument is None:
+        raise ValueError("No instruments configured - run migrations first.")
+
+    code = f"BOOT-{utcnow():%Y%m%d%H%M%S%f}"
+    cell = Cell(code=code, max_uses=req.max_uses, status="open", first_use_started_at=req.first_use_started_at)
+    db.add(cell)
+    db.flush()
+
+    if req.uses_consumed > 0:
+        schedule = Schedule(
+            created_by=req.actor or "unknown",
+            status="active",
+            settings_json={"bootstrap": True},
+            start_date=utcnow().date(),
+        )
+        db.add(schedule)
+        db.flush()
+        run_batch = RunBatch(schedule_id=schedule.id, instrument_id=instrument.id, batch_index=0)
+        db.add(run_batch)
+        db.flush()
+
+        now = utcnow()
+        started_at = req.first_use_started_at or now
+        for i in range(req.uses_consumed):
+            cycle = Cycle(
+                run_batch_id=run_batch.id,
+                use_index=i,
+                movie_hours=24,
+                planned_start_at=now,
+                planned_end_at=now,
+                actual_start_at=started_at,
+                actual_end_at=now,
+                status="completed",
+            )
+            db.add(cycle)
+            db.flush()
+            cell_use = CellUse(
+                cycle_id=cycle.id,
+                cell_id=cell.id,
+                sample_id=None,
+                use_index=i,
+                well="A01",
+                status="completed",
+                started_at=started_at,
+                completed_at=now,
+            )
+            db.add(cell_use)
+            db.flush()
+            # The full burned-barcode set is attached to the first synthetic use only -
+            # what matters going forward is the union across the cell's uses, not which
+            # historical use burned which specific barcode.
+            if i == 0:
+                for barcode in req.burned_barcodes:
+                    db.add(CellUseBarcode(cell_use_id=cell_use.id, barcode=barcode))
+
+    db.add(
+        AuditLog(
+            actor=req.actor or "unknown",
+            action="bootstrap_cell",
+            entity_type="cell",
+            entity_id=cell.id,
+            details_json={
+                "max_uses": req.max_uses,
+                "uses_consumed": req.uses_consumed,
+                "burned_barcodes": req.burned_barcodes,
+            },
+        )
+    )
+    db.commit()
+    db.refresh(cell)
+    return cell
+
+
+def retire_cell(db: Session, cell: Cell, actor: str | None) -> Cell:
+    if any(cu.status == "planned" for cu in cell.cell_uses):
+        raise ValueError("Cannot retire a cell with planned (not yet run) uses.")
+    cell.status = "retired"
+    db.add(
+        AuditLog(actor=actor or "unknown", action="retire_cell", entity_type="cell", entity_id=cell.id, details_json={})
+    )
+    db.commit()
+    db.refresh(cell)
+    return cell

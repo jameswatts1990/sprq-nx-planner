@@ -1,0 +1,40 @@
+.note {
+  border-radius: var(--r-sm);
+  padding: 11px 14px;
+  font-size: 13px;
+  display: flex;
+  gap: 11px;
+  align-items: flex-start;
+  border: 1px solid transparent;
+}
+.ni {
+  font-weight: 800;
+  flex: none;
+}
+.warn {
+  background: var(--amber-tint);
+  border-color: #f0dcae;
+  color: #7a4d00;
+}
+.info {
+  background: var(--blue-tint);
+  border-color: #cfe6f5;
+  color: var(--blue-deep);
+}
+.bad {
+  background: var(--red-tint);
+  border-color: #f4c6cc;
+  color: #8b1c28;
+}
+.good {
+  background: var(--green-tint);
+  border-color: #bfe6c9;
+  color: #1c6b31;
+}
+.note :global(code) {
+  font-family: var(--mono);
+  background: rgba(0, 0, 0, 0.06);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 12px;
+}

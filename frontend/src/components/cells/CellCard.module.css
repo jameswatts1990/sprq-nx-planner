@@ -1,0 +1,49 @@
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+.head {
+  padding: 11px 14px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border-bottom: 1px solid var(--line-soft);
+  flex-wrap: wrap;
+}
+.head.prior {
+  background: var(--blue-tint);
+}
+.cid {
+  font-weight: 800;
+  font-size: 15px;
+  font-family: var(--mono);
+}
+.priorTag {
+  font-size: 10px;
+  font-weight: 800;
+  color: #fff;
+  background: var(--blue);
+  border-radius: 4px;
+  padding: 2px 6px;
+}
+.loc {
+  font-size: 11px;
+  color: var(--grey);
+  font-weight: 700;
+  margin-left: auto;
+}
+.body {
+  padding: 10px 12px;
+}
+.burned {
+  font-size: 11px;
+  color: var(--blue-deep);
+  margin: 0 0 9px;
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+  align-items: center;
+}

@@ -1,0 +1,65 @@
+.topbar {
+  background: var(--card);
+  border-bottom: 1px solid var(--line);
+  position: sticky;
+  top: 0;
+  z-index: 40;
+}
+.topbarStrip {
+  height: 5px;
+  background: linear-gradient(90deg, var(--magenta), var(--purple) 55%, var(--blue));
+}
+.topbarInner {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 16px 22px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+.brand {
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+  font-weight: 800;
+  font-size: 22px;
+  letter-spacing: -0.03em;
+  color: var(--ink);
+  text-decoration: none;
+}
+.brandAccent {
+  color: var(--magenta);
+}
+.dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--magenta);
+  display: inline-block;
+  transform: translateY(1px);
+  margin-left: 2px;
+}
+.nav {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  border-left: 1px solid var(--line);
+  padding-left: 18px;
+}
+.navLink {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--grey);
+  text-decoration: none;
+  padding: 8px 12px;
+  border-radius: var(--r-sm);
+}
+.navLink:hover {
+  background: var(--line-soft);
+  color: var(--ink);
+}
+.navLinkActive {
+  color: var(--magenta);
+  background: var(--magenta-tint);
+}

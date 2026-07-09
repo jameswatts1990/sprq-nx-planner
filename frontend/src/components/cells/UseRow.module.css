@@ -1,0 +1,37 @@
+.useRow {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  padding: 7px 0;
+  border-top: 1px dashed var(--line-soft);
+}
+.useRow:first-child {
+  border-top: none;
+}
+.badge {
+  font-size: 10px;
+  font-weight: 800;
+  color: #fff;
+  border-radius: 6px;
+  padding: 3px 7px;
+  flex: none;
+  font-family: var(--mono);
+  margin-top: 1px;
+}
+.u1 {
+  background: var(--magenta);
+}
+.u2 {
+  background: var(--blue);
+}
+.u3 {
+  background: var(--teal);
+}
+.info {
+  min-width: 0;
+  flex: 1;
+}
+.name {
+  font-size: 12.5px;
+  font-weight: 700;
+}

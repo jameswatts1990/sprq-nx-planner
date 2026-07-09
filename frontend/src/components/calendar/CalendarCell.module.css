@@ -1,0 +1,14 @@
+.cell {
+  padding: 8px;
+  min-width: 150px;
+  background: var(--card);
+  vertical-align: top;
+  border-bottom: 1px solid var(--line-soft);
+  border-right: 1px solid var(--line-soft);
+}
+.cell.weekend {
+  background: #fbfbfc;
+}
+.cell.empty {
+  background: repeating-linear-gradient(135deg, #fff, #fff 8px, #fafafb 8px, #fafafb 16px);
+}

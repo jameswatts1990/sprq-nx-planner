@@ -1,0 +1,33 @@
+/* Ported verbatim from revio-nx-planner.html's :root block - this is the prototype's
+   design language; do not redesign it, only extend it. */
+:root {
+  --magenta: #e6007e;
+  --magenta-deep: #b0005e;
+  --magenta-tint: #fbe7f1;
+  --blue: #0091d2;
+  --blue-deep: #006fa3;
+  --blue-tint: #e3f3fb;
+  --teal: #00a6a6;
+  --teal-deep: #017e7e;
+  --teal-tint: #e0f5f5;
+  --purple: #7a1fa2;
+  --ink: #26262b;
+  --grey: #6c6c74;
+  --faint: #9a9aa2;
+  --line: #e6e8ec;
+  --line-soft: #eff1f4;
+  --bg: #f4f5f7;
+  --card: #ffffff;
+  --green: #2fa84f;
+  --green-tint: #e6f5ea;
+  --red: #dc3545;
+  --red-tint: #fce8ea;
+  --amber: #c77700;
+  --amber-tint: #fbf0de;
+  --shadow: 0 1px 2px rgba(20, 20, 30, 0.05), 0 6px 20px rgba(20, 20, 30, 0.06);
+  --shadow-sm: 0 1px 2px rgba(20, 20, 30, 0.06);
+  --r: 14px;
+  --r-sm: 9px;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  --mono: "SF Mono", ui-monospace, "Cascadia Code", Consolas, "Liberation Mono", monospace;
+}

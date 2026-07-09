@@ -1,0 +1,13 @@
+.windowMeter {
+  margin-top: 11px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line-soft);
+}
+.label {
+  font-size: 10.5px;
+  color: var(--grey);
+  font-weight: 700;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 5px;
+}

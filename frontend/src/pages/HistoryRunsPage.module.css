@@ -1,0 +1,65 @@
+.page {
+  padding-top: 22px;
+}
+.toolbar {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 18px;
+}
+.select,
+.dateInput,
+.search {
+  font-family: var(--sans);
+  font-size: 13px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 8px 10px;
+}
+.search {
+  min-width: 200px;
+}
+.status {
+  color: var(--grey);
+  font-size: 13.5px;
+  padding: 24px 4px;
+  text-align: center;
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.table th {
+  text-align: left;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--grey);
+  font-weight: 700;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+.table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.table tbody tr:hover {
+  background: var(--line-soft);
+}
+.mono {
+  font-family: var(--mono);
+}
+.pagination {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+.pageInfo {
+  font-size: 12.5px;
+  color: var(--grey);
+  font-weight: 600;
+}

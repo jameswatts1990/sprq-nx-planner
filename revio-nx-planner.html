@@ -1,0 +1,738 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Revio SPRQ-Nx · Barcode Loading &amp; Schedule Planner</title>
+<style>
+  :root{
+    --magenta:#E6007E; --magenta-deep:#B0005E; --magenta-tint:#FBE7F1;
+    --blue:#0091D2; --blue-deep:#006FA3; --blue-tint:#E3F3FB;
+    --teal:#00A6A6; --teal-deep:#017E7E; --teal-tint:#E0F5F5;
+    --purple:#7A1FA2;
+    --ink:#26262B; --grey:#6C6C74; --faint:#9A9AA2;
+    --line:#E6E8EC; --line-soft:#EFF1F4;
+    --bg:#F4F5F7; --card:#FFFFFF;
+    --green:#2FA84F; --green-tint:#E6F5EA; --red:#DC3545; --red-tint:#FCE8EA; --amber:#C77700; --amber-tint:#FBF0DE;
+    --shadow:0 1px 2px rgba(20,20,30,.05),0 6px 20px rgba(20,20,30,.06);
+    --shadow-sm:0 1px 2px rgba(20,20,30,.06);
+    --r:14px; --r-sm:9px;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+    --mono:"SF Mono",ui-monospace,"Cascadia Code",Consolas,"Liberation Mono",monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{font-family:var(--sans);color:var(--ink);background:var(--bg);line-height:1.5;-webkit-font-smoothing:antialiased}
+  h1,h2,h3{margin:0;font-weight:800;letter-spacing:-.02em}
+  .wrap{max-width:1400px;margin:0 auto;padding:0 22px 64px}
+
+  /* ---------- header ---------- */
+  .topbar{background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:40}
+  .topbar-strip{height:5px;background:linear-gradient(90deg,var(--magenta),var(--purple) 55%,var(--blue))}
+  .topbar-inner{max-width:1400px;margin:0 auto;padding:16px 22px;display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+  .brand{display:flex;align-items:baseline;gap:2px;font-weight:800;font-size:22px;letter-spacing:-.03em;color:var(--ink)}
+  .brand .dot{width:12px;height:12px;border-radius:50%;background:var(--magenta);display:inline-block;transform:translateY(1px);margin-left:2px}
+  .title-block{border-left:1px solid var(--line);padding-left:18px}
+  .title-block h1{font-size:19px}
+  .title-block .sub{font-size:12.5px;color:var(--grey);margin-top:2px}
+  .eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--magenta);font-weight:700}
+  .topbar-actions{margin-left:auto;display:flex;gap:10px;flex-wrap:wrap}
+
+  /* ---------- buttons ---------- */
+  .btn{font-family:var(--sans);font-size:13.5px;font-weight:700;border-radius:var(--r-sm);border:1px solid var(--line);
+    background:var(--card);color:var(--ink);padding:9px 15px;cursor:pointer;transition:.14s;display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
+  .btn:hover{border-color:#cfd2d8;box-shadow:var(--shadow-sm)}
+  .btn.primary{background:var(--magenta);border-color:var(--magenta);color:#fff}
+  .btn.primary:hover{background:var(--magenta-deep);border-color:var(--magenta-deep)}
+  .btn.ghost{background:transparent}
+  .btn:focus-visible,input:focus-visible,textarea:focus-visible,.chip:focus-visible,.seg-opt:focus-visible{outline:3px solid rgba(0,145,210,.4);outline-offset:2px}
+  .btn.sm{padding:6px 11px;font-size:12.5px}
+
+  /* ---------- KPI strip ---------- */
+  .kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:14px;margin:22px 0}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:15px 16px;box-shadow:var(--shadow-sm);position:relative;overflow:hidden}
+  .kpi::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--magenta)}
+  .kpi.b::before{background:var(--blue)} .kpi.t::before{background:var(--teal)} .kpi.p::before{background:var(--purple)}
+  .kpi .k-label{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--grey);font-weight:700}
+  .kpi .k-val{font-size:30px;font-weight:800;letter-spacing:-.03em;margin-top:4px;line-height:1;font-variant-numeric:tabular-nums}
+  .kpi .k-unit{font-size:13px;color:var(--faint);font-weight:600;margin-top:5px}
+  .kpi .k-val.up{color:var(--red)} .kpi .k-val.down{color:var(--green)}
+
+  /* ---------- layout ---------- */
+  .controls{display:grid;grid-template-columns:1.15fr .85fr;gap:18px;align-items:start}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden}
+  .card-head{padding:14px 18px;border-bottom:1px solid var(--line-soft);display:flex;align-items:center;gap:10px}
+  .card-head h2{font-size:15px}
+  .card-head .badge{margin-left:auto;font-size:11.5px;font-weight:700;color:var(--grey)}
+  .card-body{padding:18px}
+
+  textarea{width:100%;min-height:148px;resize:vertical;font-family:var(--mono);font-size:12px;line-height:1.55;
+    border:1px solid var(--line);border-radius:var(--r-sm);padding:12px;color:var(--ink);background:#FCFCFD}
+  textarea::placeholder{color:var(--faint)}
+  .input-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;align-items:center}
+  .filehint{font-size:12px;color:var(--grey)}
+  .parse-status{margin-top:14px;padding:11px 13px;border-radius:var(--r-sm);background:var(--line-soft);font-size:13px;color:var(--grey);display:flex;gap:16px;flex-wrap:wrap}
+  .parse-status b{color:var(--ink)}
+  .parse-status.ok{background:var(--green-tint)}
+  .parse-status .flag{color:var(--amber);font-weight:700}
+
+  /* ---------- settings ---------- */
+  .field{margin-bottom:16px}
+  .field:last-child{margin-bottom:0}
+  .field-label{font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--grey);margin-bottom:8px;display:flex;align-items:center;gap:8px}
+  .field-label .hint{font-weight:600;text-transform:none;letter-spacing:0;color:var(--faint);font-size:11.5px}
+  .seg{display:inline-flex;background:var(--line-soft);border-radius:var(--r-sm);padding:3px;gap:3px;flex-wrap:wrap}
+  .seg-opt{border:none;background:transparent;font-family:var(--sans);font-weight:700;font-size:13px;color:var(--grey);
+    padding:7px 13px;border-radius:7px;cursor:pointer;transition:.12s;line-height:1}
+  .seg-opt[aria-pressed="true"]{background:var(--card);color:var(--magenta);box-shadow:var(--shadow-sm)}
+  .seg-opt small{display:block;font-weight:600;font-size:10.5px;color:var(--faint);margin-top:2px}
+  .seg-opt[aria-pressed="true"] small{color:var(--grey)}
+  .chips{display:flex;gap:8px;flex-wrap:wrap}
+  .chip{border:1.5px solid var(--line);background:var(--card);border-radius:999px;padding:7px 14px;font-weight:700;font-size:13px;
+    color:var(--grey);cursor:pointer;transition:.12s;font-family:var(--mono);letter-spacing:.02em}
+  .chip[aria-pressed="true"]{border-color:var(--magenta);color:var(--magenta);background:var(--magenta-tint)}
+  .uses-ring{display:inline-flex;align-items:center;gap:6px}
+
+  /* prior cells */
+  .prior-wrap{border-top:1px solid var(--line-soft);margin-top:4px}
+  .prior-toggle{width:100%;text-align:left;background:transparent;border:none;padding:13px 18px;font-family:var(--sans);font-weight:700;
+    font-size:13.5px;color:var(--ink);cursor:pointer;display:flex;align-items:center;gap:10px}
+  .prior-toggle .caret{transition:.15s;color:var(--grey)}
+  .prior-toggle[aria-expanded="true"] .caret{transform:rotate(90deg)}
+  .prior-toggle .count{margin-left:auto;font-size:11.5px;font-weight:700;color:#fff;background:var(--blue);border-radius:999px;padding:2px 9px}
+  .prior-body{padding:0 18px 18px}
+  .prior-note{font-size:12px;color:var(--grey);margin:0 0 12px}
+  .prior-list{display:flex;flex-direction:column;gap:9px}
+  .prior-item{display:flex;gap:9px;align-items:center;flex-wrap:wrap;background:var(--blue-tint);border:1px solid #cfe6f5;border-radius:var(--r-sm);padding:9px 11px}
+  .prior-item input.pbc{flex:1;min-width:160px;font-family:var(--mono);font-size:12px;border:1px solid var(--line);border-radius:6px;padding:6px 9px}
+  .prior-item .plab{font-size:11.5px;font-weight:700;color:var(--blue-deep)}
+  .mini-seg{display:inline-flex;background:#fff;border:1px solid #cfe6f5;border-radius:7px;padding:2px;gap:2px}
+  .mini-seg button{border:none;background:transparent;font-weight:700;font-size:12px;padding:4px 9px;border-radius:5px;cursor:pointer;color:var(--grey)}
+  .mini-seg button[aria-pressed="true"]{background:var(--blue);color:#fff}
+  .prior-item .rm{margin-left:auto;border:none;background:transparent;color:var(--blue-deep);cursor:pointer;font-weight:800;font-size:16px;line-height:1;padding:2px 6px}
+
+  /* ---------- notes ---------- */
+  .notes{margin-top:18px;display:flex;flex-direction:column;gap:10px}
+  .note{border-radius:var(--r-sm);padding:11px 14px;font-size:13px;display:flex;gap:11px;align-items:flex-start;border:1px solid transparent}
+  .note .ni{font-weight:800;flex:none}
+  .note.warn{background:var(--amber-tint);border-color:#f0dcae;color:#7a4d00}
+  .note.info{background:var(--blue-tint);border-color:#cfe6f5;color:var(--blue-deep)}
+  .note.bad{background:var(--red-tint);border-color:#f4c6cc;color:#8b1c28}
+  .note.good{background:var(--green-tint);border-color:#bfe6c9;color:#1c6b31}
+  .note code{font-family:var(--mono);background:rgba(0,0,0,.06);padding:1px 5px;border-radius:4px;font-size:12px}
+
+  /* ---------- section head ---------- */
+  .sec-head{display:flex;align-items:center;gap:14px;margin:30px 0 14px}
+  .sec-head h2{font-size:20px}
+  .sec-head .rule{flex:1;height:2px;background:linear-gradient(90deg,var(--magenta),transparent)}
+  .sec-head .legend{display:flex;gap:14px;align-items:center;font-size:12px;color:var(--grey);flex-wrap:wrap}
+  .lg{display:inline-flex;align-items:center;gap:6px;font-weight:600}
+  .lg .sw{width:12px;height:12px;border-radius:4px}
+  .sw.u1{background:var(--magenta)} .sw.u2{background:var(--blue)} .sw.u3{background:var(--teal)}
+
+  /* ---------- calendar (dominant) ---------- */
+  .cal-scroll{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r);background:var(--card);box-shadow:var(--shadow)}
+  table.cal{border-collapse:separate;border-spacing:0;width:100%;min-width:760px}
+  table.cal th,table.cal td{border-bottom:1px solid var(--line-soft);border-right:1px solid var(--line-soft);vertical-align:top}
+  table.cal th{position:sticky;top:0;background:var(--card);z-index:2}
+  .cal-corner{width:118px;min-width:118px;background:var(--card)!important;border-right:1px solid var(--line);position:sticky;left:0;z-index:5}
+  .day-th{padding:10px 12px;text-align:left}
+  .day-th .dn{font-size:14px;font-weight:800}
+  .day-th .dd{font-size:11px;color:var(--faint);font-weight:600;margin-top:1px}
+  .day-th.weekend{background:#FAFAFB}
+  .day-th.weekend .dn{color:var(--grey)}
+  .mach-th{padding:12px;text-align:left;position:sticky;left:0;background:var(--card);z-index:4;border-right:1px solid var(--line);width:118px;min-width:118px}
+  .mach-th .ml{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--grey);font-weight:700}
+  .mach-th .mid{font-size:17px;font-weight:800;font-family:var(--mono);letter-spacing:-.01em}
+  td.cal-cell{padding:8px;min-width:150px;background:var(--card)}
+  td.cal-cell.weekend{background:#FBFBFC}
+  td.cal-cell.empty{background:repeating-linear-gradient(135deg,#fff,#fff 8px,#FAFAFB 8px,#FAFAFB 16px)}
+
+  .cycle{border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-bottom:8px;box-shadow:var(--shadow-sm);animation:pop .25s ease}
+  .cycle:last-child{margin-bottom:0}
+  @keyframes pop{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+  .cycle-head{padding:6px 9px;display:flex;align-items:center;gap:7px;font-size:11.5px;font-weight:800;color:#fff}
+  .cycle.u1 .cycle-head{background:var(--magenta)} .cycle.u2 .cycle-head{background:var(--blue)} .cycle.u3 .cycle-head{background:var(--teal)}
+  .cycle-head .time{margin-left:auto;font-weight:700;opacity:.9;font-family:var(--mono);font-size:10.5px}
+  .cycle-body{padding:5px 6px;background:#fff}
+  .stage{display:flex;gap:7px;align-items:flex-start;padding:5px 5px;border-radius:7px}
+  .stage+.stage{margin-top:2px}
+  .stage:hover{background:var(--line-soft)}
+  .stage .well{font-family:var(--mono);font-size:10px;font-weight:700;color:var(--grey);background:var(--line-soft);border-radius:5px;padding:2px 5px;flex:none;margin-top:1px}
+  .stage .sinfo{min-width:0;flex:1}
+  .stage .sname{font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .stage .cellref{font-size:10.5px;color:var(--faint);font-weight:700;font-family:var(--mono)}
+  .bcs{display:flex;gap:3px;flex-wrap:wrap;margin-top:3px}
+  .bc{font-family:var(--mono);font-size:9.5px;font-weight:700;padding:1px 5px;border-radius:4px;background:var(--magenta-tint);color:var(--magenta-deep)}
+  .cycle.u2 .bc{background:var(--blue-tint);color:var(--blue-deep)} .cycle.u3 .bc{background:var(--teal-tint);color:var(--teal-deep)}
+  .bc.more{background:var(--line-soft);color:var(--grey)}
+  .cell-empty-msg{color:var(--faint);font-size:12px;text-align:center;padding:18px 4px}
+
+  /* ---------- cell packing detail ---------- */
+  .cells-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(258px,1fr));gap:14px}
+  .cellcard{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow-sm);overflow:hidden}
+  .cellcard-head{padding:11px 14px;display:flex;align-items:center;gap:9px;border-bottom:1px solid var(--line-soft)}
+  .cellcard-head .cid{font-weight:800;font-size:15px;font-family:var(--mono)}
+  .cellcard-head .loc{font-size:11px;color:var(--grey);font-weight:700}
+  .cellcard-head .ok{margin-left:auto;font-size:10.5px;font-weight:800;color:var(--green);background:var(--green-tint);border-radius:999px;padding:3px 9px}
+  .cellcard-head.prior{background:var(--blue-tint)}
+  .prior-tag{font-size:10px;font-weight:800;color:#fff;background:var(--blue);border-radius:4px;padding:2px 6px}
+  .cellcard-body{padding:10px 12px}
+  .burned{font-size:11px;color:var(--blue-deep);margin:0 0 9px;display:flex;gap:5px;flex-wrap:wrap;align-items:center}
+  .burned .bc{background:#fff;border:1px dashed var(--blue);color:var(--blue-deep)}
+  .use-row{display:flex;gap:9px;align-items:flex-start;padding:7px 0;border-top:1px dashed var(--line-soft)}
+  .use-row:first-of-type{border-top:none}
+  .use-badge{font-size:10px;font-weight:800;color:#fff;border-radius:6px;padding:3px 7px;flex:none;font-family:var(--mono);margin-top:1px}
+  .u1 .use-badge,.ub1{background:var(--magenta)} .u2 .use-badge,.ub2{background:var(--blue)} .u3 .use-badge,.ub3{background:var(--teal)}
+  .use-row .un{font-size:12.5px;font-weight:700}
+  .window-meter{margin-top:11px;padding-top:10px;border-top:1px solid var(--line-soft)}
+  .window-meter .wm-label{font-size:10.5px;color:var(--grey);font-weight:700;display:flex;justify-content:space-between;margin-bottom:5px}
+  .wm-bar{height:6px;border-radius:4px;background:var(--line-soft);overflow:hidden}
+  .wm-fill{height:100%;background:linear-gradient(90deg,var(--green),var(--teal));border-radius:4px}
+  .wm-fill.over{background:var(--red)}
+
+  /* ---------- footer / export ---------- */
+  .exportbar{display:flex;gap:10px;flex-wrap:wrap;margin:26px 0 12px;align-items:center}
+  .disclaimer{font-size:11.5px;color:var(--faint);line-height:1.5;border-top:1px solid var(--line);padding-top:16px;margin-top:8px}
+  .disclaimer b{color:var(--grey)}
+
+  .empty-state{text-align:center;color:var(--grey);padding:46px 20px}
+  .empty-state .es-ic{font-size:34px}
+  .empty-state h3{font-size:16px;margin:10px 0 4px;color:var(--ink)}
+
+  @media (max-width:1080px){ .kpis{grid-template-columns:repeat(3,1fr)} .controls{grid-template-columns:1fr} }
+  @media (max-width:560px){ .kpis{grid-template-columns:repeat(2,1fr)} .title-block{border-left:none;padding-left:0} }
+  @media (prefers-reduced-motion:reduce){ .cycle{animation:none} .btn,.seg-opt,.chip{transition:none} }
+
+  @media print{
+    .controls,.exportbar,.topbar-actions,.prior-wrap{display:none!important}
+    body{background:#fff} .cal-scroll{box-shadow:none;overflow:visible} table.cal{min-width:0}
+    .kpi{break-inside:avoid} .cellcard{break-inside:avoid}
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-strip"></div>
+  <div class="topbar-inner">
+    <div class="brand">Revio<span style="color:var(--magenta)">Nx</span><span class="dot"></span></div>
+    <div class="title-block">
+      <div class="eyebrow">SPRQ-Nx multi-use planner</div>
+      <h1>Barcode Loading &amp; Weekly Schedule</h1>
+      <div class="sub">Packs samples onto multi-use SMRT Cells with no repeated barcode across a cell's uses, then lays out the run week.</div>
+    </div>
+    <div class="topbar-actions">
+      <button class="btn ghost sm" id="loadExample">Load example data</button>
+      <button class="btn primary" id="calcBtn">Calculate schedule</button>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <!-- KPI strip -->
+  <div class="kpis" id="kpis">
+    <div class="kpi"><div class="k-label">Acquisitions</div><div class="k-val" id="kpiAcq">—</div><div class="k-unit">samples to run</div></div>
+    <div class="kpi b"><div class="k-label">SMRT Cells</div><div class="k-val" id="kpiCells">—</div><div class="k-unit" id="kpiCellsSub">new cells</div></div>
+    <div class="kpi t"><div class="k-label">Cell trays</div><div class="k-val" id="kpiTrays">—</div><div class="k-unit">Nx trays (4 cells)</div></div>
+    <div class="kpi p"><div class="k-label">Duration</div><div class="k-val" id="kpiDays">—</div><div class="k-unit">calendar days</div></div>
+    <div class="kpi"><div class="k-label">Reagent cost</div><div class="k-val" id="kpiCost">—</div><div class="k-unit">estimate, USD</div></div>
+    <div class="kpi b"><div class="k-label">vs single-use</div><div class="k-val" id="kpiSave">—</div><div class="k-unit" id="kpiSaveSub">reagent delta</div></div>
+  </div>
+
+  <!-- controls -->
+  <div class="controls">
+    <!-- input -->
+    <section class="card">
+      <div class="card-head"><h2>1 · Samples &amp; barcodes</h2><span class="badge" id="inputBadge">paste or upload CSV</span></div>
+      <div class="card-body">
+        <textarea id="csvInput" spellcheck="false" placeholder="Paste CSV here — either your full LIMS export:&#10;Container,Parent Sample,Sanger Sample IDs,Parent Sample ID,Barcodes,Volume to Load,Actual OPLC,...&#10;BNCH-1597,TRAC-2-25402,...,&quot;bc2021, bc2066&quot;,24.0,268.0,...&#10;&#10;…or a simple two-column list:&#10;TRAC-2-25402, bc2021 bc2066&#10;TRAC-2-25403, bc2029 bc2030 bc2040 bc2057"></textarea>
+        <div class="input-row">
+          <label class="btn sm" style="cursor:pointer">Upload CSV<input type="file" id="fileInput" accept=".csv,.tsv,.txt" hidden></label>
+          <button class="btn sm ghost" id="clearBtn">Clear</button>
+          <span class="filehint">Barcodes column may hold one or several codes per row.</span>
+        </div>
+        <div class="parse-status" id="parseStatus">No samples loaded yet.</div>
+      </div>
+    </section>
+
+    <!-- settings -->
+    <section class="card">
+      <div class="card-head"><h2>2 · Run design</h2><span class="badge">recalculates live</span></div>
+      <div class="card-body">
+        <div class="field">
+          <div class="field-label">Instruments running <span class="hint">select 1–4</span></div>
+          <div class="chips" id="instChips"></div>
+        </div>
+        <div class="field">
+          <div class="field-label">Max uses per cell <span class="hint">multi-use cap</span></div>
+          <div class="seg" id="usesSeg" role="group" aria-label="Max uses per cell">
+            <button class="seg-opt" data-uses="1" aria-pressed="false">1×</button>
+            <button class="seg-opt" data-uses="2" aria-pressed="false">2×</button>
+            <button class="seg-opt" data-uses="3" aria-pressed="true">3×</button>
+          </div>
+        </div>
+        <div class="field">
+          <div class="field-label">Movie / run time</div>
+          <div class="seg" id="runSeg" role="group" aria-label="Run time">
+            <button class="seg-opt" data-run="12" aria-pressed="false">12 h</button>
+            <button class="seg-opt" data-run="24" aria-pressed="true">24 h</button>
+            <button class="seg-opt" data-run="30" aria-pressed="false">30 h</button>
+          </div>
+        </div>
+        <div class="field">
+          <div class="field-label">Start day</div>
+          <div class="seg" id="daySeg" role="group" aria-label="Start day">
+            <button class="seg-opt" data-day="0" aria-pressed="true">Mon</button>
+            <button class="seg-opt" data-day="1" aria-pressed="false">Tue</button>
+            <button class="seg-opt" data-day="2" aria-pressed="false">Wed</button>
+            <button class="seg-opt" data-day="3" aria-pressed="false">Thu</button>
+            <button class="seg-opt" data-day="4" aria-pressed="false">Fri</button>
+          </div>
+        </div>
+        <div class="field">
+          <div class="field-label">Optimise for</div>
+          <div class="seg" id="optSeg" role="group" aria-label="Optimisation objective">
+            <button class="seg-opt" data-opt="fewest" aria-pressed="true">Fewest cells<small>lowest cost</small></button>
+            <button class="seg-opt" data-opt="balance" aria-pressed="false">Balance<small>cost + speed</small></button>
+            <button class="seg-opt" data-opt="fastest" aria-pressed="false">Fastest<small>fewest days</small></button>
+          </div>
+        </div>
+      </div>
+      <!-- prior cells -->
+      <div class="prior-wrap">
+        <button class="prior-toggle" id="priorToggle" aria-expanded="false">
+          <span class="caret">▶</span> In-progress cells already on an instrument
+          <span class="count" id="priorCount" style="display:none">0</span>
+        </button>
+        <div class="prior-body" id="priorBody" style="display:none">
+          <p class="prior-note">A cell that's partway through its 3 uses has already burned barcodes. List those codes so new samples sharing them are kept off that cell. Remaining uses = cap − uses already done.</p>
+          <div class="prior-list" id="priorList"></div>
+          <button class="btn sm ghost" id="addPrior" style="margin-top:11px">+ Add in-progress cell</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- notes -->
+  <div class="notes" id="notes"></div>
+
+  <!-- calendar -->
+  <div class="sec-head">
+    <h2>Weekly schedule</h2>
+    <div class="rule"></div>
+    <div class="legend">
+      <span class="lg"><span class="sw u1"></span>Use 1</span>
+      <span class="lg"><span class="sw u2"></span>Use 2</span>
+      <span class="lg"><span class="sw u3"></span>Use 3</span>
+    </div>
+  </div>
+  <div id="calendarHost">
+    <div class="cal-scroll"><div class="empty-state"><div class="es-ic">🗓️</div><h3>No schedule yet</h3><div>Load samples and press Calculate schedule.</div></div></div>
+  </div>
+
+  <!-- cell packing detail -->
+  <div class="sec-head">
+    <h2>Cell loading map</h2>
+    <div class="rule"></div>
+    <div class="legend"><span class="lg">Each cell's uses carry unique barcodes — no carryover clash</span></div>
+  </div>
+  <div id="cellsHost"><div class="cells-grid"></div></div>
+
+  <!-- export -->
+  <div class="exportbar">
+    <button class="btn primary" id="dlCsv">Download schedule CSV</button>
+    <button class="btn ghost" id="printBtn">Print / PDF</button>
+  </div>
+  <p class="disclaimer">
+    <b>Internal planning aid.</b> Styled after the PacBio Revio v13.5 / SPRQ-Nx technical overview; not an official PacBio tool.
+    Packing enforces one rule — no barcode repeats across the uses of a single SMRT Cell — reflecting SPRQ-Nx use-to-use carryover (typically &lt;0.1%).
+    Constants used: 4 cells per tray, 4 wells per plate, up to 3 uses per cell, ~45&nbsp;min added prep for uses 2–3, and the 108&nbsp;h (4.5-day) window from first breakout to the start of use 3.
+    Multi-use Nx is validated for library inserts ≥5&nbsp;kb. Cost figures ($1480 / $888 / $690 per acquisition at 1 / 2 / 3 uses; $995 single-use) are the technical-overview list estimates and exclude instrument amortisation; confirm local pricing. Research use only.
+  </p>
+</div>
+
+<script>
+"use strict";
+/* ===================== constants ===================== */
+const INSTRUMENTS=['84047','84098','84093','84309'];
+const STAGES_PER_MACHINE=4, WELLS=['A01','B01','C01','D01'];
+const CELL_LIFETIME_H=108, FIRST_PREP_H=2, REUSE_PREP_H=0.75;
+const COST_BY_DEPTH={1:1480,2:888,3:690}, SINGLE_USE_PER_ACQ=995;
+const DAY_NAMES=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+const DAY_SHORT=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+
+const EXAMPLE_CSV=`Container,Parent Sample,Sanger Sample IDs,Parent Sample ID,Barcodes,Volume to Load,Actual OPLC,Task ID,Task Status,Lookup Status
+BNCH-1597,TRAC-2-25402,"[""DTOL16756088"",""AEGISDNA16711039""]",TRAC-2-25402,"bc2021, bc2066",24.0,268.0,LR-SEQ-LD42-T1,Planned,Found
+BNCH-1598,TRAC-2-25403,"[""DTOL16756088"",""AEGISDNA16711039""]",TRAC-2-25403,"bc2029, bc2030, bc2040, bc2057",13.19,300.0,LR-SEQ-LD42-T2,Planned,Found
+BNCH-1599,TRAC-2-22911,AEGISDNA16711029,TRAC-2-22911,bc2011,17.82,300.0,LR-SEQ-LD43-T1,Planned,Found
+BNCH-1600,TRAC-2-22913,AEGISDNA16711031,TRAC-2-22913,bc2013,19.94,300.0,LR-SEQ-LD43-T2,Planned,Found
+BNCH-1601,TRAC-2-22916,AEGISDNA16711034,TRAC-2-22916,bc2016,15.13,300.0,LR-SEQ-LD43-T3,Planned,Found
+BNCH-1602,TRAC-2-22918,AEGISDNA16711036,TRAC-2-22918,bc2018,24.0,208.0,LR-SEQ-LD43-T4,Planned,Found
+BNCH-1603,TRAC-2-22918,AEGISDNA16711036,TRAC-2-22918,bc2018,24.0,200.0,LR-SEQ-LD43-T5,Planned,Found
+BNCH-1604,TRAC-2-22921,AEGISDNA16711039,TRAC-2-22921,bc2021,24.0,288.0,LR-SEQ-LD43-T6,Planned,Found`;
+
+/* ===================== state ===================== */
+const state={
+  samples:[], parseWarnings:[],
+  instruments:['84047','84098'],
+  maxUses:3, runTime:24, startDayIdx:0, objective:'fewest',
+  priorCells:[], // {id, barcodesText, usesConsumed}
+};
+
+/* ===================== pure logic (unit-tested) ===================== */
+function parseCSV(text){
+  text = text==null ? '' : String(text);
+  const rows=[]; let field='',row=[],inQ=false;
+  for(let i=0;i<text.length;i++){const c=text[i];
+    if(inQ){ if(c==='"'){ if(text[i+1]==='"'){field+='"';i++;} else inQ=false;} else field+=c; }
+    else{ if(c==='"')inQ=true; else if(c===',' ){row.push(field);field='';}
+      else if(c==='\n'){row.push(field);rows.push(row);row=[];field='';}
+      else if(c==='\r'){} else field+=c; }
+  }
+  if(field.length||row.length){row.push(field);rows.push(row);}
+  return rows.filter(r=>r.some(v=>v.trim()!==''));
+}
+function splitBarcodes(v){ if(!v)return []; return [...new Set(v.split(/[,;/\s]+/).map(s=>s.trim()).filter(Boolean))]; }
+
+function normalizeSamples(text){
+  const rows=parseCSV(text);
+  if(!rows.length) return {samples:[],warnings:['No rows found in the pasted text.']};
+  const header=rows[0].map(h=>h.trim().toLowerCase());
+  const hasHeader=header.some(h=>h.includes('barcode'));
+  let idIdx,bcIdx,parentIdx=-1,sangerIdx=-1,oplcIdx=-1,volIdx=-1,dataRows; const warnings=[];
+  if(hasHeader){
+    const find=(...n)=>header.findIndex(h=>n.some(x=>h.includes(x)));
+    idIdx=find('container'); if(idIdx<0)idIdx=find('parent sample'); if(idIdx<0)idIdx=find('sample'); if(idIdx<0)idIdx=0;
+    bcIdx=find('barcode');
+    parentIdx=header.findIndex(h=>h.includes('parent sample'));
+    sangerIdx=header.findIndex(h=>h.includes('sanger'));
+    oplcIdx=header.findIndex(h=>h.includes('oplc'));
+    volIdx=header.findIndex(h=>h.includes('volume'));
+    dataRows=rows.slice(1);
+  } else { idIdx=0; bcIdx=1; dataRows=rows; warnings.push('No header row detected — read as two columns: sample, barcodes.'); }
+  const samples=[];
+  dataRows.forEach((r,n)=>{
+    const id=(r[idIdx]||`Sample ${n+1}`).trim();
+    const barcodes=splitBarcodes(r[bcIdx]||'');
+    if(!barcodes.length){ warnings.push(`Row “${id}” has no barcodes — skipped.`); return; }
+    let sanger=[];
+    if(sangerIdx>=0&&r[sangerIdx]){ const raw=r[sangerIdx].trim();
+      try{ const p=JSON.parse(raw); sanger=Array.isArray(p)?p:[String(p)]; }catch{ sanger=[raw]; } }
+    samples.push({ id, barcodes,
+      parent:parentIdx>=0?(r[parentIdx]||'').trim():'', sanger,
+      oplc:oplcIdx>=0?(parseFloat(r[oplcIdx])||null):null,
+      volume:volIdx>=0?(parseFloat(r[volIdx])||null):null, key:`${id}#${n}` });
+  });
+  return {samples,warnings};
+}
+
+function targetDepthFor(obj,maxUses){ if(obj==='fastest')return 1; if(obj==='balance')return Math.min(maxUses,2); return maxUses; }
+function disjoint(setA,arrB){ for(const b of arrB) if(setA.has(b)) return false; return true; }
+
+function packCells(samples,{maxUses,objective,priorCells}){
+  const target=targetDepthFor(objective,maxUses);
+  const deg=new Map(samples.map(s=>[s.key,0]));
+  for(let i=0;i<samples.length;i++)for(let j=i+1;j<samples.length;j++)
+    if(!disjoint(new Set(samples[i].barcodes),samples[j].barcodes)){ deg.set(samples[i].key,deg.get(samples[i].key)+1); deg.set(samples[j].key,deg.get(samples[j].key)+1); }
+  const ordered=[...samples].sort((a,b)=>(b.barcodes.length-a.barcodes.length)||(deg.get(b.key)-deg.get(a.key))||a.id.localeCompare(b.id));
+
+  const cells=[];
+  (priorCells||[]).forEach((pc,i)=>{
+    const codes=splitBarcodes(pc.barcodesText||'');
+    const consumed=Math.min(pc.usesConsumed,maxUses);
+    cells.push({ id:`P${i+1}`, prior:true, priorBarcodes:new Set(codes), usesConsumed:consumed,
+      remaining:Math.max(0,maxUses-consumed), barcodes:new Set(codes), uses:[] });
+  });
+
+  const conflictPairs=[];
+  for(let i=0;i<samples.length;i++)for(let j=i+1;j<samples.length;j++){
+    const shared=samples[i].barcodes.filter(b=>samples[j].barcodes.includes(b));
+    if(shared.length) conflictPairs.push({a:samples[i].id,b:samples[j].id,shared});
+  }
+
+  const unplaced=[];
+  for(const s of ordered){
+    let placed=false;
+    const cands=cells.filter(c=> (c.prior? c.uses.length<c.remaining : c.uses.length<Math.min(target,maxUses)) && disjoint(c.barcodes,s.barcodes));
+    cands.sort((a,b)=> (a.prior===b.prior? b.uses.length-a.uses.length : (a.prior?-1:1)));
+    if(cands.length){ const c=cands[0]; c.uses.push(s); s.barcodes.forEach(b=>c.barcodes.add(b)); placed=true; }
+    if(!placed){ const cap=Math.min(target,maxUses); if(cap<1){unplaced.push(s);continue;}
+      cells.push({ id:`C${cells.filter(x=>!x.prior).length+1}`, prior:false, priorBarcodes:new Set(), usesConsumed:0, remaining:maxUses, barcodes:new Set(s.barcodes), uses:[s] }); }
+  }
+  cells.forEach(c=>{ c.futureUses=c.uses.length; c.totalUses=(c.usesConsumed||0)+c.futureUses; c.costTier=Math.min(3,Math.max(1,c.totalUses)); c.windowH=0; });
+  return {cells:cells.filter(c=>c.futureUses>0), allCells:cells, unplaced, conflictPairs};
+}
+
+function scheduleCells(cells,{machines,runTime}){
+  const M=machines.length||1;
+  const ordered=[...cells].sort((a,b)=> (b.prior===a.prior? b.futureUses-a.futureUses : (a.prior?-1:1)));
+  const queues=Array.from({length:M},()=>[]);
+  ordered.forEach((c,i)=>queues[i%M].push(c));
+  const cycles=[], windowFlags=[];
+  queues.forEach((q,mi)=>{
+    let cursor=0, batchIdx=0;
+    for(let b=0;b<q.length;b+=STAGES_PER_MACHINE){
+      const batch=q.slice(b,b+STAGES_PER_MACHINE);
+      const batchDepth=Math.max(...batch.map(c=>c.futureUses));
+      const firstStart=cursor+FIRST_PREP_H;
+      for(let u=0;u<batchDepth;u++){
+        const startH=firstStart+u*(runTime+REUSE_PREP_H); const stages=[];
+        batch.forEach((cell,si)=>{ if(u<cell.futureUses) stages.push({cell,sample:cell.uses[u],well:WELLS[si],stageNo:si+1}); });
+        cycles.push({machineIdx:mi,machine:machines[mi],batchIdx,useIdx:u,startH,endH:startH+runTime,stages});
+      }
+      batch.forEach(cell=>{ if(cell.totalUses>=2){ const span=(cell.totalUses-1)*(runTime+REUSE_PREP_H); cell.windowH=span; cell.machine=machines[mi]; cell.stageNo=(q.indexOf(cell)%STAGES_PER_MACHINE)+1; if(span>CELL_LIFETIME_H) windowFlags.push({cell:cell.id,span}); }
+        else { cell.machine=machines[mi]; cell.stageNo=(q.indexOf(cell)%STAGES_PER_MACHINE)+1; } });
+      cursor=firstStart+(batchDepth-1)*(runTime+REUSE_PREP_H)+runTime; batchIdx++;
+    }
+  });
+  const t0=9; let maxEndH=0;
+  cycles.forEach(c=>{ const abs=t0+c.startH; c.dayIdx=Math.floor(abs/24); c.timeOfDay=abs%24; c.endDayIdx=Math.floor((t0+c.endH)/24); maxEndH=Math.max(maxEndH,c.endH); });
+  const maxDay=cycles.length?Math.max(...cycles.map(c=>c.endDayIdx)):0;
+  const durationDays=Math.max(1,Math.ceil((t0+maxEndH)/24)-Math.floor(t0/24));
+  return {cycles,windowFlags,maxDay,durationDays};
+}
+
+function computeKPIs(pack,sched,machines){
+  const cells=pack.cells;
+  const totalAcq=cells.reduce((s,c)=>s+c.futureUses,0);
+  const freshCells=cells.filter(c=>!c.prior).length, priorCells=cells.filter(c=>c.prior).length;
+  const trays=Math.ceil(freshCells/STAGES_PER_MACHINE);
+  let nxCost=0; cells.forEach(c=>{ nxCost+=c.futureUses*COST_BY_DEPTH[c.costTier]; });
+  const singleCost=totalAcq*SINGLE_USE_PER_ACQ, savings=singleCost-nxCost;
+  return {totalAcq,freshCells,priorCells,trays,nxCost,singleCost,savings,
+    savingsPct:singleCost?Math.round(savings/singleCost*100):0, durationDays:sched.durationDays, machines:machines.length};
+}
+
+/* ===================== helpers ===================== */
+const $=(s,r=document)=>r.querySelector(s);
+const $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmtMoney=n=>'$'+Math.round(n).toLocaleString('en-US');
+const fmtTime=h=>{const hh=Math.floor(h),mm=Math.round((h-hh)*60);return `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`;};
+function bcChips(codes,cls=''){ const max=4; let html=codes.slice(0,max).map(b=>`<span class="bc ${cls}">${esc(b)}</span>`).join(''); if(codes.length>max) html+=`<span class="bc more" title="${esc(codes.join(', '))}">+${codes.length-max}</span>`; return html; }
+
+/* ===================== compute + render ===================== */
+let lastRun=null;
+
+function recompute(){
+  if(!state.samples.length){ renderEmpty(); return; }
+  const machines=state.instruments.length?state.instruments:['84047'];
+  const workingSamples=state.samples.map(s=>({...s,barcodes:[...s.barcodes]}));
+  const pack=packCells(workingSamples,{maxUses:state.maxUses,objective:state.objective,priorCells:state.priorCells});
+  const sched=scheduleCells(pack.cells,{machines,runTime:state.runTime});
+  const kpi=computeKPIs(pack,sched,machines);
+  lastRun={pack,sched,kpi,machines};
+  renderKPIs(kpi); renderNotes(pack,sched); renderCalendar(pack,sched,machines); renderCells(pack);
+}
+
+function renderEmpty(){
+  ['kpiAcq','kpiCells','kpiTrays','kpiDays','kpiCost','kpiSave'].forEach(id=>$('#'+id).textContent='—');
+  $('#notes').innerHTML='';
+  $('#calendarHost').innerHTML='<div class="cal-scroll"><div class="empty-state"><div class="es-ic">🗓️</div><h3>No schedule yet</h3><div>Load samples and press Calculate schedule.</div></div></div>';
+  $('#cellsHost').innerHTML='<div class="cells-grid"></div>';
+  lastRun=null;
+}
+
+function renderKPIs(k){
+  $('#kpiAcq').textContent=k.totalAcq;
+  $('#kpiCells').textContent=k.freshCells;
+  $('#kpiCellsSub').textContent=k.priorCells?`new + ${k.priorCells} in-progress`:'new cells';
+  $('#kpiTrays').textContent=k.trays;
+  $('#kpiDays').textContent=k.durationDays;
+  $('#kpiCost').textContent=fmtMoney(k.nxCost);
+  const sv=$('#kpiSave');
+  if(k.savings>=0){ sv.textContent='−'+fmtMoney(k.savings).slice(1); sv.className='k-val down'; $('#kpiSaveSub').textContent=`${k.savingsPct}% cheaper`; }
+  else { sv.textContent='+'+fmtMoney(-k.savings).slice(1); sv.className='k-val up'; $('#kpiSaveSub').textContent=`${-k.savingsPct}% more`; }
+}
+
+function renderNotes(pack,sched){
+  const host=$('#notes'); const notes=[];
+  if(pack.conflictPairs.length){
+    const shown=pack.conflictPairs.slice(0,6).map(p=>`${esc(p.a)} ↔ ${esc(p.b)} <code>${esc(p.shared.join(', '))}</code>`).join(' · ');
+    notes.push(`<div class="note info"><span class="ni">↔</span><div><b>${pack.conflictPairs.length} barcode clash${pack.conflictPairs.length>1?'es':''}</b> handled — these samples were kept on separate cells: ${shown}${pack.conflictPairs.length>6?' …':''}</div></div>`);
+  }
+  if(pack.unplaced.length){
+    notes.push(`<div class="note bad"><span class="ni">!</span><div><b>${pack.unplaced.length} sample(s) unplaced.</b> Increase max uses per cell or reduce prior-cell restrictions.</div></div>`);
+  }
+  if(sched.windowFlags.length){
+    notes.push(`<div class="note warn"><span class="ni">⏱</span><div><b>108 h window exceeded</b> on ${sched.windowFlags.map(w=>w.cell).join(', ')} at this run time — use 3 would start beyond 4.5 days from breakout.</div></div>`);
+  }
+  if(state.runTime===12){
+    notes.push(`<div class="note warn"><span class="ni">i</span><div>12 h movies are typically small inserts. Multi-use Nx is validated for inserts ≥5 kb — for &lt;5 kb amplicons use single-use cells (set max uses to 1×).</div></div>`);
+  }
+  if(!notes.length){
+    notes.push(`<div class="note good"><span class="ni">✓</span><div>No barcode clashes detected across cell uses. Schedule is clean.</div></div>`);
+  }
+  host.innerHTML=notes.join('');
+}
+
+function renderCalendar(pack,sched,machines){
+  const cyclesByDay={}; // key `${machineIdx}|${dayIdx}` -> [cycles]
+  let minDay=Infinity,maxDay=0;
+  sched.cycles.forEach(c=>{ const key=c.machineIdx+'|'+c.dayIdx; (cyclesByDay[key]||(cyclesByDay[key]=[])).push(c); minDay=Math.min(minDay,c.dayIdx); maxDay=Math.max(maxDay,c.dayIdx); });
+  if(!isFinite(minDay)){minDay=0;maxDay=0;}
+  const capDays=21; const clip=(maxDay-minDay)>=capDays;
+  const lastDay=clip?minDay+capDays-1:maxDay;
+
+  let head='<tr><th class="cal-corner mach-th"><div class="ml">Instrument</div></th>';
+  for(let d=minDay;d<=lastDay;d++){ const wd=(state.startDayIdx+d)%7; const weekend=wd>=5;
+    head+=`<th class="day-th${weekend?' weekend':''}"><div class="dn">${DAY_SHORT[wd]}</div><div class="dd">day ${d+1}</div></th>`; }
+  head+='</tr>';
+
+  let body='';
+  machines.forEach((mid,mi)=>{
+    body+=`<tr><th class="mach-th"><div class="ml">Revio</div><div class="mid">${esc(mid)}</div></th>`;
+    for(let d=minDay;d<=lastDay;d++){
+      const wd=(state.startDayIdx+d)%7; const weekend=wd>=5;
+      const list=(cyclesByDay[mi+'|'+d]||[]).sort((a,b)=>a.startH-b.startH);
+      if(!list.length){ body+=`<td class="cal-cell empty${weekend?' weekend':''}"></td>`; continue; }
+      let cell=`<td class="cal-cell${weekend?' weekend':''}">`;
+      list.forEach(cy=>{
+        const uc='u'+Math.min(3,cy.useIdx+1);
+        cell+=`<div class="cycle ${uc}"><div class="cycle-head">Use ${cy.useIdx+1} · ${cy.stages.length} cell${cy.stages.length>1?'s':''}<span class="time">${fmtTime(cy.timeOfDay)}</span></div><div class="cycle-body">`;
+        cy.stages.forEach(st=>{
+          cell+=`<div class="stage"><span class="well">${st.well}</span><div class="sinfo"><div class="sname" title="${esc(st.sample.id)}">${esc(st.sample.id)}</div><div class="cellref">${st.cell.id}${st.cell.prior?' · in-prog':''}</div><div class="bcs">${bcChips(st.sample.barcodes)}</div></div></div>`;
+        });
+        cell+='</div></div>';
+      });
+      cell+='</td>'; body+=cell;
+    }
+    body+='</tr>';
+  });
+
+  let extra=clip?`<div style="font-size:12px;color:var(--grey);padding:10px 14px;border-top:1px solid var(--line-soft)">Showing first ${capDays} days — schedule extends further. Add instruments or reduce max uses to compress.</div>`:'';
+  $('#calendarHost').innerHTML=`<div class="cal-scroll"><table class="cal">${head}${body}</table>${extra}</div>`;
+}
+
+function renderCells(pack){
+  const cells=[...pack.cells].sort((a,b)=> (a.prior===b.prior? a.id.localeCompare(b.id,undefined,{numeric:true}) : (a.prior?-1:1)) );
+  const cards=cells.map(c=>{
+    const burned=[...c.priorBarcodes];
+    const window=c.windowH||0; const pct=Math.min(100,Math.round(window/CELL_LIFETIME_H*100)); const over=window>CELL_LIFETIME_H;
+    let uses=c.uses.map((s,i)=>{
+      const un=(c.usesConsumed||0)+i+1; const uc='u'+Math.min(3,un);
+      return `<div class="use-row ${uc}"><span class="use-badge ub${Math.min(3,un)}">Use ${un}</span><div style="min-width:0;flex:1"><div class="un">${esc(s.id)}</div><div class="bcs">${bcChips(s.barcodes)}</div></div></div>`;
+    }).join('');
+    return `<div class="cellcard">
+      <div class="cellcard-head${c.prior?' prior':''}">
+        <span class="cid">${c.id}</span>
+        ${c.prior?'<span class="prior-tag">IN&nbsp;PROGRESS</span>':''}
+        <span class="loc">${esc(c.machine||'—')} · stage ${c.stageNo||'?'}</span>
+        <span class="ok">unique ✓</span>
+      </div>
+      <div class="cellcard-body">
+        ${burned.length?`<div class="burned">Already burned: ${bcChips(burned)}</div>`:''}
+        ${uses}
+        ${c.totalUses>=2?`<div class="window-meter"><div class="wm-label"><span>108 h window</span><span>${window.toFixed(1)} h / ${CELL_LIFETIME_H} h</span></div><div class="wm-bar"><div class="wm-fill${over?' over':''}" style="width:${pct}%"></div></div></div>`:''}
+      </div></div>`;
+  }).join('');
+  $('#cellsHost').innerHTML=`<div class="cells-grid">${cards||'<div class="cell-empty-msg">No cells.</div>'}</div>`;
+}
+
+/* ===================== CSV export ===================== */
+function buildScheduleCSV(){
+  if(!lastRun) return '';
+  const rows=[['Instrument','Day','Time','Use','Well','Cell','CellType','Sample','ParentSample','Barcodes','SangerIDs','OPLC_pM']];
+  const cyc=[...lastRun.sched.cycles].sort((a,b)=> a.machineIdx-b.machineIdx || a.startH-b.startH || a.stages[0].stageNo-b.stages[0].stageNo);
+  cyc.forEach(cy=>{ const wd=(state.startDayIdx+cy.dayIdx)%7;
+    cy.stages.forEach(st=>{
+      rows.push([ cy.machine, `${DAY_NAMES[wd]} (day ${cy.dayIdx+1})`, fmtTime(cy.timeOfDay), 'Use '+(cy.useIdx+1),
+        st.well, st.cell.id, st.cell.prior?'In-progress':'New', st.sample.id, st.sample.parent||'',
+        st.sample.barcodes.join(' '), (st.sample.sanger||[]).join(' '), st.sample.oplc??'' ]);
+    });
+  });
+  return rows.map(r=>r.map(v=>{ const s=String(v??''); return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; }).join(',')).join('\r\n');
+}
+function download(name,text){ const b=new Blob([text],{type:'text/csv'}); const u=URL.createObjectURL(b); const a=document.createElement('a'); a.href=u; a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(u),1500); }
+
+/* ===================== input handling ===================== */
+function loadFromText(text){
+  const {samples,warnings}=normalizeSamples(text);
+  state.samples=samples; state.parseWarnings=warnings;
+  const uniq=new Set(); samples.forEach(s=>s.barcodes.forEach(b=>uniq.add(b)));
+  let conflicts=0;
+  for(let i=0;i<samples.length;i++)for(let j=i+1;j<samples.length;j++) if(samples[i].barcodes.some(b=>samples[j].barcodes.includes(b))) conflicts++;
+  const st=$('#parseStatus'); $('#inputBadge').textContent=samples.length?`${samples.length} samples`:'paste or upload CSV';
+  if(!samples.length){ st.className='parse-status'; st.innerHTML='No valid samples found. Check the barcodes column.'; }
+  else{
+    let w=warnings.length?` <span class="flag">· ${warnings.length} skipped/notes</span>`:'';
+    st.className='parse-status ok';
+    st.innerHTML=`<span><b>${samples.length}</b> samples</span><span><b>${uniq.size}</b> unique barcodes</span><span><b>${conflicts}</b> barcode clash${conflicts===1?'':'es'}</span>${w}`;
+  }
+}
+function debounce(fn,ms){ let t; return (...a)=>{clearTimeout(t); t=setTimeout(()=>fn(...a),ms);}; }
+
+/* ===================== prior cells UI ===================== */
+function renderPriorList(){
+  const host=$('#priorList');
+  host.innerHTML=state.priorCells.map((pc,i)=>`
+    <div class="prior-item" data-i="${i}">
+      <span class="plab">Cell ${i+1}</span>
+      <input class="pbc" placeholder="burned barcodes e.g. bc2021 bc2044" value="${esc(pc.barcodesText)}">
+      <span class="plab">uses done</span>
+      <span class="mini-seg" role="group">
+        <button data-u="1" aria-pressed="${pc.usesConsumed===1}">1</button>
+        <button data-u="2" aria-pressed="${pc.usesConsumed===2}">2</button>
+      </span>
+      <button class="rm" title="Remove">×</button>
+    </div>`).join('');
+  const cnt=$('#priorCount'); if(state.priorCells.length){cnt.style.display='';cnt.textContent=state.priorCells.length;} else cnt.style.display='none';
+}
+
+/* ===================== wiring ===================== */
+function initInstruments(){
+  const host=$('#instChips');
+  host.innerHTML=INSTRUMENTS.map(id=>`<button class="chip" data-inst="${id}" aria-pressed="${state.instruments.includes(id)}">${id}</button>`).join('');
+  host.addEventListener('click',e=>{ const b=e.target.closest('.chip'); if(!b)return; const id=b.dataset.inst;
+    const on=state.instruments.includes(id);
+    if(on){ if(state.instruments.length===1){return;} state.instruments=state.instruments.filter(x=>x!==id); }
+    else state.instruments.push(id);
+    state.instruments.sort((a,b)=>INSTRUMENTS.indexOf(a)-INSTRUMENTS.indexOf(b));
+    b.setAttribute('aria-pressed',String(!on)); recompute();
+  });
+}
+function segWire(sel,key,cast){
+  $(sel).addEventListener('click',e=>{ const b=e.target.closest('.seg-opt'); if(!b)return;
+    $$('.seg-opt',$(sel)).forEach(x=>x.setAttribute('aria-pressed','false')); b.setAttribute('aria-pressed','true');
+    state[key]=cast(b.dataset[Object.keys(b.dataset)[0]]); recompute(); });
+}
+
+function init(){
+  initInstruments();
+  segWire('#usesSeg','maxUses',v=>parseInt(v,10));
+  segWire('#runSeg','runTime',v=>parseInt(v,10));
+  segWire('#daySeg','startDayIdx',v=>parseInt(v,10));
+  segWire('#optSeg','objective',v=>v);
+
+  const ta=$('#csvInput');
+  ta.addEventListener('input',debounce(()=>{ loadFromText(ta.value); recompute(); },250));
+  $('#fileInput').addEventListener('change',e=>{ const f=e.target.files[0]; if(!f)return; const r=new FileReader();
+    r.onload=()=>{ ta.value=r.result; loadFromText(ta.value); recompute(); }; r.readAsText(f); });
+  $('#loadExample').addEventListener('click',()=>{ ta.value=EXAMPLE_CSV; loadFromText(ta.value); recompute(); });
+  $('#clearBtn').addEventListener('click',()=>{ ta.value=''; loadFromText(''); renderEmpty(); });
+  $('#calcBtn').addEventListener('click',()=>{ loadFromText(ta.value); recompute(); window.scrollTo({top:document.querySelector('.sec-head').offsetTop-70,behavior:'smooth'}); });
+
+  // prior cells
+  $('#priorToggle').addEventListener('click',()=>{ const t=$('#priorToggle'); const open=t.getAttribute('aria-expanded')==='true';
+    t.setAttribute('aria-expanded',String(!open)); $('#priorBody').style.display=open?'none':'block'; });
+  $('#addPrior').addEventListener('click',()=>{ state.priorCells.push({barcodesText:'',usesConsumed:1}); renderPriorList(); recompute(); });
+  $('#priorList').addEventListener('click',e=>{
+    const item=e.target.closest('.prior-item'); if(!item)return; const i=+item.dataset.i;
+    if(e.target.classList.contains('rm')){ state.priorCells.splice(i,1); renderPriorList(); recompute(); return; }
+    const ub=e.target.closest('[data-u]'); if(ub){ state.priorCells[i].usesConsumed=+ub.dataset.u; renderPriorList(); recompute(); }
+  });
+  $('#priorList').addEventListener('input',e=>{ const item=e.target.closest('.prior-item'); if(!item)return; const i=+item.dataset.i;
+    if(e.target.classList.contains('pbc')){ state.priorCells[i].barcodesText=e.target.value; recompute(); } });
+
+  $('#dlCsv').addEventListener('click',()=>{ const csv=buildScheduleCSV(); if(!csv){alert('Nothing to export yet — calculate a schedule first.');return;} download('revio-nx-schedule.csv',csv); });
+  $('#printBtn').addEventListener('click',()=>window.print());
+
+  // start with the example loaded so the tool is alive on open
+  ta.value=EXAMPLE_CSV; loadFromText(ta.value); recompute();
+}
+document.addEventListener('DOMContentLoaded',init);
+</script>
+</body>
+</html>

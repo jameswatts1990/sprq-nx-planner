@@ -1,0 +1,26 @@
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.head {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line-soft);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.head h2 {
+  font-size: 15px;
+}
+.badge {
+  margin-left: auto;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--grey);
+}
+.body {
+  padding: 18px;
+}

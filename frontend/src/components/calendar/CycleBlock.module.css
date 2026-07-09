@@ -1,0 +1,61 @@
+.cycle {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 8px;
+  box-shadow: var(--shadow-sm);
+  animation: pop 0.25s ease;
+}
+.cycle:last-child {
+  margin-bottom: 0;
+}
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.head {
+  padding: 6px 9px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11.5px;
+  font-weight: 800;
+  color: #fff;
+}
+.u1 .head {
+  background: var(--magenta);
+}
+.u2 .head {
+  background: var(--blue);
+}
+.u3 .head {
+  background: var(--teal);
+}
+.time {
+  margin-left: auto;
+  font-weight: 700;
+  opacity: 0.9;
+  font-family: var(--mono);
+  font-size: 10.5px;
+}
+.body {
+  padding: 5px 6px;
+  background: #fff;
+}
+.emptyMsg {
+  color: var(--faint);
+  font-size: 12px;
+  text-align: center;
+  padding: 18px 4px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .cycle {
+    animation: none;
+  }
+}

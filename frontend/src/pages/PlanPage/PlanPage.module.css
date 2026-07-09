@@ -1,0 +1,23 @@
+.page {
+  padding-top: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.exportBar {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 10px 0 26px;
+  align-items: center;
+}
+.legendNote {
+  font-size: 12px;
+  color: var(--grey);
+}
+.panels {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin-top: 8px;
+}
