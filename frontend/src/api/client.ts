@@ -53,9 +53,14 @@ export const api = {
     request<T>(path, { method: "PATCH", body: body === undefined ? undefined : JSON.stringify(body) }),
 };
 
-export function buildQuery(params: Record<string, string | number | boolean | undefined | null>): string {
+type QueryValue = string | number | boolean | undefined | null;
+
+// `params: object` (not Record<string, QueryValue>) deliberately - named interfaces without
+// an explicit index signature (e.g. ListSamplesParams) aren't assignable to an indexed Record
+// type in TypeScript, but any interface instance is trivially assignable to `object`.
+export function buildQuery(params: object): string {
   const usp = new URLSearchParams();
-  for (const [key, value] of Object.entries(params)) {
+  for (const [key, value] of Object.entries(params) as [string, QueryValue][]) {
     if (value !== undefined && value !== null && value !== "") usp.set(key, String(value));
   }
   const qs = usp.toString();

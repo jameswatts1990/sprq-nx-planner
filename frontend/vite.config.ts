@@ -10,6 +10,13 @@ export default defineConfig({
     proxy: {
       "/api": "http://localhost:8000",
     },
+    // native fs.watch is unreliable on network/SMB-mapped drives (throws ECONNRESET
+    // and crashes the dev server) - polling is slower but stable there. Harmless on a
+    // local disk too, just slightly higher CPU use.
+    watch: {
+      usePolling: true,
+      interval: 300,
+    },
   },
   resolve: {
     alias: {

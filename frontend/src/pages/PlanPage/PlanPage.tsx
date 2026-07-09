@@ -39,9 +39,13 @@ export function PlanPage() {
   // useDebouncedValue below to ever settle.
   const searchKey = searchParams.toString();
   const instrumentsKey = availableInstruments.join(",");
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   const settings = useMemo(
     () => settingsFromSearchParams(searchParams, availableInstruments),
+    // Deliberately keyed on the stable primitive strings above, not on searchParams/
+    // availableInstruments themselves (new references every render) - depending on
+    // those would defeat useDebouncedValue below, which needs this object reference
+    // to stay stable across renders that don't actually change anything.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [searchKey, instrumentsKey],
   );
 
