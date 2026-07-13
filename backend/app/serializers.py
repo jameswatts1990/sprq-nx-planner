@@ -29,10 +29,9 @@ def sample_detail_out(sample: Sample) -> SampleDetailOut:
             SampleCellUseOut(
                 id=cu.id,
                 cycle_id=cu.cycle_id,
-                schedule_id=run_batch.schedule_id if run_batch else -1,
+                run_batch_id=run_batch.id if run_batch else -1,
                 cell_id=cu.cell_id,
                 cell_code=cu.cell.code if cu.cell else "",
-                use_index=cu.use_index,
                 well=cu.well,
                 status=cu.status,
                 started_at=cu.started_at,

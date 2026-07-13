@@ -7,6 +7,7 @@ prototype and must stay independently unit-testable.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import date, datetime
 
 
 @dataclass
@@ -29,6 +30,9 @@ class PriorCellInput:
     barcodes_text: str
     uses_consumed: int
     cell_id: int | None = None  # DB id of the real Cell this represents, if any
+    # Real-world anchor: when this physical cell was first actually started. Lets the
+    # service layer do a real-elapsed window check (not just a planned-span estimate).
+    first_use_started_at: datetime | None = None
 
 
 @dataclass
@@ -127,3 +131,32 @@ class KPIResult:
     savings_pct: int
     duration_days: int
     machines: int
+
+
+# --- slot-scoped scheduling (interactive grid: auto-fill of empty (instrument, day) cells) ---
+
+
+@dataclass(frozen=True)
+class SlotInput:
+    """A currently-empty grid cell offered to the auto-filler: an (instrument, day) run
+    with all 4 wells free by construction (occupied cells are never passed in)."""
+
+    instrument_serial: str
+    run_date: date
+
+
+@dataclass
+class SlotAssignment:
+    cell: PackedCell
+    sample: ParsedSample
+    well: str
+    instrument_serial: str
+    run_date: date
+
+
+@dataclass
+class SlotFillResult:
+    assignments: list[SlotAssignment]
+    filled_slots: list[SlotInput]
+    unplaced: list[ParsedSample]
+    window_flags: list[WindowFlag]

@@ -5,9 +5,8 @@ from pydantic import BaseModel
 
 class CellUseHistoryOut(BaseModel):
     id: int
-    schedule_id: int
+    run_batch_id: int
     cycle_id: int
-    use_index: int
     well: str
     status: str
     sample_id: int | None
@@ -44,4 +43,5 @@ class CellBootstrapRequest(BaseModel):
     uses_consumed: int = 0
     burned_barcodes: list[str] = []
     first_use_started_at: datetime | None = None
+    instrument_serial: str | None = None
     actor: str | None = None

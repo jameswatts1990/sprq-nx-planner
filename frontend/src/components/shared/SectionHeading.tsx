@@ -8,8 +8,7 @@ export interface SectionHeadingProps {
 }
 
 /** Ports the prototype's .sec-head: a title, a fading rule line, and an optional
- * right-aligned legend. Shared between PlanPage and RunDetailPage, which both render
- * a "Weekly schedule" and a "Cell loading map" section in this style. */
+ * right-aligned legend. Shared between SchedulePage and RunDetailPage. */
 export function SectionHeading({ title, legend }: SectionHeadingProps) {
   return (
     <div className={styles.secHead}>

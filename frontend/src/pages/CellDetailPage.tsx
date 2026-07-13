@@ -156,8 +156,7 @@ export function CellDetailPage() {
             <table className={styles.table}>
               <thead>
                 <tr>
-                  <th>Use</th>
-                  <th>Schedule</th>
+                  <th>Run</th>
                   <th>Well</th>
                   <th>Status</th>
                   <th>Sample</th>
@@ -171,9 +170,8 @@ export function CellDetailPage() {
               <tbody>
                 {cell.use_history.map((u) => (
                   <tr key={u.id}>
-                    <td>{u.use_index}</td>
                     <td>
-                      <Link to={`/history/runs/${u.schedule_id}`}>#{u.schedule_id}</Link>
+                      <Link to={`/history/runs/${u.cycle_id}`}>#{u.cycle_id}</Link>
                     </td>
                     <td className={styles.mono}>{u.well}</td>
                     <td>

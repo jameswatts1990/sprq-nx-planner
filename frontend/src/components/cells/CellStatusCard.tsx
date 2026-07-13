@@ -12,8 +12,7 @@ export interface CellStatusCardProps {
   cell: CellOut;
 }
 
-/** Live-cell sibling of CellCard, backed by CellOut rather than the preview-time
- * PackedCellOut; links through to the cell detail page. */
+/** Live-cell card backed by CellOut; links through to the cell detail page. */
 export function CellStatusCard({ cell }: CellStatusCardProps) {
   const showWindowMeter =
     cell.status !== "exhausted" && cell.status !== "retired" && cell.window_hours_elapsed !== null;

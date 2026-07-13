@@ -1,16 +1,26 @@
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Response
 from pydantic import BaseModel
 from sqlalchemy.orm import selectinload
 
 from app.api.deps import ActorDep, SessionDep
-from app.models.schedule import CELL_USE_STATUSES, CellUse
+from app.models.schedule import CELL_USE_STATUSES, CellUse, Cycle, RunBatch
+from app.schemas.run import CycleOut, PlaceSampleRequest
+from app.services.placement_service import PlacementError, place_sample, remove_sample
+from app.services.run_serializer import cycle_out
 from app.services.run_service import update_cell_use_status
 
 router = APIRouter(prefix="/api/cell-uses", tags=["cell-uses"])
 
 _OPTIONS = [selectinload(CellUse.cell), selectinload(CellUse.sample), selectinload(CellUse.barcodes)]
+
+_CYCLE_OPTIONS = [
+    selectinload(Cycle.run_batch).selectinload(RunBatch.instrument),
+    selectinload(Cycle.cell_uses).selectinload(CellUse.cell),
+    selectinload(Cycle.cell_uses).selectinload(CellUse.sample),
+    selectinload(Cycle.cell_uses).selectinload(CellUse.barcodes),
+]
 
 
 class CellUseStatusUpdate(BaseModel):
@@ -28,7 +38,6 @@ def _cell_use_dict(cu: CellUse) -> dict:
         "cell_code": cu.cell.code if cu.cell else None,
         "sample_id": cu.sample_id,
         "sample_external_id": cu.sample.external_id if cu.sample else None,
-        "use_index": cu.use_index,
         "well": cu.well,
         "status": cu.status,
         "barcodes": cu.barcode_list,
@@ -36,6 +45,26 @@ def _cell_use_dict(cu: CellUse) -> dict:
         "started_at": cu.started_at,
         "completed_at": cu.completed_at,
     }
+
+
+@router.post("", response_model=CycleOut, status_code=201)
+def create_cell_use(req: PlaceSampleRequest, db: SessionDep, actor: ActorDep) -> CycleOut:
+    try:
+        cycle = place_sample(
+            db,
+            sample_id=req.sample_id,
+            instrument_serial=req.instrument_serial,
+            run_date=req.run_date,
+            slot_index=req.slot_index,
+            cell_choice=req.cell_choice.model_dump(),
+            run_time_hours=req.run_time_hours,
+            max_uses=req.max_uses,
+            actor=actor,
+        )
+    except PlacementError as exc:
+        raise HTTPException(exc.status_code, exc.detail) from exc
+    cycle = db.get(Cycle, cycle.id, options=_CYCLE_OPTIONS)
+    return cycle_out(cycle)
 
 
 @router.get("/{cell_use_id}")
@@ -55,3 +84,12 @@ def patch_cell_use(cell_use_id: int, req: CellUseStatusUpdate, db: SessionDep, a
         raise HTTPException(404, "Cell use not found")
     cu = update_cell_use_status(db, cu, req.status, req.at, req.notes, req.actor or actor)
     return _cell_use_dict(cu)
+
+
+@router.delete("/{cell_use_id}", status_code=204)
+def delete_cell_use(cell_use_id: int, db: SessionDep, actor: ActorDep) -> Response:
+    try:
+        remove_sample(db, cell_use_id, actor)
+    except PlacementError as exc:
+        raise HTTPException(exc.status_code, exc.detail) from exc
+    return Response(status_code=204)

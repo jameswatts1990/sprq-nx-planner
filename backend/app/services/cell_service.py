@@ -6,7 +6,7 @@ what replaces the prototype's free-text "in-progress cells" panel.
 """
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -15,7 +15,7 @@ from app.engine.constants import CELL_LIFETIME_H
 from app.models.audit import AuditLog
 from app.models.cell import Cell
 from app.models.instrument import Instrument
-from app.models.schedule import CellUse, CellUseBarcode, Cycle, RunBatch, Schedule
+from app.models.schedule import CellUse, CellUseBarcode, Cycle, RunBatch
 from app.schemas.cell import CellBootstrapRequest, CellDetailOut, CellOut, CellUseHistoryOut
 from app.timeutil import ensure_aware, utcnow
 
@@ -100,9 +100,8 @@ def serialize_cell_detail(cell: Cell) -> CellDetailOut:
         history.append(
             CellUseHistoryOut(
                 id=cu.id,
-                schedule_id=run_batch.schedule_id if run_batch else -1,
+                run_batch_id=run_batch.id if run_batch else -1,
                 cycle_id=cu.cycle_id,
-                use_index=cu.use_index,
                 well=cu.well,
                 status=cu.status,
                 sample_id=cu.sample_id,
@@ -120,10 +119,19 @@ def serialize_cell_detail(cell: Cell) -> CellDetailOut:
 def bootstrap_cell(db: Session, req: CellBootstrapRequest) -> Cell:
     """One-time cutover tool: register a cell that's already physically in progress on
     an instrument before this system existed. Not a routine workflow - see the backend
-    plan's "porting the algorithms" deviation #1."""
-    instrument = db.scalars(select(Instrument)).first()
-    if instrument is None:
-        raise ValueError("No instruments configured - run migrations first.")
+    plan's "porting the algorithms" deviation #1.
+
+    Each historical use is recorded as its own RunBatch+Cycle (1:1) on a distinct synthetic
+    run_date, counting backward one weekday-agnostic day per use, so the unique
+    (instrument_id, run_date) constraint never self-collides."""
+    if req.instrument_serial:
+        instrument = db.scalar(select(Instrument).where(Instrument.serial_number == req.instrument_serial))
+        if instrument is None:
+            raise ValueError(f"Unknown instrument serial '{req.instrument_serial}'.")
+    else:
+        instrument = db.scalars(select(Instrument)).first()
+        if instrument is None:
+            raise ValueError("No instruments configured - run migrations first.")
 
     code = f"BOOT-{utcnow():%Y%m%d%H%M%S%f}"
     cell = Cell(code=code, max_uses=req.max_uses, status="open", first_use_started_at=req.first_use_started_at)
@@ -131,24 +139,17 @@ def bootstrap_cell(db: Session, req: CellBootstrapRequest) -> Cell:
     db.flush()
 
     if req.uses_consumed > 0:
-        schedule = Schedule(
-            created_by=req.actor or "unknown",
-            status="active",
-            settings_json={"bootstrap": True},
-            start_date=utcnow().date(),
-        )
-        db.add(schedule)
-        db.flush()
-        run_batch = RunBatch(schedule_id=schedule.id, instrument_id=instrument.id, batch_index=0)
-        db.add(run_batch)
-        db.flush()
-
         now = utcnow()
         started_at = req.first_use_started_at or now
+        base_date = (req.first_use_started_at or now).date()
         for i in range(req.uses_consumed):
+            # earliest use gets the earliest date; each use a distinct calendar day
+            run_date = base_date - timedelta(days=(req.uses_consumed - 1 - i))
+            run_batch = RunBatch(instrument_id=instrument.id, run_date=run_date)
+            db.add(run_batch)
+            db.flush()
             cycle = Cycle(
                 run_batch_id=run_batch.id,
-                use_index=i,
                 movie_hours=24,
                 planned_start_at=now,
                 planned_end_at=now,
@@ -162,7 +163,6 @@ def bootstrap_cell(db: Session, req: CellBootstrapRequest) -> Cell:
                 cycle_id=cycle.id,
                 cell_id=cell.id,
                 sample_id=None,
-                use_index=i,
                 well="A01",
                 status="completed",
                 started_at=started_at,

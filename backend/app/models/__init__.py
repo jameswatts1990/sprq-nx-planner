@@ -3,7 +3,7 @@ from app.models.cell import Cell
 from app.models.importing import ImportBatch
 from app.models.instrument import Instrument
 from app.models.sample import Sample, SampleBarcode
-from app.models.schedule import CellUse, CellUseBarcode, Cycle, RunBatch, Schedule
+from app.models.schedule import CellUse, CellUseBarcode, Cycle, RunBatch
 
 __all__ = [
     "AuditLog",
@@ -12,7 +12,6 @@ __all__ = [
     "Instrument",
     "Sample",
     "SampleBarcode",
-    "Schedule",
     "RunBatch",
     "Cycle",
     "CellUse",

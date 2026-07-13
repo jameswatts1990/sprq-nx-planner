@@ -20,10 +20,9 @@ class SampleOut(BaseModel):
 class SampleCellUseOut(BaseModel):
     id: int
     cycle_id: int
-    schedule_id: int
+    run_batch_id: int
     cell_id: int
     cell_code: str
-    use_index: int
     well: str
     status: str
     started_at: datetime | None

@@ -1,0 +1,33 @@
+.row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--line-soft);
+  font-size: 13px;
+}
+.label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--grey);
+}
+.value {
+  color: var(--ink);
+  text-align: right;
+}
+.barcodes {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 10px 0 0;
+}
+.linkRow {
+  margin-top: 12px;
+}
+.cellLink {
+  font-size: 12px;
+  font-weight: 700;
+}

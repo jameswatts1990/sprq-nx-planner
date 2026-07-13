@@ -6,7 +6,7 @@ import styles from "./AppShell.module.css";
 const NAV_ITEMS = [
   { to: "/import", label: "Import" },
   { to: "/backlog", label: "Backlog" },
-  { to: "/plan", label: "Plan & Schedule" },
+  { to: "/schedule", label: "Schedule" },
   { to: "/cells", label: "Cells & Instruments" },
   { to: "/history/runs", label: "History" },
 ];
@@ -17,7 +17,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <header className={styles.topbar}>
         <div className={styles.topbarStrip} />
         <div className={styles.topbarInner}>
-          <NavLink to="/plan" className={styles.brand}>
+          <NavLink to="/schedule" className={styles.brand}>
             Revio<span className={styles.brandAccent}>Nx</span>
             <span className={styles.dot} />
           </NavLink>

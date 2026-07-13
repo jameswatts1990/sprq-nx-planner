@@ -12,8 +12,21 @@ from app.models.audit import AuditLog
 from app.services.cell_service import recompute_status
 from app.timeutil import ensure_aware, utcnow
 
+# Legal cycle status transitions. "Unlock" (running -> planned) is the only way back to
+# planned, so a completed/aborted run can never silently discard its recorded per-CellUse
+# outcomes by being reverted.
+ALLOWED_CYCLE_TRANSITIONS = {
+    "planned": {"running"},
+    "running": {"completed", "aborted", "planned"},
+    "completed": set(),
+    "aborted": set(),
+}
+
 
 def update_cycle_status(db: Session, cycle: Cycle, status: str, at: datetime | None, actor: str | None) -> Cycle:
+    if status not in ALLOWED_CYCLE_TRANSITIONS.get(cycle.status, set()):
+        raise ValueError(f"Illegal cycle transition: {cycle.status} -> {status}.")
+
     at = ensure_aware(at) if at else utcnow()
     cycle.status = status
 
@@ -40,6 +53,24 @@ def update_cycle_status(db: Session, cycle: Cycle, status: str, at: datetime | N
                 cu.cell.first_use_started_at = cu.started_at or at
     elif status == "aborted":
         cycle.actual_end_at = cycle.actual_end_at or at
+    elif status == "planned":
+        # Unlock: undo the running-cascade. Only reachable from "running", so no recorded
+        # completed/aborted outcome is ever discarded.
+        cycle.actual_start_at = None
+        cycle.actual_end_at = None
+        for cu in cycle.cell_uses:
+            if cu.status == "started":
+                cu.status = "planned"
+                cu.started_at = None
+            if cu.sample is not None and cu.sample.status == "in_progress":
+                cu.sample.status = "scheduled"
+        # Recompute each touched cell's first_use_started_at from its remaining real starts -
+        # the cell may still have started/completed uses from other runs.
+        for cell in {cu.cell for cu in cycle.cell_uses if cu.cell is not None}:
+            started = [ensure_aware(cu.started_at) for cu in cell.cell_uses if cu.started_at is not None]
+            cell.first_use_started_at = min(started) if started else None
+            if cell.first_use_started_at is None:
+                cell.window_breached = False
 
     for cu in cycle.cell_uses:
         recompute_status(cu.cell, at)

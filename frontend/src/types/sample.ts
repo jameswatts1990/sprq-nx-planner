@@ -17,10 +17,9 @@ export interface SampleOut {
 export interface SampleCellUseOut {
   id: number;
   cycle_id: number;
-  schedule_id: number;
+  run_batch_id: number;
   cell_id: number;
   cell_code: string;
-  use_index: number;
   well: string;
   status: string;
   started_at: string | null;

@@ -2,9 +2,8 @@ import type { CellStatus } from "./common";
 
 export interface CellUseHistoryOut {
   id: number;
-  schedule_id: number;
+  run_batch_id: number;
   cycle_id: number;
-  use_index: number;
   well: string;
   status: string;
   sample_id: number | null;

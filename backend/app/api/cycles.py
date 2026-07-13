@@ -1,23 +1,25 @@
 from datetime import date, datetime
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Response
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.api.deps import ActorDep, SessionDep
 from app.models.instrument import Instrument
-from app.models.schedule import CYCLE_STATUSES, Cycle, RunBatch, Schedule
-from app.schemas.schedule import CycleOut
+from app.models.schedule import CYCLE_STATUSES, CellUse, Cycle, RunBatch
+from app.schemas.run import CycleOut
+from app.services.placement_service import PlacementError, cancel_run
+from app.services.run_serializer import cycle_out
 from app.services.run_service import update_cycle_status
-from app.services.schedule_service import cycle_out
 
 router = APIRouter(prefix="/api/cycles", tags=["cycles"])
 
 _CYCLE_OPTIONS = [
-    selectinload(Cycle.run_batch).selectinload(RunBatch.schedule),
     selectinload(Cycle.run_batch).selectinload(RunBatch.instrument),
-    selectinload(Cycle.cell_uses),
+    selectinload(Cycle.cell_uses).selectinload(CellUse.cell),
+    selectinload(Cycle.cell_uses).selectinload(CellUse.sample),
+    selectinload(Cycle.cell_uses).selectinload(CellUse.barcodes),
 ]
 
 
@@ -35,18 +37,16 @@ def list_cycles(
     date_from: date | None = None,
     date_to: date | None = None,
 ) -> list[CycleOut]:
-    """Cross-schedule instrument calendar: what's on a given machine regardless of
-    which committed schedule it came from."""
-    stmt = select(Cycle).join(Cycle.run_batch).join(RunBatch.schedule).options(*_CYCLE_OPTIONS)
+    """Instrument calendar: the grid runs on a given machine over a date range."""
+    stmt = select(Cycle).join(Cycle.run_batch).options(*_CYCLE_OPTIONS)
     if instrument_serial:
         stmt = stmt.join(RunBatch.instrument).where(Instrument.serial_number == instrument_serial)
     if status:
         stmt = stmt.where(Cycle.status == status)
     if date_from:
-        stmt = stmt.where(Cycle.planned_start_at >= date_from)
+        stmt = stmt.where(RunBatch.run_date >= date_from)
     if date_to:
-        stmt = stmt.where(Cycle.planned_start_at <= date_to)
-    stmt = stmt.where(Schedule.status == "active")
+        stmt = stmt.where(RunBatch.run_date <= date_to)
 
     cycles = list(db.scalars(stmt).unique().all())
     return [cycle_out(c) for c in cycles]
@@ -64,16 +64,21 @@ def get_cycle(cycle_id: int, db: SessionDep) -> CycleOut:
 def patch_cycle(cycle_id: int, req: CycleStatusUpdate, db: SessionDep, actor: ActorDep) -> CycleOut:
     if req.status not in CYCLE_STATUSES:
         raise HTTPException(400, f"Unknown status '{req.status}'. Valid: {', '.join(CYCLE_STATUSES)}")
-    cycle = db.get(
-        Cycle,
-        cycle_id,
-        options=[
-            *_CYCLE_OPTIONS,
-            selectinload(Cycle.cell_uses),
-        ],
-    )
+    cycle = db.get(Cycle, cycle_id, options=_CYCLE_OPTIONS)
     if cycle is None:
         raise HTTPException(404, "Cycle not found")
-    cycle = update_cycle_status(db, cycle, req.status, req.at, req.actor or actor)
+    try:
+        cycle = update_cycle_status(db, cycle, req.status, req.at, req.actor or actor)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
     db.refresh(cycle, attribute_names=["cell_uses"])
     return cycle_out(cycle)
+
+
+@router.post("/{cycle_id}/cancel", status_code=204)
+def cancel_cycle(cycle_id: int, db: SessionDep, actor: ActorDep) -> Response:
+    try:
+        cancel_run(db, cycle_id, actor)
+    except PlacementError as exc:
+        raise HTTPException(exc.status_code, exc.detail) from exc
+    return Response(status_code=204)

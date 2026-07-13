@@ -1,0 +1,114 @@
+.slot {
+  position: relative;
+  min-height: 46px;
+  border-radius: 8px;
+  padding: 5px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+  min-width: 0;
+}
+
+/* Empty dashed placeholder (mirrors the calendar's empty-cell affordance). */
+.empty {
+  border: 1.5px dashed var(--line);
+  background: repeating-linear-gradient(135deg, #fff, #fff 8px, #fafafb 8px, #fafafb 16px);
+  align-items: center;
+  justify-content: center;
+  color: var(--faint);
+}
+.placeholder {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--faint);
+  opacity: 0.7;
+}
+
+/* Filled chip, colour-coded by the loaded cell's use number (Use 1/2/3). */
+.filled {
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-sm);
+  cursor: grab;
+  background: var(--card);
+}
+.filled:active {
+  cursor: grabbing;
+}
+.u1.filled {
+  background: var(--magenta-tint);
+  border-color: #f2b8d6;
+}
+.u2.filled {
+  background: var(--blue-tint);
+  border-color: #cfe6f5;
+}
+.u3.filled {
+  background: var(--teal-tint);
+  border-color: #bfe8e8;
+}
+.ext {
+  font-size: 11.5px;
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--ink);
+}
+.cellref {
+  font-size: 9.5px;
+  font-weight: 700;
+  font-family: var(--mono);
+  color: var(--grey);
+}
+
+/* States. */
+.over {
+  border-style: solid;
+  border-color: var(--magenta);
+  background: var(--magenta-tint);
+  color: var(--magenta-deep);
+}
+.locked {
+  cursor: default;
+  opacity: 0.92;
+}
+.locked.filled {
+  cursor: default;
+}
+.dragging {
+  opacity: 0.4;
+}
+
+.placing {
+  border-style: solid;
+  border-color: var(--blue);
+}
+.shimmer {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--blue-deep);
+  background: linear-gradient(90deg, rgba(227, 243, 251, 0.4), rgba(227, 243, 251, 0.9), rgba(227, 243, 251, 0.4));
+  background-size: 200% 100%;
+  animation: shimmerMove 1.1s ease-in-out infinite;
+}
+@keyframes shimmerMove {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .shimmer {
+    animation: none;
+  }
+}

@@ -1,21 +1,14 @@
-"""Bridges DB state to the pure engine and back. Shared by preview_service and
-commit_service so both run the exact same query + algorithm path - commit never
-trusts a client-supplied plan, it re-derives everything from these same functions."""
+"""Bridges DB state to the pure engine. Loads the backlog and the reusable prior-cell
+pool in the exact form the packing engine expects, so placement/auto-fill re-derive
+everything from live DB state rather than trusting any client-supplied plan."""
 from __future__ import annotations
-
-import hashlib
-import json
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from app.engine.kpis import compute_kpis
-from app.engine.packing import pack_cells
-from app.engine.scheduling import schedule_cells
-from app.engine.types import KPIResult, PackResult, ParsedSample, PriorCellInput, ScheduleResult
+from app.engine.types import ParsedSample, PriorCellInput
 from app.models.cell import Cell
 from app.models.sample import Sample
-from app.schemas.schedule import RunDesignSettings
 from app.services.cell_service import derive_cell_state
 
 
@@ -52,33 +45,12 @@ def load_prior_cells(db: Session, excluded_cell_ids: list[int]) -> tuple[list[Pr
         if remaining <= 0:
             continue
         prior_inputs.append(
-            PriorCellInput(barcodes_text=" ".join(burned), uses_consumed=uses_consumed, cell_id=cell.id)
+            PriorCellInput(
+                barcodes_text=" ".join(burned),
+                uses_consumed=uses_consumed,
+                cell_id=cell.id,
+                first_use_started_at=cell.first_use_started_at,
+            )
         )
         by_id[cell.id] = cell
     return prior_inputs, by_id
-
-
-def compute_backlog_hash(samples: list[Sample], prior_cells: list[PriorCellInput]) -> str:
-    payload = {
-        "samples": sorted(
-            ({"id": s.id, "status": s.status, "barcodes": sorted(s.barcode_list)} for s in samples),
-            key=lambda x: x["id"],
-        ),
-        "cells": sorted(
-            (
-                {"id": p.cell_id, "uses_consumed": p.uses_consumed, "barcodes_text": p.barcodes_text}
-                for p in prior_cells
-            ),
-            key=lambda x: x["id"] or 0,
-        ),
-    }
-    return hashlib.sha256(json.dumps(payload, sort_keys=True).encode("utf-8")).hexdigest()
-
-
-def run_engine(
-    samples: list[ParsedSample], prior_cells: list[PriorCellInput], settings: RunDesignSettings
-) -> tuple[PackResult, ScheduleResult, KPIResult]:
-    pack = pack_cells(samples, max_uses=settings.max_uses, objective=settings.objective, prior_cells=prior_cells)
-    sched = schedule_cells(pack.cells, machines=settings.instrument_ids, run_time=settings.run_time_hours)
-    kpi = compute_kpis(pack.cells, sched, settings.instrument_ids)
-    return pack, sched, kpi

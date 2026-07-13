@@ -167,8 +167,7 @@ function SampleRow({ sample, expanded, onToggle }: SampleRowProps) {
                 <table className={styles.innerTable}>
                   <thead>
                     <tr>
-                      <th>Schedule</th>
-                      <th>Use</th>
+                      <th>Run</th>
                       <th>Cell</th>
                       <th>Well</th>
                       <th>Status</th>
@@ -181,9 +180,8 @@ function SampleRow({ sample, expanded, onToggle }: SampleRowProps) {
                     {detailQuery.data.cell_uses.map((u) => (
                       <tr key={u.id}>
                         <td>
-                          <Link to={`/history/runs/${u.schedule_id}`}>#{u.schedule_id}</Link>
+                          <Link to={`/history/runs/${u.cycle_id}`}>#{u.cycle_id}</Link>
                         </td>
-                        <td>{u.use_index}</td>
                         <td className={styles.mono}>{u.cell_code}</td>
                         <td className={styles.mono}>{u.well}</td>
                         <td>{u.status}</td>

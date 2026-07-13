@@ -1,0 +1,20 @@
+/* Ported from PlanPage/InProgressCellsReview.module.css toggle + caret. */
+.toggle {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  padding: 0;
+  font-family: var(--sans);
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--ink);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.caret {
+  color: var(--grey);
+  font-size: 11px;
+}

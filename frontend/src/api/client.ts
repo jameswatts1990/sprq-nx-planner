@@ -51,6 +51,9 @@ export const api = {
     request<T>(path, { method: "POST", body: body === undefined ? undefined : JSON.stringify(body) }),
   patch: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: "PATCH", body: body === undefined ? undefined : JSON.stringify(body) }),
+  // `del` (not `delete`, a reserved word) - used for 204-no-body endpoints like
+  // DELETE /api/cell-uses/{id}; request() returns undefined for a 204.
+  del: <T>(path: string) => request<T>(path, { method: "DELETE" }),
 };
 
 type QueryValue = string | number | boolean | undefined | null;

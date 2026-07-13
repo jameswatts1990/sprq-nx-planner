@@ -3,166 +3,141 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 
 import { ApiError } from "@/api/client";
-import { schedulesApi } from "@/api/schedules";
+import { cyclesApi } from "@/api/cycles";
+import { instrumentsApi } from "@/api/instruments";
 import { Badge } from "@/components/ui/Badge";
-import { Button } from "@/components/ui/Button";
+import type { BadgeTone } from "@/components/ui/Badge";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Note } from "@/components/ui/Note";
-import type { ScheduleOut } from "@/types/schedule";
+import { CYCLE_STATUSES } from "@/types/common";
+import type { CycleStatus } from "@/types/common";
+import type { CycleOut } from "@/types/schedule";
 import { useDebouncedValue } from "@/utils/useDebouncedValue";
 
 import styles from "./HistoryRunsPage.module.css";
 
-const PAGE_SIZE = 25;
+const STATUS_TONE: Record<CycleStatus, BadgeTone> = {
+  planned: "default",
+  running: "success",
+  completed: "info",
+  aborted: "danger",
+};
 
-function formatDateTime(iso: string): string {
-  return new Date(iso).toLocaleString();
-}
-
-function matchesQuery(schedule: ScheduleOut, q: string): boolean {
-  const haystack = [String(schedule.id), schedule.created_by, schedule.status, schedule.start_date]
+function matchesQuery(cycle: CycleOut, q: string): boolean {
+  const haystack = [String(cycle.cycle_id), cycle.instrument_serial, cycle.status, cycle.run_date]
     .join(" ")
     .toLowerCase();
   return haystack.includes(q.toLowerCase());
 }
 
+/** History of runs = Cycles (planned/running/completed/aborted), replacing the old
+ * committed-Schedule list. The cycles endpoint returns a plain array for the filter, so
+ * free-text `q` refines it client-side. */
 export function HistoryRunsPage() {
   const [status, setStatus] = useState("");
+  const [instrumentSerial, setInstrumentSerial] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [qInput, setQInput] = useState("");
-  const [page, setPage] = useState(1);
   const q = useDebouncedValue(qInput, 300);
 
+  const instrumentsQuery = useQuery({
+    queryKey: ["instruments", true],
+    queryFn: () => instrumentsApi.list(true),
+  });
+
   const query = useQuery({
-    queryKey: ["schedules", { status, dateFrom, dateTo, page }],
+    queryKey: ["cycles", { status, instrumentSerial, dateFrom, dateTo }],
     queryFn: () =>
-      schedulesApi.list({
+      cyclesApi.list({
         status: status || undefined,
+        instrument_serial: instrumentSerial || undefined,
         date_from: dateFrom || undefined,
         date_to: dateTo || undefined,
-        page,
-        page_size: PAGE_SIZE,
       }),
   });
 
-  const items = query.data?.items ?? [];
-  // The list endpoint has no free-text search param, so `q` filters within the
-  // currently loaded page client-side rather than across the whole result set.
-  const visible = q ? items.filter((s) => matchesQuery(s, q)) : items;
-  const total = query.data?.total ?? 0;
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const items = query.data ?? [];
+  const visible = q ? items.filter((c) => matchesQuery(c, q)) : items;
 
   return (
     <div className={styles.page}>
       <Card>
         <CardBody>
           <div className={styles.toolbar}>
+            <select className={styles.select} value={status} onChange={(e) => setStatus(e.target.value)}>
+              <option value="">All statuses</option>
+              {CYCLE_STATUSES.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
             <select
               className={styles.select}
-              value={status}
-              onChange={(e) => {
-                setStatus(e.target.value);
-                setPage(1);
-              }}
+              value={instrumentSerial}
+              onChange={(e) => setInstrumentSerial(e.target.value)}
             >
-              <option value="">All statuses</option>
-              <option value="active">Active</option>
-              <option value="cancelled">Cancelled</option>
+              <option value="">All instruments</option>
+              {(instrumentsQuery.data ?? []).map((i) => (
+                <option key={i.id} value={i.serial_number}>
+                  {i.serial_number}
+                </option>
+              ))}
             </select>
-            <input
-              type="date"
-              className={styles.dateInput}
-              value={dateFrom}
-              onChange={(e) => {
-                setDateFrom(e.target.value);
-                setPage(1);
-              }}
-            />
+            <input type="date" className={styles.dateInput} value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
             <span>to</span>
-            <input
-              type="date"
-              className={styles.dateInput}
-              value={dateTo}
-              onChange={(e) => {
-                setDateTo(e.target.value);
-                setPage(1);
-              }}
-            />
+            <input type="date" className={styles.dateInput} value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
             <input
               type="search"
               className={styles.search}
-              placeholder="Filter this page by id, creator, status…"
+              placeholder="Filter by id, instrument, status, date…"
               value={qInput}
               onChange={(e) => setQInput(e.target.value)}
             />
           </div>
 
-          {query.isLoading && <div className={styles.status}>Loading schedules…</div>}
+          {query.isLoading && <div className={styles.status}>Loading runs…</div>}
           {query.isError && (
             <Note tone="bad" icon="!">
-              {query.error instanceof ApiError ? query.error.message : "Failed to load schedules."}
+              {query.error instanceof ApiError ? query.error.message : "Failed to load runs."}
             </Note>
           )}
           {!query.isLoading && !query.isError && visible.length === 0 && (
-            <div className={styles.status}>No schedules found.</div>
+            <div className={styles.status}>No runs found.</div>
           )}
 
           {visible.length > 0 && (
-            <>
-              <table className={styles.table}>
-                <thead>
-                  <tr>
-                    <th>ID</th>
-                    <th>Created</th>
-                    <th>Created by</th>
-                    <th>Status</th>
-                    <th>Start date</th>
-                    <th>Acquisitions</th>
-                    <th>Duration</th>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th>Run</th>
+                  <th>Run date</th>
+                  <th>Instrument</th>
+                  <th>Status</th>
+                  <th>Movie</th>
+                  <th>Cells</th>
+                  <th>Planned start</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visible.map((c) => (
+                  <tr key={c.cycle_id}>
+                    <td className={styles.mono}>
+                      <Link to={`/history/runs/${c.cycle_id}`}>#{c.cycle_id}</Link>
+                    </td>
+                    <td className={styles.mono}>{c.run_date}</td>
+                    <td className={styles.mono}>{c.instrument_serial}</td>
+                    <td>
+                      <Badge tone={STATUS_TONE[c.status]}>{c.status}</Badge>
+                    </td>
+                    <td>{c.movie_hours} h</td>
+                    <td>{c.stages.length}</td>
+                    <td>{new Date(c.planned_start_at).toLocaleString()}</td>
                   </tr>
-                </thead>
-                <tbody>
-                  {visible.map((s) => (
-                    <tr key={s.id}>
-                      <td className={styles.mono}>
-                        <Link to={`/history/runs/${s.id}`}>#{s.id}</Link>
-                      </td>
-                      <td>{formatDateTime(s.created_at)}</td>
-                      <td>{s.created_by}</td>
-                      <td>
-                        <Badge tone={s.status === "active" ? "success" : "default"}>{s.status}</Badge>
-                      </td>
-                      <td className={styles.mono}>{s.start_date}</td>
-                      <td>{s.kpi ? s.kpi.total_acq : "—"}</td>
-                      <td>{s.kpi ? `${s.kpi.duration_days} d` : "—"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-
-              <div className={styles.pagination}>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={page <= 1}
-                >
-                  Previous
-                </Button>
-                <span className={styles.pageInfo}>
-                  Page {page} of {totalPages}
-                </span>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={page >= totalPages}
-                >
-                  Next
-                </Button>
-              </div>
-            </>
+                ))}
+              </tbody>
+            </table>
           )}
         </CardBody>
       </Card>

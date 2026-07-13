@@ -7,23 +7,23 @@ import { CellsPage } from "@/pages/CellsPage";
 import { HistoryRunsPage } from "@/pages/HistoryRunsPage";
 import { HistorySamplesPage } from "@/pages/HistorySamplesPage";
 import { ImportPage } from "@/pages/ImportPage";
-import { PlanPage } from "@/pages/PlanPage/PlanPage";
 import { RunDetailPage } from "@/pages/RunDetailPage";
+import { SchedulePage } from "@/pages/SchedulePage/SchedulePage";
 
 export default function App() {
   return (
     <AppShell>
       <Routes>
-        <Route path="/" element={<Navigate to="/plan" replace />} />
+        <Route path="/" element={<Navigate to="/schedule" replace />} />
         <Route path="/import" element={<ImportPage />} />
         <Route path="/backlog" element={<BacklogPage />} />
-        <Route path="/plan" element={<PlanPage />} />
+        <Route path="/schedule" element={<SchedulePage />} />
         <Route path="/cells" element={<CellsPage />} />
         <Route path="/cells/:cellId" element={<CellDetailPage />} />
         <Route path="/history/runs" element={<HistoryRunsPage />} />
-        <Route path="/history/runs/:scheduleId" element={<RunDetailPage />} />
+        <Route path="/history/runs/:cycleId" element={<RunDetailPage />} />
         <Route path="/history/samples" element={<HistorySamplesPage />} />
-        <Route path="*" element={<Navigate to="/plan" replace />} />
+        <Route path="*" element={<Navigate to="/schedule" replace />} />
       </Routes>
     </AppShell>
   );

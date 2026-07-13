@@ -23,6 +23,21 @@ export function isWeekendUTC(date: Date): boolean {
   return wd === 0 || wd === 6;
 }
 
+/** Serializes a UTC date-only value back to `YYYY-MM-DD` (inverse of parseDateOnly). */
+export function toIsoDateUTC(date: Date): string {
+  const y = date.getUTCFullYear();
+  const m = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(date.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+/** Today as `YYYY-MM-DD` using the local calendar date (matches the prototype's
+ * convention: local calendar day, then treated as UTC midnight downstream). */
+export function todayIsoUTC(): string {
+  const now = new Date();
+  return toIsoDateUTC(new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate())));
+}
+
 export function shortWeekdayUTC(date: Date): string {
   return DAY_SHORT[date.getUTCDay()];
 }
