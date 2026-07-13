@@ -9,6 +9,7 @@ import { SLOT_INDICES, slotKey } from "./gridKeys";
 import { padStages } from "./groupCyclesByInstrumentAndDay";
 import { SchedulerSlot } from "./SchedulerSlot";
 import styles from "./SchedulerDayCell.module.css";
+import type { SlotSelection } from "./useSlotSelection";
 
 export interface SchedulerDayCellProps {
   instrumentSerial: string;
@@ -17,13 +18,14 @@ export interface SchedulerDayCellProps {
   colIndex: number;
   weekend: boolean;
   cycle: CycleOut | undefined;
-  /** No cycle yet and not a weekend - eligible for range-select + auto-fill. */
+  /** No cycle yet and not a weekend - eligible for select + auto-fill. */
   selectable: boolean;
-  /** Currently inside the selection rectangle (and selectable). */
+  /** Currently selected (and selectable) - via shift-click rectangle or ctrl/cmd-click toggle. */
   selected: boolean;
   placingSlotKey: string | null;
-  onSelect: (r: number, c: number, shift: boolean) => void;
+  onSelect: (r: number, c: number, shift: boolean, ctrl: boolean) => void;
   onOpenDetail: (stage: StageOut, locked: boolean) => void;
+  slotSelection: SlotSelection;
 }
 
 /**
@@ -33,8 +35,19 @@ export interface SchedulerDayCellProps {
  * range selection for auto-fill.
  */
 export function SchedulerDayCell(props: SchedulerDayCellProps) {
-  const { instrumentSerial, runDate, rowIndex, colIndex, weekend, cycle, selectable, selected, placingSlotKey, onSelect } =
-    props;
+  const {
+    instrumentSerial,
+    runDate,
+    rowIndex,
+    colIndex,
+    weekend,
+    cycle,
+    selectable,
+    selected,
+    placingSlotKey,
+    onSelect,
+    slotSelection,
+  } = props;
   const queryClient = useQueryClient();
 
   const statusMutation = useMutation({
@@ -57,12 +70,12 @@ export function SchedulerDayCell(props: SchedulerDayCellProps) {
   const firstEmptyIndex = SLOT_INDICES.find((i) => !slots[i]);
 
   function onCellClick(e: MouseEvent<HTMLTableCellElement>) {
-    if (selectable) onSelect(rowIndex, colIndex, e.shiftKey);
+    if (selectable) onSelect(rowIndex, colIndex, e.shiftKey, e.ctrlKey || e.metaKey);
   }
   function onCellKeyDown(e: KeyboardEvent<HTMLTableCellElement>) {
     if (selectable && (e.key === "Enter" || e.key === " ")) {
       e.preventDefault();
-      onSelect(rowIndex, colIndex, e.shiftKey);
+      onSelect(rowIndex, colIndex, e.shiftKey, e.ctrlKey || e.metaKey);
     }
   }
 
@@ -127,7 +140,9 @@ export function SchedulerDayCell(props: SchedulerDayCellProps) {
             runDate={runDate}
             locked={locked}
             placing={placingSlotKey === slotKey(instrumentSerial, runDate, i)}
+            selected={!locked && slots[i] !== null && slotSelection.isSelected(slots[i]!.cell_use_id)}
             onOpenDetail={(stage) => props.onOpenDetail(stage, locked)}
+            onToggleSelect={slotSelection.toggle}
           />
         ))}
       </div>

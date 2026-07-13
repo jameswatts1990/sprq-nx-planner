@@ -2,6 +2,7 @@ import type { CycleOut, StageOut } from "@/types/schedule";
 import { isWeekendUTC, parseDateOnly } from "@/utils/calendarDates";
 
 import type { GridSelection } from "./useGridSelection";
+import type { SlotSelection } from "./useSlotSelection";
 import { SchedulerDayCell } from "./SchedulerDayCell";
 import styles from "./SchedulerGrid.module.css";
 
@@ -13,6 +14,7 @@ export interface SchedulerGridRowProps {
   selection: GridSelection;
   placingSlotKey: string | null;
   onOpenDetail: (stage: StageOut, locked: boolean) => void;
+  slotSelection: SlotSelection;
 }
 
 /** One instrument row: sticky-left <th> serial, then one SchedulerDayCell per day.
@@ -25,6 +27,7 @@ export function SchedulerGridRow({
   selection,
   placingSlotKey,
   onOpenDetail,
+  slotSelection,
 }: SchedulerGridRowProps) {
   return (
     <tr>
@@ -36,7 +39,7 @@ export function SchedulerGridRow({
         const weekend = isWeekendUTC(parseDateOnly(date));
         const cycle = cyclesByDate.get(date);
         const selectable = !weekend && cycle === undefined;
-        const selected = selectable && selection.isInRange(rowIndex, colIndex);
+        const selected = selectable && selection.isSelected(rowIndex, colIndex);
         return (
           <SchedulerDayCell
             key={date}
@@ -51,6 +54,7 @@ export function SchedulerGridRow({
             placingSlotKey={placingSlotKey}
             onSelect={selection.handleCellClick}
             onOpenDetail={onOpenDetail}
+            slotSelection={slotSelection}
           />
         );
       })}

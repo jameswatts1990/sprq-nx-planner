@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useState } from "react";
 
 interface Coord {
   r: number;
@@ -6,69 +6,79 @@ interface Coord {
 }
 
 export interface GridSelection {
-  /** Whether cell (rowIndex, colIndex) falls inside the current rectangular range. */
-  isInRange: (r: number, c: number) => boolean;
-  /** True when there is any active range. */
+  /** Whether cell (rowIndex, colIndex) is currently selected. */
+  isSelected: (r: number, c: number) => boolean;
+  /** True when there is any active selection. */
   hasSelection: boolean;
-  /** Handle a click on a cell: plain click sets a single-cell anchor (or toggles it
-   * off if it was the only selected cell); shift-click extends the rectangle from the
-   * anchor to this cell. */
-  handleCellClick: (r: number, c: number, shift: boolean) => void;
+  /** Handle a click on a cell:
+   *  - plain click selects just this cell (or clears it if it was the sole selection)
+   *  - ctrl/cmd-click toggles this cell in/out of the selection, on top of whatever
+   *    else is already selected (disjoint multi-select)
+   *  - shift-click extends a rectangle from the last clicked cell to this one */
+  handleCellClick: (r: number, c: number, shift: boolean, ctrl: boolean) => void;
   clear: () => void;
 }
 
-function normalize(a: Coord, b: Coord) {
-  return {
-    r0: Math.min(a.r, b.r),
-    r1: Math.max(a.r, b.r),
-    c0: Math.min(a.c, b.c),
-    c1: Math.max(a.c, b.c),
-  };
+function key(r: number, c: number): string {
+  return `${r},${c}`;
+}
+
+function rectKeys(a: Coord, b: Coord): string[] {
+  const r0 = Math.min(a.r, b.r);
+  const r1 = Math.max(a.r, b.r);
+  const c0 = Math.min(a.c, b.c);
+  const c1 = Math.max(a.c, b.c);
+  const out: string[] = [];
+  for (let r = r0; r <= r1; r++) {
+    for (let c = c0; c <= c1; c++) out.push(key(r, c));
+  }
+  return out;
 }
 
 /**
- * Spreadsheet-style rectangular grid selection over instrument-row-index x
- * day-column-index. Holds an anchor + head; the selected rectangle is their bounding
- * box. Purely geometric - the page intersects the rectangle with the currently
- * selectable (empty, non-weekend) cells to derive the concrete auto-fill payload, so
- * the selection self-heals as grid data changes.
+ * Grid selection over instrument-row-index x day-column-index, supporting both
+ * spreadsheet-style rectangle selection (shift-click from the last anchor) and
+ * disjoint multi-select (ctrl/cmd-click toggles individual cells). Purely geometric -
+ * the page intersects the selection with the currently selectable (empty, non-weekend)
+ * cells to derive the concrete auto-fill payload, so the selection self-heals as grid
+ * data changes.
  */
 export function useGridSelection(): GridSelection {
+  const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [anchor, setAnchor] = useState<Coord | null>(null);
-  const [head, setHead] = useState<Coord | null>(null);
 
-  const range = useMemo(() => (anchor && head ? normalize(anchor, head) : null), [anchor, head]);
-
-  const isInRange = useCallback(
-    (r: number, c: number) => {
-      if (!range) return false;
-      return r >= range.r0 && r <= range.r1 && c >= range.c0 && c <= range.c1;
-    },
-    [range],
-  );
+  const isSelected = useCallback((r: number, c: number) => selected.has(key(r, c)), [selected]);
 
   const handleCellClick = useCallback(
-    (r: number, c: number, shift: boolean) => {
+    (r: number, c: number, shift: boolean, ctrl: boolean) => {
       if (shift && anchor) {
-        setHead({ r, c });
+        setSelected(new Set(rectKeys(anchor, { r, c })));
         return;
       }
-      // Plain click on the current sole selection clears it; otherwise start fresh.
-      if (anchor && head && anchor.r === r && anchor.c === c && head.r === r && head.c === c) {
-        setAnchor(null);
-        setHead(null);
+
+      if (ctrl) {
+        setSelected((prev) => {
+          const next = new Set(prev);
+          const k = key(r, c);
+          if (next.has(k)) next.delete(k);
+          else next.add(k);
+          return next;
+        });
+        setAnchor({ r, c });
         return;
       }
+
+      // Plain click on the current sole selection clears it; otherwise selects just this cell.
+      setSelected((prev) => (prev.size === 1 && prev.has(key(r, c)) ? new Set() : new Set([key(r, c)])));
       setAnchor({ r, c });
-      setHead({ r, c });
     },
-    [anchor, head],
+    [anchor],
   );
 
   const clear = useCallback(() => {
+    setSelected(new Set());
     setAnchor(null);
-    setHead(null);
   }, []);
 
-  return { isInRange, hasSelection: range !== null, handleCellClick, clear };
+  return { isSelected, hasSelection: selected.size > 0, handleCellClick, clear };
 }

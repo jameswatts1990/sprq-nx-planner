@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 
 import { ApiError } from "@/api/client";
+import { cellUsesApi } from "@/api/cellUses";
 import { cyclesApi } from "@/api/cycles";
 import { instrumentsApi } from "@/api/instruments";
 import { schedulerApi } from "@/api/schedulerGrid";
@@ -12,6 +13,7 @@ import { SchedulerGrid } from "@/components/scheduler/SchedulerGrid";
 import { SlotDetailPopover } from "@/components/scheduler/SlotDetailPopover";
 import { useGridSelection } from "@/components/scheduler/useGridSelection";
 import { useSchedulerDnd } from "@/components/scheduler/useSchedulerDnd";
+import { useSlotSelection } from "@/components/scheduler/useSlotSelection";
 import { SectionHeading, UseLegend } from "@/components/shared/SectionHeading";
 import { Button } from "@/components/ui/Button";
 import type { NoteTone } from "@/components/ui/Note";
@@ -42,11 +44,13 @@ export function SchedulePage() {
   const queryClient = useQueryClient();
   const win = useSchedulerWindow();
   const selection = useGridSelection();
+  const slotSelection = useSlotSelection();
   const dnd = useSchedulerDnd();
 
   const [runDesign, setRunDesign] = useState<RunDesignState>(DEFAULT_RUN_DESIGN);
   const [detail, setDetail] = useState<DetailTarget | null>(null);
   const [autoFillNote, setAutoFillNote] = useState<AccordionNote | null>(null);
+  const [removeSlotsError, setRemoveSlotsError] = useState<string | null>(null);
 
   const instrumentsQuery = useQuery({
     queryKey: ["instruments", true],
@@ -66,13 +70,13 @@ export function SchedulePage() {
   const cycles = useMemo(() => cyclesQuery.data ?? [], [cyclesQuery.data]);
   const grouped = useMemo(() => groupCyclesByInstrumentAndDay(cycles), [cycles]);
 
-  // Intersect the selection rectangle with the currently selectable (empty, non-weekend)
-  // cells to get the concrete auto-fill payload.
+  // Intersect the selection with the currently selectable (empty, non-weekend) cells to
+  // get the concrete auto-fill payload.
   const selectedCells = useMemo(() => {
     const out: GridCellRef[] = [];
     instrumentSerials.forEach((serial, r) => {
       win.days.forEach((date, c) => {
-        if (!selection.isInRange(r, c)) return;
+        if (!selection.isSelected(r, c)) return;
         if (isWeekendUTC(parseDateOnly(date))) return;
         if (grouped.get(serial)?.has(date)) return;
         out.push({ instrument_serial: serial, run_date: date });
@@ -81,11 +85,44 @@ export function SchedulePage() {
     return out;
   }, [instrumentSerials, win.days, grouped, selection]);
 
-  // Clear the range-selection whenever the window pages.
+  // Clear both selections whenever the window pages.
   useEffect(() => {
     selection.clear();
+    slotSelection.clear();
     setAutoFillNote(null);
-  }, [win.from, selection.clear]); // eslint-disable-line react-hooks/exhaustive-deps
+    setRemoveSlotsError(null);
+  }, [win.from, selection.clear, slotSelection.clear]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const removeSlotsMutation = useMutation({
+    mutationFn: async () => {
+      await Promise.all(slotSelection.selectedStages.map((stage) => cellUsesApi.remove(stage.cell_use_id)));
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["cycles"] });
+      void queryClient.invalidateQueries({ queryKey: ["samples"] });
+      void queryClient.invalidateQueries({ queryKey: ["cells"] });
+      slotSelection.clear();
+      setRemoveSlotsError(null);
+    },
+    onError: (err) => {
+      setRemoveSlotsError(err instanceof ApiError ? err.message : "Failed to remove selected samples.");
+    },
+  });
+
+  // Delete/Backspace removes the selected samples from the schedule, as long as focus
+  // isn't in a text field (so it doesn't hijack editing elsewhere on the page).
+  useEffect(() => {
+    if (!slotSelection.hasSelection) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key !== "Delete" && e.key !== "Backspace") return;
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) return;
+      e.preventDefault();
+      removeSlotsMutation.mutate();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [slotSelection.hasSelection, removeSlotsMutation]);
 
   const autoFillMutation = useMutation({
     mutationFn: () =>
@@ -157,7 +194,23 @@ export function SchedulePage() {
             </Button>
           </div>
         )}
+        {slotSelection.hasSelection && (
+          <div className={styles.selectionInfo}>
+            <span>{slotSelection.selectedStages.length} sample(s) selected</span>
+            <Button size="sm" variant="ghost" onClick={slotSelection.clear} disabled={removeSlotsMutation.isPending}>
+              Clear
+            </Button>
+            <Button size="sm" variant="primary" onClick={() => removeSlotsMutation.mutate()} disabled={removeSlotsMutation.isPending}>
+              {removeSlotsMutation.isPending ? "Removing…" : "Remove from schedule (Del)"}
+            </Button>
+          </div>
+        )}
       </div>
+      {removeSlotsError && (
+        <Note tone="bad" icon="!">
+          {removeSlotsError}
+        </Note>
+      )}
 
       <DndContext
         sensors={dnd.sensors}
@@ -204,6 +257,7 @@ export function SchedulePage() {
             selection={selection}
             placingSlotKey={dnd.placingSlotKey}
             onOpenDetail={handleOpenDetail}
+            slotSelection={slotSelection}
           />
         )}
 
@@ -227,7 +281,10 @@ export function SchedulePage() {
           stage={detail.stage}
           locked={detail.locked}
           onClose={() => setDetail(null)}
-          onRemoved={() => setDetail(null)}
+          onRemoved={() => {
+            if (slotSelection.isSelected(detail.stage.cell_use_id)) slotSelection.toggle(detail.stage);
+            setDetail(null);
+          }}
         />
       )}
     </div>

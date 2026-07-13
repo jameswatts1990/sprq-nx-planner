@@ -79,6 +79,9 @@
 .dragging {
   opacity: 0.4;
 }
+.selected {
+  box-shadow: inset 0 0 0 2px var(--magenta);
+}
 
 .placing {
   border-style: solid;

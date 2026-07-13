@@ -1,5 +1,5 @@
 import { useDraggable, useDroppable } from "@dnd-kit/core";
-import type { KeyboardEvent } from "react";
+import type { KeyboardEvent, MouseEvent } from "react";
 
 import type { SlotIndex, StageOut } from "@/types/schedule";
 
@@ -16,7 +16,11 @@ export interface SchedulerSlotProps {
   locked: boolean;
   /** This slot has an in-flight place/remove mutation. */
   placing: boolean;
+  /** Selected via ctrl/cmd-click, for the bulk-delete affordance. Always false when locked. */
+  selected: boolean;
   onOpenDetail: (stage: StageOut) => void;
+  /** Ctrl/cmd-click on a filled, unlocked slot toggles selection instead of opening detail. */
+  onToggleSelect: (stage: StageOut) => void;
 }
 
 /**
@@ -59,7 +63,9 @@ function DraggableSlot({
   instrumentSerial,
   runDate,
   placing,
+  selected,
   onOpenDetail,
+  onToggleSelect,
 }: SchedulerSlotProps & { stage: StageOut }) {
   const data: FilledSlotDragData = {
     kind: "filledSlot",
@@ -77,6 +83,13 @@ function DraggableSlot({
     id: slotKey(instrumentSerial, runDate, slotIndex),
     data,
   });
+  function onClick(e: MouseEvent<HTMLDivElement>) {
+    if (e.ctrlKey || e.metaKey) {
+      onToggleSelect(stage);
+      return;
+    }
+    onOpenDetail(stage);
+  }
   return (
     <SchedulerSlotView
       ref={setNodeRef}
@@ -84,7 +97,8 @@ function DraggableSlot({
       slotIndex={slotIndex}
       placing={placing}
       dragging={isDragging}
-      onClick={() => onOpenDetail(stage)}
+      selected={selected}
+      onClick={onClick}
       {...listeners}
       {...attributes}
     />
@@ -96,8 +110,17 @@ function ClickableSlot({
   slotIndex,
   locked,
   placing,
+  selected,
   onOpenDetail,
+  onToggleSelect,
 }: SchedulerSlotProps & { stage: StageOut }) {
+  function onClick(e: MouseEvent<HTMLDivElement>) {
+    if (!locked && (e.ctrlKey || e.metaKey)) {
+      onToggleSelect(stage);
+      return;
+    }
+    onOpenDetail(stage);
+  }
   function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
@@ -110,9 +133,10 @@ function ClickableSlot({
       slotIndex={slotIndex}
       locked={locked}
       placing={placing}
+      selected={selected}
       role="button"
       tabIndex={0}
-      onClick={() => onOpenDetail(stage)}
+      onClick={onClick}
       onKeyDown={onKeyDown}
     />
   );

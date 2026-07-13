@@ -10,6 +10,7 @@ import { groupCyclesByInstrumentAndDay } from "./groupCyclesByInstrumentAndDay";
 import { SchedulerGridRow } from "./SchedulerGridRow";
 import styles from "./SchedulerGrid.module.css";
 import type { GridSelection } from "./useGridSelection";
+import type { SlotSelection } from "./useSlotSelection";
 
 export interface SchedulerGridProps {
   instrumentSerials: string[];
@@ -19,6 +20,7 @@ export interface SchedulerGridProps {
   selection: GridSelection;
   placingSlotKey: string | null;
   onOpenDetail: (stage: StageOut, locked: boolean) => void;
+  slotSelection: SlotSelection;
 }
 
 function SchedulerDayHeader({ date }: { date: string }) {
@@ -41,6 +43,7 @@ export function SchedulerGrid({
   selection,
   placingSlotKey,
   onOpenDetail,
+  slotSelection,
 }: SchedulerGridProps) {
   const grouped = groupCyclesByInstrumentAndDay(cycles);
 
@@ -68,6 +71,7 @@ export function SchedulerGrid({
               selection={selection}
               placingSlotKey={placingSlotKey}
               onOpenDetail={onOpenDetail}
+              slotSelection={slotSelection}
             />
           ))}
         </tbody>
