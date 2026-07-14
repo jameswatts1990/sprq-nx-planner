@@ -227,7 +227,13 @@ def remove_sample(db: Session, cell_use_id: int, actor: str | None = None) -> No
 
     if cell is not None:
         db.refresh(cell, attribute_names=["cell_uses"])
-        recompute_status(cell, utcnow())
+        if cell.cell_uses:
+            recompute_status(cell, utcnow())
+        else:
+            # This cell had no other uses - it was only a placeholder for the use we just
+            # removed, so nothing physical was ever loaded. Leaving it behind would produce
+            # an orphan "open, 0/3" cell that can never legitimately exist.
+            db.delete(cell)
 
     db.add(
         AuditLog(
@@ -272,7 +278,12 @@ def cancel_run(db: Session, cycle_id: int, actor: str | None = None) -> None:
     now = utcnow()
     for cell in touched_cells:
         db.refresh(cell, attribute_names=["cell_uses"])
-        recompute_status(cell, now)
+        if cell.cell_uses:
+            recompute_status(cell, now)
+        else:
+            # Same as remove_sample: a cell left with no uses at all after this cycle's
+            # cell_uses cascade-deleted was only ever a placeholder for this run.
+            db.delete(cell)
 
     db.add(
         AuditLog(

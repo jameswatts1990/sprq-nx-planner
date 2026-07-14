@@ -18,7 +18,7 @@ import { SectionHeading, UseLegend } from "@/components/shared/SectionHeading";
 import { Button } from "@/components/ui/Button";
 import type { NoteTone } from "@/components/ui/Note";
 import { Note } from "@/components/ui/Note";
-import type { StageOut } from "@/types/schedule";
+import type { CycleOut, StageOut } from "@/types/schedule";
 import type { GridCellRef, RunDesignState } from "@/types/schedulerGrid";
 import { formatShortDateUTC, isWeekendUTC, parseDateOnly } from "@/utils/calendarDates";
 
@@ -49,7 +49,7 @@ export function SchedulePage() {
 
   const [runDesign, setRunDesign] = useState<RunDesignState>(DEFAULT_RUN_DESIGN);
   const [detail, setDetail] = useState<DetailTarget | null>(null);
-  const [autoFillNote, setAutoFillNote] = useState<AccordionNote | null>(null);
+  const [runDesignNote, setRunDesignNote] = useState<AccordionNote | null>(null);
   const [removeSlotsError, setRemoveSlotsError] = useState<string | null>(null);
 
   const instrumentsQuery = useQuery({
@@ -85,11 +85,27 @@ export function SchedulePage() {
     return out;
   }, [instrumentSerials, win.days, grouped, selection]);
 
+  // Same selection, but the other direction: every placed (filled, unlocked) sample
+  // inside it, for the "Clear schedule" bulk-remove. Locked (non-"planned") cycles are
+  // excluded since the backend rejects removing their stages.
+  const selectedFilledStages = useMemo(() => {
+    const out: StageOut[] = [];
+    instrumentSerials.forEach((serial, r) => {
+      win.days.forEach((date, c) => {
+        if (!selection.isSelected(r, c)) return;
+        const cycle: CycleOut | undefined = grouped.get(serial)?.get(date);
+        if (!cycle || cycle.status !== "planned") return;
+        out.push(...cycle.stages);
+      });
+    });
+    return out;
+  }, [instrumentSerials, win.days, grouped, selection]);
+
   // Clear both selections whenever the window pages.
   useEffect(() => {
     selection.clear();
     slotSelection.clear();
-    setAutoFillNote(null);
+    setRunDesignNote(null);
     setRemoveSlotsError(null);
   }, [win.from, selection.clear, slotSelection.clear]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -108,6 +124,35 @@ export function SchedulePage() {
       setRemoveSlotsError(err instanceof ApiError ? err.message : "Failed to remove selected samples.");
     },
   });
+
+  // Bulk-remove every placed sample inside the grid range-selection - the inverse of
+  // auto-fill, which only ever touches the empty cells in that same selection.
+  const clearScheduleMutation = useMutation({
+    mutationFn: async () => {
+      const stages = selectedFilledStages;
+      await Promise.all(stages.map((stage) => cellUsesApi.remove(stage.cell_use_id)));
+      return stages.length;
+    },
+    onSuccess: (count) => {
+      void queryClient.invalidateQueries({ queryKey: ["cycles"] });
+      void queryClient.invalidateQueries({ queryKey: ["samples"] });
+      void queryClient.invalidateQueries({ queryKey: ["cells"] });
+      selection.clear();
+      setRunDesignNote({ tone: "good", icon: "✓", text: `${count} sample(s) cleared from the schedule.` });
+    },
+    onError: (err) => {
+      setRunDesignNote({
+        tone: "bad",
+        icon: "!",
+        text: err instanceof ApiError ? err.message : "Failed to clear schedule.",
+      });
+    },
+  });
+
+  function onClearSchedule() {
+    setRunDesignNote(null);
+    clearScheduleMutation.mutate();
+  }
 
   // Delete/Backspace removes the selected samples from the schedule, as long as focus
   // isn't in a text field (so it doesn't hijack editing elsewhere on the page).
@@ -142,14 +187,14 @@ export function SchedulePage() {
       if (res.skipped_cells.length > 0) parts.push(`${res.skipped_cells.length} cell(s) skipped`);
       if (res.window_flags.length > 0) parts.push(`${res.window_flags.length} window flag(s)`);
       const clean = res.unplaced_sample_ids.length === 0 && res.window_flags.length === 0;
-      setAutoFillNote({
+      setRunDesignNote({
         tone: clean ? "good" : "warn",
         icon: clean ? "✓" : "!",
         text: parts.join(" · "),
       });
     },
     onError: (err) => {
-      setAutoFillNote({
+      setRunDesignNote({
         tone: "bad",
         icon: "!",
         text: err instanceof ApiError ? err.message : "Auto-schedule failed.",
@@ -158,7 +203,7 @@ export function SchedulePage() {
   });
 
   function onAutoSchedule() {
-    setAutoFillNote(null);
+    setRunDesignNote(null);
     autoFillMutation.mutate();
   }
 
@@ -225,7 +270,10 @@ export function SchedulePage() {
             selectedCount={selectedCells.length}
             onAutoSchedule={onAutoSchedule}
             autoFilling={autoFillMutation.isPending}
-            note={autoFillNote}
+            clearableCount={selectedFilledStages.length}
+            onClearSchedule={onClearSchedule}
+            clearingSchedule={clearScheduleMutation.isPending}
+            note={runDesignNote}
           />
           <BacklogAccordion />
         </div>

@@ -15,6 +15,10 @@ export interface RunDesignAccordionProps {
   selectedCount: number;
   onAutoSchedule: () => void;
   autoFilling: boolean;
+  /** Number of placed, unlocked samples currently range-selected in the grid. */
+  clearableCount: number;
+  onClearSchedule: () => void;
+  clearingSchedule: boolean;
   note: { tone: NoteTone; icon: string; text: string } | null;
 }
 
@@ -43,6 +47,9 @@ export function RunDesignAccordion({
   selectedCount,
   onAutoSchedule,
   autoFilling,
+  clearableCount,
+  onClearSchedule,
+  clearingSchedule,
   note,
 }: RunDesignAccordionProps) {
   return (
@@ -86,7 +93,10 @@ export function RunDesignAccordion({
         <Button variant="primary" onClick={onAutoSchedule} disabled={selectedCount === 0 || autoFilling}>
           {autoFilling ? "Auto scheduling…" : `Auto schedule (${selectedCount} selected)`}
         </Button>
-        <span className={styles.autoHint}>Select empty cells in the grid, then auto-fill them from the backlog.</span>
+        <Button onClick={onClearSchedule} disabled={clearableCount === 0 || clearingSchedule}>
+          {clearingSchedule ? "Clearing…" : `Clear schedule (${clearableCount} selected)`}
+        </Button>
+        <span className={styles.autoHint}>Select cells in the grid: auto-fill fills the empty ones, clear removes placed samples.</span>
       </div>
 
       {note && (

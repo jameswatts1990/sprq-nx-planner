@@ -117,6 +117,7 @@ def test_remove_sample_reverts_to_backlog_and_cleans_up_emptied_run(client):
     r1 = _place(client, sid, mon, 0)
     cycle_id = r1.json()["cycle_id"]
     cell_use_id = r1.json()["stages"][0]["cell_use_id"]
+    cell_id = r1.json()["stages"][0]["cell_id"]
 
     resp = client.delete(f"/api/cell-uses/{cell_use_id}")
     assert resp.status_code == 204
@@ -125,6 +126,28 @@ def test_remove_sample_reverts_to_backlog_and_cleans_up_emptied_run(client):
     assert client.get("/api/samples", params={"status": "backlog"}).json()["total"] == 1
     # the now-empty run+cycle was deleted
     assert client.get(f"/api/cycles/{cycle_id}").status_code == 404
+    # the cell had no other uses, so it was only ever a placeholder for this one - it must
+    # not be left behind as an "open, 0/3" cell that can never legitimately exist
+    assert client.get(f"/api/cells/{cell_id}").status_code == 404
+
+
+def test_remove_sample_keeps_cell_when_it_still_has_other_uses(client):
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1\nA2,bc2"})
+    mon, tue = _weekdays(2)
+    a1, a2 = _sid(client, "A1"), _sid(client, "A2")
+
+    r1 = _place(client, a1, mon, 0)
+    cell_id = r1.json()["stages"][0]["cell_id"]
+    r2 = _place(client, a2, tue, 0, {"mode": "existing", "cell_id": cell_id})
+    cell_use_id_2 = r2.json()["stages"][0]["cell_use_id"]
+
+    resp = client.delete(f"/api/cell-uses/{cell_use_id_2}")
+    assert resp.status_code == 204
+
+    # the cell still has its first use, so it must survive with the correct derived count
+    cell = client.get(f"/api/cells/{cell_id}").json()
+    assert cell["status"] == "open"
+    assert cell["uses_consumed"] == 1
 
 
 def test_patch_cycle_confirm_and_unlock_reverse_cascade(client):
@@ -172,13 +195,19 @@ def test_cancel_run_reverts_all_samples_and_deletes_run(client):
     a1, a2 = _sid(client, "A1"), _sid(client, "A2")
     r1 = _place(client, a1, mon, 0)
     cycle_id = r1.json()["cycle_id"]
-    _place(client, a2, mon, 1)
+    cell_id_1 = r1.json()["stages"][0]["cell_id"]
+    r2 = _place(client, a2, mon, 1)
+    cell_id_2 = r2.json()["stages"][0]["cell_id"]
 
     resp = client.post(f"/api/cycles/{cycle_id}/cancel")
     assert resp.status_code == 204
 
     assert client.get(f"/api/cycles/{cycle_id}").status_code == 404
     assert client.get("/api/samples", params={"status": "backlog"}).json()["total"] == 2
+    # both cells were fresh placeholders for this now-cancelled run - neither should be left
+    # behind as an "open, 0/3" cell
+    assert client.get(f"/api/cells/{cell_id_1}").status_code == 404
+    assert client.get(f"/api/cells/{cell_id_2}").status_code == 404
 
 
 def test_cancel_run_rejected_when_not_planned(client):
