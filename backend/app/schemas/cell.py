@@ -39,7 +39,6 @@ class CellDetailOut(CellOut):
 
 
 class CellBootstrapRequest(BaseModel):
-    max_uses: int = 3
     uses_consumed: int = 0
     burned_barcodes: list[str] = []
     first_use_started_at: datetime | None = None

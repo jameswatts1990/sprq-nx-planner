@@ -3,8 +3,9 @@
 Pure and DB-free (mirrors the packing/scheduling modules). Unlike ``schedule_cells``
 - which lays out a fresh multi-day tray timeline from scratch - ``fill_slots`` places
 already-packed cells onto a fixed set of user-selected, currently-empty grid cells
-(each an (instrument, day) run with 4 free wells). It never reasons about partial
-well-occupancy: a slot is either fully available or excluded by the caller.
+(each an (instrument, day) run with 8 free wells, two trays of 4). It never reasons
+about partial well-occupancy: a slot is either fully available or excluded by the
+caller.
 """
 from __future__ import annotations
 
@@ -41,8 +42,13 @@ def fill_slots(cells: list[PackedCell], slots: list[SlotInput], run_time_hours: 
                 if not free_wells[slot]:
                     continue
                 # A physical cell can't run twice on the same day (or out of chronological
-                # order), possibly across different instruments: require strictly-later date.
+                # order): require strictly-later date.
                 if last_placed_date is not None and slot.run_date <= last_placed_date:
+                    continue
+                # Cells cannot move between instruments: once pinned to one (because it
+                # already has a real use there), only slots on that same instrument are
+                # eligible - it falls to unplaced otherwise, same as any other skip below.
+                if cell.pinned_instrument_serial is not None and slot.instrument_serial != cell.pinned_instrument_serial:
                     continue
                 chosen = slot
                 break

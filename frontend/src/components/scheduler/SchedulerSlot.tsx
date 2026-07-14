@@ -21,6 +21,9 @@ export interface SchedulerSlotProps {
   onOpenDetail: (stage: StageOut) => void;
   /** Ctrl/cmd-click on a filled, unlocked slot toggles selection instead of opening detail. */
   onToggleSelect: (stage: StageOut) => void;
+  /** A filled-slot ("move") drag is in progress from a *different* instrument than this
+   * slot's - cells cannot move between instruments, so this slot must reject the drop. */
+  crossInstrumentDragActive?: boolean;
 }
 
 /**
@@ -46,15 +49,28 @@ export function SchedulerSlot(props: SchedulerSlotProps) {
   return <ClickableSlot {...props} stage={stage} />;
 }
 
-function DroppableSlot({ slotIndex, instrumentSerial, runDate, placing }: SchedulerSlotProps) {
+function DroppableSlot({ slotIndex, instrumentSerial, runDate, placing, crossInstrumentDragActive }: SchedulerSlotProps) {
   const data: SlotDropData = {
     kind: "slot",
     instrument_serial: instrumentSerial,
     run_date: runDate,
     slot_index: slotIndex,
   };
-  const { setNodeRef, isOver } = useDroppable({ id: slotKey(instrumentSerial, runDate, slotIndex), data });
-  return <SchedulerSlotView ref={setNodeRef} stage={null} slotIndex={slotIndex} over={isOver} placing={placing} />;
+  const { setNodeRef, isOver } = useDroppable({
+    id: slotKey(instrumentSerial, runDate, slotIndex),
+    data,
+    disabled: crossInstrumentDragActive,
+  });
+  return (
+    <SchedulerSlotView
+      ref={setNodeRef}
+      stage={null}
+      slotIndex={slotIndex}
+      over={isOver}
+      placing={placing}
+      ineligible={crossInstrumentDragActive}
+    />
+  );
 }
 
 function DraggableSlot({

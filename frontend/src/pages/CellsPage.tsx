@@ -8,9 +8,7 @@ import { instrumentsApi } from "@/api/instruments";
 import { CellStatusCard } from "@/components/cells/CellStatusCard";
 import { Button } from "@/components/ui/Button";
 import { Note } from "@/components/ui/Note";
-import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import type { CellStatus } from "@/types/common";
-import type { MaxUses } from "@/types/schedule";
 import { useDebouncedValue } from "@/utils/useDebouncedValue";
 
 import styles from "./CellsPage.module.css";
@@ -131,11 +129,8 @@ interface RegisterInProgressCellModalProps {
   onRegistered: () => void;
 }
 
-const BOOTSTRAP_MAX_USES_OPTIONS = [
-  { value: 1 as MaxUses, label: "1×" },
-  { value: 2 as MaxUses, label: "2×" },
-  { value: 3 as MaxUses, label: "3×" },
-];
+// Every multi-use SMRT Cell physically supports up to 3 acquisitions - not a per-cell choice.
+const CELL_MAX_USES = 3;
 
 /**
  * One-off cutover action for registering cells that were physically already in
@@ -143,7 +138,6 @@ const BOOTSTRAP_MAX_USES_OPTIONS = [
  * hence the explicit "go-live only" helper text and the separate bootstrap endpoint.
  */
 function RegisterInProgressCellModal({ onClose, onRegistered }: RegisterInProgressCellModalProps) {
-  const [maxUses, setMaxUses] = useState<MaxUses>(3);
   const [usesConsumed, setUsesConsumed] = useState(1);
   const [barcodesText, setBarcodesText] = useState("");
   const [firstUseStartedAt, setFirstUseStartedAt] = useState("");
@@ -151,7 +145,6 @@ function RegisterInProgressCellModal({ onClose, onRegistered }: RegisterInProgre
   const mutation = useMutation({
     mutationFn: () =>
       cellsApi.bootstrap({
-        max_uses: maxUses,
         uses_consumed: usesConsumed,
         burned_barcodes: splitBarcodes(barcodesText),
         first_use_started_at: firstUseStartedAt ? new Date(firstUseStartedAt).toISOString() : null,
@@ -162,11 +155,6 @@ function RegisterInProgressCellModal({ onClose, onRegistered }: RegisterInProgre
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
     mutation.mutate();
-  }
-
-  function handleMaxUsesChange(v: MaxUses) {
-    setMaxUses(v);
-    setUsesConsumed((prev) => Math.min(prev, v - 1));
   }
 
   const barcodes = splitBarcodes(barcodesText);
@@ -180,22 +168,13 @@ function RegisterInProgressCellModal({ onClose, onRegistered }: RegisterInProgre
         </p>
         <form onSubmit={handleSubmit}>
           <div className={styles.field}>
-            <label className={styles.fieldLabel}>Max uses</label>
-            <SegmentedControl
-              ariaLabel="Max uses"
-              options={BOOTSTRAP_MAX_USES_OPTIONS}
-              value={maxUses}
-              onChange={handleMaxUsesChange}
-            />
-          </div>
-          <div className={styles.field}>
-            <label className={styles.fieldLabel}>Uses already consumed</label>
+            <label className={styles.fieldLabel}>Uses already consumed (of {CELL_MAX_USES})</label>
             <input
               type="number"
               min={0}
-              max={maxUses - 1}
+              max={CELL_MAX_USES - 1}
               value={usesConsumed}
-              onChange={(e) => setUsesConsumed(Math.max(0, Math.min(maxUses - 1, Number(e.target.value))))}
+              onChange={(e) => setUsesConsumed(Math.max(0, Math.min(CELL_MAX_USES - 1, Number(e.target.value))))}
             />
           </div>
           <div className={styles.field}>

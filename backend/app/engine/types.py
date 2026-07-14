@@ -33,6 +33,10 @@ class PriorCellInput:
     # Real-world anchor: when this physical cell was first actually started. Lets the
     # service layer do a real-elapsed window check (not just a planned-span estimate).
     first_use_started_at: datetime | None = None
+    # Cells cannot move between instruments: once a cell has a use, every later use must
+    # stay on the same instrument it's already on. None means the cell has no uses yet
+    # (or isn't a real persisted cell), so it isn't pinned anywhere.
+    pinned_instrument_serial: str | None = None
 
 
 @dataclass
@@ -56,6 +60,7 @@ class PackedCell:
         barcodes: set[str],
         uses: list[ParsedSample],
         cell_id: int | None = None,
+        pinned_instrument_serial: str | None = None,
     ) -> None:
         self.id = id
         self.prior = prior
@@ -65,6 +70,7 @@ class PackedCell:
         self.barcodes = barcodes
         self.uses = uses
         self.cell_id = cell_id  # DB id of the real Cell, if this represents a persisted one
+        self.pinned_instrument_serial = pinned_instrument_serial
         # populated by finalize step in pack_cells():
         self.future_uses = 0
         self.total_uses = 0
@@ -139,7 +145,7 @@ class KPIResult:
 @dataclass(frozen=True)
 class SlotInput:
     """A currently-empty grid cell offered to the auto-filler: an (instrument, day) run
-    with all 4 wells free by construction (occupied cells are never passed in)."""
+    with all 8 wells free by construction (occupied cells are never passed in)."""
 
     instrument_serial: str
     run_date: date

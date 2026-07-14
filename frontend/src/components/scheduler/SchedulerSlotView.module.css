@@ -82,6 +82,10 @@
 .selected {
   box-shadow: inset 0 0 0 2px var(--magenta);
 }
+.ineligible {
+  opacity: 0.45;
+  pointer-events: none;
+}
 
 .placing {
   border-style: solid;

@@ -15,10 +15,10 @@ export interface RunDesignAccordionProps {
   selectedCount: number;
   onAutoSchedule: () => void;
   autoFilling: boolean;
-  /** Number of placed, unlocked samples currently range-selected in the grid. */
-  clearableCount: number;
-  onClearSchedule: () => void;
-  clearingSchedule: boolean;
+  /** Number of placed, unlocked samples in the currently-viewed week. */
+  weekPlannedCount: number;
+  /** Opens the "are you sure" confirmation - the actual clear happens after confirming. */
+  onRequestClearSchedule: () => void;
   note: { tone: NoteTone; icon: string; text: string } | null;
 }
 
@@ -47,9 +47,8 @@ export function RunDesignAccordion({
   selectedCount,
   onAutoSchedule,
   autoFilling,
-  clearableCount,
-  onClearSchedule,
-  clearingSchedule,
+  weekPlannedCount,
+  onRequestClearSchedule,
   note,
 }: RunDesignAccordionProps) {
   return (
@@ -59,7 +58,7 @@ export function RunDesignAccordion({
     >
       <div className={styles.field}>
         <div className={styles.fieldLabel}>
-          Max uses per cell <span className={styles.hint}>multi-use cap</span>
+          Max uses per cell <span className={styles.hint}>auto-fill target depth</span>
         </div>
         <SegmentedControl
           ariaLabel="Max uses per cell"
@@ -93,10 +92,12 @@ export function RunDesignAccordion({
         <Button variant="primary" onClick={onAutoSchedule} disabled={selectedCount === 0 || autoFilling}>
           {autoFilling ? "Auto scheduling…" : `Auto schedule (${selectedCount} selected)`}
         </Button>
-        <Button onClick={onClearSchedule} disabled={clearableCount === 0 || clearingSchedule}>
-          {clearingSchedule ? "Clearing…" : `Clear schedule (${clearableCount} selected)`}
+        <Button onClick={onRequestClearSchedule} disabled={weekPlannedCount === 0}>
+          {`Clear schedule (${weekPlannedCount} planned)`}
         </Button>
-        <span className={styles.autoHint}>Select cells in the grid: auto-fill fills the empty ones, clear removes placed samples.</span>
+        <span className={styles.autoHint}>
+          Select empty cells, then auto-fill from the backlog. Clear schedule wipes this week&apos;s planned runs.
+        </span>
       </div>
 
       {note && (

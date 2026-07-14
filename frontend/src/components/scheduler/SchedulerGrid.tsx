@@ -21,6 +21,7 @@ export interface SchedulerGridProps {
   placingSlotKey: string | null;
   onOpenDetail: (stage: StageOut, locked: boolean) => void;
   slotSelection: SlotSelection;
+  activeDragInstrument: string | null;
 }
 
 function SchedulerDayHeader({ date }: { date: string }) {
@@ -44,6 +45,7 @@ export function SchedulerGrid({
   placingSlotKey,
   onOpenDetail,
   slotSelection,
+  activeDragInstrument,
 }: SchedulerGridProps) {
   const grouped = groupCyclesByInstrumentAndDay(cycles);
 
@@ -72,6 +74,7 @@ export function SchedulerGrid({
               placingSlotKey={placingSlotKey}
               onOpenDetail={onOpenDetail}
               slotSelection={slotSelection}
+              activeDragInstrument={activeDragInstrument}
             />
           ))}
         </tbody>

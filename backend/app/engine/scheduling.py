@@ -8,7 +8,6 @@ from app.engine.constants import (
     DAY_START_HOUR,
     FIRST_PREP_H,
     REUSE_PREP_H,
-    STAGES_PER_MACHINE,
     WELLS,
 )
 from app.engine.types import Cycle, PackedCell, ScheduleResult, Stage, WindowFlag
@@ -29,8 +28,8 @@ def schedule_cells(cells: list[PackedCell], machines: list[str], run_time: float
         cursor = 0.0
         batch_idx = 0
         machine = machines[mi] if mi < len(machines) else str(mi)
-        for b in range(0, len(q), STAGES_PER_MACHINE):
-            batch = q[b : b + STAGES_PER_MACHINE]
+        for b in range(0, len(q), len(WELLS)):
+            batch = q[b : b + len(WELLS)]
             batch_depth = max(c.future_uses for c in batch)
             first_start = cursor + FIRST_PREP_H
 

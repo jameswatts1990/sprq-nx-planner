@@ -43,20 +43,21 @@ def test_auto_fill_fills_only_requested_cell_and_reports_unplaced(client):
     assert resp.status_code == 200, resp.text
     body = resp.json()
 
-    # one cell = 4 wells; 6 samples in => 4 placed, 2 unplaced
-    assert len(body["placed_sample_ids"]) == 4
-    assert len(body["unplaced_sample_ids"]) == 2
+    # one grid slot now has 8 wells (two trays of 4); 6 disjoint samples (fastest objective
+    # => one fresh cell each) all fit in one run => 6 placed, 0 unplaced
+    assert len(body["placed_sample_ids"]) == 6
+    assert len(body["unplaced_sample_ids"]) == 0
     assert body["skipped_cells"] == []
     assert len(body["runs"]) == 1
     run = body["runs"][0]
     assert run["instrument_serial"] == "84047"
     assert run["run_date"] == mon
-    assert len(run["stages"]) == 4
+    assert len(run["stages"]) == 6
 
     # only the requested instrument got a run
     assert client.get("/api/cycles", params={"instrument_serial": "84098"}).json() == []
-    assert client.get("/api/samples", params={"status": "scheduled"}).json()["total"] == 4
-    assert client.get("/api/samples", params={"status": "backlog"}).json()["total"] == 2
+    assert client.get("/api/samples", params={"status": "scheduled"}).json()["total"] == 6
+    assert client.get("/api/samples", params={"status": "backlog"}).json()["total"] == 0
 
 
 def test_auto_fill_skips_already_occupied_cell(client):
@@ -89,9 +90,9 @@ def test_auto_fill_skips_already_occupied_cell(client):
     assert body["skipped_cells"] == [{"instrument_serial": "84047", "run_date": mon}]
     assert len(body["runs"]) == 1
     assert body["runs"][0]["instrument_serial"] == "84098"
-    # 5 remained in backlog after the manual placement; 4 wells on 84098 => 4 placed, 1 unplaced
-    assert len(body["placed_sample_ids"]) == 4
-    assert len(body["unplaced_sample_ids"]) == 1
+    # 5 remained in backlog after the manual placement; 8 wells on 84098 => all 5 fit, 0 unplaced
+    assert len(body["placed_sample_ids"]) == 5
+    assert len(body["unplaced_sample_ids"]) == 0
 
 
 def test_auto_fill_rejects_weekend_cell(client):

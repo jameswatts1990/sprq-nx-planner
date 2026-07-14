@@ -3,6 +3,8 @@ export interface InstrumentOut {
   serial_number: string;
   name: string | null;
   active: boolean;
+  is_locked: boolean;
+  locked_until: string | null; // ISO datetime
 }
 
 export interface InstrumentCreate {

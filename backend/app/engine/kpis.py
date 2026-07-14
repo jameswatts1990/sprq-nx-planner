@@ -1,7 +1,7 @@
 """Direct port of computeKPIs from revio-nx-planner.html (lines 497-506)."""
 from __future__ import annotations
 
-from app.engine.constants import COST_BY_DEPTH, SINGLE_USE_PER_ACQ, STAGES_PER_MACHINE
+from app.engine.constants import CELLS_PER_TRAY, COST_BY_DEPTH, SINGLE_USE_PER_ACQ
 from app.engine.types import KPIResult, PackedCell, ScheduleResult
 
 
@@ -9,7 +9,7 @@ def compute_kpis(cells: list[PackedCell], sched: ScheduleResult, machines: list[
     total_acq = sum(c.future_uses for c in cells)
     fresh_cells = sum(1 for c in cells if not c.prior)
     prior_cells = sum(1 for c in cells if c.prior)
-    trays = -(-fresh_cells // STAGES_PER_MACHINE)  # ceil division
+    trays = -(-fresh_cells // CELLS_PER_TRAY)  # ceil division
 
     nx_cost = sum(c.future_uses * COST_BY_DEPTH[c.cost_tier] for c in cells)
     single_cost = total_acq * SINGLE_USE_PER_ACQ

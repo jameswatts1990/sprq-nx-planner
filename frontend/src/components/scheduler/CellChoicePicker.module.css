@@ -71,3 +71,15 @@
   color: var(--grey);
   padding: 2px 0;
 }
+.timeInput {
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 7px 10px;
+  color: var(--ink);
+  background: var(--card);
+  width: fit-content;
+  margin-bottom: 14px;
+}

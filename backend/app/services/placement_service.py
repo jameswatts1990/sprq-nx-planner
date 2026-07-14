@@ -13,13 +13,14 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
-from app.engine.constants import DAY_START_HOUR, WELLS
+from app.engine.constants import CELL_MAX_USES, DAY_START_HOUR, WELLS
 from app.models.audit import AuditLog
 from app.models.cell import Cell
 from app.models.instrument import Instrument
 from app.models.sample import Sample
 from app.models.schedule import CellUse, CellUseBarcode, Cycle, RunBatch
-from app.services.cell_service import derive_cell_state, recompute_status
+from app.services import instrument_lock
+from app.services.cell_service import current_location, derive_cell_state, recompute_status
 from app.timeutil import utcnow
 
 
@@ -30,12 +31,22 @@ class PlacementError(Exception):
         self.detail = detail
 
 
-def planned_window(run_date: date, run_time_hours: float) -> tuple[datetime, datetime]:
-    start = datetime.combine(run_date, time(hour=DAY_START_HOUR), tzinfo=timezone.utc)
+def planned_window(
+    run_date: date, run_time_hours: float, start_hour: int = DAY_START_HOUR, start_minute: int = 0
+) -> tuple[datetime, datetime]:
+    start = datetime.combine(run_date, time(hour=start_hour, minute=start_minute), tzinfo=timezone.utc)
     return start, start + timedelta(hours=run_time_hours)
 
 
-def get_or_create_run(db: Session, *, instrument: Instrument, run_date: date, run_time_hours: float) -> Cycle:
+def get_or_create_run(
+    db: Session,
+    *,
+    instrument: Instrument,
+    run_date: date,
+    run_time_hours: float,
+    start_hour: int = DAY_START_HOUR,
+    start_minute: int = 0,
+) -> Cycle:
     """Get-or-create the (instrument, run_date) RunBatch+Cycle (1:1) under the unique
     constraint. Safe against a concurrent drag into the same empty grid cell: on a losing
     INSERT race we roll back the failed insert and re-SELECT the winner's row.
@@ -55,6 +66,18 @@ def get_or_create_run(db: Session, *, instrument: Instrument, run_date: date, ru
     if cycle is not None:
         return cycle
 
+    start, end = planned_window(run_date, run_time_hours, start_hour, start_minute)
+
+    # A brand-new run's start time must not fall before a prior run's lock ends on this
+    # same instrument. This only gates *creating* a new run - adding another sample to an
+    # already-existing run (the branch above) is never blocked, so loading the next run's
+    # cells while the current one is still locked remains possible.
+    blocking = instrument_lock.latest_lock_until(db, instrument.id, run_date)
+    if blocking is not None and start < blocking:
+        raise PlacementError(
+            409, f"Instrument {instrument.serial_number} is locked until {blocking.isoformat()} by a prior run."
+        )
+
     run_batch = RunBatch(instrument_id=instrument.id, run_date=run_date)
     db.add(run_batch)
     try:
@@ -66,7 +89,6 @@ def get_or_create_run(db: Session, *, instrument: Instrument, run_date: date, ru
             raise
         return cycle
 
-    start, end = planned_window(run_date, run_time_hours)
     cycle = Cycle(
         run_batch_id=run_batch.id,
         movie_hours=int(run_time_hours),
@@ -88,7 +110,8 @@ def place_sample(
     slot_index: int,
     cell_choice: dict,
     run_time_hours: float,
-    max_uses: int,
+    start_hour: int = DAY_START_HOUR,
+    start_minute: int = 0,
     actor: str | None = None,
 ) -> Cycle:
     # --- read-only validation (before any writes) ---
@@ -128,11 +151,25 @@ def place_sample(
             raise PlacementError(409, f"Cell {existing_cell.code} has no remaining uses.")
         if any(bc in set(burned) for bc in sample_barcodes):
             raise PlacementError(409, f"barcode conflict: sample shares a burned barcode with cell {existing_cell.code}.")
+        current_serial, _current_well = current_location(existing_cell)
+        if current_serial is not None and current_serial != instrument_serial:
+            raise PlacementError(
+                409,
+                f"Cell {existing_cell.code} is already in use on instrument {current_serial}; "
+                f"cannot place it on {instrument_serial}.",
+            )
     elif mode != "new":
         raise PlacementError(400, f"Unknown cell_choice.mode '{mode}'.")
 
     # --- writes ---
-    cycle = get_or_create_run(db, instrument=instrument, run_date=run_date, run_time_hours=run_time_hours)
+    cycle = get_or_create_run(
+        db,
+        instrument=instrument,
+        run_date=run_date,
+        run_time_hours=run_time_hours,
+        start_hour=start_hour,
+        start_minute=start_minute,
+    )
 
     if cycle.movie_hours != int(run_time_hours):
         raise PlacementError(
@@ -143,7 +180,7 @@ def place_sample(
         raise PlacementError(409, f"Run is locked (status: {cycle.status}); cannot place into it.")
 
     if mode == "new":
-        cell = Cell(code="PENDING", max_uses=max_uses, status="open")
+        cell = Cell(code="PENDING", max_uses=CELL_MAX_USES, status="open")
         db.add(cell)
         db.flush()
         cell.code = f"CELL-{cell.id:06d}"
@@ -245,6 +282,121 @@ def remove_sample(db: Session, cell_use_id: int, actor: str | None = None) -> No
         )
     )
     db.commit()
+
+
+def move_sample(
+    db: Session,
+    *,
+    cell_use_id: int,
+    instrument_serial: str,
+    run_date: date,
+    slot_index: int,
+    run_time_hours: float,
+    start_hour: int = DAY_START_HOUR,
+    start_minute: int = 0,
+    actor: str | None = None,
+) -> Cycle:
+    """Move an existing placement to a different (instrument, day, slot) in one atomic
+    step - an in-place update of the CellUse's cycle/well, never a delete+recreate. That
+    avoids two real problems a client-side remove-then-place has: a rejected re-place
+    leaving the sample stranded in backlog with the old slot already gone, and the old
+    cell being deleted (as an emptied placeholder) out from under a move that intended to
+    reuse it."""
+    # --- read-only validation (before any writes) ---
+    if run_date.weekday() >= 5:
+        raise PlacementError(400, f"{run_date.isoformat()} is a weekend - runs are weekdays only.")
+    if not 0 <= slot_index < len(WELLS):
+        raise PlacementError(400, f"slot_index must be 0-{len(WELLS) - 1}.")
+    well = WELLS[slot_index]
+
+    cell_use = db.get(
+        CellUse,
+        cell_use_id,
+        options=[
+            selectinload(CellUse.cycle).selectinload(Cycle.run_batch),
+            selectinload(CellUse.cell).selectinload(Cell.cell_uses).selectinload(CellUse.cycle).selectinload(
+                Cycle.run_batch
+            ).selectinload(RunBatch.instrument),
+        ],
+    )
+    if cell_use is None:
+        raise PlacementError(404, f"Cell use {cell_use_id} not found.")
+
+    old_cycle = cell_use.cycle
+    if old_cycle is None or old_cycle.status != "planned":
+        raise PlacementError(409, "Cannot move a placement from a run that is not planned.")
+
+    cell = cell_use.cell
+    other_uses = [cu for cu in cell.cell_uses if cu.id != cell_use.id and cu.status != "cancelled"]
+    if other_uses:
+        last_other = max(other_uses, key=lambda cu: cu.id)
+        last_run_batch = last_other.cycle.run_batch if last_other.cycle else None
+        pinned_serial = last_run_batch.instrument.serial_number if last_run_batch and last_run_batch.instrument else None
+        if pinned_serial is not None and pinned_serial != instrument_serial:
+            raise PlacementError(
+                409,
+                f"Cell {cell.code} is already in use on instrument {pinned_serial}; "
+                f"cannot move it to {instrument_serial}.",
+            )
+
+    instrument = db.scalar(select(Instrument).where(Instrument.serial_number == instrument_serial))
+    if instrument is None:
+        raise PlacementError(400, f"Unknown instrument serial '{instrument_serial}'.")
+
+    # --- writes ---
+    dest_cycle = get_or_create_run(
+        db,
+        instrument=instrument,
+        run_date=run_date,
+        run_time_hours=run_time_hours,
+        start_hour=start_hour,
+        start_minute=start_minute,
+    )
+    if dest_cycle.movie_hours != int(run_time_hours):
+        raise PlacementError(
+            409,
+            f"This run is already set to {dest_cycle.movie_hours}h; cannot mix a {int(run_time_hours)}h placement into it.",
+        )
+    if dest_cycle.status != "planned":
+        raise PlacementError(409, f"Run is locked (status: {dest_cycle.status}); cannot place into it.")
+
+    old_cycle_id = old_cycle.id
+    old_run_batch = old_cycle.run_batch
+    same_cycle = old_cycle_id == dest_cycle.id
+    if same_cycle and cell_use.well == well:
+        return dest_cycle  # no-op: dropped back onto its own slot
+
+    cell_use.cycle_id = dest_cycle.id
+    cell_use.well = well
+    try:
+        db.flush()
+    except IntegrityError:
+        db.rollback()
+        raise PlacementError(409, f"slot already occupied: well {well} is taken on this run.")
+
+    if not same_cycle:
+        remaining = db.scalar(select(func.count()).select_from(CellUse).where(CellUse.cycle_id == old_cycle_id))
+        if remaining == 0 and old_run_batch is not None:
+            db.delete(old_run_batch)
+
+    db.add(
+        AuditLog(
+            actor=actor or "unknown",
+            action="move_sample",
+            entity_type="cell_use",
+            entity_id=cell_use.id,
+            details_json={
+                "from_cycle_id": old_cycle_id,
+                "to_cycle_id": dest_cycle.id,
+                "well": well,
+                "instrument_serial": instrument_serial,
+                "run_date": run_date.isoformat(),
+            },
+        )
+    )
+    db.commit()
+    db.refresh(dest_cycle)
+    return dest_cycle
 
 
 def cancel_run(db: Session, cycle_id: int, actor: str | None = None) -> None:

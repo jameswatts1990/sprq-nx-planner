@@ -22,6 +22,8 @@ export interface SchedulerSlotViewProps extends HTMLAttributes<HTMLDivElement> {
   dragging?: boolean;
   /** Selected via ctrl/cmd-click, for the bulk-delete affordance. */
   selected?: boolean;
+  /** Not a valid drop target for the drag currently in progress (cross-instrument move). */
+  ineligible?: boolean;
 }
 
 /**
@@ -31,7 +33,7 @@ export interface SchedulerSlotViewProps extends HTMLAttributes<HTMLDivElement> {
  * and listeners directly to this box.
  */
 export const SchedulerSlotView = forwardRef<HTMLDivElement, SchedulerSlotViewProps>(function SchedulerSlotView(
-  { stage, slotIndex, locked, placing, over, dragging, selected, className, ...rest },
+  { stage, slotIndex, locked, placing, over, dragging, selected, ineligible, className, ...rest },
   ref,
 ) {
   // Colour groups by which physical cell is loaded (stage.use_number), not by well
@@ -48,6 +50,7 @@ export const SchedulerSlotView = forwardRef<HTMLDivElement, SchedulerSlotViewPro
   if (over) classes.push(styles.over);
   if (dragging) classes.push(styles.dragging);
   if (selected) classes.push(styles.selected);
+  if (ineligible) classes.push(styles.ineligible);
   if (className) classes.push(className);
 
   return (

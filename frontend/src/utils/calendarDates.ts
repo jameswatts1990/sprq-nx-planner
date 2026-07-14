@@ -53,3 +53,11 @@ export function formatTimeOfDay(hours: number): string {
   const mm = Math.round((hours - hh) * 60);
   return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
 }
+
+/** Formats an ISO datetime as "HH:MM, D Mon" (UTC) - used for lock_until displays. */
+export function formatShortDateTimeUTC(isoDateTime: string): string {
+  const d = new Date(isoDateTime);
+  const hh = String(d.getUTCHours()).padStart(2, "0");
+  const mm = String(d.getUTCMinutes()).padStart(2, "0");
+  return `${hh}:${mm}, ${formatShortDateUTC(d)}`;
+}

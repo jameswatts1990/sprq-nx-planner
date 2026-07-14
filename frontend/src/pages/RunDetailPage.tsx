@@ -8,19 +8,11 @@ import { padStages } from "@/components/scheduler/groupCyclesByInstrumentAndDay"
 import { SchedulerSlotView } from "@/components/scheduler/SchedulerSlotView";
 import { SectionHeading, UseLegend } from "@/components/shared/SectionHeading";
 import { Badge } from "@/components/ui/Badge";
-import type { BadgeTone } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Note } from "@/components/ui/Note";
-import type { CycleStatus } from "@/types/common";
+import { CYCLE_STATUS_TONE } from "@/utils/cycleStatus";
 
 import styles from "./RunDetailPage.module.css";
-
-const STATUS_TONE: Record<CycleStatus, BadgeTone> = {
-  planned: "default",
-  running: "success",
-  completed: "info",
-  aborted: "danger",
-};
 
 /** Read-only detail for a single run (Cycle): its up-to-4 stages rendered with the same
  * SchedulerSlotView leaf used interactively in the grid. No KPI strip - a single day's
@@ -90,7 +82,10 @@ export function RunDetailPage() {
           Run date <b>{cycle.run_date}</b>
         </span>
         <span>
-          Status <Badge tone={STATUS_TONE[cycle.status]}>{cycle.status}</Badge>
+          Status <Badge tone={CYCLE_STATUS_TONE[cycle.status]}>{cycle.status}</Badge>
+        </span>
+        <span>
+          Active now <b>{cycle.is_locked ? "Yes" : "No"}</b>
         </span>
         <span>
           Movie <b>{cycle.movie_hours} h</b>

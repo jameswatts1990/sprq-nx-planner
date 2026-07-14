@@ -27,6 +27,8 @@ def auto_fill_endpoint(req: AutoFillRequest, db: SessionDep, actor: ActorDep) ->
             max_uses=req.max_uses,
             run_time_hours=req.run_time_hours,
             objective=req.objective,
+            start_hour=req.start_hour,
+            start_minute=req.start_minute,
             actor=actor,
         )
     except PlacementError as exc:

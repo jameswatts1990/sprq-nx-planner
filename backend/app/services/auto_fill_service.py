@@ -10,7 +10,7 @@ from datetime import date
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
-from app.engine.constants import CELL_LIFETIME_H
+from app.engine.constants import CELL_LIFETIME_H, CELL_MAX_USES, DAY_START_HOUR
 from app.engine.packing import pack_cells
 from app.engine.slot_scheduling import fill_slots
 from app.engine.types import SlotInput
@@ -19,6 +19,7 @@ from app.models.cell import Cell
 from app.models.instrument import Instrument
 from app.models.sample import Sample
 from app.models.schedule import CellUse, CellUseBarcode, RunBatch
+from app.services import instrument_lock
 from app.services.cell_service import recompute_status
 from app.services.engine_bridge import load_backlog_samples, load_prior_cells, to_parsed_samples
 from app.services.placement_service import PlacementError, get_or_create_run, planned_window
@@ -34,7 +35,17 @@ class AutoFillResult:
     run_cycle_ids: list[int] = field(default_factory=list)
 
 
-def auto_fill(db: Session, *, cells, max_uses: int, run_time_hours: float, objective: str, actor: str | None = None):
+def auto_fill(
+    db: Session,
+    *,
+    cells,
+    max_uses: int,
+    run_time_hours: float,
+    objective: str,
+    start_hour: int = DAY_START_HOUR,
+    start_minute: int = 0,
+    actor: str | None = None,
+):
     # --- validation ---
     for c in cells:
         if c.run_date.weekday() >= 5:
@@ -49,7 +60,7 @@ def auto_fill(db: Session, *, cells, max_uses: int, run_time_hours: float, objec
         if c.instrument_serial not in instruments:
             raise PlacementError(400, f"Unknown instrument serial '{c.instrument_serial}'.")
 
-    # dedupe requested cells, then re-check each is still empty at execution time
+    # dedupe requested cells, then re-check each is still empty (and unlocked) at execution time
     requested: list[tuple[str, date]] = []
     seen: set[tuple[str, date]] = set()
     for c in cells:
@@ -67,6 +78,14 @@ def auto_fill(db: Session, *, cells, max_uses: int, run_time_hours: float, objec
         )
         if occupied is not None:
             skipped.append((serial, run_date))
+            continue
+        proposed_start, _proposed_end = planned_window(run_date, run_time_hours, start_hour, start_minute)
+        blocking = instrument_lock.latest_lock_until(db, inst.id, run_date)
+        if blocking is not None and proposed_start < blocking:
+            # Same "new run's start time can't beat a prior lock" rule as place_sample -
+            # skip this slot rather than hard-failing the whole batch, matching the
+            # existing "already occupied" skip UX.
+            skipped.append((serial, run_date))
         else:
             empty_slots.append(SlotInput(instrument_serial=serial, run_date=run_date))
 
@@ -74,6 +93,15 @@ def auto_fill(db: Session, *, cells, max_uses: int, run_time_hours: float, objec
     samples = load_backlog_samples(db)
     parsed = to_parsed_samples(samples)
     prior_cells, cells_by_id = load_prior_cells(db, [])
+    # Cells cannot move between instruments: a prior cell pinned to an instrument that
+    # isn't one of this call's actual empty slots can never be placed by fill_slots below
+    # (see its pin filter) - exclude it from packing entirely, rather than letting it
+    # "claim" a disjoint sample via barcode-compatibility only to strand that sample as
+    # unplaced when a fresh cell on an offered instrument would have fit it instead.
+    offered_serials = {s.instrument_serial for s in empty_slots}
+    prior_cells = [
+        pc for pc in prior_cells if pc.pinned_instrument_serial is None or pc.pinned_instrument_serial in offered_serials
+    ]
     pack = pack_cells(parsed, max_uses=max_uses, objective=objective, prior_cells=prior_cells)
     fill = fill_slots(pack.cells, empty_slots, run_time_hours)
 
@@ -90,14 +118,19 @@ def auto_fill(db: Session, *, cells, max_uses: int, run_time_hours: float, objec
         cycle_id = run_cycles.get(key)
         if cycle_id is None:
             cyc = get_or_create_run(
-                db, instrument=instruments[a.instrument_serial], run_date=a.run_date, run_time_hours=run_time_hours
+                db,
+                instrument=instruments[a.instrument_serial],
+                run_date=a.run_date,
+                run_time_hours=run_time_hours,
+                start_hour=start_hour,
+                start_minute=start_minute,
             )
             cycle_id = cyc.id
             run_cycles[key] = cycle_id
 
         db_cell = ref_to_cell.get(a.cell.id)
         if db_cell is None:
-            db_cell = Cell(code="PENDING", max_uses=max_uses, status="open")
+            db_cell = Cell(code="PENDING", max_uses=CELL_MAX_USES, status="open")
             db.add(db_cell)
             db.flush()
             db_cell.code = f"CELL-{db_cell.id:06d}"
@@ -151,7 +184,7 @@ def auto_fill(db: Session, *, cells, max_uses: int, run_time_hours: float, objec
         started = db_cell.first_use_started_at
         if started is None:
             continue
-        planned_end = planned_window(last_date_by_ref[pc.id], run_time_hours)[1]
+        planned_end = planned_window(last_date_by_ref[pc.id], run_time_hours, start_hour, start_minute)[1]
         span_h = (planned_end - ensure_aware(started)).total_seconds() / 3600
         if span_h > CELL_LIFETIME_H:
             _bump(db_cell.code, span_h)

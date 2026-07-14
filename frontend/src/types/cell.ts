@@ -36,7 +36,6 @@ export interface CellDetailOut extends CellOut {
 }
 
 export interface CellBootstrapRequest {
-  max_uses: number;
   uses_consumed: number;
   burned_barcodes: string[];
   first_use_started_at?: string | null;

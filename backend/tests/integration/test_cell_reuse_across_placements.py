@@ -21,19 +21,19 @@ def _sid(client, external_id: str) -> int:
     return next(s["id"] for s in items if s["external_id"] == external_id)
 
 
-def _place(client, sample_id, run_date, slot_index, cell_choice, run_time_hours=24, instrument="84047"):
-    return client.post(
-        "/api/cell-uses",
-        json={
-            "sample_id": sample_id,
-            "instrument_serial": instrument,
-            "run_date": run_date,
-            "slot_index": slot_index,
-            "cell_choice": cell_choice,
-            "run_time_hours": run_time_hours,
-            "max_uses": 3,
-        },
-    )
+def _place(client, sample_id, run_date, slot_index, cell_choice, run_time_hours=24, instrument="84047", start_hour=None):
+    payload = {
+        "sample_id": sample_id,
+        "instrument_serial": instrument,
+        "run_date": run_date,
+        "slot_index": slot_index,
+        "cell_choice": cell_choice,
+        "run_time_hours": run_time_hours,
+        "max_uses": 3,
+    }
+    if start_hour is not None:
+        payload["start_hour"] = start_hour
+    return client.post("/api/cell-uses", json=payload)
 
 
 def test_cell_with_remaining_capacity_is_reused_across_days_and_burned_barcodes_respected(client):
@@ -52,7 +52,9 @@ def test_cell_with_remaining_capacity_is_reused_across_days_and_burned_barcodes_
     assert cell["burned_barcodes"] == ["bc1"]
 
     # --- S2 (no clash) explicitly reuses that SAME cell on Tuesday - zero manual re-entry ---
-    r2 = _place(client, _sid(client, "S2"), tue, 0, {"mode": "existing", "cell_id": cell_id})
+    # Monday's run (9am start, 24h movie) locks instrument 84047 until Tue 15:00 (movie_hours
+    # + 6h buffer), so Tuesday's new run must start at/after that to avoid the lock rejection.
+    r2 = _place(client, _sid(client, "S2"), tue, 0, {"mode": "existing", "cell_id": cell_id}, start_hour=15)
     assert r2.status_code == 201, r2.text
     assert r2.json()["stages"][0]["cell_id"] == cell_id
 
@@ -67,7 +69,10 @@ def test_cell_with_remaining_capacity_is_reused_across_days_and_burned_barcodes_
     assert "barcode" in r3.json()["detail"].lower()
 
     # --- S4 (bc3, no clash) takes the last slot, exhausting the cell ---
-    r4 = _place(client, _sid(client, "S4"), wed, 0, {"mode": "existing", "cell_id": cell_id})
+    # Tuesday's run (15:00 start, 24h movie) locks 84047 until Wed 21:00; r3 above never
+    # reached the lock check (it 409s on the barcode conflict first), so r4 is the first
+    # write into Wednesday's grid cell and must clear Tuesday's lock.
+    r4 = _place(client, _sid(client, "S4"), wed, 0, {"mode": "existing", "cell_id": cell_id}, start_hour=21)
     assert r4.status_code == 201, r4.text
 
     cell = client.get(f"/api/cells/{cell_id}").json()
@@ -75,3 +80,18 @@ def test_cell_with_remaining_capacity_is_reused_across_days_and_burned_barcodes_
     assert cell["uses_remaining"] == 0
     assert cell["status"] == "exhausted"
     assert cell["burned_barcodes"] == ["bc1", "bc2", "bc3"]
+
+
+def test_reusing_a_cell_on_a_different_instrument_than_its_current_one_is_rejected(client):
+    # Cells cannot move between instruments: once a cell has a real use on 84047, it
+    # can never be explicitly reused on a different instrument, even with capacity to spare.
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nT1,bc1\nT2,bc2"})
+    (mon,) = _weekdays(1)
+
+    r1 = _place(client, _sid(client, "T1"), mon, 0, {"mode": "new"}, instrument="84047")
+    assert r1.status_code == 201, r1.text
+    cell_id = r1.json()["stages"][0]["cell_id"]
+
+    r2 = _place(client, _sid(client, "T2"), mon, 0, {"mode": "existing", "cell_id": cell_id}, instrument="84098")
+    assert r2.status_code == 409, r2.text
+    assert "instrument" in r2.json()["detail"].lower()

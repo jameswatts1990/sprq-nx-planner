@@ -8,7 +8,7 @@ import { cyclesApi } from "@/api/cycles";
 import { instrumentsApi } from "@/api/instruments";
 import { schedulerApi } from "@/api/schedulerGrid";
 import { CellChoicePicker } from "@/components/scheduler/CellChoicePicker";
-import { groupCyclesByInstrumentAndDay } from "@/components/scheduler/groupCyclesByInstrumentAndDay";
+import { groupCyclesByInstrumentAndDay, LOCK_LOOKBACK_DAYS } from "@/components/scheduler/groupCyclesByInstrumentAndDay";
 import { SchedulerGrid } from "@/components/scheduler/SchedulerGrid";
 import { SlotDetailPopover } from "@/components/scheduler/SlotDetailPopover";
 import { useGridSelection } from "@/components/scheduler/useGridSelection";
@@ -18,11 +18,12 @@ import { SectionHeading, UseLegend } from "@/components/shared/SectionHeading";
 import { Button } from "@/components/ui/Button";
 import type { NoteTone } from "@/components/ui/Note";
 import { Note } from "@/components/ui/Note";
-import type { CycleOut, StageOut } from "@/types/schedule";
+import type { StageOut } from "@/types/schedule";
 import type { GridCellRef, RunDesignState } from "@/types/schedulerGrid";
-import { formatShortDateUTC, isWeekendUTC, parseDateOnly } from "@/utils/calendarDates";
+import { addDaysUTC, formatShortDateUTC, isWeekendUTC, parseDateOnly, toIsoDateUTC } from "@/utils/calendarDates";
 
 import { BacklogAccordion } from "./BacklogAccordion";
+import { ClearScheduleModal } from "./ClearScheduleModal";
 import { RunDesignAccordion } from "./RunDesignAccordion";
 import styles from "./SchedulePage.module.css";
 import { useSchedulerWindow } from "./useSchedulerWindow";
@@ -51,16 +52,27 @@ export function SchedulePage() {
   const [detail, setDetail] = useState<DetailTarget | null>(null);
   const [runDesignNote, setRunDesignNote] = useState<AccordionNote | null>(null);
   const [removeSlotsError, setRemoveSlotsError] = useState<string | null>(null);
+  const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
 
   const instrumentsQuery = useQuery({
     queryKey: ["instruments", true],
     queryFn: () => instrumentsApi.list(true),
   });
 
+  // Fetch a few days further back than the visible window so a long run that started
+  // just before it (still locking its instrument) is known about for the carry-over lock
+  // badge, even though its own day isn't rendered as a column.
+  const lookbackDateFrom = useMemo(
+    () => toIsoDateUTC(addDaysUTC(parseDateOnly(win.dateFrom), -LOCK_LOOKBACK_DAYS)),
+    [win.dateFrom],
+  );
   const cyclesQuery = useQuery({
-    queryKey: ["cycles", { date_from: win.dateFrom, date_to: win.dateTo }],
-    queryFn: () => cyclesApi.list({ date_from: win.dateFrom, date_to: win.dateTo }),
+    queryKey: ["cycles", { date_from: lookbackDateFrom, date_to: win.dateTo }],
+    queryFn: () => cyclesApi.list({ date_from: lookbackDateFrom, date_to: win.dateTo }),
     placeholderData: (prev) => prev,
+    // Keeps each run's is_locked (active/sequencing indicator) reasonably current for
+    // anyone leaving this page open, without a client-side clock re-deriving it.
+    refetchInterval: 60_000,
   });
 
   const instrumentSerials = useMemo(
@@ -69,6 +81,10 @@ export function SchedulePage() {
   );
   const cycles = useMemo(() => cyclesQuery.data ?? [], [cyclesQuery.data]);
   const grouped = useMemo(() => groupCyclesByInstrumentAndDay(cycles), [cycles]);
+  // `cycles` is fetched a few days wider than the visible window (see lookbackDateFrom
+  // above), purely so carry-over locks can see runs that started just before it. Anything
+  // deriving from the actually-visible week (bulk clear, etc.) must filter back down.
+  const visibleCycles = useMemo(() => cycles.filter((c) => win.days.includes(c.run_date)), [cycles, win.days]);
 
   // Intersect the selection with the currently selectable (empty, non-weekend) cells to
   // get the concrete auto-fill payload.
@@ -85,21 +101,13 @@ export function SchedulePage() {
     return out;
   }, [instrumentSerials, win.days, grouped, selection]);
 
-  // Same selection, but the other direction: every placed (filled, unlocked) sample
-  // inside it, for the "Clear schedule" bulk-remove. Locked (non-"planned") cycles are
-  // excluded since the backend rejects removing their stages.
-  const selectedFilledStages = useMemo(() => {
-    const out: StageOut[] = [];
-    instrumentSerials.forEach((serial, r) => {
-      win.days.forEach((date, c) => {
-        if (!selection.isSelected(r, c)) return;
-        const cycle: CycleOut | undefined = grouped.get(serial)?.get(date);
-        if (!cycle || cycle.status !== "planned") return;
-        out.push(...cycle.stages);
-      });
-    });
-    return out;
-  }, [instrumentSerials, win.days, grouped, selection]);
+  // Every placed, unlocked (still "planned") sample anywhere in the currently-viewed
+  // week, for the "Clear schedule" confirm-and-wipe action. Locked (confirmed-loaded)
+  // cycles are excluded since the backend rejects removing their stages.
+  const weekPlannedStages = useMemo(
+    () => visibleCycles.filter((cycle) => cycle.status === "planned").flatMap((cycle) => cycle.stages),
+    [visibleCycles],
+  );
 
   // Clear both selections whenever the window pages.
   useEffect(() => {
@@ -107,6 +115,7 @@ export function SchedulePage() {
     slotSelection.clear();
     setRunDesignNote(null);
     setRemoveSlotsError(null);
+    setClearConfirmOpen(false);
   }, [win.from, selection.clear, slotSelection.clear]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const removeSlotsMutation = useMutation({
@@ -125,11 +134,11 @@ export function SchedulePage() {
     },
   });
 
-  // Bulk-remove every placed sample inside the grid range-selection - the inverse of
-  // auto-fill, which only ever touches the empty cells in that same selection.
+  // Bulk-remove every planned (unlocked) sample in the currently-viewed week - gated
+  // behind the confirm modal below since it's destructive and can span every instrument.
   const clearScheduleMutation = useMutation({
     mutationFn: async () => {
-      const stages = selectedFilledStages;
+      const stages = weekPlannedStages;
       await Promise.all(stages.map((stage) => cellUsesApi.remove(stage.cell_use_id)));
       return stages.length;
     },
@@ -137,21 +146,15 @@ export function SchedulePage() {
       void queryClient.invalidateQueries({ queryKey: ["cycles"] });
       void queryClient.invalidateQueries({ queryKey: ["samples"] });
       void queryClient.invalidateQueries({ queryKey: ["cells"] });
-      selection.clear();
+      setClearConfirmOpen(false);
       setRunDesignNote({ tone: "good", icon: "✓", text: `${count} sample(s) cleared from the schedule.` });
-    },
-    onError: (err) => {
-      setRunDesignNote({
-        tone: "bad",
-        icon: "!",
-        text: err instanceof ApiError ? err.message : "Failed to clear schedule.",
-      });
     },
   });
 
-  function onClearSchedule() {
+  function onRequestClearSchedule() {
     setRunDesignNote(null);
-    clearScheduleMutation.mutate();
+    clearScheduleMutation.reset();
+    setClearConfirmOpen(true);
   }
 
   // Delete/Backspace removes the selected samples from the schedule, as long as focus
@@ -270,9 +273,8 @@ export function SchedulePage() {
             selectedCount={selectedCells.length}
             onAutoSchedule={onAutoSchedule}
             autoFilling={autoFillMutation.isPending}
-            clearableCount={selectedFilledStages.length}
-            onClearSchedule={onClearSchedule}
-            clearingSchedule={clearScheduleMutation.isPending}
+            weekPlannedCount={weekPlannedStages.length}
+            onRequestClearSchedule={onRequestClearSchedule}
             note={runDesignNote}
           />
           <BacklogAccordion />
@@ -306,6 +308,7 @@ export function SchedulePage() {
             placingSlotKey={dnd.placingSlotKey}
             onOpenDetail={handleOpenDetail}
             slotSelection={slotSelection}
+            activeDragInstrument={dnd.activeDragInstrument}
           />
         )}
 
@@ -318,9 +321,21 @@ export function SchedulePage() {
         <CellChoicePicker
           pending={dnd.pendingPlacement}
           runDesign={runDesign}
+          existingRun={grouped.get(dnd.pendingPlacement.instrument_serial)?.get(dnd.pendingPlacement.run_date)}
           onClose={() => dnd.setPendingPlacement(null)}
           onPlaced={() => dnd.setPendingPlacement(null)}
           setPlacingSlotKey={dnd.setPlacingSlotKey}
+        />
+      )}
+
+      {clearConfirmOpen && (
+        <ClearScheduleModal
+          weekLabel={rangeLabel}
+          count={weekPlannedStages.length}
+          pending={clearScheduleMutation.isPending}
+          error={clearScheduleMutation.error}
+          onCancel={() => setClearConfirmOpen(false)}
+          onConfirm={() => clearScheduleMutation.mutate()}
         />
       )}
 

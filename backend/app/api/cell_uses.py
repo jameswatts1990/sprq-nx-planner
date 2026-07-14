@@ -6,8 +6,8 @@ from sqlalchemy.orm import selectinload
 
 from app.api.deps import ActorDep, SessionDep
 from app.models.schedule import CELL_USE_STATUSES, CellUse, Cycle, RunBatch
-from app.schemas.run import CycleOut, PlaceSampleRequest
-from app.services.placement_service import PlacementError, place_sample, remove_sample
+from app.schemas.run import CycleOut, MoveSampleRequest, PlaceSampleRequest
+from app.services.placement_service import PlacementError, move_sample, place_sample, remove_sample
 from app.services.run_serializer import cycle_out
 from app.services.run_service import update_cell_use_status
 
@@ -58,7 +58,28 @@ def create_cell_use(req: PlaceSampleRequest, db: SessionDep, actor: ActorDep) ->
             slot_index=req.slot_index,
             cell_choice=req.cell_choice.model_dump(),
             run_time_hours=req.run_time_hours,
-            max_uses=req.max_uses,
+            start_hour=req.start_hour,
+            start_minute=req.start_minute,
+            actor=actor,
+        )
+    except PlacementError as exc:
+        raise HTTPException(exc.status_code, exc.detail) from exc
+    cycle = db.get(Cycle, cycle.id, options=_CYCLE_OPTIONS)
+    return cycle_out(cycle)
+
+
+@router.post("/{cell_use_id}/move", response_model=CycleOut)
+def move_cell_use(cell_use_id: int, req: MoveSampleRequest, db: SessionDep, actor: ActorDep) -> CycleOut:
+    try:
+        cycle = move_sample(
+            db,
+            cell_use_id=cell_use_id,
+            instrument_serial=req.instrument_serial,
+            run_date=req.run_date,
+            slot_index=req.slot_index,
+            run_time_hours=req.run_time_hours,
+            start_hour=req.start_hour,
+            start_minute=req.start_minute,
             actor=actor,
         )
     except PlacementError as exc:

@@ -1,6 +1,7 @@
 """Direct port of targetDepthFor / disjoint / packCells from revio-nx-planner.html (lines 431-466)."""
 from __future__ import annotations
 
+from app.engine.constants import CELL_MAX_USES
 from app.engine.csv_parse import split_barcodes
 from app.engine.types import ConflictPair, PackedCell, PackResult, ParsedSample, PriorCellInput
 
@@ -23,6 +24,9 @@ def pack_cells(
     objective: str,
     prior_cells: list[PriorCellInput] | None = None,
 ) -> PackResult:
+    """`max_uses` is this batch's target packing depth for newly-created cells (how many
+    uses to plan onto a fresh cell before opening another one), not a per-cell physical
+    cap - every cell's real capacity is always CELL_MAX_USES. See target_depth_for()."""
     target = target_depth_for(objective, max_uses)
 
     deg: dict[str, int] = {s.key: 0 for s in samples}
@@ -37,17 +41,18 @@ def pack_cells(
     cells: list[PackedCell] = []
     for i, pc in enumerate(prior_cells or []):
         codes = split_barcodes(pc.barcodes_text or "")
-        consumed = min(pc.uses_consumed, max_uses)
+        consumed = min(pc.uses_consumed, CELL_MAX_USES)
         cells.append(
             PackedCell(
                 id=f"P{i + 1}",
                 prior=True,
                 prior_barcodes=set(codes),
                 uses_consumed=consumed,
-                remaining=max(0, max_uses - consumed),
+                remaining=max(0, CELL_MAX_USES - consumed),
                 barcodes=set(codes),
                 uses=[],
                 cell_id=pc.cell_id,
+                pinned_instrument_serial=pc.pinned_instrument_serial,
             )
         )
 
@@ -85,7 +90,7 @@ def pack_cells(
                 prior=False,
                 prior_barcodes=set(),
                 uses_consumed=0,
-                remaining=max_uses,
+                remaining=CELL_MAX_USES,
                 barcodes=set(s.barcodes),
                 uses=[s],
             )

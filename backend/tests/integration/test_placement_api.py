@@ -26,19 +26,21 @@ def _sid(client, external_id: str) -> int:
     return next(s["id"] for s in items if s["external_id"] == external_id)
 
 
-def _place(client, sample_id, run_date, slot_index, cell_choice=None, run_time_hours=24, instrument="84047"):
-    return client.post(
-        "/api/cell-uses",
-        json={
-            "sample_id": sample_id,
-            "instrument_serial": instrument,
-            "run_date": run_date,
-            "slot_index": slot_index,
-            "cell_choice": cell_choice or {"mode": "new"},
-            "run_time_hours": run_time_hours,
-            "max_uses": 3,
-        },
-    )
+def _place(
+    client, sample_id, run_date, slot_index, cell_choice=None, run_time_hours=24, instrument="84047", start_hour=None
+):
+    payload = {
+        "sample_id": sample_id,
+        "instrument_serial": instrument,
+        "run_date": run_date,
+        "slot_index": slot_index,
+        "cell_choice": cell_choice or {"mode": "new"},
+        "run_time_hours": run_time_hours,
+        "max_uses": 3,
+    }
+    if start_hour is not None:
+        payload["start_hour"] = start_hour
+    return client.post("/api/cell-uses", json=payload)
 
 
 def test_place_sample_happy_path_creates_run_and_schedules_sample(client):
@@ -138,7 +140,9 @@ def test_remove_sample_keeps_cell_when_it_still_has_other_uses(client):
 
     r1 = _place(client, a1, mon, 0)
     cell_id = r1.json()["stages"][0]["cell_id"]
-    r2 = _place(client, a2, tue, 0, {"mode": "existing", "cell_id": cell_id})
+    # Monday's run (9am start, 24h movie) locks 84047 until Tue 15:00; clear it explicitly.
+    r2 = _place(client, a2, tue, 0, {"mode": "existing", "cell_id": cell_id}, start_hour=15)
+    assert r2.status_code == 201, r2.text
     cell_use_id_2 = r2.json()["stages"][0]["cell_use_id"]
 
     resp = client.delete(f"/api/cell-uses/{cell_use_id_2}")

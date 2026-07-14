@@ -1,6 +1,6 @@
 import { api } from "./client";
 import type { CycleOut } from "@/types/schedule";
-import type { PlaceSampleRequest } from "@/types/schedulerGrid";
+import type { MoveSampleRequest, PlaceSampleRequest } from "@/types/schedulerGrid";
 
 export interface CellUseOut {
   id: number;
@@ -32,4 +32,7 @@ export const cellUsesApi = {
   place: (req: PlaceSampleRequest) => api.post<CycleOut>("/api/cell-uses", req),
   /** Remove a placement. 204 no body; 409 if the owning cycle isn't "planned". */
   remove: (id: number) => api.del<void>(`/api/cell-uses/${id}`),
+  /** Atomically move an existing placement to a different (instrument, day, slot). 200 ->
+   * the destination CycleOut. 409 on a cross-instrument move, lock, or slot clash. */
+  move: (id: number, req: MoveSampleRequest) => api.post<CycleOut>(`/api/cell-uses/${id}/move`, req),
 };

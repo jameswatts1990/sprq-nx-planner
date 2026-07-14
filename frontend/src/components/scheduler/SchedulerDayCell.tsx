@@ -4,8 +4,9 @@ import type { KeyboardEvent, MouseEvent } from "react";
 import { ApiError } from "@/api/client";
 import { cyclesApi } from "@/api/cycles";
 import type { CycleOut, StageOut } from "@/types/schedule";
+import { formatShortDateTimeUTC } from "@/utils/calendarDates";
 
-import { SLOT_INDICES, slotKey } from "./gridKeys";
+import { slotKey, TRAY_INDICES } from "./gridKeys";
 import { padStages } from "./groupCyclesByInstrumentAndDay";
 import { SchedulerSlot } from "./SchedulerSlot";
 import styles from "./SchedulerDayCell.module.css";
@@ -18,6 +19,9 @@ export interface SchedulerDayCellProps {
   colIndex: number;
   weekend: boolean;
   cycle: CycleOut | undefined;
+  /** An earlier run on this instrument whose lock hasn't elapsed yet, when this day has
+   * no run of its own - purely informational, never affects `selectable`. */
+  carryOverLock: CycleOut | undefined;
   /** No cycle yet and not a weekend - eligible for select + auto-fill. */
   selectable: boolean;
   /** Currently selected (and selectable) - via shift-click rectangle or ctrl/cmd-click toggle. */
@@ -26,13 +30,16 @@ export interface SchedulerDayCellProps {
   onSelect: (r: number, c: number, shift: boolean, ctrl: boolean) => void;
   onOpenDetail: (stage: StageOut, locked: boolean) => void;
   slotSelection: SlotSelection;
+  /** Source instrument of an in-progress filled-slot drag, or null. Cells cannot move
+   * between instruments, so empty slots on any other instrument become ineligible. */
+  activeDragInstrument: string | null;
 }
 
 /**
- * One (instrument, day) grid cell. Weekends render closed/non-interactive. Otherwise a
- * 2x2 bank of 4 fixed slots, with a header carrying the Confirm-loaded / Unlock control
- * once the day's run exists. Empty non-weekend cells participate in spreadsheet-style
- * range selection for auto-fill.
+ * One (instrument, day) grid cell. Weekends render closed/non-interactive. Otherwise two
+ * 4-slot trays (tray 2 only shown once tray 1 has a sample loaded), with a header carrying
+ * the Confirm-loaded / Unlock control once the day's run exists. Empty non-weekend cells
+ * participate in spreadsheet-style range selection for auto-fill.
  */
 export function SchedulerDayCell(props: SchedulerDayCellProps) {
   const {
@@ -42,13 +49,16 @@ export function SchedulerDayCell(props: SchedulerDayCellProps) {
     colIndex,
     weekend,
     cycle,
+    carryOverLock,
     selectable,
     selected,
     placingSlotKey,
     onSelect,
     slotSelection,
+    activeDragInstrument,
   } = props;
   const queryClient = useQueryClient();
+  const crossInstrumentDragActive = activeDragInstrument !== null && activeDragInstrument !== instrumentSerial;
 
   const statusMutation = useMutation({
     mutationFn: (status: "running" | "planned") => {
@@ -66,8 +76,13 @@ export function SchedulerDayCell(props: SchedulerDayCellProps) {
 
   const locked = cycle !== undefined && cycle.status !== "planned";
   const filledCount = cycle ? cycle.stages.length : 0;
+  // lock_until's calendar date > this cell's own run_date - the run's lock bleeds into
+  // (or past) subsequent days, worth calling out right where it started.
+  const lockExtendsPastToday = cycle !== undefined && cycle.lock_until.slice(0, 10) > runDate;
   const slots = padStages(cycle);
-  const firstEmptyIndex = SLOT_INDICES.find((i) => !slots[i]);
+  const tray1Filled = TRAY_INDICES[0].some((i) => slots[i] !== null);
+  const trayVisible = [true, tray1Filled];
+  const firstEmptyByTray = TRAY_INDICES.map((indices) => indices.find((i) => !slots[i]));
 
   function onCellClick(e: MouseEvent<HTMLTableCellElement>) {
     if (selectable) onSelect(rowIndex, colIndex, e.shiftKey, e.ctrlKey || e.metaKey);
@@ -83,6 +98,7 @@ export function SchedulerDayCell(props: SchedulerDayCellProps) {
   if (selectable) cellClasses.push(styles.selectable);
   if (selected) cellClasses.push(styles.selected);
   if (!cycle) cellClasses.push(styles.emptyCell);
+  if (tray1Filled) cellClasses.push(styles.twoTrays);
 
   return (
     <td
@@ -95,9 +111,15 @@ export function SchedulerDayCell(props: SchedulerDayCellProps) {
     >
       {cycle && (
         <div className={styles.head}>
+          {cycle.is_locked && (
+            <span className={styles.activeDot} title="Instrument is actively sequencing this run" aria-hidden="true" />
+          )}
           {locked ? (
             <>
-              <span className={styles.lockTag}>{cycle.status === "running" ? "LOADED" : cycle.status.toUpperCase()}</span>
+              <span className={styles.lockTag}>
+                {cycle.status === "running" ? "LOADED" : cycle.status.toUpperCase()}
+                {lockExtendsPastToday && ` · locked until ${formatShortDateTimeUTC(cycle.lock_until)}`}
+              </span>
               {cycle.status === "running" && (
                 <button
                   type="button"
@@ -124,6 +146,12 @@ export function SchedulerDayCell(props: SchedulerDayCellProps) {
         </div>
       )}
 
+      {!cycle && carryOverLock && (
+        <div className={styles.head}>
+          <span className={styles.carryLockTag}>Locked until {formatShortDateTimeUTC(carryOverLock.lock_until)}</span>
+        </div>
+      )}
+
       {statusMutation.isError && (
         <div className={styles.err}>
           {statusMutation.error instanceof ApiError ? statusMutation.error.message : "Status update failed."}
@@ -131,20 +159,32 @@ export function SchedulerDayCell(props: SchedulerDayCellProps) {
       )}
 
       <div className={styles.slots}>
-        {SLOT_INDICES.filter((i) => slots[i] !== null || i === firstEmptyIndex).map((i) => (
-          <SchedulerSlot
-            key={i}
-            stage={slots[i]}
-            slotIndex={i}
-            instrumentSerial={instrumentSerial}
-            runDate={runDate}
-            locked={locked}
-            placing={placingSlotKey === slotKey(instrumentSerial, runDate, i)}
-            selected={!locked && slots[i] !== null && slotSelection.isSelected(slots[i]!.cell_use_id)}
-            onOpenDetail={(stage) => props.onOpenDetail(stage, locked)}
-            onToggleSelect={slotSelection.toggle}
-          />
-        ))}
+        {TRAY_INDICES.map((indices, trayIdx) => {
+          if (!trayVisible[trayIdx]) return null;
+          const firstEmptyIndex = firstEmptyByTray[trayIdx];
+          return (
+            <div key={trayIdx} className={styles.tray}>
+              {trayIdx === 1 && <div className={styles.trayLabel}>Tray 2</div>}
+              {indices
+                .filter((i) => slots[i] !== null || i === firstEmptyIndex)
+                .map((i) => (
+                  <SchedulerSlot
+                    key={i}
+                    stage={slots[i]}
+                    slotIndex={i}
+                    instrumentSerial={instrumentSerial}
+                    runDate={runDate}
+                    locked={locked}
+                    placing={placingSlotKey === slotKey(instrumentSerial, runDate, i)}
+                    selected={!locked && slots[i] !== null && slotSelection.isSelected(slots[i]!.cell_use_id)}
+                    onOpenDetail={(stage) => props.onOpenDetail(stage, locked)}
+                    onToggleSelect={slotSelection.toggle}
+                    crossInstrumentDragActive={crossInstrumentDragActive}
+                  />
+                ))}
+            </div>
+          );
+        })}
       </div>
     </td>
   );

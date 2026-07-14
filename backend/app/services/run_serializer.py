@@ -6,6 +6,8 @@ from __future__ import annotations
 from app.engine.constants import WELLS
 from app.models.schedule import CellUse, Cycle
 from app.schemas.run import CycleOut, StageOut
+from app.services.instrument_lock import cycle_lock_until
+from app.timeutil import ensure_aware, utcnow
 
 
 def _use_number(cell_use: CellUse) -> int:
@@ -39,6 +41,10 @@ def cycle_out(cycle: Cycle) -> CycleOut:
         for cu in sorted(cycle.cell_uses, key=lambda x: x.well)
     ]
 
+    lock_until = cycle_lock_until(cycle)
+    now = utcnow()
+    is_locked = cycle.status not in ("aborted", "completed") and ensure_aware(cycle.planned_start_at) <= now < lock_until
+
     return CycleOut(
         cycle_id=cycle.id,
         instrument_serial=serial,
@@ -49,5 +55,7 @@ def cycle_out(cycle: Cycle) -> CycleOut:
         planned_end_at=cycle.planned_end_at,
         actual_start_at=cycle.actual_start_at,
         actual_end_at=cycle.actual_end_at,
+        lock_until=lock_until,
+        is_locked=is_locked,
         stages=stages,
     )

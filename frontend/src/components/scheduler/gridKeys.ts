@@ -16,4 +16,12 @@ export function sampleDragId(sampleId: number): string {
   return `sample::${sampleId}`;
 }
 
-export const SLOT_INDICES: SlotIndex[] = [0, 1, 2, 3];
+export const SLOT_INDICES: SlotIndex[] = [0, 1, 2, 3, 4, 5, 6, 7];
+
+/** Two 4-cell trays per run: tray 1 = slots 0-3, tray 2 = slots 4-7. */
+export const TRAY_INDICES: SlotIndex[][] = [SLOT_INDICES.slice(0, 4) as SlotIndex[], SLOT_INDICES.slice(4, 8) as SlotIndex[]];
+
+/** Which tray (0 or 1) a given slot index belongs to. */
+export function trayOfSlot(slotIndex: SlotIndex): number {
+  return slotIndex < 4 ? 0 : 1;
+}

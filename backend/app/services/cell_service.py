@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.engine.constants import CELL_LIFETIME_H
+from app.engine.constants import CELL_LIFETIME_H, CELL_MAX_USES
 from app.models.audit import AuditLog
 from app.models.cell import Cell
 from app.models.instrument import Instrument
@@ -134,7 +134,7 @@ def bootstrap_cell(db: Session, req: CellBootstrapRequest) -> Cell:
             raise ValueError("No instruments configured - run migrations first.")
 
     code = f"BOOT-{utcnow():%Y%m%d%H%M%S%f}"
-    cell = Cell(code=code, max_uses=req.max_uses, status="open", first_use_started_at=req.first_use_started_at)
+    cell = Cell(code=code, max_uses=CELL_MAX_USES, status="open", first_use_started_at=req.first_use_started_at)
     db.add(cell)
     db.flush()
 
@@ -184,7 +184,6 @@ def bootstrap_cell(db: Session, req: CellBootstrapRequest) -> Cell:
             entity_type="cell",
             entity_id=cell.id,
             details_json={
-                "max_uses": req.max_uses,
                 "uses_consumed": req.uses_consumed,
                 "burned_barcodes": req.burned_barcodes,
             },

@@ -53,6 +53,11 @@ export interface SchedulerDnd {
   /** slotKey of a slot with an in-flight place/remove, for the "placing…" shimmer. */
   placingSlotKey: string | null;
   setPlacingSlotKey: (k: string | null) => void;
+  /** Source instrument of an in-progress filled-slot ("move") drag, or null for a
+   * backlog-sample drag (which has no source instrument) or when nothing is dragging.
+   * Cells cannot move between instruments, so slots on any other instrument are made
+   * ineligible drop targets while this is set. */
+  activeDragInstrument: string | null;
 }
 
 /**
@@ -66,6 +71,7 @@ export function useSchedulerDnd(): SchedulerDnd {
   const [activeSample, setActiveSample] = useState<DragSampleRef | null>(null);
   const [pendingPlacement, setPendingPlacement] = useState<PendingPlacement | null>(null);
   const [placingSlotKey, setPlacingSlotKey] = useState<string | null>(null);
+  const [activeDragInstrument, setActiveDragInstrument] = useState<string | null>(null);
 
   // A small distance activation constraint so a click on a filled slot still opens its
   // detail popover instead of being swallowed as a drag start.
@@ -79,10 +85,12 @@ export function useSchedulerDnd(): SchedulerDnd {
     if (data && (data.kind === "sample" || data.kind === "filledSlot")) {
       setActiveSample(data.sample);
     }
+    setActiveDragInstrument(data?.kind === "filledSlot" ? data.instrument_serial : null);
   }, []);
 
   const onDragEnd = useCallback((event: DragEndEvent) => {
     setActiveSample(null);
+    setActiveDragInstrument(null);
     const over = event.over;
     if (!over) return;
     const overData = over.data.current as SlotDropData | undefined;
@@ -100,13 +108,16 @@ export function useSchedulerDnd(): SchedulerDnd {
       return;
     }
 
-    // filledSlot -> ignore a no-op drop back onto itself, otherwise treat as a move
-    // (remove-then-place through the same CellChoicePicker step).
+    // filledSlot -> ignore a no-op drop back onto itself, otherwise treat as a move.
+    // Defense-in-depth: the drop target's own `disabled` droppable state (see
+    // SchedulerSlot's use of activeDragInstrument) already keeps a cross-instrument drop
+    // from landing at all, but guard here too in case that ever changes.
     const sameSlot =
       activeData.instrument_serial === overData.instrument_serial &&
       activeData.run_date === overData.run_date &&
       activeData.slot_index === overData.slot_index;
     if (sameSlot) return;
+    if (activeData.instrument_serial !== overData.instrument_serial) return;
 
     setPendingPlacement({
       sample: activeData.sample,
@@ -127,5 +138,6 @@ export function useSchedulerDnd(): SchedulerDnd {
     setPendingPlacement,
     placingSlotKey,
     setPlacingSlotKey,
+    activeDragInstrument,
   };
 }

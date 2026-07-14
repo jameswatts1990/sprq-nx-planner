@@ -1,6 +1,7 @@
 import type { CycleOut, StageOut } from "@/types/schedule";
 import { isWeekendUTC, parseDateOnly } from "@/utils/calendarDates";
 
+import { findCarryOverLock } from "./groupCyclesByInstrumentAndDay";
 import type { GridSelection } from "./useGridSelection";
 import type { SlotSelection } from "./useSlotSelection";
 import { SchedulerDayCell } from "./SchedulerDayCell";
@@ -15,6 +16,7 @@ export interface SchedulerGridRowProps {
   placingSlotKey: string | null;
   onOpenDetail: (stage: StageOut, locked: boolean) => void;
   slotSelection: SlotSelection;
+  activeDragInstrument: string | null;
 }
 
 /** One instrument row: sticky-left <th> serial, then one SchedulerDayCell per day.
@@ -28,6 +30,7 @@ export function SchedulerGridRow({
   placingSlotKey,
   onOpenDetail,
   slotSelection,
+  activeDragInstrument,
 }: SchedulerGridRowProps) {
   return (
     <tr>
@@ -40,6 +43,7 @@ export function SchedulerGridRow({
         const cycle = cyclesByDate.get(date);
         const selectable = !weekend && cycle === undefined;
         const selected = selectable && selection.isSelected(rowIndex, colIndex);
+        const carryOverLock = cycle ? undefined : findCarryOverLock(cyclesByDate, date);
         return (
           <SchedulerDayCell
             key={date}
@@ -49,12 +53,14 @@ export function SchedulerGridRow({
             colIndex={colIndex}
             weekend={weekend}
             cycle={cycle}
+            carryOverLock={carryOverLock}
             selectable={selectable}
             selected={selected}
             placingSlotKey={placingSlotKey}
             onSelect={selection.handleCellClick}
             onOpenDetail={onOpenDetail}
             slotSelection={slotSelection}
+            activeDragInstrument={activeDragInstrument}
           />
         );
       })}

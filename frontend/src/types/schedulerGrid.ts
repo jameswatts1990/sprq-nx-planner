@@ -15,7 +15,21 @@ export interface PlaceSampleRequest {
   slot_index: SlotIndex;
   cell_choice: CellChoice;
   run_time_hours: RunTimeHours; // current Run Design dial
-  max_uses: MaxUses; // current Run Design dial; only applied server-side when cell_choice.mode==="new"
+  /** Only meaningful when this placement creates a brand-new run (the first sample into
+   * an empty instrument+day cell) - ignored otherwise, since an existing run's start is
+   * already fixed. Omit to accept the backend's default (09:00). */
+  start_hour?: number;
+  start_minute?: number;
+}
+
+/** POST /api/cell-uses/{id}/move body. */
+export interface MoveSampleRequest {
+  instrument_serial: string;
+  run_date: string; // YYYY-MM-DD
+  slot_index: SlotIndex;
+  run_time_hours: RunTimeHours;
+  start_hour?: number;
+  start_minute?: number;
 }
 
 export interface GridCellRef {
@@ -26,7 +40,7 @@ export interface GridCellRef {
 /** POST /api/auto-fill body. */
 export interface AutoFillRequest {
   cells: GridCellRef[];
-  max_uses: MaxUses;
+  max_uses: MaxUses; // target packing depth for new cells this batch, not a physical cap (always 3)
   run_time_hours: RunTimeHours;
   objective: Objective;
 }

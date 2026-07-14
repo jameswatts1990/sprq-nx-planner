@@ -9,7 +9,8 @@ from sqlalchemy.orm import Session, selectinload
 from app.engine.types import ParsedSample, PriorCellInput
 from app.models.cell import Cell
 from app.models.sample import Sample
-from app.services.cell_service import derive_cell_state
+from app.models.schedule import CellUse, Cycle, RunBatch
+from app.services.cell_service import current_location, derive_cell_state
 
 
 def load_backlog_samples(db: Session, sample_ids: list[int] | None = None) -> list[Sample]:
@@ -36,7 +37,16 @@ def to_parsed_samples(samples: list[Sample]) -> list[ParsedSample]:
 
 
 def load_prior_cells(db: Session, excluded_cell_ids: list[int]) -> tuple[list[PriorCellInput], dict[int, Cell]]:
-    stmt = select(Cell).where(Cell.status == "open").options(selectinload(Cell.cell_uses))
+    stmt = (
+        select(Cell)
+        .where(Cell.status == "open")
+        .options(
+            selectinload(Cell.cell_uses)
+            .selectinload(CellUse.cycle)
+            .selectinload(Cycle.run_batch)
+            .selectinload(RunBatch.instrument)
+        )
+    )
     cells = [c for c in db.scalars(stmt).unique().all() if c.id not in excluded_cell_ids]
     prior_inputs: list[PriorCellInput] = []
     by_id: dict[int, Cell] = {}
@@ -44,12 +54,14 @@ def load_prior_cells(db: Session, excluded_cell_ids: list[int]) -> tuple[list[Pr
         uses_consumed, remaining, burned = derive_cell_state(cell)
         if remaining <= 0:
             continue
+        pinned_serial, _well = current_location(cell)
         prior_inputs.append(
             PriorCellInput(
                 barcodes_text=" ".join(burned),
                 uses_consumed=uses_consumed,
                 cell_id=cell.id,
                 first_use_started_at=cell.first_use_started_at,
+                pinned_instrument_serial=pinned_serial,
             )
         )
         by_id[cell.id] = cell

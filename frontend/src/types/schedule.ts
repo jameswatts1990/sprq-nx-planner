@@ -9,7 +9,8 @@ import type { CycleStatus } from "./common";
 export type MaxUses = 1 | 2 | 3;
 export type RunTimeHours = 12 | 24 | 30;
 export type Objective = "fewest" | "balance" | "fastest";
-export type SlotIndex = 0 | 1 | 2 | 3;
+/** 0-3 = tray 1, 4-7 = tray 2 (two 4-cell trays loaded per run). */
+export type SlotIndex = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
 export interface StageOut {
   slot_index: SlotIndex;
@@ -34,6 +35,11 @@ export interface CycleOut {
   planned_end_at: string;
   actual_start_at: string | null;
   actual_end_at: string | null;
-  /** length 1-4, ONLY filled wells - pad to slot_index 0-3 for rendering. */
+  /** planned_start_at + movie_hours + LOCK_BUFFER_HOURS - when the instrument becomes
+   * available to *start* another run (loading the next run's cells is never blocked). */
+  lock_until: string; // ISO datetime
+  /** "now" falls within [planned_start_at, lock_until) and status isn't aborted/completed. */
+  is_locked: boolean;
+  /** length 1-8, ONLY filled wells - pad to slot_index 0-7 for rendering. */
   stages: StageOut[];
 }
