@@ -140,7 +140,8 @@ def test_remove_sample_keeps_cell_when_it_still_has_other_uses(client):
 
     r1 = _place(client, a1, mon, 0)
     cell_id = r1.json()["stages"][0]["cell_id"]
-    # Monday's run (9am start, 24h movie) locks 84047 until Tue 15:00; clear it explicitly.
+    # start_hour is pinned explicitly here so this test's timing doesn't depend on whatever
+    # the default loading start time happens to be.
     r2 = _place(client, a2, tue, 0, {"mode": "existing", "cell_id": cell_id}, start_hour=15)
     assert r2.status_code == 201, r2.text
     cell_use_id_2 = r2.json()["stages"][0]["cell_use_id"]

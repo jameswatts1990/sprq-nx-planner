@@ -125,12 +125,12 @@ def test_move_into_a_run_locked_by_a_prior_run_on_destination_instrument_is_reje
     mon, tue = _weekdays(2)
 
     # Lock up 84098 with an unrelated run starting Monday - both trays loaded, so it's
-    # committed to the full movie (9am + 24h + 6h = Tue 15:00), not just the short setup window.
+    # committed to the full movie (noon + 24h + 6h = Tue 18:00), not just the short setup window.
     _place(client, _sid(client, "A1"), mon, slot_index=0, instrument="84098", run_time_hours=24)
     _place(client, _sid(client, "A3"), mon, slot_index=4, instrument="84098", run_time_hours=24)
 
     # A2 starts on 84047 Monday, then we try to move it onto 84098's Tuesday - still locked
-    # by 84098's own Monday run at the default 9am start.
+    # by 84098's own Monday run at the default noon start.
     r2 = _place(client, _sid(client, "A2"), mon, slot_index=0, instrument="84047")
     cell_use_id = r2.json()["stages"][0]["cell_use_id"]
 

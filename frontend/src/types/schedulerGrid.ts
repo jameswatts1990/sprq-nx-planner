@@ -17,7 +17,7 @@ export interface PlaceSampleRequest {
   run_time_hours: RunTimeHours; // current Run Design dial
   /** Only meaningful when this placement creates a brand-new run (the first sample into
    * an empty instrument+day cell) - ignored otherwise, since an existing run's start is
-   * already fixed. Omit to accept the backend's default (09:00). */
+   * already fixed. Omit to accept the backend's default (12:00). */
   start_hour?: number;
   start_minute?: number;
 }

@@ -16,7 +16,7 @@ import { formatShortDateUTC, parseDateOnly } from "@/utils/calendarDates";
 import { slotKey, trayOfSlot } from "./gridKeys";
 import styles from "./CellChoicePicker.module.css";
 
-const DEFAULT_START_TIME = "09:00";
+const DEFAULT_START_TIME = "12:00";
 
 export interface CellChoicePickerProps {
   pending: PendingPlacement;

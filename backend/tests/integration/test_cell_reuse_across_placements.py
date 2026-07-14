@@ -52,8 +52,8 @@ def test_cell_with_remaining_capacity_is_reused_across_days_and_burned_barcodes_
     assert cell["burned_barcodes"] == ["bc1"]
 
     # --- S2 (no clash) explicitly reuses that SAME cell on Tuesday - zero manual re-entry ---
-    # Monday's run (9am start, 24h movie) locks instrument 84047 until Tue 15:00 (movie_hours
-    # + 6h buffer), so Tuesday's new run must start at/after that to avoid the lock rejection.
+    # start_hour is set explicitly (rather than relying on the default) simply to pin this
+    # test's own timing regardless of what the default loading start time happens to be.
     r2 = _place(client, _sid(client, "S2"), tue, 0, {"mode": "existing", "cell_id": cell_id}, start_hour=15)
     assert r2.status_code == 201, r2.text
     assert r2.json()["stages"][0]["cell_id"] == cell_id
@@ -69,9 +69,9 @@ def test_cell_with_remaining_capacity_is_reused_across_days_and_burned_barcodes_
     assert "barcode" in r3.json()["detail"].lower()
 
     # --- S4 (bc3, no clash) takes the last slot, exhausting the cell ---
-    # Tuesday's run (15:00 start, 24h movie) locks 84047 until Wed 21:00; r3 above never
-    # reached the lock check (it 409s on the barcode conflict first), so r4 is the first
-    # write into Wednesday's grid cell and must clear Tuesday's lock.
+    # r3 above never reached the lock check (it 409s on the barcode conflict first), so r4
+    # is the first write into Wednesday's grid cell - start_hour is pinned explicitly here
+    # too, for the same reason as r2 above.
     r4 = _place(client, _sid(client, "S4"), wed, 0, {"mode": "existing", "cell_id": cell_id}, start_hour=21)
     assert r4.status_code == 201, r4.text
 

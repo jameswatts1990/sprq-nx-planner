@@ -43,8 +43,8 @@ def test_single_tray_run_only_locks_for_the_short_setup_window(client):
     client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1\nA2,bc2"})
     mon, tue = _weekdays(2)
 
-    # Only tray 1 (slot 0) loaded on Monday - lock clears same day at 9am + 6h = 15:00,
-    # so Tuesday's default 9am start is well past it and succeeds.
+    # Only tray 1 (slot 0) loaded on Monday - lock clears same day at noon + 6h = 18:00,
+    # so Tuesday's default noon start is well past it and succeeds.
     r1 = _place(client, _sid(client, "A1"), mon, slot_index=0, run_time_hours=24)
     assert r1.status_code == 201, r1.text
 
@@ -57,13 +57,13 @@ def test_two_tray_run_start_before_prior_lock_is_rejected(client):
     mon, tue = _weekdays(2)
 
     # Tray 1 (slot 0) and tray 2 (slot 4) both loaded on Monday - commits the instrument
-    # to the full movie: locked until 9am + 24h + 6h = next day 15:00.
+    # to the full movie: locked until noon + 24h + 6h = next day 18:00.
     r1 = _place(client, _sid(client, "A1"), mon, slot_index=0, run_time_hours=24)
     assert r1.status_code == 201, r1.text
     r2 = _place(client, _sid(client, "A2"), mon, slot_index=4, run_time_hours=24)
     assert r2.status_code == 201, r2.text
 
-    # Tuesday's default 9am start is well before that lock.
+    # Tuesday's default noon start is well before that lock.
     r3 = _place(client, _sid(client, "A3"), tue, run_time_hours=24)
     assert r3.status_code == 409, r3.text
     assert "locked" in r3.json()["detail"].lower()
@@ -78,7 +78,7 @@ def test_two_tray_run_start_at_or_after_prior_lock_succeeds(client):
     r2 = _place(client, _sid(client, "A2"), mon, slot_index=4, run_time_hours=24)
     assert r2.status_code == 201, r2.text
 
-    r3 = _place(client, _sid(client, "A3"), tue, run_time_hours=24, start_hour=15)
+    r3 = _place(client, _sid(client, "A3"), tue, run_time_hours=24, start_hour=18)
     assert r3.status_code == 201, r3.text
 
 

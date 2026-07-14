@@ -27,4 +27,4 @@ SINGLE_USE_PER_ACQ = 995
 DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 DAY_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
-DAY_START_HOUR = 9  # default run start hour when a caller doesn't supply one explicitly
+DAY_START_HOUR = 12  # default run start hour when a caller doesn't supply one explicitly

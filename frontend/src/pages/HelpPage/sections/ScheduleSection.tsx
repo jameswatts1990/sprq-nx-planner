@@ -53,7 +53,7 @@ export function ScheduleSection() {
         your sample&apos;s barcodes — running the same barcode twice on one cell isn&apos;t allowed. If there are no
         reusable cells, you&apos;ll see &quot;No reusable cells in use on [instrument] — a new cell will be used,&quot;
         and it proceeds automatically. When your drop starts a brand-new run for that instrument/day, a{" "}
-        <b>Loading start time</b> field appears (default 09:00) — that&apos;s the only case where the picker stops
+        <b>Loading start time</b> field appears (default 12:00) — that&apos;s the only case where the picker stops
         to ask. Dragging an already-placed sample to a new slot <b>moves</b> it and keeps its cell.
       </p>
       <p>
