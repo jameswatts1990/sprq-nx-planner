@@ -55,10 +55,16 @@ def import_samples(db: Session, req: ImportRequest) -> ImportResult:
         sample = Sample(
             import_batch_id=batch.id,
             external_id=parsed.id,
+            container_id=parsed.container_id or None,
             parent_sample=parsed.parent or None,
             sanger_ids=parsed.sanger,
             oplc=parsed.oplc,
+            target_oplc=parsed.target_oplc,
             volume=parsed.volume,
+            adaptive_loading=parsed.adaptive_loading or None,
+            full_resolution_base_q=parsed.full_resolution_base_q or None,
+            priority=parsed.priority or None,
+            ccs_kinetics=parsed.ccs_kinetics or None,
             status="backlog",
         )
         db.add(sample)

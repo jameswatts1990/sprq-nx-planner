@@ -79,6 +79,11 @@ export function ScheduleSection() {
           removed and warns it can&apos;t be undone. Confirmed/loaded runs are never touched, so the number cleared
           can be lower than the total on screen.
         </li>
+        <li>
+          <b>Drag a placed sample off the grid</b> (drop it anywhere that isn&apos;t a slot) to remove it from the
+          schedule the same way — while you&apos;re holding it, the slot it came from shows its empty <b>+</b>{" "}
+          placeholder as a preview of that removal.
+        </li>
       </ul>
       <p>
         <b>Run status on each day cell:</b>
@@ -111,9 +116,10 @@ export function ScheduleSection() {
         <i> earliest day it could next be loaded</i> — on the same instrument, one weekday after that last use —
         shows a tinted &quot;Use N · by [date]&quot; placeholder instead of the plain <b>+</b>, coloured the same as
         a real Use 2/3 chip and labelled with the exact day its 108-hour window closes. It keeps showing on every
-        later day the cell is still eligible, growing more opaque/solid as that expiry date nears, until the actual
-        last day it could still start — that day switches to a solid amber &quot;expires today&quot; look instead of
-        just being the most solid point of the fade, so the final opportunity always stands out. If Use 1 hasn&apos;t
+        later day the cell is still eligible, fading from full colour toward a paler tint as that expiry date nears,
+        until the actual last day it could still start — that day switches to a solid amber &quot;expires today&quot;
+        look instead of continuing to fade, so the final opportunity never reads as &quot;about to
+        vanish&quot;. If Use 1 hasn&apos;t
         been confirmed loaded yet, the expiry date shown is an estimate from its planned loading time rather than the
         real 108-hour clock (which only starts once the cell is actually removed from the tray) — the ghost always
         expires on schedule either way, it never reads as available indefinitely. If two different cells become

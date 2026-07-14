@@ -3,10 +3,16 @@ import type { SampleStatus } from "./common";
 export interface SampleOut {
   id: number;
   external_id: string;
+  container_id: string | null;
   parent_sample: string | null;
   sanger_ids: string[];
   oplc: number | null;
+  target_oplc: number | null;
   volume: number | null;
+  adaptive_loading: string | null;
+  full_resolution_base_q: string | null;
+  priority: string | null;
+  ccs_kinetics: string | null;
   status: SampleStatus;
   barcodes: string[];
   import_batch_id: number | null;

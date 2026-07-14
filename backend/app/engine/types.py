@@ -17,7 +17,13 @@ class ParsedSample:
     parent: str = ""
     sanger: list[str] = field(default_factory=list)
     oplc: float | None = None
+    target_oplc: float | None = None
     volume: float | None = None
+    container_id: str = ""
+    adaptive_loading: str = ""
+    full_resolution_base_q: str = ""
+    priority: str = ""
+    ccs_kinetics: str = ""
     key: str = ""
     sample_id: int | None = None  # DB id, populated once persisted; unused by pure engine
 

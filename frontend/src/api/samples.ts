@@ -2,9 +2,14 @@ import { api, buildQuery } from "./client";
 import type { Page } from "@/types/common";
 import type { SampleDetailOut, SampleOut } from "@/types/sample";
 
+export type SampleSortBy = "created_at" | "external_id" | "barcode" | "priority";
+export type SampleSortDir = "asc" | "desc";
+
 export interface ListSamplesParams {
   status?: string;
   q?: string;
+  sort_by?: SampleSortBy;
+  sort_dir?: SampleSortDir;
   page?: number;
   page_size?: number;
 }

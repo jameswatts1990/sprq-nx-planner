@@ -1,15 +1,34 @@
+import re
+
 from fastapi import APIRouter, HTTPException
 from sqlalchemy import or_, select
 from sqlalchemy.orm import selectinload
 
 from app.api.deps import ActorDep, SessionDep
 from app.models.audit import AuditLog
-from app.models.sample import SAMPLE_STATUSES, Sample
+from app.models.sample import SAMPLE_STATUSES, Sample, SampleBarcode
 from app.schemas.common import Page
 from app.schemas.sample import SampleDetailOut, SampleOut
 from app.serializers import sample_detail_out, sample_out
 
 router = APIRouter(prefix="/api/samples", tags=["samples"])
+
+SORTABLE_FIELDS = ("created_at", "external_id", "barcode", "priority")
+
+_PRIORITY_RANK_RE = re.compile(r"\((\d+)\)\s*$")
+
+
+def _priority_rank(priority: str | None) -> int:
+    """Lower is higher-priority. Extracts the trailing "(N)" from labels like
+    "High (1)"/"Standard (3)"; unlabelled priorities sort after all ranked ones."""
+    if not priority:
+        return 999
+    m = _PRIORITY_RANK_RE.search(priority)
+    return int(m.group(1)) if m else 999
+
+
+def _first_barcode(sample: Sample) -> str:
+    return sample.barcode_list[0] if sample.barcode_list else ""
 
 
 @router.get("", response_model=Page[SampleOut])
@@ -17,11 +36,18 @@ def list_samples(
     db: SessionDep,
     status: str | None = None,
     q: str | None = None,
+    sort_by: str = "created_at",
+    sort_dir: str = "desc",
     page: int = 1,
     page_size: int = 50,
 ) -> Page[SampleOut]:
     """One filterable endpoint covers the backlog (status=backlog) and history
     (status=completed,failed) views - see the plan's API table."""
+    if sort_by not in SORTABLE_FIELDS:
+        raise HTTPException(400, f"Unknown sort_by '{sort_by}'. Valid: {', '.join(SORTABLE_FIELDS)}")
+    if sort_dir not in ("asc", "desc"):
+        raise HTTPException(400, "sort_dir must be 'asc' or 'desc'")
+
     stmt = select(Sample).options(selectinload(Sample.barcodes))
     if status:
         statuses = [s.strip() for s in status.split(",") if s.strip()]
@@ -31,9 +57,27 @@ def list_samples(
         stmt = stmt.where(Sample.status.in_(statuses))
     if q:
         like = f"%{q}%"
-        stmt = stmt.where(or_(Sample.external_id.ilike(like), Sample.parent_sample.ilike(like)))
+        stmt = stmt.where(
+            or_(
+                Sample.external_id.ilike(like),
+                Sample.parent_sample.ilike(like),
+                Sample.barcodes.any(SampleBarcode.barcode.ilike(like)),
+            )
+        )
 
     all_matching = list(db.scalars(stmt.order_by(Sample.created_at.desc())).unique().all())
+
+    reverse = sort_dir == "desc"
+    if sort_by == "external_id":
+        all_matching.sort(key=lambda s: s.external_id.lower(), reverse=reverse)
+    elif sort_by == "barcode":
+        all_matching.sort(key=lambda s: _first_barcode(s).lower(), reverse=reverse)
+    elif sort_by == "priority":
+        all_matching.sort(key=_priority_rank, reverse=reverse)
+    # "created_at" is already the base query order (desc); re-sort only if asc requested
+    elif sort_dir == "asc":
+        all_matching.reverse()
+
     total = len(all_matching)
     start = (page - 1) * page_size
     page_items = all_matching[start : start + page_size]

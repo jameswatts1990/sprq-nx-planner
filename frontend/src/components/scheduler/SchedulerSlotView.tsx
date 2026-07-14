@@ -20,7 +20,9 @@ export interface SchedulerSlotViewProps extends HTMLAttributes<HTMLDivElement> {
   placing?: boolean;
   /** A droppable slot currently being hovered by a drag. */
   over?: boolean;
-  /** This filled slot is the active drag source. */
+  /** This filled slot is the active drag source - rendered as if unplaced (dashed
+   * placeholder, or its ghost if one applies), matching what dropping it outside the
+   * grid would actually do. */
   dragging?: boolean;
   /** Selected via ctrl/cmd-click, for the bulk-delete affordance. */
   selected?: boolean;
@@ -42,12 +44,17 @@ export const SchedulerSlotView = forwardRef<HTMLDivElement, SchedulerSlotViewPro
   { stage, slotIndex, locked, placing, over, dragging, selected, ineligible, ghost, className, style, ...rest },
   ref,
 ) {
+  // While this filled slot is being dragged, treat it as unplaced for rendering purposes -
+  // it reads as an empty/ghost placeholder, same as it will actually be if the drag ends
+  // outside a valid drop target (see useSchedulerDnd's onDragEnd).
+  const showStage = !!stage && !dragging;
+
   // Colour groups by which physical cell is loaded (stage.use_number), not by well
   // position - so a cell reused across two wells in the same run shares one colour. A
   // ghost slot (no stage yet) colours by the use number it's waiting to become.
-  const useClass = classForUseIndex(stage ? stage.use_number : ghost ? ghost.useNumber : slotIndex + 1);
+  const useClass = classForUseIndex(showStage ? stage!.use_number : ghost ? ghost.useNumber : slotIndex + 1);
   const classes = [styles.slot];
-  if (stage) {
+  if (showStage) {
     classes.push(styles.filled, styles[useClass]);
   } else if (ghost) {
     classes.push(styles.ghost, styles[useClass]);
@@ -57,7 +64,10 @@ export const SchedulerSlotView = forwardRef<HTMLDivElement, SchedulerSlotViewPro
   }
   if (locked) classes.push(styles.locked);
   if (placing) classes.push(styles.placing);
-  if (over) classes.push(styles.over);
+  // Hovering directly over a ghost previews an exact-match reuse of that specific cell -
+  // a distinct highlight from the generic "valid drop target" look, which is reserved for
+  // drops that still need the cell-choice popup (e.g. the plain "+" placeholder).
+  if (over) classes.push(ghost ? styles.ghostOver : styles.over);
   if (dragging) classes.push(styles.dragging);
   if (selected) classes.push(styles.selected);
   if (ineligible) classes.push(styles.ineligible);
@@ -70,13 +80,13 @@ export const SchedulerSlotView = forwardRef<HTMLDivElement, SchedulerSlotViewPro
 
   return (
     <div ref={ref} className={classes.join(" ")} style={mergedStyle} {...rest}>
-      {stage ? (
+      {showStage ? (
         <>
-          <div className={styles.ext} title={stage.sample_external_id ?? stage.cell_ref}>
-            {stage.sample_external_id ?? "—"}
+          <div className={styles.ext} title={stage!.sample_external_id ?? stage!.cell_ref}>
+            {stage!.sample_external_id ?? "—"}
           </div>
-          <div className={styles.cellref}>{stage.cell_ref}</div>
-          <BarcodeChips barcodes={stage.barcodes} variant={useClass} />
+          <div className={styles.cellref}>{stage!.cell_ref}</div>
+          <BarcodeChips barcodes={stage!.barcodes} variant={useClass} />
         </>
       ) : ghost ? (
         <>
@@ -90,9 +100,9 @@ export const SchedulerSlotView = forwardRef<HTMLDivElement, SchedulerSlotViewPro
           </div>
         </>
       ) : (
-        <span className={styles.placeholder}>{placing ? "placing…" : "+"}</span>
+        <span className={styles.placeholder}>{placing ? "placing…" : dragging ? "" : "+"}</span>
       )}
-      {stage && placing && <div className={styles.shimmer}>placing…</div>}
+      {showStage && placing && <div className={styles.shimmer}>placing…</div>}
     </div>
   );
 });

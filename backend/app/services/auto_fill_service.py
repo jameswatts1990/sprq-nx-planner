@@ -110,21 +110,38 @@ def auto_fill(
 
     # --- persist ---
     run_cycles: dict[tuple[str, date], int] = {}
+    skipped_keys: set[tuple[str, date]] = set()
     touched_cells: set[Cell] = set()
     placed_sample_ids: list[int] = []
 
-    for a in fill.assignments:
+    # Process in chronological order per instrument (not pack/cell order) rather than
+    # fill.assignments' own order. A full-tray run's lock can span into the next calendar
+    # day (see instrument_lock.cycle_lock_until), and that "tray 2 loaded" state is read
+    # back from the CellUse rows just persisted for the earlier day - so the earlier day's
+    # cell uses must already be committed before the later day's run is created, or the
+    # lock goes undetected. The pre-scan above can't foresee a lock this batch is about to
+    # create for itself; if that surfaces here as a PlacementError, skip just this day
+    # (same as an already-locked day is skipped above) instead of letting it raise mid-loop
+    # and roll back every other day already placed.
+    for a in sorted(fill.assignments, key=lambda a: (a.instrument_serial, a.run_date)):
         key = (a.instrument_serial, a.run_date)
+        if key in skipped_keys:
+            continue
         cycle_id = run_cycles.get(key)
         if cycle_id is None:
-            cyc = get_or_create_run(
-                db,
-                instrument=instruments[a.instrument_serial],
-                run_date=a.run_date,
-                run_time_hours=run_time_hours,
-                start_hour=start_hour,
-                start_minute=start_minute,
-            )
+            try:
+                cyc = get_or_create_run(
+                    db,
+                    instrument=instruments[a.instrument_serial],
+                    run_date=a.run_date,
+                    run_time_hours=run_time_hours,
+                    start_hour=start_hour,
+                    start_minute=start_minute,
+                )
+            except PlacementError:
+                skipped_keys.add(key)
+                skipped.append(key)
+                continue
             cycle_id = cyc.id
             run_cycles[key] = cycle_id
 
@@ -173,6 +190,8 @@ def auto_fill(
 
     last_date_by_ref: dict[str, date] = {}
     for a in fill.assignments:
+        if (a.instrument_serial, a.run_date) in skipped_keys:
+            continue
         cur = last_date_by_ref.get(a.cell.id)
         if cur is None or a.run_date > cur:
             last_date_by_ref[a.cell.id] = a.run_date

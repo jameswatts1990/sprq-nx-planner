@@ -157,7 +157,8 @@ export function LegendSection() {
           </div>
           <span>
             A cell with unused capacity could be loaded here today - tinted like the use it&apos;s waiting to
-            become and labelled with the exact day its window closes, growing more solid as that date nears.
+            become and labelled with the exact day its window closes, fading from full colour toward a paler tint
+            as that date nears.
           </span>
         </div>
         <div className={styles.legendRow}>
@@ -165,8 +166,8 @@ export function LegendSection() {
             <SchedulerSlotView stage={null} slotIndex={0} ghost={GHOST_EXAMPLE_CUTOFF} />
           </div>
           <span>
-            Last day this cell can still start its next use - a fixed amber &quot;expires today&quot; look, not
-            just the peak of the fade.
+            Last day this cell can still start its next use - a fixed amber &quot;expires today&quot; look instead
+            of continuing to fade.
           </span>
         </div>
       </div>

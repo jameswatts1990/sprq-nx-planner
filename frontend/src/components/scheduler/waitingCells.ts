@@ -10,11 +10,10 @@ const CELL_LIFETIME_H = 108;
  * comparing a calendar day against a cell's 108h deadline. */
 const DAY_START_HOUR = 12;
 
-/** Opacity is FADE_MIN_OPACITY when a cell has just become eligible (far from its
- * deadline) and rises toward 1.0 as it nears the cutoff - low visual weight early, more
- * visually insistent as expiry approaches. Full/near-1.0 at/below FADE_MIN_HOURS-to-go;
- * FADE_MIN_OPACITY at/above FADE_FULL_HOURS-to-go. Tuned for a 108h window run on
- * weekdays only, so the rise has room to show across 2-3 calendar days. */
+/** Opacity is ~1.0 (dark/full colour) when a cell has just become eligible and fades
+ * toward FADE_MIN_OPACITY (light/washed-out) as it nears the cutoff. Full/near-1.0 at/above
+ * FADE_FULL_HOURS-to-go; FADE_MIN_OPACITY at/below FADE_MIN_HOURS-to-go. Tuned for a 108h
+ * window run on weekdays only, so the fade has room to show across 2-3 calendar days. */
 const FADE_FULL_HOURS = 90;
 const FADE_MIN_HOURS = 18;
 const FADE_MIN_OPACITY = 0.4;
@@ -26,8 +25,8 @@ export interface CellGhost {
   /** The last weekday this cell's next use could still legally start before its 108h
    * window closes. Rendered as a distinct hard-line style, not just the peak of the fade. */
   isHardCutoff: boolean;
-  /** FADE_MIN_OPACITY (just became eligible) rising to ~1.0 (approaching the cutoff).
-   * Meaningless when isHardCutoff is true (that variant ignores it). */
+  /** ~1.0 (just became eligible, dark/full colour) fading to FADE_MIN_OPACITY (light,
+   * approaching the cutoff). Meaningless when isHardCutoff is true (that variant ignores it). */
   fadeOpacity: number;
   /** The actual last calendar day this cell's next use could still start - identical
    * across every ghost rendered for this cell, so the expiry date reads the same
@@ -90,10 +89,11 @@ export function computeGhost(cell: CellOut, day: string): CellGhost | null {
   }
   const isHardCutoff = day === cutoffDate;
 
+  // Dark (full colour) when far from the deadline, fading toward light as it approaches.
   const hoursToDeadline = (deadlineAtMs - thisDayStart) / 3_600_000;
   const clamped = Math.min(FADE_FULL_HOURS, Math.max(FADE_MIN_HOURS, hoursToDeadline));
   const fadeOpacity =
-    FADE_MIN_OPACITY + ((FADE_FULL_HOURS - clamped) / (FADE_FULL_HOURS - FADE_MIN_HOURS)) * (1 - FADE_MIN_OPACITY);
+    FADE_MIN_OPACITY + ((clamped - FADE_MIN_HOURS) / (FADE_FULL_HOURS - FADE_MIN_HOURS)) * (1 - FADE_MIN_OPACITY);
 
   return {
     cell,
@@ -106,6 +106,16 @@ export function computeGhost(cell: CellOut, day: string): CellGhost | null {
   };
 }
 
+/** Mirrors backend/app/engine/constants.py's WELLS - tray 1 is indices 0-3, tray 2 is
+ * 4-7. Used only to sort ghosts back into the physical tray order their cells last
+ * occupied, since the cells API's own ordering (newest-first) doesn't reflect that. */
+const WELL_ORDER = ["A01", "B01", "C01", "D01", "A02", "B02", "C02", "D02"];
+
+function wellSortKey(well: string | null): number {
+  const i = well ? WELL_ORDER.indexOf(well) : -1;
+  return i === -1 ? WELL_ORDER.length : i;
+}
+
 /**
  * Buckets every open, idle, reusable cell's ghost(s) by (current instrument, day) across
  * the visible window - mirrors groupCyclesByInstrumentAndDay's shape so the grid can look
@@ -114,7 +124,12 @@ export function computeGhost(cell: CellOut, day: string): CellGhost | null {
 export function groupWaitingCellsByInstrumentAndDay(cells: CellOut[], days: string[]): Map<string, Map<string, CellGhost[]>> {
   const byInstrument = new Map<string, Map<string, CellGhost[]>>();
 
-  for (const cell of cells) {
+  // Sort by the well each cell was last removed from, so ghosts reappear in the same
+  // top-to-bottom tray order the samples were actually loaded in last time, rather than
+  // in the cells API's newest-first order.
+  const orderedCells = [...cells].sort((a, b) => wellSortKey(a.current_well) - wellSortKey(b.current_well));
+
+  for (const cell of orderedCells) {
     if (!cell.current_instrument_serial) continue;
     for (const day of days) {
       const ghost = computeGhost(cell, day);

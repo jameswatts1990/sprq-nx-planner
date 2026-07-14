@@ -4,6 +4,14 @@ and reports what didn't fit."""
 from datetime import date, timedelta
 
 SIX_DISJOINT = "sample,barcodes\n" + "\n".join(f"X{i},bcx{i}" for i in range(1, 7))
+TEN_DISJOINT = "sample,barcodes\n" + "\n".join(f"Y{i},bcy{i}" for i in range(1, 11))
+
+
+def _next_monday_tuesday() -> tuple[str, str]:
+    d = date.today()
+    while d.weekday() != 0:
+        d += timedelta(days=1)
+    return d.isoformat(), (d + timedelta(days=1)).isoformat()
 
 
 def _weekdays(n: int) -> list[str]:
@@ -93,6 +101,35 @@ def test_auto_fill_skips_already_occupied_cell(client):
     # 5 remained in backlog after the manual placement; 8 wells on 84098 => all 5 fit, 0 unplaced
     assert len(body["placed_sample_ids"]) == 5
     assert len(body["unplaced_sample_ids"]) == 0
+
+
+def test_auto_fill_skips_day_locked_by_its_own_earlier_run(client):
+    """A full 8-well run (both trays loaded) locks the instrument for the whole movie
+    plus a settle buffer, which can span into the next calendar day. If auto-fill's own
+    overflow lands on that next day for the same instrument, it should skip just that
+    day (like an already-locked day) instead of raising and rolling back the whole
+    batch's other placements."""
+    client.post("/api/imports", json={"raw_text": TEN_DISJOINT})
+    mon, tue = _next_monday_tuesday()
+
+    resp = _auto_fill(
+        client,
+        [{"instrument_serial": "84047", "run_date": mon}, {"instrument_serial": "84047", "run_date": tue}],
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+
+    # Monday's 8 wells (both trays) fill first, loading tray 2 => locked well past
+    # Tuesday's own noon start. The 2 overflow samples' Tuesday slot is skipped instead
+    # of the whole request erroring out.
+    assert len(body["placed_sample_ids"]) == 8
+    assert len(body["unplaced_sample_ids"]) == 2
+    assert body["skipped_cells"] == [{"instrument_serial": "84047", "run_date": tue}]
+    assert len(body["runs"]) == 1
+    assert body["runs"][0]["run_date"] == mon
+
+    # Monday's run persisted despite Tuesday's conflict.
+    assert client.get("/api/samples", params={"status": "scheduled"}).json()["total"] == 8
 
 
 def test_auto_fill_rejects_weekend_cell(client):

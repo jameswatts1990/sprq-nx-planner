@@ -49,7 +49,6 @@ export function SchedulePage() {
   const win = useSchedulerWindow();
   const selection = useGridSelection();
   const slotSelection = useSlotSelection();
-  const dnd = useSchedulerDnd();
 
   const [runDesign, setRunDesign] = useState<RunDesignState>(DEFAULT_RUN_DESIGN);
   const [detail, setDetail] = useState<DetailTarget | null>(null);
@@ -150,6 +149,24 @@ export function SchedulePage() {
       setRemoveSlotsError(err instanceof ApiError ? err.message : "Failed to remove selected samples.");
     },
   });
+
+  // Dragging a placed sample off its slot and dropping it somewhere that isn't a valid
+  // grid slot (e.g. off the grid entirely) removes it from the schedule - the drag
+  // equivalent of the "Remove from schedule" action.
+  const dragRemoveMutation = useMutation({
+    mutationFn: (cellUseId: number) => cellUsesApi.remove(cellUseId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["cycles"] });
+      void queryClient.invalidateQueries({ queryKey: ["samples"] });
+      void queryClient.invalidateQueries({ queryKey: ["cells"] });
+      setRemoveSlotsError(null);
+    },
+    onError: (err) => {
+      setRemoveSlotsError(err instanceof ApiError ? err.message : "Failed to remove sample from schedule.");
+    },
+  });
+
+  const dnd = useSchedulerDnd((cellUseId) => dragRemoveMutation.mutate(cellUseId));
 
   // Bulk-remove every planned (unlocked) sample in the currently-viewed week - gated
   // behind the confirm modal below since it's destructive and can span every instrument.

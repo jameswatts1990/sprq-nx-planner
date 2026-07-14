@@ -66,7 +66,7 @@ describe("computeGhost", () => {
     expect(mon).toBeNull();
   });
 
-  it("rises in opacity across eligible days and hard-cutoffs on the last one, once Use 1 is confirmed", () => {
+  it("fades across eligible days and hard-cutoffs on the last one, once Use 1 is confirmed", () => {
     // Use 1 confirmed loaded Monday 12:00 UTC -> deadline = +108h = Saturday 00:00 UTC.
     const cell = baseCell({ first_use_started_at: "2026-07-13T12:00:00Z" });
 
@@ -89,12 +89,12 @@ describe("computeGhost", () => {
     // By the following Monday the window has already closed.
     expect(mon).toBeNull();
 
-    // Opacity rises day over day as the deadline approaches (low urgency when freshly
-    // eligible, more visually insistent near the cutoff).
-    expect(tue!.fadeOpacity).toBeLessThan(wed!.fadeOpacity);
-    expect(wed!.fadeOpacity).toBeLessThan(thu!.fadeOpacity);
-    expect(tue!.fadeOpacity).toBeGreaterThanOrEqual(0.4);
-    expect(thu!.fadeOpacity).toBeLessThanOrEqual(1);
+    // Opacity fades (decreases) day over day as the deadline approaches: dark/full colour
+    // when freshly eligible, light/washed-out near the cutoff.
+    expect(tue!.fadeOpacity).toBeGreaterThan(wed!.fadeOpacity);
+    expect(wed!.fadeOpacity).toBeGreaterThan(thu!.fadeOpacity);
+    expect(thu!.fadeOpacity).toBeGreaterThanOrEqual(0.4);
+    expect(tue!.fadeOpacity).toBeLessThanOrEqual(1);
   });
 });
 
@@ -119,5 +119,19 @@ describe("groupWaitingCellsByInstrumentAndDay", () => {
     const grouped = groupWaitingCellsByInstrumentAndDay([cellA, cellB], ["2026-07-14"]);
 
     expect(grouped.get("84047")?.get("2026-07-14")?.map((g) => g.cell.id).sort()).toEqual([1, 2]);
+  });
+
+  it("orders multiple ghosts on the same day by the well their cell was last removed from, not API order", () => {
+    // The cells API returns newest-first (created_at desc), which is the opposite of the
+    // tray order these cells were actually loaded in last time - the well each was last
+    // in (B01, C01, D01) is the only reliable signal of that original order.
+    const cellD01 = baseCell({ id: 3, current_instrument_serial: "84047", current_well: "D01", last_use_run_date: "2026-07-13" });
+    const cellB01 = baseCell({ id: 1, current_instrument_serial: "84047", current_well: "B01", last_use_run_date: "2026-07-13" });
+    const cellC01 = baseCell({ id: 2, current_instrument_serial: "84047", current_well: "C01", last_use_run_date: "2026-07-13" });
+
+    // Passed in newest-first order (3, then 2, then 1), same as the real API response.
+    const grouped = groupWaitingCellsByInstrumentAndDay([cellD01, cellC01, cellB01], ["2026-07-14"]);
+
+    expect(grouped.get("84047")?.get("2026-07-14")?.map((g) => g.cell.id)).toEqual([1, 2, 3]);
   });
 });

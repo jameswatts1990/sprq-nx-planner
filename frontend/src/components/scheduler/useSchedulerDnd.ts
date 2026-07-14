@@ -20,6 +20,10 @@ export interface SlotDropData {
   instrument_serial: string;
   run_date: string;
   slot_index: SlotIndex;
+  /** Set when this slot is currently showing a waiting-cell ghost placeholder - the id of
+   * the specific cell it represents (see waitingCells.ts). A sample dropped directly here
+   * unambiguously means "reuse this cell", so it skips the cell-choice popup. */
+  ghostCellId?: number;
 }
 
 /** Payload attached to a backlog sample card's useDraggable. */
@@ -66,8 +70,12 @@ export interface SchedulerDnd {
  * slot the pointer is actually inside), and the two transient bits of drag state -
  * `pendingPlacement` (drop captured, awaiting the CellChoicePicker) and
  * `placingSlotKey` (a slot mid-mutation). Instantiated once in SchedulePage.
+ *
+ * @param onRemoveOutside Called with a placed sample's cell_use_id when it's dragged off
+ * its slot and dropped somewhere that isn't a valid drop target (e.g. off the grid
+ * entirely) - the drag-and-drop equivalent of the "Remove from schedule" action.
  */
-export function useSchedulerDnd(): SchedulerDnd {
+export function useSchedulerDnd(onRemoveOutside: (cellUseId: number) => void): SchedulerDnd {
   const [activeSample, setActiveSample] = useState<DragSampleRef | null>(null);
   const [pendingPlacement, setPendingPlacement] = useState<PendingPlacement | null>(null);
   const [placingSlotKey, setPlacingSlotKey] = useState<string | null>(null);
@@ -88,45 +96,54 @@ export function useSchedulerDnd(): SchedulerDnd {
     setActiveDragInstrument(data?.kind === "filledSlot" ? data.instrument_serial : null);
   }, []);
 
-  const onDragEnd = useCallback((event: DragEndEvent) => {
-    setActiveSample(null);
-    setActiveDragInstrument(null);
-    const over = event.over;
-    if (!over) return;
-    const overData = over.data.current as SlotDropData | undefined;
-    if (!overData || overData.kind !== "slot") return;
-    const activeData = event.active.data.current as DragData | undefined;
-    if (!activeData) return;
+  const onDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      setActiveSample(null);
+      setActiveDragInstrument(null);
+      const activeData = event.active.data.current as DragData | undefined;
+      const over = event.over;
+      const overData = over?.data.current as SlotDropData | undefined;
+      if (!overData || overData.kind !== "slot") {
+        // Dropped outside any valid slot. A backlog sample was never placed, so there's
+        // nothing to undo; a picked-up placed sample is removed from the schedule, same
+        // as the "Remove from schedule" action.
+        if (activeData?.kind === "filledSlot") onRemoveOutside(activeData.cell_use_id);
+        return;
+      }
+      if (!activeData) return;
 
-    if (activeData.kind === "sample") {
+      if (activeData.kind === "sample") {
+        setPendingPlacement({
+          sample: activeData.sample,
+          instrument_serial: overData.instrument_serial,
+          run_date: overData.run_date,
+          slot_index: overData.slot_index,
+          preselectedCellId: overData.ghostCellId,
+        });
+        return;
+      }
+
+      // filledSlot -> ignore a no-op drop back onto itself, otherwise treat as a move.
+      // Defense-in-depth: the drop target's own `disabled` droppable state (see
+      // SchedulerSlot's use of activeDragInstrument) already keeps a cross-instrument drop
+      // from landing at all, but guard here too in case that ever changes.
+      const sameSlot =
+        activeData.instrument_serial === overData.instrument_serial &&
+        activeData.run_date === overData.run_date &&
+        activeData.slot_index === overData.slot_index;
+      if (sameSlot) return;
+      if (activeData.instrument_serial !== overData.instrument_serial) return;
+
       setPendingPlacement({
         sample: activeData.sample,
         instrument_serial: overData.instrument_serial,
         run_date: overData.run_date,
         slot_index: overData.slot_index,
+        moveFromCellUseId: activeData.cell_use_id,
       });
-      return;
-    }
-
-    // filledSlot -> ignore a no-op drop back onto itself, otherwise treat as a move.
-    // Defense-in-depth: the drop target's own `disabled` droppable state (see
-    // SchedulerSlot's use of activeDragInstrument) already keeps a cross-instrument drop
-    // from landing at all, but guard here too in case that ever changes.
-    const sameSlot =
-      activeData.instrument_serial === overData.instrument_serial &&
-      activeData.run_date === overData.run_date &&
-      activeData.slot_index === overData.slot_index;
-    if (sameSlot) return;
-    if (activeData.instrument_serial !== overData.instrument_serial) return;
-
-    setPendingPlacement({
-      sample: activeData.sample,
-      instrument_serial: overData.instrument_serial,
-      run_date: overData.run_date,
-      slot_index: overData.slot_index,
-      moveFromCellUseId: activeData.cell_use_id,
-    });
-  }, []);
+    },
+    [onRemoveOutside],
+  );
 
   return {
     sensors,

@@ -68,6 +68,7 @@ function DroppableSlot({
     instrument_serial: instrumentSerial,
     run_date: runDate,
     slot_index: slotIndex,
+    ghostCellId: ghost?.cell.id,
   };
   const { setNodeRef, isOver } = useDroppable({
     id: slotKey(instrumentSerial, runDate, slotIndex),

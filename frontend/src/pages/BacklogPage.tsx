@@ -3,6 +3,7 @@ import { createColumnHelper, flexRender, getCoreRowModel, useReactTable } from "
 import { useState } from "react";
 
 import { ApiError } from "@/api/client";
+import type { SampleSortBy, SampleSortDir } from "@/api/samples";
 import { samplesApi } from "@/api/samples";
 import { BarcodeChips } from "@/components/shared/BarcodeChips";
 import { Button } from "@/components/ui/Button";
@@ -20,15 +21,30 @@ function formatDateTime(iso: string): string {
   return new Date(iso).toLocaleString();
 }
 
+function sortIndicator(active: boolean, dir: SampleSortDir): string {
+  if (!active) return "";
+  return dir === "asc" ? " ▲" : " ▼";
+}
+
 export function BacklogPage() {
   const [qInput, setQInput] = useState("");
   const [page, setPage] = useState(1);
+  const [sortBy, setSortBy] = useState<SampleSortBy>("created_at");
+  const [sortDir, setSortDir] = useState<SampleSortDir>("desc");
   const q = useDebouncedValue(qInput, 350);
   const queryClient = useQueryClient();
 
   const query = useQuery({
-    queryKey: ["samples", { status: "backlog", q, page, page_size: PAGE_SIZE }],
-    queryFn: () => samplesApi.list({ status: "backlog", q: q || undefined, page, page_size: PAGE_SIZE }),
+    queryKey: ["samples", { status: "backlog", q, sortBy, sortDir, page, page_size: PAGE_SIZE }],
+    queryFn: () =>
+      samplesApi.list({
+        status: "backlog",
+        q: q || undefined,
+        sort_by: sortBy,
+        sort_dir: sortDir,
+        page,
+        page_size: PAGE_SIZE,
+      }),
   });
 
   const cancelMutation = useMutation({
@@ -38,10 +54,32 @@ export function BacklogPage() {
     },
   });
 
+  function toggleSort(field: SampleSortBy) {
+    setPage(1);
+    setSortBy((cur) => {
+      if (cur === field) {
+        setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+        return cur;
+      }
+      setSortDir("asc");
+      return field;
+    });
+  }
+
+  function sortableHeader(label: string, field: SampleSortBy) {
+    const active = sortBy === field;
+    return (
+      <button type="button" className={styles.sortHeader} onClick={() => toggleSort(field)}>
+        {label}
+        {sortIndicator(active, sortDir)}
+      </button>
+    );
+  }
+
   const columns = [
-    columnHelper.accessor("external_id", { header: "External ID" }),
+    columnHelper.accessor("external_id", { header: () => sortableHeader("External ID", "external_id") }),
     columnHelper.accessor("barcodes", {
-      header: "Barcodes",
+      header: () => sortableHeader("Barcodes", "barcode"),
       cell: (info) => <BarcodeChips barcodes={info.getValue()} />,
     }),
     columnHelper.accessor("parent_sample", {
@@ -51,6 +89,14 @@ export function BacklogPage() {
     columnHelper.accessor("sanger_ids", {
       header: "Sanger IDs",
       cell: (info) => (info.getValue().length ? info.getValue().join(", ") : "—"),
+    }),
+    columnHelper.accessor("priority", {
+      header: () => sortableHeader("Priority", "priority"),
+      cell: (info) => info.getValue() ?? "—",
+    }),
+    columnHelper.accessor("target_oplc", {
+      header: "Target OPLC",
+      cell: (info) => info.getValue() ?? "—",
     }),
     columnHelper.accessor("created_at", {
       header: "Created",

@@ -75,6 +75,7 @@ export function HistorySamplesPage() {
                     <th>Parent sample</th>
                     <th>OPLC</th>
                     <th>Volume</th>
+                    <th>Priority</th>
                     <th>Updated</th>
                   </tr>
                 </thead>
@@ -149,11 +150,12 @@ function SampleRow({ sample, expanded, onToggle }: SampleRowProps) {
         <td>{sample.parent_sample ?? "—"}</td>
         <td>{sample.oplc ?? "—"}</td>
         <td>{sample.volume ?? "—"}</td>
+        <td>{sample.priority ?? "—"}</td>
         <td>{formatDateTime(sample.updated_at)}</td>
       </tr>
       {expanded && (
         <tr>
-          <td colSpan={8} className={styles.detailCell}>
+          <td colSpan={9} className={styles.detailCell}>
             {detailQuery.isLoading && <div className={styles.status}>Loading cell uses…</div>}
             {detailQuery.isError && (
               <Note tone="bad" icon="!">

@@ -11,6 +11,12 @@ class CellUseHistoryOut(BaseModel):
     status: str
     sample_id: int | None
     sample_external_id: str | None
+    sample_container_id: str | None
+    sample_priority: str | None
+    sample_target_oplc: float | None
+    sample_adaptive_loading: str | None
+    sample_full_resolution_base_q: str | None
+    sample_ccs_kinetics: str | None
     barcodes: list[str]
     instrument_serial: str | None
     started_at: datetime | None

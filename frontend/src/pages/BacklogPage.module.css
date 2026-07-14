@@ -41,6 +41,17 @@
 .table tbody tr:hover {
   background: var(--line-soft);
 }
+.sortHeader {
+  all: unset;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+}
+.sortHeader:hover {
+  color: var(--ink);
+}
 .pagination {
   display: flex;
   align-items: center;

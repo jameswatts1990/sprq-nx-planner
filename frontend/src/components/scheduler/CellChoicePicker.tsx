@@ -56,7 +56,12 @@ interface ConfirmVars {
  */
 export function CellChoicePicker({ pending, runDesign, existingRun, onClose, onPlaced, setPlacingSlotKey }: CellChoicePickerProps) {
   const queryClient = useQueryClient();
-  const [selected, setSelected] = useState<string>("new"); // "new" | "<cellId>"
+  // Dropping directly onto a waiting-cell ghost already identifies exactly one cell -
+  // default the radio to it so the (rare) case where the modal still has to show for some
+  // other reason (e.g. a brand-new run's start time) doesn't reset the user's evident intent.
+  const [selected, setSelected] = useState<string>(
+    pending.preselectedCellId !== undefined ? String(pending.preselectedCellId) : "new",
+  ); // "new" | "<cellId>"
   const [startTime, setStartTime] = useState(DEFAULT_START_TIME);
   const isMove = pending.moveFromCellUseId !== undefined;
   const isNewRun = existingRun === undefined;
@@ -68,6 +73,11 @@ export function CellChoicePicker({ pending, runDesign, existingRun, onClose, onP
   });
 
   const compatible = isMove ? [] : (cellsQuery.data?.items ?? []).filter((c) => isCompatible(c, pending.sample.barcodes));
+  // Only trust the preselected ghost cell once it's confirmed still compatible (barcodes
+  // could have changed since the ghost was computed) - otherwise fall back to the normal
+  // choice-among-compatible-cells flow below.
+  const preselectedValid =
+    pending.preselectedCellId !== undefined && compatible.some((c) => c.id === pending.preselectedCellId);
 
   const targetKey = slotKey(pending.instrument_serial, pending.run_date, pending.slot_index);
 
@@ -121,8 +131,10 @@ export function CellChoicePicker({ pending, runDesign, existingRun, onClose, onP
   // Nothing to decide (still checking, or checked and found no compatible cell, and this
   // isn't creating a new run) unless the check itself failed or a real choice exists - in
   // those cases fall through to the modal so the user can see the error, pick between
-  // "new" and a reusable cell, or set the new run's start time.
-  const showModal = isNewRun || (!isMove && (cellsQuery.isError || compatible.length > 0)) || mutation.isError;
+  // "new" and a reusable cell, or set the new run's start time. A drop directly onto a
+  // still-valid ghost placeholder already made that choice, so it doesn't count as "a
+  // real choice exists" here even when other compatible cells also exist.
+  const showModal = isNewRun || (!isMove && (cellsQuery.isError || (compatible.length > 0 && !preselectedValid))) || mutation.isError;
 
   // Keep the target slot shimmering while we're silently resolving/auto-placing so the
   // grid still shows something is happening, even though no modal is shown.
@@ -133,12 +145,13 @@ export function CellChoicePicker({ pending, runDesign, existingRun, onClose, onP
   const autoPlacedRef = useRef(false);
   useEffect(() => {
     if (isNewRun) return; // always needs the modal, for the start-time field
-    if (!isMove && (cellsQuery.isLoading || cellsQuery.isError || compatible.length > 0)) return;
+    if (!isMove && (cellsQuery.isLoading || cellsQuery.isError || (compatible.length > 0 && !preselectedValid))) return;
     if (autoPlacedRef.current) return;
     autoPlacedRef.current = true;
-    mutation.mutate({ cellChoice: { mode: "new" } });
+    const cellChoice: CellChoice = preselectedValid ? { mode: "existing", cell_id: pending.preselectedCellId as number } : { mode: "new" };
+    mutation.mutate({ cellChoice });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isNewRun, isMove, cellsQuery.isLoading, cellsQuery.isError, compatible.length]);
+  }, [isNewRun, isMove, cellsQuery.isLoading, cellsQuery.isError, compatible.length, preselectedValid]);
 
   if (!showModal) return null;
 

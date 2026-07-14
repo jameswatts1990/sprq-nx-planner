@@ -8,6 +8,12 @@ export interface CellUseHistoryOut {
   status: string;
   sample_id: number | null;
   sample_external_id: string | null;
+  sample_container_id: string | null;
+  sample_priority: string | null;
+  sample_target_oplc: number | null;
+  sample_adaptive_loading: string | null;
+  sample_full_resolution_base_q: string | null;
+  sample_ccs_kinetics: string | null;
   barcodes: string[];
   instrument_serial: string | null;
   started_at: string | null;

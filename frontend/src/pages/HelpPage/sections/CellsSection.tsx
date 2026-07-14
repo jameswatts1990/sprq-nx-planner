@@ -45,7 +45,8 @@ export function CellsSection() {
         </li>
         <li>
           <b>Use history</b> lists every run the cell has been in: run number (links to the run), well, use status,
-          sample, barcodes, instrument, start/complete times, and any outcome notes.
+          sample, container ID, barcodes, priority, target OPLC, adaptive loading, full resolution base Q, kinetics
+          (CCS output includes kinetics information), instrument, start/complete times, and any outcome notes.
         </li>
       </ul>
     </div>

@@ -82,4 +82,9 @@ export interface PendingPlacement {
   slot_index: SlotIndex;
   /** Present when moving a sample from an existing filled slot: remove this use first. */
   moveFromCellUseId?: number;
+  /** Set when a backlog sample was dropped directly onto a waiting-cell ghost placeholder
+   * (see waitingCells.ts) - that drop target already identifies exactly one cell, so the
+   * CellChoicePicker uses it without asking, rather than opening for a choice among
+   * every compatible cell. */
+  preselectedCellId?: number;
 }

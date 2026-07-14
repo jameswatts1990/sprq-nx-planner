@@ -70,6 +70,7 @@ def normalize_samples(text: str | None) -> NormalizeResult:
     has_header = any("barcode" in h for h in header)
     warnings: list[str] = []
     parent_idx = sanger_idx = oplc_idx = vol_idx = -1
+    container_idx = target_oplc_idx = adaptive_idx = full_res_idx = priority_idx = kinetics_idx = -1
 
     if has_header:
         id_idx = _find(header, "container")
@@ -82,8 +83,16 @@ def normalize_samples(text: str | None) -> NormalizeResult:
         bc_idx = _find(header, "barcode")
         parent_idx = _find(header, "parent sample")
         sanger_idx = _find(header, "sanger")
-        oplc_idx = _find(header, "oplc")
+        oplc_idx = _find(header, "actual oplc")
+        if oplc_idx < 0:
+            oplc_idx = _find(header, "oplc")
+        target_oplc_idx = _find(header, "target oplc")
         vol_idx = _find(header, "volume")
+        container_idx = _find(header, "container")
+        adaptive_idx = _find(header, "adaptive loading")
+        full_res_idx = _find(header, "full resolution")
+        priority_idx = _find(header, "priority")
+        kinetics_idx = _find(header, "kinetics")
         data_rows = rows[1:]
     else:
         id_idx, bc_idx = 0, 1
@@ -106,7 +115,13 @@ def normalize_samples(text: str | None) -> NormalizeResult:
 
         parent = (r[parent_idx] or "").strip() if 0 <= parent_idx < len(r) else ""
         oplc = _parse_float_or_none(r[oplc_idx]) if 0 <= oplc_idx < len(r) else None
+        target_oplc = _parse_float_or_none(r[target_oplc_idx]) if 0 <= target_oplc_idx < len(r) else None
         volume = _parse_float_or_none(r[vol_idx]) if 0 <= vol_idx < len(r) else None
+        container_id = (r[container_idx] or "").strip() if 0 <= container_idx < len(r) else ""
+        adaptive_loading = (r[adaptive_idx] or "").strip() if 0 <= adaptive_idx < len(r) else ""
+        full_resolution_base_q = (r[full_res_idx] or "").strip() if 0 <= full_res_idx < len(r) else ""
+        priority = (r[priority_idx] or "").strip() if 0 <= priority_idx < len(r) else ""
+        ccs_kinetics = (r[kinetics_idx] or "").strip() if 0 <= kinetics_idx < len(r) else ""
 
         samples.append(
             ParsedSample(
@@ -115,7 +130,13 @@ def normalize_samples(text: str | None) -> NormalizeResult:
                 parent=parent,
                 sanger=sanger,
                 oplc=oplc,
+                target_oplc=target_oplc,
                 volume=volume,
+                container_id=container_id,
+                adaptive_loading=adaptive_loading,
+                full_resolution_base_q=full_resolution_base_q,
+                priority=priority,
+                ccs_kinetics=ccs_kinetics,
                 key=f"{sample_id}#{n}",
             )
         )

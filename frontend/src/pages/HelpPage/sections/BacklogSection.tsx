@@ -12,8 +12,13 @@ export function BacklogSection() {
         at a time.
       </p>
       <p>
-        <b>Columns:</b> External ID, Barcodes, Parent sample, Sanger IDs, and Created (when it was imported). A
-        dash (—) means that field is empty for the sample.
+        <b>Columns:</b> External ID, Barcodes, Parent sample, Sanger IDs, Priority, Target OPLC, and Created (when
+        it was imported). A dash (—) means that field is empty for the sample.
+      </p>
+      <p>
+        <b>Sorting:</b> click the <b>External ID</b>, <b>Barcodes</b>, or <b>Priority</b> column header to sort by
+        that field; click again to reverse the direction. An arrow (▲/▼) on the header shows the active sort and
+        direction. Priority sorts by rank (High before Standard), not alphabetically.
       </p>
       <p>
         <b>Cancel</b> (on each row) removes a sample from the backlog when you never intend to sequence it. Use it
