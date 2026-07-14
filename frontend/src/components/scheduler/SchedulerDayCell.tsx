@@ -37,7 +37,7 @@ export interface SchedulerDayCellProps {
 
 /**
  * One (instrument, day) grid cell. Weekends render closed/non-interactive. Otherwise two
- * 4-slot trays (tray 2 only shown once tray 1 has a sample loaded), with a header carrying
+ * 4-slot trays (tray 2 only shown once either tray has a sample loaded), with a header carrying
  * the Confirm-loaded / Unlock control once the day's run exists. Empty non-weekend cells
  * participate in spreadsheet-style range selection for auto-fill.
  */
@@ -81,7 +81,8 @@ export function SchedulerDayCell(props: SchedulerDayCellProps) {
   const lockExtendsPastToday = cycle !== undefined && cycle.lock_until.slice(0, 10) > runDate;
   const slots = padStages(cycle);
   const tray1Filled = TRAY_INDICES[0].some((i) => slots[i] !== null);
-  const trayVisible = [true, tray1Filled];
+  const tray2Filled = TRAY_INDICES[1].some((i) => slots[i] !== null);
+  const trayVisible = [true, tray1Filled || tray2Filled];
   const firstEmptyByTray = TRAY_INDICES.map((indices) => indices.find((i) => !slots[i]));
 
   function onCellClick(e: MouseEvent<HTMLTableCellElement>) {
@@ -98,7 +99,7 @@ export function SchedulerDayCell(props: SchedulerDayCellProps) {
   if (selectable) cellClasses.push(styles.selectable);
   if (selected) cellClasses.push(styles.selected);
   if (!cycle) cellClasses.push(styles.emptyCell);
-  if (tray1Filled) cellClasses.push(styles.twoTrays);
+  if (tray1Filled || tray2Filled) cellClasses.push(styles.twoTrays);
 
   return (
     <td
@@ -109,48 +110,51 @@ export function SchedulerDayCell(props: SchedulerDayCellProps) {
       tabIndex={selectable ? 0 : undefined}
       aria-pressed={selectable ? selected : undefined}
     >
-      {cycle && (
-        <div className={styles.head}>
-          {cycle.is_locked && (
-            <span className={styles.activeDot} title="Instrument is actively sequencing this run" aria-hidden="true" />
-          )}
-          {locked ? (
-            <>
-              <span className={styles.lockTag}>
-                {cycle.status === "running" ? "LOADED" : cycle.status.toUpperCase()}
-                {lockExtendsPastToday && ` · locked until ${formatShortDateTimeUTC(cycle.lock_until)}`}
-              </span>
-              {cycle.status === "running" && (
+      {/* Always rendered (even with nothing to show) so every cell's tray/placeholder
+          area starts at the same vertical offset within the row, whether or not this
+          particular cell has a badge above it. */}
+      <div className={styles.head}>
+        {cycle && (
+          <>
+            {cycle.is_locked && (
+              <span className={styles.activeDot} title="Instrument is actively sequencing this run" aria-hidden="true" />
+            )}
+            {locked ? (
+              <>
+                <span className={styles.lockTag}>
+                  {cycle.status === "running" ? "LOADED" : cycle.status.toUpperCase()}
+                  {lockExtendsPastToday && ` · locked until ${formatShortDateTimeUTC(cycle.lock_until)}`}
+                </span>
+                {cycle.status === "running" && (
+                  <button
+                    type="button"
+                    className={styles.ctrl}
+                    disabled={statusMutation.isPending}
+                    onClick={() => statusMutation.mutate("planned")}
+                  >
+                    {statusMutation.isPending ? "…" : "Unlock"}
+                  </button>
+                )}
+              </>
+            ) : (
+              filledCount >= 1 && (
                 <button
                   type="button"
-                  className={styles.ctrl}
+                  className={`${styles.ctrl} ${styles.confirm}`}
                   disabled={statusMutation.isPending}
-                  onClick={() => statusMutation.mutate("planned")}
+                  onClick={() => statusMutation.mutate("running")}
                 >
-                  {statusMutation.isPending ? "…" : "Unlock"}
+                  {statusMutation.isPending ? "Confirming…" : "Confirm loaded"}
                 </button>
-              )}
-            </>
-          ) : (
-            filledCount >= 1 && (
-              <button
-                type="button"
-                className={`${styles.ctrl} ${styles.confirm}`}
-                disabled={statusMutation.isPending}
-                onClick={() => statusMutation.mutate("running")}
-              >
-                {statusMutation.isPending ? "Confirming…" : "Confirm loaded"}
-              </button>
-            )
-          )}
-        </div>
-      )}
+              )
+            )}
+          </>
+        )}
 
-      {!cycle && carryOverLock && (
-        <div className={styles.head}>
+        {!cycle && carryOverLock && (
           <span className={styles.carryLockTag}>Locked until {formatShortDateTimeUTC(carryOverLock.lock_until)}</span>
-        </div>
-      )}
+        )}
+      </div>
 
       {statusMutation.isError && (
         <div className={styles.err}>

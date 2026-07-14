@@ -1,9 +1,11 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 
 import { AppShell } from "@/components/layout/AppShell";
+import { AdminPage } from "@/pages/AdminPage/AdminPage";
 import { BacklogPage } from "@/pages/BacklogPage";
 import { CellDetailPage } from "@/pages/CellDetailPage";
 import { CellsPage } from "@/pages/CellsPage";
+import { HelpPage } from "@/pages/HelpPage/HelpPage";
 import { HistoryRunsPage } from "@/pages/HistoryRunsPage";
 import { HistorySamplesPage } from "@/pages/HistorySamplesPage";
 import { ImportPage } from "@/pages/ImportPage";
@@ -23,6 +25,8 @@ export default function App() {
         <Route path="/history/runs" element={<HistoryRunsPage />} />
         <Route path="/history/runs/:cycleId" element={<RunDetailPage />} />
         <Route path="/history/samples" element={<HistorySamplesPage />} />
+        <Route path="/admin" element={<AdminPage />} />
+        <Route path="/help" element={<HelpPage />} />
         <Route path="*" element={<Navigate to="/schedule" replace />} />
       </Routes>
     </AppShell>

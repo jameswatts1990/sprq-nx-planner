@@ -49,7 +49,7 @@ def list_cycles(
         stmt = stmt.where(RunBatch.run_date <= date_to)
 
     cycles = list(db.scalars(stmt).unique().all())
-    return [cycle_out(c) for c in cycles]
+    return [cycle_out(db, c) for c in cycles]
 
 
 @router.get("/{cycle_id}", response_model=CycleOut)
@@ -57,7 +57,7 @@ def get_cycle(cycle_id: int, db: SessionDep) -> CycleOut:
     cycle = db.get(Cycle, cycle_id, options=_CYCLE_OPTIONS)
     if cycle is None:
         raise HTTPException(404, "Cycle not found")
-    return cycle_out(cycle)
+    return cycle_out(db, cycle)
 
 
 @router.patch("/{cycle_id}", response_model=CycleOut)
@@ -72,7 +72,7 @@ def patch_cycle(cycle_id: int, req: CycleStatusUpdate, db: SessionDep, actor: Ac
     except ValueError as exc:
         raise HTTPException(409, str(exc)) from exc
     db.refresh(cycle, attribute_names=["cell_uses"])
-    return cycle_out(cycle)
+    return cycle_out(db, cycle)
 
 
 @router.post("/{cycle_id}/cancel", status_code=204)

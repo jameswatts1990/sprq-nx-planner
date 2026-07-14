@@ -1,0 +1,80 @@
+.page {
+  padding-top: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.intro {
+  font-size: 13.5px;
+  color: var(--grey);
+  margin: 0 0 4px;
+  max-width: 68ch;
+}
+.helper {
+  font-size: 13px;
+  color: var(--grey);
+  margin: 0 0 12px;
+}
+.copy {
+  font-size: 13.5px;
+  line-height: 1.55;
+  max-width: 72ch;
+}
+.copy p {
+  margin: 0 0 12px;
+}
+.copy ul,
+.copy ol {
+  margin: 0 0 12px;
+  padding-left: 20px;
+}
+.copy li {
+  margin-bottom: 6px;
+}
+.terms {
+  margin: 0 0 14px;
+}
+.terms dt {
+  font-weight: 700;
+  color: var(--ink);
+  margin-top: 10px;
+}
+.terms dd {
+  margin: 2px 0 0;
+  color: var(--grey);
+}
+.subheading {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--grey);
+  margin: 18px 0 8px;
+}
+.legendGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 8px 0 20px;
+}
+.legendRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  background: var(--line-soft);
+  border-radius: var(--r-sm);
+}
+.legendRow > span:last-child {
+  font-size: 13px;
+  color: var(--ink);
+}
+.legendSwatchLabel {
+  min-width: 74px;
+}
+.noteExamples {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 8px 0 20px;
+}

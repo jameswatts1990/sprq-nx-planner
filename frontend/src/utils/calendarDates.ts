@@ -38,6 +38,14 @@ export function todayIsoUTC(): string {
   return toIsoDateUTC(new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate())));
 }
 
+/** The Monday (UTC, date-only) of the week containing `date` - used so the scheduler's
+ * week always starts on Monday regardless of what day "today" or a URL anchor falls on. */
+export function mondayOfWeekUTC(date: Date): Date {
+  const weekday = date.getUTCDay(); // 0=Sun..6=Sat
+  const diffToMonday = weekday === 0 ? -6 : 1 - weekday;
+  return addDaysUTC(date, diffToMonday);
+}
+
 export function shortWeekdayUTC(date: Date): string {
   return DAY_SHORT[date.getUTCDay()];
 }

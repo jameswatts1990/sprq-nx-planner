@@ -9,6 +9,8 @@ const NAV_ITEMS = [
   { to: "/schedule", label: "Schedule" },
   { to: "/cells", label: "Cells & Instruments" },
   { to: "/history/runs", label: "History" },
+  { to: "/admin", label: "Admin" },
+  { to: "/help", label: "Help" },
 ];
 
 export function AppShell({ children }: { children: ReactNode }) {

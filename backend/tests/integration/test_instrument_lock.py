@@ -1,7 +1,10 @@
-"""Instrument run-locking: a run locks its instrument for movie_hours + LOCK_BUFFER_HOURS
-from its planned start. A *new* run on that instrument can't start before the prior lock
-ends, but loading more samples into an *already-existing* run is never blocked by it -
-and CycleOut/InstrumentOut both expose the derived lock state to the frontend."""
+"""Instrument run-locking: loading only tray 1 (<=4 wells) locks the instrument for just
+LOCK_BUFFER_HOURS (a short loading/setup window); loading tray 2 as well commits it to
+the full movie_hours + LOCK_BUFFER_HOURS. A *new* run on that instrument can't start
+before the prior lock ends, but loading more samples into an *already-existing* run is
+never blocked by it - and CycleOut/InstrumentOut both expose the derived lock state to
+the frontend. See docs/pacbio-sprq-nx-scheduling-reference.md's "Instrument load-lock
+timing" section."""
 from datetime import date, timedelta, timezone
 
 from app.models.schedule import Cycle, RunBatch
@@ -36,46 +39,68 @@ def _place(client, sample_id, run_date, slot_index=0, instrument="84047", run_ti
     return client.post("/api/cell-uses", json=payload)
 
 
-def test_new_run_start_before_prior_lock_is_rejected(client):
+def test_single_tray_run_only_locks_for_the_short_setup_window(client):
     client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1\nA2,bc2"})
     mon, tue = _weekdays(2)
 
-    r1 = _place(client, _sid(client, "A1"), mon, run_time_hours=24)
+    # Only tray 1 (slot 0) loaded on Monday - lock clears same day at 9am + 6h = 15:00,
+    # so Tuesday's default 9am start is well past it and succeeds.
+    r1 = _place(client, _sid(client, "A1"), mon, slot_index=0, run_time_hours=24)
     assert r1.status_code == 201, r1.text
 
-    # Tuesday's default 9am start is well before Monday's lock (9am + 24h + 6h = next day 15:00)
     r2 = _place(client, _sid(client, "A2"), tue, run_time_hours=24)
-    assert r2.status_code == 409, r2.text
-    assert "locked" in r2.json()["detail"].lower()
-
-
-def test_new_run_start_at_or_after_prior_lock_succeeds(client):
-    client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1\nA2,bc2"})
-    mon, tue = _weekdays(2)
-
-    r1 = _place(client, _sid(client, "A1"), mon, run_time_hours=24)
-    assert r1.status_code == 201, r1.text
-
-    r2 = _place(client, _sid(client, "A2"), tue, run_time_hours=24, start_hour=15)
     assert r2.status_code == 201, r2.text
 
 
-def test_lock_lookback_finds_a_run_from_two_days_earlier(client):
-    client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1\nA2,bc2"})
+def test_two_tray_run_start_before_prior_lock_is_rejected(client):
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1\nA2,bc2\nA3,bc3"})
+    mon, tue = _weekdays(2)
+
+    # Tray 1 (slot 0) and tray 2 (slot 4) both loaded on Monday - commits the instrument
+    # to the full movie: locked until 9am + 24h + 6h = next day 15:00.
+    r1 = _place(client, _sid(client, "A1"), mon, slot_index=0, run_time_hours=24)
+    assert r1.status_code == 201, r1.text
+    r2 = _place(client, _sid(client, "A2"), mon, slot_index=4, run_time_hours=24)
+    assert r2.status_code == 201, r2.text
+
+    # Tuesday's default 9am start is well before that lock.
+    r3 = _place(client, _sid(client, "A3"), tue, run_time_hours=24)
+    assert r3.status_code == 409, r3.text
+    assert "locked" in r3.json()["detail"].lower()
+
+
+def test_two_tray_run_start_at_or_after_prior_lock_succeeds(client):
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1\nA2,bc2\nA3,bc3"})
+    mon, tue = _weekdays(2)
+
+    r1 = _place(client, _sid(client, "A1"), mon, slot_index=0, run_time_hours=24)
+    assert r1.status_code == 201, r1.text
+    r2 = _place(client, _sid(client, "A2"), mon, slot_index=4, run_time_hours=24)
+    assert r2.status_code == 201, r2.text
+
+    r3 = _place(client, _sid(client, "A3"), tue, run_time_hours=24, start_hour=15)
+    assert r3.status_code == 201, r3.text
+
+
+def test_lock_lookback_finds_a_two_tray_run_from_two_days_earlier(client):
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1\nA2,bc2\nA3,bc3"})
     mon, tue, wed = _weekdays(3)
 
-    # A 30h movie starting late (20:00) on Monday locks 84047 until Monday 20:00 + 36h = Wed 08:00.
-    r1 = _place(client, _sid(client, "A1"), mon, run_time_hours=30, start_hour=20)
+    # A 30h movie starting late (20:00) on Monday, both trays loaded, locks 84047 until
+    # Monday 20:00 + 36h = Wed 08:00.
+    r1 = _place(client, _sid(client, "A1"), mon, slot_index=0, run_time_hours=30, start_hour=20)
     assert r1.status_code == 201, r1.text
+    r2 = _place(client, _sid(client, "A2"), mon, slot_index=4, run_time_hours=30, start_hour=20)
+    assert r2.status_code == 201, r2.text
 
     # Wednesday morning (before 08:00) is still within that lock, even though it's two
     # calendar days after Monday - confirms the lookback isn't limited to "yesterday only".
-    too_early = _place(client, _sid(client, "A2"), wed, run_time_hours=24, start_hour=7)
+    too_early = _place(client, _sid(client, "A3"), wed, run_time_hours=24, start_hour=7)
     assert too_early.status_code == 409, too_early.text
     assert "locked" in too_early.json()["detail"].lower()
 
     # Same instrument, same day, once the lock has actually elapsed - succeeds.
-    late_enough = _place(client, _sid(client, "A2"), wed, run_time_hours=24, start_hour=8)
+    late_enough = _place(client, _sid(client, "A3"), wed, run_time_hours=24, start_hour=8)
     assert late_enough.status_code == 201, late_enough.text
 
 
@@ -94,15 +119,30 @@ def test_loading_into_existing_run_never_blocked_by_its_own_lock(client):
     assert r2.json()["cycle_id"] == r1.json()["cycle_id"]
 
 
-def test_cycle_out_exposes_lock_until(client):
+def test_cycle_out_exposes_lock_until_for_tray_1_only(client):
     client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1"})
     (mon,) = _weekdays(1)
 
-    r1 = _place(client, _sid(client, "A1"), mon, run_time_hours=24, start_hour=9)
+    r1 = _place(client, _sid(client, "A1"), mon, slot_index=0, run_time_hours=24, start_hour=9)
     assert r1.status_code == 201, r1.text
     body = r1.json()
 
-    # lock_until = planned_start_at (mon 09:00 UTC) + movie_hours (24) + LOCK_BUFFER_HOURS (6) = next calendar day 15:00
+    # Only tray 1 loaded: lock_until = planned_start_at (mon 09:00 UTC) + LOCK_BUFFER_HOURS (6) = same day 15:00
+    assert body["lock_until"].startswith(mon)
+    assert body["lock_until"].endswith("15:00:00Z") or body["lock_until"].endswith("15:00:00+00:00")
+
+
+def test_cycle_out_exposes_lock_until_for_both_trays(client):
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1\nA2,bc2"})
+    (mon,) = _weekdays(1)
+
+    r1 = _place(client, _sid(client, "A1"), mon, slot_index=0, run_time_hours=24, start_hour=9)
+    assert r1.status_code == 201, r1.text
+    r2 = _place(client, _sid(client, "A2"), mon, slot_index=4, run_time_hours=24, start_hour=9)
+    assert r2.status_code == 201, r2.text
+    body = r2.json()
+
+    # Both trays loaded: lock_until = planned_start_at (mon 09:00 UTC) + movie_hours (24) + LOCK_BUFFER_HOURS (6) = next calendar day 15:00
     next_day = (date.fromisoformat(mon) + timedelta(days=1)).isoformat()
     assert body["lock_until"].startswith(next_day)
     assert body["lock_until"].endswith("15:00:00Z") or body["lock_until"].endswith("15:00:00+00:00")

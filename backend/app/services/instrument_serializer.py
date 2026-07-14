@@ -18,5 +18,5 @@ def serialize_instrument(db: Session, instrument: Instrument) -> InstrumentOut:
         name=instrument.name,
         active=instrument.active,
         is_locked=locked_cycle is not None,
-        locked_until=cycle_lock_until(locked_cycle) if locked_cycle is not None else None,
+        locked_until=cycle_lock_until(db, locked_cycle) if locked_cycle is not None else None,
     )

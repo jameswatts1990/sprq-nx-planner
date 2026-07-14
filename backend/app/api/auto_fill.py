@@ -38,7 +38,7 @@ def auto_fill_endpoint(req: AutoFillRequest, db: SessionDep, actor: ActorDep) ->
     for cycle_id in result.run_cycle_ids:
         cycle = db.get(Cycle, cycle_id, options=_CYCLE_OPTIONS)
         if cycle is not None:
-            runs.append(cycle_out(cycle))
+            runs.append(cycle_out(db, cycle))
 
     return AutoFillResponse(
         placed_sample_ids=result.placed_sample_ids,

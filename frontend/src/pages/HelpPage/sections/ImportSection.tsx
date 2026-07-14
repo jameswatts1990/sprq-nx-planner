@@ -1,0 +1,56 @@
+import styles from "../HelpPage.module.css";
+
+export function ImportSection() {
+  return (
+    <div className={styles.copy}>
+      <p>
+        <b>What this tab is for:</b> loading a batch of samples and their barcodes into the planner. Imported
+        samples appear in the Backlog, ready to schedule.
+      </p>
+      <p>
+        <b>Two formats are accepted.</b> You can paste your full LIMS export (with the{" "}
+        <i>Container, Parent Sample, Sanger Sample IDs, Barcodes, Volume to Load, Actual OPLC…</i> columns), or a
+        simple two-column list of <i>sample ID, barcodes</i>. The Barcodes column may hold one or several codes per
+        row.
+      </p>
+      <dl className={styles.terms}>
+        <dt>Upload CSV</dt>
+        <dd>Pick a .csv, .tsv, or .txt file from your computer; its contents fill the box.</dd>
+        <dt>Load example data</dt>
+        <dd>Fills the box with a sample batch so you can see the expected shape.</dd>
+        <dt>Clear</dt>
+        <dd>Empties the box and resets the result panel.</dd>
+        <dt>Import samples</dt>
+        <dd>Sends the data to the server. Disabled until there&apos;s text to import; reads &quot;Importing…&quot; while it runs.</dd>
+        <dt>Filename (optional)</dt>
+        <dd>A label stored with the batch (e.g. batch-2026-07.csv); purely for your own reference.</dd>
+      </dl>
+      <p>
+        The line/character counter under the box is only a rough check that text was pasted. The real parsing
+        happens on the server when you press Import — so the counts don&apos;t guarantee a row will import cleanly.
+      </p>
+      <p>
+        <b>After importing, the result panel shows four numbers:</b>
+      </p>
+      <dl className={styles.terms}>
+        <dt>Rows read</dt>
+        <dd>Lines the server parsed from your input.</dd>
+        <dt>Imported</dt>
+        <dd>New samples added to the Backlog.</dd>
+        <dt>Duplicates</dt>
+        <dd>Rows that matched a sample already in the system, so they were not added again.</dd>
+        <dt>Skipped</dt>
+        <dd>Rows that were not imported for another reason.</dd>
+      </dl>
+      <p>
+        <b>Warnings</b> (amber notes) flag rows that imported but need attention. The <b>Rejected table</b> lists
+        each row that could not be imported, with its External ID and the reason. If nothing imported and there
+        were no warnings or rejects, you&apos;ll see &quot;No rows were imported.&quot;
+      </p>
+      <p>
+        A red note means the import failed entirely (for example a server error) — the message describes what went
+        wrong; fix it and try again. Use <b>View backlog →</b> to jump to the newly imported samples.
+      </p>
+    </div>
+  );
+}

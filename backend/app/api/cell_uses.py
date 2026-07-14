@@ -65,7 +65,7 @@ def create_cell_use(req: PlaceSampleRequest, db: SessionDep, actor: ActorDep) ->
     except PlacementError as exc:
         raise HTTPException(exc.status_code, exc.detail) from exc
     cycle = db.get(Cycle, cycle.id, options=_CYCLE_OPTIONS)
-    return cycle_out(cycle)
+    return cycle_out(db, cycle)
 
 
 @router.post("/{cell_use_id}/move", response_model=CycleOut)
@@ -85,7 +85,7 @@ def move_cell_use(cell_use_id: int, req: MoveSampleRequest, db: SessionDep, acto
     except PlacementError as exc:
         raise HTTPException(exc.status_code, exc.detail) from exc
     cycle = db.get(Cycle, cycle.id, options=_CYCLE_OPTIONS)
-    return cycle_out(cycle)
+    return cycle_out(db, cycle)
 
 
 @router.get("/{cell_use_id}")

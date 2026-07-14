@@ -3,6 +3,8 @@ grid renders. Was schedule_service.py; the Schedule-relative day_idx math is gon
 run_date now lives directly on the RunBatch."""
 from __future__ import annotations
 
+from sqlalchemy.orm import Session
+
 from app.engine.constants import WELLS
 from app.models.schedule import CellUse, Cycle
 from app.schemas.run import CycleOut, StageOut
@@ -21,7 +23,7 @@ def _use_number(cell_use: CellUse) -> int:
     return ordered.index(cell_use) + 1
 
 
-def cycle_out(cycle: Cycle) -> CycleOut:
+def cycle_out(db: Session, cycle: Cycle) -> CycleOut:
     run_batch = cycle.run_batch
     instrument = run_batch.instrument if run_batch else None
     serial = instrument.serial_number if instrument else "?"
@@ -41,7 +43,7 @@ def cycle_out(cycle: Cycle) -> CycleOut:
         for cu in sorted(cycle.cell_uses, key=lambda x: x.well)
     ]
 
-    lock_until = cycle_lock_until(cycle)
+    lock_until = cycle_lock_until(db, cycle)
     now = utcnow()
     is_locked = cycle.status not in ("aborted", "completed") and ensure_aware(cycle.planned_start_at) <= now < lock_until
 

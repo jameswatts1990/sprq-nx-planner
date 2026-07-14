@@ -4,21 +4,14 @@ import { Link, useParams } from "react-router-dom";
 import { ApiError } from "@/api/client";
 import { cellsApi } from "@/api/cells";
 import { BarcodeChips } from "@/components/shared/BarcodeChips";
-import { Badge, type BadgeTone } from "@/components/ui/Badge";
+import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Note } from "@/components/ui/Note";
 import { CELL_STATUS_LABEL, CELL_STATUS_TONE } from "@/utils/cellStatus";
+import { USE_STATUS_TONE } from "@/utils/useStatusTone";
 
 import styles from "./CellDetailPage.module.css";
-
-const USE_STATUS_TONE: Record<string, BadgeTone> = {
-  planned: "default",
-  started: "info",
-  completed: "success",
-  failed: "danger",
-  cancelled: "warning",
-};
 
 function formatDateTime(iso: string | null): string {
   return iso ? new Date(iso).toLocaleString() : "—";
