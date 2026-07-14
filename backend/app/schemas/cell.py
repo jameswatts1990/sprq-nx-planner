@@ -32,6 +32,7 @@ class CellOut(BaseModel):
     current_well: str | None
     last_use_run_date: date | None
     first_use_started_at: datetime | None
+    first_use_planned_start_at: datetime | None
     created_at: datetime
 
 

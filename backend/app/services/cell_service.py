@@ -77,6 +77,19 @@ def last_use_run_date(cell: Cell) -> date | None:
     return run_batch.run_date if run_batch else None
 
 
+def first_use_planned_start_at(cell: Cell) -> datetime | None:
+    """The planned_start_at of the cycle holding the cell's *first* active use - a
+    provisional stand-in for the 108h window's real anchor (cell.first_use_started_at,
+    which stays null until that use is actually confirmed loaded - see run_service.py)
+    so forward-looking UI can still show a concrete estimated deadline instead of treating
+    an unconfirmed cell as available indefinitely."""
+    active_uses = [cu for cu in cell.cell_uses if cu.status != "cancelled"]
+    if not active_uses:
+        return None
+    first = min(active_uses, key=lambda cu: cu.id)
+    return first.cycle.planned_start_at if first.cycle else None
+
+
 def window_hours_elapsed(cell: Cell) -> float | None:
     if cell.first_use_started_at is None:
         return None
@@ -101,6 +114,7 @@ def serialize_cell(cell: Cell) -> CellOut:
         current_well=well,
         last_use_run_date=last_use_run_date(cell),
         first_use_started_at=cell.first_use_started_at,
+        first_use_planned_start_at=first_use_planned_start_at(cell),
         created_at=cell.created_at,
     )
 

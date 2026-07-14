@@ -1,6 +1,6 @@
 .slot {
   position: relative;
-  min-height: 46px;
+  min-height: 58px;
   border-radius: 8px;
   padding: 5px 6px;
   display: flex;
@@ -49,8 +49,9 @@
 }
 /* Waiting/reusable-cell ghost: a tinted placeholder in the same slot a real placement
    would occupy, colour-coded by the use number it's waiting to become. --ghost-opacity is
-   set inline per-day by waitingCells.ts's fade calculation (1 = just eligible, fading
-   toward FADE_MIN_OPACITY as the 108h deadline approaches). */
+   set inline per-day by waitingCells.ts's fade calculation (FADE_MIN_OPACITY when just
+   eligible, rising toward 1 as the 108h deadline approaches - low visual weight early,
+   more visually insistent near expiry). */
 .ghost {
   border: 1.5px dashed var(--line);
   align-items: center;

@@ -29,6 +29,7 @@ const GHOST_EXAMPLE_CELL: CellOut = {
   current_well: "A01",
   last_use_run_date: "2026-07-13",
   first_use_started_at: "2026-07-13T12:00:00Z",
+  first_use_planned_start_at: "2026-07-13T12:00:00Z",
   created_at: "2026-07-13T12:00:00Z",
 };
 const GHOST_EXAMPLE_FADING: CellGhost = {
@@ -36,6 +37,9 @@ const GHOST_EXAMPLE_FADING: CellGhost = {
   useNumber: 2,
   isHardCutoff: false,
   fadeOpacity: 0.65,
+  cutoffDate: "2026-07-17",
+  deadlineAt: "2026-07-18T00:00:00Z",
+  deadlineIsEstimated: false,
 };
 const GHOST_EXAMPLE_CUTOFF: CellGhost = { ...GHOST_EXAMPLE_FADING, isHardCutoff: true };
 
@@ -153,7 +157,7 @@ export function LegendSection() {
           </div>
           <span>
             A cell with unused capacity could be loaded here today - tinted like the use it&apos;s waiting to
-            become, fading as its 108-hour window narrows.
+            become and labelled with the exact day its window closes, growing more solid as that date nears.
           </span>
         </div>
         <div className={styles.legendRow}>
@@ -161,8 +165,8 @@ export function LegendSection() {
             <SchedulerSlotView stage={null} slotIndex={0} ghost={GHOST_EXAMPLE_CUTOFF} />
           </div>
           <span>
-            Last day this cell can still start its next use - a fixed amber &quot;last chance&quot; look instead of
-            fading further.
+            Last day this cell can still start its next use - a fixed amber &quot;expires today&quot; look, not
+            just the peak of the fade.
           </span>
         </div>
       </div>

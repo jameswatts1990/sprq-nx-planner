@@ -29,6 +29,7 @@ export interface CellOut {
   current_well: string | null;
   last_use_run_date: string | null;
   first_use_started_at: string | null;
+  first_use_planned_start_at: string | null;
   created_at: string;
 }
 

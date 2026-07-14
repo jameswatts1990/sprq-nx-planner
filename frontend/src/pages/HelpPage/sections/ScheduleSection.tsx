@@ -109,16 +109,20 @@ export function ScheduleSection() {
       <p>
         <b>Waiting-cell ghosts:</b> once a multi-use cell&apos;s last placed use passes, an empty slot on the
         <i> earliest day it could next be loaded</i> — on the same instrument, one weekday after that last use —
-        shows a tinted &quot;Use N ready&quot; placeholder instead of the plain <b>+</b>, coloured the same as a real
-        Use 2/3 chip. It keeps showing on every later day the cell is still eligible, fading toward a paler tint as
-        its 108-hour window narrows, until the very last day it could still start — that day switches to a solid
-        amber &quot;last chance&quot; look instead of fading further, so the final opportunity never reads as
-        &quot;about to vanish&quot;. If two different cells become eligible on the same instrument and day, each
-        gets its own tinted placeholder. Dragging a backlog sample onto a ghost places it exactly like any other
-        empty slot (the placement picker already lists that cell as a reusable option); clicking it instead opens a
-        small popover with the cell&apos;s remaining uses, its window meter, and a <b>Discard remaining use(s)</b>
-        button for writing the cell off rather than reusing it — cells whose most recent use hasn&apos;t been
-        confirmed loaded yet can&apos;t be discarded, mirroring the same rule on the Cell detail page.
+        shows a tinted &quot;Use N · by [date]&quot; placeholder instead of the plain <b>+</b>, coloured the same as
+        a real Use 2/3 chip and labelled with the exact day its 108-hour window closes. It keeps showing on every
+        later day the cell is still eligible, growing more opaque/solid as that expiry date nears, until the actual
+        last day it could still start — that day switches to a solid amber &quot;expires today&quot; look instead of
+        just being the most solid point of the fade, so the final opportunity always stands out. If Use 1 hasn&apos;t
+        been confirmed loaded yet, the expiry date shown is an estimate from its planned loading time rather than the
+        real 108-hour clock (which only starts once the cell is actually removed from the tray) — the ghost always
+        expires on schedule either way, it never reads as available indefinitely. If two different cells become
+        eligible on the same instrument and day, each gets its own tinted placeholder. Dragging a backlog sample onto
+        a ghost places it exactly like any other empty slot (the placement picker already lists that cell as a
+        reusable option); clicking it instead opens a small popover with the cell&apos;s remaining uses, its exact
+        expiry time, and a <b>Discard remaining use(s)</b> button for writing the cell off rather than reusing it —
+        cells whose most recent use hasn&apos;t been confirmed loaded yet can&apos;t be discarded, mirroring the same
+        rule on the Cell detail page.
       </p>
     </div>
   );

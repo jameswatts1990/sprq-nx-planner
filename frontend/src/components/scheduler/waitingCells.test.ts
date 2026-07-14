@@ -5,6 +5,7 @@ import type { CellOut } from "@/types/cell";
 import { computeGhost, groupWaitingCellsByInstrumentAndDay } from "./waitingCells";
 
 function baseCell(overrides: Partial<CellOut> = {}): CellOut {
+  const lastUseRunDate = overrides.last_use_run_date !== undefined ? overrides.last_use_run_date : "2026-07-13";
   return {
     id: 1,
     code: "CELL-000001",
@@ -17,8 +18,12 @@ function baseCell(overrides: Partial<CellOut> = {}): CellOut {
     window_breached: false,
     current_instrument_serial: "84047",
     current_well: "A01",
-    last_use_run_date: "2026-07-13", // Monday
+    last_use_run_date: lastUseRunDate,
     first_use_started_at: null,
+    // Defaults to noon on the same day as last_use_run_date, since in these single-use
+    // fixtures the first use *is* the last use - keeps the fixture internally consistent
+    // unless a test explicitly overrides one or the other.
+    first_use_planned_start_at: lastUseRunDate ? `${lastUseRunDate}T12:00:00Z` : null,
     created_at: "2026-07-13T12:00:00Z",
     ...overrides,
   };
@@ -46,15 +51,22 @@ describe("computeGhost", () => {
     expect(computeGhost(cell, "2026-07-13")?.useNumber).toBe(2); // Monday
   });
 
-  it("is flat and un-faded when the 108h window clock hasn't started yet", () => {
-    const cell = baseCell({ first_use_started_at: null });
-    const ghost = computeGhost(cell, "2026-07-14");
-    expect(ghost).toEqual({ cell, useNumber: 2, isHardCutoff: false, fadeOpacity: 1 });
-    // still available on a much later day too, since there's no known deadline
-    expect(computeGhost(cell, "2026-07-24")).not.toBeNull();
+  it("estimates a bounded deadline from the planned loading time when Use 1 hasn't been confirmed yet", () => {
+    // Use 1 planned (not confirmed) for Monday 12:00 UTC -> estimated deadline = +108h = Saturday 00:00 UTC.
+    const cell = baseCell({ first_use_started_at: null, first_use_planned_start_at: "2026-07-13T12:00:00Z" });
+
+    const tue = computeGhost(cell, "2026-07-14");
+    const fri = computeGhost(cell, "2026-07-17");
+    const mon = computeGhost(cell, "2026-07-20");
+
+    expect(tue?.deadlineIsEstimated).toBe(true);
+    expect(tue?.cutoffDate).toBe("2026-07-17");
+    expect(fri?.isHardCutoff).toBe(true);
+    // The estimate still expires - an unconfirmed Use 1 must NOT read as available forever.
+    expect(mon).toBeNull();
   });
 
-  it("fades across eligible days and hard-cutoffs on the last one, once the window has started", () => {
+  it("rises in opacity across eligible days and hard-cutoffs on the last one, once Use 1 is confirmed", () => {
     // Use 1 confirmed loaded Monday 12:00 UTC -> deadline = +108h = Saturday 00:00 UTC.
     const cell = baseCell({ first_use_started_at: "2026-07-13T12:00:00Z" });
 
@@ -64,6 +76,11 @@ describe("computeGhost", () => {
     const fri = computeGhost(cell, "2026-07-17");
     const mon = computeGhost(cell, "2026-07-20");
 
+    expect(tue?.deadlineIsEstimated).toBe(false);
+    // Every ghost for this cell agrees on the same expiry date, regardless of which
+    // eligible day is being rendered.
+    expect([tue, wed, thu, fri].every((g) => g?.cutoffDate === "2026-07-17")).toBe(true);
+
     expect(tue?.isHardCutoff).toBe(false);
     expect(wed?.isHardCutoff).toBe(false);
     expect(thu?.isHardCutoff).toBe(false);
@@ -72,11 +89,12 @@ describe("computeGhost", () => {
     // By the following Monday the window has already closed.
     expect(mon).toBeNull();
 
-    // Fade strictly decreases day over day as the deadline approaches.
-    expect(tue!.fadeOpacity).toBeGreaterThan(wed!.fadeOpacity);
-    expect(wed!.fadeOpacity).toBeGreaterThan(thu!.fadeOpacity);
-    expect(thu!.fadeOpacity).toBeGreaterThanOrEqual(0.4);
-    expect(tue!.fadeOpacity).toBeLessThanOrEqual(1);
+    // Opacity rises day over day as the deadline approaches (low urgency when freshly
+    // eligible, more visually insistent near the cutoff).
+    expect(tue!.fadeOpacity).toBeLessThan(wed!.fadeOpacity);
+    expect(wed!.fadeOpacity).toBeLessThan(thu!.fadeOpacity);
+    expect(tue!.fadeOpacity).toBeGreaterThanOrEqual(0.4);
+    expect(thu!.fadeOpacity).toBeLessThanOrEqual(1);
   });
 });
 

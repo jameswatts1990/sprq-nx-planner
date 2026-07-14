@@ -3,6 +3,7 @@ import type { CSSProperties, HTMLAttributes } from "react";
 
 import { BarcodeChips } from "@/components/shared/BarcodeChips";
 import type { SlotIndex, StageOut } from "@/types/schedule";
+import { formatShortDateUTC, parseDateOnly } from "@/utils/calendarDates";
 import { classForUseIndex } from "@/utils/useIndexClass";
 
 import styles from "./SchedulerSlotView.module.css";
@@ -83,7 +84,9 @@ export const SchedulerSlotView = forwardRef<HTMLDivElement, SchedulerSlotViewPro
             {ghost.cell.code}
           </div>
           <div className={styles.ghostLabel}>
-            {ghost.isHardCutoff ? `Use ${ghost.useNumber} · last chance` : `Use ${ghost.useNumber} ready`}
+            {ghost.isHardCutoff
+              ? `Use ${ghost.useNumber} · expires today`
+              : `Use ${ghost.useNumber} · by ${formatShortDateUTC(parseDateOnly(ghost.cutoffDate))}`}
           </div>
         </>
       ) : (

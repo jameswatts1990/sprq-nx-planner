@@ -10,9 +10,11 @@ const CELL_LIFETIME_H = 108;
  * comparing a calendar day against a cell's 108h deadline. */
 const DAY_START_HOUR = 12;
 
-/** Full colour at/above this many hours from a given day to the deadline; fully faded
- * (but not yet the hard-cutoff day) at/below this many hours. Tuned for a 108h window run
- * on weekdays only, so the fade has room to show across 2-3 calendar days. */
+/** Opacity is FADE_MIN_OPACITY when a cell has just become eligible (far from its
+ * deadline) and rises toward 1.0 as it nears the cutoff - low visual weight early, more
+ * visually insistent as expiry approaches. Full/near-1.0 at/below FADE_MIN_HOURS-to-go;
+ * FADE_MIN_OPACITY at/above FADE_FULL_HOURS-to-go. Tuned for a 108h window run on
+ * weekdays only, so the rise has room to show across 2-3 calendar days. */
 const FADE_FULL_HOURS = 90;
 const FADE_MIN_HOURS = 18;
 const FADE_MIN_OPACITY = 0.4;
@@ -22,11 +24,22 @@ export interface CellGhost {
   /** 1-based use number this ghost represents, e.g. 2 for "Use 2". */
   useNumber: number;
   /** The last weekday this cell's next use could still legally start before its 108h
-   * window closes. Rendered as a distinct hard-line style, not just the palest fade step. */
+   * window closes. Rendered as a distinct hard-line style, not just the peak of the fade. */
   isHardCutoff: boolean;
-  /** 1.0 (just became eligible) down to FADE_MIN_OPACITY (approaching the cutoff).
-   * Meaningless when isHardCutoff is true. */
+  /** FADE_MIN_OPACITY (just became eligible) rising to ~1.0 (approaching the cutoff).
+   * Meaningless when isHardCutoff is true (that variant ignores it). */
   fadeOpacity: number;
+  /** The actual last calendar day this cell's next use could still start - identical
+   * across every ghost rendered for this cell, so the expiry date reads the same
+   * regardless of which eligible day is currently on screen. */
+  cutoffDate: string;
+  /** Exact deadline instant behind cutoffDate, for precise display (e.g. in a popover). */
+  deadlineAt: string;
+  /** True when Use 1 hasn't been confirmed loaded yet, so deadlineAt/cutoffDate are a
+   * provisional estimate from its *planned* loading time, not the real 108h clock (which
+   * only starts once a cell is actually removed from the tray - see
+   * docs/pacbio-sprq-nx-scheduling-reference.md #2). */
+  deadlineIsEstimated: boolean;
 }
 
 function nextWeekdayAfter(isoDate: string): string {
@@ -43,10 +56,10 @@ function dayStart(isoDate: string): Date {
 
 /**
  * Whether `cell` is waiting to be reused on `day` (a weekday), and if so, how urgent that
- * looks. Returns null when the cell isn't an open, idle, previously-used cell, or `day`
- * falls outside its reuse window. Pure function of already-fetched CellOut data - no
- * "now" dependency, so the same day always renders the same way regardless of when the
- * page happens to be viewed.
+ * looks. Returns null when the cell isn't an open, idle, previously-used cell, `day` falls
+ * outside its reuse window, or the window has already closed. Pure function of
+ * already-fetched CellOut data - no "now" dependency, so the same day always renders the
+ * same way regardless of when the page happens to be viewed.
  */
 export function computeGhost(cell: CellOut, day: string): CellGhost | null {
   if (cell.status !== "open" || cell.uses_remaining <= 0) return null;
@@ -56,27 +69,41 @@ export function computeGhost(cell: CellOut, day: string): CellGhost | null {
   const earliestDate = nextWeekdayAfter(cell.last_use_run_date);
   if (day < earliestDate) return null;
 
-  const useNumber = cell.uses_consumed + 1;
+  // The 108h clock's real anchor is when Use 1 is actually confirmed loaded
+  // (first_use_started_at); until then, fall back to its *planned* loading time as a
+  // provisional estimate so a not-yet-confirmed cell still shows a concrete, bounded
+  // deadline instead of reading as available indefinitely.
+  const deadlineIsEstimated = !cell.first_use_started_at;
+  const anchor = cell.first_use_started_at ?? cell.first_use_planned_start_at;
+  if (!anchor) return null; // no cycle at all for the first use - shouldn't happen once uses_consumed >= 1
 
-  if (!cell.first_use_started_at) {
-    // Window clock hasn't started (Use 1 hasn't been confirmed loaded yet) - no known
-    // deadline, so show a flat, un-faded "available" ghost with no urgency framing.
-    return { cell, useNumber, isHardCutoff: false, fadeOpacity: 1 };
-  }
-
-  const deadlineAt = new Date(cell.first_use_started_at).getTime() + CELL_LIFETIME_H * 3_600_000;
+  const deadlineAtMs = new Date(anchor).getTime() + CELL_LIFETIME_H * 3_600_000;
   const thisDayStart = dayStart(day).getTime();
-  if (thisDayStart > deadlineAt) return null; // already past the cutoff
+  if (thisDayStart > deadlineAtMs) return null; // already past the cutoff
 
-  const nextDayStart = dayStart(nextWeekdayAfter(day)).getTime();
-  const isHardCutoff = nextDayStart > deadlineAt;
+  // Walk forward from the earliest eligible day to find the actual last qualifying
+  // weekday - computed the same way regardless of which day is being rendered, so every
+  // ghost for this cell reports the same cutoffDate.
+  let cutoffDate = earliestDate;
+  while (dayStart(nextWeekdayAfter(cutoffDate)).getTime() <= deadlineAtMs) {
+    cutoffDate = nextWeekdayAfter(cutoffDate);
+  }
+  const isHardCutoff = day === cutoffDate;
 
-  const hoursToDeadline = (deadlineAt - thisDayStart) / 3_600_000;
+  const hoursToDeadline = (deadlineAtMs - thisDayStart) / 3_600_000;
   const clamped = Math.min(FADE_FULL_HOURS, Math.max(FADE_MIN_HOURS, hoursToDeadline));
   const fadeOpacity =
-    FADE_MIN_OPACITY + ((clamped - FADE_MIN_HOURS) / (FADE_FULL_HOURS - FADE_MIN_HOURS)) * (1 - FADE_MIN_OPACITY);
+    FADE_MIN_OPACITY + ((FADE_FULL_HOURS - clamped) / (FADE_FULL_HOURS - FADE_MIN_HOURS)) * (1 - FADE_MIN_OPACITY);
 
-  return { cell, useNumber, isHardCutoff, fadeOpacity };
+  return {
+    cell,
+    useNumber: cell.uses_consumed + 1,
+    isHardCutoff,
+    fadeOpacity,
+    cutoffDate,
+    deadlineAt: new Date(deadlineAtMs).toISOString(),
+    deadlineIsEstimated,
+  };
 }
 
 /**

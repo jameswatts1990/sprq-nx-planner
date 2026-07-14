@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "playwright": {
+      "type": "stdio",
+      "command": "C:\\Users\\jw24\\tools\\node\\npx.cmd",
+      "args": ["-y", "@playwright/mcp@latest"]
+    }
+  }
+}

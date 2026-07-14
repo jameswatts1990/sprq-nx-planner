@@ -195,7 +195,7 @@ export function SchedulerDayCell(props: SchedulerDayCellProps) {
           const firstEmptyIndex = firstEmptyByTray[trayIdx];
           return (
             <div key={trayIdx} className={styles.tray}>
-              {trayIdx === 1 && <div className={styles.trayLabel}>Tray 2</div>}
+              <div className={styles.trayLabel}>{trayIdx === 0 ? "Tray 1" : "Tray 2"}</div>
               {indices
                 .filter((i) => slots[i] !== null || i === firstEmptyIndex || ghostBySlot.has(i))
                 .map((i) => (
