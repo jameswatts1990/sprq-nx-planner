@@ -6,6 +6,7 @@ import type { GridSelection } from "./useGridSelection";
 import type { SlotSelection } from "./useSlotSelection";
 import { SchedulerDayCell } from "./SchedulerDayCell";
 import styles from "./SchedulerGrid.module.css";
+import type { CellGhost } from "./waitingCells";
 
 export interface SchedulerGridRowProps {
   serial: string;
@@ -17,6 +18,8 @@ export interface SchedulerGridRowProps {
   onOpenDetail: (stage: StageOut, locked: boolean) => void;
   slotSelection: SlotSelection;
   activeDragInstrument: string | null;
+  waitingCellsByDate: Map<string, CellGhost[]>;
+  onOpenGhost: (ghost: CellGhost) => void;
 }
 
 /** One instrument row: sticky-left <th> serial, then one SchedulerDayCell per day.
@@ -31,6 +34,8 @@ export function SchedulerGridRow({
   onOpenDetail,
   slotSelection,
   activeDragInstrument,
+  waitingCellsByDate,
+  onOpenGhost,
 }: SchedulerGridRowProps) {
   return (
     <tr>
@@ -61,6 +66,8 @@ export function SchedulerGridRow({
             onOpenDetail={onOpenDetail}
             slotSelection={slotSelection}
             activeDragInstrument={activeDragInstrument}
+            waitingCells={waitingCellsByDate.get(date) ?? []}
+            onOpenGhost={onOpenGhost}
           />
         );
       })}

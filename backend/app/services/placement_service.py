@@ -47,24 +47,30 @@ def get_or_create_run(
     start_hour: int = DAY_START_HOUR,
     start_minute: int = 0,
 ) -> Cycle:
-    """Get-or-create the (instrument, run_date) RunBatch+Cycle (1:1) under the unique
-    constraint. Safe against a concurrent drag into the same empty grid cell: on a losing
-    INSERT race we roll back the failed insert and re-SELECT the winner's row.
+    """Get-or-create the (instrument, run_date) RunBatch+Cycle. Normally 1:1 - created and
+    deleted together everywhere else in this module - but a RunBatch can legitimately
+    survive with no Cycle if its cycles were deleted independently (e.g. via the admin
+    table-clear tool, which clears one raw table at a time with no cascade). Handled here
+    by attaching a fresh Cycle to the existing, cycle-less RunBatch rather than trying
+    (and failing on the unique constraint) to INSERT a second RunBatch row for the same
+    (instrument, run_date).
+
+    Safe against a concurrent drag into the same empty grid cell: on a losing INSERT race
+    we roll back the failed insert and re-SELECT the winner's row.
 
     NOTE: the rollback discards the whole pending transaction, so callers must invoke this
     before making any other DB writes they care about."""
 
-    def _existing() -> Cycle | None:
-        rb = db.scalar(
+    def _load_run_batch() -> RunBatch | None:
+        return db.scalar(
             select(RunBatch)
             .where(RunBatch.instrument_id == instrument.id, RunBatch.run_date == run_date)
             .options(selectinload(RunBatch.cycles))
         )
-        return rb.cycles[0] if rb is not None and rb.cycles else None
 
-    cycle = _existing()
-    if cycle is not None:
-        return cycle
+    run_batch = _load_run_batch()
+    if run_batch is not None and run_batch.cycles:
+        return run_batch.cycles[0]
 
     start, end = planned_window(run_date, run_time_hours, start_hour, start_minute)
 
@@ -78,16 +84,20 @@ def get_or_create_run(
             409, f"Instrument {instrument.serial_number} is locked until {blocking.isoformat()} by a prior run."
         )
 
-    run_batch = RunBatch(instrument_id=instrument.id, run_date=run_date)
-    db.add(run_batch)
-    try:
-        db.flush()
-    except IntegrityError:
-        db.rollback()
-        cycle = _existing()
-        if cycle is None:
-            raise
-        return cycle
+    if run_batch is None:
+        run_batch = RunBatch(instrument_id=instrument.id, run_date=run_date)
+        db.add(run_batch)
+        try:
+            db.flush()
+        except IntegrityError:
+            db.rollback()
+            run_batch = _load_run_batch()
+            if run_batch is None:
+                raise
+            if run_batch.cycles:
+                return run_batch.cycles[0]
+            # else: the concurrent writer created the RunBatch but hasn't attached a Cycle
+            # yet - fall through and create one for it below, same as the orphan case.
 
     cycle = Cycle(
         run_batch_id=run_batch.id,

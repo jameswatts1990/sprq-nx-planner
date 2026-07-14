@@ -3,7 +3,7 @@ import type { KeyboardEvent, MouseEvent } from "react";
 
 import { ApiError } from "@/api/client";
 import { cyclesApi } from "@/api/cycles";
-import type { CycleOut, StageOut } from "@/types/schedule";
+import type { SlotIndex, CycleOut, StageOut } from "@/types/schedule";
 import { formatShortDateTimeUTC } from "@/utils/calendarDates";
 
 import { slotKey, TRAY_INDICES } from "./gridKeys";
@@ -11,6 +11,7 @@ import { padStages } from "./groupCyclesByInstrumentAndDay";
 import { SchedulerSlot } from "./SchedulerSlot";
 import styles from "./SchedulerDayCell.module.css";
 import type { SlotSelection } from "./useSlotSelection";
+import type { CellGhost } from "./waitingCells";
 
 export interface SchedulerDayCellProps {
   instrumentSerial: string;
@@ -33,6 +34,10 @@ export interface SchedulerDayCellProps {
   /** Source instrument of an in-progress filled-slot drag, or null. Cells cannot move
    * between instruments, so empty slots on any other instrument become ineligible. */
   activeDragInstrument: string | null;
+  /** Waiting, reusable cells eligible to load on this instrument+day (see waitingCells.ts).
+   * Ignored while the day's run is locked, since it can no longer accept placements. */
+  waitingCells: CellGhost[];
+  onOpenGhost: (ghost: CellGhost) => void;
 }
 
 /**
@@ -56,6 +61,8 @@ export function SchedulerDayCell(props: SchedulerDayCellProps) {
     onSelect,
     slotSelection,
     activeDragInstrument,
+    waitingCells,
+    onOpenGhost,
   } = props;
   const queryClient = useQueryClient();
   const crossInstrumentDragActive = activeDragInstrument !== null && activeDragInstrument !== instrumentSerial;
@@ -82,8 +89,28 @@ export function SchedulerDayCell(props: SchedulerDayCellProps) {
   const slots = padStages(cycle);
   const tray1Filled = TRAY_INDICES[0].some((i) => slots[i] !== null);
   const tray2Filled = TRAY_INDICES[1].some((i) => slots[i] !== null);
-  const trayVisible = [true, tray1Filled || tray2Filled];
-  const firstEmptyByTray = TRAY_INDICES.map((indices) => indices.find((i) => !slots[i]));
+
+  // A locked day can no longer accept placements, so ghosts (which double as a droppable
+  // "place it here" affordance) don't apply there. Assign each waiting cell to its own
+  // empty slot, tray 1 first then tray 2, so multiple simultaneously-eligible cells each
+  // get a distinct tinted placeholder (see waitingCells.ts).
+  const ghostBySlot = new Map<SlotIndex, CellGhost>();
+  if (!locked) {
+    let queue = waitingCells;
+    for (const indices of TRAY_INDICES) {
+      for (const i of indices) {
+        if (slots[i] !== null || queue.length === 0) continue;
+        ghostBySlot.set(i, queue[0]);
+        queue = queue.slice(1);
+      }
+    }
+  }
+  const tray2HasGhost = TRAY_INDICES[1].some((i) => ghostBySlot.has(i));
+
+  const trayVisible = [true, tray1Filled || tray2Filled || tray2HasGhost];
+  // Beyond any ghost-assigned slots, still surface exactly one plain "+" placeholder per
+  // tray so "use a new cell" always stays available alongside reuse ghosts.
+  const firstEmptyByTray = TRAY_INDICES.map((indices) => indices.find((i) => !slots[i] && !ghostBySlot.has(i)));
 
   function onCellClick(e: MouseEvent<HTMLTableCellElement>) {
     if (selectable) onSelect(rowIndex, colIndex, e.shiftKey, e.ctrlKey || e.metaKey);
@@ -170,7 +197,7 @@ export function SchedulerDayCell(props: SchedulerDayCellProps) {
             <div key={trayIdx} className={styles.tray}>
               {trayIdx === 1 && <div className={styles.trayLabel}>Tray 2</div>}
               {indices
-                .filter((i) => slots[i] !== null || i === firstEmptyIndex)
+                .filter((i) => slots[i] !== null || i === firstEmptyIndex || ghostBySlot.has(i))
                 .map((i) => (
                   <SchedulerSlot
                     key={i}
@@ -184,6 +211,8 @@ export function SchedulerDayCell(props: SchedulerDayCellProps) {
                     onOpenDetail={(stage) => props.onOpenDetail(stage, locked)}
                     onToggleSelect={slotSelection.toggle}
                     crossInstrumentDragActive={crossInstrumentDragActive}
+                    ghost={ghostBySlot.get(i)}
+                    onOpenGhost={onOpenGhost}
                   />
                 ))}
             </div>

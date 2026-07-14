@@ -1,11 +1,12 @@
 import { forwardRef } from "react";
-import type { HTMLAttributes } from "react";
+import type { CSSProperties, HTMLAttributes } from "react";
 
 import { BarcodeChips } from "@/components/shared/BarcodeChips";
 import type { SlotIndex, StageOut } from "@/types/schedule";
 import { classForUseIndex } from "@/utils/useIndexClass";
 
 import styles from "./SchedulerSlotView.module.css";
+import type { CellGhost } from "./waitingCells";
 
 export interface SchedulerSlotViewProps extends HTMLAttributes<HTMLDivElement> {
   /** The filled well, or null for an empty slot placeholder. */
@@ -24,6 +25,10 @@ export interface SchedulerSlotViewProps extends HTMLAttributes<HTMLDivElement> {
   selected?: boolean;
   /** Not a valid drop target for the drag currently in progress (cross-instrument move). */
   ineligible?: boolean;
+  /** An empty slot that a waiting, reusable cell could be loaded into today - renders a
+   * Use-N tinted placeholder instead of the plain "+" (see waitingCells.ts). Ignored when
+   * `stage` is set. */
+  ghost?: CellGhost;
 }
 
 /**
@@ -33,15 +38,19 @@ export interface SchedulerSlotViewProps extends HTMLAttributes<HTMLDivElement> {
  * and listeners directly to this box.
  */
 export const SchedulerSlotView = forwardRef<HTMLDivElement, SchedulerSlotViewProps>(function SchedulerSlotView(
-  { stage, slotIndex, locked, placing, over, dragging, selected, ineligible, className, ...rest },
+  { stage, slotIndex, locked, placing, over, dragging, selected, ineligible, ghost, className, style, ...rest },
   ref,
 ) {
   // Colour groups by which physical cell is loaded (stage.use_number), not by well
-  // position - so a cell reused across two wells in the same run shares one colour.
-  const useClass = classForUseIndex(stage ? stage.use_number : slotIndex + 1);
+  // position - so a cell reused across two wells in the same run shares one colour. A
+  // ghost slot (no stage yet) colours by the use number it's waiting to become.
+  const useClass = classForUseIndex(stage ? stage.use_number : ghost ? ghost.useNumber : slotIndex + 1);
   const classes = [styles.slot];
   if (stage) {
     classes.push(styles.filled, styles[useClass]);
+  } else if (ghost) {
+    classes.push(styles.ghost, styles[useClass]);
+    if (ghost.isHardCutoff) classes.push(styles.ghostCutoff);
   } else {
     classes.push(styles.empty);
   }
@@ -53,8 +62,13 @@ export const SchedulerSlotView = forwardRef<HTMLDivElement, SchedulerSlotViewPro
   if (ineligible) classes.push(styles.ineligible);
   if (className) classes.push(className);
 
+  // Fade intensity only applies to the calm (non-cutoff) ghost look - the cutoff variant
+  // is a fixed, fully-opaque "act now" style regardless of how the fade would otherwise sit.
+  const mergedStyle: CSSProperties | undefined =
+    ghost && !ghost.isHardCutoff ? { ...style, ["--ghost-opacity" as string]: ghost.fadeOpacity } : style;
+
   return (
-    <div ref={ref} className={classes.join(" ")} {...rest}>
+    <div ref={ref} className={classes.join(" ")} style={mergedStyle} {...rest}>
       {stage ? (
         <>
           <div className={styles.ext} title={stage.sample_external_id ?? stage.cell_ref}>
@@ -62,6 +76,15 @@ export const SchedulerSlotView = forwardRef<HTMLDivElement, SchedulerSlotViewPro
           </div>
           <div className={styles.cellref}>{stage.cell_ref}</div>
           <BarcodeChips barcodes={stage.barcodes} variant={useClass} />
+        </>
+      ) : ghost ? (
+        <>
+          <div className={styles.ghostCode} title={ghost.cell.code}>
+            {ghost.cell.code}
+          </div>
+          <div className={styles.ghostLabel}>
+            {ghost.isHardCutoff ? `Use ${ghost.useNumber} · last chance` : `Use ${ghost.useNumber} ready`}
+          </div>
         </>
       ) : (
         <span className={styles.placeholder}>{placing ? "placing…" : "+"}</span>

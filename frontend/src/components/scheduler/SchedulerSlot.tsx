@@ -6,6 +6,7 @@ import type { SlotIndex, StageOut } from "@/types/schedule";
 import { slotKey } from "./gridKeys";
 import { SchedulerSlotView } from "./SchedulerSlotView";
 import type { FilledSlotDragData, SlotDropData } from "./useSchedulerDnd";
+import type { CellGhost } from "./waitingCells";
 
 export interface SchedulerSlotProps {
   stage: StageOut | null;
@@ -24,6 +25,10 @@ export interface SchedulerSlotProps {
   /** A filled-slot ("move") drag is in progress from a *different* instrument than this
    * slot's - cells cannot move between instruments, so this slot must reject the drop. */
   crossInstrumentDragActive?: boolean;
+  /** A waiting, reusable cell eligible to load into this empty slot today. */
+  ghost?: CellGhost;
+  /** Opens the waiting-cell detail/discard popover; only meaningful when `ghost` is set. */
+  onOpenGhost?: (ghost: CellGhost) => void;
 }
 
 /**
@@ -49,7 +54,15 @@ export function SchedulerSlot(props: SchedulerSlotProps) {
   return <ClickableSlot {...props} stage={stage} />;
 }
 
-function DroppableSlot({ slotIndex, instrumentSerial, runDate, placing, crossInstrumentDragActive }: SchedulerSlotProps) {
+function DroppableSlot({
+  slotIndex,
+  instrumentSerial,
+  runDate,
+  placing,
+  crossInstrumentDragActive,
+  ghost,
+  onOpenGhost,
+}: SchedulerSlotProps) {
   const data: SlotDropData = {
     kind: "slot",
     instrument_serial: instrumentSerial,
@@ -69,6 +82,8 @@ function DroppableSlot({ slotIndex, instrumentSerial, runDate, placing, crossIns
       over={isOver}
       placing={placing}
       ineligible={crossInstrumentDragActive}
+      ghost={ghost}
+      onClick={ghost && onOpenGhost ? () => onOpenGhost(ghost) : undefined}
     />
   );
 }

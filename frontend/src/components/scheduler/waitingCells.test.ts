@@ -1,0 +1,105 @@
+import { describe, expect, it } from "vitest";
+
+import type { CellOut } from "@/types/cell";
+
+import { computeGhost, groupWaitingCellsByInstrumentAndDay } from "./waitingCells";
+
+function baseCell(overrides: Partial<CellOut> = {}): CellOut {
+  return {
+    id: 1,
+    code: "CELL-000001",
+    max_uses: 3,
+    status: "open",
+    uses_consumed: 1,
+    uses_remaining: 2,
+    burned_barcodes: [],
+    window_hours_elapsed: null,
+    window_breached: false,
+    current_instrument_serial: "84047",
+    current_well: "A01",
+    last_use_run_date: "2026-07-13", // Monday
+    first_use_started_at: null,
+    created_at: "2026-07-13T12:00:00Z",
+    ...overrides,
+  };
+}
+
+describe("computeGhost", () => {
+  it("returns null for a cell with no uses consumed yet (nothing to wait on)", () => {
+    expect(computeGhost(baseCell({ uses_consumed: 0, last_use_run_date: null }), "2026-07-14")).toBeNull();
+  });
+
+  it("returns null once the cell is no longer open (exhausted/window_expired/retired)", () => {
+    expect(computeGhost(baseCell({ status: "exhausted", uses_remaining: 0 }), "2026-07-14")).toBeNull();
+    expect(computeGhost(baseCell({ status: "window_expired" }), "2026-07-14")).toBeNull();
+  });
+
+  it("returns null on the same day as the last use and on a weekend, even though it's after last_use_run_date", () => {
+    expect(computeGhost(baseCell(), "2026-07-13")).toBeNull(); // same day as last use
+    expect(computeGhost(baseCell({ last_use_run_date: "2026-07-10" }), "2026-07-11")).toBeNull(); // Saturday
+  });
+
+  it("skips straight to Monday when the last use was a Friday", () => {
+    const cell = baseCell({ last_use_run_date: "2026-07-10" }); // Friday
+    expect(computeGhost(cell, "2026-07-11")).toBeNull(); // Saturday
+    expect(computeGhost(cell, "2026-07-12")).toBeNull(); // Sunday
+    expect(computeGhost(cell, "2026-07-13")?.useNumber).toBe(2); // Monday
+  });
+
+  it("is flat and un-faded when the 108h window clock hasn't started yet", () => {
+    const cell = baseCell({ first_use_started_at: null });
+    const ghost = computeGhost(cell, "2026-07-14");
+    expect(ghost).toEqual({ cell, useNumber: 2, isHardCutoff: false, fadeOpacity: 1 });
+    // still available on a much later day too, since there's no known deadline
+    expect(computeGhost(cell, "2026-07-24")).not.toBeNull();
+  });
+
+  it("fades across eligible days and hard-cutoffs on the last one, once the window has started", () => {
+    // Use 1 confirmed loaded Monday 12:00 UTC -> deadline = +108h = Saturday 00:00 UTC.
+    const cell = baseCell({ first_use_started_at: "2026-07-13T12:00:00Z" });
+
+    const tue = computeGhost(cell, "2026-07-14");
+    const wed = computeGhost(cell, "2026-07-15");
+    const thu = computeGhost(cell, "2026-07-16");
+    const fri = computeGhost(cell, "2026-07-17");
+    const mon = computeGhost(cell, "2026-07-20");
+
+    expect(tue?.isHardCutoff).toBe(false);
+    expect(wed?.isHardCutoff).toBe(false);
+    expect(thu?.isHardCutoff).toBe(false);
+    // Friday is the last weekday before the Saturday-midnight deadline - the hard cutoff.
+    expect(fri?.isHardCutoff).toBe(true);
+    // By the following Monday the window has already closed.
+    expect(mon).toBeNull();
+
+    // Fade strictly decreases day over day as the deadline approaches.
+    expect(tue!.fadeOpacity).toBeGreaterThan(wed!.fadeOpacity);
+    expect(wed!.fadeOpacity).toBeGreaterThan(thu!.fadeOpacity);
+    expect(thu!.fadeOpacity).toBeGreaterThanOrEqual(0.4);
+    expect(tue!.fadeOpacity).toBeLessThanOrEqual(1);
+  });
+});
+
+describe("groupWaitingCellsByInstrumentAndDay", () => {
+  it("buckets ghosts by the cell's current instrument and each eligible day", () => {
+    const cellA = baseCell({ id: 1, current_instrument_serial: "84047", last_use_run_date: "2026-07-13" });
+    const cellB = baseCell({ id: 2, current_instrument_serial: "84098", last_use_run_date: "2026-07-13" });
+    const days = ["2026-07-13", "2026-07-14", "2026-07-15"];
+
+    const grouped = groupWaitingCellsByInstrumentAndDay([cellA, cellB], days);
+
+    expect(grouped.get("84047")?.get("2026-07-14")?.map((g) => g.cell.id)).toEqual([1]);
+    expect(grouped.get("84098")?.get("2026-07-14")?.map((g) => g.cell.id)).toEqual([2]);
+    // no ghost on the last-use day itself
+    expect(grouped.get("84047")?.get("2026-07-13")).toBeUndefined();
+  });
+
+  it("gives a day two ghosts when two different cells on the same instrument both become eligible", () => {
+    const cellA = baseCell({ id: 1, current_instrument_serial: "84047", last_use_run_date: "2026-07-13" });
+    const cellB = baseCell({ id: 2, current_instrument_serial: "84047", last_use_run_date: "2026-07-13" });
+
+    const grouped = groupWaitingCellsByInstrumentAndDay([cellA, cellB], ["2026-07-14"]);
+
+    expect(grouped.get("84047")?.get("2026-07-14")?.map((g) => g.cell.id).sort()).toEqual([1, 2]);
+  });
+});

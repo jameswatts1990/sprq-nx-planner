@@ -106,6 +106,20 @@ export function ScheduleSection() {
         loaded. The Use 1 / Use 2 / Use 3 colours (magenta / blue / teal) show which use of a cell each barcode chip
         belongs to — see the Colour &amp; Status Legend section.
       </p>
+      <p>
+        <b>Waiting-cell ghosts:</b> once a multi-use cell&apos;s last placed use passes, an empty slot on the
+        <i> earliest day it could next be loaded</i> — on the same instrument, one weekday after that last use —
+        shows a tinted &quot;Use N ready&quot; placeholder instead of the plain <b>+</b>, coloured the same as a real
+        Use 2/3 chip. It keeps showing on every later day the cell is still eligible, fading toward a paler tint as
+        its 108-hour window narrows, until the very last day it could still start — that day switches to a solid
+        amber &quot;last chance&quot; look instead of fading further, so the final opportunity never reads as
+        &quot;about to vanish&quot;. If two different cells become eligible on the same instrument and day, each
+        gets its own tinted placeholder. Dragging a backlog sample onto a ghost places it exactly like any other
+        empty slot (the placement picker already lists that cell as a reusable option); clicking it instead opens a
+        small popover with the cell&apos;s remaining uses, its window meter, and a <b>Discard remaining use(s)</b>
+        button for writing the cell off rather than reusing it — cells whose most recent use hasn&apos;t been
+        confirmed loaded yet can&apos;t be discarded, mirroring the same rule on the Cell detail page.
+      </p>
     </div>
   );
 }

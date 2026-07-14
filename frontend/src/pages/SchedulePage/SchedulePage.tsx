@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 
 import { ApiError } from "@/api/client";
+import { cellsApi } from "@/api/cells";
 import { cellUsesApi } from "@/api/cellUses";
 import { cyclesApi } from "@/api/cycles";
 import { instrumentsApi } from "@/api/instruments";
@@ -14,6 +15,8 @@ import { SlotDetailPopover } from "@/components/scheduler/SlotDetailPopover";
 import { useGridSelection } from "@/components/scheduler/useGridSelection";
 import { useSchedulerDnd } from "@/components/scheduler/useSchedulerDnd";
 import { useSlotSelection } from "@/components/scheduler/useSlotSelection";
+import { groupWaitingCellsByInstrumentAndDay, type CellGhost } from "@/components/scheduler/waitingCells";
+import { WaitingCellPopover } from "@/components/scheduler/WaitingCellPopover";
 import { SectionHeading, UseLegend } from "@/components/shared/SectionHeading";
 import { Button } from "@/components/ui/Button";
 import type { NoteTone } from "@/components/ui/Note";
@@ -53,6 +56,7 @@ export function SchedulePage() {
   const [runDesignNote, setRunDesignNote] = useState<AccordionNote | null>(null);
   const [removeSlotsError, setRemoveSlotsError] = useState<string | null>(null);
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
+  const [ghostDetail, setGhostDetail] = useState<CellGhost | null>(null);
 
   const instrumentsQuery = useQuery({
     queryKey: ["instruments", true],
@@ -75,12 +79,25 @@ export function SchedulePage() {
     refetchInterval: 60_000,
   });
 
+  // Every open cell still holding unused capacity, regardless of instrument - drives the
+  // weekly grid's "waiting cell" ghost indicators (see waitingCells.ts). No dedicated
+  // invalidation needed: every mutation that can change a cell's state (place/remove/move/
+  // retire) already invalidates the ["cells"] query-key prefix.
+  const waitingCellsQuery = useQuery({
+    queryKey: ["cells", "waiting-ghosts"],
+    queryFn: () => cellsApi.list({ status: "open", page_size: 200 }),
+  });
+
   const instrumentSerials = useMemo(
     () => (instrumentsQuery.data ?? []).map((i) => i.serial_number),
     [instrumentsQuery.data],
   );
   const cycles = useMemo(() => cyclesQuery.data ?? [], [cyclesQuery.data]);
   const grouped = useMemo(() => groupCyclesByInstrumentAndDay(cycles), [cycles]);
+  const waitingGrouped = useMemo(
+    () => groupWaitingCellsByInstrumentAndDay(waitingCellsQuery.data?.items ?? [], win.days),
+    [waitingCellsQuery.data, win.days],
+  );
   // `cycles` is fetched a few days wider than the visible window (see lookbackDateFrom
   // above), purely so carry-over locks can see runs that started just before it. Anything
   // deriving from the actually-visible week (bulk clear, etc.) must filter back down.
@@ -309,6 +326,8 @@ export function SchedulePage() {
             onOpenDetail={handleOpenDetail}
             slotSelection={slotSelection}
             activeDragInstrument={dnd.activeDragInstrument}
+            waitingGrouped={waitingGrouped}
+            onOpenGhost={setGhostDetail}
           />
         )}
 
@@ -338,6 +357,8 @@ export function SchedulePage() {
           onConfirm={() => clearScheduleMutation.mutate()}
         />
       )}
+
+      {ghostDetail && <WaitingCellPopover ghost={ghostDetail} onClose={() => setGhostDetail(null)} />}
 
       {detail && (
         <SlotDetailPopover

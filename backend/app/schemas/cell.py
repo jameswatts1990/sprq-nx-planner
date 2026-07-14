@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 
 from pydantic import BaseModel
 
@@ -30,6 +30,7 @@ class CellOut(BaseModel):
     window_breached: bool
     current_instrument_serial: str | None
     current_well: str | None
+    last_use_run_date: date | None
     first_use_started_at: datetime | None
     created_at: datetime
 

@@ -1,6 +1,9 @@
+import { SchedulerSlotView } from "@/components/scheduler/SchedulerSlotView";
+import type { CellGhost } from "@/components/scheduler/waitingCells";
 import { UseLegend } from "@/components/shared/SectionHeading";
 import { Badge, type BadgeTone } from "@/components/ui/Badge";
 import { Note, type NoteTone } from "@/components/ui/Note";
+import type { CellOut } from "@/types/cell";
 import { CELL_STATUSES, CELL_USE_STATUSES, CYCLE_STATUSES } from "@/types/common";
 import type { CellStatus, CellUseStatus, CycleStatus } from "@/types/common";
 import { CELL_STATUS_LABEL, CELL_STATUS_TONE } from "@/utils/cellStatus";
@@ -8,6 +11,33 @@ import { CYCLE_STATUS_TONE } from "@/utils/cycleStatus";
 import { USE_STATUS_TONE } from "@/utils/useStatusTone";
 
 import styles from "../HelpPage.module.css";
+
+// Fabricated example cell/ghost, purely so the two waiting-cell ghost styles below render
+// from the real SchedulerSlotView component (see CLAUDE.md's Help Tab Maintenance rule) -
+// never hand-describe this colour scheme in prose.
+const GHOST_EXAMPLE_CELL: CellOut = {
+  id: 0,
+  code: "CELL-000042",
+  max_uses: 3,
+  status: "open",
+  uses_consumed: 1,
+  uses_remaining: 2,
+  burned_barcodes: [],
+  window_hours_elapsed: 60,
+  window_breached: false,
+  current_instrument_serial: "84047",
+  current_well: "A01",
+  last_use_run_date: "2026-07-13",
+  first_use_started_at: "2026-07-13T12:00:00Z",
+  created_at: "2026-07-13T12:00:00Z",
+};
+const GHOST_EXAMPLE_FADING: CellGhost = {
+  cell: GHOST_EXAMPLE_CELL,
+  useNumber: 2,
+  isHardCutoff: false,
+  fadeOpacity: 0.65,
+};
+const GHOST_EXAMPLE_CUTOFF: CellGhost = { ...GHOST_EXAMPLE_FADING, isHardCutoff: true };
 
 const CELL_STATUS_MEANING: Record<CellStatus, string> = {
   open: "Has uses remaining and its window is still valid; available to schedule.",
@@ -113,6 +143,28 @@ export function LegendSection() {
       <div className={styles.legendRow}>
         <UseLegend />
         <span>Which acquisition of a cell a barcode belongs to.</span>
+      </div>
+
+      <p className={styles.subheading}>Waiting-cell ghosts (Weekly schedule)</p>
+      <div className={styles.legendGrid}>
+        <div className={styles.legendRow}>
+          <div className={styles.ghostExampleSwatch}>
+            <SchedulerSlotView stage={null} slotIndex={0} ghost={GHOST_EXAMPLE_FADING} />
+          </div>
+          <span>
+            A cell with unused capacity could be loaded here today - tinted like the use it&apos;s waiting to
+            become, fading as its 108-hour window narrows.
+          </span>
+        </div>
+        <div className={styles.legendRow}>
+          <div className={styles.ghostExampleSwatch}>
+            <SchedulerSlotView stage={null} slotIndex={0} ghost={GHOST_EXAMPLE_CUTOFF} />
+          </div>
+          <span>
+            Last day this cell can still start its next use - a fixed amber &quot;last chance&quot; look instead of
+            fading further.
+          </span>
+        </div>
       </div>
 
       <p className={styles.subheading}>Alert notes you&apos;ll see throughout</p>

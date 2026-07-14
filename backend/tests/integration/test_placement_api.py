@@ -155,6 +155,27 @@ def test_remove_sample_keeps_cell_when_it_still_has_other_uses(client):
     assert cell["uses_consumed"] == 1
 
 
+def test_cell_last_use_run_date_tracks_most_recent_active_use(client):
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1\nA2,bc2"})
+    mon, tue = _weekdays(2)
+    a1, a2 = _sid(client, "A1"), _sid(client, "A2")
+
+    r1 = _place(client, a1, mon, 0)
+    cell_id = r1.json()["stages"][0]["cell_id"]
+    assert client.get(f"/api/cells/{cell_id}").json()["last_use_run_date"] == mon
+
+    r2 = _place(client, a2, tue, 0, {"mode": "existing", "cell_id": cell_id}, start_hour=15)
+    assert r2.status_code == 201, r2.text
+    cell_use_id_2 = r2.json()["stages"][0]["cell_use_id"]
+    # a later reuse moves last_use_run_date forward to its own run_date
+    assert client.get(f"/api/cells/{cell_id}").json()["last_use_run_date"] == tue
+
+    resp = client.delete(f"/api/cell-uses/{cell_use_id_2}")
+    assert resp.status_code == 204
+    # removing that reuse reverts it to the still-remaining first use's run_date
+    assert client.get(f"/api/cells/{cell_id}").json()["last_use_run_date"] == mon
+
+
 def test_patch_cycle_confirm_and_unlock_reverse_cascade(client):
     client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1"})
     (mon,) = _weekdays(1)

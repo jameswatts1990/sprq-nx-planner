@@ -78,3 +78,7 @@
   gap: 10px;
   margin: 8px 0 20px;
 }
+.ghostExampleSwatch {
+  width: 130px;
+  flex-shrink: 0;
+}

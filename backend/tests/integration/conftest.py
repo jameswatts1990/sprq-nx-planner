@@ -5,13 +5,17 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app import models  # noqa: F401  ensures every model is registered on Base.metadata
-from app.db import Base, get_db
+from app.db import Base, enable_sqlite_foreign_keys, get_db
 from app.main import app
 
 
 @pytest.fixture
 def db_session():
     engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    # This is its own Engine, distinct from app.db.engine - needs its own FK pragma so
+    # tests actually exercise the same ON DELETE CASCADE / RESTRICT behavior production
+    # (Postgres, which enforces this by default) does.
+    enable_sqlite_foreign_keys(engine)
     Base.metadata.create_all(engine)
     session_local = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 

@@ -6,7 +6,7 @@ what replaces the prototype's free-text "in-progress cells" panel.
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -65,6 +65,18 @@ def current_location(cell: Cell) -> tuple[str | None, str | None]:
     return (instrument.serial_number if instrument else None), last.well
 
 
+def last_use_run_date(cell: Cell) -> date | None:
+    """The run_date of the cell's most recent active use - the earliest calendar day its
+    *next* use could legally start is the following weekday (reuse is always a strictly
+    later date, never same-day - see docs/pacbio-sprq-nx-scheduling-reference.md #4)."""
+    active_uses = [cu for cu in cell.cell_uses if cu.status != "cancelled"]
+    if not active_uses:
+        return None
+    last = max(active_uses, key=lambda cu: cu.id)
+    run_batch = last.cycle.run_batch if last.cycle else None
+    return run_batch.run_date if run_batch else None
+
+
 def window_hours_elapsed(cell: Cell) -> float | None:
     if cell.first_use_started_at is None:
         return None
@@ -87,6 +99,7 @@ def serialize_cell(cell: Cell) -> CellOut:
         window_breached=cell.window_breached,
         current_instrument_serial=instrument_serial,
         current_well=well,
+        last_use_run_date=last_use_run_date(cell),
         first_use_started_at=cell.first_use_started_at,
         created_at=cell.created_at,
     )

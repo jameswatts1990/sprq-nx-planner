@@ -11,6 +11,7 @@ import { SchedulerGridRow } from "./SchedulerGridRow";
 import styles from "./SchedulerGrid.module.css";
 import type { GridSelection } from "./useGridSelection";
 import type { SlotSelection } from "./useSlotSelection";
+import type { CellGhost } from "./waitingCells";
 
 export interface SchedulerGridProps {
   instrumentSerials: string[];
@@ -22,6 +23,8 @@ export interface SchedulerGridProps {
   onOpenDetail: (stage: StageOut, locked: boolean) => void;
   slotSelection: SlotSelection;
   activeDragInstrument: string | null;
+  waitingGrouped: Map<string, Map<string, CellGhost[]>>;
+  onOpenGhost: (ghost: CellGhost) => void;
 }
 
 function SchedulerDayHeader({ date }: { date: string }) {
@@ -46,6 +49,8 @@ export function SchedulerGrid({
   onOpenDetail,
   slotSelection,
   activeDragInstrument,
+  waitingGrouped,
+  onOpenGhost,
 }: SchedulerGridProps) {
   const grouped = groupCyclesByInstrumentAndDay(cycles);
 
@@ -75,6 +80,8 @@ export function SchedulerGrid({
               onOpenDetail={onOpenDetail}
               slotSelection={slotSelection}
               activeDragInstrument={activeDragInstrument}
+              waitingCellsByDate={waitingGrouped.get(serial) ?? new Map()}
+              onOpenGhost={onOpenGhost}
             />
           ))}
         </tbody>
