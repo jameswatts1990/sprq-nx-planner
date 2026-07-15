@@ -1,6 +1,6 @@
 import { api } from "./client";
 import type { CycleOut } from "@/types/schedule";
-import type { MoveSampleRequest, PlaceSampleRequest } from "@/types/schedulerGrid";
+import type { ChangeCellRequest, MoveSampleRequest, PlaceSampleRequest } from "@/types/schedulerGrid";
 
 export interface CellUseOut {
   id: number;
@@ -35,4 +35,7 @@ export const cellUsesApi = {
   /** Atomically move an existing placement to a different (instrument, day, slot). 200 ->
    * the destination CycleOut. 409 on a cross-instrument move, lock, or slot clash. */
   move: (id: number, req: MoveSampleRequest) => api.post<CycleOut>(`/api/cell-uses/${id}/move`, req),
+  /** Reassign an existing placement to a different cell, same slot. 200 -> the owning
+   * CycleOut. 409 on an incompatible/locked target cell or a locked run. */
+  changeCell: (id: number, req: ChangeCellRequest) => api.post<CycleOut>(`/api/cell-uses/${id}/change-cell`, req),
 };

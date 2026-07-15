@@ -47,20 +47,34 @@ export function ScheduleSection() {
         </li>
       </ol>
       <p>
-        <b>The placement picker</b> appears after a drop. When you drop a backlog sample it offers{" "}
-        <b>Use a new cell</b> (default) or any compatible cell already in use on that instrument. A cell is offered
-        only if it still has a use left <i>and</i> none of its already-used (&quot;burned&quot;) barcodes clash with
-        your sample&apos;s barcodes — running the same barcode twice on one cell isn&apos;t allowed. If there are no
-        reusable cells, you&apos;ll see &quot;No reusable cells in use on [instrument] — a new cell will be used,&quot;
-        and it proceeds automatically. When your drop starts a brand-new run for that instrument/day, a{" "}
-        <b>Loading start time</b> field appears (default 12:00) — that&apos;s the only case where the picker stops
-        to ask. Dragging an already-placed sample to a new slot <b>moves</b> it and keeps its cell.
+        <b>The placement picker</b> appears after a drop only when there&apos;s an actual decision to make. When you
+        drop a backlog sample onto an empty slot with more than one compatible open cell on that instrument, it
+        offers <b>Use a new cell</b> (default) or any of those compatible cells. A cell is offered only if it still
+        has a use left <i>and</i> none of its already-used (&quot;burned&quot;) barcodes clash with your
+        sample&apos;s barcodes — running the same barcode twice on one cell isn&apos;t allowed. If there&apos;s no
+        real choice — you dropped directly onto a waiting-cell ghost, or there are no reusable cells at all on that
+        instrument — the picker skips itself entirely and proceeds automatically with a default{" "}
+        <b>12:00 loading start time</b>, even if this is the first placement on that instrument/day. The picker only
+        still stops to ask when your drop <i>would</i> start a brand-new run <i>and</i> there&apos;s a genuine cell
+        choice to make (more than one compatible cell, with no ghost telling it which one you meant) — in that case
+        it shows both the <b>Loading start time</b> field and the cell choice together. Dragging an already-placed
+        sample to a new slot <b>moves</b> it and keeps its cell; a move that starts a brand-new run always shows the
+        picker, since a move never auto-resolves.
       </p>
       <p>
         <b>Auto-schedule result note</b> summarises the outcome, e.g. &quot;12 placed · 3 unplaced · 1 cell(s)
         skipped · 2 window flag(s)&quot;. A green note means everything placed cleanly; an amber note means some
         samples couldn&apos;t be placed or a cell&apos;s 108-hour window would be at risk; a red note means the
         auto-fill failed.
+      </p>
+      <p>
+        <b>Changing a placement&apos;s cell:</b> click a filled slot to open its detail, then <b>Change cell</b> to
+        swap it onto a different open, compatible cell on the same instrument — or onto a brand-new cell — without
+        moving it off its current day/slot. The same compatibility rules as placement apply: a cell is offered only
+        if it still has a use left and none of its burned barcodes clash with this sample&apos;s. Unavailable once
+        the run is locked. This is the counterpart to dragging a placed sample to a different slot, which moves it
+        but always keeps its existing cell — <b>Change cell</b> is for the opposite mistake, the right slot but the
+        wrong cell.
       </p>
       <p>
         <b>Removing placements:</b>
@@ -124,9 +138,10 @@ export function ScheduleSection() {
         real 108-hour clock (which only starts once the cell is actually removed from the tray) — the ghost always
         expires on schedule either way, it never reads as available indefinitely. If two different cells become
         eligible on the same instrument and day, each gets its own tinted placeholder. Dragging a backlog sample onto
-        a ghost places it exactly like any other empty slot (the placement picker already lists that cell as a
-        reusable option); clicking it instead opens a small popover with the cell&apos;s remaining uses, its exact
-        expiry time, and a <b>Discard remaining use(s)</b> button for writing the cell off rather than reusing it —
+        a ghost places it onto exactly that cell — since the choice is already unambiguous, it proceeds immediately
+        without the placement picker appearing at all; clicking it instead opens a small popover with the
+        cell&apos;s remaining uses, its exact expiry time, and a <b>Discard remaining use(s)</b> button for writing
+        the cell off rather than reusing it —
         cells whose most recent use hasn&apos;t been confirmed loaded yet can&apos;t be discarded, mirroring the same
         rule on the Cell detail page.
       </p>

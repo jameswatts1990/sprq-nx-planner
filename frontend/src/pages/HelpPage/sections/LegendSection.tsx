@@ -8,6 +8,7 @@ import { CELL_STATUSES, CELL_USE_STATUSES, CYCLE_STATUSES } from "@/types/common
 import type { CellStatus, CellUseStatus, CycleStatus } from "@/types/common";
 import { CELL_STATUS_LABEL, CELL_STATUS_TONE } from "@/utils/cellStatus";
 import { CYCLE_STATUS_TONE } from "@/utils/cycleStatus";
+import { priorityTone } from "@/utils/priority";
 import { USE_STATUS_TONE } from "@/utils/useStatusTone";
 
 import styles from "../HelpPage.module.css";
@@ -75,6 +76,15 @@ const SAMPLE_STATUS_MEANING: Record<"completed" | "failed", string> = {
   failed: "The sample did not complete successfully.",
 };
 
+// Priority is free text imported from the sample sheet (no fixed set of values), so
+// these are illustrative examples - the colouring itself comes from the real
+// priorityTone() function, keyed off the same "(N)" rank convention as the backend.
+const PRIORITY_EXAMPLES: { label: string; meaning: string }[] = [
+  { label: "High (1)", meaning: "Rank 1 - the most urgent priority." },
+  { label: "Medium (2)", meaning: "Rank 2 - elevated priority." },
+  { label: "Standard (3)", meaning: "Rank 3 or lower, or unlabelled - the default priority." },
+];
+
 const NOTE_EXAMPLES: { tone: NoteTone; icon: string; label: string; text: string }[] = [
   { tone: "info", icon: "i", label: "Info (blue)", text: "Neutral status, e.g. “No active instruments configured.”" },
   { tone: "good", icon: "✓", label: "Success (green)", text: "An action worked, e.g. “12 sample(s) cleared from the schedule.”" },
@@ -139,6 +149,18 @@ export function LegendSection() {
               <Badge tone={SAMPLE_STATUS_TONE[s]}>{s}</Badge>
             </span>
             <span>{SAMPLE_STATUS_MEANING[s]}</span>
+          </div>
+        ))}
+      </div>
+
+      <p className={styles.subheading}>Priority (Backlog)</p>
+      <div className={styles.legendGrid}>
+        {PRIORITY_EXAMPLES.map((p) => (
+          <div className={styles.legendRow} key={p.label}>
+            <span className={styles.legendSwatchLabel}>
+              <Badge tone={priorityTone(p.label)}>{p.label}</Badge>
+            </span>
+            <span>{p.meaning}</span>
           </div>
         ))}
       </div>

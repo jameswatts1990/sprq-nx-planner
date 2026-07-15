@@ -67,6 +67,13 @@ class PlaceSampleRequest(BaseModel):
     start_minute: int = Field(default=0, ge=0, le=59)
 
 
+class ChangeCellRequest(BaseModel):
+    """Reassign an already-placed sample to a different cell, same slot - see
+    placement_service.change_cell."""
+
+    cell_choice: CellChoice
+
+
 class MoveSampleRequest(BaseModel):
     """Move an existing placement to a different (instrument, day, slot) in one atomic
     step - see placement_service.move_sample. Same-instrument-only is enforced server-side:

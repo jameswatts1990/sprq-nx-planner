@@ -5,8 +5,8 @@ import { Link } from "react-router-dom";
 import { ApiError } from "@/api/client";
 import { samplesApi } from "@/api/samples";
 import { BarcodeChips } from "@/components/shared/BarcodeChips";
+import { Pagination } from "@/components/shared/Pagination";
 import { Badge } from "@/components/ui/Badge";
-import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Note } from "@/components/ui/Note";
 import type { SampleOut } from "@/types/sample";
@@ -91,27 +91,7 @@ export function HistorySamplesPage() {
                 </tbody>
               </table>
 
-              <div className={styles.pagination}>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={page <= 1}
-                >
-                  Previous
-                </Button>
-                <span className={styles.pageInfo}>
-                  Page {page} of {totalPages}
-                </span>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={page >= totalPages}
-                >
-                  Next
-                </Button>
-              </div>
+              <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
             </>
           )}
         </CardBody>

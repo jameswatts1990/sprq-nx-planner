@@ -8,8 +8,9 @@ export function BacklogSection() {
         count in the header is the total waiting.
       </p>
       <p>
-        <b>Search</b> by external ID, barcode, or parent sample; results narrow as you type. The list is paged 25
-        at a time.
+        <b>Search</b> by external ID, barcode, parent sample, or priority; results narrow as you type. Use the
+        <b> priority dropdown</b> to narrow the list to one priority value. The <b>rows-per-page</b> control (25 /
+        50 / 100 / 200, defaulting to 50) sets how many samples are shown at once.
       </p>
       <p>
         <b>Columns:</b> External ID, Barcodes, Parent sample, Sanger IDs, Priority, Target OPLC, and Created (when
@@ -19,6 +20,10 @@ export function BacklogSection() {
         <b>Sorting:</b> click the <b>External ID</b>, <b>Barcodes</b>, or <b>Priority</b> column header to sort by
         that field; click again to reverse the direction. An arrow (▲/▼) on the header shows the active sort and
         direction. Priority sorts by rank (High before Standard), not alphabetically.
+      </p>
+      <p>
+        <b>Priority</b> shows as a coloured badge (see the Colour &amp; Status Legend) so the most urgent samples
+        stand out at a glance, both here and on the draggable cards in the Schedule tab&apos;s Backlog panel.
       </p>
       <p>
         <b>Cancel</b> (on each row) removes a sample from the backlog when you never intend to sequence it. Use it

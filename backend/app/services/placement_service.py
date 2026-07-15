@@ -409,6 +409,108 @@ def move_sample(
     return dest_cycle
 
 
+def change_cell(
+    db: Session,
+    *,
+    cell_use_id: int,
+    cell_choice: dict,
+    actor: str | None = None,
+) -> Cycle:
+    """Reassign an already-placed sample to a different cell, same slot - the orthogonal
+    counterpart to move_sample (which changes day/slot but always keeps the same cell).
+    Reuses place_sample's "existing"-mode validation rules and remove_sample's
+    orphan-cleanup convention for whichever cell ends up vacated."""
+    cell_use = db.get(
+        CellUse,
+        cell_use_id,
+        options=[
+            selectinload(CellUse.cycle).selectinload(Cycle.run_batch).selectinload(RunBatch.instrument),
+            selectinload(CellUse.cell).selectinload(Cell.cell_uses),
+            selectinload(CellUse.barcodes),
+        ],
+    )
+    if cell_use is None:
+        raise PlacementError(404, f"Cell use {cell_use_id} not found.")
+
+    cycle = cell_use.cycle
+    if cycle is None or cycle.status != "planned":
+        raise PlacementError(409, "Cannot change the cell for a placement on a run that is not planned.")
+
+    old_cell = cell_use.cell
+    instrument_serial = cycle.run_batch.instrument.serial_number
+    use_barcodes = cell_use.barcode_list
+
+    # --- read-only validation (before any writes) ---
+    new_cell: Cell | None = None
+    mode = cell_choice.get("mode")
+    if mode == "existing":
+        cell_id = cell_choice.get("cell_id")
+        if cell_id is None:
+            raise PlacementError(400, "cell_choice.cell_id is required when mode is 'existing'.")
+        if cell_id == old_cell.id:
+            return cycle  # no-op: already on this cell
+        new_cell = db.get(Cell, cell_id, options=[selectinload(Cell.cell_uses)])
+        if new_cell is None:
+            raise PlacementError(404, f"Cell {cell_id} not found.")
+        if new_cell.status != "open":
+            raise PlacementError(409, f"Cell {new_cell.code} is not open (status: {new_cell.status}).")
+        _consumed, remaining, burned = derive_cell_state(new_cell)
+        if remaining <= 0:
+            raise PlacementError(409, f"Cell {new_cell.code} has no remaining uses.")
+        if any(bc in set(burned) for bc in use_barcodes):
+            raise PlacementError(409, f"barcode conflict: sample shares a burned barcode with cell {new_cell.code}.")
+        current_serial, _current_well = current_location(new_cell)
+        if current_serial is not None and current_serial != instrument_serial:
+            raise PlacementError(
+                409,
+                f"Cell {new_cell.code} is already in use on instrument {current_serial}; "
+                f"cannot change to it on {instrument_serial}.",
+            )
+    elif mode != "new":
+        raise PlacementError(400, f"Unknown cell_choice.mode '{mode}'.")
+
+    # --- writes ---
+    if mode == "new":
+        new_cell = Cell(code="PENDING", max_uses=CELL_MAX_USES, status="open")
+        db.add(new_cell)
+        db.flush()
+        new_cell.code = f"CELL-{new_cell.id:06d}"
+
+    cell_use.cell_id = new_cell.id
+    db.flush()
+
+    db.refresh(old_cell, attribute_names=["cell_uses"])
+    if old_cell.cell_uses:
+        recompute_status(old_cell, utcnow())
+    else:
+        # Same convention as remove_sample: a cell left with no uses at all after this
+        # reassignment was only ever a placeholder for the use just moved away - leaving
+        # it behind would produce an orphan "open, 0/3" cell that can never legitimately
+        # exist.
+        db.delete(old_cell)
+
+    db.refresh(new_cell, attribute_names=["cell_uses"])
+    recompute_status(new_cell, utcnow())
+
+    db.add(
+        AuditLog(
+            actor=actor or "unknown",
+            action="change_cell",
+            entity_type="cell_use",
+            entity_id=cell_use.id,
+            details_json={
+                "old_cell_id": old_cell.id,
+                "new_cell_id": new_cell.id,
+                "cycle_id": cycle.id,
+                "sample_id": cell_use.sample_id,
+            },
+        )
+    )
+    db.commit()
+    db.refresh(cycle)
+    return cycle
+
+
 def cancel_run(db: Session, cycle_id: int, actor: str | None = None) -> None:
     cycle = db.get(
         Cycle,
