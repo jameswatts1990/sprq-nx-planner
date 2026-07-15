@@ -6,8 +6,8 @@ from sqlalchemy.orm import selectinload
 
 from app.api.deps import ActorDep, SessionDep
 from app.models.schedule import CELL_USE_STATUSES, CellUse, Cycle, RunBatch
-from app.schemas.run import CycleOut, MoveSampleRequest, PlaceSampleRequest
-from app.services.placement_service import PlacementError, move_sample, place_sample, remove_sample
+from app.schemas.run import ChangeCellRequest, CycleOut, MoveSampleRequest, PlaceSampleRequest
+from app.services.placement_service import PlacementError, change_cell, move_sample, place_sample, remove_sample
 from app.services.run_serializer import cycle_out
 from app.services.run_service import update_cell_use_status
 
@@ -82,6 +82,16 @@ def move_cell_use(cell_use_id: int, req: MoveSampleRequest, db: SessionDep, acto
             start_minute=req.start_minute,
             actor=actor,
         )
+    except PlacementError as exc:
+        raise HTTPException(exc.status_code, exc.detail) from exc
+    cycle = db.get(Cycle, cycle.id, options=_CYCLE_OPTIONS)
+    return cycle_out(db, cycle)
+
+
+@router.post("/{cell_use_id}/change-cell", response_model=CycleOut)
+def change_cell_use(cell_use_id: int, req: ChangeCellRequest, db: SessionDep, actor: ActorDep) -> CycleOut:
+    try:
+        cycle = change_cell(db, cell_use_id=cell_use_id, cell_choice=req.cell_choice.model_dump(), actor=actor)
     except PlacementError as exc:
         raise HTTPException(exc.status_code, exc.detail) from exc
     cycle = db.get(Cycle, cycle.id, options=_CYCLE_OPTIONS)

@@ -1,15 +1,28 @@
 .page {
   padding-top: 22px;
 }
+.toolbar {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 16px;
+}
 .search {
-  width: 100%;
+  flex: 1 1 260px;
   max-width: 420px;
   font-family: var(--sans);
   font-size: 13px;
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
   padding: 8px 12px;
-  margin-bottom: 16px;
+}
+.select {
+  font-family: var(--sans);
+  font-size: 13px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 8px 10px;
 }
 .status {
   color: var(--grey);
@@ -51,15 +64,4 @@
 }
 .sortHeader:hover {
   color: var(--ink);
-}
-.pagination {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-top: 16px;
-}
-.pageInfo {
-  font-size: 12.5px;
-  color: var(--grey);
-  font-weight: 600;
 }
