@@ -1,7 +1,9 @@
 """POST /api/auto-fill: the "auto schedule" assist over a user-selected set of empty
 grid cells. Fills only the requested cells, skips ones that filled up in the meantime,
 and reports what didn't fit."""
-from datetime import date, timedelta
+from datetime import date, datetime, time, timedelta, timezone
+
+from app.models.schedule import Cycle, RunBatch
 
 SIX_DISJOINT = "sample,barcodes\n" + "\n".join(f"X{i},bcx{i}" for i in range(1, 7))
 TEN_DISJOINT = "sample,barcodes\n" + "\n".join(f"Y{i},bcy{i}" for i in range(1, 11))
@@ -116,6 +118,38 @@ def test_auto_fill_skips_already_occupied_cell(client):
     # 5 remained in backlog after the manual placement; 8 wells on 84098 => all 5 fit, 0 unplaced
     assert len(body["placed_sample_ids"]) == 5
     assert len(body["unplaced_sample_ids"]) == 0
+
+
+def test_auto_fill_treats_a_stageless_cycle_shell_as_open(client, db_session):
+    """Reproduces a reported gap: "Remove from schedule"/"Clear schedule" fire one DELETE
+    per stage concurrently (see placement_service.remove_sample's with_for_update
+    comment), which can leave a RunBatch+Cycle behind with zero CellUse rows. The grid
+    already treats that as an open, selectable cell (groupCyclesByInstrumentAndDay.
+    isCellOpen checks stage count, not cycle existence), so a user can select it and press
+    Auto Schedule - but auto_fill's own occupied pre-scan previously only checked whether
+    a RunBatch row existed at all, silently skipping a cell the UI just showed as empty."""
+    client.post("/api/imports", json={"raw_text": SIX_DISJOINT})
+    (mon,) = _weekdays(1)
+
+    instrument_id = next(i for i in client.get("/api/instruments").json() if i["serial_number"] == "84047")["id"]
+    run_batch = RunBatch(instrument_id=instrument_id, run_date=date.fromisoformat(mon))
+    db_session.add(run_batch)
+    db_session.flush()
+    start = datetime.combine(date.fromisoformat(mon), time(9, 0), tzinfo=timezone.utc)
+    db_session.add(
+        Cycle(run_batch_id=run_batch.id, movie_hours=24, planned_start_at=start, planned_end_at=start + timedelta(hours=24))
+    )
+    db_session.commit()
+
+    resp = _auto_fill(client, [{"instrument_serial": "84047", "run_date": mon}])
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+
+    assert body["skipped_cells"] == []
+    assert len(body["placed_sample_ids"]) == 6
+    assert len(body["runs"]) == 1
+    assert body["runs"][0]["run_date"] == mon
+    assert len(body["runs"][0]["stages"]) == 6
 
 
 def test_auto_fill_skips_day_locked_by_its_own_earlier_run(client):
@@ -247,3 +281,21 @@ def test_auto_fill_rejects_weekend_cell(client):
     resp = _auto_fill(client, [{"instrument_serial": "84047", "run_date": _next_saturday()}])
     assert resp.status_code == 400
     assert "weekend" in resp.json()["detail"].lower()
+
+
+def test_auto_fill_surfaces_barcode_conflicts_between_backlog_samples(client):
+    """Two backlog samples sharing a barcode are kept off the same cell (see
+    engine/packing.py's disjoint() check), but the conflict itself must be visible
+    (previously computed by pack_cells and silently discarded) rather than only
+    preventable at persist time."""
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nCJ1,shared\nCJ2,shared"})
+    (mon,) = _weekdays(1)
+
+    resp = _auto_fill(client, [{"instrument_serial": "84047", "run_date": mon}])
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+
+    assert len(body["barcode_conflicts"]) == 1
+    conflict = body["barcode_conflicts"][0]
+    assert {conflict["sample_external_id_a"], conflict["sample_external_id_b"]} == {"CJ1", "CJ2"}
+    assert conflict["shared_barcodes"] == ["shared"]

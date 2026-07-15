@@ -7,6 +7,8 @@ import type { CellOut } from "@/types/cell";
 import { CELL_STATUSES, CELL_USE_STATUSES, CYCLE_STATUSES } from "@/types/common";
 import type { CellStatus, CellUseStatus, CycleStatus } from "@/types/common";
 import type { StageOut } from "@/types/schedule";
+import { CELL_QC_FLAG_LABEL, CELL_QC_FLAG_TONE } from "@/utils/cellQcFlag";
+import type { CellQcFlag } from "@/utils/cellQcFlag";
 import { CELL_STATUS_LABEL, CELL_STATUS_TONE } from "@/utils/cellStatus";
 import { CYCLE_STATUS_TONE } from "@/utils/cycleStatus";
 import { priorityTone } from "@/utils/priority";
@@ -33,6 +35,15 @@ const GHOST_EXAMPLE_CELL: CellOut = {
   first_use_started_at: "2026-07-13T12:00:00Z",
   first_use_planned_start_at: "2026-07-13T12:00:00Z",
   created_at: "2026-07-13T12:00:00Z",
+  stopped_reason: null,
+  stopped_at: null,
+  has_failed_use: false,
+  needs_qc_report: false,
+  awaiting_credit: false,
+  pacbio_case_number: null,
+  pacbio_reported_at: null,
+  pacbio_credit_confirmed_at: null,
+  credit_received_at: null,
 };
 const GHOST_EXAMPLE_FADING: CellGhost = {
   cell: GHOST_EXAMPLE_CELL,
@@ -86,6 +97,7 @@ const CELL_STATUS_MEANING: Record<CellStatus, string> = {
   exhausted: "All of the cell's uses are spent.",
   window_expired: "The cell passed its 108-hour lifetime window and can no longer be used.",
   retired: "The cell was manually taken out of service.",
+  stopped: "QC failed the cell - all of its not-yet-run uses were cancelled and it will never be reused.",
 };
 
 const CYCLE_STATUS_MEANING: Record<CycleStatus, string> = {
@@ -112,6 +124,12 @@ const SAMPLE_STATUS_MEANING: Record<"completed" | "failed", string> = {
   completed: "The sample finished sequencing successfully.",
   failed: "The sample did not complete successfully.",
 };
+
+const CELL_QC_FLAG_MEANING: Record<CellQcFlag, string> = {
+  unreported: "The cell has a Failed use or is Stopped, and no PacBio case has been raised for it yet.",
+  awaiting_credit: "The cell has been reported to PacBio, but the credit hasn't physically arrived in the lab yet.",
+};
+const CELL_QC_FLAGS: CellQcFlag[] = ["unreported", "awaiting_credit"];
 
 // Priority is free text imported from the sample sheet (no fixed set of values), so
 // these are illustrative examples - the colouring itself comes from the real
@@ -150,6 +168,18 @@ export function LegendSection() {
               <Badge tone={CELL_STATUS_TONE[s]}>{CELL_STATUS_LABEL[s]}</Badge>
             </span>
             <span>{CELL_STATUS_MEANING[s]}</span>
+          </div>
+        ))}
+      </div>
+
+      <p className={styles.subheading}>QC / credit flags (Cells &amp; Instruments, Cell detail)</p>
+      <div className={styles.legendGrid}>
+        {CELL_QC_FLAGS.map((f) => (
+          <div className={styles.legendRow} key={f}>
+            <span className={styles.legendSwatchLabel}>
+              <Badge tone={CELL_QC_FLAG_TONE[f]}>{CELL_QC_FLAG_LABEL[f]}</Badge>
+            </span>
+            <span>{CELL_QC_FLAG_MEANING[f]}</span>
           </div>
         ))}
       </div>

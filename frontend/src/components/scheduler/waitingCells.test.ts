@@ -25,6 +25,15 @@ function baseCell(overrides: Partial<CellOut> = {}): CellOut {
     // unless a test explicitly overrides one or the other.
     first_use_planned_start_at: lastUseRunDate ? `${lastUseRunDate}T12:00:00Z` : null,
     created_at: "2026-07-13T12:00:00Z",
+    stopped_reason: null,
+    stopped_at: null,
+    has_failed_use: false,
+    needs_qc_report: false,
+    awaiting_credit: false,
+    pacbio_case_number: null,
+    pacbio_reported_at: null,
+    pacbio_credit_confirmed_at: null,
+    credit_received_at: null,
     ...overrides,
   };
 }

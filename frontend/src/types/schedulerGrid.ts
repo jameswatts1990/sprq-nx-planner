@@ -55,12 +55,22 @@ export interface AutoFillWindowFlag {
   span_hours: number;
 }
 
+/** Two backlog samples in this batch share a barcode - the engine already keeps them
+ * off the same cell (see engine/packing.py's disjoint() check), this just surfaces that
+ * a clash existed rather than discarding it. */
+export interface AutoFillBarcodeConflict {
+  sample_external_id_a: string;
+  sample_external_id_b: string;
+  shared_barcodes: string[];
+}
+
 /** POST /api/auto-fill response. */
 export interface AutoFillResponse {
   placed_sample_ids: number[];
   unplaced_sample_ids: number[];
   skipped_cells: GridCellRef[];
   window_flags: AutoFillWindowFlag[];
+  barcode_conflicts: AutoFillBarcodeConflict[];
   runs: CycleOut[]; // every cycle touched
 }
 

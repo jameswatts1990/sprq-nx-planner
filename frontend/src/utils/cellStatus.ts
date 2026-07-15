@@ -8,6 +8,7 @@ export const CELL_STATUS_TONE: Record<CellStatus, BadgeTone> = {
   exhausted: "default",
   window_expired: "danger",
   retired: "warning",
+  stopped: "danger",
 };
 
 export const CELL_STATUS_LABEL: Record<CellStatus, string> = {
@@ -15,4 +16,5 @@ export const CELL_STATUS_LABEL: Record<CellStatus, string> = {
   exhausted: "Exhausted",
   window_expired: "Window expired",
   retired: "Retired",
+  stopped: "Stopped",
 };

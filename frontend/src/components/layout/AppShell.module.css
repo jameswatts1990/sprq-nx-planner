@@ -5,12 +5,18 @@
   top: 0;
   z-index: 40;
 }
+/* Printed pages (e.g. the batch sheet) shouldn't carry the app nav into the output. */
+@media print {
+  .topbar {
+    display: none;
+  }
+}
 .topbarStrip {
   height: 5px;
   background: linear-gradient(90deg, var(--magenta), var(--purple) 55%, var(--blue));
 }
 .topbarInner {
-  max-width: 1400px;
+  max-width: 1720px;
   margin: 0 auto;
   padding: 16px 22px;
   display: flex;

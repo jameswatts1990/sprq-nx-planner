@@ -1,8 +1,8 @@
 /* Weekend + empty-cell affordances ported from the old CalendarCell.module.css. */
 .cell {
   padding: 6px;
-  min-width: 156px;
-  width: 156px;
+  min-width: 132px;
+  width: 132px;
   background: var(--card);
   vertical-align: top;
   border-bottom: 1px solid var(--line-soft);
@@ -12,12 +12,12 @@
    (see SchedulerGrid.module.css) absorbs the extra width. Padded a bit past the old
    300px to leave room for the tray card's own border + padding below. */
 .cell.twoTrays {
-  min-width: 316px;
-  width: 316px;
+  min-width: 268px;
+  width: 268px;
 }
 .weekend {
-  min-width: 44px;
-  width: 44px;
+  min-width: 38px;
+  width: 38px;
   background: repeating-linear-gradient(135deg, #fbfbfc, #fbfbfc 6px, #f4f4f6 6px, #f4f4f6 12px);
 }
 .emptyCell {
@@ -38,8 +38,8 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-bottom: 5px;
-  min-height: 22px;
+  margin-bottom: 4px;
+  min-height: 18px;
 }
 .lockTag {
   font-size: 9px;
@@ -96,7 +96,7 @@
 .slots {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
+  gap: 6px;
 }
 /* A tray's cells always travel together - rendered as one bordered card so they read as
    a single physical object, distinct from the per-slot Use 1/2/3 tint underneath. */
@@ -109,7 +109,7 @@
   border: 1px solid var(--tray-card-border);
   border-radius: var(--r-sm);
   background: var(--tray-card-bg);
-  padding: 8px 8px 6px;
+  padding: 6px 6px 4px;
 }
 .trayLabel {
   font-size: 8.5px;

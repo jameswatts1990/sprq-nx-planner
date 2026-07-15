@@ -13,7 +13,7 @@ export const SAMPLE_STATUSES = [
 ] as const;
 export type SampleStatus = (typeof SAMPLE_STATUSES)[number];
 
-export const CELL_STATUSES = ["open", "exhausted", "window_expired", "retired"] as const;
+export const CELL_STATUSES = ["open", "exhausted", "window_expired", "retired", "stopped"] as const;
 export type CellStatus = (typeof CELL_STATUSES)[number];
 
 export const CYCLE_STATUSES = ["planned", "running", "completed", "aborted"] as const;

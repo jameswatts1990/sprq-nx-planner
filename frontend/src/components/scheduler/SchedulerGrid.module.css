@@ -14,8 +14,8 @@
   min-width: 760px;
 }
 .corner {
-  width: 118px;
-  min-width: 118px;
+  width: 104px;
+  min-width: 104px;
   background: var(--card) !important;
   border-right: 1px solid var(--line);
   border-bottom: 1px solid var(--line-soft);
@@ -47,8 +47,8 @@
   z-index: 4;
   border-right: 1px solid var(--line);
   border-bottom: 1px solid var(--line-soft);
-  width: 118px;
-  min-width: 118px;
+  width: 104px;
+  min-width: 104px;
 }
 .mid {
   font-size: 17px;
@@ -71,8 +71,8 @@
 }
 .weekendTh {
   background: #fafafb;
-  min-width: 44px;
-  width: 44px;
+  min-width: 38px;
+  width: 38px;
   padding: 10px 6px;
 }
 .dn {

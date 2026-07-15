@@ -13,12 +13,12 @@ from sqlalchemy.orm import Session
 from app.engine.constants import CELL_LIFETIME_H, CELL_MAX_USES, DAY_START_HOUR
 from app.engine.packing import pack_cells
 from app.engine.slot_scheduling import fill_slots
-from app.engine.types import SlotInput
+from app.engine.types import ConflictPair, SlotInput
 from app.models.audit import AuditLog
 from app.models.cell import Cell
 from app.models.instrument import Instrument
 from app.models.sample import Sample
-from app.models.schedule import CellUse, CellUseBarcode, RunBatch
+from app.models.schedule import CellUse, CellUseBarcode, Cycle, RunBatch
 from app.services import instrument_lock
 from app.services.cell_service import recompute_status
 from app.services.engine_bridge import load_backlog_samples, load_prior_cells, to_parsed_samples
@@ -32,6 +32,7 @@ class AutoFillResult:
     unplaced_sample_ids: list[int] = field(default_factory=list)
     skipped_cells: list[tuple[str, date]] = field(default_factory=list)
     window_flags: list[tuple[str, float]] = field(default_factory=list)
+    barcode_conflicts: list[ConflictPair] = field(default_factory=list)
     run_cycle_ids: list[int] = field(default_factory=list)
 
 
@@ -73,8 +74,17 @@ def auto_fill(
     skipped: list[tuple[str, date]] = []
     for serial, run_date in requested:
         inst = instruments[serial]
+        # Checked via CellUse, not just RunBatch's existence: a RunBatch/Cycle can survive
+        # with zero stages (remove_sample's concurrent bulk-delete race, or the admin
+        # table-clear tool - see get_or_create_run's docstring), and the grid already
+        # treats that as an open, selectable cell (groupCyclesByInstrumentAndDay.isCellOpen).
+        # Skipping on RunBatch existence alone silently dropped exactly the cells the UI
+        # just told the user were empty.
         occupied = db.scalar(
-            select(RunBatch.id).where(RunBatch.instrument_id == inst.id, RunBatch.run_date == run_date)
+            select(CellUse.id)
+            .join(CellUse.cycle)
+            .join(Cycle.run_batch)
+            .where(RunBatch.instrument_id == inst.id, RunBatch.run_date == run_date)
         )
         if occupied is not None:
             skipped.append((serial, run_date))
@@ -239,5 +249,6 @@ def auto_fill(
         unplaced_sample_ids=unplaced_sample_ids,
         skipped_cells=skipped,
         window_flags=[(code, span) for code, span in flag_span.items()],
+        barcode_conflicts=pack.conflict_pairs,
         run_cycle_ids=list(run_cycles.values()),
     )

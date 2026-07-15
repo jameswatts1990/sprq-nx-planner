@@ -40,6 +40,17 @@ class CellOut(BaseModel):
     first_use_started_at: datetime | None
     first_use_planned_start_at: datetime | None
     created_at: datetime
+    # QC: stop (all future uses lost)
+    stopped_reason: str | None
+    stopped_at: datetime | None
+    # QC: PacBio credit tracking
+    has_failed_use: bool
+    needs_qc_report: bool
+    awaiting_credit: bool
+    pacbio_case_number: str | None
+    pacbio_reported_at: datetime | None
+    pacbio_credit_confirmed_at: datetime | None
+    credit_received_at: datetime | None
 
 
 class CellDetailOut(CellOut):
@@ -51,4 +62,23 @@ class CellBootstrapRequest(BaseModel):
     burned_barcodes: list[str] = []
     first_use_started_at: datetime | None = None
     instrument_serial: str | None = None
+    actor: str | None = None
+
+
+class CellStopRequest(BaseModel):
+    reason: str | None = None
+    actor: str | None = None
+
+
+class CellStopOut(BaseModel):
+    cell: CellOut
+    bumped_sample_ids: list[int] = []
+
+
+class CellReportToPacbioRequest(BaseModel):
+    case_number: str
+    actor: str | None = None
+
+
+class CellActorRequest(BaseModel):
     actor: str | None = None

@@ -11,12 +11,21 @@ from app.models.schedule import Cycle, RunBatch
 
 
 def _weekdays(n: int) -> list[str]:
-    out: list[str] = []
-    d = date.today()
-    while len(out) < n:
+    """The next n weekdays, always anchored at the next real Monday (never "today",
+    matching the old behaviour of always being in the future) - guarantees n genuinely
+    consecutive business days with no hidden weekend gap. Walking forward from "tomorrow"
+    regardless of its weekday (the old implementation) could silently put 3+ calendar days
+    between two "consecutive" entries whenever the walk crossed a weekend - e.g. tests
+    anchor a 3-day lock lookback (LOOKBACK_DAYS=2) against a fixed calendar-day gap, and
+    that broke whenever the suite ran on a Wednesday or later in the week."""
+    d = date.today() + timedelta(days=1)
+    while d.weekday() != 0:
         d += timedelta(days=1)
+    out: list[str] = []
+    while len(out) < n:
         if d.weekday() < 5:
             out.append(d.isoformat())
+        d += timedelta(days=1)
     return out
 
 

@@ -5,9 +5,28 @@ from sqlalchemy.orm import selectinload
 from app.api.deps import ActorDep, SessionDep
 from app.models.cell import CELL_STATUSES, Cell
 from app.models.schedule import CellUse, Cycle, RunBatch
-from app.schemas.cell import CellBootstrapRequest, CellDetailOut, CellOut
+from app.schemas.cell import (
+    CellActorRequest,
+    CellBootstrapRequest,
+    CellDetailOut,
+    CellOut,
+    CellReportToPacbioRequest,
+    CellStopOut,
+    CellStopRequest,
+)
 from app.schemas.common import Page
-from app.services.cell_service import bootstrap_cell, retire_cell, serialize_cell, serialize_cell_detail
+from app.services.cell_service import (
+    bootstrap_cell,
+    confirm_cell_credit,
+    receive_cell_credit,
+    report_cell_to_pacbio,
+    retire_cell,
+    serialize_cell,
+    serialize_cell_detail,
+    stop_cell,
+)
+
+QC_STATUSES = ("unreported", "awaiting_credit")
 
 router = APIRouter(prefix="/api/cells", tags=["cells"])
 
@@ -28,6 +47,7 @@ def list_cells(
     db: SessionDep,
     status: str | None = None,
     instrument_serial: str | None = None,
+    qc_status: str | None = None,
     q: str | None = None,
     page: int = 1,
     page_size: int = 50,
@@ -39,6 +59,8 @@ def list_cells(
             if s not in CELL_STATUSES:
                 raise HTTPException(400, f"Unknown status '{s}'. Valid: {', '.join(CELL_STATUSES)}")
         stmt = stmt.where(Cell.status.in_(statuses))
+    if qc_status and qc_status not in QC_STATUSES:
+        raise HTTPException(400, f"Unknown qc_status '{qc_status}'. Valid: {', '.join(QC_STATUSES)}")
     if q:
         stmt = stmt.where(Cell.code.ilike(f"%{q}%"))
 
@@ -46,6 +68,10 @@ def list_cells(
     serialized = [serialize_cell(c) for c in cells]
     if instrument_serial:
         serialized = [c for c in serialized if c.current_instrument_serial == instrument_serial]
+    if qc_status == "unreported":
+        serialized = [c for c in serialized if c.needs_qc_report]
+    elif qc_status == "awaiting_credit":
+        serialized = [c for c in serialized if c.awaiting_credit]
 
     total = len(serialized)
     start = (page - 1) * page_size
@@ -79,6 +105,56 @@ def retire_cell_endpoint(cell_id: int, db: SessionDep, actor: ActorDep) -> CellO
         raise HTTPException(404, "Cell not found")
     try:
         cell = retire_cell(db, cell, actor)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    return serialize_cell(cell)
+
+
+@router.post("/{cell_id}/stop", response_model=CellStopOut)
+def stop_cell_endpoint(cell_id: int, req: CellStopRequest, db: SessionDep, actor: ActorDep) -> CellStopOut:
+    cell = db.get(Cell, cell_id, options=_DETAIL_OPTIONS)
+    if cell is None:
+        raise HTTPException(404, "Cell not found")
+    try:
+        cell, bumped_sample_ids = stop_cell(db, cell, req.reason, req.actor or actor)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    return CellStopOut(cell=serialize_cell(cell), bumped_sample_ids=bumped_sample_ids)
+
+
+@router.post("/{cell_id}/report-to-pacbio", response_model=CellOut)
+def report_cell_to_pacbio_endpoint(
+    cell_id: int, req: CellReportToPacbioRequest, db: SessionDep, actor: ActorDep
+) -> CellOut:
+    cell = db.get(Cell, cell_id, options=_DETAIL_OPTIONS)
+    if cell is None:
+        raise HTTPException(404, "Cell not found")
+    try:
+        cell = report_cell_to_pacbio(db, cell, req.case_number, req.actor or actor)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    return serialize_cell(cell)
+
+
+@router.post("/{cell_id}/confirm-credit", response_model=CellOut)
+def confirm_cell_credit_endpoint(cell_id: int, req: CellActorRequest, db: SessionDep, actor: ActorDep) -> CellOut:
+    cell = db.get(Cell, cell_id, options=_DETAIL_OPTIONS)
+    if cell is None:
+        raise HTTPException(404, "Cell not found")
+    try:
+        cell = confirm_cell_credit(db, cell, req.actor or actor)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    return serialize_cell(cell)
+
+
+@router.post("/{cell_id}/receive-credit", response_model=CellOut)
+def receive_cell_credit_endpoint(cell_id: int, req: CellActorRequest, db: SessionDep, actor: ActorDep) -> CellOut:
+    cell = db.get(Cell, cell_id, options=_DETAIL_OPTIONS)
+    if cell is None:
+        raise HTTPException(404, "Cell not found")
+    try:
+        cell = receive_cell_credit(db, cell, req.actor or actor)
     except ValueError as exc:
         raise HTTPException(409, str(exc)) from exc
     return serialize_cell(cell)

@@ -1,13 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import { ApiError } from "@/api/client";
 import { cellsApi } from "@/api/cells";
+import { cellUsesApi } from "@/api/cellUses";
 import { BarcodeChips } from "@/components/shared/BarcodeChips";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
+import { Modal, ModalActions } from "@/components/ui/Modal";
 import { Note } from "@/components/ui/Note";
+import type { CellUseHistoryOut } from "@/types/cell";
 import { CELL_STATUS_LABEL, CELL_STATUS_TONE } from "@/utils/cellStatus";
 import { USE_STATUS_TONE } from "@/utils/useStatusTone";
 
@@ -15,6 +19,12 @@ import styles from "./CellDetailPage.module.css";
 
 function formatDateTime(iso: string | null): string {
   return iso ? new Date(iso).toLocaleString() : "—";
+}
+
+// A use is only QC-able once the run actually happened - marking a not-yet-run
+// "planned" use Failed makes no sense (nothing was produced yet to fail).
+function canMarkFailed(status: string): boolean {
+  return status === "started" || status === "completed";
 }
 
 export function CellDetailPage() {
@@ -29,12 +39,55 @@ export function CellDetailPage() {
     enabled: idIsValid,
   });
 
+  const [stopModalOpen, setStopModalOpen] = useState(false);
+  const [bumpedCount, setBumpedCount] = useState<number | null>(null);
+  const [failTarget, setFailTarget] = useState<CellUseHistoryOut | null>(null);
+  const [caseNumber, setCaseNumber] = useState("");
+
+  function invalidateCell() {
+    void queryClient.invalidateQueries({ queryKey: ["cell", id] });
+    void queryClient.invalidateQueries({ queryKey: ["cells"] });
+  }
+
   const retireMutation = useMutation({
     mutationFn: () => cellsApi.retire(id),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["cell", id] });
-      void queryClient.invalidateQueries({ queryKey: ["cells"] });
+    onSuccess: invalidateCell,
+  });
+
+  const stopMutation = useMutation({
+    mutationFn: (reason: string) => cellsApi.stop(id, { reason: reason || null }),
+    onSuccess: (data) => {
+      invalidateCell();
+      setStopModalOpen(false);
+      setBumpedCount(data.bumped_sample_ids.length);
     },
+  });
+
+  const markFailedMutation = useMutation({
+    mutationFn: ({ useId, notes }: { useId: number; notes: string }) =>
+      cellUsesApi.updateStatus(useId, { status: "failed", notes: notes || undefined }),
+    onSuccess: () => {
+      invalidateCell();
+      setFailTarget(null);
+    },
+  });
+
+  const reportMutation = useMutation({
+    mutationFn: (caseNum: string) => cellsApi.reportToPacbio(id, { case_number: caseNum }),
+    onSuccess: () => {
+      invalidateCell();
+      setCaseNumber("");
+    },
+  });
+
+  const confirmCreditMutation = useMutation({
+    mutationFn: () => cellsApi.confirmCredit(id),
+    onSuccess: invalidateCell,
+  });
+
+  const receiveCreditMutation = useMutation({
+    mutationFn: () => cellsApi.receiveCredit(id),
+    onSuccess: invalidateCell,
   });
 
   if (!idIsValid) {
@@ -67,12 +120,25 @@ export function CellDetailPage() {
   }
 
   const hasPlannedUse = cell.use_history.some((u) => u.status === "planned");
-  const retireDisabled = hasPlannedUse || cell.status === "retired" || retireMutation.isPending;
+  const retireDisabled =
+    hasPlannedUse || cell.status === "retired" || cell.status === "stopped" || retireMutation.isPending;
   const retireTooltip = hasPlannedUse
     ? "Cannot retire a cell with planned (not yet started) uses."
     : cell.status === "retired"
       ? "Cell is already retired."
-      : undefined;
+      : cell.status === "stopped"
+        ? "Cell is stopped."
+        : undefined;
+
+  const stopDisabled = cell.status === "retired" || cell.status === "stopped" || stopMutation.isPending;
+  const stopTooltip =
+    cell.status === "retired"
+      ? "Cell is retired."
+      : cell.status === "stopped"
+        ? "Cell is already stopped."
+        : undefined;
+
+  const showCreditCard = cell.has_failed_use || cell.status === "stopped";
 
   return (
     <div className={styles.page}>
@@ -114,7 +180,19 @@ export function CellDetailPage() {
               <span className={styles.label}>Created</span>
               <span className={styles.value}>{formatDateTime(cell.created_at)}</span>
             </div>
+            {cell.status === "stopped" && (
+              <div>
+                <span className={styles.label}>Stopped</span>
+                <span className={styles.value}>{formatDateTime(cell.stopped_at)}</span>
+              </div>
+            )}
           </div>
+
+          {cell.stopped_reason && (
+            <Note tone="warn" icon="!">
+              Stopped: {cell.stopped_reason}
+            </Note>
+          )}
 
           {cell.burned_barcodes.length > 0 && (
             <div className={styles.burnedRow}>
@@ -129,14 +207,112 @@ export function CellDetailPage() {
                 {retireMutation.isPending ? "Retiring…" : "Retire cell"}
               </Button>
             </span>
-            {retireMutation.isError && (
-              <Note tone="bad" icon="!">
-                {retireMutation.error instanceof ApiError ? retireMutation.error.message : "Failed to retire cell."}
-              </Note>
-            )}
+            <span title={stopTooltip}>
+              <Button variant="ghost" onClick={() => setStopModalOpen(true)} disabled={stopDisabled}>
+                Stop cell
+              </Button>
+            </span>
           </div>
+          {retireMutation.isError && (
+            <Note tone="bad" icon="!">
+              {retireMutation.error instanceof ApiError ? retireMutation.error.message : "Failed to retire cell."}
+            </Note>
+          )}
+          {bumpedCount !== null && bumpedCount > 0 && (
+            <Note tone="warn" icon="!">
+              {bumpedCount} sample{bumpedCount === 1 ? "" : "s"} returned to backlog for rescheduling.
+            </Note>
+          )}
         </CardBody>
       </Card>
+
+      {showCreditCard && (
+        <Card>
+          <CardHeader>
+            <h2>PacBio credit</h2>
+          </CardHeader>
+          <CardBody>
+            <div className={styles.creditGrid}>
+              <div>
+                <span className={styles.label}>Case number</span>
+                <span className={styles.value}>{cell.pacbio_case_number ?? "—"}</span>
+              </div>
+              <div>
+                <span className={styles.label}>Reported to PacBio</span>
+                <span className={styles.value}>{formatDateTime(cell.pacbio_reported_at)}</span>
+              </div>
+              <div>
+                <span className={styles.label}>Credit confirmed</span>
+                <span className={styles.value}>{formatDateTime(cell.pacbio_credit_confirmed_at)}</span>
+              </div>
+              <div>
+                <span className={styles.label}>Credit received</span>
+                <span className={styles.value}>{formatDateTime(cell.credit_received_at)}</span>
+              </div>
+            </div>
+
+            {!cell.pacbio_case_number ? (
+              <div className={styles.creditActions}>
+                <input
+                  type="text"
+                  className={styles.caseInput}
+                  value={caseNumber}
+                  onChange={(e) => setCaseNumber(e.target.value)}
+                  placeholder="Case number, e.g. CS-000123"
+                />
+                <Button
+                  variant="primary"
+                  onClick={() => reportMutation.mutate(caseNumber)}
+                  disabled={!caseNumber.trim() || reportMutation.isPending}
+                >
+                  {reportMutation.isPending ? "Reporting…" : "Report to PacBio"}
+                </Button>
+              </div>
+            ) : (
+              <div className={styles.creditActions}>
+                {!cell.pacbio_credit_confirmed_at && (
+                  <Button
+                    variant="ghost"
+                    onClick={() => confirmCreditMutation.mutate()}
+                    disabled={confirmCreditMutation.isPending}
+                  >
+                    {confirmCreditMutation.isPending ? "Confirming…" : "Confirm credit"}
+                  </Button>
+                )}
+                {!cell.credit_received_at && (
+                  <Button
+                    variant="ghost"
+                    onClick={() => receiveCreditMutation.mutate()}
+                    disabled={receiveCreditMutation.isPending}
+                  >
+                    {receiveCreditMutation.isPending ? "Marking…" : "Mark credit received"}
+                  </Button>
+                )}
+              </div>
+            )}
+
+            {reportMutation.isError && (
+              <Note tone="bad" icon="!">
+                {reportMutation.error instanceof ApiError ? reportMutation.error.message : "Failed to report to PacBio."}
+              </Note>
+            )}
+            {confirmCreditMutation.isError && (
+              <Note tone="bad" icon="!">
+                {confirmCreditMutation.error instanceof ApiError
+                  ? confirmCreditMutation.error.message
+                  : "Failed to confirm credit."}
+              </Note>
+            )}
+            {receiveCreditMutation.isError && (
+              <Note tone="bad" icon="!">
+                {receiveCreditMutation.error instanceof ApiError
+                  ? receiveCreditMutation.error.message
+                  : "Failed to mark credit received."}
+              </Note>
+            )}
+          </CardBody>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
@@ -164,6 +340,7 @@ export function CellDetailPage() {
                   <th>Started</th>
                   <th>Completed</th>
                   <th>Notes</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -190,6 +367,13 @@ export function CellDetailPage() {
                     <td>{formatDateTime(u.started_at)}</td>
                     <td>{formatDateTime(u.completed_at)}</td>
                     <td>{u.outcome_notes ?? "—"}</td>
+                    <td>
+                      {canMarkFailed(u.status) && (
+                        <Button size="sm" variant="ghost" onClick={() => setFailTarget(u)}>
+                          Mark Failed
+                        </Button>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -197,6 +381,109 @@ export function CellDetailPage() {
           )}
         </CardBody>
       </Card>
+
+      {stopModalOpen && (
+        <StopCellModal
+          pending={stopMutation.isPending}
+          error={stopMutation.error}
+          onCancel={() => setStopModalOpen(false)}
+          onConfirm={(reason) => stopMutation.mutate(reason)}
+        />
+      )}
+
+      {failTarget && (
+        <MarkFailedModal
+          use={failTarget}
+          pending={markFailedMutation.isPending}
+          error={markFailedMutation.error}
+          onCancel={() => setFailTarget(null)}
+          onConfirm={(notes) => markFailedMutation.mutate({ useId: failTarget.id, notes })}
+        />
+      )}
     </div>
+  );
+}
+
+interface StopCellModalProps {
+  pending: boolean;
+  error: unknown;
+  onCancel: () => void;
+  onConfirm: (reason: string) => void;
+}
+
+/** QC: take this physical cell permanently out of service. Cascades by cancelling every
+ * not-yet-run ("planned") use and returning its sample to the backlog - already-run uses
+ * are left untouched as history. */
+function StopCellModal({ pending, error, onCancel, onConfirm }: StopCellModalProps) {
+  const [reason, setReason] = useState("");
+
+  return (
+    <Modal onClose={pending ? () => {} : onCancel} title="Stop this cell?">
+      <p className={styles.helper}>
+        All of this cell&apos;s not-yet-run uses are cancelled and their samples returned to the backlog for
+        rescheduling. Uses that already ran are kept as history. This cell will never be offered for reuse again.
+      </p>
+      <div className={styles.field}>
+        <label className={styles.fieldLabel}>Reason (optional)</label>
+        <textarea value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. visible crack on tray" />
+      </div>
+
+      {error !== null && error !== undefined && (
+        <Note tone="bad" icon="!">
+          {error instanceof ApiError ? error.message : "Failed to stop cell."}
+        </Note>
+      )}
+
+      <ModalActions>
+        <Button variant="ghost" onClick={onCancel} disabled={pending}>
+          Cancel
+        </Button>
+        <Button variant="primary" onClick={() => onConfirm(reason)} disabled={pending}>
+          {pending ? "Stopping…" : "Stop cell"}
+        </Button>
+      </ModalActions>
+    </Modal>
+  );
+}
+
+interface MarkFailedModalProps {
+  use: CellUseHistoryOut;
+  pending: boolean;
+  error: unknown;
+  onCancel: () => void;
+  onConfirm: (notes: string) => void;
+}
+
+/** QC: this specific use produced no usable data. The cell itself stays open for its
+ * remaining uses - only "Stop cell" takes the physical cell out of service. */
+function MarkFailedModal({ use, pending, error, onCancel, onConfirm }: MarkFailedModalProps) {
+  const [notes, setNotes] = useState("");
+
+  return (
+    <Modal onClose={pending ? () => {} : onCancel} title={`Mark ${use.well} (run #${use.cycle_id}) Failed?`}>
+      <p className={styles.helper}>
+        {use.sample_external_id ? `Sample ${use.sample_external_id} will be marked Failed and ` : "The sample will be marked Failed and "}
+        can be requeued to the backlog from the Samples list. The cell remains open for its other uses.
+      </p>
+      <div className={styles.field}>
+        <label className={styles.fieldLabel}>Notes (optional)</label>
+        <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="e.g. no data produced" />
+      </div>
+
+      {error !== null && error !== undefined && (
+        <Note tone="bad" icon="!">
+          {error instanceof ApiError ? error.message : "Failed to mark use as failed."}
+        </Note>
+      )}
+
+      <ModalActions>
+        <Button variant="ghost" onClick={onCancel} disabled={pending}>
+          Cancel
+        </Button>
+        <Button variant="primary" onClick={() => onConfirm(notes)} disabled={pending}>
+          {pending ? "Saving…" : "Mark Failed"}
+        </Button>
+      </ModalActions>
+    </Modal>
   );
 }

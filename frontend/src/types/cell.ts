@@ -37,6 +37,15 @@ export interface CellOut {
   first_use_started_at: string | null;
   first_use_planned_start_at: string | null;
   created_at: string;
+  stopped_reason: string | null;
+  stopped_at: string | null;
+  has_failed_use: boolean;
+  needs_qc_report: boolean;
+  awaiting_credit: boolean;
+  pacbio_case_number: string | null;
+  pacbio_reported_at: string | null;
+  pacbio_credit_confirmed_at: string | null;
+  credit_received_at: string | null;
 }
 
 export interface CellDetailOut extends CellOut {
@@ -48,4 +57,17 @@ export interface CellBootstrapRequest {
   burned_barcodes: string[];
   first_use_started_at?: string | null;
   actor?: string | null;
+}
+
+export interface CellStopRequest {
+  reason?: string | null;
+}
+
+export interface CellStopOut {
+  cell: CellOut;
+  bumped_sample_ids: number[];
+}
+
+export interface CellReportToPacbioRequest {
+  case_number: string;
 }

@@ -8,9 +8,11 @@ export function CellsSection() {
         state.
       </p>
       <p>
-        <b>Filters:</b> the chips (All, Open, Exhausted, Window expired, Retired) filter by cell status; the
-        dropdown filters by instrument; <b>Search</b> matches cell code or barcode. The page opens on <b>Open</b>{" "}
-        cells by default.
+        <b>Filters:</b> the chips (All, Open, Exhausted, Window expired, Retired, Stopped, Unreported, Awaiting
+        credit) filter the list; the dropdown filters by instrument; <b>Search</b> matches cell code or barcode. The
+        page opens on <b>Open</b> cells by default. <b>Unreported</b> and <b>Awaiting credit</b> cut across the
+        ordinary status filters - they show cells with a QC issue (see below) at a particular stage of the PacBio
+        credit workflow, regardless of their Open/Exhausted/etc. status.
       </p>
       <p>
         <b>Each cell card shows:</b> the cell code, a status badge, uses spent (e.g. &quot;1 / 3 uses&quot;), which
@@ -44,9 +46,39 @@ export function CellsSection() {
           its planned uses first if you need to retire it.
         </li>
         <li>
+          <b>Stop cell</b> is the QC action for a cell that has failed physically (e.g. visibly damaged) and can
+          never be used again. Unlike Retire, it doesn&apos;t require you to clear planned uses first — confirming
+          it cancels every not-yet-run use of that cell and returns those samples to the Backlog for rescheduling
+          (a note reports how many); uses that already ran are kept untouched as history. Once stopped, the cell
+          will never be offered again for reuse, including by Auto Schedule.
+        </li>
+        <li>
           <b>Use history</b> lists every run the cell has been in: run number (links to the run), well, use status,
           sample, container ID, barcodes, priority, target OPLC, adaptive loading, full resolution base Q, kinetics
-          (CCS output includes kinetics information), instrument, start/complete times, and any outcome notes.
+          (CCS output includes kinetics information), instrument, start/complete times, outcome notes, and — for
+          uses that have actually started or completed — a <b>Mark Failed</b> action. Marking a use Failed means
+          that particular run produced no usable data; the cell itself stays open for its other uses, and the
+          sample can be requeued to the Backlog from the Samples list.
+        </li>
+      </ul>
+
+      <p className={styles.subheading}>PacBio credit</p>
+      <p>
+        Once a cell has a Failed use or is Stopped, a <b>PacBio credit</b> card appears on its detail page so you
+        can track the case through to a physical credit:
+      </p>
+      <ul>
+        <li>
+          <b>Report to PacBio</b> — enter the case number PacBio issues when you raise the quality log, then submit.
+          This is what moves the cell off the <b>Unreported</b> filter on the Cells page.
+        </li>
+        <li>
+          <b>Confirm credit</b> — tick this once PacBio has confirmed a credit will be issued for that case.
+        </li>
+        <li>
+          <b>Mark credit received</b> — tick this once the credit has physically landed in the lab. Cross-reference
+          by the case number shown on the card. Until this is ticked, the cell shows on the <b>Awaiting credit</b>{" "}
+          filter on the Cells page.
         </li>
       </ul>
     </div>

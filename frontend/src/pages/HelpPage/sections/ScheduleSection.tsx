@@ -17,6 +17,15 @@ export function ScheduleSection() {
         weekends in this view.
       </p>
       <p>
+        <b>Print Batch Sheet</b> opens a printable loading sheet for the Revios. Pick a day and tick which
+        instruments to include — handy when different people load different machines, since each person can print
+        just their own. The sheet opens in a new tab with every well&apos;s cell code, use number and 108-hour
+        reuse deadline, the sample to load and its barcode(s)/container, and the run settings (adaptive loading,
+        CCS kinetics, full-resolution baseQ, OPLC, volume) — everything needed to find the right samples, load them
+        in the right wells, and set up the run. Use the page&apos;s <b>Print / Save as PDF</b> button, which opens
+        your browser&apos;s normal print dialog (choose a physical printer, or &quot;Save as PDF&quot;).
+      </p>
+      <p>
         <b>Run design</b> (collapsible panel) sets the parameters used for both single placements and auto-fill:
       </p>
       <dl className={styles.terms}>
@@ -78,9 +87,10 @@ export function ScheduleSection() {
       </p>
       <p>
         <b>Auto-schedule result note</b> summarises the outcome, e.g. &quot;12 placed · 3 unplaced · 1 cell(s)
-        skipped · 2 window flag(s)&quot;. A green note means everything placed cleanly; an amber note means some
-        samples couldn&apos;t be placed or a cell&apos;s 108-hour window would be at risk; a red note means the
-        auto-fill failed.
+        skipped · 2 window flag(s) · 1 barcode conflict(s)&quot;. A green note means everything placed cleanly; an
+        amber note means some samples couldn&apos;t be placed, a cell&apos;s 108-hour window would be at risk, or a{" "}
+        <b>barcode conflict</b> was found (two backlog samples in this batch share a barcode — they&apos;re kept off
+        the same cell automatically, but review them before placing either); a red note means the auto-fill failed.
       </p>
       <p>
         <b>Changing a placement&apos;s cell:</b> click a filled slot to open its detail, then <b>Change cell</b> to

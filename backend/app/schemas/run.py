@@ -45,6 +45,17 @@ class WindowFlagOut(BaseModel):
     span_hours: float
 
 
+class BarcodeConflictOut(BaseModel):
+    """Two backlog samples in this batch share a barcode - surfaced so a barcode clash
+    is visible before placement, not just blocked at persist time. Read-only visibility:
+    the existing same-cell burned-barcode 409 guard is what actually prevents an unsafe
+    reuse when either sample is later placed."""
+
+    sample_external_id_a: str
+    sample_external_id_b: str
+    shared_barcodes: list[str]
+
+
 # --- placement (POST /api/cell-uses) ---
 
 
@@ -110,4 +121,5 @@ class AutoFillResponse(BaseModel):
     unplaced_sample_ids: list[int]
     skipped_cells: list[GridCellRef]
     window_flags: list[WindowFlagOut]
+    barcode_conflicts: list[BarcodeConflictOut]
     runs: list[CycleOut]

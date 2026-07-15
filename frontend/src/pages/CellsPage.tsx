@@ -13,7 +13,8 @@ import { useDebouncedValue } from "@/utils/useDebouncedValue";
 
 import styles from "./CellsPage.module.css";
 
-type StatusFilter = CellStatus | "all";
+type QcFilter = "unreported" | "awaiting_credit";
+type StatusFilter = CellStatus | "all" | QcFilter;
 
 const STATUS_FILTERS: { value: StatusFilter; label: string }[] = [
   { value: "all", label: "All" },
@@ -21,7 +22,14 @@ const STATUS_FILTERS: { value: StatusFilter; label: string }[] = [
   { value: "exhausted", label: "Exhausted" },
   { value: "window_expired", label: "Window expired" },
   { value: "retired", label: "Retired" },
+  { value: "stopped", label: "Stopped" },
+  { value: "unreported", label: "Unreported" },
+  { value: "awaiting_credit", label: "Awaiting credit" },
 ];
+
+function isQcFilter(value: StatusFilter): value is QcFilter {
+  return value === "unreported" || value === "awaiting_credit";
+}
 
 function splitBarcodes(text: string): string[] {
   return [...new Set(text.split(/[,;/\s]+/).map((s) => s.trim()).filter(Boolean))];
@@ -44,7 +52,8 @@ export function CellsPage() {
     queryKey: ["cells", { status, instrumentSerial, q }],
     queryFn: () =>
       cellsApi.list({
-        status: status === "all" ? undefined : status,
+        status: status === "all" || isQcFilter(status) ? undefined : status,
+        qc_status: isQcFilter(status) ? status : undefined,
         instrument_serial: instrumentSerial || undefined,
         q: q || undefined,
         page_size: 100,

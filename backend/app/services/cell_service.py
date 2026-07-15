@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.engine.constants import CELL_LIFETIME_H, CELL_MAX_USES
@@ -24,7 +24,7 @@ def recompute_status(cell: Cell, at: datetime | None = None) -> None:
     """The single place cell.status is derived - called any time a cell's uses change
     (committing new uses onto it, or recording a real-world outcome), so the persisted
     status never goes stale relative to derive_cell_state()."""
-    if cell.status == "retired":
+    if cell.status in ("retired", "stopped"):
         return
     at = at or utcnow()
     if cell.first_use_started_at:
@@ -107,6 +107,22 @@ def window_hours_elapsed(cell: Cell) -> float | None:
     return (utcnow() - started).total_seconds() / 3600
 
 
+def has_failed_use(cell: Cell) -> bool:
+    return any(cu.status == "failed" for cu in cell.cell_uses)
+
+
+def needs_qc_report(cell: Cell) -> bool:
+    """True once a cell has a Failed use or is Stopped, until someone raises a PacBio
+    case for it - drives the "unreported cells" list."""
+    return (cell.status == "stopped" or has_failed_use(cell)) and cell.pacbio_reported_at is None
+
+
+def awaiting_credit(cell: Cell) -> bool:
+    """True once a cell has been reported to PacBio but the credit hasn't physically
+    landed in the lab yet - drives the "awaiting credit" list."""
+    return cell.pacbio_reported_at is not None and cell.credit_received_at is None
+
+
 def serialize_cell(cell: Cell) -> CellOut:
     uses_consumed, remaining, burned = derive_cell_state(cell)
     instrument_serial, well = current_location(cell)
@@ -126,6 +142,15 @@ def serialize_cell(cell: Cell) -> CellOut:
         first_use_started_at=cell.first_use_started_at,
         first_use_planned_start_at=first_use_planned_start_at(cell),
         created_at=cell.created_at,
+        stopped_reason=cell.stopped_reason,
+        stopped_at=cell.stopped_at,
+        has_failed_use=has_failed_use(cell),
+        needs_qc_report=needs_qc_report(cell),
+        awaiting_credit=awaiting_credit(cell),
+        pacbio_case_number=cell.pacbio_case_number,
+        pacbio_reported_at=cell.pacbio_reported_at,
+        pacbio_credit_confirmed_at=cell.pacbio_credit_confirmed_at,
+        credit_received_at=cell.credit_received_at,
     )
 
 
@@ -243,6 +268,109 @@ def retire_cell(db: Session, cell: Cell, actor: str | None) -> Cell:
     cell.status = "retired"
     db.add(
         AuditLog(actor=actor or "unknown", action="retire_cell", entity_type="cell", entity_id=cell.id, details_json={})
+    )
+    db.commit()
+    db.refresh(cell)
+    return cell
+
+
+def stop_cell(db: Session, cell: Cell, reason: str | None, actor: str | None) -> tuple[Cell, list[int]]:
+    """QC: take a physical cell permanently out of service - all its future uses are
+    lost. Unlike retire_cell (which refuses if any planned use exists), stop_cell exists
+    for exactly that situation: it cascades by cancelling every not-yet-run ("planned")
+    use of this cell, mirroring placement_service.remove_sample() - the sample goes back
+    to backlog, the CellUse is deleted, and the Cycle/RunBatch is cleaned up if it was
+    that run's only stage. Already-started/completed uses are left untouched as history;
+    only the cell's future is lost, not its past. Because engine_bridge.load_prior_cells
+    only ever offers Cell.status == "open" for reuse, a stopped cell is automatically
+    excluded from all future scheduling with no engine changes."""
+    if cell.status in ("retired", "stopped"):
+        raise ValueError(f"Cell is already {cell.status}.")
+
+    bumped_sample_ids: list[int] = []
+    for cell_use in [cu for cu in cell.cell_uses if cu.status == "planned"]:
+        cycle = cell_use.cycle
+        cycle_id = cycle.id if cycle else None
+        run_batch = cycle.run_batch if cycle else None
+        if cell_use.sample is not None:
+            cell_use.sample.status = "backlog"
+            bumped_sample_ids.append(cell_use.sample_id)
+        db.delete(cell_use)
+        db.flush()
+        if cycle_id is not None:
+            remaining = db.scalar(select(func.count()).select_from(CellUse).where(CellUse.cycle_id == cycle_id))
+            if remaining == 0 and run_batch is not None:
+                db.delete(run_batch)
+
+    cell.status = "stopped"
+    cell.stopped_at = utcnow()
+    cell.stopped_reason = reason
+    db.flush()
+
+    db.add(
+        AuditLog(
+            actor=actor or "unknown",
+            action="stop_cell",
+            entity_type="cell",
+            entity_id=cell.id,
+            details_json={"reason": reason, "bumped_sample_ids": bumped_sample_ids},
+        )
+    )
+    db.commit()
+    db.refresh(cell)
+    db.refresh(cell, attribute_names=["cell_uses"])
+    return cell, bumped_sample_ids
+
+
+def report_cell_to_pacbio(db: Session, cell: Cell, case_number: str, actor: str | None) -> Cell:
+    if cell.status != "stopped" and not has_failed_use(cell):
+        raise ValueError("Cell has no failed or stopped use to report to PacBio.")
+    cell.pacbio_case_number = case_number
+    cell.pacbio_reported_at = utcnow()
+    db.add(
+        AuditLog(
+            actor=actor or "unknown",
+            action="report_cell_to_pacbio",
+            entity_type="cell",
+            entity_id=cell.id,
+            details_json={"case_number": case_number},
+        )
+    )
+    db.commit()
+    db.refresh(cell)
+    return cell
+
+
+def confirm_cell_credit(db: Session, cell: Cell, actor: str | None) -> Cell:
+    if cell.pacbio_case_number is None:
+        raise ValueError("Cell has not been reported to PacBio yet.")
+    cell.pacbio_credit_confirmed_at = utcnow()
+    db.add(
+        AuditLog(
+            actor=actor or "unknown",
+            action="confirm_cell_credit",
+            entity_type="cell",
+            entity_id=cell.id,
+            details_json={},
+        )
+    )
+    db.commit()
+    db.refresh(cell)
+    return cell
+
+
+def receive_cell_credit(db: Session, cell: Cell, actor: str | None) -> Cell:
+    if cell.pacbio_reported_at is None:
+        raise ValueError("Cell has not been reported to PacBio yet.")
+    cell.credit_received_at = utcnow()
+    db.add(
+        AuditLog(
+            actor=actor or "unknown",
+            action="receive_cell_credit",
+            entity_type="cell",
+            entity_id=cell.id,
+            details_json={},
+        )
     )
     db.commit()
     db.refresh(cell)

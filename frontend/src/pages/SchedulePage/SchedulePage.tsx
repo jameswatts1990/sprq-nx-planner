@@ -32,6 +32,7 @@ import { addDaysUTC, formatShortDateUTC, isWeekendUTC, parseDateOnly, toIsoDateU
 
 import { BacklogAccordion } from "./BacklogAccordion";
 import { ClearScheduleModal } from "./ClearScheduleModal";
+import { PrintBatchSheetModal } from "./PrintBatchSheetModal";
 import { RunDesignAccordion } from "./RunDesignAccordion";
 import styles from "./SchedulePage.module.css";
 import { useSchedulerWindow } from "./useSchedulerWindow";
@@ -61,6 +62,7 @@ export function SchedulePage() {
   const [runDesignNote, setRunDesignNote] = useState<AccordionNote | null>(null);
   const [removeSlotsError, setRemoveSlotsError] = useState<string | null>(null);
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
+  const [printSheetOpen, setPrintSheetOpen] = useState(false);
   const [ghostDetail, setGhostDetail] = useState<CellGhost | null>(null);
 
   const instrumentsQuery = useQuery({
@@ -232,7 +234,9 @@ export function SchedulePage() {
       if (res.unplaced_sample_ids.length > 0) parts.push(`${res.unplaced_sample_ids.length} unplaced`);
       if (res.skipped_cells.length > 0) parts.push(`${res.skipped_cells.length} cell(s) skipped`);
       if (res.window_flags.length > 0) parts.push(`${res.window_flags.length} window flag(s)`);
-      const clean = res.unplaced_sample_ids.length === 0 && res.window_flags.length === 0;
+      if (res.barcode_conflicts.length > 0) parts.push(`${res.barcode_conflicts.length} barcode conflict(s)`);
+      const clean =
+        res.unplaced_sample_ids.length === 0 && res.window_flags.length === 0 && res.barcode_conflicts.length === 0;
       setRunDesignNote({
         tone: clean ? "good" : "warn",
         icon: clean ? "✓" : "!",
@@ -274,6 +278,9 @@ export function SchedulePage() {
           </Button>
           <Button size="sm" variant="ghost" onClick={win.goToday}>
             Today
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => setPrintSheetOpen(true)}>
+            Print Batch Sheet
           </Button>
         </div>
         <div className={styles.spacer} />
@@ -387,6 +394,10 @@ export function SchedulePage() {
       )}
 
       {ghostDetail && <WaitingCellPopover ghost={ghostDetail} onClose={() => setGhostDetail(null)} />}
+
+      {printSheetOpen && (
+        <PrintBatchSheetModal instruments={instrumentsQuery.data ?? []} onClose={() => setPrintSheetOpen(false)} />
+      )}
 
       {detail && (
         <SlotDetailPopover

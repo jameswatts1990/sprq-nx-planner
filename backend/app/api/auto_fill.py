@@ -3,7 +3,7 @@ from sqlalchemy.orm import selectinload
 
 from app.api.deps import ActorDep, SessionDep
 from app.models.schedule import CellUse, Cycle, RunBatch
-from app.schemas.run import AutoFillRequest, AutoFillResponse, CycleOut, GridCellRef, WindowFlagOut
+from app.schemas.run import AutoFillRequest, AutoFillResponse, BarcodeConflictOut, CycleOut, GridCellRef, WindowFlagOut
 from app.services.auto_fill_service import auto_fill
 from app.services.placement_service import PlacementError
 from app.services.run_serializer import cycle_out
@@ -45,5 +45,9 @@ def auto_fill_endpoint(req: AutoFillRequest, db: SessionDep, actor: ActorDep) ->
         unplaced_sample_ids=result.unplaced_sample_ids,
         skipped_cells=[GridCellRef(instrument_serial=s, run_date=d) for s, d in result.skipped_cells],
         window_flags=[WindowFlagOut(cell_ref=ref, span_hours=span) for ref, span in result.window_flags],
+        barcode_conflicts=[
+            BarcodeConflictOut(sample_external_id_a=c.a, sample_external_id_b=c.b, shared_barcodes=c.shared)
+            for c in result.barcode_conflicts
+        ],
         runs=runs,
     )

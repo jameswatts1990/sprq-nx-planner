@@ -1,0 +1,92 @@
+.page {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 22px 22px 64px;
+}
+.controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+.backLink {
+  color: var(--link);
+  font-weight: 700;
+  text-decoration: none;
+}
+.status {
+  color: var(--grey);
+}
+.title {
+  font-size: 22px;
+  margin-bottom: 18px;
+}
+.instrumentSection {
+  margin-bottom: 32px;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+.instrumentTitle {
+  font-size: 18px;
+  margin-bottom: 4px;
+}
+.instrumentMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  font-size: 13px;
+  color: var(--grey);
+  margin-bottom: 10px;
+}
+.wellTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.wellTable th,
+.wellTable td {
+  border: 1px solid var(--line);
+  padding: 6px 8px;
+  text-align: left;
+  vertical-align: top;
+}
+.wellTable th {
+  background: var(--line-soft);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.trayHeader td {
+  background: var(--bg);
+  font-weight: 700;
+  font-size: 12px;
+}
+.cellCode {
+  font-weight: 700;
+}
+.meta {
+  font-size: 11px;
+  color: var(--grey);
+}
+.warn {
+  font-size: 11px;
+  color: var(--red);
+  font-weight: 700;
+}
+
+.noPrint {
+  /* placeholder class, hidden below in @media print */
+}
+
+@media print {
+  .page {
+    max-width: none;
+    padding: 0;
+  }
+  .noPrint {
+    display: none;
+  }
+  .instrumentSection {
+    page-break-inside: avoid;
+  }
+}
