@@ -1,0 +1,5 @@
+- Show priority in the backlog display
+- Show more samples in the backlog
+- Backlog should be filterable and orderable
+- Place X pop up should not appear when dropping on a ghost or in instances where a new cell has to be used
+- Clicking on a placed cell allocation should allow some options to change the cell
