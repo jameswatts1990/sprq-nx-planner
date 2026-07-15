@@ -6,15 +6,24 @@ import { ApiError } from "@/api/client";
 import type { SampleSortBy, SampleSortDir } from "@/api/samples";
 import { samplesApi } from "@/api/samples";
 import { BarcodeChips } from "@/components/shared/BarcodeChips";
+import { Pagination } from "@/components/shared/Pagination";
+import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Note } from "@/components/ui/Note";
+import { SegmentedControl } from "@/components/ui/SegmentedControl";
+import type { SegmentedOption } from "@/components/ui/SegmentedControl";
 import type { SampleOut } from "@/types/sample";
 import { useDebouncedValue } from "@/utils/useDebouncedValue";
+import { priorityTone } from "@/utils/priority";
 
 import styles from "./BacklogPage.module.css";
 
-const PAGE_SIZE = 25;
+const DEFAULT_PAGE_SIZE = 50;
+const PAGE_SIZE_OPTIONS: SegmentedOption<number>[] = [25, 50, 100, 200].map((n) => ({
+  value: n,
+  label: String(n),
+}));
 const columnHelper = createColumnHelper<SampleOut>();
 
 function formatDateTime(iso: string): string {
@@ -28,22 +37,30 @@ function sortIndicator(active: boolean, dir: SampleSortDir): string {
 
 export function BacklogPage() {
   const [qInput, setQInput] = useState("");
+  const [priority, setPriority] = useState("");
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [sortBy, setSortBy] = useState<SampleSortBy>("created_at");
   const [sortDir, setSortDir] = useState<SampleSortDir>("desc");
   const q = useDebouncedValue(qInput, 350);
   const queryClient = useQueryClient();
 
+  const prioritiesQuery = useQuery({
+    queryKey: ["samples", "priorities"],
+    queryFn: () => samplesApi.listPriorities(),
+  });
+
   const query = useQuery({
-    queryKey: ["samples", { status: "backlog", q, sortBy, sortDir, page, page_size: PAGE_SIZE }],
+    queryKey: ["samples", { status: "backlog", q, priority, sortBy, sortDir, page, page_size: pageSize }],
     queryFn: () =>
       samplesApi.list({
         status: "backlog",
         q: q || undefined,
+        priority: priority || undefined,
         sort_by: sortBy,
         sort_dir: sortDir,
         page,
-        page_size: PAGE_SIZE,
+        page_size: pageSize,
       }),
   });
 
@@ -92,7 +109,10 @@ export function BacklogPage() {
     }),
     columnHelper.accessor("priority", {
       header: () => sortableHeader("Priority", "priority"),
-      cell: (info) => info.getValue() ?? "—",
+      cell: (info) => {
+        const v = info.getValue();
+        return v ? <Badge tone={priorityTone(v)}>{v}</Badge> : "—";
+      },
     }),
     columnHelper.accessor("target_oplc", {
       header: "Target OPLC",
@@ -121,7 +141,7 @@ export function BacklogPage() {
   const items = query.data?.items ?? [];
   const total = query.data?.total ?? 0;
   const table = useReactTable({ data: items, columns, getCoreRowModel: getCoreRowModel() });
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   return (
     <div className={styles.page}>
@@ -130,16 +150,42 @@ export function BacklogPage() {
           <h2>Backlog</h2>
         </CardHeader>
         <CardBody>
-          <input
-            type="search"
-            className={styles.search}
-            placeholder="Search by external ID, barcode, or parent sample…"
-            value={qInput}
-            onChange={(e) => {
-              setQInput(e.target.value);
-              setPage(1);
-            }}
-          />
+          <div className={styles.toolbar}>
+            <input
+              type="search"
+              className={styles.search}
+              placeholder="Search by external ID, barcode, parent sample, or priority…"
+              value={qInput}
+              onChange={(e) => {
+                setQInput(e.target.value);
+                setPage(1);
+              }}
+            />
+            <select
+              className={styles.select}
+              value={priority}
+              onChange={(e) => {
+                setPriority(e.target.value);
+                setPage(1);
+              }}
+            >
+              <option value="">All priorities</option>
+              {(prioritiesQuery.data ?? []).map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              ))}
+            </select>
+            <SegmentedControl
+              ariaLabel="Rows per page"
+              options={PAGE_SIZE_OPTIONS}
+              value={pageSize}
+              onChange={(v) => {
+                setPageSize(v);
+                setPage(1);
+              }}
+            />
+          </div>
 
           {query.isLoading && <div className={styles.status}>Loading backlog…</div>}
           {query.isError && (
@@ -180,27 +226,7 @@ export function BacklogPage() {
                 </tbody>
               </table>
 
-              <div className={styles.pagination}>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={page <= 1}
-                >
-                  Previous
-                </Button>
-                <span className={styles.pageInfo}>
-                  Page {page} of {totalPages}
-                </span>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={page >= totalPages}
-                >
-                  Next
-                </Button>
-              </div>
+              <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
             </>
           )}
         </CardBody>

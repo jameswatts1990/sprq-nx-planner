@@ -36,6 +36,7 @@ const DEFAULT_RUN_DESIGN: RunDesignState = { max_uses: 3, run_time_hours: 24, ob
 interface DetailTarget {
   stage: StageOut;
   locked: boolean;
+  instrumentSerial: string;
 }
 
 interface AccordionNote {
@@ -244,8 +245,8 @@ export function SchedulePage() {
     autoFillMutation.mutate();
   }
 
-  function handleOpenDetail(stage: StageOut, locked: boolean) {
-    setDetail({ stage, locked });
+  function handleOpenDetail(stage: StageOut, locked: boolean, instrumentSerial: string) {
+    setDetail({ stage, locked, instrumentSerial });
   }
 
   const rangeLabel = `${formatShortDateUTC(parseDateOnly(win.dateFrom))} – ${formatShortDateUTC(
@@ -381,6 +382,7 @@ export function SchedulePage() {
         <SlotDetailPopover
           stage={detail.stage}
           locked={detail.locked}
+          instrumentSerial={detail.instrumentSerial}
           onClose={() => setDetail(null)}
           onRemoved={() => {
             if (slotSelection.isSelected(detail.stage.cell_use_id)) slotSelection.toggle(detail.stage);

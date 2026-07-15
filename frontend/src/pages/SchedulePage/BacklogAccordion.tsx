@@ -5,13 +5,15 @@ import { useState } from "react";
 import { ApiError } from "@/api/client";
 import { samplesApi } from "@/api/samples";
 import { BarcodeChips } from "@/components/shared/BarcodeChips";
+import { Pagination } from "@/components/shared/Pagination";
 import { sampleDragId } from "@/components/scheduler/gridKeys";
 import type { SampleDragData } from "@/components/scheduler/useSchedulerDnd";
 import { Accordion } from "@/components/ui/Accordion";
-import { Button } from "@/components/ui/Button";
+import { Badge } from "@/components/ui/Badge";
 import { Note } from "@/components/ui/Note";
 import type { SampleOut } from "@/types/sample";
 import { useDebouncedValue } from "@/utils/useDebouncedValue";
+import { priorityTone } from "@/utils/priority";
 
 import styles from "./BacklogAccordion.module.css";
 
@@ -34,6 +36,7 @@ function DraggableSampleCard({ sample }: { sample: SampleOut }) {
       <div className={styles.cardHead}>
         <span className={styles.ext}>{sample.external_id}</span>
         {sample.parent_sample && <span className={styles.parent}>{sample.parent_sample}</span>}
+        {sample.priority && <Badge tone={priorityTone(sample.priority)}>{sample.priority}</Badge>}
       </div>
       <BarcodeChips barcodes={sample.barcodes} />
     </div>
@@ -87,22 +90,7 @@ export function BacklogAccordion() {
             ))}
           </div>
 
-          <div className={styles.pagination}>
-            <Button size="sm" variant="ghost" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}>
-              Previous
-            </Button>
-            <span className={styles.pageInfo}>
-              Page {page} of {totalPages}
-            </span>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              disabled={page >= totalPages}
-            >
-              Next
-            </Button>
-          </div>
+          <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
         </>
       )}
     </Accordion>

@@ -8,6 +8,7 @@ export type SampleSortDir = "asc" | "desc";
 export interface ListSamplesParams {
   status?: string;
   q?: string;
+  priority?: string;
   sort_by?: SampleSortBy;
   sort_dir?: SampleSortDir;
   page?: number;
@@ -16,6 +17,7 @@ export interface ListSamplesParams {
 
 export const samplesApi = {
   list: (params: ListSamplesParams = {}) => api.get<Page<SampleOut>>(`/api/samples${buildQuery(params)}`),
+  listPriorities: () => api.get<string[]>("/api/samples/priorities"),
   get: (id: number) => api.get<SampleDetailOut>(`/api/samples/${id}`),
   cancel: (id: number) => api.post<SampleOut>(`/api/samples/${id}/cancel`),
   requeue: (id: number) => api.post<SampleOut>(`/api/samples/${id}/requeue`),

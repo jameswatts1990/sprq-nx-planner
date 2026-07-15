@@ -1,19 +1,19 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
 import { ApiError } from "@/api/client";
-import { cellsApi } from "@/api/cells";
 import { cellUsesApi } from "@/api/cellUses";
 import { BarcodeChips } from "@/components/shared/BarcodeChips";
 import { Button } from "@/components/ui/Button";
 import { Modal, ModalActions } from "@/components/ui/Modal";
 import { Note } from "@/components/ui/Note";
-import type { CellOut } from "@/types/cell";
 import type { CycleOut } from "@/types/schedule";
 import type { CellChoice, PendingPlacement, RunDesignState } from "@/types/schedulerGrid";
 import { formatShortDateUTC, parseDateOnly } from "@/utils/calendarDates";
 
+import { shouldAutoPlace, shouldShowCellChoiceModal } from "./cellChoiceGate";
 import { slotKey, trayOfSlot } from "./gridKeys";
+import { useCompatibleCells } from "./useCompatibleCells";
 import styles from "./CellChoicePicker.module.css";
 
 const DEFAULT_START_TIME = "12:00";
@@ -31,12 +31,6 @@ export interface CellChoicePickerProps {
   setPlacingSlotKey: (k: string | null) => void;
 }
 
-/** Returns true if this open cell can host the dragged sample: it has an unused use
- * left, and none of its already-burned barcodes clash with the sample's barcodes. */
-function isCompatible(cell: CellOut, sampleBarcodes: string[]): boolean {
-  return cell.uses_consumed < cell.max_uses && !cell.burned_barcodes.some((b) => sampleBarcodes.includes(b));
-}
-
 interface ConfirmVars {
   cellChoice: CellChoice;
   startHour?: number;
@@ -50,9 +44,12 @@ interface ConfirmVars {
  * - A move (dragging an already-placed sample) has no cell decision at all - the atomic
  *   move endpoint keeps the same cell, just repositions it - so the cell-choice fieldset
  *   is skipped entirely.
- * Either way, if the drop would create a brand-new run (no existingRun for this
- * instrument+day yet), a loading start-time field is shown - that's the only thing that
- * ever forces the modal open when there'd otherwise be nothing to decide.
+ * If the drop would create a brand-new run (no existingRun for this instrument+day yet),
+ * a loading start-time field is shown - but only when there's also nowhere else to get a
+ * start time. An unambiguous placement (a valid ghost preselect, or no reusable cell at
+ * all) auto-confirms with a default start time even into a brand-new run; a move into a
+ * brand-new run is the one case that always needs the modal, since moves have no cell
+ * choice to resolve and thus no other way to collect a start time. See cellChoiceGate.ts.
  */
 export function CellChoicePicker({ pending, runDesign, existingRun, onClose, onPlaced, setPlacingSlotKey }: CellChoicePickerProps) {
   const queryClient = useQueryClient();
@@ -66,13 +63,11 @@ export function CellChoicePicker({ pending, runDesign, existingRun, onClose, onP
   const isMove = pending.moveFromCellUseId !== undefined;
   const isNewRun = existingRun === undefined;
 
-  const cellsQuery = useQuery({
-    queryKey: ["cells", { status: "open", instrument_serial: pending.instrument_serial, page_size: 200 }],
-    queryFn: () => cellsApi.list({ status: "open", instrument_serial: pending.instrument_serial, page_size: 200 }),
+  const { cellsQuery, compatible } = useCompatibleCells({
+    instrumentSerial: pending.instrument_serial,
+    sampleBarcodes: pending.sample.barcodes,
     enabled: !isMove,
   });
-
-  const compatible = isMove ? [] : (cellsQuery.data?.items ?? []).filter((c) => isCompatible(c, pending.sample.barcodes));
   // Only trust the preselected ghost cell once it's confirmed still compatible (barcodes
   // could have changed since the ghost was computed) - otherwise fall back to the normal
   // choice-among-compatible-cells flow below.
@@ -128,13 +123,15 @@ export function CellChoicePicker({ pending, runDesign, existingRun, onClose, onP
     mutation.mutate({ cellChoice: choice, ...startTimeParts() });
   }
 
-  // Nothing to decide (still checking, or checked and found no compatible cell, and this
-  // isn't creating a new run) unless the check itself failed or a real choice exists - in
-  // those cases fall through to the modal so the user can see the error, pick between
-  // "new" and a reusable cell, or set the new run's start time. A drop directly onto a
-  // still-valid ghost placeholder already made that choice, so it doesn't count as "a
-  // real choice exists" here even when other compatible cells also exist.
-  const showModal = isNewRun || (!isMove && (cellsQuery.isError || (compatible.length > 0 && !preselectedValid))) || mutation.isError;
+  const gateInput = {
+    isMove,
+    isNewRun,
+    cellsLoading: cellsQuery.isLoading,
+    cellsError: cellsQuery.isError,
+    compatibleCount: compatible.length,
+    preselectedValid,
+  };
+  const showModal = shouldShowCellChoiceModal({ ...gateInput, mutationError: mutation.isError });
 
   // Keep the target slot shimmering while we're silently resolving/auto-placing so the
   // grid still shows something is happening, even though no modal is shown.
@@ -144,12 +141,18 @@ export function CellChoicePicker({ pending, runDesign, existingRun, onClose, onP
 
   const autoPlacedRef = useRef(false);
   useEffect(() => {
-    if (isNewRun) return; // always needs the modal, for the start-time field
-    if (!isMove && (cellsQuery.isLoading || cellsQuery.isError || (compatible.length > 0 && !preselectedValid))) return;
+    if (!shouldAutoPlace(gateInput)) return;
     if (autoPlacedRef.current) return;
     autoPlacedRef.current = true;
     const cellChoice: CellChoice = preselectedValid ? { mode: "existing", cell_id: pending.preselectedCellId as number } : { mode: "new" };
-    mutation.mutate({ cellChoice });
+    // A brand-new run still needs an explicit start time even when auto-placing
+    // silently - don't rely on the mutation/backend default matching DEFAULT_START_TIME.
+    if (isNewRun) {
+      const [startHour, startMinute] = DEFAULT_START_TIME.split(":").map(Number);
+      mutation.mutate({ cellChoice, startHour, startMinute });
+    } else {
+      mutation.mutate({ cellChoice });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isNewRun, isMove, cellsQuery.isLoading, cellsQuery.isError, compatible.length, preselectedValid]);
 
