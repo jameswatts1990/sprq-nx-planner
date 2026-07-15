@@ -9,9 +9,14 @@ import { cyclesApi } from "@/api/cycles";
 import { instrumentsApi } from "@/api/instruments";
 import { schedulerApi } from "@/api/schedulerGrid";
 import { CellChoicePicker } from "@/components/scheduler/CellChoicePicker";
-import { groupCyclesByInstrumentAndDay, LOCK_LOOKBACK_DAYS } from "@/components/scheduler/groupCyclesByInstrumentAndDay";
+import {
+  groupCyclesByInstrumentAndDay,
+  isCellOpen,
+  LOCK_LOOKBACK_DAYS,
+} from "@/components/scheduler/groupCyclesByInstrumentAndDay";
 import { SchedulerGrid } from "@/components/scheduler/SchedulerGrid";
 import { SlotDetailPopover } from "@/components/scheduler/SlotDetailPopover";
+import { CellLinkContext, useCellLinkHighlight } from "@/components/scheduler/useCellLinkHighlight";
 import { useGridSelection } from "@/components/scheduler/useGridSelection";
 import { useSchedulerDnd } from "@/components/scheduler/useSchedulerDnd";
 import { useSlotSelection } from "@/components/scheduler/useSlotSelection";
@@ -111,7 +116,7 @@ export function SchedulePage() {
       win.days.forEach((date, c) => {
         if (!selection.isSelected(r, c)) return;
         if (isWeekendUTC(parseDateOnly(date))) return;
-        if (grouped.get(serial)?.has(date)) return;
+        if (!isCellOpen(grouped.get(serial)?.get(date))) return;
         out.push({ instrument_serial: serial, run_date: date });
       });
     });
@@ -168,6 +173,9 @@ export function SchedulePage() {
   });
 
   const dnd = useSchedulerDnd((cellUseId) => dragRemoveMutation.mutate(cellUseId));
+  // Suppressed during any drag (backlog-sample or filled-slot move) so the hover/pin
+  // highlight never fights the drag/drop visuals - see useCellLinkHighlight.tsx.
+  const cellLink = useCellLinkHighlight(dnd.activeSample !== null);
 
   // Bulk-remove every planned (unlocked) sample in the currently-viewed week - gated
   // behind the confirm modal below since it's destructive and can span every instrument.
@@ -301,57 +309,59 @@ export function SchedulePage() {
         onDragStart={dnd.onDragStart}
         onDragEnd={dnd.onDragEnd}
       >
-        <div className={styles.accordions}>
-          <RunDesignAccordion
-            runDesign={runDesign}
-            onChange={setRunDesign}
-            selectedCount={selectedCells.length}
-            onAutoSchedule={onAutoSchedule}
-            autoFilling={autoFillMutation.isPending}
-            weekPlannedCount={weekPlannedStages.length}
-            onRequestClearSchedule={onRequestClearSchedule}
-            note={runDesignNote}
-          />
-          <BacklogAccordion />
-        </div>
+        <CellLinkContext.Provider value={cellLink}>
+          <div className={styles.accordions}>
+            <RunDesignAccordion
+              runDesign={runDesign}
+              onChange={setRunDesign}
+              selectedCount={selectedCells.length}
+              onAutoSchedule={onAutoSchedule}
+              autoFilling={autoFillMutation.isPending}
+              weekPlannedCount={weekPlannedStages.length}
+              onRequestClearSchedule={onRequestClearSchedule}
+              note={runDesignNote}
+            />
+            <BacklogAccordion />
+          </div>
 
-        <SectionHeading title="Weekly schedule" legend={<UseLegend />} />
+          <SectionHeading title="Weekly schedule" legend={<UseLegend />} />
 
-        {instrumentsQuery.isLoading && <div className={styles.status}>Loading instruments…</div>}
-        {instrumentsQuery.isError && (
-          <Note tone="bad" icon="!">
-            {instrumentsQuery.error instanceof ApiError ? instrumentsQuery.error.message : "Failed to load instruments."}
-          </Note>
-        )}
-        {!instrumentsQuery.isLoading && !instrumentsQuery.isError && instrumentSerials.length === 0 && (
-          <Note tone="info" icon="i">
-            No active instruments configured.
-          </Note>
-        )}
-        {cyclesQuery.isError && (
-          <Note tone="bad" icon="!">
-            {cyclesQuery.error instanceof ApiError ? cyclesQuery.error.message : "Failed to load schedule."}
-          </Note>
-        )}
+          {instrumentsQuery.isLoading && <div className={styles.status}>Loading instruments…</div>}
+          {instrumentsQuery.isError && (
+            <Note tone="bad" icon="!">
+              {instrumentsQuery.error instanceof ApiError ? instrumentsQuery.error.message : "Failed to load instruments."}
+            </Note>
+          )}
+          {!instrumentsQuery.isLoading && !instrumentsQuery.isError && instrumentSerials.length === 0 && (
+            <Note tone="info" icon="i">
+              No active instruments configured.
+            </Note>
+          )}
+          {cyclesQuery.isError && (
+            <Note tone="bad" icon="!">
+              {cyclesQuery.error instanceof ApiError ? cyclesQuery.error.message : "Failed to load schedule."}
+            </Note>
+          )}
 
-        {instrumentSerials.length > 0 && (
-          <SchedulerGrid
-            instrumentSerials={instrumentSerials}
-            days={win.days}
-            cycles={cycles}
-            selection={selection}
-            placingSlotKey={dnd.placingSlotKey}
-            onOpenDetail={handleOpenDetail}
-            slotSelection={slotSelection}
-            activeDragInstrument={dnd.activeDragInstrument}
-            waitingGrouped={waitingGrouped}
-            onOpenGhost={setGhostDetail}
-          />
-        )}
+          {instrumentSerials.length > 0 && (
+            <SchedulerGrid
+              instrumentSerials={instrumentSerials}
+              days={win.days}
+              cycles={cycles}
+              selection={selection}
+              placingSlotKey={dnd.placingSlotKey}
+              onOpenDetail={handleOpenDetail}
+              slotSelection={slotSelection}
+              activeDragInstrument={dnd.activeDragInstrument}
+              waitingGrouped={waitingGrouped}
+              onOpenGhost={setGhostDetail}
+            />
+          )}
 
-        <DragOverlay dropAnimation={null}>
-          {dnd.activeSample ? <div className={styles.dragChip}>{dnd.activeSample.external_id || "sample"}</div> : null}
-        </DragOverlay>
+          <DragOverlay dropAnimation={null}>
+            {dnd.activeSample ? <div className={styles.dragChip}>{dnd.activeSample.external_id || "sample"}</div> : null}
+          </DragOverlay>
+        </CellLinkContext.Provider>
       </DndContext>
 
       {dnd.pendingPlacement && (

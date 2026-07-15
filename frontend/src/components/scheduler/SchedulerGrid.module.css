@@ -89,3 +89,12 @@
   font-weight: 600;
   margin-top: 1px;
 }
+
+/* Row/column headers that can select their whole row/column (see SchedulerGridRow /
+   SchedulerGrid onSelectColumn). */
+.headerSelectable {
+  cursor: pointer;
+}
+.headerSelectable:hover {
+  background: var(--line-soft);
+}

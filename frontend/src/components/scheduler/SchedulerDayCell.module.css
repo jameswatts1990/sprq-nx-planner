@@ -9,10 +9,11 @@
   border-right: 1px solid var(--line-soft);
 }
 /* Wider once tray 2 is showing alongside tray 1 - the grid's own horizontal scroll
-   (see SchedulerGrid.module.css) absorbs the extra width. */
+   (see SchedulerGrid.module.css) absorbs the extra width. Padded a bit past the old
+   300px to leave room for the tray card's own border + padding below. */
 .cell.twoTrays {
-  min-width: 300px;
-  width: 300px;
+  min-width: 316px;
+  width: 316px;
 }
 .weekend {
   min-width: 44px;
@@ -123,16 +124,18 @@
   align-items: flex-start;
   gap: 8px;
 }
+/* A tray's cells always travel together - rendered as one bordered card so they read as
+   a single physical object, distinct from the per-slot Use 1/2/3 tint underneath. */
 .tray {
   display: grid;
   grid-template-columns: 1fr;
   gap: 5px;
   flex: 1;
   min-width: 0;
-}
-.tray + .tray {
-  padding-left: 8px;
-  border-left: 1px dashed var(--line);
+  border: 1px solid var(--tray-card-border);
+  border-radius: var(--r-sm);
+  background: var(--tray-card-bg);
+  padding: 8px 8px 6px;
 }
 .trayLabel {
   font-size: 8.5px;

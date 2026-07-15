@@ -1,7 +1,9 @@
+import type { KeyboardEvent } from "react";
+
 import type { CycleOut, StageOut } from "@/types/schedule";
 import { isWeekendUTC, parseDateOnly } from "@/utils/calendarDates";
 
-import { findCarryOverLock } from "./groupCyclesByInstrumentAndDay";
+import { findCarryOverLock, isCellOpen } from "./groupCyclesByInstrumentAndDay";
 import type { GridSelection } from "./useGridSelection";
 import type { SlotSelection } from "./useSlotSelection";
 import { SchedulerDayCell } from "./SchedulerDayCell";
@@ -37,16 +39,40 @@ export function SchedulerGridRow({
   waitingCellsByDate,
   onOpenGhost,
 }: SchedulerGridRowProps) {
+  const selectableCols: number[] = [];
+  days.forEach((date, colIndex) => {
+    const weekend = isWeekendUTC(parseDateOnly(date));
+    if (!weekend && isCellOpen(cyclesByDate.get(date))) selectableCols.push(colIndex);
+  });
+
+  function onRowHeaderSelect() {
+    if (selectableCols.length === 0) return;
+    selection.selectMany(selectableCols.map((c) => ({ r: rowIndex, c })));
+  }
+  function onRowHeaderKeyDown(e: KeyboardEvent<HTMLTableCellElement>) {
+    if (selectableCols.length > 0 && (e.key === "Enter" || e.key === " ")) {
+      e.preventDefault();
+      onRowHeaderSelect();
+    }
+  }
+
   return (
     <tr>
-      <th className={styles.machTh}>
+      <th
+        className={selectableCols.length > 0 ? `${styles.machTh} ${styles.headerSelectable}` : styles.machTh}
+        onClick={selectableCols.length > 0 ? onRowHeaderSelect : undefined}
+        onKeyDown={selectableCols.length > 0 ? onRowHeaderKeyDown : undefined}
+        role={selectableCols.length > 0 ? "button" : undefined}
+        tabIndex={selectableCols.length > 0 ? 0 : undefined}
+        title={selectableCols.length > 0 ? "Select all open days this week for this instrument" : undefined}
+      >
         <div className={styles.ml}>Revio</div>
         <div className={styles.mid}>{serial}</div>
       </th>
       {days.map((date, colIndex) => {
         const weekend = isWeekendUTC(parseDateOnly(date));
         const cycle = cyclesByDate.get(date);
-        const selectable = !weekend && cycle === undefined;
+        const selectable = !weekend && isCellOpen(cycle);
         const selected = selectable && selection.isSelected(rowIndex, colIndex);
         const carryOverLock = cycle ? undefined : findCarryOverLock(cyclesByDate, date);
         return (

@@ -102,7 +102,14 @@ def auto_fill(
     prior_cells = [
         pc for pc in prior_cells if pc.pinned_instrument_serial is None or pc.pinned_instrument_serial in offered_serials
     ]
-    pack = pack_cells(parsed, max_uses=max_uses, objective=objective, prior_cells=prior_cells)
+    # A cell can only be reused once per calendar day (see fill_slots), so a reuse depth
+    # deeper than the number of distinct days actually on offer can never be placed -
+    # capping it here spreads samples across fresh cells instead of packing depth that
+    # would just come back as unplaced.
+    available_days = len({s.run_date for s in empty_slots})
+    pack = pack_cells(
+        parsed, max_uses=max_uses, objective=objective, prior_cells=prior_cells, available_days=available_days
+    )
     fill = fill_slots(pack.cells, empty_slots, run_time_hours)
 
     # PackedCell.id -> DB Cell (prior cells resolve to real rows; fresh cells created on first use)

@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 
-interface Coord {
+export interface Coord {
   r: number;
   c: number;
 }
@@ -16,6 +16,9 @@ export interface GridSelection {
    *    else is already selected (disjoint multi-select)
    *  - shift-click extends a rectangle from the last clicked cell to this one */
   handleCellClick: (r: number, c: number, shift: boolean, ctrl: boolean) => void;
+  /** Replace the selection with exactly these coordinates (e.g. a whole row/column from
+   * a header click), or clear it if that's already the current selection. */
+  selectMany: (coords: Coord[]) => void;
   clear: () => void;
 }
 
@@ -75,10 +78,20 @@ export function useGridSelection(): GridSelection {
     [anchor],
   );
 
+  const selectMany = useCallback((coords: Coord[]) => {
+    setSelected((prev) => {
+      const nextKeys = coords.map(({ r, c }) => key(r, c));
+      const next = new Set(nextKeys);
+      const unchanged = prev.size === next.size && nextKeys.every((k) => prev.has(k));
+      return unchanged ? new Set() : next;
+    });
+    setAnchor(coords.length > 0 ? coords[coords.length - 1] : null);
+  }, []);
+
   const clear = useCallback(() => {
     setSelected(new Set());
     setAnchor(null);
   }, []);
 
-  return { isSelected, hasSelection: selected.size > 0, handleCellClick, clear };
+  return { isSelected, hasSelection: selected.size > 0, handleCellClick, selectMany, clear };
 }

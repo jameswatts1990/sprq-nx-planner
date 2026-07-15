@@ -51,8 +51,9 @@ def test_auto_fill_fills_only_requested_cell_and_reports_unplaced(client):
     assert resp.status_code == 200, resp.text
     body = resp.json()
 
-    # one grid slot now has 8 wells (two trays of 4); 6 disjoint samples (fastest objective
-    # => one fresh cell each) all fit in one run => 6 placed, 0 unplaced
+    # one grid slot now has 8 wells (two trays of 4); only 1 day is on offer so depth is
+    # capped to 1 regardless of objective (a cell can't be reused same-day) - 6 disjoint
+    # samples => one fresh cell each, all fit in one run => 6 placed, 0 unplaced
     assert len(body["placed_sample_ids"]) == 6
     assert len(body["unplaced_sample_ids"]) == 0
     assert body["skipped_cells"] == []
@@ -112,9 +113,13 @@ def test_auto_fill_skips_day_locked_by_its_own_earlier_run(client):
     client.post("/api/imports", json={"raw_text": TEN_DISJOINT})
     mon, tue = _next_monday_tuesday()
 
+    # max_uses=1 forces one fresh cell per sample - with 2 days on offer, max_uses=3
+    # (auto-fill's default) would otherwise let each cell reuse into a second day and
+    # sidestep the single-day well exhaustion this test means to exercise.
     resp = _auto_fill(
         client,
         [{"instrument_serial": "84047", "run_date": mon}, {"instrument_serial": "84047", "run_date": tue}],
+        max_uses=1,
     )
     assert resp.status_code == 200, resp.text
     body = resp.json()

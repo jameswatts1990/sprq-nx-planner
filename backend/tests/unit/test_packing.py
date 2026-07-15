@@ -2,15 +2,8 @@
 revio-nx-planner.html using the prototype's own example data and default settings
 (max uses 3x, objective "fewest"). See PLAN's "porting the algorithms" section.
 """
-from app.engine.packing import disjoint, pack_cells, target_depth_for
+from app.engine.packing import disjoint, pack_cells
 from app.engine.types import ParsedSample, PriorCellInput
-
-
-def test_target_depth_for():
-    assert target_depth_for("fastest", 3) == 1
-    assert target_depth_for("balance", 3) == 2
-    assert target_depth_for("balance", 1) == 1
-    assert target_depth_for("fewest", 3) == 3
 
 
 def test_disjoint():
@@ -78,3 +71,28 @@ def test_pack_marks_samples_unplaced_when_max_uses_is_zero_capacity():
     result2 = pack_cells(samples, max_uses=0, objective="fewest")
     assert [s.id for s in result2.unplaced] == ["S1"]
     assert result2.cells == []
+
+
+def _disjoint_samples(n: int) -> list[ParsedSample]:
+    return [ParsedSample(id=f"S{i}", barcodes=[f"bc{i}"], key=f"S{i}#0") for i in range(n)]
+
+
+def test_pack_honors_max_uses_regardless_of_objective():
+    # Regression test: "balance"/"fastest" used to silently cap fresh-cell depth to 2/1
+    # even when the caller explicitly asked for max_uses=3, so a cell would take exactly
+    # 2 uses and then a fresh cell would open instead of continuing to reuse - depth must
+    # now always reach max_uses when nothing else (like available_days) constrains it.
+    for objective in ("fewest", "balance", "fastest"):
+        result = pack_cells(_disjoint_samples(5), max_uses=3, objective=objective)
+        depths = sorted((len(c.uses) for c in result.cells), reverse=True)
+        assert depths == [3, 2], f"objective={objective} produced {depths}"
+
+
+def test_pack_available_days_caps_depth_below_max_uses():
+    # A cell can only be reused once per calendar day, so if only 2 days are actually on
+    # offer, planning depth 3 onto a fresh cell would just strand its 3rd use as
+    # unplaced - available_days should cap depth to what can really be placed instead.
+    result = pack_cells(_disjoint_samples(5), max_uses=3, objective="fewest", available_days=2)
+    depths = sorted((len(c.uses) for c in result.cells), reverse=True)
+    assert depths == [2, 2, 1]
+    assert result.unplaced == []

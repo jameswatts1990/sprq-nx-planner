@@ -97,7 +97,8 @@ class GridCellRef(BaseModel):
 
 class AutoFillRequest(BaseModel):
     cells: list[GridCellRef] = Field(min_length=1)
-    max_uses: Literal[1, 2, 3] = 3  # target packing depth for new cells this batch, not a physical cap (always 3)
+    max_uses: Literal[1, 2, 3] = 3  # target packing depth for new cells this batch (always honored in full,
+    # subject only to how many distinct days are on offer); not a physical cap (always 3)
     run_time_hours: Literal[12, 24, 30] = 24
     objective: Literal["fewest", "balance", "fastest"] = "fewest"
     start_hour: int = Field(default=DAY_START_HOUR, ge=0, le=23)

@@ -261,6 +261,16 @@ def remove_sample(db: Session, cell_use_id: int, actor: str | None = None) -> No
     cycle_id = cycle.id
     run_batch = cycle.run_batch
 
+    # Lock the cycle row so concurrent removals of sibling stages on the same cycle (e.g.
+    # the "Remove from schedule" multi-select and "Clear schedule" bulk actions, which fire
+    # one DELETE per stage concurrently via Promise.all) serialize here instead of racing on
+    # the "any stages left?" count below. Without this, two concurrent removals can each see
+    # 1 remaining stage (the other's still-uncommitted delete) and both skip cleanup,
+    # leaving a stage-less Cycle/RunBatch behind - which then blocks that grid cell from
+    # selection even though it renders empty. No-op on SQLite (dev), which doesn't support
+    # FOR UPDATE but has no concurrent-writer race to begin with.
+    db.execute(select(Cycle.id).where(Cycle.id == cycle_id).with_for_update())
+
     if cell_use.sample is not None:
         cell_use.sample.status = "backlog"
 

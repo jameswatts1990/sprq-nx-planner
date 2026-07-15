@@ -1,10 +1,13 @@
 import { useDraggable, useDroppable } from "@dnd-kit/core";
+import { useContext } from "react";
 import type { KeyboardEvent, MouseEvent } from "react";
 
 import type { SlotIndex, StageOut } from "@/types/schedule";
 
+import { deriveLinkState } from "./cellLinkState";
 import { slotKey } from "./gridKeys";
 import { SchedulerSlotView } from "./SchedulerSlotView";
+import { CellLinkContext } from "./useCellLinkHighlight";
 import type { FilledSlotDragData, SlotDropData } from "./useSchedulerDnd";
 import type { CellGhost } from "./waitingCells";
 
@@ -115,12 +118,30 @@ function DraggableSlot({
     id: slotKey(instrumentSerial, runDate, slotIndex),
     data,
   });
+  const link = useContext(CellLinkContext);
+  const { isSource, isPeer, isDimmed } = deriveLinkState(link.active, stage);
+  const linkTarget = { cellId: stage.cell_id, sourceUseId: stage.cell_use_id };
+
   function onClick(e: MouseEvent<HTMLDivElement>) {
+    if (e.shiftKey) {
+      link.togglePin(linkTarget);
+      return;
+    }
     if (e.ctrlKey || e.metaKey) {
       onToggleSelect(stage);
       return;
     }
     onOpenDetail(stage);
+  }
+  // Composed with dnd-kit's own onKeyDown (keyboard drag activation) rather than
+  // replacing it - Shift+Enter is otherwise unused by the keyboard sensor.
+  function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
+    if (e.key === "Enter" && e.shiftKey) {
+      e.preventDefault();
+      link.togglePin(linkTarget);
+      return;
+    }
+    (listeners?.onKeyDown as ((e: KeyboardEvent<HTMLDivElement>) => void) | undefined)?.(e);
   }
   return (
     <SchedulerSlotView
@@ -130,9 +151,15 @@ function DraggableSlot({
       placing={placing}
       dragging={isDragging}
       selected={selected}
+      linked={isPeer}
+      linkSource={isSource}
+      dimmed={isDimmed}
       onClick={onClick}
+      onMouseEnter={() => link.setHover(linkTarget)}
+      onMouseLeave={link.clearHover}
       {...listeners}
       {...attributes}
+      onKeyDown={onKeyDown}
     />
   );
 }
@@ -146,7 +173,15 @@ function ClickableSlot({
   onOpenDetail,
   onToggleSelect,
 }: SchedulerSlotProps & { stage: StageOut }) {
+  const link = useContext(CellLinkContext);
+  const { isSource, isPeer, isDimmed } = deriveLinkState(link.active, stage);
+  const linkTarget = { cellId: stage.cell_id, sourceUseId: stage.cell_use_id };
+
   function onClick(e: MouseEvent<HTMLDivElement>) {
+    if (e.shiftKey) {
+      link.togglePin(linkTarget);
+      return;
+    }
     if (!locked && (e.ctrlKey || e.metaKey)) {
       onToggleSelect(stage);
       return;
@@ -154,6 +189,11 @@ function ClickableSlot({
     onOpenDetail(stage);
   }
   function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
+    if (e.key === "Enter" && e.shiftKey) {
+      e.preventDefault();
+      link.togglePin(linkTarget);
+      return;
+    }
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
       onOpenDetail(stage);
@@ -166,10 +206,15 @@ function ClickableSlot({
       locked={locked}
       placing={placing}
       selected={selected}
+      linked={isPeer}
+      linkSource={isSource}
+      dimmed={isDimmed}
       role="button"
       tabIndex={0}
       onClick={onClick}
       onKeyDown={onKeyDown}
+      onMouseEnter={() => link.setHover(linkTarget)}
+      onMouseLeave={link.clearHover}
     />
   );
 }

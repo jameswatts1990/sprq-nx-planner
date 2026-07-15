@@ -54,3 +54,18 @@ def test_search_matches_on_priority(client):
     body = resp.json()
     assert body["total"] == 1
     assert body["items"][0]["external_id"] == "A1"
+
+
+def test_sort_by_priority_orders_by_rank_not_object_identity(client):
+    _import(
+        client,
+        "sample,barcodes,priority\nA1,bc1,Standard (3)\nA2,bc2,High (1)\nA3,bc3,",
+    )
+
+    resp = client.get("/api/samples", params={"sort_by": "priority", "sort_dir": "asc"})
+    assert resp.status_code == 200, resp.text
+    assert [s["external_id"] for s in resp.json()["items"]] == ["A2", "A1", "A3"]
+
+    resp = client.get("/api/samples", params={"sort_by": "priority", "sort_dir": "desc"})
+    assert resp.status_code == 200, resp.text
+    assert [s["external_id"] for s in resp.json()["items"]] == ["A3", "A1", "A2"]

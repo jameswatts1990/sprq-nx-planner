@@ -6,6 +6,7 @@ import { Note, type NoteTone } from "@/components/ui/Note";
 import type { CellOut } from "@/types/cell";
 import { CELL_STATUSES, CELL_USE_STATUSES, CYCLE_STATUSES } from "@/types/common";
 import type { CellStatus, CellUseStatus, CycleStatus } from "@/types/common";
+import type { StageOut } from "@/types/schedule";
 import { CELL_STATUS_LABEL, CELL_STATUS_TONE } from "@/utils/cellStatus";
 import { CYCLE_STATUS_TONE } from "@/utils/cycleStatus";
 import { priorityTone } from "@/utils/priority";
@@ -43,6 +44,42 @@ const GHOST_EXAMPLE_FADING: CellGhost = {
   deadlineIsEstimated: false,
 };
 const GHOST_EXAMPLE_CUTOFF: CellGhost = { ...GHOST_EXAMPLE_FADING, isHardCutoff: true };
+
+// Fabricated stages sharing one cell_id, purely so the cell-link highlight swatches below
+// render from the real SchedulerSlotView component (see CLAUDE.md's Help Tab Maintenance
+// rule) - never hand-describe this colour/border scheme in prose.
+const LINK_EXAMPLE_SOURCE: StageOut = {
+  slot_index: 0,
+  well: "A01",
+  cell_use_id: 1,
+  cell_id: 42,
+  cell_ref: "CELL-000042",
+  use_number: 1,
+  sample_id: 1,
+  sample_external_id: "SAMPLE-101",
+  barcodes: ["bc1001"],
+};
+const LINK_EXAMPLE_PEER: StageOut = {
+  ...LINK_EXAMPLE_SOURCE,
+  slot_index: 4,
+  well: "A02",
+  cell_use_id: 2,
+  use_number: 2,
+  sample_id: 2,
+  sample_external_id: "SAMPLE-205",
+  barcodes: ["bc2005"],
+};
+const LINK_EXAMPLE_UNRELATED: StageOut = {
+  ...LINK_EXAMPLE_SOURCE,
+  slot_index: 1,
+  well: "B01",
+  cell_use_id: 3,
+  cell_id: 99,
+  cell_ref: "CELL-000099",
+  sample_id: 3,
+  sample_external_id: "SAMPLE-310",
+  barcodes: ["bc3010"],
+};
 
 const CELL_STATUS_MEANING: Record<CellStatus, string> = {
   open: "Has uses remaining and its window is still valid; available to schedule.",
@@ -191,6 +228,28 @@ export function LegendSection() {
             Last day this cell can still start its next use - a fixed amber &quot;expires today&quot; look instead
             of continuing to fade.
           </span>
+        </div>
+      </div>
+
+      <p className={styles.subheading}>Cell-link highlight (Weekly schedule)</p>
+      <div className={styles.legendGrid}>
+        <div className={styles.legendRow}>
+          <div className={styles.ghostExampleSwatch}>
+            <SchedulerSlotView stage={LINK_EXAMPLE_SOURCE} slotIndex={0} linkSource />
+          </div>
+          <span>The exact slot you&apos;re hovering or have pinned - a solid ring with a filled dot.</span>
+        </div>
+        <div className={styles.legendRow}>
+          <div className={styles.ghostExampleSwatch}>
+            <SchedulerSlotView stage={LINK_EXAMPLE_PEER} slotIndex={4} linked />
+          </div>
+          <span>Another use of that same physical cell, wherever it lands on the calendar - a dashed ring with a hollow dot.</span>
+        </div>
+        <div className={styles.legendRow}>
+          <div className={styles.ghostExampleSwatch}>
+            <SchedulerSlotView stage={LINK_EXAMPLE_UNRELATED} slotIndex={1} dimmed />
+          </div>
+          <span>An unrelated cell, softened so the linked slots stand out.</span>
         </div>
       </div>
 

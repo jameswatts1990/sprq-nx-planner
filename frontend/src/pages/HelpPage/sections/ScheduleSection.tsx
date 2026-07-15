@@ -22,15 +22,18 @@ export function ScheduleSection() {
       <dl className={styles.terms}>
         <dt>Max uses per cell (1× / 2× / 3×)</dt>
         <dd>
-          How many times auto-fill will try to reuse each SMRT cell before opening a new one. A cell physically
-          supports up to 3 acquisitions.
+          How many times auto-fill will try to reuse each SMRT cell before opening a new one. This is always
+          honored in full — it&apos;s only reduced automatically if you select fewer days than the chosen use
+          count, since a cell can&apos;t be reused twice on the same day. A cell physically supports up to 3
+          acquisitions.
         </dd>
         <dt>Movie / run time (12 h / 24 h / 30 h)</dt>
         <dd>The sequencing movie length applied to runs you create.</dd>
         <dt>Optimise for</dt>
         <dd>
-          <b>Fewest cells</b> (lowest cost, reuses cells hardest), <b>Balance</b> (trades off cost and speed), or{" "}
-          <b>Fastest</b> (spreads across cells to finish in the fewest days).
+          <b>Fewest cells</b> and <b>Balance</b> both reuse cells as deep as your Max uses setting allows;{" "}
+          <b>Fastest</b> instead spreads new samples across more cells so more of them can start sooner, at the
+          cost of using more cells.
         </dd>
       </dl>
       <p>
@@ -43,7 +46,10 @@ export function ScheduleSection() {
         <li>
           <b>Auto-fill:</b> click empty day cells to select them (Shift-click to select a rectangle, Ctrl/Cmd-click
           to toggle individual cells), then press <b>Auto schedule (N selected)</b>. The planner fills those cells
-          from the backlog using your Run design settings.
+          from the backlog using your Run design settings. Click an instrument&apos;s row header to select every
+          open day that week for that instrument, or a day&apos;s column header to select every open instrument on
+          that day — handy for scheduling a whole week for one machine, or one day across all machines, in a single
+          click. Clicking the same header again clears that selection.
         </li>
       </ol>
       <p>
@@ -121,9 +127,18 @@ export function ScheduleSection() {
         </li>
       </ul>
       <p>
-        <b>Slots and trays:</b> each day cell has two trays of four slots. Tray 2 only appears once a sample is
-        loaded. The Use 1 / Use 2 / Use 3 colours (magenta / blue / teal) show which use of a cell each barcode chip
-        belongs to — see the Colour &amp; Status Legend section.
+        <b>Slots and trays:</b> each day cell has two trays of four slots, each drawn as its own bordered card so a
+        tray&apos;s four cells read as one physical object — they always stay together. Tray 2 only appears once a
+        sample is loaded. The Use 1 / Use 2 / Use 3 colours (magenta / blue / teal) show which use of a cell each
+        barcode chip belongs to — see the Colour &amp; Status Legend section.
+      </p>
+      <p>
+        <b>Highlighting the same cell over time:</b> hovering a loaded slot highlights every other slot elsewhere in
+        the schedule that holds the <i>same physical cell</i> (its other uses, wherever they land on the calendar),
+        and softens everything else — useful for tracing one cell&apos;s reuse across days without having to read
+        every cell code. <b>Shift-click</b> a slot (or press <b>Shift+Enter</b> while it&apos;s focused) to pin the
+        highlight so it stays put while you move the mouse elsewhere; press <b>Escape</b> or click anywhere outside
+        a loaded slot to clear it. The highlight is suspended while dragging a sample.
       </p>
       <p>
         <b>Waiting-cell ghosts:</b> once a multi-use cell&apos;s last placed use passes, an empty slot on the

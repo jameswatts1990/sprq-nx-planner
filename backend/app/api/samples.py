@@ -79,7 +79,7 @@ def list_samples(
     elif sort_by == "barcode":
         all_matching.sort(key=lambda s: _first_barcode(s).lower(), reverse=reverse)
     elif sort_by == "priority":
-        all_matching.sort(key=_priority_rank, reverse=reverse)
+        all_matching.sort(key=lambda s: _priority_rank(s.priority), reverse=reverse)
     # "created_at" is already the base query order (desc); re-sort only if asc requested
     elif sort_dir == "asc":
         all_matching.reverse()

@@ -24,6 +24,12 @@
   --red-tint: #fce8ea;
   --amber: #c77700;
   --amber-tint: #fbf0de;
+  --tray-card-bg: #fafafb;
+  --tray-card-border: #e2e4ea;
+  --link: var(--purple);
+  --link-tint: #f3e8fb;
+  --link-glow: rgba(122, 31, 162, 0.32);
+  --link-dim-opacity: 0.4;
   --shadow: 0 1px 2px rgba(20, 20, 30, 0.05), 0 6px 20px rgba(20, 20, 30, 0.06);
   --shadow-sm: 0 1px 2px rgba(20, 20, 30, 0.06);
   --r: 14px;

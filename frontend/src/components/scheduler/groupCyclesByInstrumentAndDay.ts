@@ -32,6 +32,18 @@ export function groupCyclesByInstrumentAndDay(cycles: CycleOut[]): Map<string, M
 }
 
 /**
+ * Whether a grid cell is open for selection/placement: either no cycle exists yet, or one
+ * exists but has zero stages. The latter can happen when every stage of a run gets removed
+ * (normally the backend deletes the now-empty cycle too, but a concurrent bulk removal -
+ * "Remove from schedule" multi-select or "Clear schedule" - can race and leave a stage-less
+ * cycle behind). Such a cycle renders visually empty, so treat it as open rather than
+ * leaving the cell permanently stuck as unselectable.
+ */
+export function isCellOpen(cycle: CycleOut | undefined): boolean {
+  return cycle === undefined || cycle.stages.length === 0;
+}
+
+/**
  * Expands a cycle's sparse `stages` (only filled wells) into a fixed length-8 array
  * indexed by slot_index, with `null` for empty slots - the shape the two-tray grid cell
  * renders from.

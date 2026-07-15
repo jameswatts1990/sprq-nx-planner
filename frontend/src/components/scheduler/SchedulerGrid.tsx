@@ -1,3 +1,5 @@
+import type { KeyboardEvent } from "react";
+
 import type { CycleOut, StageOut } from "@/types/schedule";
 import {
   formatShortDateUTC,
@@ -6,10 +8,10 @@ import {
   shortWeekdayUTC,
 } from "@/utils/calendarDates";
 
-import { groupCyclesByInstrumentAndDay } from "./groupCyclesByInstrumentAndDay";
+import { groupCyclesByInstrumentAndDay, isCellOpen } from "./groupCyclesByInstrumentAndDay";
 import { SchedulerGridRow } from "./SchedulerGridRow";
 import styles from "./SchedulerGrid.module.css";
-import type { GridSelection } from "./useGridSelection";
+import type { Coord, GridSelection } from "./useGridSelection";
 import type { SlotSelection } from "./useSlotSelection";
 import type { CellGhost } from "./waitingCells";
 
@@ -27,11 +29,42 @@ export interface SchedulerGridProps {
   onOpenGhost: (ghost: CellGhost) => void;
 }
 
-function SchedulerDayHeader({ date }: { date: string }) {
+function SchedulerDayHeader({
+  date,
+  colIndex,
+  selectable,
+  onSelectColumn,
+}: {
+  date: string;
+  colIndex: number;
+  selectable: boolean;
+  onSelectColumn: (colIndex: number) => void;
+}) {
   const d = parseDateOnly(date);
   const weekend = isWeekendUTC(d);
+
+  function onKeyDown(e: KeyboardEvent<HTMLTableCellElement>) {
+    if (selectable && (e.key === "Enter" || e.key === " ")) {
+      e.preventDefault();
+      onSelectColumn(colIndex);
+    }
+  }
+
   return (
-    <th className={weekend ? `${styles.dayTh} ${styles.weekendTh}` : styles.dayTh}>
+    <th
+      className={
+        weekend
+          ? `${styles.dayTh} ${styles.weekendTh}`
+          : selectable
+            ? `${styles.dayTh} ${styles.headerSelectable}`
+            : styles.dayTh
+      }
+      onClick={selectable ? () => onSelectColumn(colIndex) : undefined}
+      onKeyDown={selectable ? onKeyDown : undefined}
+      role={selectable ? "button" : undefined}
+      tabIndex={selectable ? 0 : undefined}
+      title={selectable ? "Select all open instruments for this day" : undefined}
+    >
       <div className={styles.dn}>{shortWeekdayUTC(d)}</div>
       {!weekend && <div className={styles.dd}>{formatShortDateUTC(d)}</div>}
     </th>
@@ -54,6 +87,17 @@ export function SchedulerGrid({
 }: SchedulerGridProps) {
   const grouped = groupCyclesByInstrumentAndDay(cycles);
 
+  // Select every open (non-weekend, cycle-free) cell in a day's column, across all
+  // instruments - the header equivalent of shift-selecting a rectangle for a whole day.
+  function onSelectColumn(colIndex: number) {
+    const date = days[colIndex];
+    const coords: Coord[] = [];
+    instrumentSerials.forEach((serial, rowIndex) => {
+      if (isCellOpen(grouped.get(serial)?.get(date))) coords.push({ r: rowIndex, c: colIndex });
+    });
+    selection.selectMany(coords);
+  }
+
   return (
     <div className={styles.gridScroll}>
       <table className={styles.grid}>
@@ -62,8 +106,14 @@ export function SchedulerGrid({
             <th className={styles.corner}>
               <div className={styles.ml}>Instrument</div>
             </th>
-            {days.map((date) => (
-              <SchedulerDayHeader key={date} date={date} />
+            {days.map((date, colIndex) => (
+              <SchedulerDayHeader
+                key={date}
+                date={date}
+                colIndex={colIndex}
+                selectable={!isWeekendUTC(parseDateOnly(date))}
+                onSelectColumn={onSelectColumn}
+              />
             ))}
           </tr>
         </thead>

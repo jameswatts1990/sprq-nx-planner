@@ -172,6 +172,49 @@
   pointer-events: none;
 }
 
+/* Cross-time "same cell" hover/pin highlight (see useCellLinkHighlight.tsx). Border
+ * style/width carries the signal alongside colour (solid vs dashed, source vs peer) so it
+ * doesn't rely on hue alone. Left outside of .u1/.u2/.u3 - the Use-number tint stays put. */
+.linkSource {
+  border-style: solid;
+  border-width: 2px;
+  border-color: var(--link);
+  box-shadow: 0 0 0 3px var(--link-glow);
+}
+.linkPeer {
+  border-style: dashed;
+  border-width: 2px;
+  border-color: var(--link);
+}
+/* Selection's inset ring and the link's outer ring stack via multi-value box-shadow
+ * instead of one overwriting the other. */
+.selected.linkSource,
+.selected.linkPeer {
+  box-shadow:
+    inset 0 0 0 2px var(--magenta),
+    0 0 0 3px var(--link-glow);
+}
+.dimmed {
+  opacity: var(--link-dim-opacity);
+  filter: grayscale(0.35);
+}
+.linkBadgeSource,
+.linkBadgePeer {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  border: 1.5px solid var(--link);
+}
+.linkBadgeSource {
+  background: var(--link);
+}
+.linkBadgePeer {
+  background: transparent;
+}
+
 .placing {
   border-style: solid;
   border-color: var(--blue);

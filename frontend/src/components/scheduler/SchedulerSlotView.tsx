@@ -1,4 +1,4 @@
-import { forwardRef } from "react";
+import { forwardRef, memo } from "react";
 import type { CSSProperties, HTMLAttributes } from "react";
 
 import { BarcodeChips } from "@/components/shared/BarcodeChips";
@@ -7,6 +7,7 @@ import { formatShortDateUTC, parseDateOnly } from "@/utils/calendarDates";
 import { classForUseIndex } from "@/utils/useIndexClass";
 
 import styles from "./SchedulerSlotView.module.css";
+import { CELL_LINK_SLOT_ATTR } from "./useCellLinkHighlight";
 import type { CellGhost } from "./waitingCells";
 
 export interface SchedulerSlotViewProps extends HTMLAttributes<HTMLDivElement> {
@@ -32,6 +33,13 @@ export interface SchedulerSlotViewProps extends HTMLAttributes<HTMLDivElement> {
    * Use-N tinted placeholder instead of the plain "+" (see waitingCells.ts). Ignored when
    * `stage` is set. */
   ghost?: CellGhost;
+  /** This is the exact slot currently hovered/pinned for the cross-time same-cell link
+   * highlight (see useCellLinkHighlight.tsx). */
+  linkSource?: boolean;
+  /** A different slot sharing the same cell_id as the active hover/pin target. */
+  linked?: boolean;
+  /** A hover/pin target is active and this slot is neither the source nor a peer. */
+  dimmed?: boolean;
 }
 
 /**
@@ -40,10 +48,27 @@ export interface SchedulerSlotViewProps extends HTMLAttributes<HTMLDivElement> {
  * forwardRef + spread props let SchedulerSlot attach the droppable/draggable node ref
  * and listeners directly to this box.
  */
-export const SchedulerSlotView = forwardRef<HTMLDivElement, SchedulerSlotViewProps>(function SchedulerSlotView(
-  { stage, slotIndex, locked, placing, over, dragging, selected, ineligible, ghost, className, style, ...rest },
-  ref,
-) {
+export const SchedulerSlotView = memo(
+  forwardRef<HTMLDivElement, SchedulerSlotViewProps>(function SchedulerSlotView(
+    {
+      stage,
+      slotIndex,
+      locked,
+      placing,
+      over,
+      dragging,
+      selected,
+      ineligible,
+      ghost,
+      linkSource,
+      linked,
+      dimmed,
+      className,
+      style,
+      ...rest
+    },
+    ref,
+  ) {
   // While this filled slot is being dragged, treat it as unplaced for rendering purposes -
   // it reads as an empty/ghost placeholder, same as it will actually be if the drag ends
   // outside a valid drop target (see useSchedulerDnd's onDragEnd).
@@ -71,6 +96,9 @@ export const SchedulerSlotView = forwardRef<HTMLDivElement, SchedulerSlotViewPro
   if (dragging) classes.push(styles.dragging);
   if (selected) classes.push(styles.selected);
   if (ineligible) classes.push(styles.ineligible);
+  if (linkSource) classes.push(styles.linkSource);
+  else if (linked) classes.push(styles.linkPeer);
+  if (dimmed) classes.push(styles.dimmed);
   if (className) classes.push(className);
 
   // Fade intensity only applies to the calm (non-cutoff) ghost look - the cutoff variant
@@ -79,7 +107,13 @@ export const SchedulerSlotView = forwardRef<HTMLDivElement, SchedulerSlotViewPro
     ghost && !ghost.isHardCutoff ? { ...style, ["--ghost-opacity" as string]: ghost.fadeOpacity } : style;
 
   return (
-    <div ref={ref} className={classes.join(" ")} style={mergedStyle} {...rest}>
+    <div
+      ref={ref}
+      className={classes.join(" ")}
+      style={mergedStyle}
+      {...(showStage ? { [CELL_LINK_SLOT_ATTR]: "" } : {})}
+      {...rest}
+    >
       {showStage ? (
         <>
           <div className={styles.ext} title={stage!.sample_external_id ?? stage!.cell_ref}>
@@ -87,6 +121,12 @@ export const SchedulerSlotView = forwardRef<HTMLDivElement, SchedulerSlotViewPro
           </div>
           <div className={styles.cellref}>{stage!.cell_ref}</div>
           <BarcodeChips barcodes={stage!.barcodes} variant={useClass} />
+          {(linkSource || linked) && (
+            <span
+              className={linkSource ? styles.linkBadgeSource : styles.linkBadgePeer}
+              aria-hidden="true"
+            />
+          )}
         </>
       ) : ghost ? (
         <>
@@ -105,4 +145,5 @@ export const SchedulerSlotView = forwardRef<HTMLDivElement, SchedulerSlotViewPro
       {showStage && placing && <div className={styles.shimmer}>placing…</div>}
     </div>
   );
-});
+  }),
+);

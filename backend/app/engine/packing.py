@@ -1,17 +1,9 @@
-"""Direct port of targetDepthFor / disjoint / packCells from revio-nx-planner.html (lines 431-466)."""
+"""Cell-reuse packing, ported from revio-nx-planner.html's packCells (lines 431-466)."""
 from __future__ import annotations
 
 from app.engine.constants import CELL_MAX_USES
 from app.engine.csv_parse import split_barcodes
 from app.engine.types import ConflictPair, PackedCell, PackResult, ParsedSample, PriorCellInput
-
-
-def target_depth_for(objective: str, max_uses: int) -> int:
-    if objective == "fastest":
-        return 1
-    if objective == "balance":
-        return min(max_uses, 2)
-    return max_uses
 
 
 def disjoint(set_a: set[str], arr_b: list[str]) -> bool:
@@ -23,11 +15,24 @@ def pack_cells(
     max_uses: int,
     objective: str,
     prior_cells: list[PriorCellInput] | None = None,
+    available_days: int | None = None,
 ) -> PackResult:
     """`max_uses` is this batch's target packing depth for newly-created cells (how many
-    uses to plan onto a fresh cell before opening another one), not a per-cell physical
-    cap - every cell's real capacity is always CELL_MAX_USES. See target_depth_for()."""
-    target = target_depth_for(objective, max_uses)
+    uses to plan onto a fresh cell before opening another one) - the user's explicit
+    choice, always honored in full. It is not a per-cell physical cap - every cell's real
+    capacity is always CELL_MAX_USES.
+
+    `available_days`, when given, additionally caps that depth to the number of distinct
+    calendar dates actually on offer in this batch: a cell can only be reused once per
+    calendar day (see fill_slots' strictly-later-date rule), so planning a chain deeper
+    than that can never actually be placed - it would just strand samples as unplaced
+    rather than spreading them across more fresh cells that could have been placed today.
+
+    `objective` only breaks ties between reuse candidates that are otherwise equally
+    eligible: "fastest" prefers the least-used fresh cell (spreads samples across more
+    cells so more can start sooner); "fewest"/"balance" prefer the most-used fresh cell
+    (deepens existing cells first, for fewer distinct cells)."""
+    cap = max_uses if available_days is None else min(max_uses, available_days)
 
     deg: dict[str, int] = {s.key: 0 for s in samples}
     for i in range(len(samples)):
@@ -65,13 +70,12 @@ def pack_cells(
 
     unplaced: list[ParsedSample] = []
     for s in ordered:
-        cap = min(target, max_uses)
         cands = [
             c
             for c in cells
             if (len(c.uses) < c.remaining if c.prior else len(c.uses) < cap) and disjoint(c.barcodes, s.barcodes)
         ]
-        cands.sort(key=lambda c: (0 if c.prior else 1, -len(c.uses)))
+        cands.sort(key=lambda c: (0 if c.prior else 1, len(c.uses) if objective == "fastest" else -len(c.uses)))
 
         if cands:
             c = cands[0]
