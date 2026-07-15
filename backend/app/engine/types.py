@@ -96,53 +96,9 @@ class PackResult:
 
 
 @dataclass
-class Stage:
-    cell: PackedCell
-    sample: ParsedSample
-    well: str
-    stage_no: int
-
-
-@dataclass
-class Cycle:
-    machine_idx: int
-    machine: str
-    batch_idx: int
-    use_idx: int
-    start_h: float
-    end_h: float
-    stages: list[Stage]
-    day_idx: int = 0
-    time_of_day: float = 0.0
-    end_day_idx: int = 0
-
-
-@dataclass
 class WindowFlag:
     cell: str
     span: float
-
-
-@dataclass
-class ScheduleResult:
-    cycles: list[Cycle]
-    window_flags: list[WindowFlag]
-    max_day: int
-    duration_days: int
-
-
-@dataclass
-class KPIResult:
-    total_acq: int
-    fresh_cells: int
-    prior_cells: int
-    trays: int
-    nx_cost: float
-    single_cost: float
-    savings: float
-    savings_pct: int
-    duration_days: int
-    machines: int
 
 
 # --- slot-scoped scheduling (interactive grid: auto-fill of empty (instrument, day) cells) ---

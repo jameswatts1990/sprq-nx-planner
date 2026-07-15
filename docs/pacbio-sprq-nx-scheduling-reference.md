@@ -11,7 +11,7 @@ Page numbers below refer to that source deck.
 | Acquisition (one load-and-sequence event) | `CellUse` | one sample, one cell, one well, one run — `models/schedule.py` |
 | Multi-use SMRT Cell | `Cell` | `code`, `max_uses`, `status`, `first_use_started_at`, `window_breached` — `models/cell.py` |
 | "Use 1 / 2 / 3" | consumed `CellUse` rows for a `Cell` | derived live in `derive_cell_state()`, never hand-entered — `services/cell_service.py` |
-| SMRT Cell tray (4 cells) | not a modeled entity | `KPIResult.trays` = `ceil(fresh_cells / 4)` is just a cost-grouping metric |
+| SMRT Cell tray (4 cells) | not a modeled entity | no cost/KPI-grouping code exists today — the original `engine/kpis.py` port from `revio-nx-planner.html` was removed as dead code (never wired to any router/service); see the "Numbers" section below if reintroducing it |
 | One instrument, one calendar day | `RunBatch` | unique on `(instrument_id, run_date)` |
 | A run's timing/status, up to 4 wells | `Cycle` (DB model, `models/schedule.py`) | 1:1 with `RunBatch`. Don't confuse with `engine/types.py`'s internal `Cycle` dataclass — that's a private, never-persisted scheduling-batch type from the porting of `revio-nx-planner.html` |
 | Expired cell, auto-discarded, unusable | `Cell.status == "window_expired"` | sticky once flagged |
@@ -33,15 +33,15 @@ Page numbers below refer to that source deck.
 
 - **Barcode carryover between uses is real, just small.** PacBio quantifies it: "Revio SPRQ-Nx use-to-use barcode carryover level is typically <0.1%" (p.19 footnote) — non-zero, which is exactly why this app's burned-barcode conflict guard exists. `place_sample()` rejects reusing a cell if the new sample shares an already-burned barcode (`services/placement_service.py:129-130`), covered by `test_place_sample_rejects_barcode_conflict_on_existing_cell` (`tests/integration/test_placement_api.py:80`), `test_cell_with_remaining_capacity_is_reused_across_days_and_burned_barcodes_respected` (`tests/integration/test_cell_reuse_across_placements.py:39`), and `test_pack_excludes_prior_cell_when_sample_shares_a_burned_barcode` (`tests/unit/test_packing.py:52`). This is a stricter, zero-tolerance rule than PacBio's own instrument (which tolerates the <0.1% and demultiplexes anyway) — a deliberate safety margin, not a bug; don't loosen it without weighing that tradeoff explicitly.
 
-- **Later uses of a cell tend to yield less.** PacBio's own HG002 WGS data across 3 uses of the same cell (p.35) shows Use 3 consistently lower than Use 1/2 (e.g. 143.9 / 144.2 / 119.9 Gb; 147.0 / 148.6 / 124.7 Gb; 148.9 / 154.5 / 136.7 Gb), attributed to lower P1 loading efficiency on later uses — an expected pattern, not an anomaly (footnote, pp.35-36). This app doesn't model per-use yield/coverage at all today (`engine/kpis.py` only does cost). If yield estimation is ever added, don't assume flat output across Uses 1-3 of a cell.
+- **Later uses of a cell tend to yield less.** PacBio's own HG002 WGS data across 3 uses of the same cell (p.35) shows Use 3 consistently lower than Use 1/2 (e.g. 143.9 / 144.2 / 119.9 Gb; 147.0 / 148.6 / 124.7 Gb; 148.9 / 154.5 / 136.7 Gb), attributed to lower P1 loading efficiency on later uses — an expected pattern, not an anomaly (footnote, pp.35-36). This app doesn't model per-use yield/coverage at all today (the removed `engine/kpis.py` only ever did cost). If yield estimation is ever added, don't assume flat output across Uses 1-3 of a cell.
 
 - **Sub-5kb amplicon libraries shouldn't go on multi-use cells.** PacBio: "For amplicon libraries <5 kb, using Revio SPRQ sequencing plate with multi-use Revio SMRT Cells may result in reduced P1/.HiFi yield performance for Use 2 and/or Use 3" (p.14) — the recommended path for those is single-use cells instead. `ParsedSample` carries `oplc`/volume but has no insert-size- or library-type-aware validation today — if insert size ever gets captured, this is a concrete rule to enforce (hard block or at least a scheduling warning), not something to infer later from yield data.
 
-## Numbers that trace back to this class of document
+## Numbers that trace back to this class of document (cost/KPI code removed — kept here for provenance)
 
-`engine/constants.py` defines `COST_BY_DEPTH = {1: 1480, 2: 888, 3: 690}` and `SINGLE_USE_PER_ACQ = 995`. These match PacBio's own "cost per acquisition" chart for SPRQ-Nx vs. single-use SPRQ almost exactly (p.12: Nx costs $1,480 / $888 / $690 at 1/2/3 uses, against a flat single-use reference of $995; ≈30% savings and ≈$345/genome at 3 uses pooling 2 genomes/acquisition). The constants file's own comment says the numbers were "ported verbatim from revio-nx-planner.html" (the original prototype), not transcribed from this PDF directly — but the match confirms it's the same underlying PacBio economics data.
+The original `engine/kpis.py` / `engine/scheduling.py` port from `revio-nx-planner.html` (and the `CELLS_PER_TRAY`, `COST_BY_DEPTH = {1: 1480, 2: 888, 3: 690}`, `SINGLE_USE_PER_ACQ = 995` constants it depended on) was removed as dead code: never called by any router or service, exercised only by its own now-deleted unit tests. These numbers matched PacBio's own "cost per acquisition" chart for SPRQ-Nx vs. single-use SPRQ almost exactly (p.12: Nx costs $1,480 / $888 / $690 at 1/2/3 uses, against a flat single-use reference of $995; ≈30% savings and ≈$345/genome at 3 uses pooling 2 genomes/acquisition) — the prototype's numbers were themselves sourced from this PacBio economics data, not made up.
 
-**When PacBio revises SPRQ-Nx pricing or ships a newer version of this deck, re-check this table before touching `COST_BY_DEPTH` / `SINGLE_USE_PER_ACQ`.**
+**If cost/KPI computation is ever reintroduced, re-check this table against current PacBio pricing before reusing `COST_BY_DEPTH` / `SINGLE_USE_PER_ACQ` verbatim** — they were last verified against the deck version this doc was written from, not a fresh source.
 
 ## Cadence / batching details consistent with current design
 
@@ -75,5 +75,5 @@ Part 2 of the source deck covers SMRT Link v26.1 *software* itself — 21 CFR Pa
 
 Re-read the source PDF and revisit this file whenever:
 - PacBio ships a new Revio/SPRQ chemistry or ICS/SMRT Link version that changes cell counts, the 108h window, cost-per-use, or reuse mechanics.
-- Someone touches `engine/constants.py`, `services/cell_service.py::recompute_status`, the reuse ordering in `engine/packing.py` / `engine/slot_scheduling.py`, or the cost/KPI tables in `engine/kpis.py`.
+- Someone touches `engine/constants.py`, `services/cell_service.py::recompute_status`, or the reuse ordering in `engine/packing.py` / `engine/slot_scheduling.py`.
 - Someone adds insert-size, library-type, or yield/coverage modeling to `ParsedSample` or the scheduling engine.

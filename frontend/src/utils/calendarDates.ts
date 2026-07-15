@@ -55,13 +55,6 @@ export function formatShortDateUTC(date: Date): string {
   return date.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
 }
 
-/** Formats a fractional hour-of-day (e.g. 13.5) as HH:MM. */
-export function formatTimeOfDay(hours: number): string {
-  const hh = Math.floor(hours);
-  const mm = Math.round((hours - hh) * 60);
-  return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
-}
-
 /** Formats an ISO datetime as "HH:MM, D Mon" (UTC) - used for lock_until displays. */
 export function formatShortDateTimeUTC(isoDateTime: string): string {
   const d = new Date(isoDateTime);
