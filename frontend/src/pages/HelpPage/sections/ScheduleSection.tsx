@@ -133,12 +133,14 @@ export function ScheduleSection() {
         barcode chip belongs to — see the Colour &amp; Status Legend section.
       </p>
       <p>
-        <b>Highlighting the same cell over time:</b> hovering a loaded slot highlights every other slot elsewhere in
-        the schedule that holds the <i>same physical cell</i> (its other uses, wherever they land on the calendar),
-        and softens everything else — useful for tracing one cell&apos;s reuse across days without having to read
-        every cell code. <b>Shift-click</b> a slot (or press <b>Shift+Enter</b> while it&apos;s focused) to pin the
-        highlight so it stays put while you move the mouse elsewhere; press <b>Escape</b> or click anywhere outside
-        a loaded slot to clear it. The highlight is suspended while dragging a sample.
+        <b>Highlighting the same cell over time:</b> resting the pointer on a loaded slot for about a second and a
+        half highlights every other slot elsewhere in the schedule that holds the <i>same physical cell</i> (its
+        other uses, wherever they land on the calendar), and softens everything else — useful for tracing one
+        cell&apos;s reuse across days without having to read every cell code. Moving on before then cancels it, so
+        just scanning across the grid doesn&apos;t flash highlights. <b>Shift-click</b> a slot (or press{" "}
+        <b>Shift+Enter</b> while it&apos;s focused) to pin the highlight immediately, with no wait, so it stays put
+        while you move the mouse elsewhere; press <b>Escape</b> or click anywhere outside a loaded slot to clear it.
+        The highlight is suspended while dragging a sample.
       </p>
       <p>
         <b>Waiting-cell ghosts:</b> once a multi-use cell&apos;s last placed use passes, an empty slot on the

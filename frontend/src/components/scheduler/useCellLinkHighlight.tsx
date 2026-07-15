@@ -1,6 +1,10 @@
-import { createContext, useCallback, useEffect, useState } from "react";
+import { createContext, useCallback, useEffect, useRef, useState } from "react";
 
 import type { CellLinkTarget } from "./cellLinkState";
+
+/** How long the pointer must rest on a slot before the hover preview appears - long enough
+ * that briefly passing over slots while scanning the grid doesn't flash the highlight. */
+const HOVER_DELAY_MS = 1500;
 
 export interface CellLinkContextValue {
   /** The hover/pin target currently in effect, or null. A pin wins over a stale hover so
@@ -34,12 +38,14 @@ function sameTarget(a: CellLinkTarget | null, b: CellLinkTarget): boolean {
 
 /**
  * Owns hover/pin state for the cross-time "same cell" highlight (see cellLinkState.ts).
- * Hovering a filled slot previews the link; Shift+click "pins" it so the user can move the
- * mouse elsewhere without losing the highlight, cleared by Escape or by clicking anywhere
- * that isn't a participating slot. Clicking a *different* slot re-targets or toggles the
- * pin via togglePin instead, so the outside-click check only has to catch genuinely
- * unrelated clicks (see CELL_LINK_SLOT_ATTR) - this sidesteps any ordering ambiguity
- * between the click that sets a pin and a naively-attached "outside click" listener.
+ * Resting the pointer on a filled slot for HOVER_DELAY_MS previews the link (moving on
+ * before then cancels it, so scanning across the grid doesn't flash highlights); Shift+
+ * click "pins" it immediately, with no delay, so the user can move the mouse elsewhere
+ * without losing the highlight, cleared by Escape or by clicking anywhere that isn't a
+ * participating slot. Clicking a *different* slot re-targets or toggles the pin via
+ * togglePin instead, so the outside-click check only has to catch genuinely unrelated
+ * clicks (see CELL_LINK_SLOT_ATTR) - this sidesteps any ordering ambiguity between the
+ * click that sets a pin and a naively-attached "outside click" listener.
  *
  * Entirely suppressed while `suppressed` is true (wired to drag-in-progress in
  * SchedulePage) so it never fights the drag/drop visuals.
@@ -47,14 +53,39 @@ function sameTarget(a: CellLinkTarget | null, b: CellLinkTarget): boolean {
 export function useCellLinkHighlight(suppressed: boolean): CellLinkContextValue {
   const [hovered, setHovered] = useState<CellLinkTarget | null>(null);
   const [pinned, setPinned] = useState<CellLinkTarget | null>(null);
+  const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const cancelHoverTimeout = useCallback(() => {
+    if (hoverTimeoutRef.current !== null) {
+      clearTimeout(hoverTimeoutRef.current);
+      hoverTimeoutRef.current = null;
+    }
+  }, []);
+  // Cancel any pending hover timeout on unmount, and drop an in-progress hover the moment
+  // a drag starts (rather than letting a timeout scheduled just before it fires anyway).
+  useEffect(() => {
+    if (suppressed) {
+      cancelHoverTimeout();
+      setHovered(null);
+    }
+    return cancelHoverTimeout;
+  }, [suppressed, cancelHoverTimeout]);
 
   const setHover = useCallback(
     (target: CellLinkTarget) => {
-      if (!suppressed) setHovered(target);
+      cancelHoverTimeout();
+      if (suppressed) return;
+      hoverTimeoutRef.current = setTimeout(() => {
+        hoverTimeoutRef.current = null;
+        setHovered(target);
+      }, HOVER_DELAY_MS);
     },
-    [suppressed],
+    [suppressed, cancelHoverTimeout],
   );
-  const clearHover = useCallback(() => setHovered(null), []);
+  const clearHover = useCallback(() => {
+    cancelHoverTimeout();
+    setHovered(null);
+  }, [cancelHoverTimeout]);
   const togglePin = useCallback(
     (target: CellLinkTarget) => {
       if (suppressed) return;

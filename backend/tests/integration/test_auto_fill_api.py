@@ -5,6 +5,7 @@ from datetime import date, timedelta
 
 SIX_DISJOINT = "sample,barcodes\n" + "\n".join(f"X{i},bcx{i}" for i in range(1, 7))
 TEN_DISJOINT = "sample,barcodes\n" + "\n".join(f"Y{i},bcy{i}" for i in range(1, 11))
+TWENTY_FOUR_DISJOINT = "sample,barcodes\n" + "\n".join(f"Z{i},bcz{i}" for i in range(1, 25))
 
 
 def _next_monday_tuesday() -> tuple[str, str]:
@@ -12,6 +13,13 @@ def _next_monday_tuesday() -> tuple[str, str]:
     while d.weekday() != 0:
         d += timedelta(days=1)
     return d.isoformat(), (d + timedelta(days=1)).isoformat()
+
+
+def _next_working_week() -> list[str]:
+    d = date.today()
+    while d.weekday() != 0:
+        d += timedelta(days=1)
+    return [(d + timedelta(days=i)).isoformat() for i in range(5)]
 
 
 def _weekdays(n: int) -> list[str]:
@@ -106,10 +114,11 @@ def test_auto_fill_skips_already_occupied_cell(client):
 
 def test_auto_fill_skips_day_locked_by_its_own_earlier_run(client):
     """A full 8-well run (both trays loaded) locks the instrument for the whole movie
-    plus a settle buffer, which can span into the next calendar day. If auto-fill's own
-    overflow lands on that next day for the same instrument, it should skip just that
-    day (like an already-locked day) instead of raising and rolling back the whole
-    batch's other placements."""
+    plus a settle buffer, which can span into the next calendar day. The engine itself
+    is lock-aware (see fill_slots' instrument_open_from tracking) and simply never
+    proposes an assignment on a day it knows will be locked - so the 2 overflow samples
+    (no reuse possible: max_uses=1) come back unplaced without ever touching Tuesday,
+    rather than being planned there and rejected at persist time."""
     client.post("/api/imports", json={"raw_text": TEN_DISJOINT})
     mon, tue = _next_monday_tuesday()
 
@@ -125,16 +134,44 @@ def test_auto_fill_skips_day_locked_by_its_own_earlier_run(client):
     body = resp.json()
 
     # Monday's 8 wells (both trays) fill first, loading tray 2 => locked well past
-    # Tuesday's own noon start. The 2 overflow samples' Tuesday slot is skipped instead
-    # of the whole request erroring out.
+    # Tuesday's own noon start, so the engine skips offering Tuesday at all.
     assert len(body["placed_sample_ids"]) == 8
     assert len(body["unplaced_sample_ids"]) == 2
-    assert body["skipped_cells"] == [{"instrument_serial": "84047", "run_date": tue}]
+    assert body["skipped_cells"] == []
     assert len(body["runs"]) == 1
     assert body["runs"][0]["run_date"] == mon
 
     # Monday's run persisted despite Tuesday's conflict.
     assert client.get("/api/samples", params={"status": "scheduled"}).json()["total"] == 8
+
+
+def test_auto_fill_reuses_cells_a_third_time_skipping_locked_days(client):
+    """Reproduces a reported bug: a full working week offered for one instrument, with
+    max_uses=3, should pack 24 disjoint samples onto 8 cells (3 uses each) and schedule
+    them on Monday/Wednesday/Friday only - each full 8-well run locks the instrument
+    past the immediately following day (see instrument_lock.cycle_lock_until), so
+    Tuesday and Thursday are never actually usable. Before fill_slots became
+    lock-aware, it planned reuse into Monday/Tuesday/Wednesday instead (ignorant of the
+    lock); Tuesday's assignments were then silently rejected at persist time, so every
+    cell's third use was effectively unreachable."""
+    client.post("/api/imports", json={"raw_text": TWENTY_FOUR_DISJOINT})
+    mon, _tue, wed, _thu, fri = _next_working_week()
+
+    resp = _auto_fill(
+        client,
+        [{"instrument_serial": "84047", "run_date": d} for d in _next_working_week()],
+        objective="fewest",
+        max_uses=3,
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+
+    assert len(body["placed_sample_ids"]) == 24
+    assert len(body["unplaced_sample_ids"]) == 0
+    assert body["skipped_cells"] == []
+    assert sorted(r["run_date"] for r in body["runs"]) == [mon, wed, fri]
+    for run in body["runs"]:
+        assert len(run["stages"]) == 8
 
 
 def test_auto_fill_rejects_weekend_cell(client):
