@@ -6,6 +6,12 @@ from datetime import date, timedelta
 SIX_DISJOINT = "sample,barcodes\n" + "\n".join(f"X{i},bcx{i}" for i in range(1, 7))
 TEN_DISJOINT = "sample,barcodes\n" + "\n".join(f"Y{i},bcy{i}" for i in range(1, 11))
 TWENTY_FOUR_DISJOINT = "sample,barcodes\n" + "\n".join(f"Z{i},bcz{i}" for i in range(1, 25))
+# 8 standard-priority samples entered first, then 1 high-priority sample entered last -
+# the pre-priority engine sorted by external id, so W9 (high priority but alphabetically
+# last) would have lost out to W1..W8 for the single day's 8 wells.
+NINE_WITH_ONE_HIGH_PRIORITY = "sample,barcodes,priority\n" + "\n".join(
+    f"W{i},bcw{i},Standard (3)" for i in range(1, 9)
+) + "\nW9,bcw9,High (1)"
 
 
 def _next_monday_tuesday() -> tuple[str, str]:
@@ -172,6 +178,68 @@ def test_auto_fill_reuses_cells_a_third_time_skipping_locked_days(client):
     assert sorted(r["run_date"] for r in body["runs"]) == [mon, wed, fri]
     for run in body["runs"]:
         assert len(run["stages"]) == 8
+
+
+def test_auto_fill_keeps_a_reused_cell_on_one_instrument_when_multiple_are_offered(client):
+    """Reproduces a reported bug: the user ctrl-clicked every day for every instrument
+    (mirrors offering a full working week across TWO instruments here) and pressed Auto
+    Schedule; a single physical cell's Use 1/2/3 came back on three different
+    instruments. 24 disjoint samples at max_uses=3 pack onto 8 cells needing 3 uses
+    each; instrument 84047 alone has enough Mon/Wed/Fri capacity to hold all of them
+    (see test_auto_fill_reuses_cells_a_third_time_skipping_locked_days) - offering
+    84098 too must never tempt a cell into using it mid-lifecycle, and each cell's Use
+    1/2/3 labels must land in true chronological order."""
+    client.post("/api/imports", json={"raw_text": TWENTY_FOUR_DISJOINT})
+    week = _next_working_week()
+
+    resp = _auto_fill(
+        client,
+        [{"instrument_serial": serial, "run_date": d} for serial in ("84047", "84098") for d in week],
+        objective="fewest",
+        max_uses=3,
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+
+    assert len(body["placed_sample_ids"]) == 24
+    assert len(body["unplaced_sample_ids"]) == 0
+    assert body["skipped_cells"] == []
+
+    # Every cell's stages, across every run in the response, must resolve to exactly
+    # one instrument - never split across two - and its Use 1/2/3 labels must land in
+    # true chronological (run_date) order.
+    instruments_by_cell: dict[str, set[str]] = {}
+    dates_by_use_number: dict[str, dict[int, str]] = {}
+    for run in body["runs"]:
+        for stage in run["stages"]:
+            instruments_by_cell.setdefault(stage["cell_ref"], set()).add(run["instrument_serial"])
+            dates_by_use_number.setdefault(stage["cell_ref"], {})[stage["use_number"]] = run["run_date"]
+
+    assert len(instruments_by_cell) == 8  # 8 cells, 3 uses each = 24 samples
+    for cell_ref, instruments in instruments_by_cell.items():
+        assert instruments == {"84047"}, f"{cell_ref} spans instruments {instruments}"
+    for cell_ref, by_use in dates_by_use_number.items():
+        assert by_use[1] < by_use[2] < by_use[3], f"{cell_ref} use dates out of order: {by_use}"
+
+
+def test_auto_fill_prioritizes_higher_priority_sample_over_wells_scarcity(client):
+    """Reproduces a reported gap: auto-schedule should prioritize higher-priority
+    samples when capacity is scarce. W9 is High priority but was imported last (and
+    would sort last alphabetically too) - with only 8 wells on offer for 9 disjoint
+    samples, it must still be the one that gets placed, bumping a Standard-priority
+    sample to unplaced instead."""
+    client.post("/api/imports", json={"raw_text": NINE_WITH_ONE_HIGH_PRIORITY})
+    (mon,) = _weekdays(1)
+
+    resp = _auto_fill(client, [{"instrument_serial": "84047", "run_date": mon}], max_uses=1)
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+
+    assert len(body["placed_sample_ids"]) == 8
+    assert len(body["unplaced_sample_ids"]) == 1
+
+    w9_id = _sid(client, "W9")
+    assert w9_id in body["placed_sample_ids"]
 
 
 def test_auto_fill_rejects_weekend_cell(client):

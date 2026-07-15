@@ -1,4 +1,4 @@
-import type { KeyboardEvent } from "react";
+import type { KeyboardEvent, MouseEvent } from "react";
 
 import type { CycleOut, StageOut } from "@/types/schedule";
 import { isWeekendUTC, parseDateOnly } from "@/utils/calendarDates";
@@ -45,14 +45,22 @@ export function SchedulerGridRow({
     if (!weekend && isCellOpen(cyclesByDate.get(date))) selectableCols.push(colIndex);
   });
 
-  function onRowHeaderSelect() {
+  // Ctrl/cmd-click unions this instrument's row into the existing selection instead of
+  // replacing it, so several instruments can be built up one header-click at a time.
+  function onRowHeaderSelect(ctrl: boolean) {
     if (selectableCols.length === 0) return;
-    selection.selectMany(selectableCols.map((c) => ({ r: rowIndex, c })));
+    selection.selectMany(
+      selectableCols.map((c) => ({ r: rowIndex, c })),
+      ctrl,
+    );
+  }
+  function onRowHeaderClick(e: MouseEvent<HTMLTableCellElement>) {
+    onRowHeaderSelect(e.ctrlKey || e.metaKey);
   }
   function onRowHeaderKeyDown(e: KeyboardEvent<HTMLTableCellElement>) {
     if (selectableCols.length > 0 && (e.key === "Enter" || e.key === " ")) {
       e.preventDefault();
-      onRowHeaderSelect();
+      onRowHeaderSelect(e.ctrlKey || e.metaKey);
     }
   }
 
@@ -60,11 +68,15 @@ export function SchedulerGridRow({
     <tr>
       <th
         className={selectableCols.length > 0 ? `${styles.machTh} ${styles.headerSelectable}` : styles.machTh}
-        onClick={selectableCols.length > 0 ? onRowHeaderSelect : undefined}
+        onClick={selectableCols.length > 0 ? onRowHeaderClick : undefined}
         onKeyDown={selectableCols.length > 0 ? onRowHeaderKeyDown : undefined}
         role={selectableCols.length > 0 ? "button" : undefined}
         tabIndex={selectableCols.length > 0 ? 0 : undefined}
-        title={selectableCols.length > 0 ? "Select all open days this week for this instrument" : undefined}
+        title={
+          selectableCols.length > 0
+            ? "Select all open days this week for this instrument (Ctrl/Cmd-click to add to the current selection)"
+            : undefined
+        }
       >
         <div className={styles.ml}>Revio</div>
         <div className={styles.mid}>{serial}</div>

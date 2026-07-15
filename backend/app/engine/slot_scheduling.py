@@ -84,6 +84,16 @@ def fill_slots(cells: list[PackedCell], slots: list[SlotInput], run_time_hours: 
             )
             touched[slot] = slot
             next_idx[cell.id] = idx + 1
+            # A cell with no prior use is free to land its first use on any offered
+            # instrument, but is then pinned there for the rest of this same batch -
+            # otherwise its 2nd/3rd use could land on a different instrument later in
+            # this same call, since pinned_instrument_serial otherwise only reflects
+            # cells that already had a real DB use *before* this call (see
+            # engine_bridge.load_prior_cells). Without this, a fresh cell's uses could
+            # scatter across every offered instrument (see docs/pacbio-sprq-nx-scheduling-
+            # reference.md's "a cell can never move between instruments" invariant).
+            if cell.pinned_instrument_serial is None:
+                cell.pinned_instrument_serial = slot.instrument_serial
             if first_placed_date[cell.id] is None:
                 first_placed_date[cell.id] = slot.run_date
             last_placed_date[cell.id] = slot.run_date

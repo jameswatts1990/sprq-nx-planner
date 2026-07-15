@@ -49,9 +49,18 @@ export function ScheduleSection() {
           from the backlog using your Run design settings. Click an instrument&apos;s row header to select every
           open day that week for that instrument, or a day&apos;s column header to select every open instrument on
           that day — handy for scheduling a whole week for one machine, or one day across all machines, in a single
-          click. Clicking the same header again clears that selection.
+          click. Clicking the same header again clears that selection. <b>Ctrl/Cmd-click</b> a row or column header
+          to add it to whatever&apos;s already selected instead of replacing it — build up several days and/or
+          several instruments together this way. The <b>Instrument</b> header in the grid&apos;s top-left corner
+          selects every open cell across every instrument and day in the current view in one click.
         </li>
       </ol>
+      <p>
+        <b>Which backlog samples get picked first:</b> when auto-fill has more backlog samples than it has room
+        for, it always fills higher-<b>Priority</b> samples first (the same rank shown on the Backlog tab&apos;s
+        Priority badge — e.g. High before Standard). Among samples with the same priority, the one that&apos;s been
+        sitting in the backlog longest goes first. Only after that does it consider what packs most efficiently.
+      </p>
       <p>
         <b>The placement picker</b> appears after a drop only when there&apos;s an actual decision to make. When you
         drop a backlog sample onto an empty slot with more than one compatible open cell on that instrument, it
@@ -109,10 +118,6 @@ export function ScheduleSection() {
         <b>Run status on each day cell:</b>
       </p>
       <ul>
-        <li>
-          A small pulsing dot means the instrument is actively sequencing that run right now (hover text:
-          &quot;Instrument is actively sequencing this run&quot;).
-        </li>
         <li>
           <b>Confirm loaded</b> appears once a day has at least one sample; press it when the cells are physically
           loaded on the instrument. This locks the run (marks it running/LOADED) so it can no longer be edited by

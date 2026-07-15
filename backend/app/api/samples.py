@@ -1,4 +1,3 @@
-import re
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -6,6 +5,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import selectinload
 
 from app.api.deps import ActorDep, SessionDep, pagination
+from app.engine.packing import priority_rank
 from app.models.audit import AuditLog
 from app.models.sample import SAMPLE_STATUSES, Sample, SampleBarcode
 from app.schemas.common import Page
@@ -15,17 +15,6 @@ from app.serializers import sample_detail_out, sample_out
 router = APIRouter(prefix="/api/samples", tags=["samples"])
 
 SORTABLE_FIELDS = ("created_at", "external_id", "barcode", "priority")
-
-_PRIORITY_RANK_RE = re.compile(r"\((\d+)\)\s*$")
-
-
-def _priority_rank(priority: str | None) -> int:
-    """Lower is higher-priority. Extracts the trailing "(N)" from labels like
-    "High (1)"/"Standard (3)"; unlabelled priorities sort after all ranked ones."""
-    if not priority:
-        return 999
-    m = _PRIORITY_RANK_RE.search(priority)
-    return int(m.group(1)) if m else 999
 
 
 def _first_barcode(sample: Sample) -> str:
@@ -79,7 +68,7 @@ def list_samples(
     elif sort_by == "barcode":
         all_matching.sort(key=lambda s: _first_barcode(s).lower(), reverse=reverse)
     elif sort_by == "priority":
-        all_matching.sort(key=lambda s: _priority_rank(s.priority), reverse=reverse)
+        all_matching.sort(key=lambda s: priority_rank(s.priority), reverse=reverse)
     # "created_at" is already the base query order (desc); re-sort only if asc requested
     elif sort_dir == "asc":
         all_matching.reverse()
@@ -96,7 +85,7 @@ def list_priorities(db: SessionDep) -> list[str]:
     filter dropdown built from this lines up with the Backlog's own priority ordering.
     Registered above /{sample_id} so this literal path isn't shadowed by that int route."""
     values = db.scalars(select(Sample.priority).distinct().where(Sample.priority.isnot(None))).all()
-    return sorted(values, key=_priority_rank)
+    return sorted(values, key=priority_rank)
 
 
 @router.get("/{sample_id}", response_model=SampleDetailOut)

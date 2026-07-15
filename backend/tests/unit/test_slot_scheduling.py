@@ -89,3 +89,47 @@ def test_fill_slots_unpinned_cell_can_use_any_offered_instrument():
 
     assert len(result.assignments) == 1
     assert result.assignments[0].instrument_serial == "84098"
+
+
+def test_fill_slots_pins_a_fresh_cell_to_its_first_assigned_instrument():
+    """Regression test for a real reported bug: a brand-new cell (no prior use, so
+    pinned=None) needing 3 uses, offered slots on 3 different instruments across 3
+    different days. Before the fix, pinned_instrument_serial was never set once a fresh
+    cell's first use was placed, so each of its uses was independently free to land on
+    any offered instrument - the auto-scheduler put a single physical cell's uses on
+    three different instruments. Only the first (earliest, alphabetically-first)
+    instrument should ever get used; the other two uses must come back unplaced rather
+    than crossing instruments."""
+    cell = _cell("C1", _samples(3))
+    slots = [
+        SlotInput(instrument_serial="84047", run_date=date(2026, 7, 20)),  # Mon
+        SlotInput(instrument_serial="84098", run_date=date(2026, 7, 22)),  # Wed
+        SlotInput(instrument_serial="84309", run_date=date(2026, 7, 23)),  # Thu
+    ]
+
+    result = fill_slots([cell], slots, run_time_hours=24)
+
+    assert len(result.assignments) == 1
+    assert result.assignments[0].instrument_serial == "84047"
+    assert result.assignments[0].run_date == date(2026, 7, 20)
+    assert [s.id for s in result.unplaced] == ["S1", "S2"]
+
+
+def test_fill_slots_fresh_cell_reuses_stay_on_first_instrument_when_available():
+    """Companion to the pin-on-first-placement test above: when the pinned instrument
+    genuinely does have later capacity, reuse must land there rather than being stranded
+    - the fix should confine the cell to one instrument, not merely block other
+    instruments outright."""
+    cell = _cell("C1", _samples(2))
+    slots = [
+        SlotInput(instrument_serial="84047", run_date=date(2026, 7, 20)),  # Mon, inst A
+        SlotInput(instrument_serial="84098", run_date=date(2026, 7, 21)),  # Tue, inst B (wrong)
+        SlotInput(instrument_serial="84047", run_date=date(2026, 7, 22)),  # Wed, inst A again
+    ]
+
+    result = fill_slots([cell], slots, run_time_hours=24)
+
+    assert len(result.assignments) == 2
+    assert {a.instrument_serial for a in result.assignments} == {"84047"}
+    assert sorted(a.run_date for a in result.assignments) == [date(2026, 7, 20), date(2026, 7, 22)]
+    assert result.unplaced == []

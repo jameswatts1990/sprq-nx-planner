@@ -16,9 +16,13 @@ export interface GridSelection {
    *    else is already selected (disjoint multi-select)
    *  - shift-click extends a rectangle from the last clicked cell to this one */
   handleCellClick: (r: number, c: number, shift: boolean, ctrl: boolean) => void;
-  /** Replace the selection with exactly these coordinates (e.g. a whole row/column from
-   * a header click), or clear it if that's already the current selection. */
-  selectMany: (coords: Coord[]) => void;
+  /** Set a whole row/column from a header click. Plain click replaces the selection with
+   * exactly these coordinates (or clears it if that's already the current selection).
+   * Ctrl/cmd-click is additive instead: it unions these coordinates into whatever else is
+   * already selected, so multiple days and/or multiple instruments can be built up one
+   * header-click at a time - unless every one of these coordinates is already selected, in
+   * which case it removes just this set (so re-ctrl-clicking a header toggles it off). */
+  selectMany: (coords: Coord[], ctrl?: boolean) => void;
   clear: () => void;
 }
 
@@ -41,10 +45,11 @@ function rectKeys(a: Coord, b: Coord): string[] {
 /**
  * Grid selection over instrument-row-index x day-column-index, supporting both
  * spreadsheet-style rectangle selection (shift-click from the last anchor) and
- * disjoint multi-select (ctrl/cmd-click toggles individual cells). Purely geometric -
- * the page intersects the selection with the currently selectable (empty, non-weekend)
- * cells to derive the concrete auto-fill payload, so the selection self-heals as grid
- * data changes.
+ * disjoint multi-select (ctrl/cmd-click toggles individual cells, or unions in a whole
+ * row/column/everything via selectMany's ctrl flag - see SchedulerGrid/SchedulerGridRow's
+ * header click handlers). Purely geometric - the page intersects the selection with the
+ * currently selectable (empty, non-weekend) cells to derive the concrete auto-fill
+ * payload, so the selection self-heals as grid data changes.
  */
 export function useGridSelection(): GridSelection {
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
@@ -78,9 +83,15 @@ export function useGridSelection(): GridSelection {
     [anchor],
   );
 
-  const selectMany = useCallback((coords: Coord[]) => {
+  const selectMany = useCallback((coords: Coord[], ctrl = false) => {
     setSelected((prev) => {
       const nextKeys = coords.map(({ r, c }) => key(r, c));
+      if (ctrl) {
+        const next = new Set(prev);
+        const allAlreadySelected = nextKeys.length > 0 && nextKeys.every((k) => prev.has(k));
+        nextKeys.forEach((k) => (allAlreadySelected ? next.delete(k) : next.add(k)));
+        return next;
+      }
       const next = new Set(nextKeys);
       const unchanged = prev.size === next.size && nextKeys.every((k) => prev.has(k));
       return unchanged ? new Set() : next;

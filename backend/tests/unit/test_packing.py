@@ -2,7 +2,9 @@
 revio-nx-planner.html using the prototype's own example data and default settings
 (max uses 3x, objective "fewest"). See PLAN's "porting the algorithms" section.
 """
-from app.engine.packing import disjoint, pack_cells
+from datetime import datetime, timezone
+
+from app.engine.packing import disjoint, pack_cells, priority_rank
 from app.engine.types import ParsedSample, PriorCellInput
 
 
@@ -96,3 +98,41 @@ def test_pack_available_days_caps_depth_below_max_uses():
     depths = sorted((len(c.uses) for c in result.cells), reverse=True)
     assert depths == [2, 2, 1]
     assert result.unplaced == []
+
+
+def test_priority_rank_extracts_trailing_parenthesized_number():
+    assert priority_rank("High (1)") == 1
+    assert priority_rank("Standard (3)") == 3
+    assert priority_rank("no rank here") == 999
+    assert priority_rank("") == 999
+    assert priority_rank(None) == 999
+
+
+def test_pack_processes_higher_priority_samples_first():
+    # S1 has more barcodes (the old primary sort key would have processed it first), but
+    # S2 is higher priority - priority must win regardless of the barcode-count heuristic.
+    samples = [
+        ParsedSample(id="S1", barcodes=["bc1", "bc2"], priority="Standard (3)", key="S1#0"),
+        ParsedSample(id="S2", barcodes=["bc3"], priority="High (1)", key="S2#1"),
+    ]
+    # max_uses=1 (cap 1) forces one fresh cell per sample, so cell creation order
+    # directly reveals processing order: whichever sample is handled first becomes C1.
+    result = pack_cells(samples, max_uses=1, objective="fewest")
+    by_id = {c.id: c.uses[0].id for c in result.cells}
+    assert by_id["C1"] == "S2"
+    assert by_id["C2"] == "S1"
+
+
+def test_pack_breaks_priority_ties_by_oldest_first():
+    older = ParsedSample(
+        id="S1", barcodes=["bc1"], priority="High (1)", key="S1#0", created_at=datetime(2026, 1, 1, tzinfo=timezone.utc)
+    )
+    newer = ParsedSample(
+        id="S2", barcodes=["bc2"], priority="High (1)", key="S2#1", created_at=datetime(2026, 6, 1, tzinfo=timezone.utc)
+    )
+    # Reverse input order so this only passes if the sort actually reorders by date,
+    # not by coincidentally preserving input order.
+    result = pack_cells([newer, older], max_uses=1, objective="fewest")
+    by_id = {c.id: c.uses[0].id for c in result.cells}
+    assert by_id["C1"] == "S1"
+    assert by_id["C2"] == "S2"

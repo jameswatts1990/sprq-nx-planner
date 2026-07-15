@@ -1,4 +1,4 @@
-import type { KeyboardEvent } from "react";
+import type { KeyboardEvent, MouseEvent } from "react";
 
 import type { CycleOut, StageOut } from "@/types/schedule";
 import {
@@ -38,15 +38,18 @@ function SchedulerDayHeader({
   date: string;
   colIndex: number;
   selectable: boolean;
-  onSelectColumn: (colIndex: number) => void;
+  onSelectColumn: (colIndex: number, ctrl: boolean) => void;
 }) {
   const d = parseDateOnly(date);
   const weekend = isWeekendUTC(d);
 
+  function onClick(e: MouseEvent<HTMLTableCellElement>) {
+    if (selectable) onSelectColumn(colIndex, e.ctrlKey || e.metaKey);
+  }
   function onKeyDown(e: KeyboardEvent<HTMLTableCellElement>) {
     if (selectable && (e.key === "Enter" || e.key === " ")) {
       e.preventDefault();
-      onSelectColumn(colIndex);
+      onSelectColumn(colIndex, e.ctrlKey || e.metaKey);
     }
   }
 
@@ -59,11 +62,11 @@ function SchedulerDayHeader({
             ? `${styles.dayTh} ${styles.headerSelectable}`
             : styles.dayTh
       }
-      onClick={selectable ? () => onSelectColumn(colIndex) : undefined}
+      onClick={selectable ? onClick : undefined}
       onKeyDown={selectable ? onKeyDown : undefined}
       role={selectable ? "button" : undefined}
       tabIndex={selectable ? 0 : undefined}
-      title={selectable ? "Select all open instruments for this day" : undefined}
+      title={selectable ? "Select all open instruments for this day (Ctrl/Cmd-click to add to the current selection)" : undefined}
     >
       <div className={styles.dn}>{shortWeekdayUTC(d)}</div>
       {!weekend && <div className={styles.dd}>{formatShortDateUTC(d)}</div>}
@@ -89,13 +92,34 @@ export function SchedulerGrid({
 
   // Select every open (non-weekend, cycle-free) cell in a day's column, across all
   // instruments - the header equivalent of shift-selecting a rectangle for a whole day.
-  function onSelectColumn(colIndex: number) {
+  // Ctrl/cmd-click unions this into the existing selection instead of replacing it, so
+  // several days can be built up one header-click at a time.
+  function onSelectColumn(colIndex: number, ctrl: boolean) {
     const date = days[colIndex];
     const coords: Coord[] = [];
     instrumentSerials.forEach((serial, rowIndex) => {
       if (isCellOpen(grouped.get(serial)?.get(date))) coords.push({ r: rowIndex, c: colIndex });
     });
+    selection.selectMany(coords, ctrl);
+  }
+
+  // Corner "Instrument" header: select every open cell across every instrument and day
+  // currently in view - the spreadsheet "select all" corner.
+  function onSelectAll() {
+    const coords: Coord[] = [];
+    instrumentSerials.forEach((serial, rowIndex) => {
+      days.forEach((date, colIndex) => {
+        if (isWeekendUTC(parseDateOnly(date))) return;
+        if (isCellOpen(grouped.get(serial)?.get(date))) coords.push({ r: rowIndex, c: colIndex });
+      });
+    });
     selection.selectMany(coords);
+  }
+  function onSelectAllKeyDown(e: KeyboardEvent<HTMLTableCellElement>) {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      onSelectAll();
+    }
   }
 
   return (
@@ -103,7 +127,14 @@ export function SchedulerGrid({
       <table className={styles.grid}>
         <thead>
           <tr>
-            <th className={styles.corner}>
+            <th
+              className={`${styles.corner} ${styles.headerSelectable}`}
+              onClick={onSelectAll}
+              onKeyDown={onSelectAllKeyDown}
+              role="button"
+              tabIndex={0}
+              title="Select every open cell for every instrument and day"
+            >
               <div className={styles.ml}>Instrument</div>
             </th>
             {days.map((date, colIndex) => (

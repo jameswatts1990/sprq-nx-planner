@@ -26,6 +26,10 @@ class ParsedSample:
     ccs_kinetics: str = ""
     key: str = ""
     sample_id: int | None = None  # DB id, populated once persisted; unused by pure engine
+    # When this sample entered the backlog (Sample.created_at) - drives the "oldest
+    # highest-priority first" scheduling order in pack_cells(). None for samples that
+    # only ever exist in-memory (e.g. the CSV-preview path in normalize.py).
+    created_at: datetime | None = None
 
 
 @dataclass

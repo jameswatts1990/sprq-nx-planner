@@ -1,9 +1,27 @@
 """Cell-reuse packing, ported from revio-nx-planner.html's packCells (lines 431-466)."""
 from __future__ import annotations
 
+import re
+from datetime import datetime, timezone
+
 from app.engine.constants import CELL_MAX_USES
 from app.engine.csv_parse import split_barcodes
 from app.engine.types import ConflictPair, PackedCell, PackResult, ParsedSample, PriorCellInput
+
+_PRIORITY_RANK_RE = re.compile(r"\((\d+)\)\s*$")
+_UNRANKED_PRIORITY = 999
+_EPOCH = datetime.min.replace(tzinfo=timezone.utc)
+
+
+def priority_rank(priority: str | None) -> int:
+    """Lower is higher-priority. Extracts the trailing "(N)" from labels like
+    "High (1)"/"Standard (3)"; unlabelled priorities sort after all ranked ones. Shared
+    with the Backlog table's own priority sort (app/api/samples.py) so scheduling order
+    and the UI's displayed order always agree."""
+    if not priority:
+        return _UNRANKED_PRIORITY
+    m = _PRIORITY_RANK_RE.search(priority)
+    return int(m.group(1)) if m else _UNRANKED_PRIORITY
 
 
 def disjoint(set_a: set[str], arr_b: list[str]) -> bool:
@@ -31,7 +49,14 @@ def pack_cells(
     `objective` only breaks ties between reuse candidates that are otherwise equally
     eligible: "fastest" prefers the least-used fresh cell (spreads samples across more
     cells so more can start sooner); "fewest"/"balance" prefer the most-used fresh cell
-    (deepens existing cells first, for fewer distinct cells)."""
+    (deepens existing cells first, for fewer distinct cells).
+
+    Samples are processed in priority order first (see `priority_rank`), then oldest
+    first among equal priority (`created_at` ascending) - so when cells/wells/days are
+    scarce, higher-priority (then older) samples get first claim on them. The
+    barcode-count/conflict-degree heuristic that used to be the primary sort only kicks
+    in as a tie-break within equal priority+age now - it still matters there (it's a
+    hardest-to-place-first bin-packing heuristic), just no longer overrides priority."""
     cap = max_uses if available_days is None else min(max_uses, available_days)
 
     deg: dict[str, int] = {s.key: 0 for s in samples}
@@ -41,7 +66,16 @@ def pack_cells(
                 deg[samples[i].key] += 1
                 deg[samples[j].key] += 1
 
-    ordered = sorted(samples, key=lambda s: (-len(s.barcodes), -deg[s.key], s.id))
+    ordered = sorted(
+        samples,
+        key=lambda s: (
+            priority_rank(s.priority),
+            s.created_at or _EPOCH,
+            -len(s.barcodes),
+            -deg[s.key],
+            s.id,
+        ),
+    )
 
     cells: list[PackedCell] = []
     for i, pc in enumerate(prior_cells or []):

@@ -3,23 +3,29 @@ grid renders. Was schedule_service.py; the Schedule-relative day_idx math is gon
 run_date now lives directly on the RunBatch."""
 from __future__ import annotations
 
+from datetime import date
+
 from sqlalchemy.orm import Session
 
 from app.engine.constants import WELLS
 from app.models.schedule import CellUse, Cycle
 from app.schemas.run import CycleOut, StageOut
+from app.services.cell_service import use_run_date
 from app.services.instrument_lock import cycle_lock_until
 from app.timeutil import ensure_aware, utcnow
 
 
 def _use_number(cell_use: CellUse) -> int:
-    """1-based position of this cell_use among all of its cell's loads, in chronological
-    (id) order - what the Use 1/2/3 grid colour/legend refers to. Grouping by cell here
-    (rather than by well/slot_index) is what lets a reused cell's wells share a colour."""
+    """1-based position of this cell_use among all of its cell's loads, in true
+    chronological (run_date) order - what the Use 1/2/3 grid colour/legend refers to.
+    Grouping by cell here (rather than by well/slot_index) is what lets a reused cell's
+    wells share a colour. CellUse.id is only a tie-break, not the primary key: a batch
+    auto-fill spanning multiple instruments can commit rows in an order that doesn't
+    match any one cell's own date sequence (see auto_fill_service.py's persist loop)."""
     cell = cell_use.cell
     if cell is None:
         return 1
-    ordered = sorted(cell.cell_uses, key=lambda cu: cu.id)
+    ordered = sorted(cell.cell_uses, key=lambda cu: (use_run_date(cu) or date.min, cu.id))
     return ordered.index(cell_use) + 1
 
 

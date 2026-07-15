@@ -29,8 +29,10 @@ def to_parsed_samples(samples: list[Sample]) -> list[ParsedSample]:
             sanger=s.sanger_ids or [],
             oplc=s.oplc,
             volume=s.volume,
+            priority=s.priority or "",
             key=f"sample:{s.id}",
             sample_id=s.id,
+            created_at=s.created_at,
         )
         for s in samples
     ]

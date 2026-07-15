@@ -20,7 +20,7 @@ from app.models.instrument import Instrument
 from app.models.sample import Sample
 from app.models.schedule import CellUse, CellUseBarcode, Cycle, RunBatch
 from app.services import instrument_lock
-from app.services.cell_service import current_location, derive_cell_state, recompute_status
+from app.services.cell_service import current_location, derive_cell_state, recompute_status, use_run_date
 from app.timeutil import utcnow
 
 
@@ -349,7 +349,7 @@ def move_sample(
     cell = cell_use.cell
     other_uses = [cu for cu in cell.cell_uses if cu.id != cell_use.id and cu.status != "cancelled"]
     if other_uses:
-        last_other = max(other_uses, key=lambda cu: cu.id)
+        last_other = max(other_uses, key=lambda cu: (use_run_date(cu) or date.min, cu.id))
         last_run_batch = last_other.cycle.run_batch if last_other.cycle else None
         pinned_serial = last_run_batch.instrument.serial_number if last_run_batch and last_run_batch.instrument else None
         if pinned_serial is not None and pinned_serial != instrument_serial:
@@ -386,7 +386,7 @@ def move_sample(
     if same_cycle and cell_use.well == well:
         return dest_cycle  # no-op: dropped back onto its own slot
 
-    cell_use.cycle_id = dest_cycle.id
+    cell_use.cycle = dest_cycle
     cell_use.well = well
     try:
         db.flush()

@@ -143,9 +143,6 @@ export function SchedulerDayCell(props: SchedulerDayCellProps) {
       <div className={styles.head}>
         {cycle && (
           <>
-            {cycle.is_locked && (
-              <span className={styles.activeDot} title="Instrument is actively sequencing this run" aria-hidden="true" />
-            )}
             {locked ? (
               <>
                 <span className={styles.lockTag}>

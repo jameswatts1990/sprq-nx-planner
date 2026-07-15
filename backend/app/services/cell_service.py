@@ -55,11 +55,22 @@ def derive_cell_state(cell: Cell) -> tuple[int, int, list[str]]:
     return uses_consumed, remaining, burned
 
 
+def use_run_date(cell_use: CellUse) -> date | None:
+    """The calendar day a specific use is/was scheduled for, via its Cycle's RunBatch -
+    the only correct way to order a cell's uses chronologically. CellUse.id (insertion
+    order) is not a reliable stand-in: a batch auto-fill can commit multiple cells' rows
+    in an order grouped by instrument rather than by any one cell's own date sequence
+    (see auto_fill_service.py's persist loop), so "inserted later" does not imply
+    "happened later" once a schedule spans more than one instrument."""
+    run_batch = cell_use.cycle.run_batch if cell_use.cycle else None
+    return run_batch.run_date if run_batch else None
+
+
 def current_location(cell: Cell) -> tuple[str | None, str | None]:
     active_uses = [cu for cu in cell.cell_uses if cu.status != "cancelled"]
     if not active_uses:
         return None, None
-    last = max(active_uses, key=lambda cu: cu.id)
+    last = max(active_uses, key=lambda cu: (use_run_date(cu) or date.min, cu.id))
     run_batch = last.cycle.run_batch if last.cycle else None
     instrument = run_batch.instrument if run_batch else None
     return (instrument.serial_number if instrument else None), last.well
@@ -72,9 +83,8 @@ def last_use_run_date(cell: Cell) -> date | None:
     active_uses = [cu for cu in cell.cell_uses if cu.status != "cancelled"]
     if not active_uses:
         return None
-    last = max(active_uses, key=lambda cu: cu.id)
-    run_batch = last.cycle.run_batch if last.cycle else None
-    return run_batch.run_date if run_batch else None
+    last = max(active_uses, key=lambda cu: (use_run_date(cu) or date.min, cu.id))
+    return use_run_date(last)
 
 
 def first_use_planned_start_at(cell: Cell) -> datetime | None:
@@ -86,7 +96,7 @@ def first_use_planned_start_at(cell: Cell) -> datetime | None:
     active_uses = [cu for cu in cell.cell_uses if cu.status != "cancelled"]
     if not active_uses:
         return None
-    first = min(active_uses, key=lambda cu: cu.id)
+    first = min(active_uses, key=lambda cu: (use_run_date(cu) or date.max, cu.id))
     return first.cycle.planned_start_at if first.cycle else None
 
 
@@ -122,7 +132,7 @@ def serialize_cell(cell: Cell) -> CellOut:
 def serialize_cell_detail(cell: Cell) -> CellDetailOut:
     base = serialize_cell(cell)
     history: list[CellUseHistoryOut] = []
-    for cu in sorted(cell.cell_uses, key=lambda x: x.id):
+    for cu in sorted(cell.cell_uses, key=lambda x: (use_run_date(x) or date.min, x.id)):
         run_batch = cu.cycle.run_batch if cu.cycle else None
         history.append(
             CellUseHistoryOut(

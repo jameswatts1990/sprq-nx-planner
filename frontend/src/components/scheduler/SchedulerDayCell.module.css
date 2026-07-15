@@ -93,32 +93,6 @@
   margin-bottom: 4px;
 }
 
-/* Instrument is actively sequencing this run (now falls within its lock window) - a
-   small pulsing dot, independent of the LOADED/PLANNED/COMPLETED status tag. */
-.activeDot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--magenta);
-  flex-shrink: 0;
-  animation: activePulse 1.6s ease-in-out infinite;
-}
-@keyframes activePulse {
-  0%, 100% {
-    opacity: 1;
-    box-shadow: 0 0 0 0 rgba(217, 38, 130, 0.4);
-  }
-  50% {
-    opacity: 0.6;
-    box-shadow: 0 0 0 4px rgba(217, 38, 130, 0);
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .activeDot {
-    animation: none;
-  }
-}
-
 .slots {
   display: flex;
   align-items: flex-start;
