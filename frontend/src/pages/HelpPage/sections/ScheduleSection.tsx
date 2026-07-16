@@ -243,12 +243,13 @@ export function ScheduleSection() {
       </p>
       <p>
         <b>Never-yet-used tray cells:</b> a physical tray&apos;s cell that hasn&apos;t been loaded at all yet looks
-        similar to a waiting-cell ghost — its own well, its own <b>CELL-XXXXXX</b> code — but with a plain, static,
-        dotted-border look and a <b>&quot;Not yet used&quot;</b> label instead of a fading &quot;Use N · by
-        [date]&quot; countdown, since its 108-hour clock hasn&apos;t started yet (see the Cells tab&apos;s help — each
-        cell in a tray keeps its own independent clock, not a shared one). It keeps showing every weekday from the
-        moment its tray opens, with no expiry, until it&apos;s loaded or discarded. Dragging a backlog sample onto it
-        or clicking it works exactly like a waiting-cell ghost above.
+        similar to a waiting-cell ghost — its own well, its own <b>CELL-XXXXXX</b> code — but in a muted grey,
+        static, dotted-border look (deliberately not coloured by Use number, so it never looks like an already-loaded
+        Use 1) with a <b>&quot;Not yet used&quot;</b> label instead of a fading &quot;Use N · by [date]&quot;
+        countdown, since its 108-hour clock hasn&apos;t started yet (see the Cells tab&apos;s help — each cell in a
+        tray keeps its own independent clock, not a shared one). It keeps showing every weekday its tray is open,
+        with no expiry, until it&apos;s loaded or discarded. Dragging a backlog sample onto it or clicking it works
+        exactly like a waiting-cell ghost above.
       </p>
     </div>
   );

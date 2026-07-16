@@ -113,11 +113,19 @@
 }
 
 /* A tray sibling that's real (has its own ID and reserved well) but has never been used -
-   no 108h clock is running yet, so it gets a quieter, static dotted look instead of the
-   fading "next up for reuse" treatment, distinguishing "reserved" from "about to expire". */
+   deliberately NOT tinted by use number (unlike .u1/.u2/.u3.ghost) since it hasn't been
+   used yet - a muted neutral grey instead, so it never reads as "this is already Use 1"
+   and doesn't clash with the real Use 1 tint elsewhere on the grid. Also a quieter, static
+   dotted look instead of the fading "next up for reuse" treatment - no 108h clock is
+   running yet, so there's nothing to fade toward. */
 .ghostUnused {
   border-style: dotted;
-  opacity: 0.75;
+  border-color: var(--tray-card-border);
+  background: var(--tray-card-bg);
+  opacity: 0.85;
+}
+.ghostUnused .ghostCode {
+  color: var(--grey);
 }
 .ghostUnused .ghostLabel {
   color: var(--faint);

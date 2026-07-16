@@ -114,9 +114,17 @@ export const SchedulerSlotView = memo(
     // per-cell, never a shared tray-level clock).
     if (stage!.window_hours_elapsed !== null) classes.push(styles.windowShaded);
   } else if (ghost) {
-    classes.push(styles.ghost, styles[useClass]);
-    if (ghost.isHardCutoff) classes.push(styles.ghostCutoff);
-    if (ghost.unused) classes.push(styles.ghostUnused);
+    classes.push(styles.ghost);
+    if (ghost.unused) {
+      // Muted grey, not tinted by use number - it hasn't been used yet, so colouring it
+      // like a real Use 1 (which .u1.ghost's higher-specificity two-class selector would
+      // otherwise win over this single class regardless of declaration order) reads as
+      // "this is already Use 1" and clashes with the real Use 1 tint elsewhere on the grid.
+      classes.push(styles.ghostUnused);
+    } else {
+      classes.push(styles[useClass]);
+      if (ghost.isHardCutoff) classes.push(styles.ghostCutoff);
+    }
   } else {
     classes.push(styles.empty);
   }

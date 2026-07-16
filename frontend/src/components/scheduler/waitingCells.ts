@@ -103,14 +103,17 @@ export function computeGhost(cell: CellOut, day: string): CellGhost | null {
  * be shown (and eventually loaded) in its own reserved well on `day`. Distinct from
  * computeGhost (mutually exclusive via uses_consumed): there's no 108h clock running yet
  * (see docs/pacbio-sprq-nx-scheduling-reference.md's "Tray-of-4 eager population" section),
- * so this has no fade/cutoff - it just persists on every weekday from the tray's creation
- * onward until it's actually used (or retired).
+ * so this has no fade/cutoff - it just persists on every weekday, with no start-date gate,
+ * until it's actually used (or retired). Deliberately NOT gated on cell.created_at (the row's
+ * real insert time): a sample can legitimately be scheduled onto any weekday in the visible
+ * week regardless of when "now" actually is, e.g. placing onto Monday's slot on a Thursday -
+ * gating on created_at hid the siblings on every day before that real-world insert moment,
+ * even within the same week as their own founding placement.
  */
 export function computeUnusedTraySiblingGhost(cell: CellOut, day: string): CellGhost | null {
   if (cell.status !== "open" || cell.uses_consumed > 0) return null;
   if (!cell.current_instrument_serial || !cell.current_well) return null;
   if (isWeekendUTC(parseDateOnly(day))) return null;
-  if (day < cell.created_at.slice(0, 10)) return null;
 
   return {
     cell,

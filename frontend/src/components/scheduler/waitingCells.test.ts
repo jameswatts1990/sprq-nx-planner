@@ -138,19 +138,22 @@ describe("computeUnusedTraySiblingGhost", () => {
     ).toBeNull();
   });
 
-  it("returns null on weekends and on any day before the tray was created", () => {
+  it("returns null on weekends only - no start-date gate", () => {
     expect(computeUnusedTraySiblingGhost(baseUnusedTraySibling(), "2026-07-11")).toBeNull(); // Saturday
-    expect(computeUnusedTraySiblingGhost(baseUnusedTraySibling(), "2026-07-10")).toBeNull(); // before created_at
+    // A sample can legitimately be scheduled onto a weekday earlier in the visible week
+    // than the tray's own real-world created_at (e.g. placing onto Monday's slot from a
+    // Thursday) - this must NOT hide the sibling on those earlier days.
+    expect(computeUnusedTraySiblingGhost(baseUnusedTraySibling(), "2026-07-10")).not.toBeNull();
   });
 
-  it("shows on its creation day and every weekday after, with no fade or cutoff", () => {
+  it("shows on every weekday, with no fade, cutoff, or expiry", () => {
     const cell = baseUnusedTraySibling();
-    const same = computeUnusedTraySiblingGhost(cell, "2026-07-13");
+    const earlier = computeUnusedTraySiblingGhost(cell, "2026-07-06");
     const later = computeUnusedTraySiblingGhost(cell, "2026-08-03");
 
-    expect(same?.unused).toBe(true);
-    expect(same?.isHardCutoff).toBe(false);
-    expect(same?.fadeOpacity).toBe(1);
+    expect(earlier?.unused).toBe(true);
+    expect(earlier?.isHardCutoff).toBe(false);
+    expect(earlier?.fadeOpacity).toBe(1);
     // Unlike a reuse ghost, there's no clock running yet - it never expires.
     expect(later?.unused).toBe(true);
   });

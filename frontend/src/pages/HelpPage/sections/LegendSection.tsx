@@ -332,9 +332,10 @@ export function LegendSection() {
             <SchedulerSlotView stage={null} slotIndex={0} ghost={GHOST_EXAMPLE_UNUSED} />
           </div>
           <span>
-            A physical tray&apos;s cell that has never been used at all - a quieter, static dotted look with no
-            countdown, since its 108-hour clock hasn&apos;t started yet. Shows up the moment its tray opens and stays
-            until it&apos;s loaded or discarded.
+            A physical tray&apos;s cell that has never been used at all - a muted grey, static dotted look with no
+            countdown (deliberately not tinted by use number, so it never reads as an already-loaded Use 1), since
+            its 108-hour clock hasn&apos;t started yet. Shows up the moment its tray opens and stays until it&apos;s
+            loaded or discarded.
           </span>
         </div>
       </div>
