@@ -4,7 +4,7 @@ export function GettingStartedSection() {
   return (
     <div className={styles.copy}>
       <p>
-        RevioNx Planner tracks SMRT cells and schedules them across your Revio/SPRQ-Nx instruments. A typical week
+        RunNx Planner tracks SMRT cells and schedules them across your Revio/SPRQ-Nx instruments. A typical week
         flows through the tabs left to right:
       </p>
       <ol>

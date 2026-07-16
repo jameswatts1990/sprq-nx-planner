@@ -20,7 +20,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className={styles.topbarStrip} />
         <div className={styles.topbarInner}>
           <NavLink to="/schedule" className={styles.brand}>
-            Revio<span className={styles.brandAccent}>Nx</span>
+            Run<span className={styles.brandAccent}>Nx</span>
             <span className={styles.dot} />
           </NavLink>
           <nav className={styles.nav}>

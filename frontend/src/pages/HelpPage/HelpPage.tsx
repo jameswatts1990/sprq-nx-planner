@@ -18,7 +18,7 @@ export function HelpPage() {
   return (
     <div className={styles.page}>
       <p className={styles.intro}>
-        A guide to every tab, control, alert, and colour in RevioNx Planner.
+        A guide to every tab, control, alert, and colour in RunNx Planner.
       </p>
 
       <Accordion title="Getting started" defaultOpen>

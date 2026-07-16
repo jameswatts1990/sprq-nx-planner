@@ -2,7 +2,7 @@
 
 Not gated by environment - remove or gate this router explicitly before a
 real production launch (see CLAUDE.md "Help Tab Maintenance" /
-sprq-nx-planner Admin notes).
+RunNx Admin notes).
 """
 
 from typing import Annotated, Any

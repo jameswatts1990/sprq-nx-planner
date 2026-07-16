@@ -1,4 +1,4 @@
-# Revio SPRQ-Nx LIMS
+# RunNx
 
 Tracks samples, SMRT cells, and sequencing runs for the Revio SPRQ-Nx multi-use workflow: import completed samples from Benchling/Google Sheets exports, schedule them onto cells/instruments without barcode clashes, and track real-world outcomes through to history.
 

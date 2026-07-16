@@ -1,7 +1,7 @@
 [project]
-name = "revio-nx-lims-backend"
+name = "runnx-backend"
 version = "0.1.0"
-description = "Backend API for the Revio SPRQ-Nx sequencing LIMS"
+description = "Backend API for RunNx, a scheduling LIMS for Revio SPRQ-Nx sequencing runs"
 requires-python = ">=3.11"
 dependencies = [
   "fastapi>=0.115",

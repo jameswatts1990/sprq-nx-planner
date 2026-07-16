@@ -77,7 +77,7 @@ You sit between human intent (directives) and deterministic execution (Python sc
 
 Be pragmatic. Be reliable. Self-anneal.
 
-## sprq-nx-planner Local Dev Environment
+## RunNx Local Dev Environment
 
 This checkout lives on a mapped SMB network drive (`U:` → `\\home-smb\...`), not a local disk. That causes recurring, non-code-related failures — recognize the pattern before debugging application code:
 
@@ -90,7 +90,7 @@ This checkout lives on a mapped SMB network drive (`U:` → `\\home-smb\...`), n
 - **node/npm not found on PATH**: they're installed at `C:\Users\jw24\tools\node`, a non-standard location — not actually missing. This has been added to the user's persistent PATH, so new shells should resolve them automatically.
 - **Docker is not installed on this machine.** `docker-compose.yml` / `docker-compose.dev.yml` exist in the repo but aren't the active dev workflow here — the real setup is native `npm run dev` (frontend) + `uvicorn --reload` (backend) against SQLite, with `DATABASE_URL` overridden to a local-disk path per the bullet above. Don't assume Postgres/Docker are involved when diagnosing dev-environment issues on this machine.
 
-## sprq-nx-planner Production Deployment
+## RunNx Production Deployment
 
 The app is deployed on a Hetzner VM (`37.27.2.77`, reachable at `http://37.27.2.77:8080/`), checked out at `/opt/sprq-nx-planner`, run via the root `docker-compose.yml` (nginx serving the built static frontend + reverse-proxying `/api`, FastAPI backend, Postgres). This is the source of truth for that environment — Postgres, not SQLite; a built static frontend, not a live Vite dev server — so none of the network-drive/SQLite-locking/file-watcher issues documented above under "Local Dev Environment" apply there. To redeploy after pushing changes: `cd /opt/sprq-nx-planner && git pull && docker compose up -d --build`.
 
@@ -103,11 +103,11 @@ The app is deployed on a Hetzner VM (`37.27.2.77`, reachable at `http://37.27.2.
 - **This VM's console is a browser-based terminal with no working copy/paste in either direction** — every command has to be hand-typed. Any workflow involving a long random string (an SSH public key, a PAT, a generated password) typed by hand will eventually get a character wrong; the failure looks like an auth error ("Permission denied (publickey)", GitHub rejecting a deploy key) and is easy to misdiagnose as a server-config problem. The reliable fix is to never require typing a secret at all: route it through git instead (commit a public key file to the repo, `git pull` it, `cat` it into place) or have the destination generate its own secret locally (`PGPASS=$(openssl rand ...)` inside a script) rather than transcribing one from elsewhere.
 - **A private GitHub repo can't be `git clone`d over HTTPS with a password** (GitHub dropped that years ago) — needs either an SSH deploy key or a PAT. Given the no-copy-paste constraint above, the pragmatic fix here was to make the repo public temporarily (no secrets in it — `.env` is gitignored), which needs nothing typed at all beyond the repo name to confirm the visibility change.
 
-## sprq-nx-planner Scheduling Domain Reference
+## RunNx Scheduling Domain Reference
 
 Before making any change that draws from or affects scheduling — cell reuse, the 108-hour window, run/cycle batching, or cost/KPI modeling — read `docs/pacbio-sprq-nx-scheduling-reference.md`. It maps this app's scheduling rules onto the PacBio Revio/SPRQ-Nx technical document they were derived from, with file:line references into the current code. Re-check it (and the source PacBio deck, held outside this repo) before changing `engine/constants.py`, the window/status logic in `services/cell_service.py`, the reuse-ordering sorts in `engine/packing.py`/`engine/slot_scheduling.py`, or the cost tables in `engine/kpis.py` — several of those constants and constraints (3-use cap, single 108h deadline from first use, reuse-before-new-cell priority, cost-per-use figures) are direct implementations of vendor-documented instrument behavior, not arbitrary choices.
 
-## sprq-nx-planner Help Tab Maintenance
+## RunNx Help Tab Maintenance
 
 The frontend has a user-facing **Help** tab (`frontend/src/pages/HelpPage/`) that documents every screen for non-technical lab users. It is backfilled from the actual UI, so it silently goes stale unless it's updated alongside UI changes. Treat it as part of the definition of done for any user-facing change.
 
@@ -129,7 +129,7 @@ The frontend has a user-facing **Help** tab (`frontend/src/pages/HelpPage/`) tha
 - If you add a new status value, alert message, or tooltip, add its plain-language meaning to the relevant section; don't leave users to guess.
 - Help copy is for lab users, not developers: describe what a control does and what a message means, not how it's implemented.
 
-## sprq-nx-planner Admin Tab — Database Tools
+## RunNx Admin Tab — Database Tools
 
 The **Admin** tab (`frontend/src/pages/AdminPage/`, backed by `backend/app/api/admin.py`) is a raw database inspection/mutation tool (view tables, view/delete rows, clear a table's rows) built for local development convenience. It bypasses all normal business logic and service-layer invariants, and the app has no auth to protect it.
 

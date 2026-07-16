@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api import admin, audit, auto_fill, batch_sheet, cell_uses, cells, cycles, imports, instruments, samples
 from app.config import settings
 
-app = FastAPI(title="Revio SPRQ-Nx LIMS", version="0.1.0")
+app = FastAPI(title="RunNx", version="0.1.0")
 
 if settings.cors_origin_list:
     app.add_middleware(
