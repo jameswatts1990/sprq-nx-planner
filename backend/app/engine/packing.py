@@ -11,6 +11,7 @@ from app.engine.types import ConflictPair, PackedCell, PackResult, ParsedSample,
 _PRIORITY_RANK_RE = re.compile(r"\((\d+)\)\s*$")
 _UNRANKED_PRIORITY = 999
 _EPOCH = datetime.min.replace(tzinfo=timezone.utc)
+_NATURAL_SORT_CHUNK_RE = re.compile(r"(\d+)")
 
 
 def priority_rank(priority: str | None) -> int:
@@ -22,6 +23,17 @@ def priority_rank(priority: str | None) -> int:
         return _UNRANKED_PRIORITY
     m = _PRIORITY_RANK_RE.search(priority)
     return int(m.group(1)) if m else _UNRANKED_PRIORITY
+
+
+def external_id_sort_key(external_id: str) -> tuple[str | int, ...]:
+    """Natural (numeric-aware), case-insensitive sort key for an External ID, e.g.
+    "Sample 9" sorts before "Sample 10" rather than after (plain string sort would put
+    "10" before "9"). Splits the id on runs of digits, lower-cases the text chunks, and
+    parses the digit chunks as ints. `re.split`'s capture group always yields text
+    chunks at even indices and digit chunks at odd ones regardless of the input, so two
+    keys compared position-by-position never mix `str` and `int` at the same index."""
+    parts = _NATURAL_SORT_CHUNK_RE.split(external_id or "")
+    return tuple(int(p) if i % 2 else p.lower() for i, p in enumerate(parts))
 
 
 def disjoint(set_a: set[str], arr_b: list[str]) -> bool:
@@ -57,12 +69,20 @@ def pack_cells(
     cells so more can start sooner); "fewest"/"balance" prefer the most-used fresh cell
     (deepens existing cells first, for fewer distinct cells).
 
-    Samples are processed in priority order first (see `priority_rank`), then oldest
-    first among equal priority (`created_at` ascending) - so when cells/wells/days are
-    scarce, higher-priority (then older) samples get first claim on them. The
-    barcode-count/conflict-degree heuristic that used to be the primary sort only kicks
-    in as a tie-break within equal priority+age now - it still matters there (it's a
-    hardest-to-place-first bin-packing heuristic), just no longer overrides priority."""
+    Samples are processed in priority order first (see `priority_rank`) - that's the
+    ruling factor and always wins. Within equal priority, samples are then processed in
+    External ID sequence (natural/numeric-aware, case-insensitive - see
+    `external_id_sort_key`): a lab operator prepping a plate of e.g. "Sample 12".."Sample
+    19" wants those loaded and run together, not scattered across cells/days by
+    coincidence of upload time. This mostly just orders *processing*, but because the
+    greedy loop below fills each cell to capacity before opening the next, it also tends
+    to *place* ID-adjacent samples on the same cell/run - grouping them physically, not
+    just conceptually. Oldest-first (`created_at` ascending) only breaks a further tie
+    where two samples share both priority and External ID (e.g. a container id reused
+    across two import rows). The barcode-count/conflict-degree heuristic that used to be
+    the primary sort only kicks in as a tie-break after all of the above now - it still
+    matters there (it's a hardest-to-place-first bin-packing heuristic), just no longer
+    overrides priority or ID sequence."""
     cap = max_uses if available_days is None else min(max_uses, available_days)
 
     deg: dict[str, int] = {s.key: 0 for s in samples}
@@ -76,6 +96,7 @@ def pack_cells(
         samples,
         key=lambda s: (
             priority_rank(s.priority),
+            external_id_sort_key(s.id),
             s.created_at or _EPOCH,
             -len(s.barcodes),
             -deg[s.key],

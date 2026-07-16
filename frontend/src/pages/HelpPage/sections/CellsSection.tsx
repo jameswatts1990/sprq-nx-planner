@@ -35,9 +35,11 @@ export function CellsSection() {
       <p>Opened from a card, it shows:</p>
       <ul>
         <li>
-          <b>Uses</b> spent / total and remaining; <b>Window elapsed</b> in hours; <b>Window breached</b> Yes/No;{" "}
-          <b>Current location</b> (instrument · well); <b>First use started</b> and <b>Created</b> timestamps; and
-          the cell&apos;s <b>Burned barcodes</b>.
+          <b>Uses</b> spent / total and remaining; <b>Current location</b> (instrument · well); <b>First use
+          started</b> and <b>Created</b> timestamps; and the cell&apos;s <b>Burned barcodes</b>. While the cell is
+          still tracking its window (not yet Exhausted, Retired, or Stopped), the same 108-hour window meter as the
+          cards list replaces the plain numbers, showing elapsed hours toward the limit; otherwise plain{" "}
+          <b>Window elapsed</b> and <b>Window breached</b> values are shown instead.
         </li>
         <li>
           <b>Cell tray</b> card: SPRQ-Nx SMRT Cells ship in a physical tray of 4. The moment any one cell in a tray

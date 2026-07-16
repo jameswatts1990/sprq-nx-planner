@@ -1,0 +1,22 @@
+.field {
+  margin-bottom: 14px;
+}
+.fieldLabel {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--grey);
+  margin-bottom: 7px;
+}
+.field textarea {
+  width: 100%;
+  min-height: 70px;
+  resize: vertical;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 8px 10px;
+}

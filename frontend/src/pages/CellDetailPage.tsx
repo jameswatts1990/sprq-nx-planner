@@ -5,11 +5,12 @@ import { Link, useParams } from "react-router-dom";
 import { ApiError } from "@/api/client";
 import { cellsApi } from "@/api/cells";
 import { cellUsesApi } from "@/api/cellUses";
+import { WindowMeter } from "@/components/cells/WindowMeter";
 import { BarcodeChips } from "@/components/shared/BarcodeChips";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
-import { Modal, ModalActions } from "@/components/ui/Modal";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { Note } from "@/components/ui/Note";
 import type { CellUseHistoryOut } from "@/types/cell";
 import { CELL_STATUS_LABEL, CELL_STATUS_TONE } from "@/utils/cellStatus";
@@ -172,6 +173,11 @@ export function CellDetailPage() {
         : undefined;
 
   const showCreditCard = cell.has_failed_use || cell.status === "stopped";
+  const showWindowMeter =
+    cell.status !== "exhausted" &&
+    cell.status !== "retired" &&
+    cell.status !== "stopped" &&
+    cell.window_hours_elapsed !== null;
 
   return (
     <div className={styles.page}>
@@ -180,6 +186,12 @@ export function CellDetailPage() {
           <h2>{cell.code}</h2>
         </CardHeader>
         <CardBody>
+          {cell.stopped_reason && (
+            <Note tone="warn" icon="!">
+              Stopped: {cell.stopped_reason}
+            </Note>
+          )}
+
           <div className={styles.headerGrid}>
             <div>
               <span className={styles.label}>Uses</span>
@@ -187,16 +199,20 @@ export function CellDetailPage() {
                 {cell.uses_consumed} / {cell.max_uses} ({cell.uses_remaining} remaining)
               </span>
             </div>
-            <div>
-              <span className={styles.label}>Window elapsed</span>
-              <span className={styles.value}>
-                {cell.window_hours_elapsed !== null ? `${cell.window_hours_elapsed.toFixed(1)} h` : "—"}
-              </span>
-            </div>
-            <div>
-              <span className={styles.label}>Window breached</span>
-              <span className={styles.value}>{cell.window_breached ? "Yes" : "No"}</span>
-            </div>
+            {!showWindowMeter && (
+              <>
+                <div>
+                  <span className={styles.label}>Window elapsed</span>
+                  <span className={styles.value}>
+                    {cell.window_hours_elapsed !== null ? `${cell.window_hours_elapsed.toFixed(1)} h` : "—"}
+                  </span>
+                </div>
+                <div>
+                  <span className={styles.label}>Window breached</span>
+                  <span className={styles.value}>{cell.window_breached ? "Yes" : "No"}</span>
+                </div>
+              </>
+            )}
             <div>
               <span className={styles.label}>Current location</span>
               <span className={styles.value}>
@@ -221,11 +237,7 @@ export function CellDetailPage() {
             )}
           </div>
 
-          {cell.stopped_reason && (
-            <Note tone="warn" icon="!">
-              Stopped: {cell.stopped_reason}
-            </Note>
-          )}
+          {showWindowMeter && <WindowMeter windowHours={cell.window_hours_elapsed as number} />}
 
           {cell.burned_barcodes.length > 0 && (
             <div className={styles.burnedRow}>
@@ -305,6 +317,90 @@ export function CellDetailPage() {
           </CardBody>
         </Card>
       )}
+
+      <Card>
+        <CardHeader>
+          <h2>Use history</h2>
+        </CardHeader>
+        <CardBody>
+          {cell.use_history.length === 0 ? (
+            <div className={styles.status}>No uses recorded yet.</div>
+          ) : (
+            <div className={styles.tableWrap}>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th>Run</th>
+                    <th>Well</th>
+                    <th>Status</th>
+                    <th>Sample</th>
+                    <th>Container ID</th>
+                    <th>Barcodes</th>
+                    <th>Priority</th>
+                    <th>Target OPLC</th>
+                    <th>Adaptive Loading</th>
+                    <th>Full Res. Base Q</th>
+                    <th>Kinetics</th>
+                    <th>Instrument</th>
+                    <th>Started</th>
+                    <th>Completed</th>
+                    <th>Notes</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {cell.use_history.map((u) => (
+                    <tr key={u.id}>
+                      <td>
+                        <Link to={`/history/runs/${u.cycle_id}`}>#{u.cycle_id}</Link>
+                      </td>
+                      <td className={styles.mono}>{u.well}</td>
+                      <td>
+                        <Badge tone={USE_STATUS_TONE[u.status] ?? "default"}>{u.status}</Badge>
+                      </td>
+                      <td>{u.sample_external_id ?? "—"}</td>
+                      <td>{u.sample_container_id ?? "—"}</td>
+                      <td>
+                        <BarcodeChips barcodes={u.barcodes} />
+                      </td>
+                      <td>{u.sample_priority ?? "—"}</td>
+                      <td>{u.sample_target_oplc ?? "—"}</td>
+                      <td>{u.sample_adaptive_loading ?? "—"}</td>
+                      <td>{u.sample_full_resolution_base_q ?? "—"}</td>
+                      <td>{u.sample_ccs_kinetics ?? "—"}</td>
+                      <td>{u.instrument_serial ?? "—"}</td>
+                      <td>{formatDateTime(u.started_at)}</td>
+                      <td>{formatDateTime(u.completed_at)}</td>
+                      <td>{u.outcome_notes ?? "—"}</td>
+                      <td>
+                        {(canRecordQcOutcome(u) || canUndoQcOutcome(u)) && (
+                          <div className={styles.useActions}>
+                            {canRecordQcOutcome(u) && (
+                              <>
+                                <Button size="sm" variant="ghost" onClick={() => setFailTarget(u)}>
+                                  Mark Failed
+                                </Button>
+                                <Button size="sm" variant="ghost" onClick={() => setAbortTarget(u)}>
+                                  Mark Aborted
+                                </Button>
+                              </>
+                            )}
+                            {canUndoQcOutcome(u) && (
+                              <Button size="sm" variant="ghost" onClick={() => setUndoTarget(u)}>
+                                Undo {u.status === "failed" ? "Failed" : "Aborted"}
+                              </Button>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardBody>
+      </Card>
 
       {showCreditCard && (
         <Card>
@@ -394,88 +490,6 @@ export function CellDetailPage() {
         </Card>
       )}
 
-      <Card>
-        <CardHeader>
-          <h2>Use history</h2>
-        </CardHeader>
-        <CardBody>
-          {cell.use_history.length === 0 ? (
-            <div className={styles.status}>No uses recorded yet.</div>
-          ) : (
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th>Run</th>
-                  <th>Well</th>
-                  <th>Status</th>
-                  <th>Sample</th>
-                  <th>Container ID</th>
-                  <th>Barcodes</th>
-                  <th>Priority</th>
-                  <th>Target OPLC</th>
-                  <th>Adaptive Loading</th>
-                  <th>Full Res. Base Q</th>
-                  <th>Kinetics</th>
-                  <th>Instrument</th>
-                  <th>Started</th>
-                  <th>Completed</th>
-                  <th>Notes</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {cell.use_history.map((u) => (
-                  <tr key={u.id}>
-                    <td>
-                      <Link to={`/history/runs/${u.cycle_id}`}>#{u.cycle_id}</Link>
-                    </td>
-                    <td className={styles.mono}>{u.well}</td>
-                    <td>
-                      <Badge tone={USE_STATUS_TONE[u.status] ?? "default"}>{u.status}</Badge>
-                    </td>
-                    <td>{u.sample_external_id ?? "—"}</td>
-                    <td>{u.sample_container_id ?? "—"}</td>
-                    <td>
-                      <BarcodeChips barcodes={u.barcodes} />
-                    </td>
-                    <td>{u.sample_priority ?? "—"}</td>
-                    <td>{u.sample_target_oplc ?? "—"}</td>
-                    <td>{u.sample_adaptive_loading ?? "—"}</td>
-                    <td>{u.sample_full_resolution_base_q ?? "—"}</td>
-                    <td>{u.sample_ccs_kinetics ?? "—"}</td>
-                    <td>{u.instrument_serial ?? "—"}</td>
-                    <td>{formatDateTime(u.started_at)}</td>
-                    <td>{formatDateTime(u.completed_at)}</td>
-                    <td>{u.outcome_notes ?? "—"}</td>
-                    <td>
-                      {(canRecordQcOutcome(u) || canUndoQcOutcome(u)) && (
-                        <div className={styles.useActions}>
-                          {canRecordQcOutcome(u) && (
-                            <>
-                              <Button size="sm" variant="ghost" onClick={() => setFailTarget(u)}>
-                                Mark Failed
-                              </Button>
-                              <Button size="sm" variant="ghost" onClick={() => setAbortTarget(u)}>
-                                Mark Aborted
-                              </Button>
-                            </>
-                          )}
-                          {canUndoQcOutcome(u) && (
-                            <Button size="sm" variant="ghost" onClick={() => setUndoTarget(u)}>
-                              Undo {u.status === "failed" ? "Failed" : "Aborted"}
-                            </Button>
-                          )}
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </CardBody>
-      </Card>
-
       {stopModalOpen && (
         <StopCellModal
           pending={stopMutation.isPending}
@@ -541,31 +555,26 @@ function StopCellModal({ pending, error, onCancel, onConfirm }: StopCellModalPro
   const [reason, setReason] = useState("");
 
   return (
-    <Modal onClose={pending ? () => {} : onCancel} title="Stop this cell?">
+    <ConfirmModal
+      title="Stop this cell?"
+      confirmLabel="Stop cell"
+      pendingLabel="Stopping…"
+      pending={pending}
+      error={error != null ? (error instanceof ApiError ? error.message : "Failed to stop cell.") : null}
+      textarea={{
+        label: "Reason (optional)",
+        value: reason,
+        onChange: setReason,
+        placeholder: "e.g. visible crack on tray",
+      }}
+      onCancel={onCancel}
+      onConfirm={() => onConfirm(reason)}
+    >
       <p className={styles.helper}>
         All of this cell&apos;s not-yet-run uses are cancelled and their samples returned to the backlog for
         rescheduling. Uses that already ran are kept as history. This cell will never be offered for reuse again.
       </p>
-      <div className={styles.field}>
-        <label className={styles.fieldLabel}>Reason (optional)</label>
-        <textarea value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. visible crack on tray" />
-      </div>
-
-      {error !== null && error !== undefined && (
-        <Note tone="bad" icon="!">
-          {error instanceof ApiError ? error.message : "Failed to stop cell."}
-        </Note>
-      )}
-
-      <ModalActions>
-        <Button variant="ghost" onClick={onCancel} disabled={pending}>
-          Cancel
-        </Button>
-        <Button variant="primary" onClick={() => onConfirm(reason)} disabled={pending}>
-          {pending ? "Stopping…" : "Stop cell"}
-        </Button>
-      </ModalActions>
-    </Modal>
+    </ConfirmModal>
   );
 }
 
@@ -581,27 +590,20 @@ interface UndoStopCellModalProps {
  * genuinely needs to stay out of service, leave it stopped. */
 function UndoStopCellModal({ pending, error, onCancel, onConfirm }: UndoStopCellModalProps) {
   return (
-    <Modal onClose={pending ? () => {} : onCancel} title="Undo Stop cell?">
+    <ConfirmModal
+      title="Undo Stop cell?"
+      confirmLabel="Undo stop"
+      pendingLabel="Undoing…"
+      pending={pending}
+      error={error != null ? (error instanceof ApiError ? error.message : "Failed to undo stop.") : null}
+      onCancel={onCancel}
+      onConfirm={onConfirm}
+    >
       <Note tone="warn" icon="!">
         This reopens the cell and restores every use it cancelled back to Planned. Only do this if the wrong
         physical cell was stopped by mistake.
       </Note>
-
-      {error !== null && error !== undefined && (
-        <Note tone="bad" icon="!">
-          {error instanceof ApiError ? error.message : "Failed to undo stop."}
-        </Note>
-      )}
-
-      <ModalActions>
-        <Button variant="ghost" onClick={onCancel} disabled={pending}>
-          Cancel
-        </Button>
-        <Button variant="primary" onClick={onConfirm} disabled={pending}>
-          {pending ? "Undoing…" : "Undo stop"}
-        </Button>
-      </ModalActions>
-    </Modal>
+    </ConfirmModal>
   );
 }
 
@@ -619,31 +621,26 @@ function MarkFailedModal({ use, pending, error, onCancel, onConfirm }: MarkFaile
   const [notes, setNotes] = useState("");
 
   return (
-    <Modal onClose={pending ? () => {} : onCancel} title={`Mark ${use.well} (run #${use.cycle_id}) Failed?`}>
+    <ConfirmModal
+      title={`Mark ${use.well} (run #${use.cycle_id}) Failed?`}
+      confirmLabel="Mark Failed"
+      pendingLabel="Saving…"
+      pending={pending}
+      error={error != null ? (error instanceof ApiError ? error.message : "Failed to mark use as failed.") : null}
+      textarea={{
+        label: "Notes (optional)",
+        value: notes,
+        onChange: setNotes,
+        placeholder: "e.g. no data produced",
+      }}
+      onCancel={onCancel}
+      onConfirm={() => onConfirm(notes)}
+    >
       <p className={styles.helper}>
         {use.sample_external_id ? `Sample ${use.sample_external_id} will be marked Failed and ` : "The sample will be marked Failed and "}
         can be requeued to the backlog from the Samples list. The cell remains open for its other uses.
       </p>
-      <div className={styles.field}>
-        <label className={styles.fieldLabel}>Notes (optional)</label>
-        <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="e.g. no data produced" />
-      </div>
-
-      {error !== null && error !== undefined && (
-        <Note tone="bad" icon="!">
-          {error instanceof ApiError ? error.message : "Failed to mark use as failed."}
-        </Note>
-      )}
-
-      <ModalActions>
-        <Button variant="ghost" onClick={onCancel} disabled={pending}>
-          Cancel
-        </Button>
-        <Button variant="primary" onClick={() => onConfirm(notes)} disabled={pending}>
-          {pending ? "Saving…" : "Mark Failed"}
-        </Button>
-      </ModalActions>
-    </Modal>
+    </ConfirmModal>
   );
 }
 
@@ -662,33 +659,28 @@ function MarkAbortedModal({ use, pending, error, onCancel, onConfirm }: MarkAbor
   const [notes, setNotes] = useState("");
 
   return (
-    <Modal onClose={pending ? () => {} : onCancel} title={`Mark ${use.well} (run #${use.cycle_id}) Aborted?`}>
+    <ConfirmModal
+      title={`Mark ${use.well} (run #${use.cycle_id}) Aborted?`}
+      confirmLabel="Mark Aborted"
+      pendingLabel="Saving…"
+      pending={pending}
+      error={error != null ? (error instanceof ApiError ? error.message : "Failed to mark use as aborted.") : null}
+      textarea={{
+        label: "Notes (optional)",
+        value: notes,
+        onChange: setNotes,
+        placeholder: "e.g. instrument fault mid-run",
+      }}
+      onCancel={onCancel}
+      onConfirm={() => onConfirm(notes)}
+    >
       <p className={styles.helper}>
         {use.sample_external_id ? `Sample ${use.sample_external_id} will be returned` : "The sample will be returned"}{" "}
         straight to the backlog for rescheduling - no separate requeue step needed. Use this when the run itself
         was aborted (instrument fault, etc.), not when the cell or sample is at fault. The cell remains open for
         its other uses.
       </p>
-      <div className={styles.field}>
-        <label className={styles.fieldLabel}>Notes (optional)</label>
-        <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="e.g. instrument fault mid-run" />
-      </div>
-
-      {error !== null && error !== undefined && (
-        <Note tone="bad" icon="!">
-          {error instanceof ApiError ? error.message : "Failed to mark use as aborted."}
-        </Note>
-      )}
-
-      <ModalActions>
-        <Button variant="ghost" onClick={onCancel} disabled={pending}>
-          Cancel
-        </Button>
-        <Button variant="primary" onClick={() => onConfirm(notes)} disabled={pending}>
-          {pending ? "Saving…" : "Mark Aborted"}
-        </Button>
-      </ModalActions>
-    </Modal>
+    </ConfirmModal>
   );
 }
 
@@ -709,27 +701,20 @@ function UndoQcModal({ use, pending, error, onCancel, onConfirm }: UndoQcModalPr
   const verdict = use.status === "failed" ? "Failed" : "Aborted";
 
   return (
-    <Modal onClose={pending ? () => {} : onCancel} title={`Undo ${use.well} (run #${use.cycle_id}) ${verdict}?`}>
+    <ConfirmModal
+      title={`Undo ${use.well} (run #${use.cycle_id}) ${verdict}?`}
+      confirmLabel="Undo"
+      pendingLabel="Undoing…"
+      pending={pending}
+      error={error != null ? (error instanceof ApiError ? error.message : "Failed to undo.") : null}
+      onCancel={onCancel}
+      onConfirm={onConfirm}
+    >
       <Note tone="warn" icon="!">
         This restores this placement to its previous state, ready to run again. Only do this if the wrong slot was
         flagged by mistake - if this cell genuinely {use.status === "failed" ? "failed" : "was aborted"}, leave the
         verdict as is.
       </Note>
-
-      {error !== null && error !== undefined && (
-        <Note tone="bad" icon="!">
-          {error instanceof ApiError ? error.message : "Failed to undo."}
-        </Note>
-      )}
-
-      <ModalActions>
-        <Button variant="ghost" onClick={onCancel} disabled={pending}>
-          Cancel
-        </Button>
-        <Button variant="primary" onClick={onConfirm} disabled={pending}>
-          {pending ? "Undoing…" : "Undo"}
-        </Button>
-      </ModalActions>
-    </Modal>
+    </ConfirmModal>
   );
 }
