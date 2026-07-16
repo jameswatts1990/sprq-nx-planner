@@ -58,6 +58,16 @@ const GHOST_EXAMPLE_FADING: CellGhost = {
   deadlineIsEstimated: false,
 };
 const GHOST_EXAMPLE_CUTOFF: CellGhost = { ...GHOST_EXAMPLE_FADING, isHardCutoff: true };
+const GHOST_EXAMPLE_UNUSED: CellGhost = {
+  cell: { ...GHOST_EXAMPLE_CELL, code: "CELL-000043", uses_consumed: 0, uses_remaining: 3, current_well: "B01" },
+  useNumber: 1,
+  isHardCutoff: false,
+  fadeOpacity: 1,
+  cutoffDate: "2026-07-13",
+  deadlineAt: "",
+  deadlineIsEstimated: false,
+  unused: true,
+};
 
 // Fabricated stages sharing one cell_id, purely so the cell-link highlight swatches below
 // render from the real SchedulerSlotView component (see CLAUDE.md's Help Tab Maintenance
@@ -315,6 +325,16 @@ export function LegendSection() {
           <span>
             Last day this cell can still start its next use - a fixed amber &quot;expires today&quot; look instead
             of continuing to fade.
+          </span>
+        </div>
+        <div className={styles.legendRow}>
+          <div className={styles.ghostExampleSwatch}>
+            <SchedulerSlotView stage={null} slotIndex={0} ghost={GHOST_EXAMPLE_UNUSED} />
+          </div>
+          <span>
+            A physical tray&apos;s cell that has never been used at all - a quieter, static dotted look with no
+            countdown, since its 108-hour clock hasn&apos;t started yet. Shows up the moment its tray opens and stays
+            until it&apos;s loaded or discarded.
           </span>
         </div>
       </div>

@@ -11,7 +11,7 @@ from datetime import date, datetime, timedelta
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.engine.constants import CELL_LIFETIME_H, CELL_MAX_USES, CELLS_PER_TRAY
+from app.engine.constants import CELL_LIFETIME_H, CELL_MAX_USES, CELLS_PER_TRAY, WELLS
 from app.models.audit import AuditLog
 from app.models.cell import Cell
 from app.models.cell_tray import CellTray
@@ -72,10 +72,10 @@ def current_location(cell: Cell) -> tuple[str | None, str | None]:
     if not active_uses:
         # No use yet - but a tray-linked cell is still a real physical object already
         # sitting on whichever instrument its tray was loaded onto (see open_new_tray()),
-        # so it's pinned there even before its own first use. No well yet, though - that's
-        # only known once it's actually loaded into one.
+        # pinned to the well its tray reserved for it (home_well) even before its own
+        # first use.
         if cell.tray is not None:
-            return cell.tray.instrument.serial_number, None
+            return cell.tray.instrument.serial_number, cell.home_well
         return None, None
     last = max(active_uses, key=lambda cu: (use_run_date(cu) or date.min, cu.id))
     run_batch = last.cycle.run_batch if last.cycle else None
@@ -83,7 +83,7 @@ def current_location(cell: Cell) -> tuple[str | None, str | None]:
     return (instrument.serial_number if instrument else None), last.well
 
 
-def open_new_tray(db: Session, instrument_id: int) -> list[Cell]:
+def open_new_tray(db: Session, instrument_id: int, well: str) -> list[Cell]:
     """Open a brand-new physical SMRT Cell tray: creates one CellTray row plus all
     CELLS_PER_TRAY Cell rows at once (position 1..4, status "open", 0 uses), not just the
     one about to be used. The other 3 are real, reusable cells from this point on - they
@@ -92,20 +92,41 @@ def open_new_tray(db: Session, instrument_id: int) -> list[Cell]:
     with no engine changes needed since `Cell.status == "open"` is already the only
     filter load_prior_cells() applies.
 
-    Returns the 4 cells in tray_position order; callers use cells[0] for the cell being
-    placed right now."""
+    `well` is the well the sample is landing in right now (e.g. "C01") - it fixes which
+    physical tray box (WELLS' own 4-well "tray 1"/"tray 2" split) this CellTray occupies,
+    and each of the 4 cells is pinned to one well in that box (Cell.home_well/tray_position,
+    in fixed A/B/C/D order) so an unused sibling can still surface a real current_well via
+    current_location() and render in the weekly grid before it's ever used.
+
+    Returns the 4 cells reordered so index 0 is always the cell whose home_well == well
+    (the one being placed right now), followed by its 3 siblings in position order."""
+    box_start = (WELLS.index(well) // CELLS_PER_TRAY) * CELLS_PER_TRAY
+    box_wells = WELLS[box_start : box_start + CELLS_PER_TRAY]
+
     tray = CellTray(instrument_id=instrument_id)
     db.add(tray)
     db.flush()
 
-    cells: list[Cell] = []
-    for position in range(1, CELLS_PER_TRAY + 1):
-        cell = Cell(code="PENDING", max_uses=CELL_MAX_USES, status="open", tray_id=tray.id, tray_position=position)
+    placed: Cell | None = None
+    siblings: list[Cell] = []
+    for position, home_well in enumerate(box_wells, start=1):
+        cell = Cell(
+            code="PENDING",
+            max_uses=CELL_MAX_USES,
+            status="open",
+            tray_id=tray.id,
+            tray_position=position,
+            home_well=home_well,
+        )
         db.add(cell)
         db.flush()
         cell.code = f"CELL-{cell.id:06d}"
-        cells.append(cell)
-    return cells
+        if home_well == well:
+            placed = cell
+        else:
+            siblings.append(cell)
+    assert placed is not None, f"well {well!r} not found in its own tray box {box_wells!r}"
+    return [placed, *siblings]
 
 
 def last_use_run_date(cell: Cell) -> date | None:

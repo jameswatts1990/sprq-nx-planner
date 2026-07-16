@@ -40,6 +40,11 @@ class Cell(Base):
     # bootstrap_cell() cutover tool, which has no way to know real sibling history.
     tray_id: Mapped[int | None] = mapped_column(ForeignKey("cell_trays.id"), nullable=True, index=True)
     tray_position: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # The well (e.g. "C01") this cell is permanently pinned to within its physical tray box
+    # from the moment its tray opens - see cell_service.open_new_tray(). Only meaningful
+    # while the cell has never been used (current_location() falls back to it); once a
+    # cell has a real use, its last CellUse.well takes over as usual.
+    home_well: Mapped[str | None] = mapped_column(String(8), nullable=True)
 
     cell_uses: Mapped[list["CellUse"]] = relationship(back_populates="cell", order_by="CellUse.id")
     tray: Mapped["CellTray | None"] = relationship(back_populates="cells")

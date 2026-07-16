@@ -22,7 +22,7 @@ export interface WaitingCellPopoverProps {
  * SlotDetailPopover's use of Modal/ModalActions. */
 export function WaitingCellPopover({ ghost, onClose }: WaitingCellPopoverProps) {
   const queryClient = useQueryClient();
-  const { cell, useNumber, isHardCutoff, deadlineAt, deadlineIsEstimated } = ghost;
+  const { cell, useNumber, isHardCutoff, deadlineAt, deadlineIsEstimated, unused } = ghost;
 
   const retireMutation = useMutation({
     mutationFn: () => cellsApi.retire(cell.id),
@@ -35,30 +35,39 @@ export function WaitingCellPopover({ ghost, onClose }: WaitingCellPopoverProps) 
   return (
     <Modal onClose={onClose} title={cell.code}>
       <div className={styles.row}>
-        <span className={styles.label}>Next use</span>
-        <b className={styles.value}>
-          Use {useNumber} / {cell.max_uses}
-        </b>
-      </div>
-      <div className={styles.row}>
         <span className={styles.label}>Instrument</span>
         <b className={styles.value}>{cell.current_instrument_serial}</b>
       </div>
-      <div className={styles.row}>
-        <span className={styles.label}>{deadlineIsEstimated ? "Est. window closes" : "Window closes"}</span>
-        <b className={styles.value}>{formatShortDateTimeUTC(deadlineAt)}</b>
-      </div>
-
-      {deadlineIsEstimated && (
+      {unused ? (
         <Note tone="info" icon="i">
-          Use 1 hasn&apos;t been confirmed loaded yet, so this is estimated from its planned loading time, not the
-          real 108-hour clock (which starts once the cell is actually removed from the tray).
+          Reserved on this physical tray, but not yet used - its 108-hour window hasn&apos;t started. It'll stay
+          available here until it's loaded or discarded.
         </Note>
-      )}
-      {isHardCutoff && (
-        <Note tone="warn" icon="!">
-          Last day this cell can start its next use within the 108-hour window.
-        </Note>
+      ) : (
+        <>
+          <div className={styles.row}>
+            <span className={styles.label}>Next use</span>
+            <b className={styles.value}>
+              Use {useNumber} / {cell.max_uses}
+            </b>
+          </div>
+          <div className={styles.row}>
+            <span className={styles.label}>{deadlineIsEstimated ? "Est. window closes" : "Window closes"}</span>
+            <b className={styles.value}>{formatShortDateTimeUTC(deadlineAt)}</b>
+          </div>
+
+          {deadlineIsEstimated && (
+            <Note tone="info" icon="i">
+              Use 1 hasn&apos;t been confirmed loaded yet, so this is estimated from its planned loading time, not
+              the real 108-hour clock (which starts once the cell is actually removed from the tray).
+            </Note>
+          )}
+          {isHardCutoff && (
+            <Note tone="warn" icon="!">
+              Last day this cell can start its next use within the 108-hour window.
+            </Note>
+          )}
+        </>
       )}
       {cell.window_hours_elapsed !== null && <WindowMeter windowHours={cell.window_hours_elapsed} />}
 

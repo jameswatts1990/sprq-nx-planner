@@ -89,8 +89,9 @@ export function ScheduleSection() {
         it shows both the <b>Loading start time</b> field and the cell choice together. When compatible cells are
         offered, they&apos;re grouped by which physical SPRQ-Nx SMRT Cell tray they came from, in cell-number order,
         so you can see a tray&apos;s other cells together. Picking <b>Use a new cell</b> opens a whole new physical
-        tray of 4 at once — the other 3 appear immediately as open, reusable cells (in the Cells page and future
-        pickers), even though only one of them has a sample on it yet. Dragging an already-placed
+        tray of 4 at once — the other 3 appear immediately as open, reusable cells (in the Cells page, future
+        pickers, and the grid itself — see &quot;Slots and trays&quot; below), even though only one of them has a
+        sample on it yet. Dragging an already-placed
         sample to a new slot <b>moves</b> it and keeps its cell; a move that starts a brand-new run always shows the
         picker, since a move never auto-resolves.
       </p>
@@ -185,8 +186,12 @@ export function ScheduleSection() {
       <p>
         <b>Slots and trays:</b> each day cell has two trays of four slots, each drawn as its own bordered card so a
         tray&apos;s four cells read as one physical object — they always stay together. Tray 2 only appears once a
-        sample is loaded. The Use 1 / Use 2 / Use 3 colours (magenta / blue / teal) show which use of a cell each
-        barcode chip belongs to — see the Colour &amp; Status Legend section. A physical cell also always stays in
+        sample is loaded. The moment any one cell in a tray gets a sample, its other cells appear immediately too —
+        every well in that tray box shows its own reserved <b>CELL-XXXXXX</b> ID from then on, not just the well(s)
+        actually in use, and this keeps showing on every later day until each one is loaded or discarded (see
+        &quot;Waiting-cell ghosts&quot; below for what an unused one looks like). The Use 1 / Use 2 / Use 3 colours
+        (magenta / blue / teal) show which use of a cell each barcode chip belongs to — see the Colour &amp; Status
+        Legend section. A physical cell also always stays in
         the exact same tray/well position for every one of its reuses, never just any open slot — so once a cell
         has a well of its own, both the placement picker and <b>Change cell</b> only offer it for a drop into that
         same well, and its waiting-cell ghost (below) only ever appears there. There is deliberately no way to
@@ -235,6 +240,15 @@ export function ScheduleSection() {
         the cell off rather than reusing it —
         cells whose most recent use hasn&apos;t been confirmed loaded yet can&apos;t be discarded, mirroring the same
         rule on the Cell detail page.
+      </p>
+      <p>
+        <b>Never-yet-used tray cells:</b> a physical tray&apos;s cell that hasn&apos;t been loaded at all yet looks
+        similar to a waiting-cell ghost — its own well, its own <b>CELL-XXXXXX</b> code — but with a plain, static,
+        dotted-border look and a <b>&quot;Not yet used&quot;</b> label instead of a fading &quot;Use N · by
+        [date]&quot; countdown, since its 108-hour clock hasn&apos;t started yet (see the Cells tab&apos;s help — each
+        cell in a tray keeps its own independent clock, not a shared one). It keeps showing every weekday from the
+        moment its tray opens, with no expiry, until it&apos;s loaded or discarded. Dragging a backlog sample onto it
+        or clicking it works exactly like a waiting-cell ghost above.
       </p>
     </div>
   );

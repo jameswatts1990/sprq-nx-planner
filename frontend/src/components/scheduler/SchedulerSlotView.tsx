@@ -116,6 +116,7 @@ export const SchedulerSlotView = memo(
   } else if (ghost) {
     classes.push(styles.ghost, styles[useClass]);
     if (ghost.isHardCutoff) classes.push(styles.ghostCutoff);
+    if (ghost.unused) classes.push(styles.ghostUnused);
   } else {
     classes.push(styles.empty);
   }
@@ -197,9 +198,11 @@ export const SchedulerSlotView = memo(
             {ghost.cell.code}
           </div>
           <div className={styles.ghostLabel}>
-            {ghost.isHardCutoff
-              ? `Use ${ghost.useNumber} · expires today`
-              : `Use ${ghost.useNumber} · by ${formatShortDateUTC(parseDateOnly(ghost.cutoffDate))}`}
+            {ghost.unused
+              ? "Not yet used"
+              : ghost.isHardCutoff
+                ? `Use ${ghost.useNumber} · expires today`
+                : `Use ${ghost.useNumber} · by ${formatShortDateUTC(parseDateOnly(ghost.cutoffDate))}`}
           </div>
         </>
       ) : (

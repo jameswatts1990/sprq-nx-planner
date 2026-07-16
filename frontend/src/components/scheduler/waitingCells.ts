@@ -28,6 +28,11 @@ export interface CellGhost {
    * only starts once a cell is actually removed from the tray - see
    * docs/pacbio-sprq-nx-scheduling-reference.md #2). */
   deadlineIsEstimated: boolean;
+  /** True for a tray sibling that has never been used at all - it's shown so its physical
+   * tray reads as fully populated, but has no 108h clock running yet (see
+   * computeUnusedTraySiblingGhost), so isHardCutoff/fadeOpacity/cutoffDate/deadlineAt carry
+   * no real meaning and should be ignored by anything rendering this ghost. */
+  unused?: boolean;
 }
 
 function nextWeekdayAfter(isoDate: string): string {
@@ -93,6 +98,32 @@ export function computeGhost(cell: CellOut, day: string): CellGhost | null {
   };
 }
 
+/**
+ * Whether `cell` is a never-yet-used sibling of an already-live physical tray, waiting to
+ * be shown (and eventually loaded) in its own reserved well on `day`. Distinct from
+ * computeGhost (mutually exclusive via uses_consumed): there's no 108h clock running yet
+ * (see docs/pacbio-sprq-nx-scheduling-reference.md's "Tray-of-4 eager population" section),
+ * so this has no fade/cutoff - it just persists on every weekday from the tray's creation
+ * onward until it's actually used (or retired).
+ */
+export function computeUnusedTraySiblingGhost(cell: CellOut, day: string): CellGhost | null {
+  if (cell.status !== "open" || cell.uses_consumed > 0) return null;
+  if (!cell.current_instrument_serial || !cell.current_well) return null;
+  if (isWeekendUTC(parseDateOnly(day))) return null;
+  if (day < cell.created_at.slice(0, 10)) return null;
+
+  return {
+    cell,
+    useNumber: 1,
+    isHardCutoff: false,
+    fadeOpacity: 1,
+    cutoffDate: day,
+    deadlineAt: "",
+    deadlineIsEstimated: false,
+    unused: true,
+  };
+}
+
 /** Mirrors backend/app/engine/constants.py's WELLS - tray 1 is indices 0-3, tray 2 is
  * 4-7. Used to sort ghosts back into the physical tray order their cells last occupied
  * (the cells API's own ordering is newest-first), and by SchedulerDayCell to pin each
@@ -121,7 +152,7 @@ export function groupWaitingCellsByInstrumentAndDay(cells: CellOut[], days: stri
   for (const cell of orderedCells) {
     if (!cell.current_instrument_serial) continue;
     for (const day of days) {
-      const ghost = computeGhost(cell, day);
+      const ghost = computeGhost(cell, day) ?? computeUnusedTraySiblingGhost(cell, day);
       if (!ghost) continue;
 
       let byDate = byInstrument.get(cell.current_instrument_serial);

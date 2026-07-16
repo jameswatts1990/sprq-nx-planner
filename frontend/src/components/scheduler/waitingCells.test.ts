@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { CellOut } from "@/types/cell";
 
-import { computeGhost, groupWaitingCellsByInstrumentAndDay } from "./waitingCells";
+import { computeGhost, computeUnusedTraySiblingGhost, groupWaitingCellsByInstrumentAndDay } from "./waitingCells";
 
 function baseCell(overrides: Partial<CellOut> = {}): CellOut {
   const lastUseRunDate = overrides.last_use_run_date !== undefined ? overrides.last_use_run_date : "2026-07-13";
@@ -110,6 +110,52 @@ describe("computeGhost", () => {
   });
 });
 
+function baseUnusedTraySibling(overrides: Partial<CellOut> = {}): CellOut {
+  return baseCell({
+    uses_consumed: 0,
+    uses_remaining: 3,
+    last_use_run_date: null,
+    first_use_started_at: null,
+    first_use_planned_start_at: null,
+    created_at: "2026-07-13T12:00:00Z",
+    tray_id: 5,
+    tray_position: 2,
+    current_well: "B01",
+    ...overrides,
+  });
+}
+
+describe("computeUnusedTraySiblingGhost", () => {
+  it("returns null for a cell that already has a use (that's computeGhost's job)", () => {
+    expect(computeUnusedTraySiblingGhost(baseUnusedTraySibling({ uses_consumed: 1 }), "2026-07-14")).toBeNull();
+  });
+
+  it("returns null once the cell is no longer open, or has no known well/instrument yet", () => {
+    expect(computeUnusedTraySiblingGhost(baseUnusedTraySibling({ status: "retired" }), "2026-07-14")).toBeNull();
+    expect(computeUnusedTraySiblingGhost(baseUnusedTraySibling({ current_well: null }), "2026-07-14")).toBeNull();
+    expect(
+      computeUnusedTraySiblingGhost(baseUnusedTraySibling({ current_instrument_serial: null }), "2026-07-14"),
+    ).toBeNull();
+  });
+
+  it("returns null on weekends and on any day before the tray was created", () => {
+    expect(computeUnusedTraySiblingGhost(baseUnusedTraySibling(), "2026-07-11")).toBeNull(); // Saturday
+    expect(computeUnusedTraySiblingGhost(baseUnusedTraySibling(), "2026-07-10")).toBeNull(); // before created_at
+  });
+
+  it("shows on its creation day and every weekday after, with no fade or cutoff", () => {
+    const cell = baseUnusedTraySibling();
+    const same = computeUnusedTraySiblingGhost(cell, "2026-07-13");
+    const later = computeUnusedTraySiblingGhost(cell, "2026-08-03");
+
+    expect(same?.unused).toBe(true);
+    expect(same?.isHardCutoff).toBe(false);
+    expect(same?.fadeOpacity).toBe(1);
+    // Unlike a reuse ghost, there's no clock running yet - it never expires.
+    expect(later?.unused).toBe(true);
+  });
+});
+
 describe("groupWaitingCellsByInstrumentAndDay", () => {
   it("buckets ghosts by the cell's current instrument and each eligible day", () => {
     const cellA = baseCell({ id: 1, current_instrument_serial: "84047", last_use_run_date: "2026-07-13" });
@@ -145,5 +191,17 @@ describe("groupWaitingCellsByInstrumentAndDay", () => {
     const grouped = groupWaitingCellsByInstrumentAndDay([cellD01, cellC01, cellB01], ["2026-07-14"]);
 
     expect(grouped.get("84047")?.get("2026-07-14")?.map((g) => g.cell.id)).toEqual([1, 2, 3]);
+  });
+
+  it("surfaces an unused tray sibling's reserved ghost alongside a real reuse ghost, same instrument/day", () => {
+    const reused = baseCell({ id: 1, current_instrument_serial: "84047", current_well: "A01", last_use_run_date: "2026-07-13" });
+    const sibling = baseUnusedTraySibling({ id: 2, current_instrument_serial: "84047", current_well: "B01" });
+
+    const grouped = groupWaitingCellsByInstrumentAndDay([reused, sibling], ["2026-07-14"]);
+    const ghosts = grouped.get("84047")?.get("2026-07-14") ?? [];
+
+    expect(ghosts.map((g) => g.cell.id).sort()).toEqual([1, 2]);
+    expect(ghosts.find((g) => g.cell.id === 2)?.unused).toBe(true);
+    expect(ghosts.find((g) => g.cell.id === 1)?.unused).toBeUndefined();
   });
 });

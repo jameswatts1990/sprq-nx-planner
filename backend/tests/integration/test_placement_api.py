@@ -143,6 +143,51 @@ def test_remove_sample_reverts_to_backlog_and_cleans_up_emptied_run(client):
     assert cell.json()["tray_id"] is not None
 
 
+def test_opening_a_tray_pins_every_sibling_to_a_well_in_the_same_box(client):
+    """Placing into slot_index 2 (well C01, tray 1's box) should give the placed cell
+    current_well "C01" and its 3 never-used siblings current_well A01/B01/D01 - the other
+    half of the day's wells (A02-D02, tray 2's box) - so all 4 are immediately visible in
+    their own reserved well, in the right physical tray box."""
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1"})
+    (mon,) = _weekdays(1)
+    r1 = _place(client, _sid(client, "A1"), mon, 2)
+    assert r1.status_code == 201, r1.text
+    placed_cell_id = r1.json()["stages"][0]["cell_id"]
+    tray_id = client.get(f"/api/cells/{placed_cell_id}").json()["tray_id"]
+
+    cells = client.get("/api/cells", params={"tray_id": tray_id}).json()["items"]
+    assert len(cells) == 4
+    by_well = {c["current_well"]: c["uses_consumed"] for c in cells}
+    assert set(by_well) == {"A01", "B01", "C01", "D01"}
+    assert by_well["C01"] == 1  # the placed cell
+    assert by_well["A01"] == by_well["B01"] == by_well["D01"] == 0  # unused siblings
+
+
+def test_cannot_place_an_unused_tray_sibling_into_the_wrong_well(client):
+    """An unused sibling is pinned to its own well the moment its tray opens (home_well) -
+    the same "must stay in its own well" guard that applies to a cell reused after a real
+    use should already reject placing it anywhere else."""
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1\nA2,bc2"})
+    (mon,) = _weekdays(1)
+    r1 = _place(client, _sid(client, "A1"), mon, 0)  # opens a tray in the A01-D01 box
+    assert r1.status_code == 201, r1.text
+    tray_id = client.get(f"/api/cells/{r1.json()['stages'][0]['cell_id']}").json()["tray_id"]
+    sibling_id = next(
+        c["id"]
+        for c in client.get("/api/cells", params={"tray_id": tray_id}).json()["items"]
+        if c["current_well"] == "B01"
+    )
+
+    # slot_index 3 is well D01 - wrong well for a cell pinned to B01.
+    wrong_well = _place(client, _sid(client, "A2"), mon, 3, {"mode": "existing", "cell_id": sibling_id})
+    assert wrong_well.status_code == 409
+    assert "must stay in well" in wrong_well.json()["detail"]
+
+    # slot_index 1 is B01, its actual pinned well - should succeed.
+    right_well = _place(client, _sid(client, "A2"), mon, 1, {"mode": "existing", "cell_id": sibling_id})
+    assert right_well.status_code == 201, right_well.text
+
+
 def test_remove_sample_keeps_cell_when_it_still_has_other_uses(client):
     client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1\nA2,bc2"})
     mon, tue = _weekdays(2)

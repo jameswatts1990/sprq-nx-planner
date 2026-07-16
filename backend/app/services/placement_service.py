@@ -206,7 +206,7 @@ def place_sample(
         raise PlacementError(409, f"Run is locked (status: {cycle.status}); cannot place into it.")
 
     if mode == "new":
-        cell = open_new_tray(db, instrument.id)[0]
+        cell = open_new_tray(db, instrument.id, well)[0]
     else:
         cell = existing_cell
 
@@ -521,7 +521,7 @@ def change_cell(
 
     # --- writes ---
     if mode == "new":
-        new_cell = open_new_tray(db, cycle.run_batch.instrument_id)[0]
+        new_cell = open_new_tray(db, cycle.run_batch.instrument_id, cell_use.well)[0]
 
     cell_use.cell_id = new_cell.id
     db.flush()

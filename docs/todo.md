@@ -1,5 +1,1 @@
-- Show priority in the backlog display
-- Show more samples in the backlog
-- Backlog should be filterable and orderable
-- Place X pop up should not appear when dropping on a ghost or in instances where a new cell has to be used
-- Clicking on a placed cell allocation should allow some options to change the cell
+- Clicking outside of the weekly scheduler panel deselects the selections made in weekly schedule. I think this is bugging out when pressing buttons so clicking autoselect button cancels the selection and therefore nothing autoschedules

@@ -199,7 +199,7 @@ def auto_fill(
             # Opens a whole new physical tray (4 cells), not just this one - the other 3
             # are left open/unused and surface as preferred reuse candidates on the next
             # placement/auto-fill call (see open_new_tray()).
-            db_cell = open_new_tray(db, instruments[a.instrument_serial].id)[0]
+            db_cell = open_new_tray(db, instruments[a.instrument_serial].id, well)[0]
             ref_to_cell[a.cell.id] = db_cell
 
         cell_use = CellUse(

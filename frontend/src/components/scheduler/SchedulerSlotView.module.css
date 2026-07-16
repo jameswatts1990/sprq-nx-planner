@@ -112,6 +112,17 @@
   }
 }
 
+/* A tray sibling that's real (has its own ID and reserved well) but has never been used -
+   no 108h clock is running yet, so it gets a quieter, static dotted look instead of the
+   fading "next up for reuse" treatment, distinguishing "reserved" from "about to expire". */
+.ghostUnused {
+  border-style: dotted;
+  opacity: 0.75;
+}
+.ghostUnused .ghostLabel {
+  color: var(--faint);
+}
+
 /* Dragging a sample directly over a ghost placeholder previews an exact-match reuse of
    that cell - keep the ghost's own colour (still reads as "this cell"), just switch to a
    solid, thicker border and add a glow to signal "drop here to reuse this cell". Only
