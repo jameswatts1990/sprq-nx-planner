@@ -12,5 +12,6 @@ export const USE_STATUS_TONE: Record<string, BadgeTone> = {
   started: "info",
   completed: "success",
   failed: "danger",
+  aborted: "warning",
   cancelled: "warning",
 };

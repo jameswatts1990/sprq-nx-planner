@@ -13,7 +13,7 @@ import { Modal, ModalActions } from "@/components/ui/Modal";
 import { Note } from "@/components/ui/Note";
 import type { CellUseHistoryOut } from "@/types/cell";
 import { CELL_STATUS_LABEL, CELL_STATUS_TONE } from "@/utils/cellStatus";
-import { canMarkFailed } from "@/utils/cellUseQc";
+import { canRecordQcOutcome } from "@/utils/cellUseQc";
 import { USE_STATUS_TONE } from "@/utils/useStatusTone";
 
 import styles from "./CellDetailPage.module.css";
@@ -37,6 +37,7 @@ export function CellDetailPage() {
   const [stopModalOpen, setStopModalOpen] = useState(false);
   const [bumpedCount, setBumpedCount] = useState<number | null>(null);
   const [failTarget, setFailTarget] = useState<CellUseHistoryOut | null>(null);
+  const [abortTarget, setAbortTarget] = useState<CellUseHistoryOut | null>(null);
   const [caseNumber, setCaseNumber] = useState("");
 
   function invalidateCell() {
@@ -64,6 +65,16 @@ export function CellDetailPage() {
     onSuccess: () => {
       invalidateCell();
       setFailTarget(null);
+    },
+  });
+
+  const markAbortedMutation = useMutation({
+    mutationFn: ({ useId, notes }: { useId: number; notes: string }) =>
+      cellUsesApi.updateStatus(useId, { status: "aborted", notes: notes || undefined }),
+    onSuccess: () => {
+      invalidateCell();
+      void queryClient.invalidateQueries({ queryKey: ["samples"] });
+      setAbortTarget(null);
     },
   });
 
@@ -363,10 +374,15 @@ export function CellDetailPage() {
                     <td>{formatDateTime(u.completed_at)}</td>
                     <td>{u.outcome_notes ?? "—"}</td>
                     <td>
-                      {canMarkFailed(u) && (
-                        <Button size="sm" variant="ghost" onClick={() => setFailTarget(u)}>
-                          Mark Failed
-                        </Button>
+                      {canRecordQcOutcome(u) && (
+                        <div className={styles.useActions}>
+                          <Button size="sm" variant="ghost" onClick={() => setFailTarget(u)}>
+                            Mark Failed
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => setAbortTarget(u)}>
+                            Mark Aborted
+                          </Button>
+                        </div>
                       )}
                     </td>
                   </tr>
@@ -393,6 +409,16 @@ export function CellDetailPage() {
           error={markFailedMutation.error}
           onCancel={() => setFailTarget(null)}
           onConfirm={(notes) => markFailedMutation.mutate({ useId: failTarget.id, notes })}
+        />
+      )}
+
+      {abortTarget && (
+        <MarkAbortedModal
+          use={abortTarget}
+          pending={markAbortedMutation.isPending}
+          error={markAbortedMutation.error}
+          onCancel={() => setAbortTarget(null)}
+          onConfirm={(notes) => markAbortedMutation.mutate({ useId: abortTarget.id, notes })}
         />
       )}
     </div>
@@ -477,6 +503,51 @@ function MarkFailedModal({ use, pending, error, onCancel, onConfirm }: MarkFaile
         </Button>
         <Button variant="primary" onClick={() => onConfirm(notes)} disabled={pending}>
           {pending ? "Saving…" : "Mark Failed"}
+        </Button>
+      </ModalActions>
+    </Modal>
+  );
+}
+
+interface MarkAbortedModalProps {
+  use: CellUseHistoryOut;
+  pending: boolean;
+  error: unknown;
+  onCancel: () => void;
+  onConfirm: (notes: string) => void;
+}
+
+/** QC: the run/instrument was the problem, not this sample or cell - unlike Mark Failed,
+ * the sample goes straight back to the backlog for a fresh attempt with no separate
+ * Requeue step. The cell remains open for its other uses. */
+function MarkAbortedModal({ use, pending, error, onCancel, onConfirm }: MarkAbortedModalProps) {
+  const [notes, setNotes] = useState("");
+
+  return (
+    <Modal onClose={pending ? () => {} : onCancel} title={`Mark ${use.well} (run #${use.cycle_id}) Aborted?`}>
+      <p className={styles.helper}>
+        {use.sample_external_id ? `Sample ${use.sample_external_id} will be returned` : "The sample will be returned"}{" "}
+        straight to the backlog for rescheduling - no separate requeue step needed. Use this when the run itself
+        was aborted (instrument fault, etc.), not when the cell or sample is at fault. The cell remains open for
+        its other uses.
+      </p>
+      <div className={styles.field}>
+        <label className={styles.fieldLabel}>Notes (optional)</label>
+        <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="e.g. instrument fault mid-run" />
+      </div>
+
+      {error !== null && error !== undefined && (
+        <Note tone="bad" icon="!">
+          {error instanceof ApiError ? error.message : "Failed to mark use as aborted."}
+        </Note>
+      )}
+
+      <ModalActions>
+        <Button variant="ghost" onClick={onCancel} disabled={pending}>
+          Cancel
+        </Button>
+        <Button variant="primary" onClick={() => onConfirm(notes)} disabled={pending}>
+          {pending ? "Saving…" : "Mark Aborted"}
         </Button>
       </ModalActions>
     </Modal>

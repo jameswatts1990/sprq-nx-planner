@@ -14,6 +14,7 @@ import { formatShortDateUTC, parseDateOnly } from "@/utils/calendarDates";
 import { shouldAutoPlace, shouldShowCellChoiceModal } from "./cellChoiceGate";
 import { slotKey, trayOfSlot } from "./gridKeys";
 import { useCompatibleCells } from "./useCompatibleCells";
+import { WELL_ORDER } from "./waitingCells";
 import styles from "./CellChoicePicker.module.css";
 
 const DEFAULT_START_TIME = "12:00";
@@ -66,6 +67,7 @@ export function CellChoicePicker({ pending, runDesign, existingRun, onClose, onP
   const { cellsQuery, compatible } = useCompatibleCells({
     instrumentSerial: pending.instrument_serial,
     sampleBarcodes: pending.sample.barcodes,
+    targetWell: WELL_ORDER[pending.slot_index],
     enabled: !isMove,
   });
   // Only trust the preselected ghost cell once it's confirmed still compatible (barcodes

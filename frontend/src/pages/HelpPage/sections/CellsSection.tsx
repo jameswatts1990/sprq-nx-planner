@@ -55,17 +55,25 @@ export function CellsSection() {
         <li>
           <b>Use history</b> lists every run the cell has been in: run number (links to the run), well, use status,
           sample, container ID, barcodes, priority, target OPLC, adaptive loading, full resolution base Q, kinetics
-          (CCS output includes kinetics information), instrument, start/complete times, outcome notes, and a{" "}
-          <b>Mark Failed</b> action. Marking a use Failed means that particular run produced no usable data; the
-          cell itself stays open for its other uses, and the sample can be requeued to the Backlog from the Samples
-          list.
+          (CCS output includes kinetics information), instrument, start/complete times, outcome notes, and{" "}
+          <b>Mark Failed</b> / <b>Mark Aborted</b> actions.
         </li>
         <li>
-          <b>When Mark Failed becomes available:</b> as soon as that run is locked onto the instrument — its
-          scheduled start time — not only once someone has clicked <b>Confirm loaded</b>. A cell can fail physically
-          at any point once it&apos;s actually on the instrument, so QC doesn&apos;t wait on that confirmation step.
-          It&apos;s hidden for a run that hasn&apos;t reached its scheduled start yet, and for uses that were
-          cancelled or are already marked Failed.
+          <b>Mark Failed</b> means that particular run produced no usable data and the cell itself may be at fault;
+          the cell stays open for its other uses, and the sample is marked Failed and can be requeued to the
+          Backlog from the Samples list.
+        </li>
+        <li>
+          <b>Mark Aborted</b> is for when the run/instrument was the problem, not the cell or sample — e.g. an
+          instrument fault mid-run. The cell stays open for its other uses, and unlike Mark Failed the sample goes
+          straight back to the Backlog for rescheduling, with no separate Requeue step needed.
+        </li>
+        <li>
+          <b>When Mark Failed/Mark Aborted become available:</b> as soon as that run is locked onto the
+          instrument — its scheduled start time — not only once someone has clicked <b>Confirm loaded</b>. A
+          problem can occur at any point once a cell is actually on the instrument, so QC doesn&apos;t wait on that
+          confirmation step. Both are hidden for a run that hasn&apos;t reached its scheduled start yet, and for
+          uses that were cancelled or already have a recorded outcome (Failed or Aborted).
         </li>
       </ul>
 

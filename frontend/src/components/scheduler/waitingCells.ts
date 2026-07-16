@@ -107,9 +107,11 @@ export function computeGhost(cell: CellOut, day: string): CellGhost | null {
 }
 
 /** Mirrors backend/app/engine/constants.py's WELLS - tray 1 is indices 0-3, tray 2 is
- * 4-7. Used only to sort ghosts back into the physical tray order their cells last
- * occupied, since the cells API's own ordering (newest-first) doesn't reflect that. */
-const WELL_ORDER = ["A01", "B01", "C01", "D01", "A02", "B02", "C02", "D02"];
+ * 4-7. Used to sort ghosts back into the physical tray order their cells last occupied
+ * (the cells API's own ordering is newest-first), and by SchedulerDayCell to pin each
+ * ghost to that exact slot index - cells stay in the same physical tray/well position
+ * for every reuse, never just "the next open slot". */
+export const WELL_ORDER = ["A01", "B01", "C01", "D01", "A02", "B02", "C02", "D02"];
 
 function wellSortKey(well: string | null): number {
   const i = well ? WELL_ORDER.indexOf(well) : -1;

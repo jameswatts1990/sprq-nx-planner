@@ -98,18 +98,28 @@ export function ScheduleSection() {
         the same cell automatically, but review them before placing either); a red note means the auto-fill failed.
       </p>
       <p>
-        <b>QC actions from the grid:</b> click a filled slot to open its detail, then <b>Mark Failed</b> or{" "}
-        <b>Stop cell</b> — the same actions available on the Cell detail page, without leaving the schedule.{" "}
-        <b>Mark Failed</b> only appears once that run has reached its scheduled start time (see the Cells tab&apos;s
-        help for exactly when); <b>Stop cell</b> is available any time the cell isn&apos;t already stopped or
-        retired. Either shows a short reason/notes box and a confirm step in the same popover before applying.
+        <b>QC actions from the grid:</b> click a filled slot to open its detail, then <b>Mark Failed</b>,{" "}
+        <b>Mark Aborted</b>, or <b>Stop cell</b> — the same actions available on the Cell detail page, without
+        leaving the schedule. <b>Mark Failed</b>/<b>Mark Aborted</b> only appear once that run has reached its
+        scheduled start time (see the Cells tab&apos;s help for exactly when); <b>Stop cell</b> is available any
+        time the cell isn&apos;t already stopped or retired. Each shows a short reason/notes box and a confirm step
+        in the same popover before applying. Use <b>Mark Aborted</b> instead of <b>Mark Failed</b> when the
+        run/instrument was the problem rather than the cell or sample — it returns the sample straight to the
+        Backlog for rescheduling instead of marking it Failed. <b>Stop cell</b> also cancels every one of that
+        cell&apos;s not-yet-run uses elsewhere on the grid (their samples go back to the Backlog too) — each stays
+        visible as a <b>Blocked</b> slot (see below) rather than disappearing, so a day&apos;s plan never silently
+        loses a placement without a trace.
       </p>
       <p>
-        <b>Failed/Stopped indicator on the grid:</b> a slot outlined in red, labelled <b>Failed</b> or{" "}
-        <b>Stopped</b>, flags a QC problem without opening it — <b>Failed</b> means that specific use produced no
-        usable data (the cell may still be fine for its other uses); <b>Stopped</b> means the physical cell itself
-        has been taken out of service for good, and is shown this way on every one of its slots still visible on
-        the grid, even ones that themselves completed normally.
+        <b>Failed/Aborted/Stopped/Blocked indicator on the grid:</b> a slot outlined in colour, labelled{" "}
+        <b>Failed</b>, <b>Aborted</b>, <b>Stopped</b>, or <b>Blocked</b>, flags a QC problem without opening it —{" "}
+        a red ring for <b>Failed</b> (that specific use produced no usable data; the cell may still be fine for its
+        other uses) or <b>Stopped</b> (the physical cell itself has been taken out of service for good, shown this
+        way on every one of its slots still visible on the grid, even ones that themselves completed normally); a
+        milder amber ring for <b>Aborted</b> (the run/instrument was the problem, not the cell — its sample is
+        already back in the Backlog); and a yellow cross-hatched <b>Blocked</b> slot for a placement that was
+        cancelled by a <b>Stop cell</b> action before it ever ran — a permanent, read-only marker (no drag, no
+        Remove/Change cell) left in place of the placement that would have happened there.
       </p>
       <p>
         <b>Changing a placement&apos;s cell:</b> click a filled slot to open its detail, then <b>Change cell</b> to
@@ -164,7 +174,12 @@ export function ScheduleSection() {
         <b>Slots and trays:</b> each day cell has two trays of four slots, each drawn as its own bordered card so a
         tray&apos;s four cells read as one physical object — they always stay together. Tray 2 only appears once a
         sample is loaded. The Use 1 / Use 2 / Use 3 colours (magenta / blue / teal) show which use of a cell each
-        barcode chip belongs to — see the Colour &amp; Status Legend section.
+        barcode chip belongs to — see the Colour &amp; Status Legend section. A physical cell also always stays in
+        the exact same tray/well position for every one of its reuses, never just any open slot — so once a cell
+        has a well of its own, both the placement picker and <b>Change cell</b> only offer it for a drop into that
+        same well, and its waiting-cell ghost (below) only ever appears there. There is deliberately no way to
+        start a brand-new cell in a slot that already belongs to another cell&apos;s reuse; a cell&apos;s first use
+        can start in any open slot, but from then on it&apos;s pinned.
       </p>
       <p>
         <b>Highlighting the same cell over time:</b> resting the pointer on a loaded slot for about a second and a
@@ -187,8 +202,11 @@ export function ScheduleSection() {
         vanish&quot;. If Use 1 hasn&apos;t
         been confirmed loaded yet, the expiry date shown is an estimate from its planned loading time rather than the
         real 108-hour clock (which only starts once the cell is actually removed from the tray) — the ghost always
-        expires on schedule either way, it never reads as available indefinitely. If two different cells become
-        eligible on the same instrument and day, each gets its own tinted placeholder. Dragging a backlog sample onto
+        expires on schedule either way, it never reads as available indefinitely. It always shows up in the exact
+        well the cell was last used in (see &quot;Slots and trays&quot; above), not just any open slot. If two
+        different cells become eligible on the same instrument and day, each gets its own tinted placeholder in its
+        own well — in the rare case both cells last sat in the same well letter, only one can show that day.
+        Dragging a backlog sample onto
         a ghost places it onto exactly that cell — since the choice is already unambiguous, it proceeds immediately
         without the placement picker appearing at all; clicking it instead opens a small popover with the
         cell&apos;s remaining uses, its exact expiry time, and a <b>Discard remaining use(s)</b> button for writing

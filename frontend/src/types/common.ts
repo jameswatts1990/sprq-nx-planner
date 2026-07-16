@@ -19,5 +19,5 @@ export type CellStatus = (typeof CELL_STATUSES)[number];
 export const CYCLE_STATUSES = ["planned", "running", "completed", "aborted"] as const;
 export type CycleStatus = (typeof CYCLE_STATUSES)[number];
 
-export const CELL_USE_STATUSES = ["planned", "started", "completed", "failed", "cancelled"] as const;
+export const CELL_USE_STATUSES = ["planned", "started", "completed", "failed", "aborted", "cancelled"] as const;
 export type CellUseStatus = (typeof CELL_USE_STATUSES)[number];

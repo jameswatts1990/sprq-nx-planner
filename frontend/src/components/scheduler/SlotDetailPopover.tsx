@@ -11,7 +11,7 @@ import { Modal, ModalActions } from "@/components/ui/Modal";
 import { Note } from "@/components/ui/Note";
 import type { StageOut } from "@/types/schedule";
 import type { CellChoice } from "@/types/schedulerGrid";
-import { canMarkFailed } from "@/utils/cellUseQc";
+import { canRecordQcOutcome } from "@/utils/cellUseQc";
 
 import { useCompatibleCells } from "./useCompatibleCells";
 import styles from "./SlotDetailPopover.module.css";
@@ -27,21 +27,22 @@ export interface SlotDetailPopoverProps {
 
 /** Which of the popover's alternate inline views is showing, in place of the normal
  * detail + footer. Mutually exclusive, so a single field rather than several booleans. */
-type PopoverMode = "view" | "changeCell" | "markFailed" | "stop";
+type PopoverMode = "view" | "changeCell" | "markFailed" | "markAborted" | "stop";
 
 /** Detail for one filled slot: cell code, the cell's burned barcodes, the sample. When
  * the run is still "planned" (unlocked), offers "Remove from schedule" and "Change cell"
  * (swap this placement onto a different open cell, or a brand-new one, without touching
  * its day/slot - the orthogonal counterpart to dragging it to a new slot, which keeps the
  * cell fixed). Also offers the same QC quick actions as the Cell detail page - Mark
- * Failed (this use only) and Stop cell (the whole physical cell) - so a failure spotted
- * while browsing the grid doesn't require a detour to that page. Built on Modal; folds in
- * the old CellCard's cell-context display. */
+ * Failed and Mark Aborted (this use only) and Stop cell (the whole physical cell) - so a
+ * problem spotted while browsing the grid doesn't require a detour to that page. Built on
+ * Modal; folds in the old CellCard's cell-context display. */
 export function SlotDetailPopover({ stage, locked, instrumentSerial, onClose, onRemoved }: SlotDetailPopoverProps) {
   const queryClient = useQueryClient();
   const [mode, setMode] = useState<PopoverMode>("view");
   const [selected, setSelected] = useState<string>("new"); // "new" | "<cellId>"
   const [failNotes, setFailNotes] = useState("");
+  const [abortNotes, setAbortNotes] = useState("");
   const [stopReason, setStopReason] = useState("");
 
   const cellQuery = useQuery({
@@ -54,6 +55,7 @@ export function SlotDetailPopover({ stage, locked, instrumentSerial, onClose, on
     instrumentSerial,
     sampleBarcodes: stage.barcodes,
     excludeCellId: stage.cell_id,
+    targetWell: stage.well,
     enabled: mode === "changeCell",
   });
 
@@ -99,25 +101,40 @@ export function SlotDetailPopover({ stage, locked, instrumentSerial, onClose, on
     },
   });
 
+  const markAbortedMutation = useMutation({
+    mutationFn: () => cellUsesApi.updateStatus(stage.cell_use_id, { status: "aborted", notes: abortNotes || undefined }),
+    onSuccess: () => {
+      // Same reasoning as markFailedMutation - the placement/history is untouched, only
+      // the sample (now back in the backlog) needs its own list refreshed too.
+      invalidateAfterQcAction();
+      onClose();
+    },
+  });
+
   const stopMutation = useMutation({
     mutationFn: () => cellsApi.stop(stage.cell_id, { reason: stopReason || null }),
-    onSuccess: (data) => {
+    onSuccess: () => {
       invalidateAfterQcAction();
-      // If this exact placement's sample was cascaded back to the backlog (this use was
-      // still "planned"), the slot itself is now gone - same as Remove. Otherwise (this
-      // use already ran) the slot's history is untouched, only closing is needed.
-      if (stage.sample_id !== null && data.bumped_sample_ids.includes(stage.sample_id)) onRemoved();
-      else onClose();
+      // The placement itself is untouched by Stop cell now: a still-"planned" use is
+      // cancelled in place (kept as a visible, blocked slot) rather than removed, and an
+      // already-run use's history is untouched either way - so just close in both cases.
+      onClose();
     },
   });
 
   const cell = cellQuery.data;
   const currentUse = cell?.use_history.find((u) => u.id === stage.cell_use_id);
-  const canFail = !!currentUse && canMarkFailed(currentUse);
+  const canFlagQc = !!currentUse && canRecordQcOutcome(currentUse);
   const stopDisabled = !cell || cell.status === "retired" || cell.status === "stopped";
+  const isCancelled = stage.cell_use_status === "cancelled";
 
   return (
     <Modal onClose={onClose} title={stage.cell_ref}>
+      {isCancelled && (
+        <Note tone="warn" icon="!">
+          This placement was cancelled{cell?.stopped_reason ? ` when its cell was stopped: ${cell.stopped_reason}` : " when its cell was stopped"} before it could run. Its sample was returned to the Backlog and can be rescheduled elsewhere.
+        </Note>
+      )}
       <div className={styles.row}>
         <span className={styles.label}>Sample</span>
         <b className={styles.value}>{stage.sample_external_id ?? "—"}</b>
@@ -148,13 +165,18 @@ export function SlotDetailPopover({ stage, locked, instrumentSerial, onClose, on
         </div>
       )}
 
-      {mode === "view" && (canFail || !stopDisabled) && (
+      {!isCancelled && mode === "view" && (canFlagQc || !stopDisabled) && (
         <div className={styles.qcRow}>
           <span className={styles.label}>QC</span>
           <div className={styles.qcButtons}>
-            {canFail && (
+            {canFlagQc && (
               <Button size="sm" variant="ghost" onClick={() => setMode("markFailed")}>
                 Mark Failed
+              </Button>
+            )}
+            {canFlagQc && (
+              <Button size="sm" variant="ghost" onClick={() => setMode("markAborted")}>
+                Mark Aborted
               </Button>
             )}
             {!stopDisabled && (
@@ -177,6 +199,22 @@ export function SlotDetailPopover({ stage, locked, instrumentSerial, onClose, on
             value={failNotes}
             onChange={(e) => setFailNotes(e.target.value)}
             placeholder="Notes (optional), e.g. no data produced"
+          />
+        </div>
+      )}
+
+      {mode === "markAborted" && (
+        <div className={styles.qcForm}>
+          <p className={styles.helper}>
+            This use will be marked Aborted and its sample goes straight back to the backlog for rescheduling - no
+            separate requeue step. Use this when the run/instrument was the problem, not the cell or sample. The
+            cell stays open for its other uses.
+          </p>
+          <textarea
+            className={styles.qcTextarea}
+            value={abortNotes}
+            onChange={(e) => setAbortNotes(e.target.value)}
+            placeholder="Notes (optional), e.g. instrument fault mid-run"
           />
         </div>
       )}
@@ -267,6 +305,14 @@ export function SlotDetailPopover({ stage, locked, instrumentSerial, onClose, on
         </Note>
       )}
 
+      {markAbortedMutation.isError && (
+        <Note tone="bad" icon="!">
+          {markAbortedMutation.error instanceof ApiError
+            ? markAbortedMutation.error.message
+            : "Failed to mark use as aborted."}
+        </Note>
+      )}
+
       {stopMutation.isError && (
         <Note tone="bad" icon="!">
           {stopMutation.error instanceof ApiError ? stopMutation.error.message : "Failed to stop cell."}
@@ -277,7 +323,13 @@ export function SlotDetailPopover({ stage, locked, instrumentSerial, onClose, on
         <Button
           variant="ghost"
           onClick={mode === "view" ? onClose : () => setMode("view")}
-          disabled={removeMutation.isPending || changeCellMutation.isPending || markFailedMutation.isPending || stopMutation.isPending}
+          disabled={
+            removeMutation.isPending ||
+            changeCellMutation.isPending ||
+            markFailedMutation.isPending ||
+            markAbortedMutation.isPending ||
+            stopMutation.isPending
+          }
         >
           {mode === "view" ? "Close" : "Cancel"}
         </Button>
@@ -291,12 +343,17 @@ export function SlotDetailPopover({ stage, locked, instrumentSerial, onClose, on
             {markFailedMutation.isPending ? "Saving…" : "Mark Failed"}
           </Button>
         )}
+        {mode === "markAborted" && (
+          <Button variant="primary" onClick={() => markAbortedMutation.mutate()} disabled={markAbortedMutation.isPending}>
+            {markAbortedMutation.isPending ? "Saving…" : "Mark Aborted"}
+          </Button>
+        )}
         {mode === "stop" && (
           <Button variant="primary" onClick={() => stopMutation.mutate()} disabled={stopMutation.isPending}>
             {stopMutation.isPending ? "Stopping…" : "Stop cell"}
           </Button>
         )}
-        {!locked && mode === "view" && (
+        {!locked && !isCancelled && mode === "view" && (
           <>
             <Button variant="ghost" onClick={() => setMode("changeCell")}>
               Change cell

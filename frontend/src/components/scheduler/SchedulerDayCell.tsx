@@ -11,7 +11,7 @@ import { padStages } from "./groupCyclesByInstrumentAndDay";
 import { SchedulerSlot } from "./SchedulerSlot";
 import styles from "./SchedulerDayCell.module.css";
 import type { SlotSelection } from "./useSlotSelection";
-import type { CellGhost } from "./waitingCells";
+import { WELL_ORDER, type CellGhost } from "./waitingCells";
 
 export interface SchedulerDayCellProps {
   instrumentSerial: string;
@@ -91,18 +91,20 @@ export function SchedulerDayCell(props: SchedulerDayCellProps) {
   const tray2Filled = TRAY_INDICES[1].some((i) => slots[i] !== null);
 
   // A locked day can no longer accept placements, so ghosts (which double as a droppable
-  // "place it here" affordance) don't apply there. Assign each waiting cell to its own
-  // empty slot, tray 1 first then tray 2, so multiple simultaneously-eligible cells each
-  // get a distinct tinted placeholder (see waitingCells.ts).
+  // "place it here" affordance) don't apply there. Each waiting cell is pinned to the
+  // exact slot matching its own last-used well (WELL_ORDER) - cells stay in the same
+  // physical tray/well position for every reuse, never just "the next open slot" - so a
+  // ghost only shows if that specific slot is free. In the rare case two different
+  // waiting cells both last sat in the same well letter and are eligible the same day,
+  // the first one in waitingCells order gets it; the other simply has no ghost that day.
   const ghostBySlot = new Map<SlotIndex, CellGhost>();
   if (!locked) {
-    let queue = waitingCells;
-    for (const indices of TRAY_INDICES) {
-      for (const i of indices) {
-        if (slots[i] !== null || queue.length === 0) continue;
-        ghostBySlot.set(i, queue[0]);
-        queue = queue.slice(1);
-      }
+    for (const ghost of waitingCells) {
+      const pinnedIndex = ghost.cell.current_well ? WELL_ORDER.indexOf(ghost.cell.current_well) : -1;
+      if (pinnedIndex < 0) continue;
+      const slot = pinnedIndex as SlotIndex;
+      if (slots[slot] !== null || ghostBySlot.has(slot)) continue;
+      ghostBySlot.set(slot, ghost);
     }
   }
   const tray2HasGhost = TRAY_INDICES[1].some((i) => ghostBySlot.has(i));
@@ -204,7 +206,12 @@ export function SchedulerDayCell(props: SchedulerDayCellProps) {
                     runDate={runDate}
                     locked={locked}
                     placing={placingSlotKey === slotKey(instrumentSerial, runDate, i)}
-                    selected={!locked && slots[i] !== null && slotSelection.isSelected(slots[i]!.cell_use_id)}
+                    selected={
+                      !locked &&
+                      slots[i] !== null &&
+                      slots[i]!.cell_use_status !== "cancelled" &&
+                      slotSelection.isSelected(slots[i]!.cell_use_id)
+                    }
                     onOpenDetail={(stage) => props.onOpenDetail(stage, locked, instrumentSerial)}
                     onToggleSelect={slotSelection.toggle}
                     crossInstrumentDragActive={crossInstrumentDragActive}

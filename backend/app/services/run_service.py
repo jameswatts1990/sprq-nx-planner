@@ -92,6 +92,8 @@ def update_cycle_status(db: Session, cycle: Cycle, status: str, at: datetime | N
 def update_cell_use_status(
     db: Session, cell_use: CellUse, status: str, at: datetime | None, notes: str | None, actor: str | None
 ) -> CellUse:
+    if cell_use.status == "cancelled":
+        raise ValueError("This placement was cancelled when its cell was stopped and can't be modified.")
     at = ensure_aware(at) if at else utcnow()
     cell_use.status = status
 
@@ -101,13 +103,22 @@ def update_cell_use_status(
             cell_use.cell.first_use_started_at = at
         if cell_use.sample is not None and cell_use.sample.status not in ("completed", "failed"):
             cell_use.sample.status = "in_progress"
-    elif status in ("completed", "failed"):
+    elif status in ("completed", "failed", "aborted"):
         cell_use.started_at = cell_use.started_at or at
         cell_use.completed_at = at
         if notes:
             cell_use.outcome_notes = notes
         if cell_use.sample is not None:
-            cell_use.sample.status = "completed" if status == "completed" else "failed"
+            if status == "completed":
+                cell_use.sample.status = "completed"
+            elif status == "failed":
+                cell_use.sample.status = "failed"
+            else:
+                # Aborted is a run/instrument problem, not a sample or cell-quality one -
+                # the sample goes straight back to the backlog for a fresh attempt rather
+                # than through the Failed->Requeue detour (see cell_service.has_failed_use,
+                # which deliberately doesn't count "aborted" toward the PacBio credit flow).
+                cell_use.sample.status = "backlog"
         if cell_use.cell.first_use_started_at is None:
             cell_use.cell.first_use_started_at = cell_use.started_at or at
 

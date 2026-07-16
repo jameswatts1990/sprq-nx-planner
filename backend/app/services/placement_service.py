@@ -161,12 +161,20 @@ def place_sample(
             raise PlacementError(409, f"Cell {existing_cell.code} has no remaining uses.")
         if any(bc in set(burned) for bc in sample_barcodes):
             raise PlacementError(409, f"barcode conflict: sample shares a burned barcode with cell {existing_cell.code}.")
-        current_serial, _current_well = current_location(existing_cell)
+        current_serial, current_well = current_location(existing_cell)
         if current_serial is not None and current_serial != instrument_serial:
             raise PlacementError(
                 409,
                 f"Cell {existing_cell.code} is already in use on instrument {current_serial}; "
                 f"cannot place it on {instrument_serial}.",
+            )
+        # Cells stay in the same physical tray/well position for every reuse - once a
+        # cell has a well of its own, only that exact well can host its next use.
+        if current_well is not None and current_well != well:
+            raise PlacementError(
+                409,
+                f"Cell {existing_cell.code} must stay in well {current_well} (its last used slot); "
+                f"cannot place it in well {well}.",
             )
     elif mode != "new":
         raise PlacementError(400, f"Unknown cell_choice.mode '{mode}'.")
@@ -256,6 +264,8 @@ def remove_sample(db: Session, cell_use_id: int, actor: str | None = None) -> No
     cycle = cell_use.cycle
     if cycle is None or cycle.status != "planned":
         raise PlacementError(409, "Cannot remove a placement from a run that is not planned.")
+    if cell_use.status == "cancelled":
+        raise PlacementError(409, "This placement was cancelled when its cell was stopped and can't be modified.")
 
     cell = cell_use.cell
     cycle_id = cycle.id
@@ -345,6 +355,8 @@ def move_sample(
     old_cycle = cell_use.cycle
     if old_cycle is None or old_cycle.status != "planned":
         raise PlacementError(409, "Cannot move a placement from a run that is not planned.")
+    if cell_use.status == "cancelled":
+        raise PlacementError(409, "This placement was cancelled when its cell was stopped and can't be modified.")
 
     cell = cell_use.cell
     other_uses = [cu for cu in cell.cell_uses if cu.id != cell_use.id and cu.status != "cancelled"]
@@ -357,6 +369,13 @@ def move_sample(
                 409,
                 f"Cell {cell.code} is already in use on instrument {pinned_serial}; "
                 f"cannot move it to {instrument_serial}.",
+            )
+        # Cells stay in the same physical tray/well position for every reuse.
+        if well not in {cu.well for cu in other_uses}:
+            pinned_well = last_other.well
+            raise PlacementError(
+                409,
+                f"Cell {cell.code} must stay in well {pinned_well} (its other uses' slot); cannot move it to well {well}.",
             )
 
     instrument = db.scalar(select(Instrument).where(Instrument.serial_number == instrument_serial))
@@ -445,6 +464,8 @@ def change_cell(
     cycle = cell_use.cycle
     if cycle is None or cycle.status != "planned":
         raise PlacementError(409, "Cannot change the cell for a placement on a run that is not planned.")
+    if cell_use.status == "cancelled":
+        raise PlacementError(409, "This placement was cancelled when its cell was stopped and can't be modified.")
 
     old_cell = cell_use.cell
     instrument_serial = cycle.run_batch.instrument.serial_number
@@ -469,12 +490,19 @@ def change_cell(
             raise PlacementError(409, f"Cell {new_cell.code} has no remaining uses.")
         if any(bc in set(burned) for bc in use_barcodes):
             raise PlacementError(409, f"barcode conflict: sample shares a burned barcode with cell {new_cell.code}.")
-        current_serial, _current_well = current_location(new_cell)
+        current_serial, current_well = current_location(new_cell)
         if current_serial is not None and current_serial != instrument_serial:
             raise PlacementError(
                 409,
                 f"Cell {new_cell.code} is already in use on instrument {current_serial}; "
                 f"cannot change to it on {instrument_serial}.",
+            )
+        # Cells stay in the same physical tray/well position for every reuse.
+        if current_well is not None and current_well != cell_use.well:
+            raise PlacementError(
+                409,
+                f"Cell {new_cell.code} must stay in well {current_well} (its last used slot); "
+                f"cannot change to it in well {cell_use.well}.",
             )
     elif mode != "new":
         raise PlacementError(400, f"Unknown cell_choice.mode '{mode}'.")

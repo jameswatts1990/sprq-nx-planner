@@ -113,7 +113,10 @@ def patch_cell_use(cell_use_id: int, req: CellUseStatusUpdate, db: SessionDep, a
     cu = db.get(CellUse, cell_use_id, options=_OPTIONS)
     if cu is None:
         raise HTTPException(404, "Cell use not found")
-    cu = update_cell_use_status(db, cu, req.status, req.at, req.notes, req.actor or actor)
+    try:
+        cu = update_cell_use_status(db, cu, req.status, req.at, req.notes, req.actor or actor)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
     return _cell_use_dict(cu)
 
 

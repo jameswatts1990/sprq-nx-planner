@@ -88,10 +88,12 @@ def test_stop_cell_cascades_planned_future_use_back_to_backlog_and_excludes_from
     assert client.patch(f"/api/cycles/{cycle1_id}", json={"status": "running"}).status_code == 200
     assert client.patch(f"/api/cycles/{cycle1_id}", json={"status": "completed"}).status_code == 200
 
-    # G2 reuses the same physical cell for a still-planned Use 2 on Wednesday
+    # G2 reuses the same physical cell (same well - cells stay pinned to it) for a
+    # still-planned Use 2 on Wednesday
     r2 = _place(client, _sid(client, "G2"), wed, 0, {"mode": "existing", "cell_id": cell_id})
     assert r2.status_code == 201, r2.text
     cycle2_id = r2.json()["cycle_id"]
+    g2_use_id = r2.json()["stages"][0]["cell_use_id"]
     g2_id = _sid(client, "G2")
 
     stop = client.post(f"/api/cells/{cell_id}/stop", json={"reason": "visible crack on tray"})
@@ -104,8 +106,18 @@ def test_stop_cell_cascades_planned_future_use_back_to_backlog_and_excludes_from
     # G2 is back in backlog for rescheduling
     assert _sample(client, g2_id)["status"] == "backlog"
 
-    # Wednesday's cycle was the cell's only stage there - cleaned up, same as remove_sample
-    assert client.get(f"/api/cycles/{cycle2_id}").status_code == 404
+    # Wednesday's cycle/stage stay visible as a cancelled, blocked record - not deleted -
+    # so the grid never silently loses a placement without a trace
+    wed_cycle = client.get(f"/api/cycles/{cycle2_id}").json()
+    wed_stage = next(s for s in wed_cycle["stages"] if s["cell_use_id"] == g2_use_id)
+    assert wed_stage["cell_use_status"] == "cancelled"
+    assert wed_stage["cell_status"] == "stopped"
+    assert wed_stage["sample_external_id"] == "G2"
+
+    # ...and that well can never be filled by anything else again
+    reblock_attempt = _place(client, _sid(client, "G3"), wed, 0, {"mode": "new"})
+    assert reblock_attempt.status_code == 409
+    assert "already occupied" in reblock_attempt.json()["detail"].lower()
 
     # Monday's completed Use 1 is untouched history
     mon_cycle = client.get(f"/api/cycles/{cycle1_id}").json()
@@ -282,3 +294,39 @@ def test_stage_surfaces_qc_status_for_failed_use_and_stopped_cell(client):
     # "stopped" too - the grid flags it either way, since the cell is now out of service.
     stage_after_stop = client.get(f"/api/cycles/{cycle1_id}").json()["stages"][0]
     assert stage_after_stop["cell_status"] == "stopped"
+
+
+def test_mark_cell_use_aborted_returns_sample_straight_to_backlog(client):
+    """Aborted is a run/instrument problem, not a cell or sample one - unlike Failed, the
+    sample goes straight back to the backlog with no separate Requeue step, and it's
+    deliberately excluded from the PacBio credit workflow (has_failed_use only counts
+    "failed", never "aborted")."""
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bca1"})
+    (mon,) = _weekdays(1)
+
+    r1 = _place(client, _sid(client, "A1"), mon, 0, {"mode": "new"})
+    assert r1.status_code == 201, r1.text
+    stage = r1.json()["stages"][0]
+    cycle_id = r1.json()["cycle_id"]
+
+    resp = client.patch(
+        f"/api/cell-uses/{stage['cell_use_id']}", json={"status": "aborted", "notes": "instrument fault mid-run"}
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["status"] == "aborted"
+
+    a1_id = _sid(client, "A1")
+    assert _sample(client, a1_id)["status"] == "backlog"
+
+    cell = client.get(f"/api/cells/{stage['cell_id']}").json()
+    assert cell["status"] == "open"  # cell itself is untouched, still open for its other uses
+    assert cell["uses_consumed"] == 1  # still counts as a consumed physical use, unlike "cancelled"
+    assert cell["has_failed_use"] is False  # aborted is not a cell-quality failure
+    assert cell["needs_qc_report"] is False  # so it never drives the PacBio credit workflow
+
+    stage_after = client.get(f"/api/cycles/{cycle_id}").json()["stages"][0]
+    assert stage_after["cell_use_status"] == "aborted"
+
+    # The backlog-returned sample can be rescheduled immediately - no extra step needed
+    reschedule = _place(client, a1_id, _weekdays(2)[-1], 0, {"mode": "new"})
+    assert reschedule.status_code == 201, reschedule.text

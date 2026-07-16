@@ -1,10 +1,15 @@
 import type { CellUseHistoryOut } from "@/types/cell";
 
-/** QC is available as soon as the run is locked - the instrument commits to a run (and a
- * physical cell failure becomes possible) at its scheduled start time, independent of
- * whether anyone has explicitly confirmed it loaded yet (see run_started). Excludes uses
- * that never happened (cancelled) or are already marked Failed. Shared by CellDetailPage's
- * Use history table and SlotDetailPopover's grid quick actions so the two stay consistent. */
-export function canMarkFailed(use: CellUseHistoryOut): boolean {
-  return use.run_started && use.status !== "cancelled" && use.status !== "failed";
+const TERMINAL_QC_STATUSES = new Set(["cancelled", "failed", "aborted"]);
+
+/** Gates both per-use QC actions (Mark Failed and Mark Aborted) - available as soon as
+ * the run is locked, since the instrument commits to a run (and a real-world problem
+ * becomes possible) at its scheduled start time, independent of whether anyone has
+ * explicitly confirmed it loaded yet (see run_started). Excludes uses that never
+ * happened (cancelled) or that already have a recorded outcome (failed/aborted) -
+ * re-flagging one of those needs a fresh use, not a second QC action on the same one.
+ * Shared by CellDetailPage's Use history table and SlotDetailPopover's grid quick
+ * actions so the two stay consistent. */
+export function canRecordQcOutcome(use: CellUseHistoryOut): boolean {
+  return use.run_started && !TERMINAL_QC_STATUSES.has(use.status);
 }

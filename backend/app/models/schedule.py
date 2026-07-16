@@ -8,7 +8,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db import Base
 
 CYCLE_STATUSES = ("planned", "running", "completed", "aborted")
-CELL_USE_STATUSES = ("planned", "started", "completed", "failed", "cancelled")
+CELL_USE_STATUSES = ("planned", "started", "completed", "failed", "aborted", "cancelled")
 
 
 class RunBatch(Base):

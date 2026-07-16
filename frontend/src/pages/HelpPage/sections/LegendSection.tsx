@@ -118,6 +118,17 @@ const QC_EXAMPLE_STOPPED: StageOut = {
   cell_use_status: "completed",
   cell_status: "stopped",
 };
+const QC_EXAMPLE_ABORTED: StageOut = {
+  ...QC_EXAMPLE_FAILED,
+  cell_use_id: 6,
+  cell_id: 9,
+  cell_ref: "CELL-000009",
+  sample_id: 6,
+  sample_external_id: "SAMPLE-618",
+  barcodes: ["bc6018"],
+  cell_use_status: "aborted",
+  cell_status: "open",
+};
 
 const CELL_STATUS_MEANING: Record<CellStatus, string> = {
   open: "Has uses remaining and its window is still valid; available to schedule.",
@@ -138,7 +149,8 @@ const USE_STATUS_MEANING: Record<CellUseStatus, string> = {
   planned: "Scheduled onto a cell but the run hasn't started.",
   started: "The run is under way.",
   completed: "The use finished successfully.",
-  failed: "The use did not complete successfully.",
+  failed: "The use did not complete successfully - the cell may be at fault; the sample is marked Failed.",
+  aborted: "The run/instrument was the problem, not the cell or sample - the sample returns straight to the backlog.",
   cancelled: "The use was cancelled before or during the run.",
 };
 
@@ -325,6 +337,15 @@ export function LegendSection() {
           <span>
             This slot&apos;s physical cell has been Stopped - shown the same way, even on a use that itself
             completed normally, since the cell is now out of service for good.
+          </span>
+        </div>
+        <div className={styles.legendRow}>
+          <div className={styles.ghostExampleSwatch}>
+            <SchedulerSlotView stage={QC_EXAMPLE_ABORTED} slotIndex={0} />
+          </div>
+          <span>
+            This use was marked Aborted - a milder amber ring, since the run/instrument was the problem rather than
+            the cell itself; the sample has already gone back to the backlog.
           </span>
         </div>
       </div>

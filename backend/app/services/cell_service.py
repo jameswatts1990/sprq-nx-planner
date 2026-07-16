@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.engine.constants import CELL_LIFETIME_H, CELL_MAX_USES
@@ -120,6 +120,9 @@ def run_has_started(cell_use: CellUse) -> bool:
 
 
 def has_failed_use(cell: Cell) -> bool:
+    """Deliberately checks "failed" only, not "aborted" - Aborted means the run/instrument
+    was the problem (the sample just goes back to the backlog for a fresh attempt), not
+    that this physical cell is suspect, so it doesn't drive the PacBio credit workflow."""
     return any(cu.status == "failed" for cu in cell.cell_uses)
 
 
@@ -291,29 +294,25 @@ def stop_cell(db: Session, cell: Cell, reason: str | None, actor: str | None) ->
     """QC: take a physical cell permanently out of service - all its future uses are
     lost. Unlike retire_cell (which refuses if any planned use exists), stop_cell exists
     for exactly that situation: it cascades by cancelling every not-yet-run ("planned")
-    use of this cell, mirroring placement_service.remove_sample() - the sample goes back
-    to backlog, the CellUse is deleted, and the Cycle/RunBatch is cleaned up if it was
-    that run's only stage. Already-started/completed uses are left untouched as history;
-    only the cell's future is lost, not its past. Because engine_bridge.load_prior_cells
-    only ever offers Cell.status == "open" for reuse, a stopped cell is automatically
+    use of this cell - the sample goes back to backlog, but the CellUse row itself is
+    kept (status "cancelled"), not deleted, so the grid still shows a visible record of
+    the placement that will now never happen instead of the slot silently vanishing.
+    derive_cell_state() and friends already exclude "cancelled" uses from a cell's active
+    counts, so this doesn't affect uses_consumed/uses_remaining/current_location. The
+    well stays occupied (blocking any new placement into that exact slot) as a permanent
+    marker. Already-started/completed uses are left untouched as history; only the
+    cell's future is lost, not its past. Because engine_bridge.load_prior_cells only
+    ever offers Cell.status == "open" for reuse, a stopped cell is automatically
     excluded from all future scheduling with no engine changes."""
     if cell.status in ("retired", "stopped"):
         raise ValueError(f"Cell is already {cell.status}.")
 
     bumped_sample_ids: list[int] = []
     for cell_use in [cu for cu in cell.cell_uses if cu.status == "planned"]:
-        cycle = cell_use.cycle
-        cycle_id = cycle.id if cycle else None
-        run_batch = cycle.run_batch if cycle else None
         if cell_use.sample is not None:
             cell_use.sample.status = "backlog"
             bumped_sample_ids.append(cell_use.sample_id)
-        db.delete(cell_use)
-        db.flush()
-        if cycle_id is not None:
-            remaining = db.scalar(select(func.count()).select_from(CellUse).where(CellUse.cycle_id == cycle_id))
-            if remaining == 0 and run_batch is not None:
-                db.delete(run_batch)
+        cell_use.status = "cancelled"
 
     cell.status = "stopped"
     cell.stopped_at = utcnow()

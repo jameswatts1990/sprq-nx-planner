@@ -74,17 +74,24 @@ export const SchedulerSlotView = memo(
   // outside a valid drop target (see useSchedulerDnd's onDragEnd).
   const showStage = !!stage && !dragging;
 
-  // Surfaces a QC problem directly on the grid, independent of the Use 1/2/3 tint - a
-  // stopped cell (out of service for good) takes priority over a merely-failed use, since
-  // it's the more severe, whole-cell condition; either can coexist with a normal-looking
-  // completed/planned use elsewhere on the same physical cell.
-  const qcAlert: "stopped" | "failed" | null = !showStage
+  // Surfaces a QC problem directly on the grid, independent of the Use 1/2/3 tint.
+  // "cancelled" (this exact use was wiped out when its cell was stopped before it could
+  // run - see placement_service/cell_service) takes priority over the plain whole-cell
+  // "stopped" ring, since it's a distinct, more specific claim ("this never happened" vs
+  // "this cell is generally out of service"); stopped in turn outranks a merely-
+  // failed/aborted use, being the more severe, whole-cell condition. Any of these can
+  // coexist with a normal-looking completed/planned use elsewhere on the same cell.
+  const qcAlert: "cancelled" | "stopped" | "failed" | "aborted" | null = !showStage
     ? null
-    : stage!.cell_status === "stopped"
-      ? "stopped"
-      : stage!.cell_use_status === "failed"
-        ? "failed"
-        : null;
+    : stage!.cell_use_status === "cancelled"
+      ? "cancelled"
+      : stage!.cell_status === "stopped"
+        ? "stopped"
+        : stage!.cell_use_status === "failed"
+          ? "failed"
+          : stage!.cell_use_status === "aborted"
+            ? "aborted"
+            : null;
 
   // Colour groups by which physical cell is loaded (stage.use_number), not by well
   // position - so a cell reused across two wells in the same run shares one colour. A
@@ -93,7 +100,13 @@ export const SchedulerSlotView = memo(
   const classes = [styles.slot];
   if (showStage) {
     classes.push(styles.filled, styles[useClass]);
-    if (qcAlert) classes.push(styles.qcAlert);
+    // Cancelled gets its own yellow "blocked" cross-hatch (this use never happened at
+    // all, distinct from a recorded outcome). Aborted is a run/instrument problem, not a
+    // cell-quality one, so it gets the milder amber "warning" treatment - Failed/Stopped
+    // (a real cell-quality concern) keep red.
+    if (qcAlert === "cancelled") classes.push(styles.qcAlertCancelled);
+    else if (qcAlert === "aborted") classes.push(styles.qcAlertWarn);
+    else if (qcAlert) classes.push(styles.qcAlert);
   } else if (ghost) {
     classes.push(styles.ghost, styles[useClass]);
     if (ghost.isHardCutoff) classes.push(styles.ghostCutoff);
@@ -135,14 +148,24 @@ export const SchedulerSlotView = memo(
           <div className={styles.cellref}>{stage!.cell_ref}</div>
           {qcAlert && (
             <div
-              className={styles.qcAlertLabel}
+              className={
+                qcAlert === "cancelled"
+                  ? styles.qcAlertLabelCancelled
+                  : qcAlert === "aborted"
+                    ? styles.qcAlertLabelWarn
+                    : styles.qcAlertLabel
+              }
               title={
-                qcAlert === "stopped"
-                  ? "This physical cell has been stopped - out of service, never reused."
-                  : "This use was marked Failed - no usable data produced."
+                qcAlert === "cancelled"
+                  ? "Blocked - this placement was cancelled when its cell was stopped before it could run. Its sample went back to the Backlog."
+                  : qcAlert === "stopped"
+                    ? "This physical cell has been stopped - out of service, never reused."
+                    : qcAlert === "failed"
+                      ? "This use was marked Failed - no usable data produced."
+                      : "This use was marked Aborted - the run/instrument was the problem, sample back in the backlog."
               }
             >
-              {qcAlert === "stopped" ? "Stopped" : "Failed"}
+              {qcAlert === "cancelled" ? "Blocked" : qcAlert === "stopped" ? "Stopped" : qcAlert === "failed" ? "Failed" : "Aborted"}
             </div>
           )}
           <BarcodeChips barcodes={stage!.barcodes} variant={useClass} />

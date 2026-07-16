@@ -49,7 +49,10 @@ export function SchedulerSlot(props: SchedulerSlotProps) {
     return <DroppableSlot {...props} />;
   }
 
-  const canDrag = !locked && stage.sample_id !== null;
+  // A cancelled stage (cell was stopped before this use could run) is a permanent,
+  // read-only marker - its sample already bounced back to the backlog, so there's
+  // nothing left here to drag or reassign.
+  const canDrag = !locked && stage.sample_id !== null && stage.cell_use_status !== "cancelled";
   if (canDrag) {
     return <DraggableSlot {...props} stage={stage} />;
   }
@@ -182,7 +185,7 @@ function ClickableSlot({
       link.togglePin(linkTarget);
       return;
     }
-    if (!locked && (e.ctrlKey || e.metaKey)) {
+    if (!locked && stage.cell_use_status !== "cancelled" && (e.ctrlKey || e.metaKey)) {
       onToggleSelect(stage);
       return;
     }
