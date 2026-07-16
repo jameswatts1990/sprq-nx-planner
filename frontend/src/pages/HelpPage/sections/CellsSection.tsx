@@ -40,6 +40,14 @@ export function CellsSection() {
           the cell&apos;s <b>Burned barcodes</b>.
         </li>
         <li>
+          <b>Cell tray</b> card: SPRQ-Nx SMRT Cells ship in a physical tray of 4. The moment any one cell in a tray
+          gets a sample, all 4 are registered together, in cell-number order - this card lists the tray&apos;s other
+          cells (with a link, status, and uses) so you can see at a glance which are still available, even before
+          their own first use. Not shown for cells created before this feature, or via Register in-progress cell,
+          since those have no known tray. (This is a different &quot;tray&quot; from the Schedule grid&apos;s
+          &quot;Tray 1&quot;/&quot;Tray 2&quot; loading positions - see the Schedule section.)
+        </li>
+        <li>
           <b>Retire cell</b> takes a cell permanently out of service. It&apos;s disabled — with a hover explanation
           — when the cell still has planned (not-yet-started) uses (&quot;Cannot retire a cell with planned (not
           yet started) uses.&quot;) or is already retired (&quot;Cell is already retired.&quot;). Remove or complete
@@ -51,6 +59,12 @@ export function CellsSection() {
           it cancels every not-yet-run use of that cell and returns those samples to the Backlog for rescheduling
           (a note reports how many); uses that already ran are kept untouched as history. Once stopped, the cell
           will never be offered again for reuse, including by Auto Schedule.
+        </li>
+        <li>
+          <b>Undo stop</b> appears once a cell is stopped, in place of Stop cell. Confirming it reopens the cell
+          and restores every use it cancelled back to Planned. If a sample from one of those uses has since been
+          requeued or rescheduled onto a fresh placement elsewhere, that one use is deliberately left cancelled
+          instead of being revived — reviving it would double-book that sample against wherever it landed.
         </li>
         <li>
           <b>Use history</b> lists every run the cell has been in: run number (links to the run), well, use status,
@@ -74,6 +88,13 @@ export function CellsSection() {
           problem can occur at any point once a cell is actually on the instrument, so QC doesn&apos;t wait on that
           confirmation step. Both are hidden for a run that hasn&apos;t reached its scheduled start yet, and for
           uses that were cancelled or already have a recorded outcome (Failed or Aborted).
+        </li>
+        <li>
+          <b>Undo Failed</b> / <b>Undo Aborted</b> replace Mark Failed/Mark Aborted in the Actions column once a
+          use has that verdict recorded. Confirming shows a warning and restores the use (and its sample) to how
+          they looked beforehand. If the sample has since been requeued or rescheduled onto a fresh placement
+          elsewhere, undo is refused with an error instead of silently double-booking that sample — reschedule
+          from the Backlog instead in that case.
         </li>
       </ul>
 

@@ -13,7 +13,7 @@ import { Modal, ModalActions } from "@/components/ui/Modal";
 import { Note } from "@/components/ui/Note";
 import type { CellUseHistoryOut } from "@/types/cell";
 import { CELL_STATUS_LABEL, CELL_STATUS_TONE } from "@/utils/cellStatus";
-import { canRecordQcOutcome } from "@/utils/cellUseQc";
+import { canRecordQcOutcome, canUndoQcOutcome } from "@/utils/cellUseQc";
 import { USE_STATUS_TONE } from "@/utils/useStatusTone";
 
 import styles from "./CellDetailPage.module.css";
@@ -34,10 +34,19 @@ export function CellDetailPage() {
     enabled: idIsValid,
   });
 
+  const trayId = query.data?.tray_id ?? null;
+  const trayQuery = useQuery({
+    queryKey: ["cells", { tray_id: trayId }],
+    queryFn: () => cellsApi.list({ tray_id: trayId as number, page_size: 10 }),
+    enabled: trayId !== null,
+  });
+
   const [stopModalOpen, setStopModalOpen] = useState(false);
+  const [undoStopModalOpen, setUndoStopModalOpen] = useState(false);
   const [bumpedCount, setBumpedCount] = useState<number | null>(null);
   const [failTarget, setFailTarget] = useState<CellUseHistoryOut | null>(null);
   const [abortTarget, setAbortTarget] = useState<CellUseHistoryOut | null>(null);
+  const [undoTarget, setUndoTarget] = useState<CellUseHistoryOut | null>(null);
   const [caseNumber, setCaseNumber] = useState("");
 
   function invalidateCell() {
@@ -75,6 +84,24 @@ export function CellDetailPage() {
       invalidateCell();
       void queryClient.invalidateQueries({ queryKey: ["samples"] });
       setAbortTarget(null);
+    },
+  });
+
+  const undoQcMutation = useMutation({
+    mutationFn: (useId: number) => cellUsesApi.undo(useId),
+    onSuccess: () => {
+      invalidateCell();
+      void queryClient.invalidateQueries({ queryKey: ["samples"] });
+      setUndoTarget(null);
+    },
+  });
+
+  const undoStopMutation = useMutation({
+    mutationFn: () => cellsApi.undoStop(id),
+    onSuccess: () => {
+      invalidateCell();
+      void queryClient.invalidateQueries({ queryKey: ["samples"] });
+      setUndoStopModalOpen(false);
     },
   });
 
@@ -218,10 +245,20 @@ export function CellDetailPage() {
                 Stop cell
               </Button>
             </span>
+            {cell.status === "stopped" && (
+              <Button variant="ghost" onClick={() => setUndoStopModalOpen(true)} disabled={undoStopMutation.isPending}>
+                Undo stop
+              </Button>
+            )}
           </div>
           {retireMutation.isError && (
             <Note tone="bad" icon="!">
               {retireMutation.error instanceof ApiError ? retireMutation.error.message : "Failed to retire cell."}
+            </Note>
+          )}
+          {undoStopMutation.isError && (
+            <Note tone="bad" icon="!">
+              {undoStopMutation.error instanceof ApiError ? undoStopMutation.error.message : "Failed to undo stop."}
             </Note>
           )}
           {bumpedCount !== null && bumpedCount > 0 && (
@@ -231,6 +268,43 @@ export function CellDetailPage() {
           )}
         </CardBody>
       </Card>
+
+      {trayId !== null && (
+        <Card>
+          <CardHeader>
+            <h2>Cell tray</h2>
+          </CardHeader>
+          <CardBody>
+            <p className={styles.helper}>
+              SPRQ-Nx SMRT Cells ship in a tray of {cell.tray_size}. Once one cell in a tray is used, all{" "}
+              {cell.tray_size} are registered together - the others below are real, reusable cells even before
+              their own first use.
+            </p>
+            {trayQuery.isLoading ? (
+              <div className={styles.status}>Loading tray…</div>
+            ) : (
+              <div className={styles.trayList}>
+                {(trayQuery.data?.items ?? []).map((sibling) => (
+                  <Link
+                    key={sibling.id}
+                    to={`/cells/${sibling.id}`}
+                    className={sibling.id === cell.id ? styles.trayItemCurrent : styles.trayItem}
+                  >
+                    <span className={styles.trayItemPosition}>
+                      {sibling.tray_position}/{sibling.tray_size}
+                    </span>
+                    <span className={styles.trayItemCode}>{sibling.code}</span>
+                    <Badge tone={CELL_STATUS_TONE[sibling.status]}>{CELL_STATUS_LABEL[sibling.status]}</Badge>
+                    <span className={styles.trayItemUses}>
+                      {sibling.uses_consumed}/{sibling.max_uses} uses
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </CardBody>
+        </Card>
+      )}
 
       {showCreditCard && (
         <Card>
@@ -374,14 +448,23 @@ export function CellDetailPage() {
                     <td>{formatDateTime(u.completed_at)}</td>
                     <td>{u.outcome_notes ?? "—"}</td>
                     <td>
-                      {canRecordQcOutcome(u) && (
+                      {(canRecordQcOutcome(u) || canUndoQcOutcome(u)) && (
                         <div className={styles.useActions}>
-                          <Button size="sm" variant="ghost" onClick={() => setFailTarget(u)}>
-                            Mark Failed
-                          </Button>
-                          <Button size="sm" variant="ghost" onClick={() => setAbortTarget(u)}>
-                            Mark Aborted
-                          </Button>
+                          {canRecordQcOutcome(u) && (
+                            <>
+                              <Button size="sm" variant="ghost" onClick={() => setFailTarget(u)}>
+                                Mark Failed
+                              </Button>
+                              <Button size="sm" variant="ghost" onClick={() => setAbortTarget(u)}>
+                                Mark Aborted
+                              </Button>
+                            </>
+                          )}
+                          {canUndoQcOutcome(u) && (
+                            <Button size="sm" variant="ghost" onClick={() => setUndoTarget(u)}>
+                              Undo {u.status === "failed" ? "Failed" : "Aborted"}
+                            </Button>
+                          )}
                         </div>
                       )}
                     </td>
@@ -402,6 +485,15 @@ export function CellDetailPage() {
         />
       )}
 
+      {undoStopModalOpen && (
+        <UndoStopCellModal
+          pending={undoStopMutation.isPending}
+          error={undoStopMutation.error}
+          onCancel={() => setUndoStopModalOpen(false)}
+          onConfirm={() => undoStopMutation.mutate()}
+        />
+      )}
+
       {failTarget && (
         <MarkFailedModal
           use={failTarget}
@@ -419,6 +511,16 @@ export function CellDetailPage() {
           error={markAbortedMutation.error}
           onCancel={() => setAbortTarget(null)}
           onConfirm={(notes) => markAbortedMutation.mutate({ useId: abortTarget.id, notes })}
+        />
+      )}
+
+      {undoTarget && (
+        <UndoQcModal
+          use={undoTarget}
+          pending={undoQcMutation.isPending}
+          error={undoQcMutation.error}
+          onCancel={() => setUndoTarget(null)}
+          onConfirm={() => undoQcMutation.mutate(undoTarget.id)}
         />
       )}
     </div>
@@ -461,6 +563,42 @@ function StopCellModal({ pending, error, onCancel, onConfirm }: StopCellModalPro
         </Button>
         <Button variant="primary" onClick={() => onConfirm(reason)} disabled={pending}>
           {pending ? "Stopping…" : "Stop cell"}
+        </Button>
+      </ModalActions>
+    </Modal>
+  );
+}
+
+interface UndoStopCellModalProps {
+  pending: boolean;
+  error: unknown;
+  onCancel: () => void;
+  onConfirm: () => void;
+}
+
+/** Reverse a mistaken Stop cell - reopens the cell and restores every use it cancelled
+ * back to Planned. Only use this if the wrong physical cell was stopped; if this cell
+ * genuinely needs to stay out of service, leave it stopped. */
+function UndoStopCellModal({ pending, error, onCancel, onConfirm }: UndoStopCellModalProps) {
+  return (
+    <Modal onClose={pending ? () => {} : onCancel} title="Undo Stop cell?">
+      <Note tone="warn" icon="!">
+        This reopens the cell and restores every use it cancelled back to Planned. Only do this if the wrong
+        physical cell was stopped by mistake.
+      </Note>
+
+      {error !== null && error !== undefined && (
+        <Note tone="bad" icon="!">
+          {error instanceof ApiError ? error.message : "Failed to undo stop."}
+        </Note>
+      )}
+
+      <ModalActions>
+        <Button variant="ghost" onClick={onCancel} disabled={pending}>
+          Cancel
+        </Button>
+        <Button variant="primary" onClick={onConfirm} disabled={pending}>
+          {pending ? "Undoing…" : "Undo stop"}
         </Button>
       </ModalActions>
     </Modal>
@@ -548,6 +686,48 @@ function MarkAbortedModal({ use, pending, error, onCancel, onConfirm }: MarkAbor
         </Button>
         <Button variant="primary" onClick={() => onConfirm(notes)} disabled={pending}>
           {pending ? "Saving…" : "Mark Aborted"}
+        </Button>
+      </ModalActions>
+    </Modal>
+  );
+}
+
+interface UndoQcModalProps {
+  use: CellUseHistoryOut;
+  pending: boolean;
+  error: unknown;
+  onCancel: () => void;
+  onConfirm: () => void;
+}
+
+/** Reverse a mistaken Mark Failed/Mark Aborted verdict on this specific use, restoring it
+ * (and its sample) to how they looked beforehand. Only use this if the wrong slot was
+ * flagged by mistake - if this cell genuinely failed or was aborted, leave the verdict as
+ * is. The backend still has the final say - it 409s if the sample has since moved on
+ * (requeued or rescheduled), which surfaces here as the error note below. */
+function UndoQcModal({ use, pending, error, onCancel, onConfirm }: UndoQcModalProps) {
+  const verdict = use.status === "failed" ? "Failed" : "Aborted";
+
+  return (
+    <Modal onClose={pending ? () => {} : onCancel} title={`Undo ${use.well} (run #${use.cycle_id}) ${verdict}?`}>
+      <Note tone="warn" icon="!">
+        This restores this placement to its previous state, ready to run again. Only do this if the wrong slot was
+        flagged by mistake - if this cell genuinely {use.status === "failed" ? "failed" : "was aborted"}, leave the
+        verdict as is.
+      </Note>
+
+      {error !== null && error !== undefined && (
+        <Note tone="bad" icon="!">
+          {error instanceof ApiError ? error.message : "Failed to undo."}
+        </Note>
+      )}
+
+      <ModalActions>
+        <Button variant="ghost" onClick={onCancel} disabled={pending}>
+          Cancel
+        </Button>
+        <Button variant="primary" onClick={onConfirm} disabled={pending}>
+          {pending ? "Undoing…" : "Undo"}
         </Button>
       </ModalActions>
     </Modal>

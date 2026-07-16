@@ -27,6 +27,13 @@ class StageOut(BaseModel):
     # without a click-through to the cell's detail page.
     cell_use_status: str
     cell_status: str
+    # Physical SPRQ-Nx SMRT Cell tray position (1-4), null for cells with no tray (created
+    # before this feature, or via the one-off bootstrap_cell() cutover tool).
+    tray_position: int | None
+    # Hours elapsed since this cell's own first use (None if not started yet) - drives the
+    # grid slot's expiry shading, per-cell (see docs/pacbio-sprq-nx-scheduling-reference.md
+    # #2 - there is no shared tray-level clock, only this cell's own 108h deadline).
+    window_hours_elapsed: float | None
 
 
 class CycleOut(BaseModel):

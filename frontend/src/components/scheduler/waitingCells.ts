@@ -1,22 +1,11 @@
 import type { CellOut } from "@/types/cell";
 import { addDaysUTC, isWeekendUTC, parseDateOnly, toIsoDateUTC } from "@/utils/calendarDates";
-
-/** Mirrors backend/app/engine/constants.py's CELL_LIFETIME_H (also duplicated in
- * WindowMeter.tsx) - the single 108h deadline from Use 1, not a per-use timer. */
-const CELL_LIFETIME_H = 108;
+import { CELL_LIFETIME_H, expiryFadeOpacity } from "@/utils/windowFade";
 
 /** Mirrors the default loading start hour used elsewhere (DAY_START_HOUR on the backend,
  * CellChoicePicker's DEFAULT_START_TIME) - used only as a representative "day start" for
  * comparing a calendar day against a cell's 108h deadline. */
 const DAY_START_HOUR = 12;
-
-/** Opacity is ~1.0 (dark/full colour) when a cell has just become eligible and fades
- * toward FADE_MIN_OPACITY (light/washed-out) as it nears the cutoff. Full/near-1.0 at/above
- * FADE_FULL_HOURS-to-go; FADE_MIN_OPACITY at/below FADE_MIN_HOURS-to-go. Tuned for a 108h
- * window run on weekdays only, so the fade has room to show across 2-3 calendar days. */
-const FADE_FULL_HOURS = 90;
-const FADE_MIN_HOURS = 18;
-const FADE_MIN_OPACITY = 0.4;
 
 export interface CellGhost {
   cell: CellOut;
@@ -91,9 +80,7 @@ export function computeGhost(cell: CellOut, day: string): CellGhost | null {
 
   // Dark (full colour) when far from the deadline, fading toward light as it approaches.
   const hoursToDeadline = (deadlineAtMs - thisDayStart) / 3_600_000;
-  const clamped = Math.min(FADE_FULL_HOURS, Math.max(FADE_MIN_HOURS, hoursToDeadline));
-  const fadeOpacity =
-    FADE_MIN_OPACITY + ((clamped - FADE_MIN_HOURS) / (FADE_FULL_HOURS - FADE_MIN_HOURS)) * (1 - FADE_MIN_OPACITY);
+  const fadeOpacity = expiryFadeOpacity(hoursToDeadline);
 
   return {
     cell,

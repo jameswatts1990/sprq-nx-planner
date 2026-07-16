@@ -10,7 +10,7 @@ from datetime import date
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
-from app.engine.constants import CELL_LIFETIME_H, CELL_MAX_USES, DAY_START_HOUR, WELLS
+from app.engine.constants import CELL_LIFETIME_H, DAY_START_HOUR, WELLS
 from app.engine.packing import pack_cells
 from app.engine.slot_scheduling import fill_slots
 from app.engine.types import ConflictPair, SlotInput
@@ -20,7 +20,7 @@ from app.models.instrument import Instrument
 from app.models.sample import Sample
 from app.models.schedule import CellUse, CellUseBarcode, Cycle, RunBatch
 from app.services import instrument_lock
-from app.services.cell_service import recompute_status
+from app.services.cell_service import open_new_tray, recompute_status
 from app.services.engine_bridge import load_backlog_samples, load_prior_cells, to_parsed_samples
 from app.services.placement_service import PlacementError, get_or_create_run, planned_window
 from app.timeutil import ensure_aware, utcnow
@@ -196,10 +196,10 @@ def auto_fill(
 
         db_cell = ref_to_cell.get(a.cell.id)
         if db_cell is None:
-            db_cell = Cell(code="PENDING", max_uses=CELL_MAX_USES, status="open")
-            db.add(db_cell)
-            db.flush()
-            db_cell.code = f"CELL-{db_cell.id:06d}"
+            # Opens a whole new physical tray (4 cells), not just this one - the other 3
+            # are left open/unused and surface as preferred reuse candidates on the next
+            # placement/auto-fill call (see open_new_tray()).
+            db_cell = open_new_tray(db, instruments[a.instrument_serial].id)[0]
             ref_to_cell[a.cell.id] = db_cell
 
         cell_use = CellUse(

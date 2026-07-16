@@ -134,9 +134,13 @@ def test_remove_sample_reverts_to_backlog_and_cleans_up_emptied_run(client):
     assert client.get("/api/samples", params={"status": "backlog"}).json()["total"] == 1
     # the now-empty run+cycle was deleted
     assert client.get(f"/api/cycles/{cycle_id}").status_code == 404
-    # the cell had no other uses, so it was only ever a placeholder for this one - it must
-    # not be left behind as an "open, 0/3" cell that can never legitimately exist
-    assert client.get(f"/api/cells/{cell_id}").status_code == 404
+    # the cell itself is a real physical tray sibling (see open_new_tray()), not just a
+    # placeholder for this one use - it survives, open and reusable, at 0/3 uses
+    cell = client.get(f"/api/cells/{cell_id}")
+    assert cell.status_code == 200, cell.text
+    assert cell.json()["status"] == "open"
+    assert cell.json()["uses_consumed"] == 0
+    assert cell.json()["tray_id"] is not None
 
 
 def test_remove_sample_keeps_cell_when_it_still_has_other_uses(client):
@@ -272,10 +276,13 @@ def test_cancel_run_reverts_all_samples_and_deletes_run(client):
 
     assert client.get(f"/api/cycles/{cycle_id}").status_code == 404
     assert client.get("/api/samples", params={"status": "backlog"}).json()["total"] == 2
-    # both cells were fresh placeholders for this now-cancelled run - neither should be left
-    # behind as an "open, 0/3" cell
-    assert client.get(f"/api/cells/{cell_id_1}").status_code == 404
-    assert client.get(f"/api/cells/{cell_id_2}").status_code == 404
+    # both cells are real physical tray siblings (see open_new_tray()) - they survive this
+    # now-cancelled run, open and reusable, at 0/3 uses
+    for cell_id in (cell_id_1, cell_id_2):
+        cell = client.get(f"/api/cells/{cell_id}")
+        assert cell.status_code == 200, cell.text
+        assert cell.json()["status"] == "open"
+        assert cell.json()["uses_consumed"] == 0
 
 
 def test_cancel_run_preserves_a_cancelled_stopped_cell_marker(client):
@@ -294,7 +301,10 @@ def test_cancel_run_preserves_a_cancelled_stopped_cell_marker(client):
     cell_id_1 = r1.json()["stages"][0]["cell_id"]
     cell_use_id_1 = r1.json()["stages"][0]["cell_use_id"]
     r2 = _place(client, b2, mon, 1)
-    cell_id_2 = r2.json()["stages"][0]["cell_id"]
+    # r2's response lists both stages on this shared cycle (sorted by well) - pick out B2's
+    # own stage by sample rather than assuming position, since B1's stage (well A01) always
+    # sorts first.
+    cell_id_2 = next(s["cell_id"] for s in r2.json()["stages"] if s["sample_external_id"] == "B2")
 
     stop = client.post(f"/api/cells/{cell_id_1}/stop", json={"reason": "damaged"})
     assert stop.status_code == 200, stop.text
@@ -316,8 +326,12 @@ def test_cancel_run_preserves_a_cancelled_stopped_cell_marker(client):
 
     # B1's stopped cell is untouched by cancel_run - still stopped, still holding its marker
     assert client.get(f"/api/cells/{cell_id_1}").json()["status"] == "stopped"
-    # B2's cell was only ever a fresh placeholder for the now-removed placement
-    assert client.get(f"/api/cells/{cell_id_2}").status_code == 404
+    # B2's cell is a real physical tray sibling (see open_new_tray()) - it survives the
+    # now-removed placement, open and reusable, at 0/3 uses
+    cell_2 = client.get(f"/api/cells/{cell_id_2}")
+    assert cell_2.status_code == 200, cell_2.text
+    assert cell_2.json()["status"] == "open"
+    assert cell_2.json()["uses_consumed"] == 0
 
 
 def test_cancel_run_rejected_when_not_planned(client):

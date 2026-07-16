@@ -11,7 +11,7 @@ import { Modal, ModalActions } from "@/components/ui/Modal";
 import { Note } from "@/components/ui/Note";
 import type { StageOut } from "@/types/schedule";
 import type { CellChoice } from "@/types/schedulerGrid";
-import { canRecordQcOutcome } from "@/utils/cellUseQc";
+import { canRecordQcOutcome, canUndoQcOutcome } from "@/utils/cellUseQc";
 
 import { useCompatibleCells } from "./useCompatibleCells";
 import styles from "./SlotDetailPopover.module.css";
@@ -27,16 +27,17 @@ export interface SlotDetailPopoverProps {
 
 /** Which of the popover's alternate inline views is showing, in place of the normal
  * detail + footer. Mutually exclusive, so a single field rather than several booleans. */
-type PopoverMode = "view" | "changeCell" | "markFailed" | "markAborted" | "stop";
+type PopoverMode = "view" | "changeCell" | "markFailed" | "markAborted" | "stop" | "undoQc" | "undoStop";
 
 /** Detail for one filled slot: cell code, the cell's burned barcodes, the sample. When
  * the run is still "planned" (unlocked), offers "Remove from schedule" and "Change cell"
  * (swap this placement onto a different open cell, or a brand-new one, without touching
  * its day/slot - the orthogonal counterpart to dragging it to a new slot, which keeps the
  * cell fixed). Also offers the same QC quick actions as the Cell detail page - Mark
- * Failed and Mark Aborted (this use only) and Stop cell (the whole physical cell) - so a
- * problem spotted while browsing the grid doesn't require a detour to that page. Built on
- * Modal; folds in the old CellCard's cell-context display. */
+ * Failed and Mark Aborted (this use only) and Stop cell (the whole physical cell), plus
+ * their Undo counterparts for a mistaken verdict - so a problem spotted while browsing
+ * the grid doesn't require a detour to that page. Built on Modal; folds in the old
+ * CellCard's cell-context display. */
 export function SlotDetailPopover({ stage, locked, instrumentSerial, onClose, onRemoved }: SlotDetailPopoverProps) {
   const queryClient = useQueryClient();
   const [mode, setMode] = useState<PopoverMode>("view");
@@ -122,10 +123,28 @@ export function SlotDetailPopover({ stage, locked, instrumentSerial, onClose, on
     },
   });
 
+  const undoQcMutation = useMutation({
+    mutationFn: () => cellUsesApi.undo(stage.cell_use_id),
+    onSuccess: () => {
+      invalidateAfterQcAction();
+      onClose();
+    },
+  });
+
+  const undoStopMutation = useMutation({
+    mutationFn: () => cellsApi.undoStop(stage.cell_id),
+    onSuccess: () => {
+      invalidateAfterQcAction();
+      onClose();
+    },
+  });
+
   const cell = cellQuery.data;
   const currentUse = cell?.use_history.find((u) => u.id === stage.cell_use_id);
   const canFlagQc = !!currentUse && canRecordQcOutcome(currentUse);
+  const canUndoQc = !!currentUse && canUndoQcOutcome(currentUse);
   const stopDisabled = !cell || cell.status === "retired" || cell.status === "stopped";
+  const canUndoStop = !!cell && cell.status === "stopped";
   const isCancelled = stage.cell_use_status === "cancelled";
 
   return (
@@ -165,7 +184,7 @@ export function SlotDetailPopover({ stage, locked, instrumentSerial, onClose, on
         </div>
       )}
 
-      {!isCancelled && mode === "view" && (canFlagQc || !stopDisabled) && (
+      {mode === "view" && (canFlagQc || canUndoQc || !stopDisabled || canUndoStop) && (
         <div className={styles.qcRow}>
           <span className={styles.label}>QC</span>
           <div className={styles.qcButtons}>
@@ -179,9 +198,19 @@ export function SlotDetailPopover({ stage, locked, instrumentSerial, onClose, on
                 Mark Aborted
               </Button>
             )}
+            {canUndoQc && (
+              <Button size="sm" variant="ghost" onClick={() => setMode("undoQc")}>
+                Undo {currentUse?.status === "failed" ? "Failed" : "Aborted"}
+              </Button>
+            )}
             {!stopDisabled && (
               <Button size="sm" variant="ghost" onClick={() => setMode("stop")}>
                 Stop cell
+              </Button>
+            )}
+            {canUndoStop && (
+              <Button size="sm" variant="ghost" onClick={() => setMode("undoStop")}>
+                Undo stop
               </Button>
             )}
           </div>
@@ -232,6 +261,23 @@ export function SlotDetailPopover({ stage, locked, instrumentSerial, onClose, on
             placeholder="Reason (optional), e.g. visible crack on tray"
           />
         </div>
+      )}
+
+      {mode === "undoQc" && (
+        <Note tone="warn" icon="!">
+          This will undo the <b>{currentUse?.status === "failed" ? "Failed" : "Aborted"}</b> verdict and restore
+          this placement to its previous state, ready to run again. Only do this if the wrong slot was flagged by
+          mistake - if this cell genuinely {currentUse?.status === "failed" ? "failed" : "was aborted"}, leave it
+          as is.
+        </Note>
+      )}
+
+      {mode === "undoStop" && (
+        <Note tone="warn" icon="!">
+          This will reopen the cell and restore every use it cancelled back to Planned. Only do this if the wrong
+          physical cell was stopped by mistake - if this cell genuinely needs to stay out of service, leave it
+          stopped.
+        </Note>
       )}
 
       <div className={styles.linkRow}>
@@ -319,6 +365,18 @@ export function SlotDetailPopover({ stage, locked, instrumentSerial, onClose, on
         </Note>
       )}
 
+      {undoQcMutation.isError && (
+        <Note tone="bad" icon="!">
+          {undoQcMutation.error instanceof ApiError ? undoQcMutation.error.message : "Failed to undo."}
+        </Note>
+      )}
+
+      {undoStopMutation.isError && (
+        <Note tone="bad" icon="!">
+          {undoStopMutation.error instanceof ApiError ? undoStopMutation.error.message : "Failed to undo stop."}
+        </Note>
+      )}
+
       <ModalActions>
         <Button
           variant="ghost"
@@ -328,7 +386,9 @@ export function SlotDetailPopover({ stage, locked, instrumentSerial, onClose, on
             changeCellMutation.isPending ||
             markFailedMutation.isPending ||
             markAbortedMutation.isPending ||
-            stopMutation.isPending
+            stopMutation.isPending ||
+            undoQcMutation.isPending ||
+            undoStopMutation.isPending
           }
         >
           {mode === "view" ? "Close" : "Cancel"}
@@ -351,6 +411,16 @@ export function SlotDetailPopover({ stage, locked, instrumentSerial, onClose, on
         {mode === "stop" && (
           <Button variant="primary" onClick={() => stopMutation.mutate()} disabled={stopMutation.isPending}>
             {stopMutation.isPending ? "Stopping…" : "Stop cell"}
+          </Button>
+        )}
+        {mode === "undoQc" && (
+          <Button variant="primary" onClick={() => undoQcMutation.mutate()} disabled={undoQcMutation.isPending}>
+            {undoQcMutation.isPending ? "Undoing…" : "Undo"}
+          </Button>
+        )}
+        {mode === "undoStop" && (
+          <Button variant="primary" onClick={() => undoStopMutation.mutate()} disabled={undoStopMutation.isPending}>
+            {undoStopMutation.isPending ? "Undoing…" : "Undo stop"}
           </Button>
         )}
         {!locked && !isCancelled && mode === "view" && (

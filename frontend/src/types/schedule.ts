@@ -27,6 +27,13 @@ export interface StageOut {
   cell_use_status: string;
   /** The physical cell's overall status (open/exhausted/window_expired/retired/stopped). */
   cell_status: string;
+  /** 1-4 position within this cell's physical SPRQ-Nx SMRT Cell tray - null for cells
+   * with no tray (created before this feature, or via the bootstrap cutover tool). */
+  tray_position: number | null;
+  /** Hours elapsed since this cell's own first use (null if not started yet) - drives the
+   * slot's expiry shading. Per-cell, not per-tray - see docs/pacbio-sprq-nx-scheduling-
+   * reference.md #2 (no shared tray-level clock). */
+  window_hours_elapsed: number | null;
 }
 
 export interface CycleOut {

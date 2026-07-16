@@ -208,25 +208,40 @@ export function CellChoicePicker({ pending, runDesign, existingRun, onClose, onP
             </div>
           )}
 
-          {compatible.map((cell) => (
-            <label key={cell.id} className={styles.choice}>
-              <input
-                type="radio"
-                name="cellChoice"
-                value={String(cell.id)}
-                checked={selected === String(cell.id)}
-                onChange={() => setSelected(String(cell.id))}
-              />
-              <span className={styles.choiceMain}>
-                <span className={styles.code}>{cell.code}</span>
-                <span className={styles.meta}>
-                  {cell.uses_consumed}/{cell.max_uses} uses
-                  {cell.current_instrument_serial ? ` · ${cell.current_instrument_serial}` : ""}
-                </span>
-              </span>
-              <BarcodeChips barcodes={cell.burned_barcodes} variant="u2" />
-            </label>
-          ))}
+          {compatible.map((cell, i) => {
+            // A divider whenever the tray changes - groups a physical SPRQ-Nx SMRT Cell
+            // tray's cells together (see useCompatibleCells' tray-position sort) so the
+            // other cells sharing this tray are visible at the point of choice, not just
+            // the one currently open enough to reuse.
+            const showTrayDivider = cell.tray_id !== null && cell.tray_id !== compatible[i - 1]?.tray_id;
+            return (
+              <div key={cell.id}>
+                {showTrayDivider && (
+                  <div className={styles.trayDivider}>
+                    Cell tray - {compatible.filter((c) => c.tray_id === cell.tray_id).length} of {cell.tray_size} open
+                  </div>
+                )}
+                <label className={styles.choice}>
+                  <input
+                    type="radio"
+                    name="cellChoice"
+                    value={String(cell.id)}
+                    checked={selected === String(cell.id)}
+                    onChange={() => setSelected(String(cell.id))}
+                  />
+                  <span className={styles.choiceMain}>
+                    <span className={styles.code}>{cell.code}</span>
+                    <span className={styles.meta}>
+                      {cell.uses_consumed}/{cell.max_uses} uses
+                      {cell.tray_position ? ` · tray pos ${cell.tray_position}/${cell.tray_size}` : ""}
+                      {cell.current_instrument_serial ? ` · ${cell.current_instrument_serial}` : ""}
+                    </span>
+                  </span>
+                  <BarcodeChips barcodes={cell.burned_barcodes} variant="u2" />
+                </label>
+              </div>
+            );
+          })}
         </fieldset>
       )}
 

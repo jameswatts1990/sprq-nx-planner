@@ -42,7 +42,19 @@ export function useCompatibleCells({
   });
 
   const compatible = enabled
-    ? (cellsQuery.data?.items ?? []).filter((c) => isCompatible(c, sampleBarcodes, excludeCellId, targetWell))
+    ? (cellsQuery.data?.items ?? [])
+        .filter((c) => isCompatible(c, sampleBarcodes, excludeCellId, targetWell))
+        // Group cells from the same physical SPRQ-Nx SMRT Cell tray together, in
+        // cell-number (tray_position) order, so a tray's siblings render adjacently
+        // rather than scattered through the API's newest-first order.
+        .sort((a, b) => {
+          if (a.tray_id !== b.tray_id) {
+            if (a.tray_id === null) return 1;
+            if (b.tray_id === null) return -1;
+            return a.tray_id - b.tray_id;
+          }
+          return (a.tray_position ?? 0) - (b.tray_position ?? 0);
+        })
     : [];
 
   return { cellsQuery, compatible };

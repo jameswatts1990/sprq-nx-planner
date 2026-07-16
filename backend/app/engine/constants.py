@@ -10,6 +10,10 @@ CELL_LIFETIME_H = 108
 # overview p.10, p.25) - this is a fixed instrument fact, not a per-run planning choice.
 # See docs/pacbio-sprq-nx-scheduling-reference.md #1.
 CELL_MAX_USES = 3
+# SMRT Cells ship in a physical tray of 4 - see cell_service.open_new_tray() and
+# models/cell_tray.py::CellTray. Distinct from WELLS' own "tray 1/tray 2" grid-loading
+# split below (instrument deck position, not a SMRT Cell shipping tray).
+CELLS_PER_TRAY = 4
 FIRST_PREP_H = 2
 REUSE_PREP_H = 0.75
 

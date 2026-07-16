@@ -4,6 +4,7 @@ from sqlalchemy.orm import selectinload
 
 from app.api.deps import ActorDep, SessionDep
 from app.models.cell import CELL_STATUSES, Cell
+from app.models.cell_tray import CellTray
 from app.models.schedule import CellUse, Cycle, RunBatch
 from app.schemas.cell import (
     CellActorRequest,
@@ -36,6 +37,7 @@ _LIST_OPTIONS = [
     selectinload(Cell.cell_uses).selectinload(CellUse.cycle).selectinload(Cycle.run_batch).selectinload(
         RunBatch.instrument
     ),
+    selectinload(Cell.tray).selectinload(CellTray.instrument),
 ]
 _DETAIL_OPTIONS = [
     *_LIST_OPTIONS,
@@ -51,6 +53,7 @@ def list_cells(
     instrument_serial: str | None = None,
     qc_status: str | None = None,
     q: str | None = None,
+    tray_id: int | None = None,
     page: int = 1,
     page_size: int = 50,
 ) -> Page[CellOut]:
@@ -65,6 +68,8 @@ def list_cells(
         raise HTTPException(400, f"Unknown qc_status '{qc_status}'. Valid: {', '.join(QC_STATUSES)}")
     if q:
         stmt = stmt.where(Cell.code.ilike(f"%{q}%"))
+    if tray_id is not None:
+        stmt = stmt.where(Cell.tray_id == tray_id)
 
     cells = list(db.scalars(stmt.order_by(Cell.created_at.desc())).unique().all())
     serialized = [serialize_cell(c) for c in cells]
@@ -74,6 +79,10 @@ def list_cells(
         serialized = [c for c in serialized if c.needs_qc_report]
     elif qc_status == "awaiting_credit":
         serialized = [c for c in serialized if c.awaiting_credit]
+    if tray_id is not None:
+        # Position order (1-4), not the list's default newest-first - "ensure the cell
+        # number stays in order" for the Cell Detail page's tray sibling listing.
+        serialized.sort(key=lambda c: c.tray_position or 0)
 
     total = len(serialized)
     start = (page - 1) * page_size

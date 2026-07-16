@@ -49,6 +49,11 @@ export interface CellOut {
   pacbio_reported_at: string | null;
   pacbio_credit_confirmed_at: string | null;
   credit_received_at: string | null;
+  // Physical SPRQ-Nx SMRT Cell tray (4 cells) this cell belongs to - null for cells
+  // created before this feature, or via the one-off bootstrap cutover tool.
+  tray_id: number | null;
+  tray_position: number | null;
+  tray_size: number;
 }
 
 export interface CellDetailOut extends CellOut {
@@ -69,6 +74,14 @@ export interface CellStopRequest {
 export interface CellStopOut {
   cell: CellOut;
   bumped_sample_ids: number[];
+}
+
+export interface CellUndoStopOut {
+  cell: CellOut;
+  reverted_cell_use_ids: number[];
+  // cell_use ids whose sample had already moved on (requeued/rescheduled) since the
+  // stop, so its status was deliberately left untouched rather than reverted.
+  drifted_cell_use_ids: number[];
 }
 
 export interface CellReportToPacbioRequest {

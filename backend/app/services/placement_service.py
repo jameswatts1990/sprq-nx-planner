@@ -13,14 +13,15 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
-from app.engine.constants import CELL_MAX_USES, DAY_START_HOUR, WELLS
+from app.engine.constants import DAY_START_HOUR, WELLS
 from app.models.audit import AuditLog
 from app.models.cell import Cell
+from app.models.cell_tray import CellTray
 from app.models.instrument import Instrument
 from app.models.sample import Sample
 from app.models.schedule import CellUse, CellUseBarcode, Cycle, RunBatch
 from app.services import instrument_lock
-from app.services.cell_service import current_location, derive_cell_state, recompute_status, use_run_date
+from app.services.cell_service import current_location, derive_cell_state, open_new_tray, recompute_status, use_run_date
 from app.timeutil import utcnow
 
 
@@ -151,7 +152,14 @@ def place_sample(
         cell_id = cell_choice.get("cell_id")
         if cell_id is None:
             raise PlacementError(400, "cell_choice.cell_id is required when mode is 'existing'.")
-        existing_cell = db.get(Cell, cell_id, options=[selectinload(Cell.cell_uses).selectinload(CellUse.barcodes)])
+        existing_cell = db.get(
+            Cell,
+            cell_id,
+            options=[
+                selectinload(Cell.cell_uses).selectinload(CellUse.barcodes),
+                selectinload(Cell.tray).selectinload(CellTray.instrument),
+            ],
+        )
         if existing_cell is None:
             raise PlacementError(404, f"Cell {cell_id} not found.")
         if existing_cell.status != "open":
@@ -198,10 +206,7 @@ def place_sample(
         raise PlacementError(409, f"Run is locked (status: {cycle.status}); cannot place into it.")
 
     if mode == "new":
-        cell = Cell(code="PENDING", max_uses=CELL_MAX_USES, status="open")
-        db.add(cell)
-        db.flush()
-        cell.code = f"CELL-{cell.id:06d}"
+        cell = open_new_tray(db, instrument.id)[0]
     else:
         cell = existing_cell
 
@@ -296,11 +301,14 @@ def remove_sample(db: Session, cell_use_id: int, actor: str | None = None) -> No
         db.refresh(cell, attribute_names=["cell_uses"])
         if cell.cell_uses:
             recompute_status(cell, utcnow())
-        else:
-            # This cell had no other uses - it was only a placeholder for the use we just
-            # removed, so nothing physical was ever loaded. Leaving it behind would produce
-            # an orphan "open, 0/3" cell that can never legitimately exist.
+        elif cell.tray_id is None:
+            # This cell had no other uses and no physical tray backing it - it was only a
+            # placeholder for the use we just removed, so nothing physical was ever
+            # loaded. Leaving it behind would produce an orphan "open, 0/3" cell that can
+            # never legitimately exist.
             db.delete(cell)
+        # else: a tray-linked cell is a real physical sibling even with 0 uses (see
+        # open_new_tray()) - it stays open and reusable rather than being deleted.
 
     db.add(
         AuditLog(
@@ -480,7 +488,11 @@ def change_cell(
             raise PlacementError(400, "cell_choice.cell_id is required when mode is 'existing'.")
         if cell_id == old_cell.id:
             return cycle  # no-op: already on this cell
-        new_cell = db.get(Cell, cell_id, options=[selectinload(Cell.cell_uses)])
+        new_cell = db.get(
+            Cell,
+            cell_id,
+            options=[selectinload(Cell.cell_uses), selectinload(Cell.tray).selectinload(CellTray.instrument)],
+        )
         if new_cell is None:
             raise PlacementError(404, f"Cell {cell_id} not found.")
         if new_cell.status != "open":
@@ -509,10 +521,7 @@ def change_cell(
 
     # --- writes ---
     if mode == "new":
-        new_cell = Cell(code="PENDING", max_uses=CELL_MAX_USES, status="open")
-        db.add(new_cell)
-        db.flush()
-        new_cell.code = f"CELL-{new_cell.id:06d}"
+        new_cell = open_new_tray(db, cycle.run_batch.instrument_id)[0]
 
     cell_use.cell_id = new_cell.id
     db.flush()
@@ -520,12 +529,13 @@ def change_cell(
     db.refresh(old_cell, attribute_names=["cell_uses"])
     if old_cell.cell_uses:
         recompute_status(old_cell, utcnow())
-    else:
+    elif old_cell.tray_id is None:
         # Same convention as remove_sample: a cell left with no uses at all after this
-        # reassignment was only ever a placeholder for the use just moved away - leaving
-        # it behind would produce an orphan "open, 0/3" cell that can never legitimately
-        # exist.
+        # reassignment, and with no physical tray backing it, was only ever a placeholder
+        # for the use just moved away - leaving it behind would produce an orphan
+        # "open, 0/3" cell that can never legitimately exist.
         db.delete(old_cell)
+    # else: a tray-linked cell is a real physical sibling even with 0 uses - stays open.
 
     db.refresh(new_cell, attribute_names=["cell_uses"])
     recompute_status(new_cell, utcnow())
@@ -594,10 +604,12 @@ def cancel_run(db: Session, cycle_id: int, actor: str | None = None) -> None:
         db.refresh(cell, attribute_names=["cell_uses"])
         if cell.cell_uses:
             recompute_status(cell, now)
-        else:
+        elif cell.tray_id is None:
             # Same as remove_sample: a cell left with no uses at all after this cycle's
-            # cell_uses were removed was only ever a placeholder for this run.
+            # cell_uses were removed, and with no physical tray backing it, was only ever
+            # a placeholder for this run.
             db.delete(cell)
+        # else: a tray-linked cell is a real physical sibling even with 0 uses - stays open.
 
     db.add(
         AuditLog(

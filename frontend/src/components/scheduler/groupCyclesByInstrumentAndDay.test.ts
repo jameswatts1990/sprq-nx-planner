@@ -17,6 +17,8 @@ function baseStage(overrides: Partial<StageOut> = {}): StageOut {
     barcodes: [],
     cell_use_status: "planned",
     cell_status: "open",
+    tray_position: 1,
+    window_hours_elapsed: null,
     ...overrides,
   };
 }

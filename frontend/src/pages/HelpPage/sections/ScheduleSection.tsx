@@ -86,7 +86,11 @@ export function ScheduleSection() {
         <b>12:00 loading start time</b>, even if this is the first placement on that instrument/day. The picker only
         still stops to ask when your drop <i>would</i> start a brand-new run <i>and</i> there&apos;s a genuine cell
         choice to make (more than one compatible cell, with no ghost telling it which one you meant) — in that case
-        it shows both the <b>Loading start time</b> field and the cell choice together. Dragging an already-placed
+        it shows both the <b>Loading start time</b> field and the cell choice together. When compatible cells are
+        offered, they&apos;re grouped by which physical SPRQ-Nx SMRT Cell tray they came from, in cell-number order,
+        so you can see a tray&apos;s other cells together. Picking <b>Use a new cell</b> opens a whole new physical
+        tray of 4 at once — the other 3 appear immediately as open, reusable cells (in the Cells page and future
+        pickers), even though only one of them has a sample on it yet. Dragging an already-placed
         sample to a new slot <b>moves</b> it and keeps its cell; a move that starts a brand-new run always shows the
         picker, since a move never auto-resolves.
       </p>
@@ -109,6 +113,14 @@ export function ScheduleSection() {
         cell&apos;s not-yet-run uses elsewhere on the grid (their samples go back to the Backlog too) — each stays
         visible as a <b>Blocked</b> slot (see below) rather than disappearing, so a day&apos;s plan never silently
         loses a placement without a trace.
+      </p>
+      <p>
+        <b>Undoing a QC mistake:</b> flagged the wrong slot? An <b>Undo Failed</b>/<b>Undo Aborted</b> button
+        replaces <b>Mark Failed</b>/<b>Mark Aborted</b> once a verdict has been recorded, and an <b>Undo stop</b>{" "}
+        button appears once a cell is stopped — each shows a warning before restoring the placement (or every
+        cancelled use, for <b>Undo stop</b>) to how it looked beforehand. If the sample involved has already been
+        requeued or rescheduled elsewhere in the meantime, undo is refused with an error rather than silently
+        double-booking that sample — reschedule from the Backlog instead in that case.
       </p>
       <p>
         <b>Failed/Aborted/Stopped/Blocked indicator on the grid:</b> a slot outlined in colour, labelled{" "}
@@ -179,7 +191,17 @@ export function ScheduleSection() {
         has a well of its own, both the placement picker and <b>Change cell</b> only offer it for a drop into that
         same well, and its waiting-cell ghost (below) only ever appears there. There is deliberately no way to
         start a brand-new cell in a slot that already belongs to another cell&apos;s reuse; a cell&apos;s first use
-        can start in any open slot, but from then on it&apos;s pinned.
+        can start in any open slot, but from then on it&apos;s pinned. A small <b>&quot;Tray N/4&quot;</b> tag under
+        the cell code on each filled slot is a different thing entirely — a physical SPRQ-Nx SMRT Cell tray of 4
+        cells (see the Cells tab&apos;s help), not this grid layout&apos;s own &quot;Tray 1&quot;/&quot;Tray
+        2&quot; loading positions.
+      </p>
+      <p>
+        <b>Slot shading over time:</b> a filled slot fades from full colour toward a paler tint the closer that
+        cell gets to its own 108-hour deadline — the same fade used for waiting-cell ghosts (below), just applied
+        to a cell that&apos;s already loaded rather than one still waiting to be reused. This is always that one
+        cell&apos;s own clock, counted from its own first use — cells sharing a physical tray don&apos;t share a
+        deadline, so two slots from the same tray can shade differently.
       </p>
       <p>
         <b>Highlighting the same cell over time:</b> resting the pointer on a loaded slot for about a second and a

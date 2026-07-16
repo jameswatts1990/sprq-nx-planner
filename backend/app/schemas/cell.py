@@ -55,6 +55,11 @@ class CellOut(BaseModel):
     pacbio_reported_at: datetime | None
     pacbio_credit_confirmed_at: datetime | None
     credit_received_at: datetime | None
+    # Physical SPRQ-Nx SMRT Cell tray (4 cells) this cell belongs to - null for cells
+    # created before this feature, or via the one-off bootstrap_cell() cutover tool.
+    tray_id: int | None
+    tray_position: int | None
+    tray_size: int
 
 
 class CellDetailOut(CellOut):

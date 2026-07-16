@@ -44,6 +44,9 @@ const GHOST_EXAMPLE_CELL: CellOut = {
   pacbio_reported_at: null,
   pacbio_credit_confirmed_at: null,
   credit_received_at: null,
+  tray_id: 7,
+  tray_position: 2,
+  tray_size: 4,
 };
 const GHOST_EXAMPLE_FADING: CellGhost = {
   cell: GHOST_EXAMPLE_CELL,
@@ -71,6 +74,8 @@ const LINK_EXAMPLE_SOURCE: StageOut = {
   barcodes: ["bc1001"],
   cell_use_status: "completed",
   cell_status: "open",
+  tray_position: 2,
+  window_hours_elapsed: 60,
 };
 const LINK_EXAMPLE_PEER: StageOut = {
   ...LINK_EXAMPLE_SOURCE,
@@ -92,6 +97,20 @@ const LINK_EXAMPLE_UNRELATED: StageOut = {
   sample_id: 3,
   sample_external_id: "SAMPLE-310",
   barcodes: ["bc3010"],
+};
+
+// Fabricated stage purely so the slot-shading swatch below renders from the real
+// SchedulerSlotView component (see CLAUDE.md's Help Tab Maintenance rule) - 95 of 108
+// hours elapsed, near enough its deadline to show the fade clearly.
+const WINDOW_SHADE_EXAMPLE_NEAR_DEADLINE: StageOut = {
+  ...LINK_EXAMPLE_SOURCE,
+  cell_use_id: 5,
+  cell_id: 55,
+  cell_ref: "CELL-000055",
+  sample_id: 5,
+  sample_external_id: "SAMPLE-509",
+  barcodes: ["bc5009"],
+  window_hours_elapsed: 95,
 };
 
 // Fabricated stages purely so the QC alert swatches below render from the real
@@ -296,6 +315,21 @@ export function LegendSection() {
           <span>
             Last day this cell can still start its next use - a fixed amber &quot;expires today&quot; look instead
             of continuing to fade.
+          </span>
+        </div>
+      </div>
+
+      <p className={styles.subheading}>Slot shading (Weekly schedule)</p>
+      <div className={styles.legendGrid}>
+        <div className={styles.legendRow}>
+          <div className={styles.ghostExampleSwatch}>
+            <SchedulerSlotView stage={WINDOW_SHADE_EXAMPLE_NEAR_DEADLINE} slotIndex={0} />
+          </div>
+          <span>
+            A loaded cell fades the same way a waiting-cell ghost does, but for time already elapsed on its own
+            108-hour clock rather than time left to wait - the closer this specific cell is to its own deadline, the
+            paler it reads. Cells sharing a physical tray don&apos;t share a clock, so two slots from the same tray
+            can shade differently.
           </span>
         </div>
       </div>

@@ -501,6 +501,12 @@ def test_undo_stop_cell_leaves_drifted_use_cancelled_but_restores_the_rest(clien
     r1 = _place(client, _sid(client, "U7"), mon, 0, {"mode": "new"})
     assert r1.status_code == 201, r1.text
     cell_id = r1.json()["stages"][0]["cell_id"]
+    cycle1_id = r1.json()["cycle_id"]
+
+    # confirm+complete U7's run so its own use is real history, not itself a "planned" use
+    # that Stop cell would also cancel - isolates the drift scenario to U8 vs U9 below.
+    assert client.patch(f"/api/cycles/{cycle1_id}", json={"status": "running"}).status_code == 200
+    assert client.patch(f"/api/cycles/{cycle1_id}", json={"status": "completed"}).status_code == 200
 
     r2 = _place(client, _sid(client, "U8"), tue, 0, {"mode": "existing", "cell_id": cell_id})
     assert r2.status_code == 201, r2.text
@@ -515,8 +521,9 @@ def test_undo_stop_cell_leaves_drifted_use_cancelled_but_restores_the_rest(clien
     stop = client.post(f"/api/cells/{cell_id}/stop", json={"reason": "damaged"})
     assert stop.status_code == 200, stop.text
 
-    # U8's sample moves on before anyone undoes the stop; U9's sample sits untouched
-    assert client.post(f"/api/samples/{u8_id}/requeue").status_code == 200
+    # U8's sample moves on before anyone undoes the stop (already "backlog" from the stop
+    # cascade, so it can be rescheduled directly - no separate requeue step); U9's sample
+    # sits untouched.
     reschedule = _place(client, u8_id, _weekdays(5)[-1], 0, {"mode": "new"}, instrument="84098")
     assert reschedule.status_code == 201, reschedule.text
 

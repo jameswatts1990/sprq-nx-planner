@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { CellUseHistoryOut } from "@/types/cell";
 
-import { canRecordQcOutcome } from "./cellUseQc";
+import { canRecordQcOutcome, canUndoQcOutcome } from "./cellUseQc";
 
 function baseUse(overrides: Partial<CellUseHistoryOut> = {}): CellUseHistoryOut {
   return {
@@ -56,5 +56,25 @@ describe("canRecordQcOutcome", () => {
 
   it("is false for an already-completed use", () => {
     expect(canRecordQcOutcome(baseUse({ run_started: true, status: "completed" }))).toBe(false);
+  });
+});
+
+describe("canUndoQcOutcome", () => {
+  it("is true for a failed use", () => {
+    expect(canUndoQcOutcome(baseUse({ status: "failed" }))).toBe(true);
+  });
+
+  it("is true for an aborted use", () => {
+    expect(canUndoQcOutcome(baseUse({ status: "aborted" }))).toBe(true);
+  });
+
+  it("is false for a cancelled stopped-cell marker - that's undone via the cell, not the use", () => {
+    expect(canUndoQcOutcome(baseUse({ status: "cancelled" }))).toBe(false);
+  });
+
+  it("is false for a planned, started, or completed use", () => {
+    expect(canUndoQcOutcome(baseUse({ status: "planned" }))).toBe(false);
+    expect(canUndoQcOutcome(baseUse({ status: "started" }))).toBe(false);
+    expect(canUndoQcOutcome(baseUse({ status: "completed" }))).toBe(false);
   });
 });

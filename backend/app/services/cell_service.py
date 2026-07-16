@@ -11,9 +11,10 @@ from datetime import date, datetime, timedelta
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.engine.constants import CELL_LIFETIME_H, CELL_MAX_USES
+from app.engine.constants import CELL_LIFETIME_H, CELL_MAX_USES, CELLS_PER_TRAY
 from app.models.audit import AuditLog
 from app.models.cell import Cell
+from app.models.cell_tray import CellTray
 from app.models.instrument import Instrument
 from app.models.schedule import CellUse, CellUseBarcode, Cycle, RunBatch
 from app.schemas.cell import CellBootstrapRequest, CellDetailOut, CellOut, CellUseHistoryOut
@@ -69,11 +70,42 @@ def use_run_date(cell_use: CellUse) -> date | None:
 def current_location(cell: Cell) -> tuple[str | None, str | None]:
     active_uses = [cu for cu in cell.cell_uses if cu.status != "cancelled"]
     if not active_uses:
+        # No use yet - but a tray-linked cell is still a real physical object already
+        # sitting on whichever instrument its tray was loaded onto (see open_new_tray()),
+        # so it's pinned there even before its own first use. No well yet, though - that's
+        # only known once it's actually loaded into one.
+        if cell.tray is not None:
+            return cell.tray.instrument.serial_number, None
         return None, None
     last = max(active_uses, key=lambda cu: (use_run_date(cu) or date.min, cu.id))
     run_batch = last.cycle.run_batch if last.cycle else None
     instrument = run_batch.instrument if run_batch else None
     return (instrument.serial_number if instrument else None), last.well
+
+
+def open_new_tray(db: Session, instrument_id: int) -> list[Cell]:
+    """Open a brand-new physical SMRT Cell tray: creates one CellTray row plus all
+    CELLS_PER_TRAY Cell rows at once (position 1..4, status "open", 0 uses), not just the
+    one about to be used. The other 3 are real, reusable cells from this point on - they
+    surface as preferred reuse candidates ahead of any other brand-new tray via
+    load_prior_cells()/pack_cells() (see docs/pacbio-sprq-nx-scheduling-reference.md #5),
+    with no engine changes needed since `Cell.status == "open"` is already the only
+    filter load_prior_cells() applies.
+
+    Returns the 4 cells in tray_position order; callers use cells[0] for the cell being
+    placed right now."""
+    tray = CellTray(instrument_id=instrument_id)
+    db.add(tray)
+    db.flush()
+
+    cells: list[Cell] = []
+    for position in range(1, CELLS_PER_TRAY + 1):
+        cell = Cell(code="PENDING", max_uses=CELL_MAX_USES, status="open", tray_id=tray.id, tray_position=position)
+        db.add(cell)
+        db.flush()
+        cell.code = f"CELL-{cell.id:06d}"
+        cells.append(cell)
+    return cells
 
 
 def last_use_run_date(cell: Cell) -> date | None:
@@ -166,6 +198,9 @@ def serialize_cell(cell: Cell) -> CellOut:
         pacbio_reported_at=cell.pacbio_reported_at,
         pacbio_credit_confirmed_at=cell.pacbio_credit_confirmed_at,
         credit_received_at=cell.credit_received_at,
+        tray_id=cell.tray_id,
+        tray_position=cell.tray_position,
+        tray_size=CELLS_PER_TRAY,
     )
 
 
@@ -308,11 +343,21 @@ def stop_cell(db: Session, cell: Cell, reason: str | None, actor: str | None) ->
         raise ValueError(f"Cell is already {cell.status}.")
 
     bumped_sample_ids: list[int] = []
+    # Per-cell_use snapshot of what's about to be cancelled, so a mistaken Stop cell (wrong
+    # physical cell selected) can be undone later (see undo_stop_cell) - keyed by cell_use
+    # id rather than just the sample ids stop_cell already returns, since undo needs to
+    # know which specific CellUse rows to revert back to "planned".
+    cancelled: dict[str, dict] = {}
     for cell_use in [cu for cu in cell.cell_uses if cu.status == "planned"]:
+        prior_sample_status = cell_use.sample.status if cell_use.sample is not None else None
         if cell_use.sample is not None:
             cell_use.sample.status = "backlog"
             bumped_sample_ids.append(cell_use.sample_id)
         cell_use.status = "cancelled"
+        # JSON object keys are always strings on the round trip through the DB - store
+        # with str() up front so undo_stop_cell's lookup is correct however this dict is
+        # read back (freshly queried, or still resident in the same session).
+        cancelled[str(cell_use.id)] = {"sample_status": prior_sample_status}
 
     cell.status = "stopped"
     cell.stopped_at = utcnow()
@@ -325,13 +370,72 @@ def stop_cell(db: Session, cell: Cell, reason: str | None, actor: str | None) ->
             action="stop_cell",
             entity_type="cell",
             entity_id=cell.id,
-            details_json={"reason": reason, "bumped_sample_ids": bumped_sample_ids},
+            details_json={"reason": reason, "bumped_sample_ids": bumped_sample_ids, "cancelled": cancelled},
         )
     )
     db.commit()
     db.refresh(cell)
     db.refresh(cell, attribute_names=["cell_uses"])
     return cell, bumped_sample_ids
+
+
+def undo_stop_cell(db: Session, cell: Cell, actor: str | None) -> tuple[Cell, list[int], list[int]]:
+    """Reverse a mistaken Stop cell (wrong physical cell selected) - reopens the cell and
+    restores every use it cancelled back to "planned", so the schedule looks exactly like
+    it did before the stop. A cancelled use is only revived if its sample is still sitting
+    untouched in the backlog since the stop - one already requeued into a fresh placement
+    elsewhere is left "cancelled" rather than revived into a second, conflicting "planned"
+    use for a sample that's now committed elsewhere (mirrors undo_cell_use_status's same
+    drift guard). Returns the cell plus (reverted, drifted) cell_use ids for the caller to
+    report."""
+    if cell.status != "stopped":
+        raise ValueError("Cell is not stopped.")
+
+    last_action = db.scalars(
+        select(AuditLog)
+        .where(AuditLog.entity_type == "cell", AuditLog.entity_id == cell.id, AuditLog.action == "stop_cell")
+        .order_by(AuditLog.id.desc())
+        .limit(1)
+    ).first()
+    if last_action is None or "cancelled" not in last_action.details_json:
+        raise ValueError("No recorded Stop cell action found to undo.")
+
+    cancelled = last_action.details_json["cancelled"]
+    reverted_ids: list[int] = []
+    drifted_ids: list[int] = []
+    for cell_use in cell.cell_uses:
+        snapshot = cancelled.get(str(cell_use.id))
+        if snapshot is None or cell_use.status != "cancelled":
+            continue
+        prior_sample_status = snapshot["sample_status"]
+        if cell_use.sample is not None and prior_sample_status is not None and cell_use.sample.status != "backlog":
+            # Sample has since moved on (requeued/rescheduled) - reviving this slot would
+            # double-book it against wherever it landed, so leave it cancelled.
+            drifted_ids.append(cell_use.id)
+            continue
+        cell_use.status = "planned"
+        reverted_ids.append(cell_use.id)
+        if cell_use.sample is not None and prior_sample_status is not None:
+            cell_use.sample.status = prior_sample_status
+
+    cell.status = "open"
+    cell.stopped_at = None
+    cell.stopped_reason = None
+    recompute_status(cell, utcnow())
+
+    db.add(
+        AuditLog(
+            actor=actor or "unknown",
+            action="undo_stop_cell",
+            entity_type="cell",
+            entity_id=cell.id,
+            details_json={"reverted_cell_use_ids": reverted_ids, "drifted_cell_use_ids": drifted_ids},
+        )
+    )
+    db.commit()
+    db.refresh(cell)
+    db.refresh(cell, attribute_names=["cell_uses"])
+    return cell, reverted_ids, drifted_ids
 
 
 def report_cell_to_pacbio(db: Session, cell: Cell, case_number: str, actor: str | None) -> Cell:

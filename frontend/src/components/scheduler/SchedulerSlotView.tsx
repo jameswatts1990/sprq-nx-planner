@@ -5,6 +5,7 @@ import { BarcodeChips } from "@/components/shared/BarcodeChips";
 import type { SlotIndex, StageOut } from "@/types/schedule";
 import { formatShortDateUTC, parseDateOnly } from "@/utils/calendarDates";
 import { classForUseIndex } from "@/utils/useIndexClass";
+import { CELL_LIFETIME_H, expiryFadeOpacity } from "@/utils/windowFade";
 
 import styles from "./SchedulerSlotView.module.css";
 import { CELL_LINK_SLOT_ATTR } from "./useCellLinkHighlight";
@@ -107,6 +108,11 @@ export const SchedulerSlotView = memo(
     if (qcAlert === "cancelled") classes.push(styles.qcAlertCancelled);
     else if (qcAlert === "aborted") classes.push(styles.qcAlertWarn);
     else if (qcAlert) classes.push(styles.qcAlert);
+    // Shades toward the same fade as a waiting-cell ghost, but driven by this cell's own
+    // elapsed time rather than time-to-deadline - "denote the passing of time until a
+    // [cell's] expiry" (see docs/pacbio-sprq-nx-scheduling-reference.md #2: this is always
+    // per-cell, never a shared tray-level clock).
+    if (stage!.window_hours_elapsed !== null) classes.push(styles.windowShaded);
   } else if (ghost) {
     classes.push(styles.ghost, styles[useClass]);
     if (ghost.isHardCutoff) classes.push(styles.ghostCutoff);
@@ -129,8 +135,12 @@ export const SchedulerSlotView = memo(
 
   // Fade intensity only applies to the calm (non-cutoff) ghost look - the cutoff variant
   // is a fixed, fully-opaque "act now" style regardless of how the fade would otherwise sit.
-  const mergedStyle: CSSProperties | undefined =
+  let mergedStyle: CSSProperties | undefined =
     ghost && !ghost.isHardCutoff ? { ...style, ["--ghost-opacity" as string]: ghost.fadeOpacity } : style;
+  if (showStage && stage!.window_hours_elapsed !== null) {
+    const hoursRemaining = CELL_LIFETIME_H - stage!.window_hours_elapsed;
+    mergedStyle = { ...mergedStyle, ["--window-opacity" as string]: expiryFadeOpacity(hoursRemaining) };
+  }
 
   return (
     <div
@@ -146,6 +156,11 @@ export const SchedulerSlotView = memo(
             {stage!.sample_external_id ?? "—"}
           </div>
           <div className={styles.cellref}>{stage!.cell_ref}</div>
+          {stage!.tray_position !== null && (
+            <div className={styles.trayTag} title="Position within this cell's physical SPRQ-Nx SMRT Cell tray of 4">
+              Tray {stage!.tray_position}/4
+            </div>
+          )}
           {qcAlert && (
             <div
               className={

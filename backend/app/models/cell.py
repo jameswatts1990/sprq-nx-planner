@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Integer, String, Text, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -35,4 +35,11 @@ class Cell(Base):
     pacbio_credit_confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     credit_received_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
+    # Physical SPRQ-Nx SMRT Cell tray (4 cells) this cell belongs to, and its 1-4 position
+    # within it. Null for cells created before this feature or via the one-off
+    # bootstrap_cell() cutover tool, which has no way to know real sibling history.
+    tray_id: Mapped[int | None] = mapped_column(ForeignKey("cell_trays.id"), nullable=True, index=True)
+    tray_position: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
     cell_uses: Mapped[list["CellUse"]] = relationship(back_populates="cell", order_by="CellUse.id")
+    tray: Mapped["CellTray | None"] = relationship(back_populates="cells")

@@ -13,3 +13,13 @@ const TERMINAL_QC_STATUSES = new Set(["cancelled", "failed", "aborted", "complet
 export function canRecordQcOutcome(use: CellUseHistoryOut): boolean {
   return use.run_started && !TERMINAL_QC_STATUSES.has(use.status);
 }
+
+/** Gates the "Undo" action on a Mark Failed/Mark Aborted verdict - only those two are
+ * reversible from here. "completed" is never set through this per-use action (only via a
+ * cycle's own completion), and "cancelled" (Stop cell's "Blocked" marker) is undone via
+ * the Cell's own Undo stop action instead, since it cascades from the whole cell, not one
+ * use. The backend still has the final say - it 409s if the sample has since moved on
+ * (requeued or rescheduled) since the verdict, which this can't see from the use alone. */
+export function canUndoQcOutcome(use: CellUseHistoryOut): boolean {
+  return use.status === "failed" || use.status === "aborted";
+}

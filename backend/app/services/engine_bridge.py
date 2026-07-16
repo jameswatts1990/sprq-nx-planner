@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.engine.types import ParsedSample, PriorCellInput
 from app.models.cell import Cell
+from app.models.cell_tray import CellTray
 from app.models.sample import Sample
 from app.models.schedule import CellUse, Cycle, RunBatch
 from app.services.cell_service import current_location, derive_cell_state
@@ -46,7 +47,11 @@ def load_prior_cells(db: Session, excluded_cell_ids: list[int]) -> tuple[list[Pr
             selectinload(Cell.cell_uses)
             .selectinload(CellUse.cycle)
             .selectinload(Cycle.run_batch)
-            .selectinload(RunBatch.instrument)
+            .selectinload(RunBatch.instrument),
+            # A zero-use tray sibling has no CellUse history to derive a location from -
+            # current_location() falls back to its tray's instrument, so that relationship
+            # needs to be loaded too (see cell_service.current_location()).
+            selectinload(Cell.tray).selectinload(CellTray.instrument),
         )
     )
     cells = [c for c in db.scalars(stmt).unique().all() if c.id not in excluded_cell_ids]

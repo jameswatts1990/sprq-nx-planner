@@ -45,6 +45,12 @@ def pack_cells(
     calendar day (see fill_slots' strictly-later-date rule), so planning a chain deeper
     than that can never actually be placed - it would just strand samples as unplaced
     rather than spreading them across more fresh cells that could have been placed today.
+    This applies equally to a *prior* cell with several uses still remaining (e.g. an
+    open, never-yet-used sibling from the same physical tray as an already-used cell -
+    see cell_service.open_new_tray()): without this cap, a single-day batch could plan
+    all 3 of its remaining uses onto one such cell, when only 1 could ever actually be
+    placed that day, stranding the other 2 samples as unplaced instead of spreading them
+    across other open cells/fresh cells that could have taken them today.
 
     `objective` only breaks ties between reuse candidates that are otherwise equally
     eligible: "fastest" prefers the least-used fresh cell (spreads samples across more
@@ -107,7 +113,12 @@ def pack_cells(
         cands = [
             c
             for c in cells
-            if (len(c.uses) < c.remaining if c.prior else len(c.uses) < cap) and disjoint(c.barcodes, s.barcodes)
+            if (
+                len(c.uses) < (c.remaining if available_days is None else min(c.remaining, available_days))
+                if c.prior
+                else len(c.uses) < cap
+            )
+            and disjoint(c.barcodes, s.barcodes)
         ]
         cands.sort(key=lambda c: (0 if c.prior else 1, len(c.uses) if objective == "fastest" else -len(c.uses)))
 
