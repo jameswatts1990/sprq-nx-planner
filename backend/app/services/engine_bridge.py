@@ -61,7 +61,7 @@ def load_prior_cells(db: Session, excluded_cell_ids: list[int]) -> tuple[list[Pr
         uses_consumed, remaining, burned = derive_cell_state(cell)
         if remaining <= 0:
             continue
-        pinned_serial, _well = current_location(cell)
+        pinned_serial, pinned_well = current_location(cell)
         prior_inputs.append(
             PriorCellInput(
                 barcodes_text=" ".join(burned),
@@ -69,6 +69,7 @@ def load_prior_cells(db: Session, excluded_cell_ids: list[int]) -> tuple[list[Pr
                 cell_id=cell.id,
                 first_use_started_at=cell.first_use_started_at,
                 pinned_instrument_serial=pinned_serial,
+                pinned_well=pinned_well,
             )
         )
         by_id[cell.id] = cell

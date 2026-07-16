@@ -3,6 +3,8 @@ grid cells. Fills only the requested cells, skips ones that filled up in the mea
 and reports what didn't fit."""
 from datetime import date, datetime, time, timedelta, timezone
 
+from app.models.cell import Cell
+from app.models.cell_tray import CellTray
 from app.models.schedule import Cycle, RunBatch
 
 SIX_DISJOINT = "sample,barcodes\n" + "\n".join(f"X{i},bcx{i}" for i in range(1, 7))
@@ -83,6 +85,44 @@ def test_auto_fill_fills_only_requested_cell_and_reports_unplaced(client):
     assert client.get("/api/cycles", params={"instrument_serial": "84098"}).json() == []
     assert client.get("/api/samples", params={"status": "scheduled"}).json()["total"] == 6
     assert client.get("/api/samples", params={"status": "backlog"}).json()["total"] == 0
+
+
+def test_auto_fill_shares_one_physical_tray_across_fresh_cells_in_the_same_box(client, db_session):
+    """Reproduces a reported bug: auto-filling several *different* first-use samples into
+    the same day's tray-1 box (wells A01-D01) opened a brand-new physical CellTray per
+    sample instead of sharing the one tray box those 4 wells actually are - e.g. cell ids
+    408/413/418/423 (gaps of 5) instead of 408/409/410/411. 6 disjoint samples on one day
+    need 6 fresh cells: 4 fill tray-1's box completely, 2 land in tray-2's box - each box
+    must end up as exactly one CellTray with 4 Cell rows (all 4 used for tray-1's box; 2
+    used + 2 untouched siblings for tray-2's box), never more than one tray per box."""
+    client.post("/api/imports", json={"raw_text": SIX_DISJOINT})
+    (mon,) = _weekdays(1)
+
+    resp = _auto_fill(client, [{"instrument_serial": "84047", "run_date": mon}])
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert len(body["placed_sample_ids"]) == 6
+
+    stages = body["runs"][0]["stages"]
+    assert len(stages) == 6
+    tray1_cell_ids = sorted(s["cell_id"] for s in stages if s["well"] in {"A01", "B01", "C01", "D01"})
+    tray2_cell_ids = sorted(s["cell_id"] for s in stages if s["well"] in {"A02", "B02"})
+    assert len(tray1_cell_ids) == 4
+    assert len(tray2_cell_ids) == 2
+
+    # tray-1's box is fully used by this batch, so its 4 cell ids must be the 4
+    # consecutive ids created by one open_new_tray() call - not scattered across
+    # several separately-opened trays.
+    assert tray1_cell_ids == list(range(tray1_cell_ids[0], tray1_cell_ids[0] + 4))
+
+    # Exactly one CellTray per box (2 boxes touched), each with exactly 4 Cell rows -
+    # not one tray per fresh cell (which would be 6 trays / up to 24 cells).
+    trays = db_session.query(CellTray).all()
+    assert len(trays) == 2
+    for tray in trays:
+        cells_in_tray = db_session.query(Cell).filter(Cell.tray_id == tray.id).all()
+        assert len(cells_in_tray) == 4
+        assert sorted(c.tray_position for c in cells_in_tray) == [1, 2, 3, 4]
 
 
 def test_auto_fill_skips_already_occupied_cell(client):

@@ -98,6 +98,7 @@ def pack_cells(
                 uses=[],
                 cell_id=pc.cell_id,
                 pinned_instrument_serial=pc.pinned_instrument_serial,
+                pinned_well=pc.pinned_well,
             )
         )
 

@@ -71,8 +71,21 @@ def fill_slots(cells: list[PackedCell], slots: list[SlotInput], run_time_hours: 
             if last_date is not None and slot.run_date <= last_date:
                 continue
 
+            # A cell is physically fixed to one well for its whole life (see
+            # docs/pacbio-sprq-nx-scheduling-reference.md's "must stay in the same well"
+            # invariant, already enforced for manual placement/move/change-cell). A
+            # pinned cell can only take *that* well here - if it isn't free this slot,
+            # skip this cell for this slot rather than grabbing a different well, which
+            # would silently relocate a physical cell that can't actually move.
+            if cell.pinned_well is not None:
+                if cell.pinned_well not in free_wells[slot]:
+                    continue
+                well = cell.pinned_well
+                free_wells[slot].remove(well)
+            else:
+                well = free_wells[slot].pop(0)
+
             sample = cell.uses[idx]
-            well = free_wells[slot].pop(0)
             assignments.append(
                 SlotAssignment(
                     cell=cell,
@@ -94,6 +107,11 @@ def fill_slots(cells: list[PackedCell], slots: list[SlotInput], run_time_hours: 
             # reference.md's "a cell can never move between instruments" invariant).
             if cell.pinned_instrument_serial is None:
                 cell.pinned_instrument_serial = slot.instrument_serial
+            # Same reasoning, for well instead of instrument: a fresh cell's first use
+            # pins it to whichever well it lands in, so its 2nd/3rd use within this same
+            # batch is confined there too, not just prior cells loaded from the DB.
+            if cell.pinned_well is None:
+                cell.pinned_well = well
             if first_placed_date[cell.id] is None:
                 first_placed_date[cell.id] = slot.run_date
             last_placed_date[cell.id] = slot.run_date

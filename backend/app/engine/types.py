@@ -47,6 +47,11 @@ class PriorCellInput:
     # stay on the same instrument it's already on. None means the cell has no uses yet
     # (or isn't a real persisted cell), so it isn't pinned anywhere.
     pinned_instrument_serial: str | None = None
+    # A cell is physically fixed to one well for its entire life (its tray's home_well,
+    # or - for a tray-less legacy cell - its last real use's well): once it has a use, it
+    # can never come back to auto-fill in a different well. None means no pin yet, same
+    # rule as pinned_instrument_serial above.
+    pinned_well: str | None = None
 
 
 @dataclass
@@ -71,6 +76,7 @@ class PackedCell:
         uses: list[ParsedSample],
         cell_id: int | None = None,
         pinned_instrument_serial: str | None = None,
+        pinned_well: str | None = None,
     ) -> None:
         self.id = id
         self.prior = prior
@@ -81,6 +87,7 @@ class PackedCell:
         self.uses = uses
         self.cell_id = cell_id  # DB id of the real Cell, if this represents a persisted one
         self.pinned_instrument_serial = pinned_instrument_serial
+        self.pinned_well = pinned_well
         # populated by finalize step in pack_cells():
         self.future_uses = 0
         self.total_uses = 0

@@ -64,6 +64,19 @@ def test_pack_excludes_prior_cell_when_sample_shares_a_burned_barcode():
     assert [u.id for u in fresh_cell.uses] == ["S1"]
 
 
+def test_pack_carries_pinned_well_through_from_prior_cell_input():
+    # A cell is physically fixed to one well for life (see engine/slot_scheduling.py's
+    # pin enforcement) - pack_cells must pass PriorCellInput.pinned_well through onto
+    # the resulting PackedCell unchanged, or fill_slots would have nothing to enforce.
+    prior = [PriorCellInput(barcodes_text="", uses_consumed=1, cell_id=42, pinned_well="B01")]
+    samples = [ParsedSample(id="S1", barcodes=["bc1"], key="S1#0")]
+
+    result = pack_cells(samples, max_uses=3, objective="fewest", prior_cells=prior)
+
+    prior_cell = next(c for c in result.all_cells if c.prior)
+    assert prior_cell.pinned_well == "B01"
+
+
 def test_pack_marks_samples_unplaced_when_max_uses_is_zero_capacity():
     samples = [ParsedSample(id="S1", barcodes=["bc1"], key="S1#0")]
     result = pack_cells(samples, max_uses=1, objective="fastest")

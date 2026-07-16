@@ -10,7 +10,7 @@ from datetime import date
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
-from app.engine.constants import CELL_LIFETIME_H, DAY_START_HOUR, WELLS
+from app.engine.constants import CELL_LIFETIME_H, CELLS_PER_TRAY, DAY_START_HOUR, WELLS
 from app.engine.packing import pack_cells
 from app.engine.slot_scheduling import fill_slots
 from app.engine.types import ConflictPair, SlotInput
@@ -146,6 +146,14 @@ def auto_fill(
     # colliding assignment to the next free well instead of letting the unique
     # (cycle_id, well) constraint raise mid-batch.
     occupied_wells: dict[int, set[str]] = {}
+    # (instrument_id, box_start) -> {home_well: Cell} for every physical tray-of-4 this
+    # batch has opened so far, keyed the same way open_new_tray() derives a box from a
+    # well (see below). Several fresh cells can land in different wells of the *same*
+    # box within one auto-fill call (e.g. filling all 4 first-use wells of "tray 1" at
+    # once) - without this cache each would independently open its own brand-new
+    # CellTray, producing 4 physical trays (and non-sequential cell ids) for what's
+    # really one tray box being loaded.
+    opened_boxes: dict[tuple[int, int], dict[str, Cell]] = {}
 
     def _resolve_well(cycle_id: int, requested_well: str) -> str | None:
         taken = occupied_wells.get(cycle_id)
@@ -193,13 +201,29 @@ def auto_fill(
             # this batch's own earlier assignments) - this sample can't land here after
             # all; leave it unplaced rather than crash on a well collision.
             continue
+        if well != a.well and a.cell.prior:
+            # a.cell is a real, already-persisted Cell that fill_slots confined to
+            # exactly a.well (its actual pinned well) - reassigning it here would
+            # silently relocate a physical cell that can't actually move. Only a
+            # pre-existing marker (e.g. a cancelled-only leftover) could ever collide
+            # with a real pin in the first place; drop this placement rather than
+            # violate the "same cell, same well, for life" invariant. A *fresh* cell
+            # (not yet a real row) has no such physical commitment yet, so it's still
+            # safe to let the reassignment below land it on a different free well.
+            continue
 
         db_cell = ref_to_cell.get(a.cell.id)
         if db_cell is None:
-            # Opens a whole new physical tray (4 cells), not just this one - the other 3
-            # are left open/unused and surface as preferred reuse candidates on the next
-            # placement/auto-fill call (see open_new_tray()).
-            db_cell = open_new_tray(db, instruments[a.instrument_serial].id, well)[0]
+            instrument_id = instruments[a.instrument_serial].id
+            box_key = (instrument_id, (WELLS.index(well) // CELLS_PER_TRAY) * CELLS_PER_TRAY)
+            box_cells = opened_boxes.get(box_key)
+            if box_cells is None:
+                # Opens a whole new physical tray (4 cells), not just this one - the
+                # other 3 are left open/unused and surface as preferred reuse candidates
+                # on the next placement/auto-fill call (see open_new_tray()).
+                box_cells = {c.home_well: c for c in open_new_tray(db, instrument_id, well)}
+                opened_boxes[box_key] = box_cells
+            db_cell = box_cells[well]
             ref_to_cell[a.cell.id] = db_cell
 
         cell_use = CellUse(

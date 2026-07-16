@@ -8,7 +8,7 @@ from app.engine.slot_scheduling import fill_slots
 from app.engine.types import PackedCell, ParsedSample, SlotInput
 
 
-def _cell(id_, samples, prior=False, pinned=None):
+def _cell(id_, samples, prior=False, pinned=None, pinned_well=None):
     return PackedCell(
         id=id_,
         prior=prior,
@@ -18,6 +18,7 @@ def _cell(id_, samples, prior=False, pinned=None):
         barcodes=set(),
         uses=samples,
         pinned_instrument_serial=pinned,
+        pinned_well=pinned_well,
     )
 
 
@@ -113,6 +114,57 @@ def test_fill_slots_pins_a_fresh_cell_to_its_first_assigned_instrument():
     assert result.assignments[0].instrument_serial == "84047"
     assert result.assignments[0].run_date == date(2026, 7, 20)
     assert [s.id for s in result.unplaced] == ["S1", "S2"]
+
+
+def test_fill_slots_reused_cell_only_takes_its_own_pinned_well():
+    """Regression test for a real reported bug: a physically reused cell must always
+    land back in the exact well it's pinned to (its tray's home_well), never whichever
+    well happens to be free first that day - a cell can't move within its own tray."""
+    cell = _cell("P1", _samples(1), prior=True, pinned="84047", pinned_well="C01")
+    slot = SlotInput(instrument_serial="84047", run_date=date(2026, 7, 20))
+
+    result = fill_slots([cell], [slot], run_time_hours=24)
+
+    assert len(result.assignments) == 1
+    assert result.assignments[0].well == "C01"
+
+
+def test_fill_slots_strands_pinned_cell_when_its_well_is_taken():
+    """Companion to the well-pin test above: if another cell has already claimed the
+    pinned well for this slot, the pinned cell must be skipped for that slot (and left
+    unplaced, or placed on a later day) rather than relocated to a different well."""
+    pinned_cell = _cell("P1", _samples(1), prior=True, pinned="84047", pinned_well="A01")
+    # This unrelated fresh cell is unpinned, so it's free to take any well - it happens
+    # to land on A01 first purely because ordered_cells sorts prior cells first, so give
+    # the pinned cell a higher future_uses (irrelevant here) and instead just occupy A01
+    # via a second prior cell already pinned there.
+    other_pinned = _cell("P2", _samples(1), prior=True, pinned="84047", pinned_well="A01")
+    slot = SlotInput(instrument_serial="84047", run_date=date(2026, 7, 20))
+
+    result = fill_slots([pinned_cell, other_pinned], [slot], run_time_hours=24)
+
+    # Only one of the two same-well-pinned cells can be placed this slot; the other is
+    # stranded rather than silently relocated to a different well.
+    assert len(result.assignments) == 1
+    assert result.assignments[0].well == "A01"
+    assert len(result.unplaced) == 1
+
+
+def test_fill_slots_pins_a_fresh_cell_to_its_first_assigned_well():
+    """A brand-new cell (pinned_well=None) needing 2 uses across 2 days must have both
+    uses land in the exact same well - the well its first use happened to take, not
+    whichever well is next-free on the later day."""
+    cell = _cell("C1", _samples(2))
+    slots = [
+        SlotInput(instrument_serial="84047", run_date=date(2026, 7, 20)),
+        SlotInput(instrument_serial="84047", run_date=date(2026, 7, 22)),
+    ]
+
+    result = fill_slots([cell], slots, run_time_hours=24)
+
+    assert len(result.assignments) == 2
+    wells = {a.well for a in result.assignments}
+    assert len(wells) == 1  # same well both times
 
 
 def test_fill_slots_fresh_cell_reuses_stay_on_first_instrument_when_available():
