@@ -4,11 +4,11 @@ export function ScheduleSection() {
   return (
     <div className={styles.copy}>
       <p>
-        <b>What this tab is for:</b> the two-week planning grid. Rows are your active instruments; columns are
+        <b>What this tab is for:</b> the weekly planning grid. Rows are your active instruments; columns are
         days. You place backlog samples into instrument/day slots here.
       </p>
       <p>
-        <b>Moving through time:</b> <b>‹ Prev</b> and <b>Next ›</b> page the view by 14 days; <b>Today</b> jumps
+        <b>Moving through time:</b> <b>‹ Prev</b> and <b>Next ›</b> page the view by 7 days; <b>Today</b> jumps
         back to the current window. The date range is shown between them, and it&apos;s remembered in the page URL
         so you can bookmark or share a week.
       </p>
@@ -113,7 +113,7 @@ export function ScheduleSection() {
           same, as long as you&apos;re not typing in a text box.
         </li>
         <li>
-          <b>Clear schedule (N planned)</b> wipes every <i>planned</i> placement in the current two-week view and
+          <b>Clear schedule (N planned)</b> wipes every <i>planned</i> placement in the current week view and
           returns those samples to the backlog. A confirmation dialog first states exactly how many samples will be
           removed and warns it can&apos;t be undone. Confirmed/loaded runs are never touched, so the number cleared
           can be lower than the total on screen.

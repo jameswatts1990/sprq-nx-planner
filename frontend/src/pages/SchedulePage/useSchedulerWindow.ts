@@ -3,12 +3,12 @@ import { useSearchParams } from "react-router-dom";
 
 import { addDaysUTC, mondayOfWeekUTC, parseDateOnly, toIsoDateUTC, todayIsoUTC } from "@/utils/calendarDates";
 
-export const WINDOW_DAYS = 14;
+export const WINDOW_DAYS = 7;
 
 export interface SchedulerWindow {
-  /** YYYY-MM-DD anchor for the first column of the 14-day window. */
+  /** YYYY-MM-DD anchor for the first column of the 7-day window. */
   from: string;
-  /** The 14 YYYY-MM-DD day strings in the window. */
+  /** The 7 YYYY-MM-DD day strings in the window. */
   days: string[];
   /** date_from / date_to for the cycles query (inclusive range). */
   dateFrom: string;
@@ -21,7 +21,7 @@ export interface SchedulerWindow {
 /**
  * Owns the URL-synced window anchor (`?from=YYYY-MM-DD`), replacing the old Plan page's
  * urlSettings mechanism. Defaults to the Monday of the current week; prev/next page by
- * 14 days (a multiple of 7, so Monday-alignment is preserved). Always normalizes to a
+ * 7 days, so Monday-alignment is preserved. Always normalizes to a
  * Monday, even for an arbitrary/stale `?from=` URL param, so the week consistently
  * starts on Monday. All date math goes through the UTC-based calendarDates helpers.
  */

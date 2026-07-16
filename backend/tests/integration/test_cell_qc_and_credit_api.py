@@ -15,6 +15,13 @@ def _weekdays(n: int) -> list[str]:
     return out
 
 
+def _past_weekday() -> str:
+    d = date.today() - timedelta(days=1)
+    while d.weekday() >= 5:
+        d -= timedelta(days=1)
+    return d.isoformat()
+
+
 def _sid(client, external_id: str) -> int:
     items = client.get("/api/samples", params={"page_size": 200}).json()["items"]
     return next(s["id"] for s in items if s["external_id"] == external_id)
@@ -206,3 +213,38 @@ def test_credit_workflow_happy_path_and_qc_status_filters(client):
 def test_unknown_qc_status_filter_is_rejected(client):
     resp = client.get("/api/cells", params={"qc_status": "bogus"})
     assert resp.status_code == 400
+
+
+def test_mark_failed_available_once_run_locked_even_before_confirmed_loaded(client):
+    """The instrument commits to a run (and a physical cell failure becomes possible) at
+    its scheduled start time, not only once someone clicks "Confirm loaded" - so a still-
+    "planned" use whose run's start time has already passed must already be QC-able,
+    while a genuinely future use must not be."""
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nP1,bcp1\nP2,bcp2"})
+    past = _past_weekday()
+    future = _weekdays(3)[-1]
+
+    r_past = _place(client, _sid(client, "P1"), past, 0, {"mode": "new"}, instrument="84093")
+    assert r_past.status_code == 201, r_past.text
+    past_stage = r_past.json()["stages"][0]
+
+    r_future = _place(client, _sid(client, "P2"), future, 0, {"mode": "new"}, instrument="84309")
+    assert r_future.status_code == 201, r_future.text
+    future_stage = r_future.json()["stages"][0]
+
+    past_detail = client.get(f"/api/cells/{past_stage['cell_id']}").json()
+    past_use = next(u for u in past_detail["use_history"] if u["id"] == past_stage["cell_use_id"])
+    assert past_use["status"] == "planned"
+    assert past_use["run_started"] is True
+
+    future_detail = client.get(f"/api/cells/{future_stage['cell_id']}").json()
+    future_use = next(u for u in future_detail["use_history"] if u["id"] == future_stage["cell_use_id"])
+    assert future_use["status"] == "planned"
+    assert future_use["run_started"] is False
+
+    # QC is already actionable on the past (locked) run even though nobody confirmed loading
+    fail = client.patch(
+        f"/api/cell-uses/{past_stage['cell_use_id']}", json={"status": "failed", "notes": "found dead cell on load"}
+    )
+    assert fail.status_code == 200, fail.text
+    assert fail.json()["status"] == "failed"

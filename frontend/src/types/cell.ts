@@ -19,6 +19,9 @@ export interface CellUseHistoryOut {
   started_at: string | null;
   completed_at: string | null;
   outcome_notes: string | null;
+  // True once this use's run has reached its scheduled start time, independent of
+  // whether anyone has explicitly confirmed the run loaded yet.
+  run_started: boolean;
 }
 
 export interface CellOut {

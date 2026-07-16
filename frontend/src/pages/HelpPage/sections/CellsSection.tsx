@@ -55,10 +55,17 @@ export function CellsSection() {
         <li>
           <b>Use history</b> lists every run the cell has been in: run number (links to the run), well, use status,
           sample, container ID, barcodes, priority, target OPLC, adaptive loading, full resolution base Q, kinetics
-          (CCS output includes kinetics information), instrument, start/complete times, outcome notes, and — for
-          uses that have actually started or completed — a <b>Mark Failed</b> action. Marking a use Failed means
-          that particular run produced no usable data; the cell itself stays open for its other uses, and the
-          sample can be requeued to the Backlog from the Samples list.
+          (CCS output includes kinetics information), instrument, start/complete times, outcome notes, and a{" "}
+          <b>Mark Failed</b> action. Marking a use Failed means that particular run produced no usable data; the
+          cell itself stays open for its other uses, and the sample can be requeued to the Backlog from the Samples
+          list.
+        </li>
+        <li>
+          <b>When Mark Failed becomes available:</b> as soon as that run is locked onto the instrument — its
+          scheduled start time — not only once someone has clicked <b>Confirm loaded</b>. A cell can fail physically
+          at any point once it&apos;s actually on the instrument, so QC doesn&apos;t wait on that confirmation step.
+          It&apos;s hidden for a run that hasn&apos;t reached its scheduled start yet, and for uses that were
+          cancelled or are already marked Failed.
         </li>
       </ul>
 

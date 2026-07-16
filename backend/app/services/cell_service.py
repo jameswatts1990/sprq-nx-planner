@@ -107,6 +107,18 @@ def window_hours_elapsed(cell: Cell) -> float | None:
     return (utcnow() - started).total_seconds() / 3600
 
 
+def run_has_started(cell_use: CellUse) -> bool:
+    """True once this use's run has reached its scheduled start time - the instrument
+    commits to the run (and a physical cell failure becomes possible) at
+    planned_start_at, independent of whether anyone has actually clicked "Confirm
+    loaded" yet (instrument locking is deliberately keyed off a run merely being
+    planned, not confirmed - see docs/pacbio-sprq-nx-scheduling-reference.md). Drives
+    when the "Mark Failed" QC action becomes available for a use."""
+    if cell_use.cycle is None:
+        return False
+    return utcnow() >= ensure_aware(cell_use.cycle.planned_start_at)
+
+
 def has_failed_use(cell: Cell) -> bool:
     return any(cu.status == "failed" for cu in cell.cell_uses)
 
@@ -179,6 +191,7 @@ def serialize_cell_detail(cell: Cell) -> CellDetailOut:
                 started_at=cu.started_at,
                 completed_at=cu.completed_at,
                 outcome_notes=cu.outcome_notes,
+                run_started=run_has_started(cu),
             )
         )
     return CellDetailOut(**base.model_dump(), use_history=history)

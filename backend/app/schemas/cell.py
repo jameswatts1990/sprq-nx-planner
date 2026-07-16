@@ -22,6 +22,10 @@ class CellUseHistoryOut(BaseModel):
     started_at: datetime | None
     completed_at: datetime | None
     outcome_notes: str | None
+    # True once this use's run has reached its scheduled start time (the instrument is
+    # committed and a physical cell failure becomes possible), independent of whether
+    # anyone has explicitly confirmed the run loaded yet.
+    run_started: bool
 
 
 class CellOut(BaseModel):
