@@ -65,6 +65,7 @@ export function SchedulePage() {
   const [printSheetOpen, setPrintSheetOpen] = useState(false);
   const [ghostDetail, setGhostDetail] = useState<CellGhost | null>(null);
   const gridAreaRef = useRef<HTMLDivElement>(null);
+  const accordionsRef = useRef<HTMLDivElement>(null);
 
   const instrumentsQuery = useQuery({
     queryKey: ["instruments", true],
@@ -241,16 +242,22 @@ export function SchedulePage() {
   }
 
   // Clicking anywhere outside the weekly schedule grid deselects both selections - lets
-  // users click away (toolbar, accordions, blank page) to dismiss a selection without
-  // hunting for the "Clear" button. Skipped while a modal/popover is open: those render
-  // as siblings of the grid (not inside gridAreaRef), so their own clicks would otherwise
-  // count as "outside" and clear the selection out from under an in-progress action
-  // (e.g. SlotDetailPopover's onRemoved re-toggling slotSelection after removal).
+  // users click away (blank page, etc.) to dismiss a selection without hunting for the
+  // "Clear" button. Skipped while a modal/popover is open: those render as siblings of
+  // the grid (not inside gridAreaRef), so their own clicks would otherwise count as
+  // "outside" and clear the selection out from under an in-progress action (e.g.
+  // SlotDetailPopover's onRemoved re-toggling slotSelection after removal). The
+  // accordions (Run Design's Auto-Schedule button in particular) are excluded from
+  // "outside" for the same reason: mousedown fires before click, so without this a
+  // click on Auto-Schedule cleared the selection an instant before onAutoSchedule read
+  // it, making the click silently schedule zero cells.
   useEffect(() => {
     if (!selection.hasSelection && !slotSelection.hasSelection) return;
     if (detail || ghostDetail || printSheetOpen || clearConfirmOpen || dnd.pendingPlacement) return;
     function onMouseDown(e: MouseEvent) {
-      if (gridAreaRef.current?.contains(e.target as Node)) return;
+      const target = e.target as Node;
+      if (gridAreaRef.current?.contains(target)) return;
+      if (accordionsRef.current?.contains(target)) return;
       selection.clear();
       slotSelection.clear();
     }
@@ -383,7 +390,7 @@ export function SchedulePage() {
         onDragEnd={dnd.onDragEnd}
       >
         <CellLinkContext.Provider value={cellLink}>
-          <div className={styles.accordions}>
+          <div className={styles.accordions} ref={accordionsRef}>
             <RunDesignAccordion
               runDesign={runDesign}
               onChange={setRunDesign}
