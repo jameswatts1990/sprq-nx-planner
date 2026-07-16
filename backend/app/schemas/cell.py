@@ -79,6 +79,14 @@ class CellStopOut(BaseModel):
     bumped_sample_ids: list[int] = []
 
 
+class CellUndoStopOut(BaseModel):
+    cell: CellOut
+    reverted_cell_use_ids: list[int] = []
+    # cell_use ids whose sample had already moved on (requeued/rescheduled) since the
+    # stop, so its status was deliberately left untouched rather than reverted.
+    drifted_cell_use_ids: list[int] = []
+
+
 class CellReportToPacbioRequest(BaseModel):
     case_number: str
     actor: str | None = None

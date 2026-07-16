@@ -356,6 +356,184 @@ def test_mark_cell_use_aborted_returns_sample_straight_to_backlog(client):
     assert reschedule.status_code == 201, reschedule.text
 
 
+def test_undo_mark_failed_restores_use_and_sample(client):
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nU1,bcu1"})
+    past = _past_weekday()
+
+    r1 = _place(client, _sid(client, "U1"), past, 0, {"mode": "new"}, instrument="84093")
+    assert r1.status_code == 201, r1.text
+    stage = r1.json()["stages"][0]
+    u1_id = _sid(client, "U1")
+    assert _sample(client, u1_id)["status"] == "scheduled"
+
+    fail = client.patch(f"/api/cell-uses/{stage['cell_use_id']}", json={"status": "failed", "notes": "no data"})
+    assert fail.status_code == 200, fail.text
+    assert _sample(client, u1_id)["status"] == "failed"
+
+    undo = client.post(f"/api/cell-uses/{stage['cell_use_id']}/undo")
+    assert undo.status_code == 200, undo.text
+    assert undo.json()["status"] == "planned"
+    assert undo.json()["started_at"] is None
+    assert undo.json()["outcome_notes"] is None
+    assert _sample(client, u1_id)["status"] == "scheduled"
+
+    # the cell is untouched by either the mark or the undo - it stays open throughout
+    cell = client.get(f"/api/cells/{stage['cell_id']}").json()
+    assert cell["status"] == "open"
+    assert cell["has_failed_use"] is False
+
+
+def test_undo_mark_aborted_restores_use_and_sample(client):
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nU2,bcu2"})
+    past = _past_weekday()
+
+    r1 = _place(client, _sid(client, "U2"), past, 0, {"mode": "new"}, instrument="84093")
+    assert r1.status_code == 201, r1.text
+    stage = r1.json()["stages"][0]
+    u2_id = _sid(client, "U2")
+
+    abort = client.patch(f"/api/cell-uses/{stage['cell_use_id']}", json={"status": "aborted"})
+    assert abort.status_code == 200, abort.text
+    assert _sample(client, u2_id)["status"] == "backlog"
+
+    undo = client.post(f"/api/cell-uses/{stage['cell_use_id']}/undo")
+    assert undo.status_code == 200, undo.text
+    assert undo.json()["status"] == "planned"
+    assert _sample(client, u2_id)["status"] == "scheduled"
+
+
+def test_undo_rejected_for_a_use_that_was_never_flagged(client):
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nU3,bcu3"})
+    (mon,) = _weekdays(1)
+
+    r1 = _place(client, _sid(client, "U3"), mon, 0, {"mode": "new"})
+    assert r1.status_code == 201, r1.text
+    use_id = r1.json()["stages"][0]["cell_use_id"]
+
+    undo = client.post(f"/api/cell-uses/{use_id}/undo")
+    assert undo.status_code == 409, undo.text
+    assert "failed or aborted" in undo.json()["detail"].lower()
+
+
+def test_undo_mark_failed_blocked_once_sample_has_moved_on(client):
+    """If the sample was requeued and rescheduled onto a fresh placement before anyone
+    clicked Undo on the original mistaken Mark Failed, reviving the old use back to
+    "planned" would double-book that sample against its new placement - so undo must
+    hard-block rather than silently reviving only the use and leaving the sample alone."""
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nU4,bcu4"})
+    past = _past_weekday()
+    future = _weekdays(3)[-1]
+
+    r1 = _place(client, _sid(client, "U4"), past, 0, {"mode": "new"}, instrument="84093")
+    assert r1.status_code == 201, r1.text
+    old_use_id = r1.json()["stages"][0]["cell_use_id"]
+    u4_id = _sid(client, "U4")
+
+    assert client.patch(f"/api/cell-uses/{old_use_id}", json={"status": "failed"}).status_code == 200
+    assert client.post(f"/api/samples/{u4_id}/requeue").status_code == 200
+
+    r2 = _place(client, u4_id, future, 0, {"mode": "new"}, instrument="84309")
+    assert r2.status_code == 201, r2.text
+    assert _sample(client, u4_id)["status"] == "scheduled"
+
+    undo = client.post(f"/api/cell-uses/{old_use_id}/undo")
+    assert undo.status_code == 409, undo.text
+    assert "moved on" in undo.json()["detail"].lower()
+
+    # untouched - the old use stays failed, the new placement stays intact
+    assert client.get(f"/api/cell-uses/{old_use_id}").json()["status"] == "failed"
+    assert _sample(client, u4_id)["status"] == "scheduled"
+
+
+def test_undo_stop_cell_reopens_cell_and_restores_planned_use(client):
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nU5,bcu5\nU6,bcu6"})
+    mon, _tue, wed = _weekdays(3)
+
+    r1 = _place(client, _sid(client, "U5"), mon, 0, {"mode": "new"})
+    assert r1.status_code == 201, r1.text
+    cell_id = r1.json()["stages"][0]["cell_id"]
+    cycle1_id = r1.json()["cycle_id"]
+
+    assert client.patch(f"/api/cycles/{cycle1_id}", json={"status": "running"}).status_code == 200
+    assert client.patch(f"/api/cycles/{cycle1_id}", json={"status": "completed"}).status_code == 200
+
+    r2 = _place(client, _sid(client, "U6"), wed, 0, {"mode": "existing", "cell_id": cell_id})
+    assert r2.status_code == 201, r2.text
+    u6_use_id = r2.json()["stages"][0]["cell_use_id"]
+    u6_id = _sid(client, "U6")
+
+    stop = client.post(f"/api/cells/{cell_id}/stop", json={"reason": "wrong cell selected"})
+    assert stop.status_code == 200, stop.text
+    assert _sample(client, u6_id)["status"] == "backlog"
+
+    undo = client.post(f"/api/cells/{cell_id}/undo-stop")
+    assert undo.status_code == 200, undo.text
+    assert undo.json()["cell"]["status"] == "open"
+    assert undo.json()["cell"]["stopped_reason"] is None
+    assert undo.json()["reverted_cell_use_ids"] == [u6_use_id]
+    assert undo.json()["drifted_cell_use_ids"] == []
+
+    assert client.get(f"/api/cell-uses/{u6_use_id}").json()["status"] == "planned"
+    assert _sample(client, u6_id)["status"] == "scheduled"
+
+    # Monday's completed use is untouched history throughout
+    mon_cycle = client.get(f"/api/cycles/{cycle1_id}").json()
+    assert mon_cycle["status"] == "completed"
+
+
+def test_undo_stop_cell_rejects_when_not_stopped(client):
+    boot = client.post("/api/cells/bootstrap", json={"max_uses": 3, "uses_consumed": 0, "burned_barcodes": []})
+    cell_id = boot.json()["id"]
+
+    undo = client.post(f"/api/cells/{cell_id}/undo-stop")
+    assert undo.status_code == 409, undo.text
+    assert "not stopped" in undo.json()["detail"].lower()
+
+
+def test_undo_stop_cell_leaves_drifted_use_cancelled_but_restores_the_rest(client):
+    """Stop cell can cancel several planned uses at once. If one of those samples gets
+    requeued and rescheduled elsewhere before Undo is clicked, only that one use must stay
+    cancelled (reviving it would double-book its sample) - the other, untouched use still
+    comes back."""
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nU7,bcu7\nU8,bcu8\nU9,bcu9"})
+    mon, tue, wed = _weekdays(3)
+
+    r1 = _place(client, _sid(client, "U7"), mon, 0, {"mode": "new"})
+    assert r1.status_code == 201, r1.text
+    cell_id = r1.json()["stages"][0]["cell_id"]
+
+    r2 = _place(client, _sid(client, "U8"), tue, 0, {"mode": "existing", "cell_id": cell_id})
+    assert r2.status_code == 201, r2.text
+    u8_use_id = r2.json()["stages"][0]["cell_use_id"]
+    u8_id = _sid(client, "U8")
+
+    r3 = _place(client, _sid(client, "U9"), wed, 0, {"mode": "existing", "cell_id": cell_id})
+    assert r3.status_code == 201, r3.text
+    u9_use_id = r3.json()["stages"][0]["cell_use_id"]
+    u9_id = _sid(client, "U9")
+
+    stop = client.post(f"/api/cells/{cell_id}/stop", json={"reason": "damaged"})
+    assert stop.status_code == 200, stop.text
+
+    # U8's sample moves on before anyone undoes the stop; U9's sample sits untouched
+    assert client.post(f"/api/samples/{u8_id}/requeue").status_code == 200
+    reschedule = _place(client, u8_id, _weekdays(5)[-1], 0, {"mode": "new"}, instrument="84098")
+    assert reschedule.status_code == 201, reschedule.text
+
+    undo = client.post(f"/api/cells/{cell_id}/undo-stop")
+    assert undo.status_code == 200, undo.text
+    body = undo.json()
+    assert body["cell"]["status"] == "open"
+    assert body["reverted_cell_use_ids"] == [u9_use_id]
+    assert body["drifted_cell_use_ids"] == [u8_use_id]
+
+    # U9 is fully restored; U8's old use stays cancelled and its sample keeps its new placement
+    assert client.get(f"/api/cell-uses/{u9_use_id}").json()["status"] == "planned"
+    assert _sample(client, u9_id)["status"] == "scheduled"
+    assert client.get(f"/api/cell-uses/{u8_use_id}").json()["status"] == "cancelled"
+    assert _sample(client, u8_id)["status"] == "scheduled"
+
+
 def test_bulk_clear_style_removal_skips_cancelled_marker_and_removes_the_rest(client):
     """Simulates the frontend's "Clear schedule" bulk action (loop DELETE over every
     stage) against a week that has a stopped cell's cancelled marker in it - the scenario

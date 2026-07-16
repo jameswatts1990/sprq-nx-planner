@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.schedule import CellUse, Cycle
@@ -117,6 +118,16 @@ def update_cell_use_status(
     if status in ("failed", "aborted") and not run_has_started(cell_use):
         raise ValueError("Cannot record a QC outcome before this use's run has started.")
     at = ensure_aware(at) if at else utcnow()
+    # Snapshot of everything this call is about to overwrite, so a mistaken Mark
+    # Failed/Aborted can be undone later (see undo_cell_use_status) without guessing what
+    # the use looked like beforehand.
+    before = {
+        "status": cell_use.status,
+        "started_at": cell_use.started_at.isoformat() if cell_use.started_at else None,
+        "completed_at": cell_use.completed_at.isoformat() if cell_use.completed_at else None,
+        "outcome_notes": cell_use.outcome_notes,
+        "sample_status": cell_use.sample.status if cell_use.sample is not None else None,
+    }
     cell_use.status = status
 
     if status == "started":
@@ -152,7 +163,68 @@ def update_cell_use_status(
             action="update_cell_use_status",
             entity_type="cell_use",
             entity_id=cell_use.id,
-            details_json={"status": status, "notes": notes},
+            details_json={"status": status, "notes": notes, "before": before},
+        )
+    )
+    db.commit()
+    db.refresh(cell_use)
+    return cell_use
+
+
+def undo_cell_use_status(db: Session, cell_use: CellUse, actor: str | None) -> CellUse:
+    """Reverse a mistaken Mark Failed/Mark Aborted - e.g. the wrong slot was flagged and
+    the real problem cell still needs to be marked. Only these two QC verdicts are
+    reachable here: "completed" is never set through this per-use action (only via a
+    cycle's own completion), and "cancelled" (Stop cell's "Blocked" marker) has its own
+    undo_stop_cell, since it cascades from the Cell, not this one use.
+
+    Restores exactly the pre-verdict snapshot captured by update_cell_use_status,
+    including reviving cell_use.status back to "planned"/"started" - which only makes
+    sense if the sample is still sitting in the exact post-verdict state (failed->sample
+    "failed", aborted->sample "backlog") that verdict left it in. If it's since been
+    requeued, rescheduled onto a fresh placement elsewhere, or otherwise moved on,
+    reviving this use would double-book that sample against wherever it landed - so this
+    hard-blocks instead of silently reverting only part of the original cascade."""
+    if cell_use.status not in ("failed", "aborted"):
+        raise ValueError("Only a Failed or Aborted use can be undone.")
+
+    last_action = db.scalars(
+        select(AuditLog)
+        .where(
+            AuditLog.entity_type == "cell_use",
+            AuditLog.entity_id == cell_use.id,
+            AuditLog.action == "update_cell_use_status",
+        )
+        .order_by(AuditLog.id.desc())
+        .limit(1)
+    ).first()
+    if last_action is None or "before" not in last_action.details_json:
+        raise ValueError("No recorded QC action found to undo.")
+
+    reverted_from = cell_use.status
+    before = last_action.details_json["before"]
+    expected_sample_status = "failed" if reverted_from == "failed" else "backlog"
+    if cell_use.sample is not None and cell_use.sample.status != expected_sample_status:
+        raise ValueError("This use's sample has since moved on (requeued or rescheduled) - undo is no longer possible.")
+
+    cell_use.status = before["status"]
+    cell_use.started_at = ensure_aware(datetime.fromisoformat(before["started_at"])) if before["started_at"] else None
+    cell_use.completed_at = (
+        ensure_aware(datetime.fromisoformat(before["completed_at"])) if before["completed_at"] else None
+    )
+    cell_use.outcome_notes = before["outcome_notes"]
+    if cell_use.sample is not None and before["sample_status"] is not None:
+        cell_use.sample.status = before["sample_status"]
+
+    recompute_status(cell_use.cell, utcnow())
+
+    db.add(
+        AuditLog(
+            actor=actor or "unknown",
+            action="undo_cell_use_status",
+            entity_type="cell_use",
+            entity_id=cell_use.id,
+            details_json={"reverted_from": reverted_from, "restored_status": before["status"]},
         )
     )
     db.commit()

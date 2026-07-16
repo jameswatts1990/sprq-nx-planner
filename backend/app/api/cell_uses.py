@@ -9,7 +9,7 @@ from app.models.schedule import CELL_USE_STATUSES, CellUse, Cycle, RunBatch
 from app.schemas.run import ChangeCellRequest, CycleOut, MoveSampleRequest, PlaceSampleRequest
 from app.services.placement_service import PlacementError, change_cell, move_sample, place_sample, remove_sample
 from app.services.run_serializer import cycle_out
-from app.services.run_service import update_cell_use_status
+from app.services.run_service import undo_cell_use_status, update_cell_use_status
 
 router = APIRouter(prefix="/api/cell-uses", tags=["cell-uses"])
 
@@ -115,6 +115,18 @@ def patch_cell_use(cell_use_id: int, req: CellUseStatusUpdate, db: SessionDep, a
         raise HTTPException(404, "Cell use not found")
     try:
         cu = update_cell_use_status(db, cu, req.status, req.at, req.notes, req.actor or actor)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    return _cell_use_dict(cu)
+
+
+@router.post("/{cell_use_id}/undo")
+def undo_cell_use(cell_use_id: int, db: SessionDep, actor: ActorDep) -> dict:
+    cu = db.get(CellUse, cell_use_id, options=_OPTIONS)
+    if cu is None:
+        raise HTTPException(404, "Cell use not found")
+    try:
+        cu = undo_cell_use_status(db, cu, actor)
     except ValueError as exc:
         raise HTTPException(409, str(exc)) from exc
     return _cell_use_dict(cu)

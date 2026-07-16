@@ -13,6 +13,7 @@ from app.schemas.cell import (
     CellReportToPacbioRequest,
     CellStopOut,
     CellStopRequest,
+    CellUndoStopOut,
 )
 from app.schemas.common import Page
 from app.services.cell_service import (
@@ -24,6 +25,7 @@ from app.services.cell_service import (
     serialize_cell,
     serialize_cell_detail,
     stop_cell,
+    undo_stop_cell,
 )
 
 QC_STATUSES = ("unreported", "awaiting_credit")
@@ -120,6 +122,18 @@ def stop_cell_endpoint(cell_id: int, req: CellStopRequest, db: SessionDep, actor
     except ValueError as exc:
         raise HTTPException(409, str(exc)) from exc
     return CellStopOut(cell=serialize_cell(cell), bumped_sample_ids=bumped_sample_ids)
+
+
+@router.post("/{cell_id}/undo-stop", response_model=CellUndoStopOut)
+def undo_stop_cell_endpoint(cell_id: int, db: SessionDep, actor: ActorDep) -> CellUndoStopOut:
+    cell = db.get(Cell, cell_id, options=_DETAIL_OPTIONS)
+    if cell is None:
+        raise HTTPException(404, "Cell not found")
+    try:
+        cell, reverted_ids, drifted_ids = undo_stop_cell(db, cell, actor)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    return CellUndoStopOut(cell=serialize_cell(cell), reverted_cell_use_ids=reverted_ids, drifted_cell_use_ids=drifted_ids)
 
 
 @router.post("/{cell_id}/report-to-pacbio", response_model=CellOut)
