@@ -128,9 +128,17 @@ export function SchedulePage() {
 
   // Every placed, unlocked (still "planned") sample anywhere in the currently-viewed
   // week, for the "Clear schedule" confirm-and-wipe action. Locked (confirmed-loaded)
-  // cycles are excluded since the backend rejects removing their stages.
+  // cycles are excluded since the backend rejects removing their stages. The stage-level
+  // filter matters too: a still-"planned" cycle can contain a cancelled marker (from a
+  // stopped cell - permanent, the backend refuses to remove it) or a failed/aborted/
+  // completed/started stage (a real recorded QC outcome, predating any Confirm-loaded
+  // click) - neither is a "planned sample" to clear.
   const weekPlannedStages = useMemo(
-    () => visibleCycles.filter((cycle) => cycle.status === "planned").flatMap((cycle) => cycle.stages),
+    () =>
+      visibleCycles
+        .filter((cycle) => cycle.status === "planned")
+        .flatMap((cycle) => cycle.stages)
+        .filter((stage) => stage.cell_use_status === "planned"),
     [visibleCycles],
   );
 
@@ -145,16 +153,27 @@ export function SchedulePage() {
 
   const removeSlotsMutation = useMutation({
     mutationFn: async () => {
-      await Promise.all(slotSelection.selectedStages.map((stage) => cellUsesApi.remove(stage.cell_use_id)));
+      const stages = slotSelection.selectedStages;
+      const results = await Promise.allSettled(stages.map((stage) => cellUsesApi.remove(stage.cell_use_id)));
+      const failed = results.filter((r): r is PromiseRejectedResult => r.status === "rejected");
+      return { total: stages.length, failed: failed.length, firstError: failed[0] };
     },
-    onSuccess: () => {
+    onSuccess: ({ total, failed, firstError }) => {
       void queryClient.invalidateQueries({ queryKey: ["cycles"] });
       void queryClient.invalidateQueries({ queryKey: ["samples"] });
       void queryClient.invalidateQueries({ queryKey: ["cells"] });
       slotSelection.clear();
-      setRemoveSlotsError(null);
+      if (failed === 0) {
+        setRemoveSlotsError(null);
+      } else {
+        const detail = firstError?.reason instanceof ApiError ? firstError.reason.message : undefined;
+        setRemoveSlotsError(
+          `${total - failed} of ${total} sample(s) removed; ${failed} could not be removed${detail ? ` (${detail})` : ""}.`,
+        );
+      }
     },
     onError: (err) => {
+      // Defensive only - mutationFn resolves via Promise.allSettled and shouldn't reject.
       setRemoveSlotsError(err instanceof ApiError ? err.message : "Failed to remove selected samples.");
     },
   });
@@ -185,15 +204,33 @@ export function SchedulePage() {
   const clearScheduleMutation = useMutation({
     mutationFn: async () => {
       const stages = weekPlannedStages;
-      await Promise.all(stages.map((stage) => cellUsesApi.remove(stage.cell_use_id)));
-      return stages.length;
+      const results = await Promise.allSettled(stages.map((stage) => cellUsesApi.remove(stage.cell_use_id)));
+      const failed = results.filter((r): r is PromiseRejectedResult => r.status === "rejected");
+      return { total: stages.length, succeeded: stages.length - failed.length, failed: failed.length, firstError: failed[0] };
     },
-    onSuccess: (count) => {
+    onSuccess: ({ total, succeeded, failed, firstError }) => {
       void queryClient.invalidateQueries({ queryKey: ["cycles"] });
       void queryClient.invalidateQueries({ queryKey: ["samples"] });
       void queryClient.invalidateQueries({ queryKey: ["cells"] });
       setClearConfirmOpen(false);
-      setRunDesignNote({ tone: "good", icon: "✓", text: `${count} sample(s) cleared from the schedule.` });
+      if (failed === 0) {
+        setRunDesignNote({ tone: "good", icon: "✓", text: `${succeeded} sample(s) cleared from the schedule.` });
+      } else {
+        const detail = firstError?.reason instanceof ApiError ? firstError.reason.message : undefined;
+        setRunDesignNote({
+          tone: "warn",
+          icon: "!",
+          text: `${succeeded} of ${total} sample(s) cleared; ${failed} could not be removed${detail ? ` (${detail})` : ""}.`,
+        });
+      }
+    },
+    onError: (err) => {
+      // Defensive only - mutationFn resolves via Promise.allSettled and shouldn't reject.
+      setRunDesignNote({
+        tone: "bad",
+        icon: "!",
+        text: err instanceof ApiError ? err.message : "Failed to clear schedule.",
+      });
     },
   });
 

@@ -221,6 +221,42 @@ def test_patch_cycle_rejects_illegal_unlock_from_completed(client):
     assert illegal.status_code == 409, illegal.text
 
 
+def test_patch_cycle_aborted_cascades_started_uses_to_aborted_and_samples_to_backlog(client):
+    """A whole-cycle abort is a run/instrument problem, not the sample's - mirrors the
+    per-CellUse "Mark Aborted" QC action's semantics (straight back to backlog, no
+    Failed->Requeue detour), applied to every use still riding on this cycle's own
+    lifecycle. Only reachable from "running" (see ALLOWED_CYCLE_TRANSITIONS)."""
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1\nA2,bc2"})
+    (mon,) = _weekdays(1)
+    a1, a2 = _sid(client, "A1"), _sid(client, "A2")
+
+    r1 = _place(client, a1, mon, 0)
+    cycle_id = r1.json()["cycle_id"]
+    cell_id_1 = r1.json()["stages"][0]["cell_id"]
+    r2 = _place(client, a2, mon, 1)
+    cell_id_2 = r2.json()["stages"][0]["cell_id"]
+
+    assert client.patch(f"/api/cycles/{cycle_id}", json={"status": "running"}).status_code == 200
+
+    aborted = client.patch(f"/api/cycles/{cycle_id}", json={"status": "aborted"})
+    assert aborted.status_code == 200, aborted.text
+    assert aborted.json()["actual_end_at"] is not None
+
+    stages = client.get(f"/api/cycles/{cycle_id}").json()["stages"]
+    assert {s["cell_use_status"] for s in stages} == {"aborted"}
+
+    assert client.get(f"/api/samples/{a1}").json()["status"] == "backlog"
+    assert client.get(f"/api/samples/{a2}").json()["status"] == "backlog"
+
+    # the backlog-returned sample can be rescheduled immediately - no extra requeue step
+    reschedule = _place(client, a1, _weekdays(2)[-1], 0)
+    assert reschedule.status_code == 201, reschedule.text
+
+    # both cells stay open - a whole-run abort is not a cell-quality failure
+    assert client.get(f"/api/cells/{cell_id_1}").json()["status"] == "open"
+    assert client.get(f"/api/cells/{cell_id_2}").json()["status"] == "open"
+
+
 def test_cancel_run_reverts_all_samples_and_deletes_run(client):
     client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1\nA2,bc2"})
     (mon,) = _weekdays(1)
@@ -239,6 +275,48 @@ def test_cancel_run_reverts_all_samples_and_deletes_run(client):
     # both cells were fresh placeholders for this now-cancelled run - neither should be left
     # behind as an "open, 0/3" cell
     assert client.get(f"/api/cells/{cell_id_1}").status_code == 404
+    assert client.get(f"/api/cells/{cell_id_2}").status_code == 404
+
+
+def test_cancel_run_preserves_a_cancelled_stopped_cell_marker(client):
+    """A stopped cell's cancelled marker (see stop_cell) is a permanent, kept-forever
+    record - cancel_run must not silently discard it the way it discards ordinary planned
+    placements. Mirrors remove_sample's own guard against touching a cancelled row, applied
+    at the whole-cycle level: only the removable (non-cancelled) stages are cleared, and
+    the Cycle/RunBatch survive around the surviving marker instead of being deleted
+    outright."""
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nB1,bcb1\nB2,bcb2"})
+    (mon,) = _weekdays(1)
+    b1, b2 = _sid(client, "B1"), _sid(client, "B2")
+
+    r1 = _place(client, b1, mon, 0)
+    cycle_id = r1.json()["cycle_id"]
+    cell_id_1 = r1.json()["stages"][0]["cell_id"]
+    cell_use_id_1 = r1.json()["stages"][0]["cell_use_id"]
+    r2 = _place(client, b2, mon, 1)
+    cell_id_2 = r2.json()["stages"][0]["cell_id"]
+
+    stop = client.post(f"/api/cells/{cell_id_1}/stop", json={"reason": "damaged"})
+    assert stop.status_code == 200, stop.text
+
+    resp = client.post(f"/api/cycles/{cycle_id}/cancel")
+    assert resp.status_code == 204, resp.text
+
+    # the cycle survives - a cancelled marker is still in it
+    cycle = client.get(f"/api/cycles/{cycle_id}")
+    assert cycle.status_code == 200, cycle.text
+    stages = cycle.json()["stages"]
+    assert len(stages) == 1
+    assert stages[0]["cell_use_id"] == cell_use_id_1
+    assert stages[0]["cell_use_status"] == "cancelled"
+
+    # B2 (the removable placement) reverted to backlog; B1 was already backlog since stop time
+    assert client.get(f"/api/samples/{b1}").json()["status"] == "backlog"
+    assert client.get(f"/api/samples/{b2}").json()["status"] == "backlog"
+
+    # B1's stopped cell is untouched by cancel_run - still stopped, still holding its marker
+    assert client.get(f"/api/cells/{cell_id_1}").json()["status"] == "stopped"
+    # B2's cell was only ever a fresh placeholder for the now-removed placement
     assert client.get(f"/api/cells/{cell_id_2}").status_code == 404
 
 

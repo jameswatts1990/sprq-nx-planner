@@ -564,17 +564,29 @@ def cancel_run(db: Session, cycle_id: int, actor: str | None = None) -> None:
     if cycle.status != "planned":
         raise PlacementError(409, f"Only planned runs can be cancelled (status: {cycle.status}).")
 
-    touched_cells = {cu.cell for cu in cycle.cell_uses if cu.cell is not None}
+    # Cancelled stages (a stopped cell's permanent marker - see stop_cell) are excluded
+    # from what this cancels, mirroring remove_sample's own guard: they aren't a real,
+    # revertable placement, and deleting one here would discard the exact "kept forever"
+    # guarantee stop_cell's design intends. Only remove_sample-eligible stages are touched.
+    all_uses = list(cycle.cell_uses)
+    removable = [cu for cu in all_uses if cu.status != "cancelled"]
+    touched_cells = {cu.cell for cu in removable if cu.cell is not None}
     reverted = 0
-    for cu in cycle.cell_uses:
+    for cu in removable:
         if cu.sample is not None:
             cu.sample.status = "backlog"
             reverted += 1
+        db.delete(cu)  # cascades this use's own barcodes
+    db.flush()
 
     run_batch = cycle.run_batch
-    db.delete(cycle)  # cascades cell_uses + their barcodes
-    if run_batch is not None:
-        db.delete(run_batch)
+    cycle_deleted = len(removable) == len(all_uses)
+    if cycle_deleted:
+        db.delete(cycle)
+        if run_batch is not None:
+            db.delete(run_batch)
+    # else: a cancelled marker survives - leave the Cycle/RunBatch in place around it,
+    # same as remove_sample would for a single item.
     db.flush()
 
     now = utcnow()
@@ -584,7 +596,7 @@ def cancel_run(db: Session, cycle_id: int, actor: str | None = None) -> None:
             recompute_status(cell, now)
         else:
             # Same as remove_sample: a cell left with no uses at all after this cycle's
-            # cell_uses cascade-deleted was only ever a placeholder for this run.
+            # cell_uses were removed was only ever a placeholder for this run.
             db.delete(cell)
 
     db.add(
@@ -593,7 +605,7 @@ def cancel_run(db: Session, cycle_id: int, actor: str | None = None) -> None:
             action="cancel_run",
             entity_type="cycle",
             entity_id=cycle_id,
-            details_json={"reverted_sample_count": reverted},
+            details_json={"reverted_sample_count": reverted, "cycle_deleted": cycle_deleted},
         )
     )
     db.commit()

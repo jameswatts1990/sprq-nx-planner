@@ -152,6 +152,63 @@ def test_auto_fill_treats_a_stageless_cycle_shell_as_open(client, db_session):
     assert len(body["runs"][0]["stages"]) == 6
 
 
+def test_auto_fill_fills_around_a_cancelled_stopped_cell_marker_without_crashing(client):
+    """Reproduces the reported "clear a week with a stopped cell in it" bug's Auto Schedule
+    half. Stopping a cell before its planned use runs cascades that use to "cancelled" -
+    kept forever as a permanent marker occupying its exact well (see cell_service.
+    stop_cell), never deleted. isCellOpen already treats such a cycle as open on the
+    frontend, and the occupied pre-scan above now agrees - but fill_slots plans every
+    offered slot as "8 fully free wells" (SlotInput's own documented invariant), so
+    persistence must reassign around the one well that's actually taken rather than crash
+    on its unique (cycle_id, well) constraint."""
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nCM1,bccm1"})
+    (mon,) = _weekdays(1)
+
+    r1 = client.post(
+        "/api/cell-uses",
+        json={
+            "sample_id": _sid(client, "CM1"),
+            "instrument_serial": "84047",
+            "run_date": mon,
+            "slot_index": 0,
+            "cell_choice": {"mode": "new"},
+            "run_time_hours": 24,
+            "max_uses": 3,
+        },
+    )
+    assert r1.status_code == 201, r1.text
+    cycle_id = r1.json()["cycle_id"]
+    cell_id = r1.json()["stages"][0]["cell_id"]
+
+    # Stop the cell before its use runs - CM1 bounces back to backlog, and well A01 is kept
+    # forever as a cancelled marker occupying that one slot.
+    stop = client.post(f"/api/cells/{cell_id}/stop", json={"reason": "damaged"})
+    assert stop.status_code == 200, stop.text
+
+    # 6 more disjoint samples - together with CM1 (back in the backlog), 7 backlog samples
+    # on offer for a cycle that has exactly 7 genuinely free wells left (A01 is gone for good).
+    client.post(
+        "/api/imports", json={"raw_text": "sample,barcodes\n" + "\n".join(f"CM{i},bccm{i}" for i in range(2, 8))}
+    )
+
+    resp = _auto_fill(client, [{"instrument_serial": "84047", "run_date": mon}])
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+
+    # Not skipped wholesale - a cancelled-only day is genuinely (mostly) open
+    assert body["skipped_cells"] == []
+    assert len(body["placed_sample_ids"]) == 7
+    assert len(body["unplaced_sample_ids"]) == 0
+
+    cycle = client.get(f"/api/cycles/{cycle_id}").json()
+    assert len(cycle["stages"]) == 8  # the 1 surviving cancelled marker + 7 freshly placed
+    wells = {s["well"] for s in cycle["stages"]}
+    assert wells == {"A01", "B01", "C01", "D01", "A02", "B02", "C02", "D02"}
+    cancelled = next(s for s in cycle["stages"] if s["cell_use_status"] == "cancelled")
+    assert cancelled["well"] == "A01"
+    assert cancelled["sample_external_id"] == "CM1"
+
+
 def test_auto_fill_skips_day_locked_by_its_own_earlier_run(client):
     """A full 8-well run (both trays loaded) locks the instrument for the whole movie
     plus a settle buffer, which can span into the next calendar day. The engine itself

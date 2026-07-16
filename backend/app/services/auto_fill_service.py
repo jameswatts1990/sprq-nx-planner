@@ -10,7 +10,7 @@ from datetime import date
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
-from app.engine.constants import CELL_LIFETIME_H, CELL_MAX_USES, DAY_START_HOUR
+from app.engine.constants import CELL_LIFETIME_H, CELL_MAX_USES, DAY_START_HOUR, WELLS
 from app.engine.packing import pack_cells
 from app.engine.slot_scheduling import fill_slots
 from app.engine.types import ConflictPair, SlotInput
@@ -79,12 +79,20 @@ def auto_fill(
         # table-clear tool - see get_or_create_run's docstring), and the grid already
         # treats that as an open, selectable cell (groupCyclesByInstrumentAndDay.isCellOpen).
         # Skipping on RunBatch existence alone silently dropped exactly the cells the UI
-        # just told the user were empty.
+        # just told the user were empty. "cancelled" rows are excluded too, for the same
+        # reason: a Stop-Cell-cascaded cancelled use is a permanent marker occupying one
+        # well, not a real placement, and isCellOpen already treats a cancelled-only cycle
+        # as open on the frontend - this must agree or Auto Schedule silently skips a cell
+        # the grid just let the user select.
         occupied = db.scalar(
             select(CellUse.id)
             .join(CellUse.cycle)
             .join(Cycle.run_batch)
-            .where(RunBatch.instrument_id == inst.id, RunBatch.run_date == run_date)
+            .where(
+                RunBatch.instrument_id == inst.id,
+                RunBatch.run_date == run_date,
+                CellUse.status != "cancelled",
+            )
         )
         if occupied is not None:
             skipped.append((serial, run_date))
@@ -130,6 +138,23 @@ def auto_fill(
     skipped_keys: set[tuple[str, date]] = set()
     touched_cells: set[Cell] = set()
     placed_sample_ids: list[int] = []
+    # fill_slots plans every slot as 8 fully-free wells (SlotInput's own documented
+    # invariant) - true for a brand-new run, but no longer true once the occupied-check
+    # above started letting a cancelled-only cycle through (its one cancelled CellUse
+    # still occupies its well, permanently). Track which wells are actually taken per
+    # cycle, seeded from the DB the first time each cycle_id is touched, and reassign a
+    # colliding assignment to the next free well instead of letting the unique
+    # (cycle_id, well) constraint raise mid-batch.
+    occupied_wells: dict[int, set[str]] = {}
+
+    def _resolve_well(cycle_id: int, requested_well: str) -> str | None:
+        taken = occupied_wells.get(cycle_id)
+        if taken is None:
+            taken = {row[0] for row in db.execute(select(CellUse.well).where(CellUse.cycle_id == cycle_id)).all()}
+            occupied_wells[cycle_id] = taken
+        if requested_well not in taken:
+            return requested_well
+        return next((w for w in WELLS if w not in taken), None)
 
     # Process in chronological order per instrument (not pack/cell order) rather than
     # fill.assignments' own order. A full-tray run's lock can span into the next calendar
@@ -162,6 +187,13 @@ def auto_fill(
             cycle_id = cyc.id
             run_cycles[key] = cycle_id
 
+        well = _resolve_well(cycle_id, a.well)
+        if well is None:
+            # Every well in this cycle is already spoken for (a pre-existing marker plus
+            # this batch's own earlier assignments) - this sample can't land here after
+            # all; leave it unplaced rather than crash on a well collision.
+            continue
+
         db_cell = ref_to_cell.get(a.cell.id)
         if db_cell is None:
             db_cell = Cell(code="PENDING", max_uses=CELL_MAX_USES, status="open")
@@ -174,11 +206,12 @@ def auto_fill(
             cycle_id=cycle_id,
             cell_id=db_cell.id,
             sample_id=a.sample.sample_id,
-            well=a.well,
+            well=well,
             status="planned",
         )
         db.add(cell_use)
         db.flush()
+        occupied_wells[cycle_id].add(well)
         for bc in a.sample.barcodes:
             db.add(CellUseBarcode(cell_use_id=cell_use.id, barcode=bc))
         touched_cells.add(db_cell)

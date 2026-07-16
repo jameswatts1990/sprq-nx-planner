@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.models.schedule import CellUse, Cycle
 from app.models.audit import AuditLog
-from app.services.cell_service import recompute_status
+from app.services.cell_service import recompute_status, run_has_started
 from app.timeutil import ensure_aware, utcnow
 
 # Legal cycle status transitions. "Unlock" (running -> planned) is the only way back to
@@ -53,6 +53,22 @@ def update_cycle_status(db: Session, cycle: Cycle, status: str, at: datetime | N
                 cu.cell.first_use_started_at = cu.started_at or at
     elif status == "aborted":
         cycle.actual_end_at = cycle.actual_end_at or at
+        for cu in cycle.cell_uses:
+            if cu.status in ("planned", "started"):
+                cu.status = "aborted"
+                cu.started_at = cu.started_at or at
+                cu.completed_at = at
+                # Aborted is a run/instrument problem, not the sample's - straight back to
+                # backlog for a fresh attempt, matching the per-CellUse Mark Aborted action
+                # (see update_cell_use_status below). Gated to uses actually transitioning
+                # here, unlike the sibling "completed" cascade above - a cell_use already
+                # terminal (e.g. a stopped-cell's cancelled marker) may share a sample_id
+                # with an unrelated, since-rescheduled placement elsewhere and must not have
+                # its sample status clobbered by this cycle's own outcome.
+                if cu.sample is not None and cu.sample.status not in ("completed", "failed"):
+                    cu.sample.status = "backlog"
+            if cu.cell.first_use_started_at is None:
+                cu.cell.first_use_started_at = cu.started_at or at
     elif status == "planned":
         # Unlock: undo the running-cascade. Only reachable from "running", so no recorded
         # completed/aborted outcome is ever discarded.
@@ -94,6 +110,12 @@ def update_cell_use_status(
 ) -> CellUse:
     if cell_use.status == "cancelled":
         raise ValueError("This placement was cancelled when its cell was stopped and can't be modified.")
+    # Mirrors the frontend's canRecordQcOutcome gate (cellUseQc.ts) server-side - Mark
+    # Failed/Mark Aborted are only meaningful once the instrument has actually committed to
+    # this run (see run_has_started's docstring); without this, a direct API call could
+    # record a QC outcome on a use that hasn't happened yet.
+    if status in ("failed", "aborted") and not run_has_started(cell_use):
+        raise ValueError("Cannot record a QC outcome before this use's run has started.")
     at = ensure_aware(at) if at else utcnow()
     cell_use.status = status
 

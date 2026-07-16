@@ -262,6 +262,30 @@ def test_mark_failed_available_once_run_locked_even_before_confirmed_loaded(clie
     assert fail.json()["status"] == "failed"
 
 
+def test_mark_failed_and_aborted_rejected_before_run_has_started(client):
+    """Server-side mirror of the frontend's canRecordQcOutcome gate (cellUseQc.ts) - a
+    direct API call must not be able to record a QC outcome on a use whose run hasn't
+    reached its scheduled start time yet, even though the UI itself already hides the
+    buttons for this case."""
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nP3,bcp3"})
+    future = _weekdays(3)[-1]
+
+    r1 = _place(client, _sid(client, "P3"), future, 0, {"mode": "new"}, instrument="84093")
+    assert r1.status_code == 201, r1.text
+    use_id = r1.json()["stages"][0]["cell_use_id"]
+
+    fail = client.patch(f"/api/cell-uses/{use_id}", json={"status": "failed", "notes": "too early"})
+    assert fail.status_code == 409, fail.text
+    assert "started" in fail.json()["detail"].lower()
+
+    abort = client.patch(f"/api/cell-uses/{use_id}", json={"status": "aborted", "notes": "too early"})
+    assert abort.status_code == 409, abort.text
+    assert "started" in abort.json()["detail"].lower()
+
+    # untouched - still planned
+    assert client.get(f"/api/cell-uses/{use_id}").json()["status"] == "planned"
+
+
 def test_stage_surfaces_qc_status_for_failed_use_and_stopped_cell(client):
     """The Weekly schedule grid flags a QC problem directly on the slot without a
     click-through - this only works if StageOut carries the use's own status and its
@@ -330,3 +354,43 @@ def test_mark_cell_use_aborted_returns_sample_straight_to_backlog(client):
     # The backlog-returned sample can be rescheduled immediately - no extra step needed
     reschedule = _place(client, a1_id, _weekdays(2)[-1], 0, {"mode": "new"})
     assert reschedule.status_code == 201, reschedule.text
+
+
+def test_bulk_clear_style_removal_skips_cancelled_marker_and_removes_the_rest(client):
+    """Simulates the frontend's "Clear schedule" bulk action (loop DELETE over every
+    stage) against a week that has a stopped cell's cancelled marker in it - the scenario
+    reported as "the schedule looks cleared but I can no longer schedule anything". The
+    frontend's weekPlannedStages filter now excludes the cancelled stage from that payload
+    up front, but this confirms the backend's own per-item behaviour degrades gracefully
+    even if something else still sends it: the 3 real placements are removed, the
+    cancelled marker survives untouched, and the resulting cycle - down to just that one
+    marker - is exactly what isCellOpen/auto_fill's occupied-check need to see to treat the
+    day as open again."""
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nD1,bcd1\nD2,bcd2\nD3,bcd3\nD4,bcd4"})
+    (mon,) = _weekdays(1)
+
+    r1 = _place(client, _sid(client, "D1"), mon, 0, {"mode": "new"})
+    cell_id = r1.json()["stages"][0]["cell_id"]
+    cycle_id = r1.json()["cycle_id"]
+    r2 = _place(client, _sid(client, "D2"), mon, 1, {"mode": "new"})
+    r3 = _place(client, _sid(client, "D3"), mon, 2, {"mode": "new"})
+    r4 = _place(client, _sid(client, "D4"), mon, 3, {"mode": "new"})
+    all_use_ids = [r.json()["stages"][0]["cell_use_id"] for r in (r1, r2, r3, r4)]
+
+    stop = client.post(f"/api/cells/{cell_id}/stop", json={"reason": "damaged"})
+    assert stop.status_code == 200, stop.text
+
+    # simulate the OLD, unfiltered bulk-clear payload - every stage in the (still
+    # "planned") cycle, including the now-cancelled one
+    statuses = [client.delete(f"/api/cell-uses/{use_id}").status_code for use_id in all_use_ids]
+    assert statuses.count(204) == 3
+    assert statuses.count(409) == 1
+
+    cycle = client.get(f"/api/cycles/{cycle_id}").json()
+    assert len(cycle["stages"]) == 1
+    assert cycle["stages"][0]["cell_use_status"] == "cancelled"
+
+    backlog_ids = {
+        s["id"] for s in client.get("/api/samples", params={"status": "backlog", "page_size": 50}).json()["items"]
+    }
+    assert {_sid(client, "D2"), _sid(client, "D3"), _sid(client, "D4")} <= backlog_ids

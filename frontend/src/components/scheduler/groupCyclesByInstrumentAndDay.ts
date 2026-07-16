@@ -32,15 +32,17 @@ export function groupCyclesByInstrumentAndDay(cycles: CycleOut[]): Map<string, M
 }
 
 /**
- * Whether a grid cell is open for selection/placement: either no cycle exists yet, or one
- * exists but has zero stages. The latter can happen when every stage of a run gets removed
- * (normally the backend deletes the now-empty cycle too, but a concurrent bulk removal -
- * "Remove from schedule" multi-select or "Clear schedule" - can race and leave a stage-less
- * cycle behind). Such a cycle renders visually empty, so treat it as open rather than
- * leaving the cell permanently stuck as unselectable.
+ * Whether a grid cell is open for selection/placement: no cycle exists yet, or one exists
+ * but has no *active* stages. A stage-less cycle can happen when every stage of a run gets
+ * removed (normally the backend deletes the now-empty cycle too, but a concurrent bulk
+ * removal - "Remove from schedule" multi-select or "Clear schedule" - can race and leave a
+ * stage-less cycle behind). A cancelled-only cycle happens when a cell was Stopped before
+ * its planned use ran: that stage is kept forever as a permanent marker (the backend
+ * refuses to remove it), occupying one well while the rest of the run stays genuinely
+ * empty. Neither case should leave the whole grid cell permanently stuck as unselectable.
  */
 export function isCellOpen(cycle: CycleOut | undefined): boolean {
-  return cycle === undefined || cycle.stages.length === 0;
+  return cycle === undefined || cycle.stages.every((s) => s.cell_use_status === "cancelled");
 }
 
 /**

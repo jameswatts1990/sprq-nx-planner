@@ -186,6 +186,51 @@ def test_instrument_out_reflects_a_currently_active_run(client, db_session):
     assert after["locked_until"] is not None
 
 
+def test_latest_lock_until_ignores_a_completed_run_from_the_lookback_window(client, db_session):
+    """A completed run's real-world outcome is already known - the instrument's true
+    future availability should follow that known outcome, not a hypothetical projection
+    from planned_start_at + movie_hours. Mirrors currently_locked_cycle's own exclusion of
+    completed/aborted cycles (see test_instrument_out_ignores_aborted_runs_for_lock_state),
+    but for the separate latest_lock_until check that gates *creating a new run*."""
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1\nA2,bc2\nA3,bc3"})
+    mon, _tue, wed = _weekdays(3)
+
+    # A 30h movie starting late (20:00) on Monday, both trays loaded - would otherwise lock
+    # 84047 until Monday 20:00 + 36h = Wed 08:00 (see
+    # test_lock_lookback_finds_a_two_tray_run_from_two_days_earlier).
+    r1 = _place(client, _sid(client, "A1"), mon, slot_index=0, run_time_hours=30, start_hour=20)
+    assert r1.status_code == 201, r1.text
+    r2 = _place(client, _sid(client, "A2"), mon, slot_index=4, run_time_hours=30, start_hour=20)
+    assert r2.status_code == 201, r2.text
+    cycle_id = r1.json()["cycle_id"]
+
+    cycle = db_session.get(Cycle, cycle_id)
+    cycle.status = "completed"
+    db_session.commit()
+
+    # Wednesday morning, still well within the old (now-irrelevant) projected lock window.
+    resp = _place(client, _sid(client, "A3"), wed, run_time_hours=24, start_hour=7)
+    assert resp.status_code == 201, resp.text
+
+
+def test_latest_lock_until_ignores_an_aborted_run_from_the_lookback_window(client, db_session):
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1\nA2,bc2\nA3,bc3"})
+    mon, _tue, wed = _weekdays(3)
+
+    r1 = _place(client, _sid(client, "A1"), mon, slot_index=0, run_time_hours=30, start_hour=20)
+    assert r1.status_code == 201, r1.text
+    r2 = _place(client, _sid(client, "A2"), mon, slot_index=4, run_time_hours=30, start_hour=20)
+    assert r2.status_code == 201, r2.text
+    cycle_id = r1.json()["cycle_id"]
+
+    cycle = db_session.get(Cycle, cycle_id)
+    cycle.status = "aborted"
+    db_session.commit()
+
+    resp = _place(client, _sid(client, "A3"), wed, run_time_hours=24, start_hour=7)
+    assert resp.status_code == 201, resp.text
+
+
 def test_instrument_out_ignores_aborted_runs_for_lock_state(client, db_session):
     client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1"})
     (mon,) = _weekdays(1)

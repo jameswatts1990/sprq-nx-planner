@@ -55,6 +55,12 @@ def cycle_lock_until(db: Session, cycle: Cycle) -> datetime:
 
 
 def _candidate_cycles(db: Session, instrument_id: int, *, on_or_before: date) -> list[Cycle]:
+    """Excludes "aborted"/"completed" cycles: once a cycle's real-world outcome is known
+    (the operator has confirmed it one way or the other), the instrument's true future
+    availability should follow that known outcome rather than a hypothetical projection
+    from planned_start_at + movie_hours - there's nothing left to project. Only
+    planned/running cycles have a genuinely uncertain real-world end that justifies
+    projecting a lock forward from planned timing."""
     stmt = (
         select(Cycle)
         .join(RunBatch, Cycle.run_batch_id == RunBatch.id)
@@ -62,6 +68,7 @@ def _candidate_cycles(db: Session, instrument_id: int, *, on_or_before: date) ->
             RunBatch.instrument_id == instrument_id,
             RunBatch.run_date <= on_or_before,
             RunBatch.run_date >= on_or_before - timedelta(days=LOOKBACK_DAYS),
+            Cycle.status.notin_(("aborted", "completed")),
         )
         .options(selectinload(Cycle.run_batch))
     )
@@ -78,15 +85,12 @@ def latest_lock_until(db: Session, instrument_id: int, before_date: date) -> dat
 
 
 def currently_locked_cycle(db: Session, instrument_id: int, at: datetime | None = None) -> Cycle | None:
-    """The cycle (if any) whose [planned_start_at, lock_until) window contains `at`,
-    ignoring cycles that were stopped early (aborted) or already completed."""
+    """The cycle (if any) whose [planned_start_at, lock_until) window contains `at` -
+    _candidate_cycles already excludes cycles that were stopped early (aborted) or already
+    completed."""
     at = at or utcnow()
     cycles = _candidate_cycles(db, instrument_id, on_or_before=at.date())
-    active = [
-        c
-        for c in cycles
-        if c.status not in ("aborted", "completed") and ensure_aware(c.planned_start_at) <= at < cycle_lock_until(db, c)
-    ]
+    active = [c for c in cycles if ensure_aware(c.planned_start_at) <= at < cycle_lock_until(db, c)]
     if not active:
         return None
     return max(active, key=lambda c: c.planned_start_at)
