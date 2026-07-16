@@ -1,10 +1,15 @@
-"""Golden-fixture parity test: hand-traced against the packCells() algorithm in
-revio-nx-planner.html using the prototype's own example data and default settings
-(max uses 3x, objective "fewest"). See PLAN's "porting the algorithms" section.
+"""Golden-fixture test: hand-traced expected packing for the app's own example data and
+default settings (max uses 3x, objective "fewest"). Originally a straight port-parity
+test against packCells() in revio-nx-planner.html (see PLAN's "porting the algorithms"
+section) - the expected assignments below no longer match the prototype byte-for-byte,
+because none of this fixture's samples set a priority, which puts External ID
+sequencing (see `external_id_sort_key`) in the driver's seat instead of the prototype's
+barcode-count/conflict-degree heuristic: since BNCH-1597..1604 are already numerically
+sequential, they're now packed in that exact order rather than hardest-to-place-first.
 """
 from datetime import datetime, timezone
 
-from app.engine.packing import disjoint, pack_cells, priority_rank
+from app.engine.packing import disjoint, external_id_sort_key, pack_cells, priority_rank
 from app.engine.types import ParsedSample, PriorCellInput
 
 
@@ -22,9 +27,9 @@ def test_pack_example_csv_matches_hand_traced_expectation(example_samples):
     by_id = {c.id: c for c in result.cells}
     assert set(by_id) == {"C1", "C2", "C3"}
 
-    assert [s.id for s in by_id["C1"].uses] == ["BNCH-1598", "BNCH-1597", "BNCH-1602"]
-    assert [s.id for s in by_id["C2"].uses] == ["BNCH-1603", "BNCH-1604", "BNCH-1599"]
-    assert [s.id for s in by_id["C3"].uses] == ["BNCH-1600", "BNCH-1601"]
+    assert [s.id for s in by_id["C1"].uses] == ["BNCH-1597", "BNCH-1598", "BNCH-1599"]
+    assert [s.id for s in by_id["C2"].uses] == ["BNCH-1600", "BNCH-1601", "BNCH-1602"]
+    assert [s.id for s in by_id["C3"].uses] == ["BNCH-1603", "BNCH-1604"]
 
     assert by_id["C1"].future_uses == 3 and by_id["C1"].total_uses == 3 and by_id["C1"].cost_tier == 3
     assert by_id["C2"].future_uses == 3 and by_id["C2"].total_uses == 3 and by_id["C2"].cost_tier == 3
@@ -121,6 +126,11 @@ def test_priority_rank_extracts_trailing_parenthesized_number():
     assert priority_rank(None) == 999
 
 
+def test_external_id_sort_key_orders_numerically_and_case_insensitively():
+    ids = ["sample 10", "SAMPLE 2", "Sample 1", "sample 9"]
+    assert sorted(ids, key=external_id_sort_key) == ["Sample 1", "SAMPLE 2", "sample 9", "sample 10"]
+
+
 def test_pack_processes_higher_priority_samples_first():
     # S1 has more barcodes (the old primary sort key would have processed it first), but
     # S2 is higher priority - priority must win regardless of the barcode-count heuristic.
@@ -136,16 +146,46 @@ def test_pack_processes_higher_priority_samples_first():
     assert by_id["C2"] == "S1"
 
 
-def test_pack_breaks_priority_ties_by_oldest_first():
+def test_pack_breaks_priority_and_id_ties_by_oldest_first():
+    # Same External ID (e.g. a container reused across two import rows) as well as the
+    # same priority, so oldest-first is the only remaining tie-break left to decide it.
     older = ParsedSample(
         id="S1", barcodes=["bc1"], priority="High (1)", key="S1#0", created_at=datetime(2026, 1, 1, tzinfo=timezone.utc)
     )
     newer = ParsedSample(
-        id="S2", barcodes=["bc2"], priority="High (1)", key="S2#1", created_at=datetime(2026, 6, 1, tzinfo=timezone.utc)
+        id="S1", barcodes=["bc2"], priority="High (1)", key="S2#1", created_at=datetime(2026, 6, 1, tzinfo=timezone.utc)
     )
     # Reverse input order so this only passes if the sort actually reorders by date,
     # not by coincidentally preserving input order.
     result = pack_cells([newer, older], max_uses=1, objective="fewest")
+    by_id = {c.id: c.uses[0].key for c in result.cells}
+    assert by_id["C1"] == "S1#0"
+    assert by_id["C2"] == "S2#1"
+
+
+def test_pack_breaks_priority_ties_by_external_id_sequence_ahead_of_age():
+    # S2 was entered into the backlog first (older created_at), but S1's External ID
+    # sorts first - a lab operator loading a sequential plate of samples wants them
+    # grouped/ordered by ID, not by whichever happened to be imported first.
+    older_but_higher_id = ParsedSample(
+        id="S9", barcodes=["bc1"], priority="High (1)", key="S9#0", created_at=datetime(2026, 1, 1, tzinfo=timezone.utc)
+    )
+    newer_but_lower_id = ParsedSample(
+        id="S2", barcodes=["bc2"], priority="High (1)", key="S2#1", created_at=datetime(2026, 6, 1, tzinfo=timezone.utc)
+    )
+    result = pack_cells([older_but_higher_id, newer_but_lower_id], max_uses=1, objective="fewest")
     by_id = {c.id: c.uses[0].id for c in result.cells}
-    assert by_id["C1"] == "S1"
-    assert by_id["C2"] == "S2"
+    assert by_id["C1"] == "S2"
+    assert by_id["C2"] == "S9"
+
+
+def test_pack_external_id_sequencing_uses_natural_numeric_order():
+    # Plain lexical sort would put "Sample 10" before "Sample 9" - natural sort must
+    # treat the embedded number as a number so sequential plates pack in the order a lab
+    # operator actually reads them.
+    sample_10 = ParsedSample(id="Sample 10", barcodes=["bc1"], key="s10#0")
+    sample_9 = ParsedSample(id="Sample 9", barcodes=["bc2"], key="s9#1")
+    result = pack_cells([sample_10, sample_9], max_uses=1, objective="fewest")
+    by_id = {c.id: c.uses[0].id for c in result.cells}
+    assert by_id["C1"] == "Sample 9"
+    assert by_id["C2"] == "Sample 10"

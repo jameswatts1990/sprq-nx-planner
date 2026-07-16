@@ -72,8 +72,11 @@ export function ScheduleSection() {
       <p>
         <b>Which backlog samples get picked first:</b> when auto-fill has more backlog samples than it has room
         for, it always fills higher-<b>Priority</b> samples first (the same rank shown on the Backlog tab&apos;s
-        Priority badge — e.g. High before Standard). Among samples with the same priority, the one that&apos;s been
-        sitting in the backlog longest goes first. Only after that does it consider what packs most efficiently.
+        Priority badge — e.g. High before Standard). Among samples with the same priority, it then works through
+        them in <b>External ID</b> order — so a sequential batch (e.g. samples numbered one after another) tends to
+        get loaded and run together instead of scattered across different cells or days, which is easier to manage
+        at the bench. Only if both priority and External ID are tied does the one that&apos;s been sitting in the
+        backlog longest go first, and only after all of that does it consider what packs most efficiently.
       </p>
       <p>
         <b>The placement picker</b> appears after a drop only when there&apos;s an actual decision to make. When you
