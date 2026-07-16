@@ -63,7 +63,7 @@ export function WaitingCellPopover({ ghost, onClose }: WaitingCellPopoverProps) 
       {cell.window_hours_elapsed !== null && <WindowMeter windowHours={cell.window_hours_elapsed} />}
 
       <div className={styles.linkRow}>
-        <Link to={`/cells/${cell.id}`} className={styles.cellLink}>
+        <Link to={`/cells/${cell.id}`} className="btn primary sm">
           View cell →
         </Link>
       </div>

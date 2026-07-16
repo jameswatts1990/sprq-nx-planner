@@ -69,6 +69,8 @@ const LINK_EXAMPLE_SOURCE: StageOut = {
   sample_id: 1,
   sample_external_id: "SAMPLE-101",
   barcodes: ["bc1001"],
+  cell_use_status: "completed",
+  cell_status: "open",
 };
 const LINK_EXAMPLE_PEER: StageOut = {
   ...LINK_EXAMPLE_SOURCE,
@@ -90,6 +92,31 @@ const LINK_EXAMPLE_UNRELATED: StageOut = {
   sample_id: 3,
   sample_external_id: "SAMPLE-310",
   barcodes: ["bc3010"],
+};
+
+// Fabricated stages purely so the QC alert swatches below render from the real
+// SchedulerSlotView component (see CLAUDE.md's Help Tab Maintenance rule).
+const QC_EXAMPLE_FAILED: StageOut = {
+  ...LINK_EXAMPLE_SOURCE,
+  cell_use_id: 4,
+  cell_id: 7,
+  cell_ref: "CELL-000007",
+  sample_id: 4,
+  sample_external_id: "SAMPLE-410",
+  barcodes: ["bc4010"],
+  cell_use_status: "failed",
+  cell_status: "open",
+};
+const QC_EXAMPLE_STOPPED: StageOut = {
+  ...QC_EXAMPLE_FAILED,
+  cell_use_id: 5,
+  cell_id: 8,
+  cell_ref: "CELL-000008",
+  sample_id: 5,
+  sample_external_id: "SAMPLE-512",
+  barcodes: ["bc5012"],
+  cell_use_status: "completed",
+  cell_status: "stopped",
 };
 
 const CELL_STATUS_MEANING: Record<CellStatus, string> = {
@@ -280,6 +307,25 @@ export function LegendSection() {
             <SchedulerSlotView stage={LINK_EXAMPLE_UNRELATED} slotIndex={1} dimmed />
           </div>
           <span>An unrelated cell, softened so the linked slots stand out.</span>
+        </div>
+      </div>
+
+      <p className={styles.subheading}>QC alert (Weekly schedule)</p>
+      <div className={styles.legendGrid}>
+        <div className={styles.legendRow}>
+          <div className={styles.ghostExampleSwatch}>
+            <SchedulerSlotView stage={QC_EXAMPLE_FAILED} slotIndex={0} />
+          </div>
+          <span>This use was marked Failed - a red ring and label, right on the grid.</span>
+        </div>
+        <div className={styles.legendRow}>
+          <div className={styles.ghostExampleSwatch}>
+            <SchedulerSlotView stage={QC_EXAMPLE_STOPPED} slotIndex={0} />
+          </div>
+          <span>
+            This slot&apos;s physical cell has been Stopped - shown the same way, even on a use that itself
+            completed normally, since the cell is now out of service for good.
+          </span>
         </div>
       </div>
 

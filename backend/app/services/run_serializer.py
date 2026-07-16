@@ -45,6 +45,8 @@ def cycle_out(db: Session, cycle: Cycle) -> CycleOut:
             sample_id=cu.sample_id,
             sample_external_id=cu.sample.external_id if cu.sample else None,
             barcodes=cu.barcode_list,
+            cell_use_status=cu.status,
+            cell_status=cu.cell.status if cu.cell else "open",
         )
         for cu in sorted(cycle.cell_uses, key=lambda x: x.well)
     ]

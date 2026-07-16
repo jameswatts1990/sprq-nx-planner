@@ -215,6 +215,21 @@
   background: transparent;
 }
 
+/* QC alert: a failed use, or a now-stopped cell, surfaced directly on the grid so it's
+   visible without opening the slot - independent of (and layered on top of) the Use
+   1/2/3 tint, which is left alone so it still reads as which physical cell this is. */
+.qcAlert {
+  border-color: var(--red) !important;
+  box-shadow: inset 0 0 0 2px var(--red);
+}
+.qcAlertLabel {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--red);
+}
+
 .placing {
   border-style: solid;
   border-color: var(--blue);

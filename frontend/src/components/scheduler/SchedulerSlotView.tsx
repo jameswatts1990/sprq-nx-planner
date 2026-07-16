@@ -74,6 +74,18 @@ export const SchedulerSlotView = memo(
   // outside a valid drop target (see useSchedulerDnd's onDragEnd).
   const showStage = !!stage && !dragging;
 
+  // Surfaces a QC problem directly on the grid, independent of the Use 1/2/3 tint - a
+  // stopped cell (out of service for good) takes priority over a merely-failed use, since
+  // it's the more severe, whole-cell condition; either can coexist with a normal-looking
+  // completed/planned use elsewhere on the same physical cell.
+  const qcAlert: "stopped" | "failed" | null = !showStage
+    ? null
+    : stage!.cell_status === "stopped"
+      ? "stopped"
+      : stage!.cell_use_status === "failed"
+        ? "failed"
+        : null;
+
   // Colour groups by which physical cell is loaded (stage.use_number), not by well
   // position - so a cell reused across two wells in the same run shares one colour. A
   // ghost slot (no stage yet) colours by the use number it's waiting to become.
@@ -81,6 +93,7 @@ export const SchedulerSlotView = memo(
   const classes = [styles.slot];
   if (showStage) {
     classes.push(styles.filled, styles[useClass]);
+    if (qcAlert) classes.push(styles.qcAlert);
   } else if (ghost) {
     classes.push(styles.ghost, styles[useClass]);
     if (ghost.isHardCutoff) classes.push(styles.ghostCutoff);
@@ -120,6 +133,18 @@ export const SchedulerSlotView = memo(
             {stage!.sample_external_id ?? "—"}
           </div>
           <div className={styles.cellref}>{stage!.cell_ref}</div>
+          {qcAlert && (
+            <div
+              className={styles.qcAlertLabel}
+              title={
+                qcAlert === "stopped"
+                  ? "This physical cell has been stopped - out of service, never reused."
+                  : "This use was marked Failed - no usable data produced."
+              }
+            >
+              {qcAlert === "stopped" ? "Stopped" : "Failed"}
+            </div>
+          )}
           <BarcodeChips barcodes={stage!.barcodes} variant={useClass} />
           {(linkSource || linked) && (
             <span

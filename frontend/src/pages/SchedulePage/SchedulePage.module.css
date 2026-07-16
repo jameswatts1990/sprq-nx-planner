@@ -46,6 +46,9 @@
   padding: 24px 4px;
   text-align: center;
 }
+.gridArea {
+  display: contents;
+}
 .dragChip {
   font-family: var(--sans);
   font-size: 12px;

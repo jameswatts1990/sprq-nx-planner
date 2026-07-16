@@ -1,6 +1,6 @@
 import { DndContext, DragOverlay } from "@dnd-kit/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { ApiError } from "@/api/client";
 import { cellsApi } from "@/api/cells";
@@ -64,6 +64,7 @@ export function SchedulePage() {
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
   const [printSheetOpen, setPrintSheetOpen] = useState(false);
   const [ghostDetail, setGhostDetail] = useState<CellGhost | null>(null);
+  const gridAreaRef = useRef<HTMLDivElement>(null);
 
   const instrumentsQuery = useQuery({
     queryKey: ["instruments", true],
@@ -202,6 +203,34 @@ export function SchedulePage() {
     setClearConfirmOpen(true);
   }
 
+  // Clicking anywhere outside the weekly schedule grid deselects both selections - lets
+  // users click away (toolbar, accordions, blank page) to dismiss a selection without
+  // hunting for the "Clear" button. Skipped while a modal/popover is open: those render
+  // as siblings of the grid (not inside gridAreaRef), so their own clicks would otherwise
+  // count as "outside" and clear the selection out from under an in-progress action
+  // (e.g. SlotDetailPopover's onRemoved re-toggling slotSelection after removal).
+  useEffect(() => {
+    if (!selection.hasSelection && !slotSelection.hasSelection) return;
+    if (detail || ghostDetail || printSheetOpen || clearConfirmOpen || dnd.pendingPlacement) return;
+    function onMouseDown(e: MouseEvent) {
+      if (gridAreaRef.current?.contains(e.target as Node)) return;
+      selection.clear();
+      slotSelection.clear();
+    }
+    window.addEventListener("mousedown", onMouseDown);
+    return () => window.removeEventListener("mousedown", onMouseDown);
+  }, [
+    selection.hasSelection,
+    slotSelection.hasSelection,
+    selection.clear,
+    slotSelection.clear,
+    detail,
+    ghostDetail,
+    printSheetOpen,
+    clearConfirmOpen,
+    dnd.pendingPlacement,
+  ]);
+
   // Delete/Backspace removes the selected samples from the schedule, as long as focus
   // isn't in a text field (so it doesn't hijack editing elsewhere on the page).
   useEffect(() => {
@@ -331,39 +360,41 @@ export function SchedulePage() {
             <BacklogAccordion />
           </div>
 
-          <SectionHeading title="Weekly schedule" legend={<UseLegend />} />
+          <div className={styles.gridArea} ref={gridAreaRef}>
+            <SectionHeading title="Weekly schedule" legend={<UseLegend />} />
 
-          {instrumentsQuery.isLoading && <div className={styles.status}>Loading instruments…</div>}
-          {instrumentsQuery.isError && (
-            <Note tone="bad" icon="!">
-              {instrumentsQuery.error instanceof ApiError ? instrumentsQuery.error.message : "Failed to load instruments."}
-            </Note>
-          )}
-          {!instrumentsQuery.isLoading && !instrumentsQuery.isError && instrumentSerials.length === 0 && (
-            <Note tone="info" icon="i">
-              No active instruments configured.
-            </Note>
-          )}
-          {cyclesQuery.isError && (
-            <Note tone="bad" icon="!">
-              {cyclesQuery.error instanceof ApiError ? cyclesQuery.error.message : "Failed to load schedule."}
-            </Note>
-          )}
+            {instrumentsQuery.isLoading && <div className={styles.status}>Loading instruments…</div>}
+            {instrumentsQuery.isError && (
+              <Note tone="bad" icon="!">
+                {instrumentsQuery.error instanceof ApiError ? instrumentsQuery.error.message : "Failed to load instruments."}
+              </Note>
+            )}
+            {!instrumentsQuery.isLoading && !instrumentsQuery.isError && instrumentSerials.length === 0 && (
+              <Note tone="info" icon="i">
+                No active instruments configured.
+              </Note>
+            )}
+            {cyclesQuery.isError && (
+              <Note tone="bad" icon="!">
+                {cyclesQuery.error instanceof ApiError ? cyclesQuery.error.message : "Failed to load schedule."}
+              </Note>
+            )}
 
-          {instrumentSerials.length > 0 && (
-            <SchedulerGrid
-              instrumentSerials={instrumentSerials}
-              days={win.days}
-              cycles={cycles}
-              selection={selection}
-              placingSlotKey={dnd.placingSlotKey}
-              onOpenDetail={handleOpenDetail}
-              slotSelection={slotSelection}
-              activeDragInstrument={dnd.activeDragInstrument}
-              waitingGrouped={waitingGrouped}
-              onOpenGhost={setGhostDetail}
-            />
-          )}
+            {instrumentSerials.length > 0 && (
+              <SchedulerGrid
+                instrumentSerials={instrumentSerials}
+                days={win.days}
+                cycles={cycles}
+                selection={selection}
+                placingSlotKey={dnd.placingSlotKey}
+                onOpenDetail={handleOpenDetail}
+                slotSelection={slotSelection}
+                activeDragInstrument={dnd.activeDragInstrument}
+                waitingGrouped={waitingGrouped}
+                onOpenGhost={setGhostDetail}
+              />
+            )}
+          </div>
 
           <DragOverlay dropAnimation={null}>
             {dnd.activeSample ? <div className={styles.dragChip}>{dnd.activeSample.external_id || "sample"}</div> : null}

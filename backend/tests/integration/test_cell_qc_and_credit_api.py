@@ -248,3 +248,37 @@ def test_mark_failed_available_once_run_locked_even_before_confirmed_loaded(clie
     )
     assert fail.status_code == 200, fail.text
     assert fail.json()["status"] == "failed"
+
+
+def test_stage_surfaces_qc_status_for_failed_use_and_stopped_cell(client):
+    """The Weekly schedule grid flags a QC problem directly on the slot without a
+    click-through - this only works if StageOut carries the use's own status and its
+    cell's overall status through to the grid (see frontend SchedulerSlotView's qcAlert)."""
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nQ1,bcq1\nQ2,bcq2"})
+    mon, tue = _weekdays(2)
+
+    r1 = _place(client, _sid(client, "Q1"), mon, 0, {"mode": "new"})
+    assert r1.status_code == 201, r1.text
+    cycle1_id = r1.json()["cycle_id"]
+    cell_use_id = r1.json()["stages"][0]["cell_use_id"]
+    cell_id = r1.json()["stages"][0]["cell_id"]
+
+    # Mark this use Failed - only this stage's cell_use_status flips, the cell stays open
+    fail = client.patch(f"/api/cell-uses/{cell_use_id}", json={"status": "failed"})
+    assert fail.status_code == 200, fail.text
+
+    stage = client.get(f"/api/cycles/{cycle1_id}").json()["stages"][0]
+    assert stage["cell_use_status"] == "failed"
+    assert stage["cell_status"] == "open"
+
+    # Reuse the (still open) cell for a second, still-planned use, then Stop the cell
+    r2 = _place(client, _sid(client, "Q2"), tue, 0, {"mode": "existing", "cell_id": cell_id})
+    assert r2.status_code == 201, r2.text
+
+    stop = client.post(f"/api/cells/{cell_id}/stop", json={"reason": "damaged"})
+    assert stop.status_code == 200, stop.text
+
+    # Monday's already-failed stage is untouched history, but its cell_status now reads
+    # "stopped" too - the grid flags it either way, since the cell is now out of service.
+    stage_after_stop = client.get(f"/api/cycles/{cycle1_id}").json()["stages"][0]
+    assert stage_after_stop["cell_status"] == "stopped"

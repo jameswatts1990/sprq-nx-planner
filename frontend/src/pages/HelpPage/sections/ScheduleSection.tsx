@@ -13,8 +13,8 @@ export function ScheduleSection() {
         so you can bookmark or share a week.
       </p>
       <p>
-        <b>Weekend columns are closed</b> — greyed out and not selectable, because runs aren&apos;t started at
-        weekends in this view.
+        <b>Weekends aren&apos;t shown</b> — the grid only has Monday-Friday columns, because runs aren&apos;t
+        started at weekends.
       </p>
       <p>
         <b>Print Batch Sheet</b> opens a printable loading sheet for the Revios. Pick a day and tick which
@@ -45,6 +45,11 @@ export function ScheduleSection() {
           cost of using more cells.
         </dd>
       </dl>
+      <p>
+        <b>The Backlog panel</b> (collapsible, above the grid) has the same search box, priority dropdown, sort
+        control, and rows-per-page control as the Backlog tab, so you can narrow down to the sample you want before
+        dragging it — see the Backlog tab&apos;s help for details on each control.
+      </p>
       <p>
         <b>Placing samples two ways:</b>
       </p>
@@ -91,6 +96,20 @@ export function ScheduleSection() {
         amber note means some samples couldn&apos;t be placed, a cell&apos;s 108-hour window would be at risk, or a{" "}
         <b>barcode conflict</b> was found (two backlog samples in this batch share a barcode — they&apos;re kept off
         the same cell automatically, but review them before placing either); a red note means the auto-fill failed.
+      </p>
+      <p>
+        <b>QC actions from the grid:</b> click a filled slot to open its detail, then <b>Mark Failed</b> or{" "}
+        <b>Stop cell</b> — the same actions available on the Cell detail page, without leaving the schedule.{" "}
+        <b>Mark Failed</b> only appears once that run has reached its scheduled start time (see the Cells tab&apos;s
+        help for exactly when); <b>Stop cell</b> is available any time the cell isn&apos;t already stopped or
+        retired. Either shows a short reason/notes box and a confirm step in the same popover before applying.
+      </p>
+      <p>
+        <b>Failed/Stopped indicator on the grid:</b> a slot outlined in red, labelled <b>Failed</b> or{" "}
+        <b>Stopped</b>, flags a QC problem without opening it — <b>Failed</b> means that specific use produced no
+        usable data (the cell may still be fine for its other uses); <b>Stopped</b> means the physical cell itself
+        has been taken out of service for good, and is shown this way on every one of its slots still visible on
+        the grid, even ones that themselves completed normally.
       </p>
       <p>
         <b>Changing a placement&apos;s cell:</b> click a filled slot to open its detail, then <b>Change cell</b> to

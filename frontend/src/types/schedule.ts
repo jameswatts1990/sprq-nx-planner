@@ -23,6 +23,10 @@ export interface StageOut {
   sample_id: number | null;
   sample_external_id: string | null;
   barcodes: string[];
+  /** This specific use's own status (planned/started/completed/failed/cancelled). */
+  cell_use_status: string;
+  /** The physical cell's overall status (open/exhausted/window_expired/retired/stopped). */
+  cell_status: string;
 }
 
 export interface CycleOut {

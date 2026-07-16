@@ -31,8 +31,10 @@ export function BacklogSection() {
         note explains why.
       </p>
       <p>
-        The same backlog also appears as draggable cards inside the Schedule tab, so you rarely need to cancel from
-        here during normal planning.
+        The same backlog also appears as draggable cards inside the Schedule tab&apos;s Backlog panel, with the same
+        search, priority, sort, and rows-per-page controls (sort there is a dropdown plus a direction button rather
+        than clickable column headers, since that panel is a card list, not a table). You rarely need to cancel from
+        there during normal planning.
       </p>
     </div>
   );

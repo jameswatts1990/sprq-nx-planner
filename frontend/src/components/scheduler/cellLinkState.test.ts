@@ -15,6 +15,8 @@ function baseStage(overrides: Partial<StageOut> = {}): StageOut {
     sample_id: 1,
     sample_external_id: "SAMPLE-1",
     barcodes: [],
+    cell_use_status: "planned",
+    cell_status: "open",
     ...overrides,
   };
 }

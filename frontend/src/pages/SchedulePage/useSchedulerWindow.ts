@@ -5,10 +5,13 @@ import { addDaysUTC, mondayOfWeekUTC, parseDateOnly, toIsoDateUTC, todayIsoUTC }
 
 export const WINDOW_DAYS = 7;
 
+/** Weekends aren't shown as columns - runs are never started on a Saturday or Sunday. */
+export const VISIBLE_DAYS = 5;
+
 export interface SchedulerWindow {
-  /** YYYY-MM-DD anchor for the first column of the 7-day window. */
+  /** YYYY-MM-DD anchor for the first column of the 7-day window (always a Monday). */
   from: string;
-  /** The 7 YYYY-MM-DD day strings in the window. */
+  /** The 5 weekday (Mon-Fri) YYYY-MM-DD day strings in the window. */
   days: string[];
   /** date_from / date_to for the cycles query (inclusive range). */
   dateFrom: string;
@@ -23,7 +26,8 @@ export interface SchedulerWindow {
  * urlSettings mechanism. Defaults to the Monday of the current week; prev/next page by
  * 7 days, so Monday-alignment is preserved. Always normalizes to a
  * Monday, even for an arbitrary/stale `?from=` URL param, so the week consistently
- * starts on Monday. All date math goes through the UTC-based calendarDates helpers.
+ * starts on Monday. Only the Mon-Fri columns are exposed as `days` - weekends are never
+ * shown, not just greyed out. All date math goes through the UTC-based calendarDates helpers.
  */
 export function useSchedulerWindow(): SchedulerWindow {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -34,7 +38,7 @@ export function useSchedulerWindow(): SchedulerWindow {
 
   const days = useMemo(() => {
     const start = parseDateOnly(from);
-    return Array.from({ length: WINDOW_DAYS }, (_, i) => toIsoDateUTC(addDaysUTC(start, i)));
+    return Array.from({ length: VISIBLE_DAYS }, (_, i) => toIsoDateUTC(addDaysUTC(start, i)));
   }, [from]);
 
   const setFrom = useCallback(

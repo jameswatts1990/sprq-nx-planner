@@ -21,6 +21,12 @@ class StageOut(BaseModel):
     sample_id: int | None
     sample_external_id: str | None
     barcodes: list[str]
+    # This specific use's own status (planned/started/completed/failed/cancelled) and the
+    # physical cell's overall status (open/exhausted/window_expired/retired/stopped) - lets
+    # the grid flag a QC problem (a failed use, or a now-stopped cell) directly on the slot
+    # without a click-through to the cell's detail page.
+    cell_use_status: str
+    cell_status: str
 
 
 class CycleOut(BaseModel):

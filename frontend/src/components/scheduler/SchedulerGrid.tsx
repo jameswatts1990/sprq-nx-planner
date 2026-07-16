@@ -17,7 +17,7 @@ import type { CellGhost } from "./waitingCells";
 
 export interface SchedulerGridProps {
   instrumentSerials: string[];
-  /** 14 YYYY-MM-DD strings for the current window. */
+  /** The 5 weekday (Mon-Fri) YYYY-MM-DD strings for the current window. */
   days: string[];
   cycles: CycleOut[];
   selection: GridSelection;
