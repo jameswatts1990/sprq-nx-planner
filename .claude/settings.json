@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git branch:*)",
+      "Bash(npm run dev:*)",
+      "Bash(npm run typecheck:*)",
+      "Bash(npm run lint:*)",
+      "Bash(npm run test:*)",
+      "Bash(npm run build:*)",
+      "Bash(npm install:*)",
+      "Bash(pytest:*)",
+      "Bash(py -m pytest:*)",
+      "Bash(py -m venv:*)",
+      "Bash(py -m pip install:*)",
+      "Bash(.venv/Scripts/python.exe:*)",
+      "Bash(pip install:*)",
+      "Bash(alembic upgrade head:*)",
+      "Bash(alembic current:*)",
+      "Bash(uvicorn app.main:app:*)",
+      "Bash(python -m uvicorn app.main:app:*)"
+    ]
+  }
+}

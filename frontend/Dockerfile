@@ -1,10 +1,7 @@
-# NOTE: no package-lock.json is committed yet (this environment has no Node/npm to
-# generate one). Once someone runs `npm install` locally with Node available, commit
-# the resulting package-lock.json and switch this to `npm ci` for reproducible builds.
 FROM node:20-alpine AS build
 WORKDIR /app
-COPY package.json ./
-RUN npm install
+COPY package.json package-lock.json ./
+RUN npm ci
 COPY . .
 RUN npm run build
 

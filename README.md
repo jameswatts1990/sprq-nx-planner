@@ -60,4 +60,3 @@ The backend's `tests/unit` suite is a golden-fixture parity check against the or
 
 - No authentication yet (intentional for v1 — internal network trust only). Every mutating endpoint takes an optional `actor` field and there's a single `get_actor()` dependency as the seam for adding real auth later.
 - No live Benchling API integration yet — import is manual CSV paste/upload, matching the original prototype's workflow.
-- `frontend/package.json` has no committed lockfile (this was built in an environment without Node/npm to generate one) — run `npm install` once Node is available and commit the resulting `package-lock.json`, then switch `frontend/Dockerfile` from `npm install` to `npm ci`.
