@@ -1,0 +1,23 @@
+- generic [ref=f6e2]:
+  - banner [ref=f6e3]:
+    - generic [ref=f6e5]:
+      - link "Run Nx" [ref=f6e6] [cursor=pointer]:
+        - /url: /schedule
+        - text: Run
+        - generic [ref=f6e7]: Nx
+      - navigation [ref=f6e9]:
+        - link "Import" [ref=f6e10] [cursor=pointer]:
+          - /url: /import
+        - link "Backlog" [ref=f6e11] [cursor=pointer]:
+          - /url: /backlog
+        - link "Schedule" [ref=f6e12] [cursor=pointer]:
+          - /url: /schedule
+        - link "Cells & Instruments" [ref=f6e13] [cursor=pointer]:
+          - /url: /cells
+        - link "History" [ref=f6e14] [cursor=pointer]:
+          - /url: /history/runs
+        - link "Admin" [ref=f6e15] [cursor=pointer]:
+          - /url: /admin
+        - link "Help" [ref=f6e16] [cursor=pointer]:
+          - /url: /help
+  - generic [ref=f6e17]: Loading cell…

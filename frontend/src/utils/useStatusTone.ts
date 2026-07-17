@@ -11,7 +11,10 @@ export const USE_STATUS_TONE: Record<string, BadgeTone> = {
   planned: "default",
   started: "info",
   completed: "success",
-  failed: "danger",
+  // Severity scale for QC outcomes: Aborted (run/instrument problem, milder) -> yellow;
+  // Failed (a cell-quality concern) -> orange; cancelled ("Blocked" - a future use lost to
+  // the cell being stopped) groups with Stopped's severity -> red.
+  failed: "orange",
   aborted: "warning",
-  cancelled: "warning",
+  cancelled: "danger",
 };

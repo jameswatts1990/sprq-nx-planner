@@ -95,10 +95,10 @@ export function CellsSection() {
         </li>
         <li>
           <b>Undo Failed</b> / <b>Undo Aborted</b> replace Mark Failed/Mark Aborted in the Actions column once a
-          use has that verdict recorded. Confirming shows a warning and restores the use (and its sample) to how
-          they looked beforehand. If the sample has since been requeued or rescheduled onto a fresh placement
-          elsewhere, undo is refused with an error instead of silently double-booking that sample — reschedule
-          from the Backlog instead in that case.
+          use has that verdict recorded. Confirming restores the use (and its sample) to how they looked
+          beforehand. The button itself disappears again once the sample has since been requeued or rescheduled
+          onto a fresh placement elsewhere — undoing at that point would double-book that sample, so it stops
+          being offered rather than failing with an error; reschedule from the Backlog instead in that case.
         </li>
       </ul>
 

@@ -24,6 +24,10 @@
   color: var(--amber);
   background: var(--amber-tint);
 }
+.orange {
+  color: var(--orange);
+  background: var(--orange-tint);
+}
 .info {
   color: var(--blue-deep);
   background: var(--blue-tint);

@@ -1,17 +1,34 @@
 Bugs
 Grouped by which part of the app they touch, so related fixes land together instead of one at a time.
 
-Group A: Cell use status & severity (blocking, undo, colour coding)
+Group A: Cell use status & severity (blocking, undo, colour coding) - DONE
 - Stopping a second or third use of a cell marks the earlier uses as blocked as well. Only the subsequent cells should be blocked
+  Fixed: SchedulerSlotView's qcAlert derivation was painting the whole-cell "stopped"
+  ring over every use of that cell, including earlier uses that already have their own
+  recorded outcome. A use's own status (cancelled/failed/aborted) now always wins over
+  the cell-level "stopped" flag; "stopped" is only shown as a fallback for a use with no
+  outcome of its own yet (still planned/started) - i.e. the one actually cut short.
 - Undo failed cells has stopped working (abort and stop not tested but please check)
+  Fixed: the button wasn't actually broken - it was correctly refusing to undo once the
+  sample had since been requeued/rescheduled (see undo_cell_use_status's drift guard),
+  but stayed visible right up until the click, so it read as "stopped working". Added a
+  server-computed `undo_available` flag to CellUseHistoryOut (cell_service.py) that
+  mirrors that same guard, and `canUndoQcOutcome` (cellUseQc.ts) now defers to it - the
+  Undo Failed/Undo Aborted button now disappears once undo would be refused, instead of
+  offering an action guaranteed to 409. Also fixed 4 pre-existing, unrelated failures in
+  tests/integration/test_cell_qc_and_credit_api.py while verifying this group (3 tests
+  placed on a future weekday then tried to record a QC outcome immediately, tripping the
+  separate "run hasn't started" gate; 1 bulk-clear test indexed stages[0] from every
+  placement response, which is always the same well once 4 placements share one cycle).
 - Aborted, Failed, Stopped cell indicator colours are not consistent in their severity. Aborted should be yellow, failed orange and stopped (and subsequent lost cell uses) red.
   (moved here from Minor Edits - same status subsystem as the two bugs above)
-  Note: a broader test run turned up 4 pre-existing, unrelated failures in
-  tests/integration/test_cell_qc_and_credit_api.py (Mark Failed/Aborted returning 409
-  "Cannot record a QC outcome before this use's run has started" and a bulk-clear-style
-  removal test) - worth checking as part of this group, since they're in the same QC/undo
-  status area but weren't caused by (or fixed by) the tray-population-integrity fixes
-  above.
+  Fixed: added a new `--orange` token/Badge tone distinct from the existing amber/red,
+  and rewired the severity scale end-to-end (grid ring + qcAlert label + use-history
+  Badge, one shared source of truth in each layer) - Aborted stays amber/yellow
+  (mildest), Failed is now orange (its own `.qcAlertFailed` class, one step more severe),
+  and Stopped plus the cancelled/"Blocked" marker (a future use lost when the cell was
+  stopped) both moved to red, since both mean the physical cell is permanently done. Help
+  tab's Schedule/Cells/Legend sections updated to match.
 
 
 

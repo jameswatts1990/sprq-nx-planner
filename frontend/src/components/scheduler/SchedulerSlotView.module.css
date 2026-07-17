@@ -248,9 +248,11 @@
   background: transparent;
 }
 
-/* QC alert: a failed use, or a now-stopped cell, surfaced directly on the grid so it's
+/* QC alert: a QC problem on this use or its cell, surfaced directly on the grid so it's
    visible without opening the slot - independent of (and layered on top of) the Use
-   1/2/3 tint, which is left alone so it still reads as which physical cell this is. */
+   1/2/3 tint, which is left alone so it still reads as which physical cell this is.
+   Severity scale: Aborted (mildest, run/instrument problem) < Failed (a real cell-quality
+   concern) < Stopped/Cancelled (most severe - this physical cell is permanently done). */
 .qcAlert {
   border-color: var(--red) !important;
   box-shadow: inset 0 0 0 2px var(--red);
@@ -262,8 +264,8 @@
   text-transform: uppercase;
   color: var(--red);
 }
-/* Aborted: a run/instrument problem, not a cell-quality one - the milder amber
-   "warning" treatment, distinct from Failed/Stopped's red. */
+/* Aborted: a run/instrument problem, not a cell-quality one - the mildest amber/yellow
+   "warning" treatment on the severity scale. */
 .qcAlertWarn {
   border-color: var(--amber) !important;
   box-shadow: inset 0 0 0 2px var(--amber);
@@ -276,18 +278,34 @@
   color: var(--amber);
 }
 
+/* Failed: a real cell-quality concern, but distinct from (and one step milder than)
+   Stopped - the cell itself isn't necessarily out of service, just this one use. Orange
+   sits between Aborted's amber and Stopped's red on the severity scale. */
+.qcAlertFailed {
+  border-color: var(--orange) !important;
+  box-shadow: inset 0 0 0 2px var(--orange);
+}
+.qcAlertLabelFailed {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--orange);
+}
+
 /* Cancelled/blocked: this exact use was wiped out when its cell was stopped before it
-   could run - a distinct "this never happened" look (yellow diagonal cross-hatch),
-   layered over the Use 1/2/3 tint like the other QC alerts, but visually louder than the
-   plain Stopped ring since it's the more actionable claim (a slot readers might
-   otherwise expect to still happen). */
+   could run - a distinct "this never happened" look (red diagonal cross-hatch), layered
+   over the Use 1/2/3 tint like the other QC alerts. Shares Stopped's red severity (both
+   mean this physical cell is permanently done), just with the added cross-hatch texture
+   since it's the more actionable claim (a slot readers might otherwise expect to still
+   happen). */
 .qcAlertCancelled {
-  border-color: var(--amber) !important;
-  box-shadow: inset 0 0 0 2px var(--amber);
+  border-color: var(--red) !important;
+  box-shadow: inset 0 0 0 2px var(--red);
   background-image: repeating-linear-gradient(
     135deg,
-    rgba(199, 119, 0, 0.18),
-    rgba(199, 119, 0, 0.18) 6px,
+    rgba(220, 53, 69, 0.18),
+    rgba(220, 53, 69, 0.18) 6px,
     transparent 6px,
     transparent 12px
   );
@@ -298,7 +316,7 @@
   font-weight: 800;
   letter-spacing: 0.03em;
   text-transform: uppercase;
-  color: var(--amber);
+  color: var(--red);
 }
 
 .placing {

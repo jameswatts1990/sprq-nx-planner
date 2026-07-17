@@ -103,12 +103,15 @@ export const SchedulerSlotView = memo(
   const classes = [styles.slot];
   if (showStage) {
     classes.push(styles.filled, styles[useClass]);
-    // Cancelled gets its own yellow "blocked" cross-hatch (this use never happened at
-    // all, distinct from a recorded outcome). Aborted is a run/instrument problem, not a
-    // cell-quality one, so it gets the milder amber "warning" treatment - Failed/Stopped
-    // (a real cell-quality concern) keep red.
+    // Severity scale, lightest to most severe: Aborted (run/instrument problem, not a
+    // cell-quality one) gets the mildest amber/yellow "warning" treatment; Failed (a real
+    // cell-quality concern, but this one physical cell may still be fine otherwise) gets
+    // its own distinct orange, between warning and danger; Stopped and Cancelled/"Blocked"
+    // (a future use lost because the whole cell was taken out of service) share the same
+    // red "danger" severity, since both mean this physical cell is permanently done.
     if (qcAlert === "cancelled") classes.push(styles.qcAlertCancelled);
     else if (qcAlert === "aborted") classes.push(styles.qcAlertWarn);
+    else if (qcAlert === "failed") classes.push(styles.qcAlertFailed);
     else if (qcAlert) classes.push(styles.qcAlert);
     // Shades toward the same fade as a waiting-cell ghost, but driven by this cell's own
     // elapsed time rather than time-to-deadline - "denote the passing of time until a
@@ -179,7 +182,9 @@ export const SchedulerSlotView = memo(
                   ? styles.qcAlertLabelCancelled
                   : qcAlert === "aborted"
                     ? styles.qcAlertLabelWarn
-                    : styles.qcAlertLabel
+                    : qcAlert === "failed"
+                      ? styles.qcAlertLabelFailed
+                      : styles.qcAlertLabel
               }
               title={
                 qcAlert === "cancelled"

@@ -49,9 +49,9 @@ def _place(client, sample_id, run_date, slot_index, cell_choice, run_time_hours=
 
 def test_mark_cell_use_failed_keeps_cell_open_and_sample_can_be_requeued(client):
     client.post("/api/imports", json={"raw_text": "sample,barcodes\nF1,bcf1"})
-    (mon,) = _weekdays(1)
+    past = _past_weekday()
 
-    r1 = _place(client, _sid(client, "F1"), mon, 0, {"mode": "new"})
+    r1 = _place(client, _sid(client, "F1"), past, 0, {"mode": "new"})
     assert r1.status_code == 201, r1.text
     stage = r1.json()["stages"][0]
 
@@ -291,9 +291,10 @@ def test_stage_surfaces_qc_status_for_failed_use_and_stopped_cell(client):
     click-through - this only works if StageOut carries the use's own status and its
     cell's overall status through to the grid (see frontend SchedulerSlotView's qcAlert)."""
     client.post("/api/imports", json={"raw_text": "sample,barcodes\nQ1,bcq1\nQ2,bcq2"})
-    mon, tue = _weekdays(2)
+    past = _past_weekday()
+    future = _weekdays(1)[-1]
 
-    r1 = _place(client, _sid(client, "Q1"), mon, 0, {"mode": "new"})
+    r1 = _place(client, _sid(client, "Q1"), past, 0, {"mode": "new"})
     assert r1.status_code == 201, r1.text
     cycle1_id = r1.json()["cycle_id"]
     cell_use_id = r1.json()["stages"][0]["cell_use_id"]
@@ -308,15 +309,19 @@ def test_stage_surfaces_qc_status_for_failed_use_and_stopped_cell(client):
     assert stage["cell_status"] == "open"
 
     # Reuse the (still open) cell for a second, still-planned use, then Stop the cell
-    r2 = _place(client, _sid(client, "Q2"), tue, 0, {"mode": "existing", "cell_id": cell_id})
+    r2 = _place(client, _sid(client, "Q2"), future, 0, {"mode": "existing", "cell_id": cell_id})
     assert r2.status_code == 201, r2.text
 
     stop = client.post(f"/api/cells/{cell_id}/stop", json={"reason": "damaged"})
     assert stop.status_code == 200, stop.text
 
-    # Monday's already-failed stage is untouched history, but its cell_status now reads
-    # "stopped" too - the grid flags it either way, since the cell is now out of service.
+    # The first stage's own recorded outcome ("failed") is untouched history - stop_cell()
+    # only cuts off the cell's *future*, not its past (see cell_service.stop_cell) - but the
+    # cell's own status now correctly reads "stopped" too, since the physical cell itself is
+    # out of service. The frontend grid relies on exactly this distinction to keep showing
+    # "Failed" here rather than repainting it "Stopped" (see SchedulerSlotView's qcAlert).
     stage_after_stop = client.get(f"/api/cycles/{cycle1_id}").json()["stages"][0]
+    assert stage_after_stop["cell_use_status"] == "failed"
     assert stage_after_stop["cell_status"] == "stopped"
 
 
@@ -326,9 +331,9 @@ def test_mark_cell_use_aborted_returns_sample_straight_to_backlog(client):
     deliberately excluded from the PacBio credit workflow (has_failed_use only counts
     "failed", never "aborted")."""
     client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bca1"})
-    (mon,) = _weekdays(1)
+    past = _past_weekday()
 
-    r1 = _place(client, _sid(client, "A1"), mon, 0, {"mode": "new"})
+    r1 = _place(client, _sid(client, "A1"), past, 0, {"mode": "new"})
     assert r1.status_code == 201, r1.text
     stage = r1.json()["stages"][0]
     cycle_id = r1.json()["cycle_id"]
@@ -560,7 +565,13 @@ def test_bulk_clear_style_removal_skips_cancelled_marker_and_removes_the_rest(cl
     r2 = _place(client, _sid(client, "D2"), mon, 1, {"mode": "new"})
     r3 = _place(client, _sid(client, "D3"), mon, 2, {"mode": "new"})
     r4 = _place(client, _sid(client, "D4"), mon, 3, {"mode": "new"})
-    all_use_ids = [r.json()["stages"][0]["cell_use_id"] for r in (r1, r2, r3, r4)]
+    # All 4 placements land in the same instrument/date cycle, so every response above
+    # echoes that whole cycle's stages, not just its own - and stages are well-sorted, so
+    # stages[0] is always D1's own use (well A01) in every one of r1..r4's payload. Read the
+    # final response (r4, which by now includes all 4 stages) and key off slot_index (which
+    # each _place call above pinned explicitly to 0/1/2/3) instead.
+    final_stages = {s["slot_index"]: s["cell_use_id"] for s in r4.json()["stages"]}
+    all_use_ids = [final_stages[i] for i in range(4)]
 
     stop = client.post(f"/api/cells/{cell_id}/stop", json={"reason": "damaged"})
     assert stop.status_code == 200, stop.text

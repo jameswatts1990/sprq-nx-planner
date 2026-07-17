@@ -144,7 +144,10 @@ const QC_EXAMPLE_STOPPED: StageOut = {
   sample_id: 5,
   sample_external_id: "SAMPLE-512",
   barcodes: ["bc5012"],
-  cell_use_status: "completed",
+  // "started" (not yet its own recorded outcome) is what actually renders the Stopped
+  // ring - a use that already completed/failed/aborted keeps showing that instead, even
+  // once its cell is stopped (see SchedulerSlotView's qcAlert).
+  cell_use_status: "started",
   cell_status: "stopped",
 };
 const QC_EXAMPLE_ABORTED: StageOut = {
@@ -157,6 +160,17 @@ const QC_EXAMPLE_ABORTED: StageOut = {
   barcodes: ["bc6018"],
   cell_use_status: "aborted",
   cell_status: "open",
+};
+const QC_EXAMPLE_CANCELLED: StageOut = {
+  ...QC_EXAMPLE_FAILED,
+  cell_use_id: 7,
+  cell_id: 10,
+  cell_ref: "CELL-000010",
+  sample_id: 7,
+  sample_external_id: "SAMPLE-719",
+  barcodes: ["bc7019"],
+  cell_use_status: "cancelled",
+  cell_status: "stopped",
 };
 
 const CELL_STATUS_MEANING: Record<CellStatus, string> = {
@@ -381,26 +395,40 @@ export function LegendSection() {
       <div className={styles.legendGrid}>
         <div className={styles.legendRow}>
           <div className={styles.ghostExampleSwatch}>
+            <SchedulerSlotView stage={QC_EXAMPLE_ABORTED} slotIndex={0} />
+          </div>
+          <span>
+            This use was marked Aborted - the mildest, amber/yellow ring, since the run/instrument was the problem
+            rather than the cell itself; the sample has already gone back to the backlog.
+          </span>
+        </div>
+        <div className={styles.legendRow}>
+          <div className={styles.ghostExampleSwatch}>
             <SchedulerSlotView stage={QC_EXAMPLE_FAILED} slotIndex={0} />
           </div>
-          <span>This use was marked Failed - a red ring and label, right on the grid.</span>
+          <span>
+            This use was marked Failed - an orange ring and label, one step more severe than Aborted; the cell may
+            still be fine for its other uses.
+          </span>
         </div>
         <div className={styles.legendRow}>
           <div className={styles.ghostExampleSwatch}>
             <SchedulerSlotView stage={QC_EXAMPLE_STOPPED} slotIndex={0} />
           </div>
           <span>
-            This slot&apos;s physical cell has been Stopped - shown the same way, even on a use that itself
-            completed normally, since the cell is now out of service for good.
+            This slot&apos;s physical cell has been Stopped while this specific use hadn&apos;t recorded its own
+            outcome yet - the most severe, red ring. A use that already finished, failed, or was aborted before the
+            cell was stopped keeps showing that instead (see the two examples above).
           </span>
         </div>
         <div className={styles.legendRow}>
           <div className={styles.ghostExampleSwatch}>
-            <SchedulerSlotView stage={QC_EXAMPLE_ABORTED} slotIndex={0} />
+            <SchedulerSlotView stage={QC_EXAMPLE_CANCELLED} slotIndex={0} />
           </div>
           <span>
-            This use was marked Aborted - a milder amber ring, since the run/instrument was the problem rather than
-            the cell itself; the sample has already gone back to the backlog.
+            Blocked - this placement was cancelled by a Stop cell action before it ever ran. Shares Stopped&apos;s
+            red severity, with an added cross-hatch texture since it&apos;s the more actionable claim (a slot you
+            might otherwise expect to still happen).
           </span>
         </div>
       </div>

@@ -123,21 +123,24 @@ export function ScheduleSection() {
       <p>
         <b>Undoing a QC mistake:</b> flagged the wrong slot? An <b>Undo Failed</b>/<b>Undo Aborted</b> button
         replaces <b>Mark Failed</b>/<b>Mark Aborted</b> once a verdict has been recorded, and an <b>Undo stop</b>{" "}
-        button appears once a cell is stopped — each shows a warning before restoring the placement (or every
-        cancelled use, for <b>Undo stop</b>) to how it looked beforehand. If the sample involved has already been
-        requeued or rescheduled elsewhere in the meantime, undo is refused with an error rather than silently
-        double-booking that sample — reschedule from the Backlog instead in that case.
+        button appears once a cell is stopped — each restores the placement (or every cancelled use, for{" "}
+        <b>Undo stop</b>) to how it looked beforehand. The <b>Undo Failed</b>/<b>Undo Aborted</b> button disappears
+        again if the sample involved has since been requeued or rescheduled elsewhere, since undoing at that point
+        would double-book that sample — reschedule from the Backlog instead in that case.
       </p>
       <p>
         <b>Failed/Aborted/Stopped/Blocked indicator on the grid:</b> a slot outlined in colour, labelled{" "}
-        <b>Failed</b>, <b>Aborted</b>, <b>Stopped</b>, or <b>Blocked</b>, flags a QC problem without opening it —{" "}
-        a red ring for <b>Failed</b> (that specific use produced no usable data; the cell may still be fine for its
-        other uses) or <b>Stopped</b> (the physical cell itself has been taken out of service for good, shown this
-        way on every one of its slots still visible on the grid, even ones that themselves completed normally); a
-        milder amber ring for <b>Aborted</b> (the run/instrument was the problem, not the cell — its sample is
-        already back in the Backlog); and a yellow cross-hatched <b>Blocked</b> slot for a placement that was
-        cancelled by a <b>Stop cell</b> action before it ever ran — a permanent, read-only marker (no drag, no
-        Remove/Change cell) left in place of the placement that would have happened there.
+        <b>Failed</b>, <b>Aborted</b>, <b>Stopped</b>, or <b>Blocked</b>, flags a QC problem without opening it —
+        these follow a severity scale, mildest to most severe: a milder amber/yellow ring for <b>Aborted</b> (the
+        run/instrument was the problem, not the cell — its sample is already back in the Backlog); an orange ring
+        for <b>Failed</b> (that specific use produced no usable data; the cell may still be fine for its other
+        uses); and red for both <b>Stopped</b> (the physical cell itself has been taken out of service for good)
+        and a red cross-hatched <b>Blocked</b> slot (a placement cancelled by a <b>Stop cell</b> action before it
+        ever ran) — both mean this physical cell is permanently done. A use that already finished, failed, or was
+        aborted keeps showing that true history rather than being repainted <b>Stopped</b> just because the same
+        cell was taken out of service later — <b>Stopped</b> only appears on a use that had no recorded outcome of
+        its own yet at the moment the cell was stopped. <b>Blocked</b> is a permanent, read-only marker (no drag,
+        no Remove/Change cell) left in place of the placement that would have happened there.
       </p>
       <p>
         <b>Changing a placement&apos;s cell:</b> click a filled slot to open its detail, then <b>Change cell</b> to
