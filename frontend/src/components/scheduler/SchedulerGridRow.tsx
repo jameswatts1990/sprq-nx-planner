@@ -21,6 +21,8 @@ export interface SchedulerGridRowProps {
   slotSelection: SlotSelection;
   activeDragInstrument: string | null;
   waitingCellsByDate: Map<string, CellGhost[]>;
+  /** Wells on this instrument permanently blocked by a stopped cell. */
+  blockedWells: Set<string>;
   onOpenGhost: (ghost: CellGhost) => void;
 }
 
@@ -37,6 +39,7 @@ export function SchedulerGridRow({
   slotSelection,
   activeDragInstrument,
   waitingCellsByDate,
+  blockedWells,
   onOpenGhost,
 }: SchedulerGridRowProps) {
   const selectableCols: number[] = [];
@@ -105,6 +108,7 @@ export function SchedulerGridRow({
             slotSelection={slotSelection}
             activeDragInstrument={activeDragInstrument}
             waitingCells={waitingCellsByDate.get(date) ?? []}
+            blockedWells={blockedWells}
             onOpenGhost={onOpenGhost}
           />
         );

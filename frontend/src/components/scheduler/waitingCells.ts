@@ -140,6 +140,28 @@ function wellSortKey(well: string | null): number {
 }
 
 /**
+ * Buckets every stopped cell's well by the instrument it was last sitting on. A stopped
+ * cell's well "stays occupied ... as a permanent marker" (see backend cell_service.
+ * stop_cell) - no cycle ever fills it again, so without this the slot would silently look
+ * like any other free "+" placeholder even though placing a new cell there is pointless
+ * (the physical well already holds a dead cell). Unlike computeGhost, this has no per-day
+ * gating - a stopped cell's well is blocked on every future day, not just a window.
+ */
+export function groupBlockedWellsByInstrument(cells: CellOut[]): Map<string, Set<string>> {
+  const byInstrument = new Map<string, Set<string>>();
+  for (const cell of cells) {
+    if (cell.status !== "stopped" || !cell.current_instrument_serial || !cell.current_well) continue;
+    let wells = byInstrument.get(cell.current_instrument_serial);
+    if (!wells) {
+      wells = new Set();
+      byInstrument.set(cell.current_instrument_serial, wells);
+    }
+    wells.add(cell.current_well);
+  }
+  return byInstrument;
+}
+
+/**
  * Buckets every open, idle, reusable cell's ghost(s) by (current instrument, day) across
  * the visible window - mirrors groupCyclesByInstrumentAndDay's shape so the grid can look
  * ghosts up the same way it looks up real cycles.

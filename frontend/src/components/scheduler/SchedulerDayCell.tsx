@@ -37,6 +37,10 @@ export interface SchedulerDayCellProps {
   /** Waiting, reusable cells eligible to load on this instrument+day (see waitingCells.ts).
    * Ignored while the day's run is locked, since it can no longer accept placements. */
   waitingCells: CellGhost[];
+  /** Wells on this instrument permanently blocked by a stopped cell (see waitingCells.
+   * groupBlockedWellsByInstrument) - rendered as a non-droppable "blocked" placeholder
+   * instead of the plain "+" so this well never reads as an ordinary free slot. */
+  blockedWells: Set<string>;
   onOpenGhost: (ghost: CellGhost) => void;
 }
 
@@ -62,6 +66,7 @@ export function SchedulerDayCell(props: SchedulerDayCellProps) {
     slotSelection,
     activeDragInstrument,
     waitingCells,
+    blockedWells,
     onOpenGhost,
   } = props;
   const queryClient = useQueryClient();
@@ -111,10 +116,23 @@ export function SchedulerDayCell(props: SchedulerDayCellProps) {
   }
   const tray2HasGhost = TRAY_INDICES[1].some((i) => ghostBySlot.has(i));
 
-  const trayVisible = [true, tray1Filled || tray2Filled || tray2HasGhost];
-  // Beyond any ghost-assigned slots, still surface exactly one plain "+" placeholder per
-  // tray so "use a new cell" always stays available alongside reuse ghosts.
-  const firstEmptyByTray = TRAY_INDICES.map((indices) => indices.find((i) => !slots[i] && !ghostBySlot.has(i)));
+  // A well left behind by a stopped cell (see waitingCells.groupBlockedWellsByInstrument)
+  // never gets a ghost (stop_cell excludes it from reuse) and never gets a stage again, so
+  // without this it would silently fall through to the plain "+" placeholder below and
+  // read as an ordinary free slot - even though the physical well is permanently dead.
+  const blockedSlotSet = new Set<SlotIndex>();
+  WELL_ORDER.forEach((well, i) => {
+    const slot = i as SlotIndex;
+    if (slots[slot] === null && !ghostBySlot.has(slot) && blockedWells.has(well)) blockedSlotSet.add(slot);
+  });
+  const tray2HasBlocked = TRAY_INDICES[1].some((i) => blockedSlotSet.has(i));
+
+  const trayVisible = [true, tray1Filled || tray2Filled || tray2HasGhost || tray2HasBlocked];
+  // Beyond any ghost-assigned/blocked slots, still surface exactly one plain "+"
+  // placeholder per tray so "use a new cell" always stays available alongside reuse ghosts.
+  const firstEmptyByTray = TRAY_INDICES.map((indices) =>
+    indices.find((i) => !slots[i] && !ghostBySlot.has(i) && !blockedSlotSet.has(i)),
+  );
 
   function onCellClick(e: MouseEvent<HTMLTableCellElement>) {
     if (selectable) onSelect(rowIndex, colIndex, e.shiftKey, e.ctrlKey || e.metaKey);
@@ -197,7 +215,7 @@ export function SchedulerDayCell(props: SchedulerDayCellProps) {
             <div key={trayIdx} className={styles.tray}>
               <div className={styles.trayLabel}>{trayIdx === 0 ? "Tray 1" : "Tray 2"}</div>
               {indices
-                .filter((i) => slots[i] !== null || i === firstEmptyIndex || ghostBySlot.has(i))
+                .filter((i) => slots[i] !== null || i === firstEmptyIndex || ghostBySlot.has(i) || blockedSlotSet.has(i))
                 .map((i) => (
                   <SchedulerSlot
                     key={i}
@@ -217,6 +235,7 @@ export function SchedulerDayCell(props: SchedulerDayCellProps) {
                     onToggleSelect={slotSelection.toggle}
                     crossInstrumentDragActive={crossInstrumentDragActive}
                     ghost={ghostBySlot.get(i)}
+                    blocked={blockedSlotSet.has(i)}
                     onOpenGhost={onOpenGhost}
                   />
                 ))}

@@ -25,6 +25,25 @@
   opacity: 0.7;
 }
 
+/* A well permanently blocked by a stopped cell (see waitingCells.
+   groupBlockedWellsByInstrument) - reads as clearly dead, not just "not yet used": grey
+   fill (never tinted by use number - the cell that lived here is gone) plus a red cross
+   instead of the "+" affordance, since this well can never accept a new placement. */
+.blocked {
+  border: 1.5px dashed var(--line);
+  background: var(--tray-card-bg);
+  align-items: center;
+  justify-content: center;
+  cursor: default;
+  opacity: 0.75;
+}
+.blockedIcon {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--red);
+  opacity: 0.8;
+}
+
 /* Filled chip, colour-coded by the loaded cell's use number (Use 1/2/3). */
 .filled {
   border: 1px solid var(--line);

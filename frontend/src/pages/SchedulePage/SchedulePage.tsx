@@ -20,7 +20,11 @@ import { CellLinkContext, useCellLinkHighlight } from "@/components/scheduler/us
 import { useGridSelection } from "@/components/scheduler/useGridSelection";
 import { useSchedulerDnd } from "@/components/scheduler/useSchedulerDnd";
 import { useSlotSelection } from "@/components/scheduler/useSlotSelection";
-import { groupWaitingCellsByInstrumentAndDay, type CellGhost } from "@/components/scheduler/waitingCells";
+import {
+  groupBlockedWellsByInstrument,
+  groupWaitingCellsByInstrumentAndDay,
+  type CellGhost,
+} from "@/components/scheduler/waitingCells";
 import { WaitingCellPopover } from "@/components/scheduler/WaitingCellPopover";
 import { SectionHeading, UseLegend } from "@/components/shared/SectionHeading";
 import { Button } from "@/components/ui/Button";
@@ -97,6 +101,14 @@ export function SchedulePage() {
     queryFn: () => cellsApi.list({ status: "open", page_size: 200 }),
   });
 
+  // Every stopped cell, regardless of instrument - drives the "blocked well" placeholder
+  // (see waitingCells.groupBlockedWellsByInstrument) so a permanently dead well doesn't
+  // look like an ordinary free "+" slot. Same invalidation story as waitingCellsQuery.
+  const blockedCellsQuery = useQuery({
+    queryKey: ["cells", "blocked-wells"],
+    queryFn: () => cellsApi.list({ status: "stopped", page_size: 200 }),
+  });
+
   const instrumentSerials = useMemo(
     () => (instrumentsQuery.data ?? []).map((i) => i.serial_number),
     [instrumentsQuery.data],
@@ -106,6 +118,10 @@ export function SchedulePage() {
   const waitingGrouped = useMemo(
     () => groupWaitingCellsByInstrumentAndDay(waitingCellsQuery.data?.items ?? [], win.days),
     [waitingCellsQuery.data, win.days],
+  );
+  const blockedWellsByInstrument = useMemo(
+    () => groupBlockedWellsByInstrument(blockedCellsQuery.data?.items ?? []),
+    [blockedCellsQuery.data],
   );
   // `cycles` is fetched a few days wider than the visible window (see lookbackDateFrom
   // above), purely so carry-over locks can see runs that started just before it. Anything
@@ -443,6 +459,7 @@ export function SchedulePage() {
                 slotSelection={slotSelection}
                 activeDragInstrument={dnd.activeDragInstrument}
                 waitingGrouped={waitingGrouped}
+                blockedWellsByInstrument={blockedWellsByInstrument}
                 onOpenGhost={setGhostDetail}
               />
             )}

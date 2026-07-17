@@ -259,6 +259,13 @@ export function ScheduleSection() {
         with no expiry, until it&apos;s loaded or discarded. Dragging a backlog sample onto it or clicking it works
         exactly like a waiting-cell ghost above.
       </p>
+      <p>
+        <b>Blocked wells:</b> once a physical cell is stopped (see the Cells tab&apos;s help), its well is retired
+        for good — no waiting-cell ghost ever appears there again, and no new cell can be loaded into that exact
+        slot either. Rather than looking like an ordinary open <b>+</b> slot, it shows a greyed-out red{" "}
+        <b>✕</b> instead, so it&apos;s obvious at a glance that this particular well is permanently done, not just
+        empty.
+      </p>
     </div>
   );
 }

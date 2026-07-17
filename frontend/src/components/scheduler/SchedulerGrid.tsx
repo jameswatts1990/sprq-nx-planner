@@ -15,6 +15,10 @@ import type { Coord, GridSelection } from "./useGridSelection";
 import type { SlotSelection } from "./useSlotSelection";
 import type { CellGhost } from "./waitingCells";
 
+// Stable empty-set reference for instruments with no blocked wells, so SchedulerGridRow
+// doesn't see a new object identity on every render.
+const EMPTY_BLOCKED_WELLS: Set<string> = new Set();
+
 export interface SchedulerGridProps {
   instrumentSerials: string[];
   /** The 5 weekday (Mon-Fri) YYYY-MM-DD strings for the current window. */
@@ -26,6 +30,9 @@ export interface SchedulerGridProps {
   slotSelection: SlotSelection;
   activeDragInstrument: string | null;
   waitingGrouped: Map<string, Map<string, CellGhost[]>>;
+  /** Wells permanently blocked by a stopped cell, keyed by instrument (see waitingCells.
+   * groupBlockedWellsByInstrument). */
+  blockedWellsByInstrument: Map<string, Set<string>>;
   onOpenGhost: (ghost: CellGhost) => void;
 }
 
@@ -86,6 +93,7 @@ export function SchedulerGrid({
   slotSelection,
   activeDragInstrument,
   waitingGrouped,
+  blockedWellsByInstrument,
   onOpenGhost,
 }: SchedulerGridProps) {
   const grouped = groupCyclesByInstrumentAndDay(cycles);
@@ -168,6 +176,7 @@ export function SchedulerGrid({
               slotSelection={slotSelection}
               activeDragInstrument={activeDragInstrument}
               waitingCellsByDate={waitingGrouped.get(serial) ?? new Map()}
+              blockedWells={blockedWellsByInstrument.get(serial) ?? EMPTY_BLOCKED_WELLS}
               onOpenGhost={onOpenGhost}
             />
           ))}

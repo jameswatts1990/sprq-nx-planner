@@ -32,6 +32,9 @@ export interface SchedulerSlotProps {
   ghost?: CellGhost;
   /** Opens the waiting-cell detail/discard popover; only meaningful when `ghost` is set. */
   onOpenGhost?: (ghost: CellGhost) => void;
+  /** This well is permanently blocked by a stopped cell (see waitingCells.
+   * groupBlockedWellsByInstrument) - read-only, never a drop target. */
+  blocked?: boolean;
 }
 
 /**
@@ -40,9 +43,15 @@ export interface SchedulerSlotProps {
  * empty/filled branches are separate leaf components (React swaps them on transition).
  */
 export function SchedulerSlot(props: SchedulerSlotProps) {
-  const { stage, locked } = props;
+  const { stage, locked, blocked } = props;
 
   if (!stage) {
+    // A stopped cell's well is a permanent, read-only marker - never droppable, and
+    // blocked regardless of the day's own lock state (see waitingCells.
+    // groupBlockedWellsByInstrument / cell_service.stop_cell).
+    if (blocked) {
+      return <SchedulerSlotView stage={null} slotIndex={props.slotIndex} blocked />;
+    }
     if (locked) {
       // Only an unused-tray-sibling ghost ever reaches here (SchedulerDayCell excludes
       // reuse ghosts once locked), so it's purely informational - no droppable wrapper.

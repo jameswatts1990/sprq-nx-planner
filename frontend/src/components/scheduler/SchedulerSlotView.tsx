@@ -41,6 +41,10 @@ export interface SchedulerSlotViewProps extends HTMLAttributes<HTMLDivElement> {
   linked?: boolean;
   /** A hover/pin target is active and this slot is neither the source nor a peer. */
   dimmed?: boolean;
+  /** This well is permanently blocked by a stopped cell - greyed out with a cross instead
+   * of the plain "+", since placing a new cell here isn't possible. Ignored when `stage`
+   * or `ghost` is set. */
+  blocked?: boolean;
 }
 
 /**
@@ -64,6 +68,7 @@ export const SchedulerSlotView = memo(
       linkSource,
       linked,
       dimmed,
+      blocked,
       className,
       style,
       ...rest
@@ -130,6 +135,8 @@ export const SchedulerSlotView = memo(
       classes.push(styles[useClass]);
       if (ghost.isHardCutoff) classes.push(styles.ghostCutoff);
     }
+  } else if (blocked) {
+    classes.push(styles.blocked);
   } else {
     classes.push(styles.empty);
   }
@@ -220,6 +227,14 @@ export const SchedulerSlotView = memo(
                 : `Use ${ghost.useNumber} · by ${formatShortDateUTC(parseDateOnly(ghost.cutoffDate))}`}
           </div>
         </>
+      ) : blocked ? (
+        <span
+          className={styles.blockedIcon}
+          title="This well is blocked - its cell was stopped and can't be reused here"
+          aria-hidden="true"
+        >
+          ✕
+        </span>
       ) : (
         <span className={styles.placeholder}>{placing ? "placing…" : dragging ? "" : "+"}</span>
       )}
