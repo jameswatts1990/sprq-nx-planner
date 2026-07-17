@@ -99,7 +99,7 @@ export function SchedulePage() {
   // retire) already invalidates the ["cells"] query-key prefix.
   const waitingCellsQuery = useQuery({
     queryKey: ["cells", "waiting-ghosts"],
-    queryFn: () => cellsApi.list({ status: "open", page_size: 200 }),
+    queryFn: () => cellsApi.listAll({ status: "open" }),
   });
 
   // Every stopped cell, regardless of instrument - drives the "blocked well" placeholder
@@ -107,7 +107,7 @@ export function SchedulePage() {
   // look like an ordinary free "+" slot. Same invalidation story as waitingCellsQuery.
   const blockedCellsQuery = useQuery({
     queryKey: ["cells", "blocked-wells"],
-    queryFn: () => cellsApi.list({ status: "stopped", page_size: 200 }),
+    queryFn: () => cellsApi.listAll({ status: "stopped" }),
   });
 
   // Every cell that's gone terminal by ordinary attrition (not a QC stop) - drives the
@@ -116,7 +116,7 @@ export function SchedulePage() {
   // never held anything. Same invalidation story as waitingCellsQuery.
   const terminalCellsQuery = useQuery({
     queryKey: ["cells", "terminal-wells"],
-    queryFn: () => cellsApi.list({ status: "exhausted,window_expired,retired", page_size: 200 }),
+    queryFn: () => cellsApi.listAll({ status: "exhausted,window_expired,retired" }),
   });
 
   const instrumentSerials = useMemo(
@@ -133,23 +133,23 @@ export function SchedulePage() {
   const vacatedTrayIds = useMemo(
     () =>
       computeVacatedTrayIds([
-        ...(waitingCellsQuery.data?.items ?? []),
-        ...(terminalCellsQuery.data?.items ?? []),
-        ...(blockedCellsQuery.data?.items ?? []),
+        ...(waitingCellsQuery.data ?? []),
+        ...(terminalCellsQuery.data ?? []),
+        ...(blockedCellsQuery.data ?? []),
       ]),
     [waitingCellsQuery.data, terminalCellsQuery.data, blockedCellsQuery.data],
   );
   const waitingGrouped = useMemo(
     () =>
       groupWaitingCellsByInstrumentAndDay(
-        [...(waitingCellsQuery.data?.items ?? []), ...(terminalCellsQuery.data?.items ?? [])],
+        [...(waitingCellsQuery.data ?? []), ...(terminalCellsQuery.data ?? [])],
         win.days,
         vacatedTrayIds,
       ),
     [waitingCellsQuery.data, terminalCellsQuery.data, win.days, vacatedTrayIds],
   );
   const blockedWellsByInstrument = useMemo(
-    () => groupBlockedWellsByInstrument(blockedCellsQuery.data?.items ?? []),
+    () => groupBlockedWellsByInstrument(blockedCellsQuery.data ?? []),
     [blockedCellsQuery.data],
   );
   // `cycles` is fetched a few days wider than the visible window (see lookbackDateFrom

@@ -28,10 +28,10 @@ import styles from "./OpenTraysAccordion.module.css";
 export function OpenTraysAccordion() {
   const openCellsQuery = useQuery({
     queryKey: ["cells", "open-trays"],
-    queryFn: () => cellsApi.list({ status: "open", page_size: 200 }),
+    queryFn: () => cellsApi.listAll({ status: "open" }),
   });
 
-  const grouped = groupOpenTrayIdsByInstrument(openCellsQuery.data?.items ?? []);
+  const grouped = groupOpenTrayIdsByInstrument(openCellsQuery.data ?? []);
   const trayCount = countOpenTrays(grouped);
   const instrumentEntries = [...grouped.entries()].sort((a, b) =>
     a[0].localeCompare(b[0], undefined, { numeric: true }),

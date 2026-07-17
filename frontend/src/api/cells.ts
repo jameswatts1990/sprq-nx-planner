@@ -22,8 +22,27 @@ export interface ListCellsParams {
   page_size?: number;
 }
 
+/** Follows pagination until every matching cell has been collected - for system-wide
+ * reads (every open/stopped/terminal cell, for ghost rendering and the open-trays list)
+ * where a fixed page_size would silently truncate to the N most-recently-created cells
+ * as the total grows, dropping older still-relevant cells (e.g. an unused tray sibling)
+ * with no visible sign anything was cut off. Not for CellsPage's browse UI, which keeps
+ * real page/page_size controls since the user can see and page through its total. */
+async function listAll(params: Omit<ListCellsParams, "page" | "page_size"> = {}): Promise<CellOut[]> {
+  const page_size = 500;
+  const first = await cellsApi.list({ ...params, page: 1, page_size });
+  const items = [...first.items];
+  for (let page = 2; items.length < first.total; page++) {
+    const next = await cellsApi.list({ ...params, page, page_size });
+    if (next.items.length === 0) break;
+    items.push(...next.items);
+  }
+  return items;
+}
+
 export const cellsApi = {
   list: (params: ListCellsParams = {}) => api.get<Page<CellOut>>(`/api/cells${buildQuery(params)}`),
+  listAll,
   get: (id: number) => api.get<CellDetailOut>(`/api/cells/${id}`),
   bootstrap: (req: CellBootstrapRequest) => api.post<CellDetailOut>("/api/cells/bootstrap", req),
   retire: (id: number) => api.post<CellOut>(`/api/cells/${id}/retire`),

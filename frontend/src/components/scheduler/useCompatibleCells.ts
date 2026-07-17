@@ -36,13 +36,13 @@ export function useCompatibleCells({
   enabled = true,
 }: UseCompatibleCellsOptions) {
   const cellsQuery = useQuery({
-    queryKey: ["cells", { status: "open", instrument_serial: instrumentSerial, page_size: 200 }],
-    queryFn: () => cellsApi.list({ status: "open", instrument_serial: instrumentSerial, page_size: 200 }),
+    queryKey: ["cells", { status: "open", instrument_serial: instrumentSerial }],
+    queryFn: () => cellsApi.listAll({ status: "open", instrument_serial: instrumentSerial }),
     enabled,
   });
 
   const compatible = enabled
-    ? (cellsQuery.data?.items ?? [])
+    ? (cellsQuery.data ?? [])
         .filter((c) => isCompatible(c, sampleBarcodes, excludeCellId, targetWell))
         // Group cells from the same physical SPRQ-Nx SMRT Cell tray together, in
         // cell-number (tray_position) order, so a tray's siblings render adjacently
