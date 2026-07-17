@@ -18,6 +18,7 @@ function baseStage(overrides: Partial<StageOut> = {}): StageOut {
     cell_use_status: "planned",
     cell_status: "open",
     tray_position: 1,
+    tray_id: null,
     window_hours_elapsed: null,
     ...overrides,
   };

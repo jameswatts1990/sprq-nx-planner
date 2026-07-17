@@ -44,6 +44,8 @@ const GHOST_EXAMPLE_CELL: CellOut = {
   pacbio_reported_at: null,
   pacbio_credit_confirmed_at: null,
   credit_received_at: null,
+  discarded_reason: null,
+  discarded_at: null,
   tray_id: 7,
   tray_position: 2,
   tray_size: 4,
@@ -85,6 +87,7 @@ const LINK_EXAMPLE_SOURCE: StageOut = {
   cell_use_status: "completed",
   cell_status: "open",
   tray_position: 2,
+  tray_id: 7,
   window_hours_elapsed: 60,
 };
 const LINK_EXAMPLE_PEER: StageOut = {

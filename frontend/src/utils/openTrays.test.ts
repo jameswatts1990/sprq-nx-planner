@@ -30,6 +30,8 @@ function baseCell(overrides: Partial<CellOut> = {}): CellOut {
     pacbio_reported_at: null,
     pacbio_credit_confirmed_at: null,
     credit_received_at: null,
+    discarded_reason: null,
+    discarded_at: null,
     tray_id: 1,
     tray_position: 1,
     tray_size: 4,
