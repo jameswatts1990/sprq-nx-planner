@@ -33,15 +33,20 @@ export function groupCyclesByInstrumentAndDay(cycles: CycleOut[]): Map<string, M
 
 /**
  * Whether a grid cell is open for selection/placement: no cycle exists yet, or one exists
- * but has no *active* stages. A stage-less cycle can happen when every stage of a run gets
- * removed (normally the backend deletes the now-empty cycle too, but a concurrent bulk
- * removal - "Remove from schedule" multi-select or "Clear schedule" - can race and leave a
- * stage-less cycle behind). A cancelled-only cycle happens when a cell was Stopped before
- * its planned use ran: that stage is kept forever as a permanent marker (the backend
- * refuses to remove it), occupying one well while the rest of the run stays genuinely
- * empty. Neither case should leave the whole grid cell permanently stuck as unselectable.
+ * but has no *active* stages, AND no carry-over lock from an earlier run on this same
+ * instrument is still occupying the day (see findCarryOverLock below) - a day with no
+ * cycle of its own can still be physically closed if the instrument is still loaded from
+ * a run that started one or two days earlier. A stage-less cycle can happen when every
+ * stage of a run gets removed (normally the backend deletes the now-empty cycle too, but a
+ * concurrent bulk removal - "Remove from schedule" multi-select or "Clear schedule" - can
+ * race and leave a stage-less cycle behind). A cancelled-only cycle happens when a cell
+ * was Stopped before its planned use ran: that stage is kept forever as a permanent marker
+ * (the backend refuses to remove it), occupying one well while the rest of the run stays
+ * genuinely empty. Neither case should leave the whole grid cell permanently stuck as
+ * unselectable.
  */
-export function isCellOpen(cycle: CycleOut | undefined): boolean {
+export function isCellOpen(cycle: CycleOut | undefined, carryOverLock: CycleOut | undefined): boolean {
+  if (carryOverLock !== undefined) return false;
   return cycle === undefined || cycle.stages.every((s) => s.cell_use_status === "cancelled");
 }
 

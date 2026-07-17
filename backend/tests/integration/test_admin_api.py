@@ -117,8 +117,14 @@ def test_clearing_cycles_deletes_the_now_orphaned_run_batch(client):
     run_batches_after = client.get("/api/admin/tables/run_batches/rows").json()["total"]
     assert run_batches_after == 0
 
-    # Placing into that exact (instrument, day) again must succeed cleanly, not 500.
-    retry = _place(client, _sid(client, "A1"), mon, slot_index=0)
+    # Placing into that exact (instrument, day) again must succeed cleanly, not 500. Slot 4
+    # rather than slot 0 - the raw table-clear bypasses cleanup_tray_if_fully_unused (see
+    # cell_service.py), so the original tray's Cell rows (still status "open") are
+    # orphaned but left behind occupying wells A01-D01; what this test actually checks is
+    # the RunBatch/Cycle recreation path, not well A01 specifically, so slot 4 (a wholly
+    # untouched tray box) proves the same point without hitting that separate, accepted
+    # rough edge of the dev-only Admin table-clear tool.
+    retry = _place(client, _sid(client, "A1"), mon, slot_index=4)
     assert retry.status_code == 201, retry.text
 
 

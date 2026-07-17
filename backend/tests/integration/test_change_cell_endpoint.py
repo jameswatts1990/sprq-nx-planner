@@ -55,15 +55,19 @@ def _bootstrap(client, instrument_serial="84047", uses_consumed=0, burned_barcod
 
 
 def test_change_cell_swaps_to_an_existing_compatible_cell(client):
-    client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1\nA2,bc2"})
-    mon, tue = _weekdays(2)
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1"})
+    (mon,) = _weekdays(1)
 
     r1 = _place(client, _sid(client, "A1"), mon, slot_index=0)
     cell_use_id = r1.json()["stages"][0]["cell_use_id"]
     old_cell_id = r1.json()["stages"][0]["cell_id"]
 
-    r2 = _place(client, _sid(client, "A2"), tue, slot_index=0, start_hour=15)
-    new_cell_id = r2.json()["stages"][0]["cell_id"]
+    # A bootstrap cell (well "A01", no tray) rather than a second real placement at the
+    # same well/day - well A01 can only ever have one physical tray loaded on it at a time
+    # (see open_new_tray()'s box guard), so a second "new" placement there is no longer a
+    # valid way to get a second, well-compatible target cell to swap onto.
+    new_cell = _bootstrap(client, uses_consumed=1, burned_barcodes=["bc2"])
+    new_cell_id = new_cell["id"]
 
     resp = _change_cell(client, cell_use_id, {"mode": "existing", "cell_id": new_cell_id})
     assert resp.status_code == 200, resp.text
@@ -77,9 +81,9 @@ def test_change_cell_swaps_to_an_existing_compatible_cell(client):
     # the vacated cell was the only real use anywhere in its own tray - every sibling was
     # still 0/3 - so the whole tray is cleaned up rather than left behind as a ghost
     assert client.get(f"/api/cells/{old_cell_id}").status_code == 404
-    new_cell = client.get(f"/api/cells/{new_cell_id}").json()
-    assert new_cell["uses_consumed"] == 2
-    assert set(new_cell["burned_barcodes"]) == {"bc1", "bc2"}
+    new_cell_detail = client.get(f"/api/cells/{new_cell_id}").json()
+    assert new_cell_detail["uses_consumed"] == 2
+    assert set(new_cell_detail["burned_barcodes"]) == {"bc1", "bc2"}
 
 
 def test_change_cell_to_a_brand_new_cell(client):
@@ -104,16 +108,20 @@ def test_change_cell_to_a_brand_new_cell(client):
 
 
 def test_change_cell_keeps_old_cell_alive_when_it_still_has_other_uses(client):
-    client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1\nA2,bc2\nA3,bc3"})
-    mon, tue, wed = _weekdays(3)
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1\nA2,bc2"})
+    mon, tue = _weekdays(2)
 
     r1 = _place(client, _sid(client, "A1"), mon, slot_index=0)
     shared_cell_id = r1.json()["stages"][0]["cell_id"]
     r2 = _place(client, _sid(client, "A2"), tue, slot_index=0, cell_choice={"mode": "existing", "cell_id": shared_cell_id}, start_hour=15)
     cell_use_id_2 = r2.json()["stages"][0]["cell_use_id"]
 
-    r3 = _place(client, _sid(client, "A3"), wed, slot_index=0, start_hour=15)
-    other_cell_id = r3.json()["stages"][0]["cell_id"]
+    # A bootstrap cell (well "A01", no tray) rather than a third real placement at the same
+    # well/day - well A01 already has shared_cell_id's own physical tray loaded on it (see
+    # open_new_tray()'s box guard), so a third "new" placement there is no longer a valid
+    # way to get another, well-compatible target cell to swap onto.
+    other = _bootstrap(client, uses_consumed=0)
+    other_cell_id = other["id"]
 
     resp = _change_cell(client, cell_use_id_2, {"mode": "existing", "cell_id": other_cell_id})
     assert resp.status_code == 200, resp.text
@@ -179,7 +187,11 @@ def test_change_cell_rejects_an_exhausted_target_cell(client):
     _place(client, _sid(client, "A3"), wed, slot_index=0, cell_choice={"mode": "existing", "cell_id": full_cell_id}, start_hour=15)
     # full_cell_id now has all 3 of its uses consumed
 
-    r4 = _place(client, _sid(client, "A4"), thu, slot_index=0, start_hour=15)
+    # slot 4 (well A02, tray box 2), not slot 0 (well A01) - well A01 already has
+    # full_cell_id's own physical tray loaded on it (see open_new_tray()'s box guard), and
+    # the target-cell "not open" check below fires before any well-compatibility check
+    # runs, so a well in a different box doesn't affect what this test is verifying.
+    r4 = _place(client, _sid(client, "A4"), thu, slot_index=4, start_hour=15)
     cell_use_id_4 = r4.json()["stages"][0]["cell_use_id"]
 
     resp = _change_cell(client, cell_use_id_4, {"mode": "existing", "cell_id": full_cell_id})

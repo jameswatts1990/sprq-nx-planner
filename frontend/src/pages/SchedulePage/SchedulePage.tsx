@@ -10,6 +10,7 @@ import { instrumentsApi } from "@/api/instruments";
 import { schedulerApi } from "@/api/schedulerGrid";
 import { CellChoicePicker } from "@/components/scheduler/CellChoicePicker";
 import {
+  findCarryOverLock,
   groupCyclesByInstrumentAndDay,
   isCellOpen,
   LOCK_LOOKBACK_DAYS,
@@ -165,7 +166,10 @@ export function SchedulePage() {
       win.days.forEach((date, c) => {
         if (!selection.isSelected(r, c)) return;
         if (isWeekendUTC(parseDateOnly(date))) return;
-        if (!isCellOpen(grouped.get(serial)?.get(date))) return;
+        const byDate = grouped.get(serial);
+        const cycle = byDate?.get(date);
+        const carryOverLock = cycle || !byDate ? undefined : findCarryOverLock(byDate, date);
+        if (!isCellOpen(cycle, carryOverLock)) return;
         out.push({ instrument_serial: serial, run_date: date });
       });
     });

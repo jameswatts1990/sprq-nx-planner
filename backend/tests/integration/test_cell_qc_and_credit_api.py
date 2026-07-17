@@ -356,8 +356,12 @@ def test_mark_cell_use_aborted_returns_sample_straight_to_backlog(client):
     stage_after = client.get(f"/api/cycles/{cycle_id}").json()["stages"][0]
     assert stage_after["cell_use_status"] == "aborted"
 
-    # The backlog-returned sample can be rescheduled immediately - no extra step needed
-    reschedule = _place(client, a1_id, _weekdays(2)[-1], 0, {"mode": "new"})
+    # The backlog-returned sample can be rescheduled immediately - no extra step needed.
+    # Slot 4 (well A02, tray box 2), not slot 0 (well A01) - well A01 already has the
+    # original cell's own physical tray loaded on it (see open_new_tray()'s box guard),
+    # and reusing that same cell directly would trip the barcode-conflict guard instead
+    # (it already burned bca1 on its own aborted use).
+    reschedule = _place(client, a1_id, _weekdays(2)[-1], 4, {"mode": "new"})
     assert reschedule.status_code == 201, reschedule.text
 
 
@@ -562,9 +566,18 @@ def test_bulk_clear_style_removal_skips_cancelled_marker_and_removes_the_rest(cl
     r1 = _place(client, _sid(client, "D1"), mon, 0, {"mode": "new"})
     cell_id = r1.json()["stages"][0]["cell_id"]
     cycle_id = r1.json()["cycle_id"]
-    r2 = _place(client, _sid(client, "D2"), mon, 1, {"mode": "new"})
-    r3 = _place(client, _sid(client, "D3"), mon, 2, {"mode": "new"})
-    r4 = _place(client, _sid(client, "D4"), mon, 3, {"mode": "new"})
+    tray_id = r1.json()["stages"][0]["tray_id"]
+    # D1's placement already opened the whole physical tray (eager tray-of-4 population) -
+    # its 3 unused siblings occupy wells B01/C01/D01, so D2-D4 must reuse them via
+    # "existing" (see open_new_tray()'s box guard) rather than each opening a competing
+    # new tray at a well the first tray already occupies.
+    tray_cells = {
+        c["current_well"]: c["id"]
+        for c in client.get("/api/cells", params={"tray_id": tray_id, "page_size": 10}).json()["items"]
+    }
+    r2 = _place(client, _sid(client, "D2"), mon, 1, {"mode": "existing", "cell_id": tray_cells["B01"]})
+    r3 = _place(client, _sid(client, "D3"), mon, 2, {"mode": "existing", "cell_id": tray_cells["C01"]})
+    r4 = _place(client, _sid(client, "D4"), mon, 3, {"mode": "existing", "cell_id": tray_cells["D01"]})
     # All 4 placements land in the same instrument/date cycle, so every response above
     # echoes that whole cycle's stages, not just its own - and stages are well-sorted, so
     # stages[0] is always D1's own use (well A01) in every one of r1..r4's payload. Read the

@@ -45,7 +45,8 @@ export function SchedulerGridRow({
   const selectableCols: number[] = [];
   days.forEach((date, colIndex) => {
     const weekend = isWeekendUTC(parseDateOnly(date));
-    if (!weekend && isCellOpen(cyclesByDate.get(date))) selectableCols.push(colIndex);
+    const cycle = cyclesByDate.get(date);
+    if (!weekend && isCellOpen(cycle, cycle ? undefined : findCarryOverLock(cyclesByDate, date))) selectableCols.push(colIndex);
   });
 
   // Ctrl/cmd-click unions this instrument's row into the existing selection instead of
@@ -87,9 +88,9 @@ export function SchedulerGridRow({
       {days.map((date, colIndex) => {
         const weekend = isWeekendUTC(parseDateOnly(date));
         const cycle = cyclesByDate.get(date);
-        const selectable = !weekend && isCellOpen(cycle);
-        const selected = selectable && selection.isSelected(rowIndex, colIndex);
         const carryOverLock = cycle ? undefined : findCarryOverLock(cyclesByDate, date);
+        const selectable = !weekend && isCellOpen(cycle, carryOverLock);
+        const selected = selectable && selection.isSelected(rowIndex, colIndex);
         return (
           <SchedulerDayCell
             key={date}

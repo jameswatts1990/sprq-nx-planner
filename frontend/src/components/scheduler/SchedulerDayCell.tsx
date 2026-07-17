@@ -97,7 +97,13 @@ export function SchedulerDayCell(props: SchedulerDayCellProps) {
     return <td className={`${styles.cell} ${styles.weekend}`} aria-hidden="true" />;
   }
 
-  const locked = cycle !== undefined && cycle.status !== "planned";
+  // A day with no cycle of its own is still effectively locked if an earlier run's lock
+  // carries over onto it (carryOverLock) - the instrument is still physically loaded, so
+  // every slot below must render as a read-only marker (or non-droppable ghost), same as
+  // a genuinely locked cycle, rather than falling through to a live, droppable "+" just
+  // because this exact day has no Cycle row of its own yet (see isCellOpen, which gates
+  // selectability the same way).
+  const locked = (cycle !== undefined && cycle.status !== "planned") || (cycle === undefined && carryOverLock !== undefined);
   const filledCount = cycle ? cycle.stages.length : 0;
   // lock_until's calendar date > this cell's own run_date - the run's lock bleeds into
   // (or past) subsequent days, worth calling out right where it started.

@@ -107,9 +107,13 @@ def test_move_rejects_slot_already_occupied(client):
 
     r1 = _place(client, _sid(client, "A1"), mon, slot_index=0)
     cell_use_id = r1.json()["stages"][0]["cell_use_id"]
-    _place(client, _sid(client, "A2"), mon, slot_index=1)
+    # slot 4 (well A02, tray box 2), not slot 1 (well B01) - slot 1 is already an unused
+    # sibling of the tray slot 0 just opened, so a "new" placement there would now collide
+    # with open_new_tray()'s box guard; slot 4 opens a genuinely separate tray.
+    r2 = _place(client, _sid(client, "A2"), mon, slot_index=4)
+    assert r2.status_code == 201, r2.text
 
-    moved = _move(client, cell_use_id, mon, slot_index=1)
+    moved = _move(client, cell_use_id, mon, slot_index=4)
     assert moved.status_code == 409, moved.text
     assert "occupied" in moved.json()["detail"].lower()
 

@@ -34,18 +34,26 @@ def _sid(client, external_id: str) -> int:
     return next(s["id"] for s in items if s["external_id"] == external_id)
 
 
-def _place(client, sample_id, run_date, slot_index=0, instrument="84047", run_time_hours=24, start_hour=None):
+def _place(client, sample_id, run_date, slot_index=0, instrument="84047", run_time_hours=24, start_hour=None, cell_choice=None):
     payload = {
         "sample_id": sample_id,
         "instrument_serial": instrument,
         "run_date": run_date,
         "slot_index": slot_index,
-        "cell_choice": {"mode": "new"},
+        "cell_choice": cell_choice or {"mode": "new"},
         "run_time_hours": run_time_hours,
     }
     if start_hour is not None:
         payload["start_hour"] = start_hour
     return client.post("/api/cell-uses", json=payload)
+
+
+def _sibling_cell_id(client, tray_id, well):
+    """An unused sibling cell (home_well == well) of an already-open tray - a "new"
+    placement can't land at a well its own tray already occupies (see open_new_tray()'s
+    box guard), so a same-box, different-well placement must reuse this sibling instead."""
+    items = client.get("/api/cells", params={"tray_id": tray_id, "page_size": 10}).json()["items"]
+    return next(c["id"] for c in items if c["current_well"] == well)
 
 
 def test_single_tray_run_only_locks_for_the_short_setup_window(client):
@@ -56,8 +64,11 @@ def test_single_tray_run_only_locks_for_the_short_setup_window(client):
     # so Tuesday's default noon start is well past it and succeeds.
     r1 = _place(client, _sid(client, "A1"), mon, slot_index=0, run_time_hours=24)
     assert r1.status_code == 201, r1.text
+    cell_id_1 = r1.json()["stages"][0]["cell_id"]
 
-    r2 = _place(client, _sid(client, "A2"), tue, run_time_hours=24)
+    # Reuses Monday's cell for its Use 2 (well A01 is already that cell's own tray - see
+    # open_new_tray()'s box guard) rather than opening a second, unrelated tray.
+    r2 = _place(client, _sid(client, "A2"), tue, run_time_hours=24, cell_choice={"mode": "existing", "cell_id": cell_id_1})
     assert r2.status_code == 201, r2.text
 
 
@@ -84,10 +95,15 @@ def test_two_tray_run_start_at_or_after_prior_lock_succeeds(client):
 
     r1 = _place(client, _sid(client, "A1"), mon, slot_index=0, run_time_hours=24)
     assert r1.status_code == 201, r1.text
+    cell_id_1 = r1.json()["stages"][0]["cell_id"]
     r2 = _place(client, _sid(client, "A2"), mon, slot_index=4, run_time_hours=24)
     assert r2.status_code == 201, r2.text
 
-    r3 = _place(client, _sid(client, "A3"), tue, run_time_hours=24, start_hour=18)
+    # Both of 84047's tray boxes are already loaded from Monday - reuse tray 1's own cell
+    # for its Use 2 (see open_new_tray()'s box guard) rather than opening a third tray.
+    r3 = _place(
+        client, _sid(client, "A3"), tue, run_time_hours=24, start_hour=18, cell_choice={"mode": "existing", "cell_id": cell_id_1}
+    )
     assert r3.status_code == 201, r3.text
 
 
@@ -99,6 +115,7 @@ def test_lock_lookback_finds_a_two_tray_run_from_two_days_earlier(client):
     # Monday 20:00 + 36h = Wed 08:00.
     r1 = _place(client, _sid(client, "A1"), mon, slot_index=0, run_time_hours=30, start_hour=20)
     assert r1.status_code == 201, r1.text
+    cell_id_1 = r1.json()["stages"][0]["cell_id"]
     r2 = _place(client, _sid(client, "A2"), mon, slot_index=4, run_time_hours=30, start_hour=20)
     assert r2.status_code == 201, r2.text
 
@@ -108,8 +125,12 @@ def test_lock_lookback_finds_a_two_tray_run_from_two_days_earlier(client):
     assert too_early.status_code == 409, too_early.text
     assert "locked" in too_early.json()["detail"].lower()
 
-    # Same instrument, same day, once the lock has actually elapsed - succeeds.
-    late_enough = _place(client, _sid(client, "A3"), wed, run_time_hours=24, start_hour=8)
+    # Same instrument, same day, once the lock has actually elapsed - succeeds. Both tray
+    # boxes are already loaded from Monday, so reuse tray 1's own cell for its Use 2 (see
+    # open_new_tray()'s box guard) rather than opening a third tray.
+    late_enough = _place(
+        client, _sid(client, "A3"), wed, run_time_hours=24, start_hour=8, cell_choice={"mode": "existing", "cell_id": cell_id_1}
+    )
     assert late_enough.status_code == 201, late_enough.text
 
 
@@ -120,10 +141,15 @@ def test_loading_into_existing_run_never_blocked_by_its_own_lock(client):
     r1 = _place(client, _sid(client, "A1"), mon, slot_index=0, run_time_hours=24)
     assert r1.status_code == 201, r1.text
     assert r1.json()["is_locked"] is False  # run_date is in the future relative to "now"
+    tray_id = r1.json()["stages"][0]["tray_id"]
 
     # A second sample into the SAME (instrument, day) run, a different well - never gated
-    # by the lock check, since it's not creating a new run.
-    r2 = _place(client, _sid(client, "A2"), mon, slot_index=1, run_time_hours=24)
+    # by the lock check, since it's not creating a new run. Reuses the tray's own unused
+    # sibling at well B01 (see open_new_tray()'s box guard) rather than opening a new tray.
+    sibling_id = _sibling_cell_id(client, tray_id, "B01")
+    r2 = _place(
+        client, _sid(client, "A2"), mon, slot_index=1, run_time_hours=24, cell_choice={"mode": "existing", "cell_id": sibling_id}
+    )
     assert r2.status_code == 201, r2.text
     assert r2.json()["cycle_id"] == r1.json()["cycle_id"]
 
@@ -200,6 +226,7 @@ def test_latest_lock_until_ignores_a_completed_run_from_the_lookback_window(clie
     # test_lock_lookback_finds_a_two_tray_run_from_two_days_earlier).
     r1 = _place(client, _sid(client, "A1"), mon, slot_index=0, run_time_hours=30, start_hour=20)
     assert r1.status_code == 201, r1.text
+    cell_id_1 = r1.json()["stages"][0]["cell_id"]
     r2 = _place(client, _sid(client, "A2"), mon, slot_index=4, run_time_hours=30, start_hour=20)
     assert r2.status_code == 201, r2.text
     cycle_id = r1.json()["cycle_id"]
@@ -209,7 +236,11 @@ def test_latest_lock_until_ignores_a_completed_run_from_the_lookback_window(clie
     db_session.commit()
 
     # Wednesday morning, still well within the old (now-irrelevant) projected lock window.
-    resp = _place(client, _sid(client, "A3"), wed, run_time_hours=24, start_hour=7)
+    # Both tray boxes are already loaded from Monday, so reuse tray 1's own cell for its
+    # Use 2 (see open_new_tray()'s box guard) rather than opening a third tray.
+    resp = _place(
+        client, _sid(client, "A3"), wed, run_time_hours=24, start_hour=7, cell_choice={"mode": "existing", "cell_id": cell_id_1}
+    )
     assert resp.status_code == 201, resp.text
 
 
@@ -219,6 +250,7 @@ def test_latest_lock_until_ignores_an_aborted_run_from_the_lookback_window(clien
 
     r1 = _place(client, _sid(client, "A1"), mon, slot_index=0, run_time_hours=30, start_hour=20)
     assert r1.status_code == 201, r1.text
+    cell_id_1 = r1.json()["stages"][0]["cell_id"]
     r2 = _place(client, _sid(client, "A2"), mon, slot_index=4, run_time_hours=30, start_hour=20)
     assert r2.status_code == 201, r2.text
     cycle_id = r1.json()["cycle_id"]
@@ -227,7 +259,11 @@ def test_latest_lock_until_ignores_an_aborted_run_from_the_lookback_window(clien
     cycle.status = "aborted"
     db_session.commit()
 
-    resp = _place(client, _sid(client, "A3"), wed, run_time_hours=24, start_hour=7)
+    # Both tray boxes are already loaded from Monday, so reuse tray 1's own cell for its
+    # Use 2 (see open_new_tray()'s box guard) rather than opening a third tray.
+    resp = _place(
+        client, _sid(client, "A3"), wed, run_time_hours=24, start_hour=7, cell_choice={"mode": "existing", "cell_id": cell_id_1}
+    )
     assert resp.status_code == 201, resp.text
 
 

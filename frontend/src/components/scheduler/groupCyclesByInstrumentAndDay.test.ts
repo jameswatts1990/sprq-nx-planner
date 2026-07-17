@@ -43,16 +43,16 @@ function baseCycle(overrides: Partial<CycleOut> = {}): CycleOut {
 }
 
 describe("isCellOpen", () => {
-  it("is open when no cycle exists yet", () => {
-    expect(isCellOpen(undefined)).toBe(true);
+  it("is open when no cycle exists yet and no carry-over lock applies", () => {
+    expect(isCellOpen(undefined, undefined)).toBe(true);
   });
 
   it("is open when the cycle has no stages at all", () => {
-    expect(isCellOpen(baseCycle({ stages: [] }))).toBe(true);
+    expect(isCellOpen(baseCycle({ stages: [] }), undefined)).toBe(true);
   });
 
   it("is NOT open when the cycle has a real planned stage", () => {
-    expect(isCellOpen(baseCycle({ stages: [baseStage({ cell_use_status: "planned" })] }))).toBe(false);
+    expect(isCellOpen(baseCycle({ stages: [baseStage({ cell_use_status: "planned" })] }), undefined)).toBe(false);
   });
 
   it("is open when every stage is a cancelled stopped-cell marker", () => {
@@ -62,7 +62,7 @@ describe("isCellOpen", () => {
         baseStage({ cell_use_id: 11, slot_index: 1, well: "B01", cell_use_status: "cancelled" }),
       ],
     });
-    expect(isCellOpen(cycle)).toBe(true);
+    expect(isCellOpen(cycle, undefined)).toBe(true);
   });
 
   it("is NOT open when a cancelled marker sits alongside a real placement", () => {
@@ -72,12 +72,17 @@ describe("isCellOpen", () => {
         baseStage({ cell_use_id: 12, slot_index: 1, well: "B01", cell_use_status: "planned" }),
       ],
     });
-    expect(isCellOpen(cycle)).toBe(false);
+    expect(isCellOpen(cycle, undefined)).toBe(false);
   });
 
   it("is NOT open when the only stage recorded a real QC outcome (failed/aborted/completed/started)", () => {
     for (const status of ["failed", "aborted", "completed", "started"]) {
-      expect(isCellOpen(baseCycle({ stages: [baseStage({ cell_use_status: status })] }))).toBe(false);
+      expect(isCellOpen(baseCycle({ stages: [baseStage({ cell_use_status: status })] }), undefined)).toBe(false);
     }
+  });
+
+  it("is NOT open when no cycle exists yet but an earlier run's lock still carries over", () => {
+    const carryOverLock = baseCycle({ cycle_id: 2, run_date: "2026-07-17", lock_until: "2026-07-21T18:00:00Z" });
+    expect(isCellOpen(undefined, carryOverLock)).toBe(false);
   });
 });

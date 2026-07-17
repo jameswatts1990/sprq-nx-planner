@@ -83,7 +83,7 @@ def current_location(cell: Cell) -> tuple[str | None, str | None]:
     return (instrument.serial_number if instrument else None), last.well
 
 
-def open_new_tray(db: Session, instrument_id: int, well: str) -> list[Cell]:
+def open_new_tray(db: Session, instrument_id: int, well: str, *, exclude_tray_id: int | None = None) -> list[Cell]:
     """Open a brand-new physical SMRT Cell tray: creates one CellTray row plus all
     CELLS_PER_TRAY Cell rows at once (position 1..4, status "open", 0 uses), not just the
     one about to be used. The other 3 are real, reusable cells from this point on - they
@@ -99,9 +99,39 @@ def open_new_tray(db: Session, instrument_id: int, well: str) -> list[Cell]:
     current_location() and render in the weekly grid before it's ever used.
 
     Returns the 4 cells reordered so index 0 is always the cell whose home_well == well
-    (the one being placed right now), followed by its 3 siblings in position order."""
+    (the one being placed right now), followed by its 3 siblings in position order.
+
+    Raises ValueError if this box still has a live physical tray on it - some Cell already
+    occupies one of its wells with `status == "open"` (real remaining capacity, or a never-
+    yet-used sibling still waiting to be picked up). Callers that legitimately reuse an
+    already-open box (auto_fill_service's opened_boxes cache, the frontend's waiting-cell
+    ghosts) must resolve to that existing Cell instead of calling this - see
+    docs/pacbio-sprq-nx-scheduling-reference.md's "Tray-of-4 eager population" bug history
+    for why silently minting a second physical tray here instead of raising is how a tray
+    ends up with non-continuous/duplicated cell ids. A box whose every cell has gone
+    terminal (stopped/exhausted/window_expired/retired) is *not* a collision - the physical
+    tray has genuinely left the instrument, mirroring the frontend's own
+    waitingCells.computeVacatedTrayIds - so a brand-new tray can be loaded into it again.
+
+    `exclude_tray_id` excludes one specific tray from the collision check - change_cell()'s
+    own "swap to a brand-new cell in this same well" path deliberately opens a fresh tray
+    right on top of the one it's about to vacate (passing the old cell's tray_id here), and
+    relies on cleanup_tray_if_fully_unused() to delete that old tray immediately afterward
+    once every one of its cells reads 0 uses. Excluding it here is what makes that a real
+    hot-swap instead of a collision with the caller's own soon-to-be-retired tray."""
     box_start = (WELLS.index(well) // CELLS_PER_TRAY) * CELLS_PER_TRAY
     box_wells = WELLS[box_start : box_start + CELLS_PER_TRAY]
+
+    collision_query = select(Cell.id).join(Cell.tray).where(
+        CellTray.instrument_id == instrument_id, Cell.home_well.in_(box_wells), Cell.status == "open"
+    )
+    if exclude_tray_id is not None:
+        collision_query = collision_query.where(CellTray.id != exclude_tray_id)
+    collision = db.scalar(collision_query)
+    if collision is not None:
+        raise ValueError(
+            f"well {well} is already occupied by an existing physical tray (wells {box_wells}) on this instrument."
+        )
 
     tray = CellTray(instrument_id=instrument_id)
     db.add(tray)

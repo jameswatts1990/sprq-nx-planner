@@ -107,6 +107,23 @@ def test_place_sample_rejects_well_collision(client):
     assert "occupied" in r2.json()["detail"].lower()
 
 
+def test_place_sample_rejects_new_cell_when_its_tray_box_already_has_an_open_tray(client):
+    """open_new_tray() must never mint a second physical tray over wells an existing one
+    already occupies - this is what "eager tray population" depends on for continuous
+    cell ids (see docs/pacbio-sprq-nx-scheduling-reference.md). Placing into slot 0 (well
+    A01) opens a tray spanning A01-D01 with 3 unused siblings; a later mode="new" request
+    into any other well of that same box (here slot 1, well B01) must be rejected rather
+    than silently opening a second overlapping tray."""
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1\nA2,bc2"})
+    mon, tue = _weekdays(2)
+    r1 = _place(client, _sid(client, "A1"), mon, 0)
+    assert r1.status_code == 201, r1.text
+
+    r2 = _place(client, _sid(client, "A2"), tue, 1)
+    assert r2.status_code == 409, r2.text
+    assert "occupied by an existing physical tray" in r2.json()["detail"].lower()
+
+
 def test_place_sample_rejects_movie_length_mismatch(client):
     client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1\nA2,bc2"})
     (mon,) = _weekdays(1)
@@ -315,7 +332,10 @@ def test_patch_cycle_aborted_cascades_started_uses_to_aborted_and_samples_to_bac
     r1 = _place(client, a1, mon, 0)
     cycle_id = r1.json()["cycle_id"]
     cell_id_1 = r1.json()["stages"][0]["cell_id"]
-    r2 = _place(client, a2, mon, 1)
+    # slot 4 (well A02, tray box 2) rather than slot 1 (well B01) - slot 1 is already an
+    # unused sibling of the tray slot 0 just opened, so a "new" placement there would now
+    # collide with open_new_tray()'s box guard; slot 4 opens a genuinely separate tray.
+    r2 = _place(client, a2, mon, 4)
     cell_id_2 = r2.json()["stages"][0]["cell_id"]
 
     assert client.patch(f"/api/cycles/{cycle_id}", json={"status": "running"}).status_code == 200
@@ -330,8 +350,13 @@ def test_patch_cycle_aborted_cascades_started_uses_to_aborted_and_samples_to_bac
     assert client.get(f"/api/samples/{a1}").json()["status"] == "backlog"
     assert client.get(f"/api/samples/{a2}").json()["status"] == "backlog"
 
-    # the backlog-returned sample can be rescheduled immediately - no extra requeue step
-    reschedule = _place(client, a1, _weekdays(2)[-1], 0)
+    # the backlog-returned sample can be rescheduled immediately - no extra requeue step.
+    # Both of this instrument's tray boxes are still loaded (cell_id_1/cell_id_2's trays -
+    # aborting doesn't exhaust or vacate them), and reusing cell_id_1 itself would trip the
+    # barcode-conflict guard (it already burned bc1 on its own aborted use) - reschedule
+    # onto a different instrument instead, which is enough to prove no extra requeue step
+    # is needed.
+    reschedule = _place(client, a1, _weekdays(2)[-1], 0, instrument="84098")
     assert reschedule.status_code == 201, reschedule.text
 
     # both cells stay open - a whole-run abort is not a cell-quality failure
@@ -346,7 +371,10 @@ def test_cancel_run_reverts_all_samples_and_deletes_run(client):
     r1 = _place(client, a1, mon, 0)
     cycle_id = r1.json()["cycle_id"]
     cell_id_1 = r1.json()["stages"][0]["cell_id"]
-    r2 = _place(client, a2, mon, 1)
+    # slot 4 (well A02, tray box 2) rather than slot 1 (well B01) - slot 1 is already an
+    # unused sibling of the tray slot 0 just opened, so a "new" placement there would now
+    # collide with open_new_tray()'s box guard; slot 4 opens a genuinely separate tray.
+    r2 = _place(client, a2, mon, 4)
     cell_id_2 = r2.json()["stages"][0]["cell_id"]
 
     resp = client.post(f"/api/cycles/{cycle_id}/cancel")
@@ -376,7 +404,10 @@ def test_cancel_run_preserves_a_cancelled_stopped_cell_marker(client):
     cycle_id = r1.json()["cycle_id"]
     cell_id_1 = r1.json()["stages"][0]["cell_id"]
     cell_use_id_1 = r1.json()["stages"][0]["cell_use_id"]
-    r2 = _place(client, b2, mon, 1)
+    # slot 4 (well A02, tray box 2) rather than slot 1 (well B01) - slot 1 is already an
+    # unused sibling of the tray slot 0 just opened, so a "new" placement there would now
+    # collide with open_new_tray()'s box guard; slot 4 opens a genuinely separate tray.
+    r2 = _place(client, b2, mon, 4)
     # r2's response lists both stages on this shared cycle (sorted by well) - pick out B2's
     # own stage by sample rather than assuming position, since B1's stage (well A01) always
     # sorts first.

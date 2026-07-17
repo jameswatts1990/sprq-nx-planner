@@ -220,8 +220,16 @@ def auto_fill(
             if box_cells is None:
                 # Opens a whole new physical tray (4 cells), not just this one - the
                 # other 3 are left open/unused and surface as preferred reuse candidates
-                # on the next placement/auto-fill call (see open_new_tray()).
-                box_cells = {c.home_well: c for c in open_new_tray(db, instrument_id, well)}
+                # on the next placement/auto-fill call (see open_new_tray()). load_prior_cells
+                # should already have offered any pre-existing box's siblings as prior
+                # candidates, so open_new_tray() raising here (its box-collision guard)
+                # would mean the pre-batch snapshot missed a box opened earlier in this
+                # same loop under a different key, or drifted from the DB some other way -
+                # leave this one sample unplaced rather than roll back the whole batch.
+                try:
+                    box_cells = {c.home_well: c for c in open_new_tray(db, instrument_id, well)}
+                except ValueError:
+                    continue
                 opened_boxes[box_key] = box_cells
             db_cell = box_cells[well]
             ref_to_cell[a.cell.id] = db_cell

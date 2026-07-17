@@ -8,7 +8,7 @@ import {
   shortWeekdayUTC,
 } from "@/utils/calendarDates";
 
-import { groupCyclesByInstrumentAndDay, isCellOpen } from "./groupCyclesByInstrumentAndDay";
+import { findCarryOverLock, groupCyclesByInstrumentAndDay, isCellOpen } from "./groupCyclesByInstrumentAndDay";
 import { SchedulerGridRow } from "./SchedulerGridRow";
 import styles from "./SchedulerGrid.module.css";
 import type { Coord, GridSelection } from "./useGridSelection";
@@ -98,6 +98,14 @@ export function SchedulerGrid({
 }: SchedulerGridProps) {
   const grouped = groupCyclesByInstrumentAndDay(cycles);
 
+  // Mirrors SchedulerGridRow's own selectable computation - a day with no cycle of its
+  // own is still closed if an earlier run's lock carries over onto it.
+  function isDateOpen(serial: string, date: string): boolean {
+    const byDate = grouped.get(serial);
+    const cycle = byDate?.get(date);
+    return isCellOpen(cycle, cycle || !byDate ? undefined : findCarryOverLock(byDate, date));
+  }
+
   // Select every open (non-weekend, cycle-free) cell in a day's column, across all
   // instruments - the header equivalent of shift-selecting a rectangle for a whole day.
   // Ctrl/cmd-click unions this into the existing selection instead of replacing it, so
@@ -106,7 +114,7 @@ export function SchedulerGrid({
     const date = days[colIndex];
     const coords: Coord[] = [];
     instrumentSerials.forEach((serial, rowIndex) => {
-      if (isCellOpen(grouped.get(serial)?.get(date))) coords.push({ r: rowIndex, c: colIndex });
+      if (isDateOpen(serial, date)) coords.push({ r: rowIndex, c: colIndex });
     });
     selection.selectMany(coords, ctrl);
   }
@@ -118,7 +126,7 @@ export function SchedulerGrid({
     instrumentSerials.forEach((serial, rowIndex) => {
       days.forEach((date, colIndex) => {
         if (isWeekendUTC(parseDateOnly(date))) return;
-        if (isCellOpen(grouped.get(serial)?.get(date))) coords.push({ r: rowIndex, c: colIndex });
+        if (isDateOpen(serial, date)) coords.push({ r: rowIndex, c: colIndex });
       });
     });
     selection.selectMany(coords);
