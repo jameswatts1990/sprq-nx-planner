@@ -6,6 +6,7 @@ import { ApiError } from "@/api/client";
 import { cellsApi } from "@/api/cells";
 import { instrumentsApi } from "@/api/instruments";
 import { CellStatusCard } from "@/components/cells/CellStatusCard";
+import { OpenTraysAccordion } from "@/components/cells/OpenTraysAccordion";
 import { Button } from "@/components/ui/Button";
 import { Note } from "@/components/ui/Note";
 import type { CellStatus } from "@/types/common";
@@ -101,6 +102,10 @@ export function CellsPage() {
         <Button variant="primary" onClick={() => setModalOpen(true)}>
           Register in-progress cell
         </Button>
+      </div>
+
+      <div className={styles.trayAccordionWrap}>
+        <OpenTraysAccordion />
       </div>
 
       {query.isLoading && <div className={styles.status}>Loading cells…</div>}

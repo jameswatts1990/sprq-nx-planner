@@ -88,12 +88,18 @@ function DroppableSlot({
   ghost,
   onOpenGhost,
 }: SchedulerSlotProps) {
+  // A terminal ghost (exhausted/window_expired/retired - see waitingCells.
+  // computeTerminalGhost) is purely informational: its cell is dead, so a drop here must
+  // resolve as an ordinary new-tray placement, never an attempted reuse of that cell
+  // (which the backend would reject with "cell is not open"). Only a still-open ghost
+  // (reuse-eligible or an unused sibling) is a real exact-match reuse target.
+  const reuseGhost = ghost && !ghost.terminalStatus ? ghost : undefined;
   const data: SlotDropData = {
     kind: "slot",
     instrument_serial: instrumentSerial,
     run_date: runDate,
     slot_index: slotIndex,
-    ghostCellId: ghost?.cell.id,
+    ghostCellId: reuseGhost?.cell.id,
   };
   const { setNodeRef, isOver } = useDroppable({
     id: slotKey(instrumentSerial, runDate, slotIndex),
@@ -109,7 +115,7 @@ function DroppableSlot({
       placing={placing}
       ineligible={crossInstrumentDragActive}
       ghost={ghost}
-      onClick={ghost && onOpenGhost ? () => onOpenGhost(ghost) : undefined}
+      onClick={reuseGhost && onOpenGhost ? () => onOpenGhost(reuseGhost) : undefined}
     />
   );
 }

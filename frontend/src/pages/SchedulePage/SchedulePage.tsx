@@ -109,6 +109,15 @@ export function SchedulePage() {
     queryFn: () => cellsApi.list({ status: "stopped", page_size: 200 }),
   });
 
+  // Every cell that's gone terminal by ordinary attrition (not a QC stop) - drives the
+  // "terminal ghost" marker (see waitingCells.computeTerminalGhost) so a well that simply
+  // ran out of lawful uses or 108h capacity doesn't silently look identical to one that
+  // never held anything. Same invalidation story as waitingCellsQuery.
+  const terminalCellsQuery = useQuery({
+    queryKey: ["cells", "terminal-wells"],
+    queryFn: () => cellsApi.list({ status: "exhausted,window_expired,retired", page_size: 200 }),
+  });
+
   const instrumentSerials = useMemo(
     () => (instrumentsQuery.data ?? []).map((i) => i.serial_number),
     [instrumentsQuery.data],
@@ -116,8 +125,12 @@ export function SchedulePage() {
   const cycles = useMemo(() => cyclesQuery.data ?? [], [cyclesQuery.data]);
   const grouped = useMemo(() => groupCyclesByInstrumentAndDay(cycles), [cycles]);
   const waitingGrouped = useMemo(
-    () => groupWaitingCellsByInstrumentAndDay(waitingCellsQuery.data?.items ?? [], win.days),
-    [waitingCellsQuery.data, win.days],
+    () =>
+      groupWaitingCellsByInstrumentAndDay(
+        [...(waitingCellsQuery.data?.items ?? []), ...(terminalCellsQuery.data?.items ?? [])],
+        win.days,
+      ),
+    [waitingCellsQuery.data, terminalCellsQuery.data, win.days],
   );
   const blockedWellsByInstrument = useMemo(
     () => groupBlockedWellsByInstrument(blockedCellsQuery.data?.items ?? []),

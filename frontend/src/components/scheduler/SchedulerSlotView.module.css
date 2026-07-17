@@ -150,6 +150,55 @@
   color: var(--faint);
 }
 
+/* A cell that's gone terminal by ordinary attrition (exhausted/window_expired/retired -
+   see CellGhost.terminalStatus) - still shown in its old well as an informational marker,
+   but (unlike .ghostUnused) this is never a live reuse target, so no "solid + glow" hover
+   preview ever applies to it - it stays a plain, static informational card that happens to
+   sit on top of an otherwise fully droppable "+" slot underneath. */
+.ghostTerminal {
+  border-style: dotted;
+  opacity: 0.85;
+}
+/* Exhausted: the ordinary, expected happy path (every lawful use spent) - same neutral
+   grey as a never-yet-used sibling, not a problem worth flagging. */
+.terminalExhausted {
+  border-color: var(--tray-card-border);
+  background: var(--tray-card-bg);
+}
+.terminalExhausted .ghostCode {
+  color: var(--grey);
+}
+.terminalExhausted .ghostLabel {
+  color: var(--faint);
+}
+/* Window expired: capacity was left on the table because the 108h deadline shut before it
+   could be reused - a real missed opportunity, so it carries the same red severity as a
+   QC problem elsewhere on the grid (see .qcAlert). */
+.terminalExpired {
+  border-color: var(--red);
+  background: rgba(220, 53, 69, 0.08);
+}
+.terminalExpired .ghostCode {
+  color: var(--grey);
+}
+.terminalExpired .ghostLabel {
+  color: var(--red);
+  font-weight: 800;
+}
+/* Retired: a deliberate manual write-off - the same amber severity CELL_STATUS_TONE gives
+   it elsewhere (a step milder than the red statuses, since nothing was "lost" unexpectedly). */
+.terminalRetired {
+  border-color: var(--amber);
+  background: var(--amber-tint);
+}
+.terminalRetired .ghostCode {
+  color: var(--grey);
+}
+.terminalRetired .ghostLabel {
+  color: var(--amber);
+  font-weight: 800;
+}
+
 /* Dragging a sample directly over a ghost placeholder previews an exact-match reuse of
    that cell - keep the ghost's own colour (still reads as "this cell"), just switch to a
    solid, thicker border and add a glow to signal "drop here to reuse this cell". Only

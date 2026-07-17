@@ -1,4 +1,5 @@
 import type { CellOut } from "@/types/cell";
+import type { CellStatus } from "@/types/common";
 import { addDaysUTC, isWeekendUTC, parseDateOnly, toIsoDateUTC } from "@/utils/calendarDates";
 import { CELL_LIFETIME_H, expiryFadeOpacity } from "@/utils/windowFade";
 
@@ -33,6 +34,15 @@ export interface CellGhost {
    * computeUnusedTraySiblingGhost), so isHardCutoff/fadeOpacity/cutoffDate/deadlineAt carry
    * no real meaning and should be ignored by anything rendering this ghost. */
   unused?: boolean;
+  /** Set for a cell that has gone terminal by ordinary attrition - fully used up
+   * (exhausted), timed out with capacity still unused (window_expired), or manually
+   * written off (retired) - still shown in its old well as an informational marker
+   * (see computeTerminalGhost). Distinct from a *stopped* cell (see SchedulerSlot's
+   * `blocked` prop): stop_cell is a QC action that permanently locks its well against any
+   * new placement, whereas these three are routine turnover, so the well underneath stays
+   * a fully valid drop target for a brand-new tray. Mutually exclusive with `unused`;
+   * isHardCutoff/fadeOpacity/deadlineAt/deadlineIsEstimated carry no meaning here. */
+  terminalStatus?: Exclude<CellStatus, "open" | "stopped">;
 }
 
 function nextWeekdayAfter(isoDate: string): string {
@@ -127,6 +137,36 @@ export function computeUnusedTraySiblingGhost(cell: CellOut, day: string): CellG
   };
 }
 
+/**
+ * Whether `cell` has gone terminal by ordinary attrition - exhausted (used up its lawful
+ * uses), window_expired (108h deadline closed with capacity still unused), or retired
+ * (manually written off, e.g. via a never-yet-used sibling's "Discard remaining use(s)")
+ * - and if so, still shows its old well as an informational marker on `day` rather than
+ * letting it silently fall back to a bare "+" indistinguishable from a well that never
+ * held anything. No day-gating, same as computeUnusedTraySiblingGhost - it persists on
+ * every weekday until superseded by a real placement or a brand-new tray. Deliberately
+ * excludes "stopped" (see groupBlockedWellsByInstrument): a QC stop permanently locks its
+ * well against reuse, but exhaustion/expiry/retirement are routine turnover, so the
+ * caller must still treat this well as a normal, fully droppable "+" target underneath
+ * the marker.
+ */
+export function computeTerminalGhost(cell: CellOut, day: string): CellGhost | null {
+  if (cell.status !== "exhausted" && cell.status !== "window_expired" && cell.status !== "retired") return null;
+  if (!cell.current_instrument_serial || !cell.current_well) return null;
+  if (isWeekendUTC(parseDateOnly(day))) return null;
+
+  return {
+    cell,
+    useNumber: cell.uses_consumed,
+    isHardCutoff: false,
+    fadeOpacity: 1,
+    cutoffDate: day,
+    deadlineAt: "",
+    deadlineIsEstimated: false,
+    terminalStatus: cell.status,
+  };
+}
+
 /** Mirrors backend/app/engine/constants.py's WELLS - tray 1 is indices 0-3, tray 2 is
  * 4-7. Used to sort ghosts back into the physical tray order their cells last occupied
  * (the cells API's own ordering is newest-first), and by SchedulerDayCell to pin each
@@ -162,9 +202,12 @@ export function groupBlockedWellsByInstrument(cells: CellOut[]): Map<string, Set
 }
 
 /**
- * Buckets every open, idle, reusable cell's ghost(s) by (current instrument, day) across
- * the visible window - mirrors groupCyclesByInstrumentAndDay's shape so the grid can look
- * ghosts up the same way it looks up real cycles.
+ * Buckets every idle cell's ghost(s) by (current instrument, day) across the visible
+ * window - mirrors groupCyclesByInstrumentAndDay's shape so the grid can look ghosts up
+ * the same way it looks up real cycles. `cells` is expected to be the union of open cells
+ * (computeGhost/computeUnusedTraySiblingGhost) and terminal-by-attrition cells
+ * (computeTerminalGhost) - the three compute functions are mutually exclusive by status,
+ * so no cell ever produces more than one ghost for a given day.
  */
 export function groupWaitingCellsByInstrumentAndDay(cells: CellOut[], days: string[]): Map<string, Map<string, CellGhost[]>> {
   const byInstrument = new Map<string, Map<string, CellGhost[]>>();
@@ -177,7 +220,7 @@ export function groupWaitingCellsByInstrumentAndDay(cells: CellOut[], days: stri
   for (const cell of orderedCells) {
     if (!cell.current_instrument_serial) continue;
     for (const day of days) {
-      const ghost = computeGhost(cell, day) ?? computeUnusedTraySiblingGhost(cell, day);
+      const ghost = computeGhost(cell, day) ?? computeUnusedTraySiblingGhost(cell, day) ?? computeTerminalGhost(cell, day);
       if (!ghost) continue;
 
       let byDate = byInstrument.get(cell.current_instrument_serial);

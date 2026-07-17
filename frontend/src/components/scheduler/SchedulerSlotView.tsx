@@ -4,12 +4,23 @@ import type { CSSProperties, HTMLAttributes } from "react";
 import { BarcodeChips } from "@/components/shared/BarcodeChips";
 import type { SlotIndex, StageOut } from "@/types/schedule";
 import { formatShortDateUTC, parseDateOnly } from "@/utils/calendarDates";
+import { CELL_STATUS_LABEL } from "@/utils/cellStatus";
 import { classForUseIndex } from "@/utils/useIndexClass";
 import { CELL_LIFETIME_H, expiryFadeOpacity } from "@/utils/windowFade";
 
 import styles from "./SchedulerSlotView.module.css";
 import { CELL_LINK_SLOT_ATTR } from "./useCellLinkHighlight";
 import type { CellGhost } from "./waitingCells";
+
+// Severity-coded per terminalStatus reason (see CellGhost.terminalStatus/CELL_STATUS_TONE):
+// exhausted is the ordinary happy path (neutral grey), window_expired is a real missed
+// opportunity (red, same severity as a QC problem elsewhere on the grid), retired is a
+// deliberate manual write-off (amber).
+const TERMINAL_STATUS_CLASS: Record<"exhausted" | "window_expired" | "retired", string> = {
+  exhausted: styles.terminalExhausted,
+  window_expired: styles.terminalExpired,
+  retired: styles.terminalRetired,
+};
 
 export interface SchedulerSlotViewProps extends HTMLAttributes<HTMLDivElement> {
   /** The filled well, or null for an empty slot placeholder. */
@@ -125,7 +136,11 @@ export const SchedulerSlotView = memo(
     if (stage!.window_hours_elapsed !== null) classes.push(styles.windowShaded);
   } else if (ghost) {
     classes.push(styles.ghost);
-    if (ghost.unused) {
+    if (ghost.terminalStatus) {
+      // Neutral/severity-coded by *why* it went terminal, never tinted by use number -
+      // this cell is done, so it must never read as a live Use 1/2/3 chip.
+      classes.push(styles.ghostTerminal, TERMINAL_STATUS_CLASS[ghost.terminalStatus]);
+    } else if (ghost.unused) {
       // Muted grey, not tinted by use number - it hasn't been used yet, so colouring it
       // like a real Use 1 (which .u1.ghost's higher-specificity two-class selector would
       // otherwise win over this single class regardless of declaration order) reads as
@@ -219,12 +234,25 @@ export const SchedulerSlotView = memo(
           <div className={styles.ghostCode} title={ghost.cell.code}>
             {ghost.cell.code}
           </div>
-          <div className={styles.ghostLabel}>
-            {ghost.unused
-              ? "Not yet used"
-              : ghost.isHardCutoff
-                ? `Use ${ghost.useNumber} · expires today`
-                : `Use ${ghost.useNumber} · by ${formatShortDateUTC(parseDateOnly(ghost.cutoffDate))}`}
+          <div
+            className={styles.ghostLabel}
+            title={
+              ghost.terminalStatus === "exhausted"
+                ? "This cell has used up all its lawful uses. This well is still open for a brand-new cell."
+                : ghost.terminalStatus === "window_expired"
+                  ? "This cell's 108-hour window closed before its remaining capacity could be used. This well is still open for a brand-new cell."
+                  : ghost.terminalStatus === "retired"
+                    ? "This cell was manually retired. This well is still open for a brand-new cell."
+                    : undefined
+            }
+          >
+            {ghost.terminalStatus
+              ? CELL_STATUS_LABEL[ghost.terminalStatus]
+              : ghost.unused
+                ? "Not yet used"
+                : ghost.isHardCutoff
+                  ? `Use ${ghost.useNumber} · expires today`
+                  : `Use ${ghost.useNumber} · by ${formatShortDateUTC(parseDateOnly(ghost.cutoffDate))}`}
           </div>
         </>
       ) : blocked ? (

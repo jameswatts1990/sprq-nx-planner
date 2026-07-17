@@ -8,6 +8,9 @@
   flex-wrap: wrap;
   margin-bottom: 18px;
 }
+.trayAccordionWrap {
+  margin-bottom: 18px;
+}
 .filters {
   display: flex;
   gap: 8px;

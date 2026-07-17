@@ -85,47 +85,6 @@
   color: var(--grey);
   margin: 0 0 16px;
 }
-.trayList {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.trayItem,
-.trayItemCurrent {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  padding: 9px 11px;
-  text-decoration: none;
-  color: inherit;
-}
-.trayItem:hover {
-  border-color: #cfd2d8;
-}
-.trayItemCurrent {
-  border-color: var(--blue-deep);
-  background: var(--blue-tint);
-}
-.trayItemPosition {
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--grey);
-  min-width: 28px;
-}
-.trayItemCode {
-  font-size: 12.5px;
-  font-weight: 700;
-  font-family: var(--mono);
-  color: var(--blue-deep);
-  flex: 1;
-}
-.trayItemUses {
-  font-size: 11.5px;
-  color: var(--grey);
-  font-weight: 600;
-}
 .creditGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));

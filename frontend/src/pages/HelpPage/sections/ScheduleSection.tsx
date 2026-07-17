@@ -266,6 +266,17 @@ export function ScheduleSection() {
         <b>✕</b> instead, so it&apos;s obvious at a glance that this particular well is permanently done, not just
         empty.
       </p>
+      <p>
+        <b>Used-up wells:</b> a cell that reaches a terminal state on its own — it&apos;s used up every lawful use
+        (<b>Exhausted</b>), its 108-hour window closed with capacity still unused (<b>Window expired</b>), or it was
+        manually retired — is different from a stopped cell above: rather than permanently blocking the well, it
+        still shows a small status card (the cell&apos;s code and one of those three labels, colour-coded — neutral
+        grey for the routine Exhausted case, red for a Window expired since capacity was missed, amber for a manual
+        Retired) sitting on top of what remains a fully open <b>+</b> slot underneath. Dragging a backlog sample
+        onto it starts a brand-new cell there, exactly as dropping onto a plain <b>+</b> would — it just no longer
+        looks like a well that never held anything. Unlike a real waiting-cell ghost, it has no click-to-open
+        popover of its own, since there&apos;s nothing left to discard.
+      </p>
     </div>
   );
 }

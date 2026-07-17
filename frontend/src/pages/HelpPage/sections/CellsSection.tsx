@@ -15,6 +15,17 @@ export function CellsSection() {
         credit workflow, regardless of their Open/Exhausted/etc. status.
       </p>
       <p>
+        <b>Open trays:</b> a collapsible section above the cell list showing every physical SPRQ-Nx SMRT Cell tray
+        that currently has at least one open (usable) cell, grouped by which instrument it&apos;s sitting on - so you
+        can see, across every instrument at a glance, which trays still have spare capacity waiting to be picked up,
+        without opening a specific cell&apos;s detail page first. Each tray shows its (up to 4) sibling cells with
+        their own status and uses, the same as the Cell detail page&apos;s Cell tray card below - a tray never shows
+        one merged status, since its own cells can genuinely be in different states (one exhausted, one still open,
+        one never used). It&apos;s expanded by default and read-only for now - there&apos;s no way to move a tray to
+        a different instrument yet. (This is a different &quot;tray&quot; from the Schedule grid&apos;s &quot;Tray
+        1&quot;/&quot;Tray 2&quot; loading positions - see the Schedule section.)
+      </p>
+      <p>
         <b>Each cell card shows:</b> the cell code (e.g. <b>CELL-A004821</b> — the letter is the cell&apos;s fixed
         position within its physical tray, A–D, not a status or location code), a status badge, uses spent (e.g.
         &quot;1 / 3 uses&quot;), which

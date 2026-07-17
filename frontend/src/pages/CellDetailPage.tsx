@@ -5,6 +5,7 @@ import { Link, useParams } from "react-router-dom";
 import { ApiError } from "@/api/client";
 import { cellsApi } from "@/api/cells";
 import { cellUsesApi } from "@/api/cellUses";
+import { TraySiblingList } from "@/components/cells/TraySiblingList";
 import { WindowMeter } from "@/components/cells/WindowMeter";
 import { BarcodeChips } from "@/components/shared/BarcodeChips";
 import { Badge } from "@/components/ui/Badge";
@@ -295,24 +296,7 @@ export function CellDetailPage() {
             {trayQuery.isLoading ? (
               <div className={styles.status}>Loading tray…</div>
             ) : (
-              <div className={styles.trayList}>
-                {(trayQuery.data?.items ?? []).map((sibling) => (
-                  <Link
-                    key={sibling.id}
-                    to={`/cells/${sibling.id}`}
-                    className={sibling.id === cell.id ? styles.trayItemCurrent : styles.trayItem}
-                  >
-                    <span className={styles.trayItemPosition}>
-                      {sibling.tray_position}/{sibling.tray_size}
-                    </span>
-                    <span className={styles.trayItemCode}>{sibling.code}</span>
-                    <Badge tone={CELL_STATUS_TONE[sibling.status]}>{CELL_STATUS_LABEL[sibling.status]}</Badge>
-                    <span className={styles.trayItemUses}>
-                      {sibling.uses_consumed}/{sibling.max_uses} uses
-                    </span>
-                  </Link>
-                ))}
-              </div>
+              <TraySiblingList cells={trayQuery.data?.items ?? []} currentCellId={cell.id} />
             )}
           </CardBody>
         </Card>
