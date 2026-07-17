@@ -270,12 +270,15 @@ export function ScheduleSection() {
         <b>Used-up wells:</b> a cell that reaches a terminal state on its own — it&apos;s used up every lawful use
         (<b>Exhausted</b>), its 108-hour window closed with capacity still unused (<b>Window expired</b>), or it was
         manually retired — is different from a stopped cell above: rather than permanently blocking the well, it
-        still shows a small status card (the cell&apos;s code and one of those three labels, colour-coded — neutral
-        grey for the routine Exhausted case, red for a Window expired since capacity was missed, amber for a manual
-        Retired) sitting on top of what remains a fully open <b>+</b> slot underneath. Dragging a backlog sample
-        onto it starts a brand-new cell there, exactly as dropping onto a plain <b>+</b> would — it just no longer
-        looks like a well that never held anything. Unlike a real waiting-cell ghost, it has no click-to-open
-        popover of its own, since there&apos;s nothing left to discard.
+        still shows a small status card (the cell&apos;s code and one of those three labels, colour-coded — pale red
+        for the routine Exhausted case and for a Window expired since capacity was missed, amber for a manual
+        Retired). Whether it also accepts a new cell depends on its three tray siblings: while any of them still has
+        real capacity (open, not-yet-used, or still reuse-eligible), the physical tray is still loaded on the
+        instrument, so this well stays read-only — dragging a sample onto it does nothing, since a new cell
+        can&apos;t be swapped into one well without removing the whole physical tray first. Only once every one of
+        the tray&apos;s four cells has gone terminal does the well behave like a plain <b>+</b> again, ready to start
+        a brand-new physical tray. Unlike a real waiting-cell ghost, it never has a click-to-open popover of its
+        own, since there&apos;s nothing left to discard.
       </p>
     </div>
   );

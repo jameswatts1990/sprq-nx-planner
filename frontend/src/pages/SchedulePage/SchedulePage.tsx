@@ -21,6 +21,7 @@ import { useGridSelection } from "@/components/scheduler/useGridSelection";
 import { useSchedulerDnd } from "@/components/scheduler/useSchedulerDnd";
 import { useSlotSelection } from "@/components/scheduler/useSlotSelection";
 import {
+  computeVacatedTrayIds,
   groupBlockedWellsByInstrument,
   groupWaitingCellsByInstrumentAndDay,
   type CellGhost,
@@ -124,13 +125,28 @@ export function SchedulePage() {
   );
   const cycles = useMemo(() => cyclesQuery.data ?? [], [cyclesQuery.data]);
   const grouped = useMemo(() => groupCyclesByInstrumentAndDay(cycles), [cycles]);
+  // Whether a terminal cell's physical tray has been fully vacated (see
+  // waitingCells.computeVacatedTrayIds) needs visibility into every status a tray-linked
+  // cell can be in, including stopped - not just the open+terminal cells the ghosts
+  // themselves are built from - otherwise a still-open or stopped sibling missing from the
+  // check would wrongly read as "no capacity left anywhere in this tray".
+  const vacatedTrayIds = useMemo(
+    () =>
+      computeVacatedTrayIds([
+        ...(waitingCellsQuery.data?.items ?? []),
+        ...(terminalCellsQuery.data?.items ?? []),
+        ...(blockedCellsQuery.data?.items ?? []),
+      ]),
+    [waitingCellsQuery.data, terminalCellsQuery.data, blockedCellsQuery.data],
+  );
   const waitingGrouped = useMemo(
     () =>
       groupWaitingCellsByInstrumentAndDay(
         [...(waitingCellsQuery.data?.items ?? []), ...(terminalCellsQuery.data?.items ?? [])],
         win.days,
+        vacatedTrayIds,
       ),
-    [waitingCellsQuery.data, terminalCellsQuery.data, win.days],
+    [waitingCellsQuery.data, terminalCellsQuery.data, win.days, vacatedTrayIds],
   );
   const blockedWellsByInstrument = useMemo(
     () => groupBlockedWellsByInstrument(blockedCellsQuery.data?.items ?? []),

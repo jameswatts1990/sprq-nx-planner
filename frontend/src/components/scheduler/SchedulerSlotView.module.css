@@ -151,36 +151,34 @@
 }
 
 /* A cell that's gone terminal by ordinary attrition (exhausted/window_expired/retired -
-   see CellGhost.terminalStatus) - still shown in its old well as an informational marker,
-   but (unlike .ghostUnused) this is never a live reuse target, so no "solid + glow" hover
-   preview ever applies to it - it stays a plain, static informational card that happens to
-   sit on top of an otherwise fully droppable "+" slot underneath. */
+   see CellGhost.terminalStatus) - still shown in its old well as an informational marker.
+   Never a live reuse target, so no "solid + glow" hover preview ever applies to it - it
+   stays a plain, static informational card. Only once every sibling in its physical tray
+   has also gone terminal (ghost.terminalTrayVacated - see waitingCells.
+   computeVacatedTrayIds) does the "+" slot underneath actually accept a drop again; until
+   then SchedulerSlot never even registers it as droppable, so cursor:default here (rather
+   than the ordinary .ghost pointer) reflects that clicking/dropping never does anything
+   through this card regardless of which case applies. */
 .ghostTerminal {
   border-style: dotted;
   opacity: 0.85;
+  cursor: default;
 }
-/* Exhausted: the ordinary, expected happy path (every lawful use spent) - same neutral
-   grey as a never-yet-used sibling, not a problem worth flagging. */
-.terminalExhausted {
-  border-color: var(--tray-card-border);
-  background: var(--tray-card-bg);
-}
-.terminalExhausted .ghostCode {
-  color: var(--grey);
-}
-.terminalExhausted .ghostLabel {
-  color: var(--faint);
-}
-/* Window expired: capacity was left on the table because the 108h deadline shut before it
-   could be reused - a real missed opportunity, so it carries the same red severity as a
-   QC problem elsewhere on the grid (see .qcAlert). */
+/* Exhausted: every lawful use spent. Window expired: capacity was left on the table
+   because the 108h deadline shut before it could be reused. Both carry the same red
+   severity (matching --red/--red-tint elsewhere in the app, e.g. Badge's "danger" tone) -
+   in both cases this physical cell's capacity is permanently gone, same as a QC problem
+   elsewhere on the grid (see .qcAlert). */
+.terminalExhausted,
 .terminalExpired {
   border-color: var(--red);
-  background: rgba(220, 53, 69, 0.08);
+  background: var(--red-tint);
 }
+.terminalExhausted .ghostCode,
 .terminalExpired .ghostCode {
   color: var(--grey);
 }
+.terminalExhausted .ghostLabel,
 .terminalExpired .ghostLabel {
   color: var(--red);
   font-weight: 800;

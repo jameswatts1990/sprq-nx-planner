@@ -5,7 +5,7 @@ import type { CellStatus } from "@/types/common";
  * CellDetailPage (header) so the two views stay visually consistent. */
 export const CELL_STATUS_TONE: Record<CellStatus, BadgeTone> = {
   open: "success",
-  exhausted: "default",
+  exhausted: "danger",
   window_expired: "danger",
   retired: "warning",
   stopped: "danger",

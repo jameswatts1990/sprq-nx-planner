@@ -1,0 +1,50 @@
+- generic [ref=f2e2]:
+  - banner [ref=f2e3]:
+    - generic [ref=f2e5]:
+      - link "Run Nx" [ref=f2e6] [cursor=pointer]:
+        - /url: /schedule
+        - text: Run
+        - generic [ref=f2e7]: Nx
+      - navigation [ref=f2e9]:
+        - link "Import" [ref=f2e10] [cursor=pointer]:
+          - /url: /import
+        - link "Backlog" [ref=f2e11] [cursor=pointer]:
+          - /url: /backlog
+        - link "Schedule" [ref=f2e12] [cursor=pointer]:
+          - /url: /schedule
+        - link "Cells & Instruments" [ref=f2e13] [cursor=pointer]:
+          - /url: /cells
+        - link "History" [ref=f2e14] [cursor=pointer]:
+          - /url: /history/runs
+        - link "Admin" [ref=f2e15] [cursor=pointer]:
+          - /url: /admin
+        - link "Help" [ref=f2e16] [cursor=pointer]:
+          - /url: /help
+  - generic [ref=f2e18]:
+    - generic [ref=f2e20]:
+      - button "‹ Prev" [ref=f2e21] [cursor=pointer]
+      - generic [ref=f2e22]: 13 Jul – 17 Jul
+      - button "Next ›" [ref=f2e23] [cursor=pointer]
+      - button "Today" [ref=f2e24] [cursor=pointer]
+      - textbox "Jump to date" [ref=f2e25] [cursor=pointer]: 2026-07-13
+      - button "Print Batch Sheet" [ref=f2e26] [cursor=pointer]
+    - generic [ref=f2e27]:
+      - generic [ref=f2e29]:
+        - button "▶ Run design" [ref=f2e30] [cursor=pointer]:
+          - generic [ref=f2e31]: ▶
+          - text: Run design
+        - generic [ref=f2e32]: 3× · 24 h · fewest
+      - generic [ref=f2e34]:
+        - button "▶ Backlog" [ref=f2e35] [cursor=pointer]:
+          - generic [ref=f2e36]: ▶
+          - text: Backlog
+        - generic [ref=f2e37]: 0 samples
+    - generic [ref=f2e38]:
+      - generic [ref=f2e39]:
+        - heading "Weekly schedule" [level=2] [ref=f2e40]
+        - generic [ref=f2e42]:
+          - generic [ref=f2e43]: Use 1
+          - generic [ref=f2e45]: Use 2
+          - generic [ref=f2e47]: Use 3
+      - generic [ref=f2e49]: Loading instruments…
+    - status [ref=f2e50]

@@ -13,9 +13,10 @@ import { CELL_LINK_SLOT_ATTR } from "./useCellLinkHighlight";
 import type { CellGhost } from "./waitingCells";
 
 // Severity-coded per terminalStatus reason (see CellGhost.terminalStatus/CELL_STATUS_TONE):
-// exhausted is the ordinary happy path (neutral grey), window_expired is a real missed
-// opportunity (red, same severity as a QC problem elsewhere on the grid), retired is a
-// deliberate manual write-off (amber).
+// exhausted and window_expired share the same red severity (same as a QC problem
+// elsewhere on the grid) - both mean this physical cell's lawful capacity is gone, whether
+// spent in full or left on the table when its 108h window shut. retired is a deliberate
+// manual write-off (amber), a step milder since nothing was "lost" unexpectedly.
 const TERMINAL_STATUS_CLASS: Record<"exhausted" | "window_expired" | "retired", string> = {
   exhausted: styles.terminalExhausted,
   window_expired: styles.terminalExpired,
@@ -178,6 +179,24 @@ export const SchedulerSlotView = memo(
     mergedStyle = { ...mergedStyle, ["--window-opacity" as string]: expiryFadeOpacity(hoursRemaining) };
   }
 
+  // Why this well is dead, plus whether it can be reused for a brand-new physical tray yet
+  // - only once every sibling in the same tray has also gone terminal (see waitingCells.
+  // computeVacatedTrayIds); until then the tray is still loaded on the instrument, and no
+  // "+" placement is possible here no matter how dead this one cell already is.
+  const terminalGhostTitle = ghost?.terminalStatus
+    ? `${
+        ghost.terminalStatus === "exhausted"
+          ? "This cell has used up all its lawful uses."
+          : ghost.terminalStatus === "window_expired"
+            ? "This cell's 108-hour window closed before its remaining capacity could be used."
+            : "This cell was manually retired."
+      } ${
+        ghost.terminalTrayVacated
+          ? "This well is open for a brand-new cell."
+          : "This well stays locked until every cell in its physical tray is also used up, expired, or retired - the tray is still loaded on the instrument."
+      }`
+    : undefined;
+
   return (
     <div
       ref={ref}
@@ -234,18 +253,7 @@ export const SchedulerSlotView = memo(
           <div className={styles.ghostCode} title={ghost.cell.code}>
             {ghost.cell.code}
           </div>
-          <div
-            className={styles.ghostLabel}
-            title={
-              ghost.terminalStatus === "exhausted"
-                ? "This cell has used up all its lawful uses. This well is still open for a brand-new cell."
-                : ghost.terminalStatus === "window_expired"
-                  ? "This cell's 108-hour window closed before its remaining capacity could be used. This well is still open for a brand-new cell."
-                  : ghost.terminalStatus === "retired"
-                    ? "This cell was manually retired. This well is still open for a brand-new cell."
-                    : undefined
-            }
-          >
+          <div className={styles.ghostLabel} title={terminalGhostTitle}>
             {ghost.terminalStatus
               ? CELL_STATUS_LABEL[ghost.terminalStatus]
               : ghost.unused

@@ -2,7 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import type { CellOut } from "@/types/cell";
 
-import { computeGhost, computeUnusedTraySiblingGhost, groupWaitingCellsByInstrumentAndDay } from "./waitingCells";
+import {
+  computeGhost,
+  computeTerminalGhost,
+  computeUnusedTraySiblingGhost,
+  computeVacatedTrayIds,
+  groupWaitingCellsByInstrumentAndDay,
+} from "./waitingCells";
 
 function baseCell(overrides: Partial<CellOut> = {}): CellOut {
   const lastUseRunDate = overrides.last_use_run_date !== undefined ? overrides.last_use_run_date : "2026-07-13";
@@ -206,5 +212,57 @@ describe("groupWaitingCellsByInstrumentAndDay", () => {
     expect(ghosts.map((g) => g.cell.id).sort()).toEqual([1, 2]);
     expect(ghosts.find((g) => g.cell.id === 2)?.unused).toBe(true);
     expect(ghosts.find((g) => g.cell.id === 1)?.unused).toBeUndefined();
+  });
+});
+
+describe("computeVacatedTrayIds", () => {
+  it("excludes a tray where any sibling is still open", () => {
+    const exhausted = baseCell({ id: 1, tray_id: 1, status: "exhausted" });
+    const stillOpen = baseUnusedTraySibling({ id: 2, tray_id: 1, status: "open" });
+
+    expect(computeVacatedTrayIds([exhausted, stillOpen]).has(1)).toBe(false);
+  });
+
+  it("includes a tray once every sibling has gone terminal or stopped", () => {
+    const exhausted = baseCell({ id: 1, tray_id: 2, status: "exhausted" });
+    const expired = baseCell({ id: 2, tray_id: 2, status: "window_expired" });
+    const retired = baseCell({ id: 3, tray_id: 2, status: "retired" });
+    const stopped = baseCell({ id: 4, tray_id: 2, status: "stopped" });
+
+    expect(computeVacatedTrayIds([exhausted, expired, retired, stopped]).has(2)).toBe(true);
+  });
+
+  it("ignores cells with no tray_id", () => {
+    const untracked = baseCell({ id: 1, tray_id: null, status: "exhausted" });
+
+    expect(computeVacatedTrayIds([untracked]).size).toBe(0);
+  });
+});
+
+describe("computeTerminalGhost's terminalTrayVacated", () => {
+  it("is false while a sibling in the same tray is still open", () => {
+    const exhausted = baseCell({ id: 1, tray_id: 3, status: "exhausted" });
+    const vacatedTrayIds = computeVacatedTrayIds([
+      exhausted,
+      baseUnusedTraySibling({ id: 2, tray_id: 3, status: "open" }),
+    ]);
+
+    expect(computeTerminalGhost(exhausted, "2026-07-14", vacatedTrayIds)?.terminalTrayVacated).toBe(false);
+  });
+
+  it("is true once the whole tray has gone terminal", () => {
+    const exhausted = baseCell({ id: 1, tray_id: 4, status: "exhausted" });
+    const expired = baseCell({ id: 2, tray_id: 4, status: "window_expired" });
+    const vacatedTrayIds = computeVacatedTrayIds([exhausted, expired]);
+
+    expect(computeTerminalGhost(exhausted, "2026-07-14", vacatedTrayIds)?.terminalTrayVacated).toBe(true);
+  });
+
+  it("defaults to true for a cell with no tray_id, and to false if vacatedTrayIds is omitted", () => {
+    const untracked = baseCell({ id: 1, tray_id: null, status: "retired" });
+    expect(computeTerminalGhost(untracked, "2026-07-14")?.terminalTrayVacated).toBe(true);
+
+    const trayLinked = baseCell({ id: 2, tray_id: 5, status: "retired" });
+    expect(computeTerminalGhost(trayLinked, "2026-07-14")?.terminalTrayVacated).toBe(false);
   });
 });
