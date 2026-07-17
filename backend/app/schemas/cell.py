@@ -51,6 +51,10 @@ class CellOut(BaseModel):
     # QC: stop (all future uses lost)
     stopped_reason: str | None
     stopped_at: datetime | None
+    # Discard Cells (weekly schedule grid, per-tray) - forces status to "exhausted"
+    # regardless of actual remaining use count.
+    discarded_reason: str | None
+    discarded_at: datetime | None
     # QC: PacBio credit tracking
     has_failed_use: bool
     needs_qc_report: bool
@@ -103,3 +107,13 @@ class CellReportToPacbioRequest(BaseModel):
 
 class CellActorRequest(BaseModel):
     actor: str | None = None
+
+
+class TrayDiscardRequest(BaseModel):
+    tray_id: int
+    reason: str | None = None
+    actor: str | None = None
+
+
+class TrayDiscardOut(BaseModel):
+    cells: list[CellOut]

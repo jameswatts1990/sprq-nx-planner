@@ -1,8 +1,10 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import type { KeyboardEvent, MouseEvent } from "react";
+import { useState, type KeyboardEvent, type MouseEvent } from "react";
 
+import { cellsApi } from "@/api/cells";
 import { ApiError } from "@/api/client";
 import { cyclesApi } from "@/api/cycles";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import type { SlotIndex, CycleOut, StageOut } from "@/types/schedule";
 import { formatShortDateTimeUTC } from "@/utils/calendarDates";
 
@@ -82,6 +84,15 @@ export function SchedulerDayCell(props: SchedulerDayCellProps) {
     },
   });
 
+  const [discardTrayId, setDiscardTrayId] = useState<number | null>(null);
+  const discardMutation = useMutation({
+    mutationFn: (trayId: number) => cellsApi.discardTray({ tray_id: trayId }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["cycles"] });
+      setDiscardTrayId(null);
+    },
+  });
+
   if (weekend) {
     return <td className={`${styles.cell} ${styles.weekend}`} aria-hidden="true" />;
   }
@@ -96,19 +107,21 @@ export function SchedulerDayCell(props: SchedulerDayCellProps) {
   const tray2Filled = TRAY_INDICES[1].some((i) => slots[i] !== null);
 
   // A locked day can no longer accept placements, so reuse ghosts (which double as a
-  // droppable "place it here" affordance) don't apply there. Unused-tray-sibling ghosts
-  // and terminal ghosts are different: they're purely informational (a cell physically
-  // already sitting in the tray, or one that's simply gone terminal), never a placement
-  // offer, so they must stay visible even once the day is locked (see "Never-yet-used tray
-  // cells" in the Schedule help section). Each waiting cell is pinned to the exact slot
-  // matching its own last-used well (WELL_ORDER) - cells stay in the same physical
-  // tray/well position for every reuse, never just "the next open slot" - so a ghost only
-  // shows if that specific slot is free. In the rare case two different waiting cells both
-  // last sat in the same well letter and are eligible the same day, the first one in
-  // waitingCells order gets it; the other simply has no ghost that day.
+  // droppable "place it here" affordance) don't apply there. Unused-tray-sibling ghosts,
+  // terminal ghosts, and pending-terminal ghosts are different: they're purely informational
+  // (a cell physically already sitting in the tray, one that's simply gone terminal, or one
+  // that's fully booked but hasn't reached that state as of this day - see waitingCells.
+  // computePendingTerminalGhost), never a placement offer, so they must stay visible even
+  // once the day is locked (see "Never-yet-used tray cells" in the Schedule help section).
+  // Each waiting cell is pinned to the exact slot matching its own last-used well
+  // (WELL_ORDER) - cells stay in the same physical tray/well position for every reuse, never
+  // just "the next open slot" - so a ghost only shows if that specific slot is free. In the
+  // rare case two different waiting cells both last sat in the same well letter and are
+  // eligible the same day, the first one in waitingCells order gets it; the other simply has
+  // no ghost that day.
   const ghostBySlot = new Map<SlotIndex, CellGhost>();
   for (const ghost of waitingCells) {
-    if (locked && !ghost.unused && !ghost.terminalStatus) continue;
+    if (locked && !ghost.unused && !ghost.terminalStatus && !ghost.pendingTerminalStatus) continue;
     const pinnedIndex = ghost.cell.current_well ? WELL_ORDER.indexOf(ghost.cell.current_well) : -1;
     if (pinnedIndex < 0) continue;
     const slot = pinnedIndex as SlotIndex;
@@ -212,9 +225,25 @@ export function SchedulerDayCell(props: SchedulerDayCellProps) {
         {TRAY_INDICES.map((indices, trayIdx) => {
           if (!trayVisible[trayIdx]) return null;
           const firstEmptyIndex = firstEmptyByTray[trayIdx];
+          // Any filled slot in this tray carries the physical tray's id (see StageOut.tray_id) -
+          // used to target every sibling cell, not just the ones with a filled slot this cycle.
+          const trayId = indices.map((i) => slots[i]).find((s) => s?.tray_id != null)?.tray_id ?? null;
           return (
             <div key={trayIdx} className={styles.tray}>
-              <div className={styles.trayLabel}>{trayIdx === 0 ? "Tray 1" : "Tray 2"}</div>
+              <div className={styles.trayHeader}>
+                <div className={styles.trayLabel}>{trayIdx === 0 ? "Tray 1" : "Tray 2"}</div>
+                {trayId != null && (
+                  <button
+                    type="button"
+                    className={styles.discardBtn}
+                    title="Discard all cells in this tray"
+                    aria-label="Discard all cells in this tray"
+                    onClick={() => setDiscardTrayId(trayId)}
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
               {indices
                 .filter((i) => slots[i] !== null || i === firstEmptyIndex || ghostBySlot.has(i) || blockedSlotSet.has(i))
                 .map((i) => (
@@ -244,6 +273,30 @@ export function SchedulerDayCell(props: SchedulerDayCellProps) {
           );
         })}
       </div>
+
+      {discardTrayId != null && (
+        <ConfirmModal
+          title="Discard all cells in this tray?"
+          confirmLabel="Discard cells"
+          pendingLabel="Discarding…"
+          pending={discardMutation.isPending}
+          error={
+            discardMutation.isError
+              ? discardMutation.error instanceof ApiError
+                ? discardMutation.error.message
+                : "Failed to discard tray."
+              : null
+          }
+          onCancel={() => setDiscardTrayId(null)}
+          onConfirm={() => discardMutation.mutate(discardTrayId)}
+        >
+          <p>
+            This marks every cell physically in this tray as exhausted, regardless of how many uses it has left. Any
+            not-yet-run placements for these cells are cancelled and their samples return to the backlog. This cannot
+            be undone.
+          </p>
+        </ConfirmModal>
+      )}
     </td>
   );
 }

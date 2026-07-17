@@ -53,8 +53,9 @@ export function SchedulerSlot(props: SchedulerSlotProps) {
       return <SchedulerSlotView stage={null} slotIndex={props.slotIndex} blocked />;
     }
     if (locked) {
-      // Only an unused-tray-sibling ghost ever reaches here (SchedulerDayCell excludes
-      // reuse ghosts once locked), so it's purely informational - no droppable wrapper.
+      // Only an unused-tray-sibling, terminal, or pending-terminal ghost ever reaches here
+      // (SchedulerDayCell excludes reuse ghosts once locked), so it's purely informational -
+      // no droppable wrapper.
       return (
         <SchedulerSlotView
           stage={null}
@@ -70,8 +71,12 @@ export function SchedulerSlot(props: SchedulerSlotProps) {
     // that same physical tray has also gone terminal (ghost.terminalTrayVacated) - while
     // any sibling still holds real capacity, the tray hasn't actually left the instrument,
     // so this well must stay a read-only marker, same non-droppable treatment as a
-    // `blocked` well above, never registered with dnd-kit at all.
-    if (props.ghost?.terminalStatus && !props.ghost.terminalTrayVacated) {
+    // `blocked` well above, never registered with dnd-kit at all. A pending-terminal ghost
+    // (waitingCells.computePendingTerminalGhost) is never droppable either, unconditionally
+    // - its cell still has a real future use already scheduled on this exact well, so the
+    // physical tray can't have left the instrument regardless of what terminalTrayVacated
+    // would say (that field isn't even set on this ghost variant).
+    if ((props.ghost?.terminalStatus && !props.ghost.terminalTrayVacated) || props.ghost?.pendingTerminalStatus) {
       return <SchedulerSlotView stage={null} slotIndex={props.slotIndex} ghost={props.ghost} />;
     }
     return <DroppableSlot {...props} />;

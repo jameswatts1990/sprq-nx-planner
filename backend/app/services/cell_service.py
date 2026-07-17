@@ -25,7 +25,7 @@ def recompute_status(cell: Cell, at: datetime | None = None) -> None:
     """The single place cell.status is derived - called any time a cell's uses change
     (committing new uses onto it, or recording a real-world outcome), so the persisted
     status never goes stale relative to derive_cell_state()."""
-    if cell.status in ("retired", "stopped"):
+    if cell.status in ("retired", "stopped") or cell.discarded_at is not None:
         return
     at = at or utcnow()
     if cell.first_use_started_at:
@@ -258,6 +258,8 @@ def serialize_cell(cell: Cell) -> CellOut:
         created_at=cell.created_at,
         stopped_reason=cell.stopped_reason,
         stopped_at=cell.stopped_at,
+        discarded_reason=cell.discarded_reason,
+        discarded_at=cell.discarded_at,
         has_failed_use=has_failed_use(cell),
         needs_qc_report=needs_qc_report(cell),
         awaiting_credit=awaiting_credit(cell),
@@ -445,6 +447,77 @@ def stop_cell(db: Session, cell: Cell, reason: str | None, actor: str | None) ->
     db.refresh(cell)
     db.refresh(cell, attribute_names=["cell_uses"])
     return cell, bumped_sample_ids
+
+
+def _discard_cell_uncommitted(cell: Cell, reason: str | None, actor: str | None) -> list[int]:
+    """Shared body of discard_cell/discard_tray - forces a cell to "exhausted" regardless
+    of its actual remaining use count (see "Discard Cells" in the weekly schedule grid's
+    per-tray header). Cancels planned uses exactly like stop_cell (sample goes back to
+    backlog, the CellUse row is kept as "cancelled" rather than deleted), but the resulting
+    status is "exhausted" - not "stopped" - since a discarded tray reads to the lab as
+    "used up", not "pulled for a QC problem". discarded_at is the sticky guard that keeps
+    recompute_status from ever reopening it. Caller commits."""
+    bumped_sample_ids: list[int] = []
+    for cell_use in [cu for cu in cell.cell_uses if cu.status == "planned"]:
+        if cell_use.sample is not None:
+            cell_use.sample.status = "backlog"
+            bumped_sample_ids.append(cell_use.sample_id)
+        cell_use.status = "cancelled"
+
+    cell.status = "exhausted"
+    cell.discarded_at = utcnow()
+    cell.discarded_reason = reason
+    return bumped_sample_ids
+
+
+def discard_cell(db: Session, cell: Cell, reason: str | None, actor: str | None) -> tuple[Cell, list[int]]:
+    if cell.status in ("retired", "stopped") or cell.discarded_at is not None:
+        raise ValueError(f"Cell is already {cell.status}.")
+
+    bumped_sample_ids = _discard_cell_uncommitted(cell, reason, actor)
+    db.flush()
+    db.add(
+        AuditLog(
+            actor=actor or "unknown",
+            action="discard_cell",
+            entity_type="cell",
+            entity_id=cell.id,
+            details_json={"reason": reason, "bumped_sample_ids": bumped_sample_ids},
+        )
+    )
+    db.commit()
+    db.refresh(cell)
+    db.refresh(cell, attribute_names=["cell_uses"])
+    return cell, bumped_sample_ids
+
+
+def discard_tray(db: Session, cells: list[Cell], reason: str | None, actor: str | None) -> list[Cell]:
+    """Bulk counterpart of discard_cell for every physical cell in one tray - a single
+    "Discard Cells" click on the weekly schedule grid's tray header discards all
+    CELLS_PER_TRAY siblings in one transaction. Cells already retired/stopped/discarded
+    are left untouched rather than raising, since a tray can easily have a mix (e.g. one
+    sibling already stopped for QC) and the lab just wants the rest cleared out."""
+    discarded: list[Cell] = []
+    for cell in cells:
+        if cell.status in ("retired", "stopped") or cell.discarded_at is not None:
+            continue
+        bumped_sample_ids = _discard_cell_uncommitted(cell, reason, actor)
+        db.add(
+            AuditLog(
+                actor=actor or "unknown",
+                action="discard_cell",
+                entity_type="cell",
+                entity_id=cell.id,
+                details_json={"reason": reason, "bumped_sample_ids": bumped_sample_ids, "tray_discard": True},
+            )
+        )
+        discarded.append(cell)
+
+    db.commit()
+    for cell in discarded:
+        db.refresh(cell)
+        db.refresh(cell, attribute_names=["cell_uses"])
+    return cells
 
 
 def undo_stop_cell(db: Session, cell: Cell, actor: str | None) -> tuple[Cell, list[int], list[int]]:

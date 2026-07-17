@@ -4,6 +4,7 @@ import type { CellOut } from "@/types/cell";
 
 import {
   computeGhost,
+  computePendingTerminalGhost,
   computeTerminalGhost,
   computeUnusedTraySiblingGhost,
   computeVacatedTrayIds,
@@ -264,5 +265,60 @@ describe("computeTerminalGhost's terminalTrayVacated", () => {
 
     const trayLinked = baseCell({ id: 2, tray_id: 5, status: "retired" });
     expect(computeTerminalGhost(trayLinked, "2026-07-14")?.terminalTrayVacated).toBe(false);
+  });
+});
+
+describe("computePendingTerminalGhost / computeTerminalGhost's day-gating", () => {
+  it("shows pending (not terminal) between an exhausted cell's own real placements, terminal only after the last one", () => {
+    // Every use already scheduled up front for Mon 07-13 / Wed 07-15 / Fri 07-17 - the
+    // aggregate status has already flipped to exhausted since there's no capacity left to
+    // schedule, even though only the Monday use has actually happened yet.
+    const cell = baseCell({
+      status: "exhausted",
+      uses_consumed: 3,
+      uses_remaining: 0,
+      last_use_run_date: "2026-07-17",
+    });
+
+    // Tuesday - the locked day between Monday's and Wednesday's real placements.
+    expect(computeTerminalGhost(cell, "2026-07-14")).toBeNull();
+    const tue = computePendingTerminalGhost(cell, "2026-07-14");
+    expect(tue?.pendingTerminalStatus).toBe("exhausted");
+    expect(tue?.useNumber).toBe(3);
+
+    // Thursday - between Wednesday's and Friday's real placements, still not yet terminal.
+    expect(computeTerminalGhost(cell, "2026-07-16")).toBeNull();
+    expect(computePendingTerminalGhost(cell, "2026-07-16")).not.toBeNull();
+
+    // The following Monday, after the actual last use (Friday) - now genuinely terminal.
+    expect(computePendingTerminalGhost(cell, "2026-07-20")).toBeNull();
+    expect(computeTerminalGhost(cell, "2026-07-20")?.terminalStatus).toBe("exhausted");
+  });
+
+  it("gates window_expired on the actual 108h deadline, not last_use_run_date", () => {
+    // Use 1 confirmed loaded Monday 07-13 12:00 UTC -> real deadline Saturday 07-18 00:00 UTC
+    // (same math as computeGhost's own deadline tests). Only one use ever happened before
+    // the window closed.
+    const cell = baseCell({
+      status: "window_expired",
+      uses_consumed: 1,
+      uses_remaining: 2,
+      last_use_run_date: "2026-07-13",
+      first_use_started_at: "2026-07-13T12:00:00Z",
+    });
+
+    // Wednesday - after last_use_run_date, but well before the 108h deadline actually closes.
+    expect(computeTerminalGhost(cell, "2026-07-15")).toBeNull();
+    expect(computePendingTerminalGhost(cell, "2026-07-15")?.pendingTerminalStatus).toBe("window_expired");
+
+    // The following Monday - well after the deadline closed.
+    expect(computePendingTerminalGhost(cell, "2026-07-20")).toBeNull();
+    expect(computeTerminalGhost(cell, "2026-07-20")?.terminalStatus).toBe("window_expired");
+  });
+
+  it("never gates retired - it has no scheduling-driven boundary, so it stays terminal on every visible weekday", () => {
+    const cell = baseCell({ status: "retired", last_use_run_date: "2026-07-17" });
+    expect(computeTerminalGhost(cell, "2026-07-14")?.terminalStatus).toBe("retired");
+    expect(computePendingTerminalGhost(cell, "2026-07-14")).toBeNull();
   });
 });

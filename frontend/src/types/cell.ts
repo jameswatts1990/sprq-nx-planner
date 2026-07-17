@@ -45,6 +45,10 @@ export interface CellOut {
   created_at: string;
   stopped_reason: string | null;
   stopped_at: string | null;
+  // Discard Cells (weekly schedule grid, per-tray) - forces status to "exhausted"
+  // regardless of actual remaining use count.
+  discarded_reason: string | null;
+  discarded_at: string | null;
   has_failed_use: boolean;
   needs_qc_report: boolean;
   awaiting_credit: boolean;
@@ -89,4 +93,13 @@ export interface CellUndoStopOut {
 
 export interface CellReportToPacbioRequest {
   case_number: string;
+}
+
+export interface TrayDiscardRequest {
+  tray_id: number;
+  reason?: string | null;
+}
+
+export interface TrayDiscardOut {
+  cells: CellOut[];
 }

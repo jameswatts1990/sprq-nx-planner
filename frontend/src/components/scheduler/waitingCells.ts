@@ -43,6 +43,13 @@ export interface CellGhost {
    * a fully valid drop target for a brand-new tray. Mutually exclusive with `unused`;
    * isHardCutoff/fadeOpacity/deadlineAt/deadlineIsEstimated carry no meaning here. */
   terminalStatus?: Exclude<CellStatus, "open" | "stopped">;
+  /** Set for a cell whose aggregate status has already flipped to exhausted/window_expired
+   * because every one of its uses is fully *scheduled*, but `day` falls before the calendar
+   * date it actually reaches that state (see computePendingTerminalGhost) - e.g. the cell's
+   * three uses are booked for Mon/Wed/Fri and `day` is the locked Tue/Thu column in between.
+   * Mutually exclusive with terminalStatus: exactly one of the two is set once the cell has
+   * gone terminal, depending on whether `day` is before or on/after that boundary date. */
+  pendingTerminalStatus?: Exclude<CellStatus, "open" | "stopped" | "retired">;
   /** Only meaningful when terminalStatus is set: true once every one of this cell's
    * physical tray siblings has also gone terminal (exhausted/window_expired/retired) or
    * been stopped - see computeVacatedTrayIds. Only then has the physical tray genuinely
@@ -168,6 +175,14 @@ export function computeTerminalGhost(
   if (cell.status !== "exhausted" && cell.status !== "window_expired" && cell.status !== "retired") return null;
   if (!cell.current_instrument_serial || !cell.current_well) return null;
   if (isWeekendUTC(parseDateOnly(day))) return null;
+  // exhausted/window_expired can be reached purely by *scheduling* every remaining use up
+  // front, before any of them have actually run - see computePendingTerminalGhost, which
+  // covers `day` values before this boundary. retired has no such boundary (a one-off manual
+  // write-off, not a byproduct of pre-scheduling), so it stays gated only on status/weekday.
+  if (cell.status !== "retired") {
+    const boundary = terminalBoundaryDate(cell);
+    if (boundary && day < boundary) return null;
+  }
 
   return {
     cell,
@@ -179,6 +194,62 @@ export function computeTerminalGhost(
     deadlineIsEstimated: false,
     terminalStatus: cell.status,
     terminalTrayVacated: cell.tray_id === null || vacatedTrayIds.has(cell.tray_id),
+  };
+}
+
+/**
+ * The first day `cell`'s well is genuinely idle after it actually reaches its terminal
+ * status - the boundary computeTerminalGhost and computePendingTerminalGhost split on.
+ * For "exhausted", that's simply the weekday after its last *scheduled* use
+ * (last_use_run_date) - mirrors computeGhost's own earliestDate, since the stage-based
+ * renderer already covers last_use_run_date itself via the cell's real placement that day.
+ * For "window_expired", it's the actual calendar day the 108h deadline closes, found via the
+ * same anchor/walk computeGhost uses for its own cutoffDate. Returns null when there isn't
+ * enough data to compute a boundary (e.g. no last_use_run_date at all) - callers treat that
+ * as "no pending window", i.e. already terminal on every visible day, same as before this
+ * function existed.
+ */
+function terminalBoundaryDate(cell: CellOut): string | null {
+  if (!cell.last_use_run_date) return null;
+  const earliestDate = nextWeekdayAfter(cell.last_use_run_date);
+  if (cell.status !== "window_expired") return earliestDate;
+
+  const anchor = cell.first_use_started_at ?? cell.first_use_planned_start_at;
+  if (!anchor) return earliestDate;
+  const deadlineAtMs = new Date(anchor).getTime() + CELL_LIFETIME_H * 3_600_000;
+  let cutoffDate = earliestDate;
+  while (dayStart(nextWeekdayAfter(cutoffDate)).getTime() <= deadlineAtMs) {
+    cutoffDate = nextWeekdayAfter(cutoffDate);
+  }
+  return nextWeekdayAfter(cutoffDate);
+}
+
+/**
+ * Whether `cell` has already gone terminal in its aggregate record (exhausted/window_expired)
+ * purely because every remaining use is fully *scheduled*, while `day` still falls before the
+ * calendar date it actually reaches that state - e.g. three uses booked for Mon/Wed/Fri, with
+ * `day` the locked Tue or Thu column in between. Shown as a muted, informational "Use N in
+ * progress" marker rather than computeTerminalGhost's red terminal badge, since the cell
+ * hasn't really used up its capacity as of `day` - it's just fully committed. Excludes
+ * "retired" (see computeTerminalGhost's boundary gate) since that status has no such window.
+ */
+export function computePendingTerminalGhost(cell: CellOut, day: string): CellGhost | null {
+  if (cell.status !== "exhausted" && cell.status !== "window_expired") return null;
+  if (!cell.current_instrument_serial || !cell.current_well) return null;
+  if (isWeekendUTC(parseDateOnly(day))) return null;
+
+  const boundary = terminalBoundaryDate(cell);
+  if (!boundary || day >= boundary) return null;
+
+  return {
+    cell,
+    useNumber: cell.uses_consumed,
+    isHardCutoff: false,
+    fadeOpacity: 1,
+    cutoffDate: day,
+    deadlineAt: "",
+    deadlineIsEstimated: false,
+    pendingTerminalStatus: cell.status,
   };
 }
 
@@ -247,9 +318,11 @@ export function computeVacatedTrayIds(cells: CellOut[]): Set<number> {
  * window - mirrors groupCyclesByInstrumentAndDay's shape so the grid can look ghosts up
  * the same way it looks up real cycles. `cells` is expected to be the union of open cells
  * (computeGhost/computeUnusedTraySiblingGhost) and terminal-by-attrition cells
- * (computeTerminalGhost) - the three compute functions are mutually exclusive by status,
- * so no cell ever produces more than one ghost for a given day. `vacatedTrayIds` (see
- * computeVacatedTrayIds) should be computed from the wider cell universe that also
+ * (computeTerminalGhost/computePendingTerminalGhost) - the four compute functions are
+ * mutually exclusive (by status, and for the terminal pair, by which side of
+ * terminalBoundaryDate `day` falls on), so no cell ever produces more than one ghost for a
+ * given day. `vacatedTrayIds` (see computeVacatedTrayIds) should be computed from the
+ * wider cell universe that also
  * includes stopped cells, so pass it in separately rather than deriving it from `cells`.
  */
 export function groupWaitingCellsByInstrumentAndDay(
@@ -270,6 +343,7 @@ export function groupWaitingCellsByInstrumentAndDay(
       const ghost =
         computeGhost(cell, day) ??
         computeUnusedTraySiblingGhost(cell, day) ??
+        computePendingTerminalGhost(cell, day) ??
         computeTerminalGhost(cell, day, vacatedTrayIds);
       if (!ghost) continue;
 

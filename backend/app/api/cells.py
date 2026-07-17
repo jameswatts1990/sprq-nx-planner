@@ -15,11 +15,15 @@ from app.schemas.cell import (
     CellStopOut,
     CellStopRequest,
     CellUndoStopOut,
+    TrayDiscardOut,
+    TrayDiscardRequest,
 )
 from app.schemas.common import Page
 from app.services.cell_service import (
     bootstrap_cell,
     confirm_cell_credit,
+    discard_cell,
+    discard_tray,
     receive_cell_credit,
     report_cell_to_pacbio,
     retire_cell,
@@ -131,6 +135,27 @@ def stop_cell_endpoint(cell_id: int, req: CellStopRequest, db: SessionDep, actor
     except ValueError as exc:
         raise HTTPException(409, str(exc)) from exc
     return CellStopOut(cell=serialize_cell(cell), bumped_sample_ids=bumped_sample_ids)
+
+
+@router.post("/{cell_id}/discard", response_model=CellOut)
+def discard_cell_endpoint(cell_id: int, req: CellStopRequest, db: SessionDep, actor: ActorDep) -> CellOut:
+    cell = db.get(Cell, cell_id, options=_DETAIL_OPTIONS)
+    if cell is None:
+        raise HTTPException(404, "Cell not found")
+    try:
+        cell, _bumped_sample_ids = discard_cell(db, cell, req.reason, req.actor or actor)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    return serialize_cell(cell)
+
+
+@router.post("/discard-tray", response_model=TrayDiscardOut)
+def discard_tray_endpoint(req: TrayDiscardRequest, db: SessionDep, actor: ActorDep) -> TrayDiscardOut:
+    cells = list(db.scalars(select(Cell).where(Cell.tray_id == req.tray_id).options(*_DETAIL_OPTIONS)).unique())
+    if not cells:
+        raise HTTPException(404, "Tray not found or has no cells")
+    cells = discard_tray(db, cells, req.reason, req.actor or actor)
+    return TrayDiscardOut(cells=[serialize_cell(c) for c in cells])
 
 
 @router.post("/{cell_id}/undo-stop", response_model=CellUndoStopOut)

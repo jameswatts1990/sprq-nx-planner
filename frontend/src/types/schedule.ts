@@ -30,6 +30,9 @@ export interface StageOut {
   /** 1-4 position within this cell's physical SPRQ-Nx SMRT Cell tray - null for cells
    * with no tray (created before this feature, or via the bootstrap cutover tool). */
   tray_position: number | null;
+  /** The physical tray this cell belongs to - lets the grid's per-tray "Discard Cells"
+   * action target every sibling cell, not just the ones with a filled slot this cycle. */
+  tray_id: number | null;
   /** Hours elapsed since this cell's own first use (null if not started yet) - drives the
    * slot's expiry shading. Per-cell, not per-tray - see docs/pacbio-sprq-nx-scheduling-
    * reference.md #2 (no shared tray-level clock). */

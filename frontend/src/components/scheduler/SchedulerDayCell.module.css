@@ -103,10 +103,39 @@
   background: var(--tray-card-bg);
   padding: 6px 6px 4px;
 }
+.trayHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+}
 .trayLabel {
   font-size: 8.5px;
   font-weight: 800;
   letter-spacing: 0.05em;
   text-transform: uppercase;
   color: var(--faint);
+}
+/* "Discard Cells" - top-right of the tray header, only shown once the tray is
+   tray-linked (see SchedulerDayCell.tsx). Deliberately understated (no red until
+   hover) since it sits on every tray card and must not read as an error state. */
+.discardBtn {
+  font-family: var(--sans);
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  border: none;
+  background: none;
+  color: var(--faint);
+  cursor: pointer;
+  padding: 1px 3px;
+  border-radius: 4px;
+}
+.discardBtn:hover:not(:disabled) {
+  color: var(--red);
+  background: var(--red-tint);
+}
+.discardBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }

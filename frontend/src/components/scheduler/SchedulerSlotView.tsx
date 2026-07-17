@@ -141,6 +141,12 @@ export const SchedulerSlotView = memo(
       // Neutral/severity-coded by *why* it went terminal, never tinted by use number -
       // this cell is done, so it must never read as a live Use 1/2/3 chip.
       classes.push(styles.ghostTerminal, TERMINAL_STATUS_CLASS[ghost.terminalStatus]);
+    } else if (ghost.pendingTerminalStatus) {
+      // Already fully booked (every remaining use scheduled) but not yet actually at that
+      // state as of this column's day - a calmer, informational look, distinct from both
+      // the red terminal severity above and the actionable Use-N tint below, since this
+      // well is neither dead nor a live drop target.
+      classes.push(styles.ghostPending);
     } else if (ghost.unused) {
       // Muted grey, not tinted by use number - it hasn't been used yet, so colouring it
       // like a real Use 1 (which .u1.ghost's higher-specificity two-class selector would
@@ -195,6 +201,14 @@ export const SchedulerSlotView = memo(
           ? "This well is open for a brand-new cell."
           : "This well stays locked until every cell in its physical tray is also used up, expired, or retired - the tray is still loaded on the instrument."
       }`
+    : undefined;
+
+  // Every remaining use of this cell is already scheduled for a later day, so this well
+  // can't be picked for a new placement - but it hasn't actually reached the end of its own
+  // lifecycle as of this column's day (that happens on a later, already-scheduled day), so
+  // it isn't "done" the way terminalGhostTitle's cell is.
+  const pendingGhostTitle = ghost?.pendingTerminalStatus
+    ? "This cell's next use is already scheduled for a later day - not available for a new placement here, but it hasn't reached the end of its own lifecycle yet."
     : undefined;
 
   return (
@@ -253,14 +267,16 @@ export const SchedulerSlotView = memo(
           <div className={styles.ghostCode} title={ghost.cell.code}>
             {ghost.cell.code}
           </div>
-          <div className={styles.ghostLabel} title={terminalGhostTitle}>
+          <div className={styles.ghostLabel} title={terminalGhostTitle ?? pendingGhostTitle}>
             {ghost.terminalStatus
               ? CELL_STATUS_LABEL[ghost.terminalStatus]
-              : ghost.unused
-                ? "Not yet used"
-                : ghost.isHardCutoff
-                  ? `Use ${ghost.useNumber} · expires today`
-                  : `Use ${ghost.useNumber} · by ${formatShortDateUTC(parseDateOnly(ghost.cutoffDate))}`}
+              : ghost.pendingTerminalStatus
+                ? `Use ${ghost.useNumber} in progress`
+                : ghost.unused
+                  ? "Not yet used"
+                  : ghost.isHardCutoff
+                    ? `Use ${ghost.useNumber} · expires today`
+                    : `Use ${ghost.useNumber} · by ${formatShortDateUTC(parseDateOnly(ghost.cutoffDate))}`}
           </div>
         </>
       ) : blocked ? (

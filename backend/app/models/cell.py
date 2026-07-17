@@ -28,6 +28,14 @@ class Cell(Base):
     stopped_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     stopped_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
+    # "Discard Cells" (weekly schedule grid, per-tray): forces status to "exhausted"
+    # regardless of actual remaining use count. Distinct from stopped_at/stopped_reason
+    # (status stays "exhausted", not "stopped") but serves the same sticky-guard role in
+    # recompute_status, so a discarded cell with real uses remaining never gets silently
+    # reopened just because its use count says otherwise.
+    discarded_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    discarded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
     # QC: PacBio credit tracking. One open case per physical cell at a time, cross
     # referenced by the case number PacBio issues when a quality log is raised.
     pacbio_case_number: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)

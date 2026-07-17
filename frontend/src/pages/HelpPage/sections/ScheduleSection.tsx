@@ -187,6 +187,12 @@ export function ScheduleSection() {
           A <b>LOADED</b> tag marks a locked run; <b>Unlock</b> returns it to planned so you can edit it again.
         </li>
         <li>
+          The <b>✕</b> button in a tray&apos;s top-right corner is <b>Discard Cells</b> — it force-marks every
+          physical cell in that tray as Exhausted, regardless of how many uses it actually has left. Use it once a
+          tray is done with in real life even though the system still thinks it has spare uses. Any not-yet-run
+          placements for those cells are cancelled and their samples return to the backlog. This cannot be undone.
+        </li>
+        <li>
           <b>Locked until [date/time]</b> means the run&apos;s instrument stays reserved past this day (a long
           movie), so later days show a &quot;Locked until…&quot; note even though no run starts on them.
         </li>
@@ -279,6 +285,16 @@ export function ScheduleSection() {
         the tray&apos;s four cells has gone terminal does the well behave like a plain <b>+</b> again, ready to start
         a brand-new physical tray. Unlike a real waiting-cell ghost, it never has a click-to-open popover of its
         own, since there&apos;s nothing left to discard.
+      </p>
+      <p>
+        <b>Use N in progress:</b> a cell whose remaining uses are already fully scheduled for later days — e.g. its
+        next use is booked for Wednesday while today&apos;s column is the locked Tuesday in between — shows this
+        plain, solid-bordered card with a <b>&quot;Use N in progress&quot;</b> label instead of jumping straight to
+        Exhausted or Window expired. It&apos;s fully booked, so this well can&apos;t take a new placement, but it
+        hasn&apos;t actually reached the end of its own lifecycle as of this day, so calling it Exhausted here would
+        be misleading. It switches over to the real Exhausted/Window expired card above once the calendar reaches
+        the day its last scheduled use actually happens. Same as a used-up well, it&apos;s informational only —
+        never a drop target, no click-to-open popover.
       </p>
     </div>
   );

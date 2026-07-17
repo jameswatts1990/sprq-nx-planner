@@ -7,6 +7,8 @@ import type {
   CellStopOut,
   CellStopRequest,
   CellUndoStopOut,
+  TrayDiscardOut,
+  TrayDiscardRequest,
 } from "@/types/cell";
 import type { Page } from "@/types/common";
 
@@ -34,4 +36,9 @@ export const cellsApi = {
     api.post<CellOut>(`/api/cells/${id}/report-to-pacbio`, req),
   confirmCredit: (id: number) => api.post<CellOut>(`/api/cells/${id}/confirm-credit`, {}),
   receiveCredit: (id: number) => api.post<CellOut>(`/api/cells/${id}/receive-credit`, {}),
+  /** Force a single cell to "exhausted" regardless of its actual remaining use count. */
+  discard: (id: number, req: CellStopRequest = {}) => api.post<CellOut>(`/api/cells/${id}/discard`, req),
+  /** Force every physical cell in a tray to "exhausted" in one transaction - siblings
+   * already retired/stopped/discarded are left untouched. */
+  discardTray: (req: TrayDiscardRequest) => api.post<TrayDiscardOut>("/api/cells/discard-tray", req),
 };

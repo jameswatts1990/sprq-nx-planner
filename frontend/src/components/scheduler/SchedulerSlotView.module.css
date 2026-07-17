@@ -150,6 +150,26 @@
   color: var(--faint);
 }
 
+/* A cell whose aggregate status has already flipped to exhausted/window_expired because
+   every remaining use is fully scheduled, but this column's day is still before the date it
+   actually reaches that state (see waitingCells.computePendingTerminalGhost) - deliberately
+   NOT the red .terminalExhausted/.terminalExpired treatment (this cell hasn't really used up
+   its capacity as of this day) and NOT tinted by use number like the actionable .u1/.u2/.u3
+   ghost (this well isn't a live drop target either). A plain solid-border card with a known,
+   ink-coloured cell code - reads as "this identified cell is committed here, informational
+   only" rather than either "dead" or "not yet used at all" (.ghostUnused). */
+.ghostPending {
+  border-style: solid;
+  border-color: var(--tray-card-border);
+  background: var(--card);
+  opacity: 0.85;
+  cursor: default;
+}
+.ghostPending .ghostLabel {
+  color: var(--grey);
+  font-weight: 700;
+}
+
 /* A cell that's gone terminal by ordinary attrition (exhausted/window_expired/retired -
    see CellGhost.terminalStatus) - still shown in its old well as an informational marker.
    Never a live reuse target, so no "solid + glow" hover preview ever applies to it - it
