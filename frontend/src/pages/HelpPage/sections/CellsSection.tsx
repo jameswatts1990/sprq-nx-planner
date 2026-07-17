@@ -15,7 +15,9 @@ export function CellsSection() {
         credit workflow, regardless of their Open/Exhausted/etc. status.
       </p>
       <p>
-        <b>Each cell card shows:</b> the cell code, a status badge, uses spent (e.g. &quot;1 / 3 uses&quot;), which
+        <b>Each cell card shows:</b> the cell code (e.g. <b>CELL-A004821</b> — the letter is the cell&apos;s fixed
+        position within its physical tray, A–D, not a status or location code), a status badge, uses spent (e.g.
+        &quot;1 / 3 uses&quot;), which
         instrument and well it&apos;s currently in, its burned barcodes, and a 108-hour window meter. Click a card
         to open its full detail.
       </p>

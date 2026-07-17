@@ -120,13 +120,46 @@ def open_new_tray(db: Session, instrument_id: int, well: str) -> list[Cell]:
         )
         db.add(cell)
         db.flush()
-        cell.code = f"CELL-{cell.id:06d}"
+        tray_letter = chr(ord("A") + position - 1)
+        cell.code = f"CELL-{tray_letter}{cell.id:06d}"
         if home_well == well:
             placed = cell
         else:
             siblings.append(cell)
     assert placed is not None, f"well {well!r} not found in its own tray box {box_wells!r}"
     return [placed, *siblings]
+
+
+def cleanup_tray_if_fully_unused(db: Session, cell: Cell) -> None:
+    """The tray-wide counterpart to open_new_tray(): once a placement's last use is removed
+    (remove_sample/change_cell/cancel_run), a tray-linked cell normally stays open with 0
+    uses since it's still a real physical sibling - but only as long as *some* cell in the
+    tray retains real history. If removing this use leaves every one of the tray's
+    CELLS_PER_TRAY cells at 0 uses, the tray was never actually loaded onto anything
+    durable, so delete the whole CellTray plus all its Cell rows rather than leaving a
+    "ghost" tray that lingers in the weekly grid for the rest of the week with no way to
+    clear it (see docs/todo.md's tray-clearing bug).
+
+    No-op if `cell` isn't tray-linked. Caller must already know `cell` itself has 0 uses.
+
+    Locks the tray row first, so concurrent cleanup checks for two sibling cells in the
+    same tray (e.g. "Clear schedule"/multi-remove firing one DELETE per stage concurrently
+    via Promise.all - see remove_sample) serialize instead of each independently seeing the
+    other's still-uncommitted removal and skipping cleanup, which would leave the tray
+    behind with 0 real uses anywhere in it. No-op on SQLite (dev), which doesn't support
+    FOR UPDATE but has no concurrent-writer race to begin with."""
+    tray = cell.tray
+    if tray is None:
+        return
+    db.execute(select(CellTray.id).where(CellTray.id == tray.id).with_for_update())
+    db.refresh(tray, attribute_names=["cells"])
+    for sibling in tray.cells:
+        db.refresh(sibling, attribute_names=["cell_uses"])
+        if sibling.cell_uses:
+            return
+    for sibling in tray.cells:
+        db.delete(sibling)
+    db.delete(tray)
 
 
 def last_use_run_date(cell: Cell) -> date | None:

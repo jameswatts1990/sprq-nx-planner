@@ -126,6 +126,7 @@ def test_remove_sample_reverts_to_backlog_and_cleans_up_emptied_run(client):
     cycle_id = r1.json()["cycle_id"]
     cell_use_id = r1.json()["stages"][0]["cell_use_id"]
     cell_id = r1.json()["stages"][0]["cell_id"]
+    tray_id = client.get(f"/api/cells/{cell_id}").json()["tray_id"]
 
     resp = client.delete(f"/api/cell-uses/{cell_use_id}")
     assert resp.status_code == 204
@@ -134,13 +135,11 @@ def test_remove_sample_reverts_to_backlog_and_cleans_up_emptied_run(client):
     assert client.get("/api/samples", params={"status": "backlog"}).json()["total"] == 1
     # the now-empty run+cycle was deleted
     assert client.get(f"/api/cycles/{cycle_id}").status_code == 404
-    # the cell itself is a real physical tray sibling (see open_new_tray()), not just a
-    # placeholder for this one use - it survives, open and reusable, at 0/3 uses
-    cell = client.get(f"/api/cells/{cell_id}")
-    assert cell.status_code == 200, cell.text
-    assert cell.json()["status"] == "open"
-    assert cell.json()["uses_consumed"] == 0
-    assert cell.json()["tray_id"] is not None
+    # this was the tray's only use anywhere - every sibling was still 0/3, so the whole
+    # tray (and all 4 of its cells) is cleaned up rather than lingering as a ghost tray
+    # with no samples in it for the rest of the week
+    assert client.get(f"/api/cells/{cell_id}").status_code == 404
+    assert client.get("/api/cells", params={"tray_id": tray_id}).json()["items"] == []
 
 
 def test_opening_a_tray_pins_every_sibling_to_a_well_in_the_same_box(client):
@@ -208,6 +207,40 @@ def test_remove_sample_keeps_cell_when_it_still_has_other_uses(client):
     cell = client.get(f"/api/cells/{cell_id}").json()
     assert cell["status"] == "open"
     assert cell["uses_consumed"] == 1
+
+
+def test_remove_sample_keeps_whole_tray_when_a_sibling_still_has_a_use(client):
+    """Distinct from test_remove_sample_keeps_cell_when_it_still_has_other_uses (which keeps
+    the *same* cell alive because it has another use of its own): here the cell being
+    emptied has no other uses, but a *sibling* in the same physical tray does - the tray
+    (and therefore this cell too) must survive at 0/3, not just the sibling."""
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1\nA2,bc2"})
+    (mon,) = _weekdays(1)
+    a1, a2 = _sid(client, "A1"), _sid(client, "A2")
+
+    r1 = _place(client, a1, mon, 0)
+    cell_use_id_1 = r1.json()["stages"][0]["cell_use_id"]
+    cell_id_1 = r1.json()["stages"][0]["cell_id"]
+    tray_id = client.get(f"/api/cells/{cell_id_1}").json()["tray_id"]
+
+    # cell_id_1's never-yet-used tray sibling reserved for well B01 - place a second,
+    # unrelated sample directly onto it so the tray has real history beyond cell_id_1.
+    sibling = next(
+        c for c in client.get("/api/cells", params={"tray_id": tray_id}).json()["items"] if c["current_well"] == "B01"
+    )
+    r2 = _place(client, a2, mon, 1, {"mode": "existing", "cell_id": sibling["id"]})
+    assert r2.status_code == 201, r2.text
+
+    resp = client.delete(f"/api/cell-uses/{cell_use_id_1}")
+    assert resp.status_code == 204
+
+    # cell_id_1 itself is back to 0/3, but the tray survives because its sibling still has
+    # real history, so cell_id_1 stays open/reusable rather than being swept away with it
+    cell_1 = client.get(f"/api/cells/{cell_id_1}").json()
+    assert cell_1["status"] == "open"
+    assert cell_1["uses_consumed"] == 0
+    assert cell_1["tray_id"] == tray_id
+    assert client.get(f"/api/cells/{sibling['id']}").json()["uses_consumed"] == 1
 
 
 def test_cell_last_use_run_date_tracks_most_recent_active_use(client):
@@ -321,13 +354,11 @@ def test_cancel_run_reverts_all_samples_and_deletes_run(client):
 
     assert client.get(f"/api/cycles/{cycle_id}").status_code == 404
     assert client.get("/api/samples", params={"status": "backlog"}).json()["total"] == 2
-    # both cells are real physical tray siblings (see open_new_tray()) - they survive this
-    # now-cancelled run, open and reusable, at 0/3 uses
+    # each cell was the only real use anywhere in its own tray - every sibling was still
+    # 0/3 - so cancelling wipes out both trays entirely rather than leaving them behind as
+    # ghost trays with no samples in them
     for cell_id in (cell_id_1, cell_id_2):
-        cell = client.get(f"/api/cells/{cell_id}")
-        assert cell.status_code == 200, cell.text
-        assert cell.json()["status"] == "open"
-        assert cell.json()["uses_consumed"] == 0
+        assert client.get(f"/api/cells/{cell_id}").status_code == 404
 
 
 def test_cancel_run_preserves_a_cancelled_stopped_cell_marker(client):
@@ -371,12 +402,10 @@ def test_cancel_run_preserves_a_cancelled_stopped_cell_marker(client):
 
     # B1's stopped cell is untouched by cancel_run - still stopped, still holding its marker
     assert client.get(f"/api/cells/{cell_id_1}").json()["status"] == "stopped"
-    # B2's cell is a real physical tray sibling (see open_new_tray()) - it survives the
-    # now-removed placement, open and reusable, at 0/3 uses
-    cell_2 = client.get(f"/api/cells/{cell_id_2}")
-    assert cell_2.status_code == 200, cell_2.text
-    assert cell_2.json()["status"] == "open"
-    assert cell_2.json()["uses_consumed"] == 0
+    # B2's cell was the only real use anywhere in its own tray (a separate tray from B1's -
+    # each "new" placement opens its own tray) - now that cancel_run has removed it, every
+    # sibling in that tray is back to 0/3, so the whole tray is cleaned up
+    assert client.get(f"/api/cells/{cell_id_2}").status_code == 404
 
 
 def test_cancel_run_rejected_when_not_planned(client):

@@ -21,7 +21,14 @@ from app.models.instrument import Instrument
 from app.models.sample import Sample
 from app.models.schedule import CellUse, CellUseBarcode, Cycle, RunBatch
 from app.services import instrument_lock
-from app.services.cell_service import current_location, derive_cell_state, open_new_tray, recompute_status, use_run_date
+from app.services.cell_service import (
+    cleanup_tray_if_fully_unused,
+    current_location,
+    derive_cell_state,
+    open_new_tray,
+    recompute_status,
+    use_run_date,
+)
 from app.timeutil import utcnow
 
 
@@ -307,8 +314,11 @@ def remove_sample(db: Session, cell_use_id: int, actor: str | None = None) -> No
             # loaded. Leaving it behind would produce an orphan "open, 0/3" cell that can
             # never legitimately exist.
             db.delete(cell)
-        # else: a tray-linked cell is a real physical sibling even with 0 uses (see
-        # open_new_tray()) - it stays open and reusable rather than being deleted.
+        else:
+            # A tray-linked cell is a real physical sibling even with 0 uses (see
+            # open_new_tray()) - it stays open and reusable, unless every sibling in its
+            # tray is also down to 0 uses, in which case the whole tray gets cleaned up.
+            cleanup_tray_if_fully_unused(db, cell)
 
     db.add(
         AuditLog(
@@ -535,7 +545,10 @@ def change_cell(
         # for the use just moved away - leaving it behind would produce an orphan
         # "open, 0/3" cell that can never legitimately exist.
         db.delete(old_cell)
-    # else: a tray-linked cell is a real physical sibling even with 0 uses - stays open.
+    else:
+        # A tray-linked cell is a real physical sibling even with 0 uses - stays open,
+        # unless every sibling in its tray is also down to 0 uses (see remove_sample).
+        cleanup_tray_if_fully_unused(db, old_cell)
 
     db.refresh(new_cell, attribute_names=["cell_uses"])
     recompute_status(new_cell, utcnow())
@@ -609,7 +622,10 @@ def cancel_run(db: Session, cycle_id: int, actor: str | None = None) -> None:
             # cell_uses were removed, and with no physical tray backing it, was only ever
             # a placeholder for this run.
             db.delete(cell)
-        # else: a tray-linked cell is a real physical sibling even with 0 uses - stays open.
+        else:
+            # A tray-linked cell is a real physical sibling even with 0 uses - stays open,
+            # unless every sibling in its tray is also down to 0 uses (see remove_sample).
+            cleanup_tray_if_fully_unused(db, cell)
 
     db.add(
         AuditLog(

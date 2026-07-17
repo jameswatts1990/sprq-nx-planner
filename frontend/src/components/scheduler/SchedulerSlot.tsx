@@ -44,7 +44,17 @@ export function SchedulerSlot(props: SchedulerSlotProps) {
 
   if (!stage) {
     if (locked) {
-      return <SchedulerSlotView stage={null} slotIndex={props.slotIndex} locked placing={props.placing} />;
+      // Only an unused-tray-sibling ghost ever reaches here (SchedulerDayCell excludes
+      // reuse ghosts once locked), so it's purely informational - no droppable wrapper.
+      return (
+        <SchedulerSlotView
+          stage={null}
+          slotIndex={props.slotIndex}
+          locked
+          placing={props.placing}
+          ghost={props.ghost}
+        />
+      );
     }
     return <DroppableSlot {...props} />;
   }

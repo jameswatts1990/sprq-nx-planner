@@ -74,12 +74,9 @@ def test_change_cell_swaps_to_an_existing_compatible_cell(client):
     assert resp.json()["run_date"] == mon
     assert stage["sample_external_id"] == "A1"
 
-    # the vacated cell is a real physical tray sibling (see open_new_tray()) - it survives,
-    # open and reusable, at 0/3 uses
-    old_cell = client.get(f"/api/cells/{old_cell_id}")
-    assert old_cell.status_code == 200, old_cell.text
-    assert old_cell.json()["status"] == "open"
-    assert old_cell.json()["uses_consumed"] == 0
+    # the vacated cell was the only real use anywhere in its own tray - every sibling was
+    # still 0/3 - so the whole tray is cleaned up rather than left behind as a ghost
+    assert client.get(f"/api/cells/{old_cell_id}").status_code == 404
     new_cell = client.get(f"/api/cells/{new_cell_id}").json()
     assert new_cell["uses_consumed"] == 2
     assert set(new_cell["burned_barcodes"]) == {"bc1", "bc2"}
@@ -98,10 +95,9 @@ def test_change_cell_to_a_brand_new_cell(client):
     new_cell_id = resp.json()["stages"][0]["cell_id"]
     assert new_cell_id != old_cell_id
 
-    old_cell = client.get(f"/api/cells/{old_cell_id}")
-    assert old_cell.status_code == 200, old_cell.text
-    assert old_cell.json()["status"] == "open"
-    assert old_cell.json()["uses_consumed"] == 0
+    # the vacated cell was the only real use anywhere in its own tray, so the whole tray
+    # is cleaned up rather than left behind as a ghost
+    assert client.get(f"/api/cells/{old_cell_id}").status_code == 404
     new_cell = client.get(f"/api/cells/{new_cell_id}").json()
     assert new_cell["uses_consumed"] == 1
     assert new_cell["burned_barcodes"] == ["bc1"]

@@ -90,22 +90,24 @@ export function SchedulerDayCell(props: SchedulerDayCellProps) {
   const tray1Filled = TRAY_INDICES[0].some((i) => slots[i] !== null);
   const tray2Filled = TRAY_INDICES[1].some((i) => slots[i] !== null);
 
-  // A locked day can no longer accept placements, so ghosts (which double as a droppable
-  // "place it here" affordance) don't apply there. Each waiting cell is pinned to the
-  // exact slot matching its own last-used well (WELL_ORDER) - cells stay in the same
-  // physical tray/well position for every reuse, never just "the next open slot" - so a
-  // ghost only shows if that specific slot is free. In the rare case two different
-  // waiting cells both last sat in the same well letter and are eligible the same day,
-  // the first one in waitingCells order gets it; the other simply has no ghost that day.
+  // A locked day can no longer accept placements, so reuse ghosts (which double as a
+  // droppable "place it here" affordance) don't apply there. Unused-tray-sibling ghosts
+  // are different: they represent a cell physically already sitting in the tray, not a
+  // placement offer, so they must stay visible even once the day is locked (see
+  // "Never-yet-used tray cells" in the Schedule help section). Each waiting cell is pinned
+  // to the exact slot matching its own last-used well (WELL_ORDER) - cells stay in the
+  // same physical tray/well position for every reuse, never just "the next open slot" - so
+  // a ghost only shows if that specific slot is free. In the rare case two different
+  // waiting cells both last sat in the same well letter and are eligible the same day, the
+  // first one in waitingCells order gets it; the other simply has no ghost that day.
   const ghostBySlot = new Map<SlotIndex, CellGhost>();
-  if (!locked) {
-    for (const ghost of waitingCells) {
-      const pinnedIndex = ghost.cell.current_well ? WELL_ORDER.indexOf(ghost.cell.current_well) : -1;
-      if (pinnedIndex < 0) continue;
-      const slot = pinnedIndex as SlotIndex;
-      if (slots[slot] !== null || ghostBySlot.has(slot)) continue;
-      ghostBySlot.set(slot, ghost);
-    }
+  for (const ghost of waitingCells) {
+    if (locked && !ghost.unused) continue;
+    const pinnedIndex = ghost.cell.current_well ? WELL_ORDER.indexOf(ghost.cell.current_well) : -1;
+    if (pinnedIndex < 0) continue;
+    const slot = pinnedIndex as SlotIndex;
+    if (slots[slot] !== null || ghostBySlot.has(slot)) continue;
+    ghostBySlot.set(slot, ghost);
   }
   const tray2HasGhost = TRAY_INDICES[1].some((i) => ghostBySlot.has(i));
 
