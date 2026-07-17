@@ -10,7 +10,9 @@ export function ScheduleSection() {
       <p>
         <b>Moving through time:</b> <b>‹ Prev</b> and <b>Next ›</b> page the view by 7 days; <b>Today</b> jumps
         back to the current window. The date range is shown between them, and it&apos;s remembered in the page URL
-        so you can bookmark or share a week.
+        so you can bookmark or share a week. The date field next to <b>Today</b> is a jump-to-date picker — pick
+        any day and the view jumps straight to the Mon-Fri week that contains it, without paging through every
+        week in between.
       </p>
       <p>
         <b>Weekends aren&apos;t shown</b> — the grid only has Monday-Friday columns, because runs aren&apos;t

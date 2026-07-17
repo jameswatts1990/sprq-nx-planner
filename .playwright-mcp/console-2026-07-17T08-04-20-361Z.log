@@ -4,3 +4,7 @@
 [  305730ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/cycles?date_from=2026-07-18&date_to=2026-07-24:0
 [  365755ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/cycles?date_from=2026-07-18&date_to=2026-07-24:0
 [  366769ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/cycles?date_from=2026-07-18&date_to=2026-07-24:0
+[  487819ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/cycles?date_from=2026-07-18&date_to=2026-07-24:0
+[  488834ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/cycles?date_from=2026-07-18&date_to=2026-07-24:0
+[  548855ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/cycles?date_from=2026-07-18&date_to=2026-07-24:0
+[  549916ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/cycles?date_from=2026-07-18&date_to=2026-07-24:0

@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 import styles from "./Badge.module.css";
 
-export type BadgeTone = "default" | "success" | "danger" | "warning" | "info";
+export type BadgeTone = "default" | "success" | "danger" | "warning" | "orange" | "info";
 
 export interface BadgeProps {
   tone?: BadgeTone;
@@ -14,6 +14,7 @@ const TONE_CLASS: Record<BadgeTone, string> = {
   success: styles.success,
   danger: styles.danger,
   warning: styles.warning,
+  orange: styles.orange,
   info: styles.info,
 };
 

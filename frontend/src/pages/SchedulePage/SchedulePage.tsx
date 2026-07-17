@@ -352,6 +352,14 @@ export function SchedulePage() {
           <Button size="sm" variant="ghost" onClick={win.goToday}>
             Today
           </Button>
+          <input
+            className={styles.jumpDate}
+            type="date"
+            value={win.from}
+            onChange={(e) => e.target.value && win.goToDate(e.target.value)}
+            aria-label="Jump to date"
+            title="Jump to the week containing this date"
+          />
           <Button size="sm" variant="ghost" onClick={() => setPrintSheetOpen(true)}>
             Print Batch Sheet
           </Button>

@@ -18,8 +18,10 @@ export function canRecordQcOutcome(use: CellUseHistoryOut): boolean {
  * reversible from here. "completed" is never set through this per-use action (only via a
  * cycle's own completion), and "cancelled" (Stop cell's "Blocked" marker) is undone via
  * the Cell's own Undo stop action instead, since it cascades from the whole cell, not one
- * use. The backend still has the final say - it 409s if the sample has since moved on
- * (requeued or rescheduled) since the verdict, which this can't see from the use alone. */
+ * use. Defers entirely to the backend's own `undo_available` flag (cell_service.
+ * undo_available) rather than re-deriving it from `status` here - whether the sample has
+ * since moved on (requeued or rescheduled) can only be known server-side, and showing a
+ * button that's certain to 409 reads to a lab user as "Undo just stopped working". */
 export function canUndoQcOutcome(use: CellUseHistoryOut): boolean {
-  return use.status === "failed" || use.status === "aborted";
+  return use.undo_available;
 }

@@ -12,6 +12,19 @@
   border-spacing: 0;
   width: 100%;
   min-width: 760px;
+  /* Fixed layout + the <colgroup> below make every weekday column the same width
+     regardless of cell content (e.g. a two-tray day no longer widens just its own
+     column - see .dayCol/.weekendCol and SchedulerDayCell's tray layout). */
+  table-layout: fixed;
+}
+.cornerCol {
+  width: 104px;
+}
+.dayCol {
+  width: 268px;
+}
+.weekendCol {
+  width: 38px;
 }
 .corner {
   width: 104px;

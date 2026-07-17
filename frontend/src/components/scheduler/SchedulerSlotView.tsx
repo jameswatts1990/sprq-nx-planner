@@ -75,23 +75,25 @@ export const SchedulerSlotView = memo(
   // outside a valid drop target (see useSchedulerDnd's onDragEnd).
   const showStage = !!stage && !dragging;
 
-  // Surfaces a QC problem directly on the grid, independent of the Use 1/2/3 tint.
-  // "cancelled" (this exact use was wiped out when its cell was stopped before it could
-  // run - see placement_service/cell_service) takes priority over the plain whole-cell
-  // "stopped" ring, since it's a distinct, more specific claim ("this never happened" vs
-  // "this cell is generally out of service"); stopped in turn outranks a merely-
-  // failed/aborted use, being the more severe, whole-cell condition. Any of these can
-  // coexist with a normal-looking completed/planned use elsewhere on the same cell.
+  // Surfaces a QC problem directly on the grid, independent of the Use 1/2/3 tint. A
+  // use's own recorded outcome (cancelled/failed/aborted) always wins over the whole-cell
+  // "stopped" flag - stopping a cell only cuts off its *future* (see cell_service.
+  // stop_cell), so an earlier use that already finished, failed, or was aborted keeps
+  // showing that true history instead of being repainted "Stopped" just because the same
+  // physical cell was taken out of service later. "stopped" is only shown as a fallback
+  // for a use that has no outcome of its own yet (still "planned"/"started") - i.e. the
+  // one actually cut short by the stop. Any of these can coexist with a normal-looking
+  // completed/planned use elsewhere on the same cell.
   const qcAlert: "cancelled" | "stopped" | "failed" | "aborted" | null = !showStage
     ? null
     : stage!.cell_use_status === "cancelled"
       ? "cancelled"
-      : stage!.cell_status === "stopped"
-        ? "stopped"
-        : stage!.cell_use_status === "failed"
-          ? "failed"
-          : stage!.cell_use_status === "aborted"
-            ? "aborted"
+      : stage!.cell_use_status === "failed"
+        ? "failed"
+        : stage!.cell_use_status === "aborted"
+          ? "aborted"
+          : stage!.cell_use_status !== "completed" && stage!.cell_status === "stopped"
+            ? "stopped"
             : null;
 
   // Colour groups by which physical cell is loaded (stage.use_number), not by well

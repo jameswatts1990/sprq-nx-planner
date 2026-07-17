@@ -130,7 +130,6 @@ export function SchedulerDayCell(props: SchedulerDayCellProps) {
   if (selectable) cellClasses.push(styles.selectable);
   if (selected) cellClasses.push(styles.selected);
   if (!cycle) cellClasses.push(styles.emptyCell);
-  if (tray1Filled || tray2Filled) cellClasses.push(styles.twoTrays);
 
   return (
     <td

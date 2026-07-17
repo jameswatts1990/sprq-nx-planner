@@ -205,6 +205,19 @@ def run_has_started(cell_use: CellUse) -> bool:
     return utcnow() >= ensure_aware(cell_use.cycle.planned_start_at)
 
 
+def undo_available(cell_use: CellUse) -> bool:
+    """Whether "Undo Failed"/"Undo Aborted" would actually succeed for this use right
+    now - mirrors run_service.undo_cell_use_status's own drift guard, so the frontend
+    can hide the button instead of showing one that's certain to 409 ("sample has since
+    moved on") once the sample has been requeued/rescheduled since the verdict."""
+    if cell_use.status not in ("failed", "aborted"):
+        return False
+    if cell_use.sample is None:
+        return True
+    expected_sample_status = "failed" if cell_use.status == "failed" else "backlog"
+    return cell_use.sample.status == expected_sample_status
+
+
 def has_failed_use(cell: Cell) -> bool:
     """Deliberately checks "failed" only, not "aborted" - Aborted means the run/instrument
     was the problem (the sample just goes back to the backlog for a fresh attempt), not
@@ -284,6 +297,7 @@ def serialize_cell_detail(cell: Cell) -> CellDetailOut:
                 completed_at=cu.completed_at,
                 outcome_notes=cu.outcome_notes,
                 run_started=run_has_started(cu),
+                undo_available=undo_available(cu),
             )
         )
     return CellDetailOut(**base.model_dump(), use_history=history)

@@ -77,6 +77,16 @@ You sit between human intent (directives) and deterministic execution (Python sc
 
 Be pragmatic. Be reliable. Self-anneal.
 
+## RunNx Product & UX Principles
+
+RunNx exists to make PacBio Revio/SPRQ-Nx run scheduling and cell-reuse tracking fast and error-free for lab users who are not developers. Apply these five criteria to every user-facing change — bug fix or new feature — not just when explicitly reminded:
+
+- **Aligned with app goals**: prefer the fix that serves accurate, low-friction lab scheduling over a technically interesting detour. When a change touches scheduling rules, re-check `docs/pacbio-sprq-nx-scheduling-reference.md` (see below) so behaviour still matches vendor-documented instrument constraints, not just what's convenient to implement.
+- **Seamless**: a change should feel like a natural extension of the existing screen, not a bolted-on control. Reuse existing components/patterns (e.g. `ConfirmModal`, the shared `Badge`/`Note` tone maps, existing modal/drawer/table conventions) instead of inventing new ones for the same job.
+- **Efficient**: minimize clicks, scrolling, and context-switches for the common case; don't trade a rare edge case for extra friction on the everyday path. This applies to implementation too — no needless abstraction, no premature scope creep (see the general "Doing tasks" principles above).
+- **Transparent**: current state, why something is blocked/locked, and what an action will do should be obvious at a glance — via status badges, tooltips, and Help text — never a silent state change or an error the user can't act on.
+- **UX/UI first**: for any user-facing change, reason about the interaction from the lab user's perspective before writing code, and verify visually in the running app (the `run`/`verify` skills, or a manual dev-server check) rather than relying on type-checks or test suites alone to call it done.
+
 ## RunNx Local Dev Environment
 
 This checkout lives on a mapped SMB network drive (`U:` → `\\home-smb\...`), not a local disk. That causes recurring, non-code-related failures — recognize the pattern before debugging application code:

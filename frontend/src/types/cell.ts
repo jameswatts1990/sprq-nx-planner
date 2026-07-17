@@ -22,6 +22,9 @@ export interface CellUseHistoryOut {
   // True once this use's run has reached its scheduled start time, independent of
   // whether anyone has explicitly confirmed the run loaded yet.
   run_started: boolean;
+  // True while a Failed/Aborted verdict on this use can still be undone - false once the
+  // sample has moved on (requeued/rescheduled) since the verdict.
+  undo_available: boolean;
 }
 
 export interface CellOut {

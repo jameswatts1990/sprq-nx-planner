@@ -125,6 +125,12 @@ export function SchedulerGrid({
   return (
     <div className={styles.gridScroll}>
       <table className={styles.grid}>
+        <colgroup>
+          <col className={styles.cornerCol} />
+          {days.map((date) => (
+            <col key={date} className={isWeekendUTC(parseDateOnly(date)) ? styles.weekendCol : styles.dayCol} />
+          ))}
+        </colgroup>
         <thead>
           <tr>
             <th

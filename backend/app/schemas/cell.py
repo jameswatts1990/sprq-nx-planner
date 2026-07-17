@@ -26,6 +26,10 @@ class CellUseHistoryOut(BaseModel):
     # committed and a physical cell failure becomes possible), independent of whether
     # anyone has explicitly confirmed the run loaded yet.
     run_started: bool
+    # True while a Failed/Aborted verdict on this use can still be undone - mirrors
+    # run_service.undo_cell_use_status's own drift guard so the frontend can hide/disable
+    # the Undo button instead of surfacing a 409 once the sample has moved on.
+    undo_available: bool
 
 
 class CellOut(BaseModel):

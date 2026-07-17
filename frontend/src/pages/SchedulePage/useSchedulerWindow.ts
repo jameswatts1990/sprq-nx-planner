@@ -19,6 +19,8 @@ export interface SchedulerWindow {
   prev: () => void;
   next: () => void;
   goToday: () => void;
+  /** Jumps to the Mon-Fri window containing an arbitrary date (e.g. from a date picker). */
+  goToDate: (date: string) => void;
 }
 
 /**
@@ -60,6 +62,9 @@ export function useSchedulerWindow(): SchedulerWindow {
   const prev = useCallback(() => shift(-WINDOW_DAYS), [shift]);
   const next = useCallback(() => shift(WINDOW_DAYS), [shift]);
   const goToday = useCallback(() => setFrom(todayIsoUTC()), [setFrom]);
+  // `from` is re-normalized to that date's Monday at the top of the hook, so no
+  // need to compute the week start here - same trick goToday already relies on.
+  const goToDate = useCallback((date: string) => setFrom(date), [setFrom]);
 
   return {
     from,
@@ -69,5 +74,6 @@ export function useSchedulerWindow(): SchedulerWindow {
     prev,
     next,
     goToday,
+    goToDate,
   };
 }

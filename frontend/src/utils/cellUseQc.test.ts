@@ -25,6 +25,7 @@ function baseUse(overrides: Partial<CellUseHistoryOut> = {}): CellUseHistoryOut 
     completed_at: null,
     outcome_notes: null,
     run_started: true,
+    undo_available: false,
     ...overrides,
   };
 }
@@ -60,21 +61,26 @@ describe("canRecordQcOutcome", () => {
 });
 
 describe("canUndoQcOutcome", () => {
-  it("is true for a failed use", () => {
-    expect(canUndoQcOutcome(baseUse({ status: "failed" }))).toBe(true);
+  it("defers entirely to the backend's undo_available flag for a failed use", () => {
+    expect(canUndoQcOutcome(baseUse({ status: "failed", undo_available: true }))).toBe(true);
   });
 
-  it("is true for an aborted use", () => {
-    expect(canUndoQcOutcome(baseUse({ status: "aborted" }))).toBe(true);
+  it("defers entirely to the backend's undo_available flag for an aborted use", () => {
+    expect(canUndoQcOutcome(baseUse({ status: "aborted", undo_available: true }))).toBe(true);
+  });
+
+  it("is false once the backend reports the sample has moved on, even if status is still failed/aborted", () => {
+    expect(canUndoQcOutcome(baseUse({ status: "failed", undo_available: false }))).toBe(false);
+    expect(canUndoQcOutcome(baseUse({ status: "aborted", undo_available: false }))).toBe(false);
   });
 
   it("is false for a cancelled stopped-cell marker - that's undone via the cell, not the use", () => {
-    expect(canUndoQcOutcome(baseUse({ status: "cancelled" }))).toBe(false);
+    expect(canUndoQcOutcome(baseUse({ status: "cancelled", undo_available: false }))).toBe(false);
   });
 
   it("is false for a planned, started, or completed use", () => {
-    expect(canUndoQcOutcome(baseUse({ status: "planned" }))).toBe(false);
-    expect(canUndoQcOutcome(baseUse({ status: "started" }))).toBe(false);
-    expect(canUndoQcOutcome(baseUse({ status: "completed" }))).toBe(false);
+    expect(canUndoQcOutcome(baseUse({ status: "planned", undo_available: false }))).toBe(false);
+    expect(canUndoQcOutcome(baseUse({ status: "started", undo_available: false }))).toBe(false);
+    expect(canUndoQcOutcome(baseUse({ status: "completed", undo_available: false }))).toBe(false);
   });
 });
