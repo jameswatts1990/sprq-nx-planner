@@ -108,22 +108,26 @@ export function CellsSection() {
         </li>
         <li>
           <b>Stop cell</b> is the QC action for a cell that has failed physically (e.g. visibly damaged) and can
-          never be used again. Unlike Retire, it doesn&apos;t require you to clear planned uses first — confirming
-          it cancels every not-yet-run use of that cell and returns those samples to the Backlog for rescheduling
-          (a note reports how many); uses that already ran are kept untouched as history. Once stopped, the cell
-          will never be offered again for reuse, including by Auto Schedule.
+          never be used again. Unlike Retire, it doesn&apos;t require you to clear planned uses first. If exactly
+          one use is currently in progress, that use&apos;s sample counts as Failed too (no usable data — you&apos;ll
+          need to raise a PacBio credit case for it); confirming also cancels every later, not-yet-run use of that
+          cell and returns those samples to the Backlog flagged <b>Aborted</b> so a scheduler can rescue them onto a
+          different cell (a note reports how many). Uses that already ran before the stop are kept untouched as
+          history. Once stopped, the cell will never be offered again for reuse, including by Auto Schedule.
         </li>
         <li>
           <b>Undo stop</b> appears once a cell is stopped, in place of Stop cell. Confirming it reopens the cell
-          and restores every use it cancelled back to Planned. If a sample from one of those uses has since been
-          requeued or rescheduled onto a fresh placement elsewhere, that one use is deliberately left cancelled
-          instead of being revived — reviving it would double-book that sample against wherever it landed.
+          and restores every use it touched back to how it looked beforehand — the Failed use (if any) back to its
+          prior state, and every cancelled use back to Planned with its sample&apos;s original priority restored. If
+          a sample from one of those uses has since been requeued or rescheduled onto a fresh placement elsewhere,
+          that one use is deliberately left as is instead of being revived — reviving it would double-book that
+          sample against wherever it landed.
         </li>
         <li>
           <b>Use history</b> lists every run the cell has been in: run name if one was set, otherwise its number
           (links to the run), well, use status, sample, container ID, barcodes, priority, target OPLC, adaptive
           loading, full resolution base Q, kinetics (CCS output includes kinetics information), instrument,
-          start/complete times, outcome notes, and <b>Mark Failed</b> / <b>Mark Aborted</b> actions.
+          start/complete times, outcome notes, and a <b>Mark Failed</b> action.
         </li>
         <li>
           <b>Mark Failed</b> means that particular run produced no usable data and the cell itself may be at fault;
@@ -131,23 +135,18 @@ export function CellsSection() {
           Backlog from the Samples list.
         </li>
         <li>
-          <b>Mark Aborted</b> is for when the run/instrument was the problem, not the cell or sample — e.g. an
-          instrument fault mid-run. The cell stays open for its other uses, and unlike Mark Failed the sample goes
-          straight back to the Backlog for rescheduling, with no separate Requeue step needed.
+          <b>When Mark Failed/Stop cell become available:</b> as soon as that run is locked in — someone has
+          clicked <b>Confirm loaded</b> on the schedule grid — so they always appear and disappear together. Both
+          are hidden for a run that hasn&apos;t been locked in yet, and for uses that were cancelled or already have
+          a recorded outcome (Failed, Aborted, or Completed).
         </li>
         <li>
-          <b>When Mark Failed/Mark Aborted become available:</b> as soon as that run is locked onto the
-          instrument — its scheduled start time — not only once someone has clicked <b>Confirm loaded</b>. A
-          problem can occur at any point once a cell is actually on the instrument, so QC doesn&apos;t wait on that
-          confirmation step. Both are hidden for a run that hasn&apos;t reached its scheduled start yet, and for
-          uses that were cancelled or already have a recorded outcome (Failed or Aborted).
-        </li>
-        <li>
-          <b>Undo Failed</b> / <b>Undo Aborted</b> replace Mark Failed/Mark Aborted in the Actions column once a
-          use has that verdict recorded. Confirming restores the use (and its sample) to how they looked
-          beforehand. The button itself disappears again once the sample has since been requeued or rescheduled
-          onto a fresh placement elsewhere — undoing at that point would double-book that sample, so it stops
-          being offered rather than failing with an error; reschedule from the Backlog instead in that case.
+          <b>Undo Failed</b> replaces <b>Mark Failed</b> in the Actions column once a use has that verdict recorded
+          (whether from Mark Failed or as the use a Stop cell was triggered from). Confirming restores the use (and
+          its sample) to how they looked beforehand. The button itself disappears again once the sample has since
+          been requeued or rescheduled onto a fresh placement elsewhere — undoing at that point would double-book
+          that sample, so it stops being offered rather than failing with an error; reschedule from the Backlog
+          instead in that case.
         </li>
       </ul>
 

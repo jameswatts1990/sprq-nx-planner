@@ -13,6 +13,12 @@ _UNRANKED_PRIORITY = 999
 _EPOCH = datetime.min.replace(tzinfo=timezone.utc)
 _NATURAL_SORT_CHUNK_RE = re.compile(r"(\d+)")
 
+# Priority label assigned to a sample bumped back to the backlog by a Stop-cell cascade
+# (see cell_service.stop_cell) - rank 0 sorts ahead of every existing label under
+# priority_rank()'s "Label (N)" convention, so it wins the Backlog sort and the next
+# pack_cells() run with no other changes needed.
+ABORTED_PRIORITY = "Aborted (0)"
+
 
 def priority_rank(priority: str | None) -> int:
     """Lower is higher-priority. Extracts the trailing "(N)" from labels like

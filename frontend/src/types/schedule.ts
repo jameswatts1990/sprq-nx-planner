@@ -30,6 +30,10 @@ export interface StageOut {
   cell_use_status: string;
   /** The physical cell's overall status (open/exhausted/window_expired/retired/stopped). */
   cell_status: string;
+  /** True if any use of this cell has a recorded "failed" outcome - lets the grid tell an
+   * earlier, still-untouched use apart from the one a Stop cell was actually triggered
+   * from once the cell goes "stopped" (see SchedulerSlotView's qcAlert). */
+  cell_has_failed_use: boolean;
   /** 1-4 position within this cell's physical SPRQ-Nx SMRT Cell tray - null for cells
    * with no tray (created before this feature, or via the bootstrap cutover tool). */
   tray_position: number | null;

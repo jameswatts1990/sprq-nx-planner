@@ -160,6 +160,18 @@ def auto_fill(
     # CellTray, producing 4 physical trays (and non-sequential cell ids) for what's
     # really one tray box being loaded.
     opened_boxes: dict[tuple[int, int], dict[str, Cell]] = {}
+    # (instrument_id, well) -> the PackedCell.id currently resolved to that exact well -
+    # tracked per well, not per box, since several *different* fresh PackedCells
+    # legitimately share one box at once (one per well - see opened_boxes above). Lets
+    # the loop below tell "the same logical cell, resolved again" apart from "a
+    # *different* PackedCell now needs this exact well because the engine already proved
+    # its previous occupant genuinely exhausted its full physical lifetime" (see
+    # slot_scheduling.py's well_owner/_well_is_vacated - fill_slots only ever hands an
+    # already-claimed well to a new PackedCell once that's true, e.g. a fresh cell hits
+    # its 3-use cap by midweek and a brand-new tray is planned into the same well
+    # position later in the same batch).
+    well_claimant: dict[tuple[int, str], str] = {}
+    now = utcnow()
 
     def _resolve_well(cycle_id: int, requested_well: str) -> str | None:
         taken = occupied_wells.get(cycle_id)
@@ -224,8 +236,38 @@ def auto_fill(
         db_cell = ref_to_cell.get(a.cell.id)
         if db_cell is None:
             instrument_id = instruments[a.instrument_serial].id
-            box_key = (instrument_id, (WELLS.index(well) // CELLS_PER_TRAY) * CELLS_PER_TRAY)
+            box_start = (WELLS.index(well) // CELLS_PER_TRAY) * CELLS_PER_TRAY
+            box_key = (instrument_id, box_start)
             box_cells = opened_boxes.get(box_key)
+            if box_cells is not None and well_claimant.get((instrument_id, well)) not in (None, a.cell.id):
+                # A *different* PackedCell now needs this exact well - the engine already
+                # proved every cell in this box has genuinely reached the end of its
+                # physical life before handing the well to a new logical cell (see
+                # slot_scheduling.py's _well_is_vacated), so it's legitimate to retire the
+                # old physical tray and load a brand-new one in its place, even within
+                # this same batch. Recompute the old cells' status right now (rather than
+                # waiting for this function's own end-of-loop pass below) so
+                # open_new_tray()'s own "is this box still live" collision guard sees them
+                # as already exhausted, not stale "open" rows - if some sibling in this
+                # box *hasn't* actually finished (a real, uneven-quota edge case), that
+                # guard correctly refuses the reopen and this sample is left unplaced
+                # rather than corrupting anything. Every well in the box is cleared, not
+                # just this one, so its other siblings (already resolved earlier under
+                # the old generation) don't each independently re-trigger this same
+                # retirement once their own next assignment comes through.
+                for old_cell in box_cells.values():
+                    db.refresh(old_cell, attribute_names=["cell_uses"])
+                    recompute_status(old_cell, now)
+                # This session runs with autoflush=False (db.py) - without an explicit
+                # flush here, the status changes above stay pending Python-side and
+                # open_new_tray()'s own raw `Cell.status == "open"` collision query
+                # below wouldn't see them yet, so it would wrongly still find these
+                # cells "open" and refuse the legitimate reopen.
+                db.flush()
+                for w in WELLS[box_start : box_start + CELLS_PER_TRAY]:
+                    well_claimant.pop((instrument_id, w), None)
+                box_cells = None
+                opened_boxes.pop(box_key, None)
             if box_cells is None:
                 # Opens a whole new physical tray (4 cells), not just this one - the
                 # other 3 are left open/unused and surface as preferred reuse candidates
@@ -240,6 +282,7 @@ def auto_fill(
                 except ValueError:
                     continue
                 opened_boxes[box_key] = box_cells
+            well_claimant[(instrument_id, well)] = a.cell.id
             db_cell = box_cells[well]
             ref_to_cell[a.cell.id] = db_cell
 
@@ -262,7 +305,6 @@ def auto_fill(
     if placed_sample_ids:
         db.execute(update(Sample).where(Sample.id.in_(placed_sample_ids)).values(status="scheduled"))
 
-    now = utcnow()
     for db_cell in touched_cells:
         db.refresh(db_cell, attribute_names=["cell_uses"])
         recompute_status(db_cell, now)

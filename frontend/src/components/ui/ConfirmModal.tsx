@@ -38,10 +38,10 @@ export interface ConfirmModalProps {
 }
 
 /** Shared shell for the "explain, optionally collect a note, confirm/cancel" dialogs used
- * for cell/use QC actions (Stop, Undo stop, Mark Failed, Mark Aborted, Undo) - these had
- * grown into five near-identical copies of the same Modal/ModalActions markup. Callers
- * keep their own state (and mount/unmount to get a fresh textarea each open); this only
- * owns the shared presentation. */
+ * for cell/use QC actions (Stop, Undo stop, Mark Failed, Undo) - these had grown into
+ * near-identical copies of the same Modal/ModalActions markup. Callers keep their own
+ * state (and mount/unmount to get a fresh textarea each open); this only owns the shared
+ * presentation. */
 export function ConfirmModal({
   title,
   children,

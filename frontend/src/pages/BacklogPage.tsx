@@ -15,7 +15,7 @@ import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import type { SegmentedOption } from "@/components/ui/SegmentedControl";
 import type { SampleOut } from "@/types/sample";
 import { useDebouncedValue } from "@/utils/useDebouncedValue";
-import { priorityTone } from "@/utils/priority";
+import { ABORTED_PRIORITY, priorityTone } from "@/utils/priority";
 
 import styles from "./BacklogPage.module.css";
 
@@ -63,6 +63,13 @@ export function BacklogPage() {
         page_size: pageSize,
       }),
   });
+
+  // Lightweight count-only check (page_size 1, just reading .total) for the warning badge.
+  const abortedQuery = useQuery({
+    queryKey: ["samples", { status: "backlog", priority: ABORTED_PRIORITY, page: 1, page_size: 1 }],
+    queryFn: () => samplesApi.list({ status: "backlog", priority: ABORTED_PRIORITY, page: 1, page_size: 1 }),
+  });
+  const abortedCount = abortedQuery.data?.total ?? 0;
 
   const cancelMutation = useMutation({
     mutationFn: (id: number) => samplesApi.cancel(id),
@@ -146,7 +153,14 @@ export function BacklogPage() {
   return (
     <div className={styles.page}>
       <Card>
-        <CardHeader badge={`${total} sample${total === 1 ? "" : "s"}`}>
+        <CardHeader
+          badge={
+            <span className={styles.badgeGroup}>
+              {abortedCount > 0 && <Badge tone="danger">⚠ {abortedCount} aborted</Badge>}
+              {`${total} sample${total === 1 ? "" : "s"}`}
+            </span>
+          }
+        >
           <h2>Backlog</h2>
         </CardHeader>
         <CardBody>

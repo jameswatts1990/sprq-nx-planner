@@ -17,7 +17,7 @@ import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import type { SegmentedOption } from "@/components/ui/SegmentedControl";
 import type { SampleOut } from "@/types/sample";
 import { useDebouncedValue } from "@/utils/useDebouncedValue";
-import { priorityTone } from "@/utils/priority";
+import { ABORTED_PRIORITY, priorityTone } from "@/utils/priority";
 
 import styles from "./BacklogAccordion.module.css";
 
@@ -73,6 +73,14 @@ export function BacklogAccordion() {
     queryFn: () => samplesApi.listPriorities(),
   });
 
+  // Lightweight count-only check (page_size 1, just reading .total) so the warning badge
+  // stays visible even while the accordion is collapsed, same as the sample-count badge.
+  const abortedQuery = useQuery({
+    queryKey: ["samples", { status: "backlog", priority: ABORTED_PRIORITY, page: 1, page_size: 1 }],
+    queryFn: () => samplesApi.list({ status: "backlog", priority: ABORTED_PRIORITY, page: 1, page_size: 1 }),
+  });
+  const abortedCount = abortedQuery.data?.total ?? 0;
+
   const query = useQuery({
     queryKey: ["samples", { status: "backlog", q, priority, sortBy, sortDir, page, page_size: pageSize }],
     queryFn: () =>
@@ -92,7 +100,15 @@ export function BacklogAccordion() {
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   return (
-    <Accordion title="Backlog" badge={`${total} sample${total === 1 ? "" : "s"}`}>
+    <Accordion
+      title="Backlog"
+      badge={
+        <span className={styles.badgeGroup}>
+          {abortedCount > 0 && <Badge tone="danger">⚠ {abortedCount} aborted</Badge>}
+          {`${total} sample${total === 1 ? "" : "s"}`}
+        </span>
+      }
+    >
       <div className={styles.toolbar}>
         <input
           type="search"

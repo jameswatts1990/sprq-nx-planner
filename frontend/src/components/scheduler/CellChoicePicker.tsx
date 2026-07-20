@@ -42,15 +42,20 @@ interface ConfirmVars {
  * Small picker shown between dropping a sample and committing the placement/move:
  * - A new placement (backlog sample dropped) offers "Use a new cell" (default) or a
  *   compatible open/reusable cell, same as before.
- * - A move (dragging an already-placed sample) has no cell decision at all - the atomic
- *   move endpoint keeps the same cell, just repositions it - so the cell-choice fieldset
- *   is skipped entirely.
+ * - A move to the same well (a different day only) has no cell decision at all - the
+ *   dragged cell just repositions there - so the cell-choice fieldset is skipped.
+ * - A move to a *different* well where the dragged cell is already pinned elsewhere (by
+ *   another of its own uses) can't take the cell there at all - cells stay in the same
+ *   physical tray/well position for every reuse - so the sample instead needs a different
+ *   cell, resolved via this same cell-choice fieldset exactly like a fresh placement (see
+ *   wellConflict below).
  * If the drop would create a brand-new run (no existingRun for this instrument+day yet),
  * a loading start-time field is shown - but only when there's also nowhere else to get a
  * start time. An unambiguous placement (a valid ghost preselect, or no reusable cell at
- * all) auto-confirms with a default start time even into a brand-new run; a move into a
- * brand-new run is the one case that always needs the modal, since moves have no cell
- * choice to resolve and thus no other way to collect a start time. See cellChoiceGate.ts.
+ * all) auto-confirms with a default start time even into a brand-new run; a pure move
+ * (no cell decision) into a brand-new run is the one case that always needs the modal,
+ * since it has no cell choice to resolve and thus no other way to collect a start time.
+ * See cellChoiceGate.ts.
  */
 export function CellChoicePicker({ pending, runDesign, existingRun, onClose, onPlaced, setPlacingSlotKey }: CellChoicePickerProps) {
   const queryClient = useQueryClient();
@@ -68,8 +73,23 @@ export function CellChoicePicker({ pending, runDesign, existingRun, onClose, onP
     instrumentSerial: pending.instrument_serial,
     sampleBarcodes: pending.sample.barcodes,
     targetWell: WELL_ORDER[pending.slot_index],
-    enabled: !isMove,
+    excludeCellId: isMove ? pending.moveFromCellId : undefined,
   });
+  // The dragged slot's own cell, found in the same open-cells list used for `compatible` -
+  // its current_well/uses_consumed tell us whether it's pinned elsewhere by another of its
+  // own uses (see wellConflict below). Not found at all (e.g. the cell has since gone
+  // non-open) is treated as "no conflict detected" - the move endpoint's own authoritative
+  // check still applies server-side regardless.
+  const draggedCell = isMove ? cellsQuery.data?.find((c) => c.id === pending.moveFromCellId) : undefined;
+  // True when this move's destination well isn't where the dragged cell is already
+  // pinned - the cell can't go there, so the sample needs a different cell instead,
+  // resolved via the same fieldset a fresh placement uses.
+  const wellConflict =
+    isMove &&
+    draggedCell !== undefined &&
+    draggedCell.uses_consumed > 1 &&
+    draggedCell.current_well !== null &&
+    draggedCell.current_well !== WELL_ORDER[pending.slot_index];
   // Only trust the preselected ghost cell once it's confirmed still compatible (barcodes
   // could have changed since the ghost was computed) - otherwise fall back to the normal
   // choice-among-compatible-cells flow below.
@@ -88,6 +108,7 @@ export function CellChoicePicker({ pending, runDesign, existingRun, onClose, onP
           run_time_hours: runDesign.run_time_hours,
           start_hour: vars.startHour,
           start_minute: vars.startMinute,
+          cell_choice: vars.cellChoice,
         });
       }
       return cellUsesApi.place({
@@ -127,6 +148,7 @@ export function CellChoicePicker({ pending, runDesign, existingRun, onClose, onP
 
   const gateInput = {
     isMove,
+    wellConflict,
     isNewRun,
     cellsLoading: cellsQuery.isLoading,
     cellsError: cellsQuery.isError,
@@ -156,7 +178,7 @@ export function CellChoicePicker({ pending, runDesign, existingRun, onClose, onP
       mutation.mutate({ cellChoice });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isNewRun, isMove, cellsQuery.isLoading, cellsQuery.isError, compatible.length, preselectedValid]);
+  }, [isNewRun, isMove, wellConflict, cellsQuery.isLoading, cellsQuery.isError, compatible.length, preselectedValid]);
 
   if (!showModal) return null;
 
@@ -189,7 +211,7 @@ export function CellChoicePicker({ pending, runDesign, existingRun, onClose, onP
         </div>
       )}
 
-      {!isMove && (
+      {(!isMove || wellConflict) && (
         <fieldset className={styles.choices}>
           <legend className={styles.legend}>Cell</legend>
           <label className={styles.choice}>

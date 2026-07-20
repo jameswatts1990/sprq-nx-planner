@@ -48,7 +48,6 @@ export function CellDetailPage() {
   const [undoStopModalOpen, setUndoStopModalOpen] = useState(false);
   const [bumpedCount, setBumpedCount] = useState<number | null>(null);
   const [failTarget, setFailTarget] = useState<CellUseHistoryOut | null>(null);
-  const [abortTarget, setAbortTarget] = useState<CellUseHistoryOut | null>(null);
   const [undoTarget, setUndoTarget] = useState<CellUseHistoryOut | null>(null);
   const [caseNumber, setCaseNumber] = useState("");
 
@@ -63,7 +62,16 @@ export function CellDetailPage() {
   });
 
   const stopMutation = useMutation({
-    mutationFn: (reason: string) => cellsApi.stop(id, { reason: reason || null }),
+    mutationFn: (reason: string) => {
+      // Anchor the stop to this cell's single in-progress use, if there's exactly one -
+      // its own sample is then treated like a Fail (lost, needs a PacBio credit case) and
+      // only *later* planned uses cascade back to the backlog. With 0 or 2+ candidates
+      // there's no unambiguous single use to anchor to, so fall back to the original
+      // whole-cell behavior (every planned use cascades, nothing is marked Failed).
+      const inProgress = query.data?.use_history.filter((u) => u.status === "planned" || u.status === "started") ?? [];
+      const cell_use_id = inProgress.length === 1 ? inProgress[0].id : undefined;
+      return cellsApi.stop(id, { reason: reason || null, cell_use_id });
+    },
     onSuccess: (data) => {
       invalidateCell();
       setStopModalOpen(false);
@@ -77,16 +85,6 @@ export function CellDetailPage() {
     onSuccess: () => {
       invalidateCell();
       setFailTarget(null);
-    },
-  });
-
-  const markAbortedMutation = useMutation({
-    mutationFn: ({ useId, notes }: { useId: number; notes: string }) =>
-      cellUsesApi.updateStatus(useId, { status: "aborted", notes: notes || undefined }),
-    onSuccess: () => {
-      invalidateCell();
-      void queryClient.invalidateQueries({ queryKey: ["samples"] });
-      setAbortTarget(null);
     },
   });
 
@@ -361,14 +359,9 @@ export function CellDetailPage() {
                         {(canRecordQcOutcome(u) || canUndoQcOutcome(u)) && (
                           <div className={styles.useActions}>
                             {canRecordQcOutcome(u) && (
-                              <>
-                                <Button size="sm" variant="ghost" onClick={() => setFailTarget(u)}>
-                                  Mark Failed
-                                </Button>
-                                <Button size="sm" variant="ghost" onClick={() => setAbortTarget(u)}>
-                                  Mark Aborted
-                                </Button>
-                              </>
+                              <Button size="sm" variant="ghost" onClick={() => setFailTarget(u)}>
+                                Mark Failed
+                              </Button>
                             )}
                             {canUndoQcOutcome(u) && (
                               <Button size="sm" variant="ghost" onClick={() => setUndoTarget(u)}>
@@ -503,16 +496,6 @@ export function CellDetailPage() {
         />
       )}
 
-      {abortTarget && (
-        <MarkAbortedModal
-          use={abortTarget}
-          pending={markAbortedMutation.isPending}
-          error={markAbortedMutation.error}
-          onCancel={() => setAbortTarget(null)}
-          onConfirm={(notes) => markAbortedMutation.mutate({ useId: abortTarget.id, notes })}
-        />
-      )}
-
       {undoTarget && (
         <UndoQcModal
           use={undoTarget}
@@ -533,9 +516,11 @@ interface StopCellModalProps {
   onConfirm: (reason: string) => void;
 }
 
-/** QC: take this physical cell permanently out of service. Cascades by cancelling every
- * not-yet-run ("planned") use and returning its sample to the backlog - already-run uses
- * are left untouched as history. */
+/** QC: take this physical cell permanently out of service. If exactly one use is
+ * currently in progress, it's treated like a Fail (sample lost, needs a PacBio credit
+ * case); every later not-yet-run ("planned") use is cancelled and its sample returned to
+ * the backlog flagged Aborted, ready to be rescued onto a different cell. Already-run
+ * uses are left untouched as history. */
 function StopCellModal({ pending, error, onCancel, onConfirm }: StopCellModalProps) {
   const [reason, setReason] = useState("");
 
@@ -556,8 +541,10 @@ function StopCellModal({ pending, error, onCancel, onConfirm }: StopCellModalPro
       onConfirm={() => onConfirm(reason)}
     >
       <p className={styles.helper}>
-        All of this cell&apos;s not-yet-run uses are cancelled and their samples returned to the backlog for
-        rescheduling. Uses that already ran are kept as history. This cell will never be offered for reuse again.
+        If exactly one use is currently in progress, its sample counts as Failed (no usable data, needs a PacBio
+        credit case). Every not-yet-run use is cancelled and its sample returned to the Backlog flagged Aborted, ready
+        to be rescued onto a different cell. Uses that already ran are kept as history. This cell will never be
+        offered for reuse again.
       </p>
     </ConfirmModal>
   );
@@ -629,46 +616,6 @@ function MarkFailedModal({ use, pending, error, onCancel, onConfirm }: MarkFaile
   );
 }
 
-interface MarkAbortedModalProps {
-  use: CellUseHistoryOut;
-  pending: boolean;
-  error: unknown;
-  onCancel: () => void;
-  onConfirm: (notes: string) => void;
-}
-
-/** QC: the run/instrument was the problem, not this sample or cell - unlike Mark Failed,
- * the sample goes straight back to the backlog for a fresh attempt with no separate
- * Requeue step. The cell remains open for its other uses. */
-function MarkAbortedModal({ use, pending, error, onCancel, onConfirm }: MarkAbortedModalProps) {
-  const [notes, setNotes] = useState("");
-
-  return (
-    <ConfirmModal
-      title={`Mark ${use.well} (run ${runLabel(use)}) Aborted?`}
-      confirmLabel="Mark Aborted"
-      pendingLabel="Saving…"
-      pending={pending}
-      error={error != null ? (error instanceof ApiError ? error.message : "Failed to mark use as aborted.") : null}
-      textarea={{
-        label: "Notes (optional)",
-        value: notes,
-        onChange: setNotes,
-        placeholder: "e.g. instrument fault mid-run",
-      }}
-      onCancel={onCancel}
-      onConfirm={() => onConfirm(notes)}
-    >
-      <p className={styles.helper}>
-        {use.sample_external_id ? `Sample ${use.sample_external_id} will be returned` : "The sample will be returned"}{" "}
-        straight to the backlog for rescheduling - no separate requeue step needed. Use this when the run itself
-        was aborted (instrument fault, etc.), not when the cell or sample is at fault. The cell remains open for
-        its other uses.
-      </p>
-    </ConfirmModal>
-  );
-}
-
 interface UndoQcModalProps {
   use: CellUseHistoryOut;
   pending: boolean;
@@ -677,11 +624,12 @@ interface UndoQcModalProps {
   onConfirm: () => void;
 }
 
-/** Reverse a mistaken Mark Failed/Mark Aborted verdict on this specific use, restoring it
- * (and its sample) to how they looked beforehand. Only use this if the wrong slot was
- * flagged by mistake - if this cell genuinely failed or was aborted, leave the verdict as
- * is. The backend still has the final say - it 409s if the sample has since moved on
- * (requeued or rescheduled), which surfaces here as the error note below. */
+/** Reverse a mistaken Failed/Aborted verdict on this specific use (from Mark Failed or a
+ * whole-cycle abort), restoring it (and its sample) to how they looked beforehand. Only
+ * use this if the wrong slot was flagged by mistake - if this cell genuinely failed or
+ * was aborted, leave the verdict as is. The backend still has the final say - it 409s if
+ * the sample has since moved on (requeued or rescheduled), which surfaces here as the
+ * error note below. */
 function UndoQcModal({ use, pending, error, onCancel, onConfirm }: UndoQcModalProps) {
   const verdict = use.status === "failed" ? "Failed" : "Aborted";
 

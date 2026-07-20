@@ -86,6 +86,9 @@ class CellBootstrapRequest(BaseModel):
 class CellStopRequest(BaseModel):
     reason: str | None = None
     actor: str | None = None
+    # The specific use that triggered the stop (e.g. the slot the lab user was viewing) -
+    # optional for a whole-cell Stop with no single use in view. See cell_service.stop_cell.
+    cell_use_id: int | None = None
 
 
 class CellStopOut(BaseModel):

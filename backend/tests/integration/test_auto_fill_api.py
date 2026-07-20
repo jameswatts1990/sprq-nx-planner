@@ -393,6 +393,64 @@ def test_auto_fill_never_exceeds_the_hard_three_use_cap_with_cells_per_day_four(
         assert len(active_uses) <= 3, f"{cell.code} has {len(active_uses)} uses - exceeds the hard 3-use cap"
 
 
+def test_auto_fill_reloads_a_terminal_well_with_a_new_tray_in_the_same_batch(client, db_session):
+    """Companion to the hard-cap regression above: fixing the overuse must not
+    over-correct into refusing to reload a genuinely terminal well. Once tray 1's 4
+    fresh cells exhaust their own 3-use quota by Wednesday, a brand-new physical tray
+    is a legitimate thing to plan into the same 4 wells for Thursday/Friday - PacBio's
+    own instrument explicitly allows loading a new tray once the old one is spent (see
+    cell_service.open_new_tray's "a box whose every cell has gone terminal is not a
+    collision" rule). With enough backlog demand (20 disjoint samples), new physical
+    cells must open on Thursday and get reused Friday - not silently give up after
+    Wednesday.
+
+    Note: 2 of the 20 samples still come back unplaced here (18/20) - a pre-existing,
+    separate limitation of pack_cells's depth allocation, not of this reload fix: it
+    assigns a flat `min(max_uses, available_days)` depth to every fresh cell without
+    knowing that a *second-generation* cell reloaded mid-week (see slot_scheduling.py's
+    _well_is_vacated) only has 2 real days left (Thu+Fri), not the full week - so 2 of
+    the 7 packed cells are over-committed to 3 planned uses when only 2 can actually be
+    placed. This is a safe failure mode (samples are honestly reported unplaced, never
+    silently dropped or double-booked) and was never reachable before this fix (a
+    terminal well couldn't be reloaded within one batch at all) - a genuine packing
+    optimization, not a correctness bug, and left as a follow-up rather than folded into
+    this fix."""
+    client.post(
+        "/api/imports",
+        json={"raw_text": "sample,barcodes\n" + "\n".join(f"R{i},bcr{i}" for i in range(1, 21))},
+    )
+    week = _next_working_week()
+
+    resp = _auto_fill(
+        client,
+        [{"instrument_serial": "84047", "run_date": d} for d in week],
+        objective="fewest",
+        max_uses=3,
+        cells_per_day=4,
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+
+    assert len(body["placed_sample_ids"]) == 18
+    assert len(body["unplaced_sample_ids"]) == 2
+    assert sorted(r["run_date"] for r in body["runs"]) == week
+
+    cells = db_session.query(Cell).all()
+    # 4 cells for Mon-Wed's first-generation tray, plus a whole new physical tray-of-4
+    # reopened Thursday (see cell_service.open_new_tray's "eager tray population" -
+    # opening one well opens all 4 physical siblings at once) - only 3 of that second
+    # tray's wells had backlog demand, so its 4th cell sits at 0 uses, a real open
+    # sibling ready for a future placement rather than a gap.
+    assert len(cells) == 8
+    uses_per_cell = sorted(len([cu for cu in c.cell_uses if cu.status != "cancelled"]) for c in cells)
+    # 4 first-generation cells reach the full 3-use cap (Mon-Wed); of the second
+    # generation's 4 tray-mates, 3 get reused Thu+Fri (2 uses each) and the 4th
+    # sibling is never touched (0 uses) - none exceed the cap, and a genuinely new
+    # tray did open after Wednesday rather than the batch giving up.
+    assert uses_per_cell == [0, 2, 2, 2, 3, 3, 3, 3]
+    assert max(uses_per_cell) <= 3
+
+
 def test_auto_fill_prioritizes_higher_priority_sample_over_wells_scarcity(client):
     """Reproduces a reported gap: auto-schedule should prioritize higher-priority
     samples when capacity is scarce. W9 is High priority but was imported last (and

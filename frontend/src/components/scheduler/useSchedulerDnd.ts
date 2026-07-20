@@ -37,6 +37,7 @@ export interface FilledSlotDragData {
   kind: "filledSlot";
   sample: DragSampleRef;
   cell_use_id: number;
+  cell_id: number;
   instrument_serial: string;
   run_date: string;
   slot_index: SlotIndex;
@@ -140,6 +141,8 @@ export function useSchedulerDnd(onRemoveOutside: (cellUseId: number) => void): S
         run_date: overData.run_date,
         slot_index: overData.slot_index,
         moveFromCellUseId: activeData.cell_use_id,
+        moveFromCellId: activeData.cell_id,
+        preselectedCellId: overData.ghostCellId,
       });
     },
     [onRemoveOutside],

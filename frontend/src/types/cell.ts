@@ -77,6 +77,9 @@ export interface CellBootstrapRequest {
 
 export interface CellStopRequest {
   reason?: string | null;
+  /** The specific use that triggered the stop (e.g. the slot being viewed) - optional
+   * for a whole-cell Stop with no single use in view. */
+  cell_use_id?: number | null;
 }
 
 export interface CellStopOut {

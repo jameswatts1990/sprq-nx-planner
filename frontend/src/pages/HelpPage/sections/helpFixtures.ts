@@ -115,6 +115,7 @@ export const STAGE_EXAMPLE_SOURCE: StageOut = {
   barcodes: ["bc1001"],
   cell_use_status: "completed",
   cell_status: "open",
+  cell_has_failed_use: false,
   tray_position: 2,
   tray_id: 7,
   window_hours_elapsed: 60,

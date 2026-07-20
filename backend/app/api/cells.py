@@ -131,7 +131,7 @@ def stop_cell_endpoint(cell_id: int, req: CellStopRequest, db: SessionDep, actor
     if cell is None:
         raise HTTPException(404, "Cell not found")
     try:
-        cell, bumped_sample_ids = stop_cell(db, cell, req.reason, req.actor or actor)
+        cell, bumped_sample_ids = stop_cell(db, cell, req.reason, req.actor or actor, cell_use_id=req.cell_use_id)
     except ValueError as exc:
         raise HTTPException(409, str(exc)) from exc
     return CellStopOut(cell=serialize_cell(cell), bumped_sample_ids=bumped_sample_ids)

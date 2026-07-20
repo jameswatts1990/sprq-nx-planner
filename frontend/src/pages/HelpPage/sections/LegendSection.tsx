@@ -256,8 +256,8 @@ export function LegendSection() {
             <SchedulerSlotView stage={STAGE_EXAMPLE_ABORTED} slotIndex={0} />
           </div>
           <span>
-            This use was marked Aborted - the mildest, amber/yellow ring, since the run/instrument was the problem
-            rather than the cell itself; the sample has already gone back to the backlog.
+            The whole run was aborted (an instrument/run problem, not this cell) - the mildest, amber/yellow ring;
+            the sample has already gone back to the backlog.
           </span>
         </div>
         <div className={styles.legendRow}>
@@ -265,8 +265,9 @@ export function LegendSection() {
             <SchedulerSlotView stage={STAGE_EXAMPLE_FAILED} slotIndex={0} />
           </div>
           <span>
-            This use was marked Failed - an orange ring and label, one step more severe than Aborted; the cell may
-            still be fine for its other uses.
+            This use was marked Failed - an orange ring and label, one step more severe than Aborted; it produced
+            no usable data, whether from Mark Failed or as the use a Stop cell was triggered from. The cell may
+            still be fine for its other, earlier uses.
           </span>
         </div>
         <div className={styles.legendRow}>
@@ -275,8 +276,10 @@ export function LegendSection() {
           </div>
           <span>
             This slot&apos;s physical cell has been Stopped while this specific use hadn&apos;t recorded its own
-            outcome yet - the most severe, red ring. A use that already finished, failed, or was aborted before the
-            cell was stopped keeps showing that instead (see the two examples above).
+            outcome yet - the most severe, red ring. Rare in practice: the use a Stop cell is triggered from always
+            gets its own Failed outcome (see above), so this only shows up for a whole-cell Stop with no single use
+            in view (from the Cell detail page, with no use currently in progress). A use that already finished,
+            failed, or was cancelled by a stop keeps showing that instead (see the other examples here).
           </span>
         </div>
         <div className={styles.legendRow}>
@@ -284,9 +287,10 @@ export function LegendSection() {
             <SchedulerSlotView stage={STAGE_EXAMPLE_CANCELLED} slotIndex={0} />
           </div>
           <span>
-            Blocked - this placement was cancelled by a Stop cell action before it ever ran. Shares Stopped&apos;s
-            red severity, with an added cross-hatch texture since it&apos;s the more actionable claim (a slot you
-            might otherwise expect to still happen).
+            Blocked - this placement was cancelled by a Stop cell action before it ever ran; its sample is back in
+            the Backlog flagged Aborted, ready to be rescued onto a different cell. Shares Stopped&apos;s red
+            severity, with an added cross-hatch texture since it&apos;s the more actionable claim (a slot you might
+            otherwise expect to still happen).
           </span>
         </div>
       </div>

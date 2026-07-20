@@ -152,6 +152,7 @@ function DraggableSlot({
       barcodes: stage.barcodes,
     },
     cell_use_id: stage.cell_use_id,
+    cell_id: stage.cell_id,
     instrument_serial: instrumentSerial,
     run_date: runDate,
     slot_index: slotIndex,

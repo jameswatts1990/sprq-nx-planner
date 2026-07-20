@@ -80,6 +80,7 @@ def move_cell_use(cell_use_id: int, req: MoveSampleRequest, db: SessionDep, acto
             run_time_hours=req.run_time_hours,
             start_hour=req.start_hour,
             start_minute=req.start_minute,
+            cell_choice=req.cell_choice.model_dump() if req.cell_choice is not None else None,
             actor=actor,
         )
     except PlacementError as exc:

@@ -1,9 +1,9 @@
 import { Badge } from "@/components/ui/Badge";
-import { priorityTone } from "@/utils/priority";
+import { ABORTED_PRIORITY, priorityTone } from "@/utils/priority";
 
 import styles from "../HelpPage.module.css";
 
-const PRIORITY_EXAMPLES = ["High (1)", "Medium (2)", "Standard (3)"];
+const PRIORITY_EXAMPLES = [ABORTED_PRIORITY, "High (1)", "Medium (2)", "Standard (3)"];
 
 export function BacklogSection() {
   return (
@@ -43,6 +43,19 @@ export function BacklogSection() {
           </div>
         ))}
       </div>
+      <p>
+        <b>Aborted</b> is a special priority set automatically, not by a lab user: when a <b>Stop cell</b> QC action
+        (see the Schedule and Cells tabs&apos; help) cancels a cell&apos;s later, not-yet-run uses, each of those
+        samples is returned here with its priority set to <b>Aborted</b> — the highest rank there is, so it always
+        sorts to the very top of the Backlog. Rescuing one is no different from scheduling any other backlog sample:
+        drag it (or place it via Auto Schedule) onto a different cell.
+      </p>
+      <p>
+        Whenever one or more Aborted samples are waiting, a red <Badge tone="danger">⚠ N aborted</Badge> warning
+        badge appears next to the sample count in this tab&apos;s header and in the Schedule tab&apos;s Backlog
+        panel header — visible even while that panel is collapsed — so a scheduler never misses one sitting
+        unrescued in the queue.
+      </p>
 
       <p className={styles.subheading}>Actions</p>
       <p>

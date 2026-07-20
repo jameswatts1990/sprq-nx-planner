@@ -38,8 +38,9 @@ export const cellUsesApi = {
   /** Reassign an existing placement to a different cell, same slot. 200 -> the owning
    * CycleOut. 409 on an incompatible/locked target cell or a locked run. */
   changeCell: (id: number, req: ChangeCellRequest) => api.post<CycleOut>(`/api/cell-uses/${id}/change-cell`, req),
-  /** Reverse a mistaken Mark Failed/Mark Aborted, restoring the use (and its sample) to
-   * how they looked beforehand. 409 if the sample has since moved on (requeued or
+  /** Reverse a mistaken Failed/Aborted verdict (from Mark Failed, a Stop cell's
+   * triggering use, or a whole-cycle abort), restoring the use (and its sample) to how
+   * they looked beforehand. 409 if the sample has since moved on (requeued or
    * rescheduled elsewhere) - undo is no longer safe once that's happened. */
   undo: (id: number) => api.post<CellUseOut>(`/api/cell-uses/${id}/undo`),
 };

@@ -98,9 +98,12 @@ export const SchedulerSlotView = memo(
   // stop_cell), so an earlier use that already finished, failed, or was aborted keeps
   // showing that true history instead of being repainted "Stopped" just because the same
   // physical cell was taken out of service later. "stopped" is only shown as a fallback
-  // for a use that has no outcome of its own yet (still "planned"/"started") - i.e. the
-  // one actually cut short by the stop. Any of these can coexist with a normal-looking
-  // completed/planned use elsewhere on the same cell.
+  // for a use that has no outcome of its own yet (still "planned"/"started") AND the cell
+  // has no failed use anywhere - stop_cell() always marks its triggering use "failed", so
+  // cell_has_failed_use being true means some other use on this cell already carries the
+  // real, specific outcome and this one is provably just untouched history, not the one
+  // cut short (see StageOut.cell_has_failed_use). Any of these can coexist with a
+  // normal-looking completed/planned use elsewhere on the same cell.
   const qcAlert: "cancelled" | "stopped" | "failed" | "aborted" | null = !showStage
     ? null
     : stage!.cell_use_status === "cancelled"
@@ -109,7 +112,7 @@ export const SchedulerSlotView = memo(
         ? "failed"
         : stage!.cell_use_status === "aborted"
           ? "aborted"
-          : stage!.cell_use_status !== "completed" && stage!.cell_status === "stopped"
+          : stage!.cell_use_status !== "completed" && stage!.cell_status === "stopped" && !stage!.cell_has_failed_use
             ? "stopped"
             : null;
 

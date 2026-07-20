@@ -119,6 +119,85 @@ def get_or_create_run(
     return cycle
 
 
+def _release_cell(db: Session, cell: Cell, now: datetime) -> None:
+    """Shared cleanup once a cell loses one of its uses - remove_sample, change_cell's
+    vacated old cell, and move_sample's cell-reassignment path all hit exactly this same
+    decision: recompute status if the cell still has other uses, delete it outright if it
+    was only ever a placeholder for the use just lost (no tray backing it - it can never
+    legitimately exist as an orphan "open, 0/3" cell), or otherwise leave it open as a real
+    physical tray sibling unless every sibling in its tray is also down to 0 uses."""
+    db.refresh(cell, attribute_names=["cell_uses"])
+    if cell.cell_uses:
+        recompute_status(cell, now)
+    elif cell.tray_id is None:
+        db.delete(cell)
+    else:
+        cleanup_tray_if_fully_unused(db, cell)
+
+
+def _resolve_cell_choice(
+    db: Session,
+    cell_choice: dict,
+    *,
+    instrument_id: int,
+    instrument_serial: str,
+    well: str,
+    barcodes: list[str],
+    exclude_tray_id: int | None = None,
+) -> Cell:
+    """Shared "which cell hosts this sample" resolution, shared by place_sample,
+    change_cell, and move_sample's cell-reassignment path: mode "new" opens a fresh tray
+    pinned to `well`; mode "existing" validates the chosen cell is open, has capacity, has
+    no burned-barcode clash with these barcodes, and - once it has a prior use - is
+    already pinned to this exact instrument/well (cells stay in the same physical
+    tray/well position for every reuse)."""
+    mode = cell_choice.get("mode")
+    if mode == "existing":
+        cell_id = cell_choice.get("cell_id")
+        if cell_id is None:
+            raise PlacementError(400, "cell_choice.cell_id is required when mode is 'existing'.")
+        cell = db.get(
+            Cell,
+            cell_id,
+            options=[
+                selectinload(Cell.cell_uses).selectinload(CellUse.barcodes),
+                selectinload(Cell.tray).selectinload(CellTray.instrument),
+            ],
+        )
+        if cell is None:
+            raise PlacementError(404, f"Cell {cell_id} not found.")
+        if cell.status != "open":
+            raise PlacementError(409, f"Cell {cell.code} is not open (status: {cell.status}).")
+        _consumed, remaining, burned = derive_cell_state(cell)
+        if remaining <= 0:
+            raise PlacementError(409, f"Cell {cell.code} has no remaining uses.")
+        if any(bc in set(burned) for bc in barcodes):
+            raise PlacementError(409, f"barcode conflict: sample shares a burned barcode with cell {cell.code}.")
+        current_serial, current_well = current_location(cell)
+        if current_serial is not None and current_serial != instrument_serial:
+            raise PlacementError(
+                409,
+                f"Cell {cell.code} is already in use on instrument {current_serial}; "
+                f"cannot place it on {instrument_serial}.",
+            )
+        # Cells stay in the same physical tray/well position for every reuse - once a
+        # cell has a well of its own, only that exact well can host its next use.
+        if current_well is not None and current_well != well:
+            raise PlacementError(
+                409,
+                f"Cell {cell.code} must stay in well {current_well} (its last used slot); "
+                f"cannot place it in well {well}.",
+            )
+        return cell
+    elif mode == "new":
+        try:
+            return open_new_tray(db, instrument_id, well, exclude_tray_id=exclude_tray_id)[0]
+        except ValueError as exc:
+            raise PlacementError(409, str(exc)) from exc
+    else:
+        raise PlacementError(400, f"Unknown cell_choice.mode '{mode}'.")
+
+
 def place_sample(
     db: Session,
     *,
@@ -156,41 +235,14 @@ def place_sample(
     existing_cell: Cell | None = None
     mode = cell_choice.get("mode")
     if mode == "existing":
-        cell_id = cell_choice.get("cell_id")
-        if cell_id is None:
-            raise PlacementError(400, "cell_choice.cell_id is required when mode is 'existing'.")
-        existing_cell = db.get(
-            Cell,
-            cell_id,
-            options=[
-                selectinload(Cell.cell_uses).selectinload(CellUse.barcodes),
-                selectinload(Cell.tray).selectinload(CellTray.instrument),
-            ],
+        existing_cell = _resolve_cell_choice(
+            db,
+            cell_choice,
+            instrument_id=instrument.id,
+            instrument_serial=instrument_serial,
+            well=well,
+            barcodes=sample_barcodes,
         )
-        if existing_cell is None:
-            raise PlacementError(404, f"Cell {cell_id} not found.")
-        if existing_cell.status != "open":
-            raise PlacementError(409, f"Cell {existing_cell.code} is not open (status: {existing_cell.status}).")
-        _consumed, remaining, burned = derive_cell_state(existing_cell)
-        if remaining <= 0:
-            raise PlacementError(409, f"Cell {existing_cell.code} has no remaining uses.")
-        if any(bc in set(burned) for bc in sample_barcodes):
-            raise PlacementError(409, f"barcode conflict: sample shares a burned barcode with cell {existing_cell.code}.")
-        current_serial, current_well = current_location(existing_cell)
-        if current_serial is not None and current_serial != instrument_serial:
-            raise PlacementError(
-                409,
-                f"Cell {existing_cell.code} is already in use on instrument {current_serial}; "
-                f"cannot place it on {instrument_serial}.",
-            )
-        # Cells stay in the same physical tray/well position for every reuse - once a
-        # cell has a well of its own, only that exact well can host its next use.
-        if current_well is not None and current_well != well:
-            raise PlacementError(
-                409,
-                f"Cell {existing_cell.code} must stay in well {current_well} (its last used slot); "
-                f"cannot place it in well {well}.",
-            )
     elif mode != "new":
         raise PlacementError(400, f"Unknown cell_choice.mode '{mode}'.")
 
@@ -308,20 +360,7 @@ def remove_sample(db: Session, cell_use_id: int, actor: str | None = None) -> No
         db.delete(run_batch)
 
     if cell is not None:
-        db.refresh(cell, attribute_names=["cell_uses"])
-        if cell.cell_uses:
-            recompute_status(cell, utcnow())
-        elif cell.tray_id is None:
-            # This cell had no other uses and no physical tray backing it - it was only a
-            # placeholder for the use we just removed, so nothing physical was ever
-            # loaded. Leaving it behind would produce an orphan "open, 0/3" cell that can
-            # never legitimately exist.
-            db.delete(cell)
-        else:
-            # A tray-linked cell is a real physical sibling even with 0 uses (see
-            # open_new_tray()) - it stays open and reusable, unless every sibling in its
-            # tray is also down to 0 uses, in which case the whole tray gets cleaned up.
-            cleanup_tray_if_fully_unused(db, cell)
+        _release_cell(db, cell, utcnow())
 
     db.add(
         AuditLog(
@@ -345,14 +384,25 @@ def move_sample(
     run_time_hours: float,
     start_hour: int = DAY_START_HOUR,
     start_minute: int = 0,
+    cell_choice: dict | None = None,
     actor: str | None = None,
 ) -> Cycle:
-    """Move an existing placement to a different (instrument, day, slot) in one atomic
-    step - an in-place update of the CellUse's cycle/well, never a delete+recreate. That
+    """Move an existing placement to a different (instrument, day, slot).
+
+    If the destination well matches wherever this cell's other uses already sit (or it
+    has none yet), this is an in-place update of the CellUse's cycle/well - the same
+    physical cell just repositions to a different day, never a delete+recreate. That
     avoids two real problems a client-side remove-then-place has: a rejected re-place
     leaving the sample stranded in backlog with the old slot already gone, and the old
     cell being deleted (as an emptied placeholder) out from under a move that intended to
-    reuse it."""
+    reuse it.
+
+    If the destination well conflicts with the cell's own established pin, the cell
+    itself can't go there (cells stay in the same physical tray/well position for every
+    reuse - see docs/pacbio-sprq-nx-scheduling-reference.md) - moving the *sample* there
+    instead means handing it to a different cell, resolved via `cell_choice` exactly like
+    a fresh placement. See _move_sample_to_new_cell for that path's own atomicity
+    guarantees."""
     # --- read-only validation (before any writes) ---
     if run_date.weekday() >= 5:
         raise PlacementError(400, f"{run_date.isoformat()} is a weekend - runs are weekdays only.")
@@ -365,6 +415,7 @@ def move_sample(
         cell_use_id,
         options=[
             selectinload(CellUse.cycle).selectinload(Cycle.run_batch),
+            selectinload(CellUse.barcodes),
             selectinload(CellUse.cell).selectinload(Cell.cell_uses).selectinload(CellUse.cycle).selectinload(
                 Cycle.run_batch
             ).selectinload(RunBatch.instrument),
@@ -381,6 +432,7 @@ def move_sample(
 
     cell = cell_use.cell
     other_uses = [cu for cu in cell.cell_uses if cu.id != cell_use.id and cu.status != "cancelled"]
+    reassign_to_new_cell = False
     if other_uses:
         last_other = max(other_uses, key=lambda cu: (use_run_date(cu) or date.min, cu.id))
         last_run_batch = last_other.cycle.run_batch if last_other.cycle else None
@@ -391,19 +443,31 @@ def move_sample(
                 f"Cell {cell.code} is already in use on instrument {pinned_serial}; "
                 f"cannot move it to {instrument_serial}.",
             )
-        # Cells stay in the same physical tray/well position for every reuse.
+        # Cells stay in the same physical tray/well position for every reuse - the cell
+        # itself can't take this well, so the sample has to go to a different cell there.
         if well not in {cu.well for cu in other_uses}:
-            pinned_well = last_other.well
-            raise PlacementError(
-                409,
-                f"Cell {cell.code} must stay in well {pinned_well} (its other uses' slot); cannot move it to well {well}.",
-            )
+            reassign_to_new_cell = True
 
     instrument = db.scalar(select(Instrument).where(Instrument.serial_number == instrument_serial))
     if instrument is None:
         raise PlacementError(400, f"Unknown instrument serial '{instrument_serial}'.")
 
-    # --- writes ---
+    if reassign_to_new_cell:
+        return _move_sample_to_new_cell(
+            db,
+            cell_use=cell_use,
+            old_cycle=old_cycle,
+            instrument=instrument,
+            run_date=run_date,
+            well=well,
+            run_time_hours=run_time_hours,
+            start_hour=start_hour,
+            start_minute=start_minute,
+            cell_choice=cell_choice,
+            actor=actor,
+        )
+
+    # --- writes: same-cell reschedule ---
     dest_cycle = get_or_create_run(
         db,
         instrument=instrument,
@@ -459,6 +523,108 @@ def move_sample(
     return dest_cycle
 
 
+def _move_sample_to_new_cell(
+    db: Session,
+    *,
+    cell_use: CellUse,
+    old_cycle: Cycle,
+    instrument: Instrument,
+    run_date: date,
+    well: str,
+    run_time_hours: float,
+    start_hour: int,
+    start_minute: int,
+    cell_choice: dict | None,
+    actor: str | None,
+) -> Cycle:
+    """The dragged cell is pinned elsewhere by another of its own uses, so it can't take
+    this well - hand the sample to `cell_choice`'s resolved cell instead. One transaction:
+    a new CellUse under the resolved cell replaces this one, and the sample's status never
+    bounces through "backlog" in between (unlike a naive remove-then-place)."""
+    old_cell = cell_use.cell
+    if cell_choice is None:
+        raise PlacementError(
+            400,
+            f"Cell {old_cell.code} must stay in well {cell_use.well} (its other uses' slot); "
+            f"cell_choice is required to move this sample to well {well}.",
+        )
+
+    dest_cycle = get_or_create_run(
+        db,
+        instrument=instrument,
+        run_date=run_date,
+        run_time_hours=run_time_hours,
+        start_hour=start_hour,
+        start_minute=start_minute,
+    )
+    if dest_cycle.movie_hours != int(run_time_hours):
+        raise PlacementError(
+            409,
+            f"This run is already set to {dest_cycle.movie_hours}h; cannot mix a {int(run_time_hours)}h placement into it.",
+        )
+    if dest_cycle.status != "planned":
+        raise PlacementError(409, f"Run is locked (status: {dest_cycle.status}); cannot place into it.")
+
+    barcodes = cell_use.barcode_list
+    new_cell = _resolve_cell_choice(
+        db,
+        cell_choice,
+        instrument_id=instrument.id,
+        instrument_serial=instrument.serial_number,
+        well=well,
+        barcodes=barcodes,
+    )
+
+    old_cycle_id = old_cycle.id
+    old_run_batch = old_cycle.run_batch
+
+    new_cell_use = CellUse(
+        cycle_id=dest_cycle.id, cell_id=new_cell.id, sample_id=cell_use.sample_id, well=well, status="planned"
+    )
+    db.add(new_cell_use)
+    try:
+        db.flush()
+    except IntegrityError:
+        db.rollback()
+        raise PlacementError(409, f"slot already occupied: well {well} is taken on this run.")
+
+    for bc in barcodes:
+        db.add(CellUseBarcode(cell_use_id=new_cell_use.id, barcode=bc))
+
+    db.delete(cell_use)
+    db.flush()
+
+    remaining = db.scalar(select(func.count()).select_from(CellUse).where(CellUse.cycle_id == old_cycle_id))
+    if remaining == 0 and old_run_batch is not None:
+        db.delete(old_run_batch)
+
+    now = utcnow()
+    _release_cell(db, old_cell, now)
+    db.refresh(new_cell, attribute_names=["cell_uses"])
+    recompute_status(new_cell, now)
+
+    db.add(
+        AuditLog(
+            actor=actor or "unknown",
+            action="move_sample",
+            entity_type="cell_use",
+            entity_id=new_cell_use.id,
+            details_json={
+                "from_cycle_id": old_cycle_id,
+                "to_cycle_id": dest_cycle.id,
+                "well": well,
+                "instrument_serial": instrument.serial_number,
+                "run_date": run_date.isoformat(),
+                "from_cell_id": old_cell.id,
+                "to_cell_id": new_cell.id,
+            },
+        )
+    )
+    db.commit()
+    db.refresh(dest_cycle)
+    return dest_cycle
+
+
 def change_cell(
     db: Session,
     *,
@@ -501,34 +667,14 @@ def change_cell(
             raise PlacementError(400, "cell_choice.cell_id is required when mode is 'existing'.")
         if cell_id == old_cell.id:
             return cycle  # no-op: already on this cell
-        new_cell = db.get(
-            Cell,
-            cell_id,
-            options=[selectinload(Cell.cell_uses), selectinload(Cell.tray).selectinload(CellTray.instrument)],
+        new_cell = _resolve_cell_choice(
+            db,
+            cell_choice,
+            instrument_id=cycle.run_batch.instrument_id,
+            instrument_serial=instrument_serial,
+            well=cell_use.well,
+            barcodes=use_barcodes,
         )
-        if new_cell is None:
-            raise PlacementError(404, f"Cell {cell_id} not found.")
-        if new_cell.status != "open":
-            raise PlacementError(409, f"Cell {new_cell.code} is not open (status: {new_cell.status}).")
-        _consumed, remaining, burned = derive_cell_state(new_cell)
-        if remaining <= 0:
-            raise PlacementError(409, f"Cell {new_cell.code} has no remaining uses.")
-        if any(bc in set(burned) for bc in use_barcodes):
-            raise PlacementError(409, f"barcode conflict: sample shares a burned barcode with cell {new_cell.code}.")
-        current_serial, current_well = current_location(new_cell)
-        if current_serial is not None and current_serial != instrument_serial:
-            raise PlacementError(
-                409,
-                f"Cell {new_cell.code} is already in use on instrument {current_serial}; "
-                f"cannot change to it on {instrument_serial}.",
-            )
-        # Cells stay in the same physical tray/well position for every reuse.
-        if current_well is not None and current_well != cell_use.well:
-            raise PlacementError(
-                409,
-                f"Cell {new_cell.code} must stay in well {current_well} (its last used slot); "
-                f"cannot change to it in well {cell_use.well}.",
-            )
     elif mode != "new":
         raise PlacementError(400, f"Unknown cell_choice.mode '{mode}'.")
 
@@ -544,19 +690,7 @@ def change_cell(
     cell_use.cell_id = new_cell.id
     db.flush()
 
-    db.refresh(old_cell, attribute_names=["cell_uses"])
-    if old_cell.cell_uses:
-        recompute_status(old_cell, utcnow())
-    elif old_cell.tray_id is None:
-        # Same convention as remove_sample: a cell left with no uses at all after this
-        # reassignment, and with no physical tray backing it, was only ever a placeholder
-        # for the use just moved away - leaving it behind would produce an orphan
-        # "open, 0/3" cell that can never legitimately exist.
-        db.delete(old_cell)
-    else:
-        # A tray-linked cell is a real physical sibling even with 0 uses - stays open,
-        # unless every sibling in its tray is also down to 0 uses (see remove_sample).
-        cleanup_tray_if_fully_unused(db, old_cell)
+    _release_cell(db, old_cell, utcnow())
 
     db.refresh(new_cell, attribute_names=["cell_uses"])
     recompute_status(new_cell, utcnow())

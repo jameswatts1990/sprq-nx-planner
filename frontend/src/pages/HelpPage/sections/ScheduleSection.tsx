@@ -157,8 +157,12 @@ export function ScheduleSection() {
         so you can see a tray&apos;s other cells together. Picking <b>Use a new cell</b> opens a whole new physical
         tray of 4 at once — the other 3 appear immediately as open, reusable cells (in the Cells page, future
         pickers, and the grid itself — see &quot;Slots and trays&quot; below), even though only one of them has a
-        sample on it yet. Dragging an already-placed sample to a new slot <b>moves</b> it and keeps its cell; a
-        move that starts a brand-new run always shows the picker, since a move never auto-resolves.
+        sample on it yet. Dragging an already-placed sample to a new slot <b>moves</b> it. If the new slot is the
+        same well as the cell&apos;s other uses (just a different day), it keeps its existing cell and a move that
+        starts a brand-new run always shows the picker, since that kind of move never auto-resolves. A physical cell
+        can never change wells, though — so dropping onto a <i>different</i> well hands the sample to a different
+        cell there instead (a new one, or another compatible reusable cell), using the exact same placement picker
+        and auto-resolve rules described above.
       </p>
       <p>
         <b>Auto-schedule result</b> summarises the outcome, e.g. &quot;12 placed · 3 unplaced · 1 cell(s) skipped ·
@@ -182,27 +186,28 @@ export function ScheduleSection() {
       <p>
         <b>From the grid:</b> click a filled slot to open its detail. The Sample, Well, Run and Cell uses are shown
         first — plus the cell&apos;s 108-hour window meter once its clock has started — and its QC quick actions sit
-        in the top-right corner of the popover, next to the cell code: <b>Mark Failed</b>, <b>Mark Aborted</b>, or{" "}
-        <b>Stop cell</b> — the same actions available on the Cell detail page, without leaving the schedule. All
-        three are shown in red, since each takes the use or the physical cell out of service; <b>Mark Failed</b>/
-        <b>Mark Aborted</b> only appear once that run has reached its scheduled start time (see the Cells
-        tab&apos;s help for exactly when); <b>Stop cell</b> is available any time the cell isn&apos;t already
-        stopped or retired. Each shows a short reason/notes box and a confirm step in the same popover before
-        applying. Use <b>Mark Aborted</b> instead of <b>Mark Failed</b> when the run/instrument was the problem
-        rather than the cell or sample — it returns the sample straight to the Backlog for rescheduling instead of
-        marking it Failed. <b>Stop cell</b> also cancels every one of that cell&apos;s not-yet-run uses elsewhere
-        on the grid (their samples go back to the Backlog too) — each stays visible as a <b>Blocked</b> slot (see
-        below) rather than disappearing, so a day&apos;s plan never silently loses a placement without a trace.
+        in the top-right corner of the popover, next to the cell code: <b>Mark Failed</b> or <b>Stop cell</b> — the
+        same two actions available on the Cell detail page, without leaving the schedule. Both are shown in red,
+        since each takes the use or the physical cell out of service, and both only appear once that run is locked
+        in (<b>Confirm loaded</b> clicked) — they always appear and disappear together (see the Cells tab&apos;s
+        help for exactly when). Each shows a short reason/notes box and a confirm step in the same popover before
+        applying. <b>Mark Failed</b> only affects this one use — no usable data was produced, and the cell stays
+        open for its other uses. <b>Stop cell</b> does more: this use&apos;s sample counts as Failed too (no data,
+        needs a PacBio credit case), <i>and</i> the physical cell is taken out of service — every one of its later,
+        not-yet-run uses elsewhere on the grid is cancelled, their samples returned to the Backlog flagged{" "}
+        <b>Aborted</b> (see the Backlog tab&apos;s help) so a scheduler can rescue them onto a different cell. Uses
+        that already ran on this cell before the stop are left completely untouched. Every cancelled use stays
+        visible as a <b>Blocked</b> slot (see below) rather than disappearing, so a day&apos;s plan never silently
+        loses a placement without a trace.
       </p>
       <p>
-        <b>Undoing a QC mistake:</b> flagged the wrong slot? An <b>Undo Failed</b>/<b>Undo Aborted</b> button
-        replaces <b>Mark Failed</b>/<b>Mark Aborted</b> once a verdict has been recorded, and an <b>Undo stop</b>{" "}
-        button appears once a cell is stopped — shown in the same neutral style as the rest of the popover&apos;s
-        buttons, not red, since undoing isn&apos;t itself a destructive action. Each restores the placement (or
-        every cancelled use, for <b>Undo stop</b>) to how it looked beforehand. The <b>Undo Failed</b>/
-        <b>Undo Aborted</b> button disappears again if the sample involved has since been requeued or rescheduled
-        elsewhere, since undoing at that point would double-book that sample — reschedule from the Backlog instead
-        in that case.
+        <b>Undoing a QC mistake:</b> flagged the wrong slot? An <b>Undo Failed</b> button replaces{" "}
+        <b>Mark Failed</b> once a verdict has been recorded, and an <b>Undo stop</b> button appears once a cell is
+        stopped — shown in the same neutral style as the rest of the popover&apos;s buttons, not red, since undoing
+        isn&apos;t itself a destructive action. Each restores the placement (or every use a Stop cell touched, for{" "}
+        <b>Undo stop</b>) to how it looked beforehand. The <b>Undo Failed</b> button disappears again if the sample
+        involved has since been requeued or rescheduled elsewhere, since undoing at that point would double-book
+        that sample — reschedule from the Backlog instead in that case.
       </p>
       <p>
         <b>Failed/Aborted/Stopped/Blocked indicator</b> on the grid flags a QC problem without opening the slot,
@@ -214,8 +219,8 @@ export function ScheduleSection() {
             <SchedulerSlotView stage={STAGE_EXAMPLE_ABORTED} slotIndex={0} />
           </div>
           <span>
-            <b>Aborted</b> (amber/yellow) — the run/instrument was the problem, not the cell; its sample is already
-            back in the Backlog.
+            <b>Aborted</b> (amber/yellow) — the whole run was aborted (an instrument/run problem, not this cell);
+            its sample is already back in the Backlog.
           </span>
         </div>
         <div className={styles.legendRow}>
@@ -223,8 +228,9 @@ export function ScheduleSection() {
             <SchedulerSlotView stage={STAGE_EXAMPLE_FAILED} slotIndex={0} />
           </div>
           <span>
-            <b>Failed</b> (orange) — that specific use produced no usable data; the cell may still be fine for its
-            other uses.
+            <b>Failed</b> (orange) — that specific use produced no usable data, whether from <b>Mark Failed</b> or
+            as the use a <b>Stop cell</b> was triggered from; the cell may still be fine for its other, earlier
+            uses.
           </span>
         </div>
         <div className={styles.legendRow}>
@@ -241,22 +247,24 @@ export function ScheduleSection() {
           </div>
           <span>
             <b>Blocked</b> (red, cross-hatched) — a placement cancelled by a <b>Stop cell</b> action before it ever
-            ran; a permanent, read-only marker (no drag, no Remove/Change cell).
+            ran; its sample is back in the Backlog flagged <b>Aborted</b>, ready to be rescued onto a different
+            cell. A permanent, read-only marker (no drag, no Remove/Change cell).
           </span>
         </div>
       </div>
       <p>
-        A use that already finished, failed, or was aborted keeps showing that true history rather than being
-        repainted <b>Stopped</b> just because the same cell was taken out of service later — <b>Stopped</b> only
-        appears on a use that had no recorded outcome of its own yet at the moment the cell was stopped.
+        A use that already ran, failed, or was cancelled by a stop keeps showing that true, specific history —{" "}
+        <b>Stopped</b> is only ever a fallback, for the rare case where a whole-cell Stop wasn&apos;t anchored to
+        any one use (from the Cell detail page, with no single use in progress) and left one of this cell&apos;s
+        uses with no outcome of its own recorded.
       </p>
       <p>
         <b>Changing a placement&apos;s cell:</b> click a filled slot to open its detail, then <b>Change cell</b> to
         swap it onto a different open, compatible cell on the same instrument — or onto a brand-new cell — without
         moving it off its current day/slot. The same compatibility rules as placement apply. Unavailable once the
-        run is locked. This is the counterpart to dragging a placed sample to a different slot, which moves it but
-        always keeps its existing cell — <b>Change cell</b> is for the opposite mistake, the right slot but the
-        wrong cell.
+        run is locked. This is the counterpart to dragging a placed sample to a different slot at the <i>same</i>{" "}
+        well, which moves it but always keeps its existing cell — <b>Change cell</b> is for the opposite mistake,
+        the right slot but the wrong cell.
       </p>
 
       <p className={styles.subheading}>Removing placements</p>

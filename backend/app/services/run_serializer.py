@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.engine.constants import WELLS
 from app.models.schedule import CellUse, Cycle
 from app.schemas.run import CycleOut, StageOut
-from app.services.cell_service import use_run_date, window_hours_elapsed
+from app.services.cell_service import has_failed_use, use_run_date, window_hours_elapsed
 from app.services.instrument_lock import cycle_lock_until
 from app.timeutil import ensure_aware, utcnow
 
@@ -47,6 +47,7 @@ def cycle_out(db: Session, cycle: Cycle) -> CycleOut:
             barcodes=cu.barcode_list,
             cell_use_status=cu.status,
             cell_status=cu.cell.status if cu.cell else "open",
+            cell_has_failed_use=has_failed_use(cu.cell) if cu.cell else False,
             tray_position=cu.cell.tray_position if cu.cell else None,
             tray_id=cu.cell.tray_id if cu.cell else None,
             window_hours_elapsed=window_hours_elapsed(cu.cell) if cu.cell else None,

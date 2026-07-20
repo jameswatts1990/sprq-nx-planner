@@ -27,6 +27,13 @@ class StageOut(BaseModel):
     # without a click-through to the cell's detail page.
     cell_use_status: str
     cell_status: str
+    # True if *any* use of this cell has a recorded "failed" outcome - lets the grid tell
+    # apart an earlier, still-untouched use (still "planned"/"started", no outcome of its
+    # own yet) from the one a Stop cell was actually triggered from once a cell goes
+    # "stopped": stop_cell() always marks its triggering use "failed", so if that's
+    # present anywhere on the cell, every other non-terminal use is provably untouched
+    # history and must not be repainted "Stopped" (see SchedulerSlotView's qcAlert).
+    cell_has_failed_use: bool
     # Physical SPRQ-Nx SMRT Cell tray position (1-4), null for cells with no tray (created
     # before this feature, or via the one-off bootstrap_cell() cutover tool).
     tray_position: int | None
@@ -103,9 +110,12 @@ class ChangeCellRequest(BaseModel):
 
 
 class MoveSampleRequest(BaseModel):
-    """Move an existing placement to a different (instrument, day, slot) in one atomic
-    step - see placement_service.move_sample. Same-instrument-only is enforced server-side:
-    a cell already in use elsewhere cannot be moved onto a different instrument."""
+    """Move an existing placement to a different (instrument, day, slot) - see
+    placement_service.move_sample. If the destination well conflicts with the cell's own
+    established pin (a different well than its other uses), the cell can't go there and
+    `cell_choice` resolves which different cell the sample lands on instead, exactly like
+    a fresh placement; omit it for a same-cell reschedule (same well, or the cell has no
+    other uses yet)."""
 
     instrument_serial: str
     run_date: date
@@ -113,6 +123,7 @@ class MoveSampleRequest(BaseModel):
     run_time_hours: Literal[12, 24, 30]
     start_hour: int = Field(default=DAY_START_HOUR, ge=0, le=23)
     start_minute: int = Field(default=0, ge=0, le=59)
+    cell_choice: CellChoice | None = None
 
 
 # --- auto-fill (POST /api/auto-fill) ---

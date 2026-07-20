@@ -1,6 +1,11 @@
 .page {
   padding-top: 22px;
 }
+.badgeGroup {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
 .toolbar {
   display: flex;
   gap: 12px;

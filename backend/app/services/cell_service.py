@@ -12,6 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.engine.constants import CELL_LIFETIME_H, CELL_MAX_USES, CELLS_PER_TRAY, WELLS
+from app.engine.packing import ABORTED_PRIORITY
 from app.models.audit import AuditLog
 from app.models.cell import Cell
 from app.models.cell_tray import CellTray
@@ -224,15 +225,14 @@ def window_hours_elapsed(cell: Cell) -> float | None:
 
 
 def run_has_started(cell_use: CellUse) -> bool:
-    """True once this use's run has reached its scheduled start time - the instrument
-    commits to the run (and a physical cell failure becomes possible) at
-    planned_start_at, independent of whether anyone has actually clicked "Confirm
-    loaded" yet (instrument locking is deliberately keyed off a run merely being
-    planned, not confirmed - see docs/pacbio-sprq-nx-scheduling-reference.md). Drives
-    when the "Mark Failed" QC action becomes available for a use."""
+    """True once this use's cycle has been locked in ("Confirm loaded" clicked, cycle
+    status no longer "planned") - once the tray is physically on the instrument, a real
+    QC problem (Fail/Stop) becomes possible, regardless of the cycle's original
+    planned_start_at. Drives when "Mark Failed"/"Stop cell" become available for a use -
+    both are gated the same way so they always appear/disappear together."""
     if cell_use.cycle is None:
         return False
-    return utcnow() >= ensure_aware(cell_use.cycle.planned_start_at)
+    return cell_use.cycle.status != "planned"
 
 
 def undo_available(cell_use: CellUse) -> bool:
@@ -426,42 +426,105 @@ def retire_cell(db: Session, cell: Cell, actor: str | None) -> Cell:
     return cell
 
 
-def stop_cell(db: Session, cell: Cell, reason: str | None, actor: str | None) -> tuple[Cell, list[int]]:
-    """QC: take a physical cell permanently out of service - all its future uses are
-    lost. Unlike retire_cell (which refuses if any planned use exists), stop_cell exists
-    for exactly that situation: it cascades by cancelling every not-yet-run ("planned")
-    use of this cell - the sample goes back to backlog, but the CellUse row itself is
-    kept (status "cancelled"), not deleted, so the grid still shows a visible record of
-    the placement that will now never happen instead of the slot silently vanishing.
-    derive_cell_state() and friends already exclude "cancelled" uses from a cell's active
-    counts, so this doesn't affect uses_consumed/uses_remaining/current_location. The
-    well stays occupied (blocking any new placement into that exact slot) as a permanent
-    marker. Already-started/completed uses are left untouched as history; only the
-    cell's future is lost, not its past. Because engine_bridge.load_prior_cells only
-    ever offers Cell.status == "open" for reuse, a stopped cell is automatically
-    excluded from all future scheduling with no engine changes."""
+def stop_cell(
+    db: Session, cell: Cell, reason: str | None, actor: str | None, cell_use_id: int | None = None
+) -> tuple[Cell, list[int]]:
+    """QC: take a physical cell permanently out of service. Two things happen, anchored
+    on `cell_use_id` - the specific use that triggered the stop (e.g. the one the lab
+    user was viewing in the Scheduler grid's slot popover when the cell died mid-run):
+
+    1. That triggering use itself is treated exactly like a Mark Failed verdict - no
+       usable data was produced, so its sample is lost (sample.status "failed", driving
+       the PacBio credit workflow via has_failed_use/needs_qc_report) rather than being
+       requeued.
+    2. Every *later* (chronologically, via use_run_date - not just "planned" cell-wide)
+       use of this cell is cancelled: sample back to the backlog, tagged with
+       ABORTED_PRIORITY so a scheduler can rescue it onto a different cell ahead of
+       everything else in the queue. Uses *before* the trigger are left completely
+       untouched, regardless of their current status - this is what makes an
+       already-run-but-not-yet-marked-completed earlier use immune to a later stop
+       (previously this cascade cancelled every cell-wide "planned" use with no
+       ordering awareness, silently sweeping up earlier uses too).
+
+    `cell_use_id` is optional for backward compatibility with a whole-cell Stop that
+    isn't anchored to any one use (e.g. CellDetailPage's generic Stop when 0 or 2+ uses
+    are still in progress) - in that case every still-"planned" use cell-wide is
+    cancelled exactly as before, and no use is marked Failed.
+
+    The CellUse rows swept by the cascade are kept (not deleted), so the grid still
+    shows a visible record of the placement that will now never happen instead of the
+    slot silently vanishing. derive_cell_state() excludes "cancelled" uses from a cell's
+    active counts, so this doesn't affect uses_consumed/uses_remaining/current_location.
+    The well stays occupied (blocking any new placement into that exact slot) as a
+    permanent marker. Because engine_bridge.load_prior_cells only ever offers
+    Cell.status == "open" for reuse, a stopped cell is automatically excluded from all
+    future scheduling with no engine changes."""
     if cell.status in ("retired", "stopped"):
         raise ValueError(f"Cell is already {cell.status}.")
 
+    origin_use: CellUse | None = None
+    if cell_use_id is not None:
+        origin_use = next((cu for cu in cell.cell_uses if cu.id == cell_use_id), None)
+        if origin_use is None:
+            raise ValueError("That use does not belong to this cell.")
+        if origin_use.status not in ("planned", "started"):
+            raise ValueError(f"Cannot stop from a use that is already {origin_use.status}.")
+        if not run_has_started(origin_use):
+            raise ValueError("Cannot stop from a use before its run is locked in.")
+
+    ordered = sorted(cell.cell_uses, key=lambda cu: (use_run_date(cu) or date.min, cu.id))
+    origin_index = ordered.index(origin_use) if origin_use is not None else None
+
     bumped_sample_ids: list[int] = []
-    # Per-cell_use snapshot of what's about to be cancelled, so a mistaken Stop cell (wrong
-    # physical cell selected) can be undone later (see undo_stop_cell) - keyed by cell_use
-    # id rather than just the sample ids stop_cell already returns, since undo needs to
-    # know which specific CellUse rows to revert back to "planned".
+    # Per-cell_use snapshot of what's about to change, so a mistaken Stop cell (wrong
+    # physical cell/use selected) can be undone later (see undo_stop_cell) - keyed by
+    # cell_use id, tagged with which kind of change it was so undo knows how to revert it.
     cancelled: dict[str, dict] = {}
-    for cell_use in [cu for cu in cell.cell_uses if cu.status == "planned"]:
+    at = utcnow()
+    for i, cell_use in enumerate(ordered):
+        if origin_use is not None and cell_use.id == origin_use.id:
+            prior_sample_status = cell_use.sample.status if cell_use.sample is not None else None
+            cancelled[str(cell_use.id)] = {
+                "outcome": "failed",
+                "prior_status": cell_use.status,
+                "prior_started_at": cell_use.started_at.isoformat() if cell_use.started_at else None,
+                "prior_completed_at": cell_use.completed_at.isoformat() if cell_use.completed_at else None,
+                "prior_outcome_notes": cell_use.outcome_notes,
+                "sample_status": prior_sample_status,
+            }
+            cell_use.started_at = cell_use.started_at or at
+            cell_use.completed_at = at
+            if reason:
+                cell_use.outcome_notes = reason
+            cell_use.status = "failed"
+            if cell_use.sample is not None:
+                cell_use.sample.status = "failed"
+            continue
+
+        if cell_use.status != "planned":
+            continue
+        if origin_index is not None and i <= origin_index:
+            # Before (or, degenerately, at) the trigger point - untouched history/queue.
+            continue
+
         prior_sample_status = cell_use.sample.status if cell_use.sample is not None else None
+        prior_priority = cell_use.sample.priority if cell_use.sample is not None else None
         if cell_use.sample is not None:
             cell_use.sample.status = "backlog"
+            cell_use.sample.priority = ABORTED_PRIORITY
             bumped_sample_ids.append(cell_use.sample_id)
         cell_use.status = "cancelled"
         # JSON object keys are always strings on the round trip through the DB - store
         # with str() up front so undo_stop_cell's lookup is correct however this dict is
         # read back (freshly queried, or still resident in the same session).
-        cancelled[str(cell_use.id)] = {"sample_status": prior_sample_status}
+        cancelled[str(cell_use.id)] = {
+            "outcome": "cancelled",
+            "sample_status": prior_sample_status,
+            "sample_priority": prior_priority,
+        }
 
     cell.status = "stopped"
-    cell.stopped_at = utcnow()
+    cell.stopped_at = at
     cell.stopped_reason = reason
     db.flush()
 
@@ -552,14 +615,16 @@ def discard_tray(db: Session, cells: list[Cell], reason: str | None, actor: str 
 
 
 def undo_stop_cell(db: Session, cell: Cell, actor: str | None) -> tuple[Cell, list[int], list[int]]:
-    """Reverse a mistaken Stop cell (wrong physical cell selected) - reopens the cell and
-    restores every use it cancelled back to "planned", so the schedule looks exactly like
-    it did before the stop. A cancelled use is only revived if its sample is still sitting
-    untouched in the backlog since the stop - one already requeued into a fresh placement
-    elsewhere is left "cancelled" rather than revived into a second, conflicting "planned"
-    use for a sample that's now committed elsewhere (mirrors undo_cell_use_status's same
-    drift guard). Returns the cell plus (reverted, drifted) cell_use ids for the caller to
-    report."""
+    """Reverse a mistaken Stop cell (wrong physical cell/use selected) - reopens the cell
+    and restores every use it touched back to its pre-stop state, so the schedule looks
+    exactly like it did before the stop. Each touched use was snapshotted as one of two
+    kinds (see stop_cell): the triggering use (kind "failed", its sample lost) or a later
+    cascaded use (kind "cancelled", its sample bumped to the backlog with
+    ABORTED_PRIORITY). A use is only revived if its sample is still sitting untouched in
+    the expected post-stop state - one already requeued/rescheduled elsewhere is left as
+    is rather than revived into a second, conflicting use for a sample that's now
+    committed elsewhere (mirrors undo_cell_use_status's same drift guard). Returns the
+    cell plus (reverted, drifted) cell_use ids for the caller to report."""
     if cell.status != "stopped":
         raise ValueError("Cell is not stopped.")
 
@@ -577,9 +642,32 @@ def undo_stop_cell(db: Session, cell: Cell, actor: str | None) -> tuple[Cell, li
     drifted_ids: list[int] = []
     for cell_use in cell.cell_uses:
         snapshot = cancelled.get(str(cell_use.id))
-        if snapshot is None or cell_use.status != "cancelled":
+        if snapshot is None:
             continue
+        outcome = snapshot.get("outcome", "cancelled")  # back-compat: pre-existing audit rows had only the cascade kind
         prior_sample_status = snapshot["sample_status"]
+
+        if outcome == "failed":
+            if cell_use.status != "failed":
+                continue
+            if cell_use.sample is not None and prior_sample_status is not None and cell_use.sample.status != "failed":
+                drifted_ids.append(cell_use.id)
+                continue
+            cell_use.status = snapshot.get("prior_status", "planned")
+            prior_started_at = snapshot.get("prior_started_at")
+            cell_use.started_at = ensure_aware(datetime.fromisoformat(prior_started_at)) if prior_started_at else None
+            prior_completed_at = snapshot.get("prior_completed_at")
+            cell_use.completed_at = (
+                ensure_aware(datetime.fromisoformat(prior_completed_at)) if prior_completed_at else None
+            )
+            cell_use.outcome_notes = snapshot.get("prior_outcome_notes")
+            reverted_ids.append(cell_use.id)
+            if cell_use.sample is not None and prior_sample_status is not None:
+                cell_use.sample.status = prior_sample_status
+            continue
+
+        if cell_use.status != "cancelled":
+            continue
         if cell_use.sample is not None and prior_sample_status is not None and cell_use.sample.status != "backlog":
             # Sample has since moved on (requeued/rescheduled) - reviving this slot would
             # double-book it against wherever it landed, so leave it cancelled.
@@ -589,6 +677,8 @@ def undo_stop_cell(db: Session, cell: Cell, actor: str | None) -> tuple[Cell, li
         reverted_ids.append(cell_use.id)
         if cell_use.sample is not None and prior_sample_status is not None:
             cell_use.sample.status = prior_sample_status
+            if "sample_priority" in snapshot:
+                cell_use.sample.priority = snapshot["sample_priority"]
 
     cell.status = "open"
     cell.stopped_at = None

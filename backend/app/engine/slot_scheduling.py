@@ -13,7 +13,7 @@ from __future__ import annotations
 import math
 from datetime import timedelta
 
-from app.engine.constants import CELL_LIFETIME_H, LOCK_BUFFER_HOURS, WELLS
+from app.engine.constants import CELL_LIFETIME_H, CELL_MAX_USES, LOCK_BUFFER_HOURS, WELLS
 from app.engine.types import (
     PackedCell,
     SlotAssignment,
@@ -48,26 +48,42 @@ def fill_slots(
 
     # A well maps to one physical Cell for the rest of this batch once anyone - a prior
     # cell already resident there, or a freshly-opened cell claiming it for the first time
-    # - takes it: reloading a terminal well with a brand-new physical tray mid-batch isn't
-    # safely representable here (a cell's status only gets recomputed to "exhausted" after
-    # the whole batch commits - see auto_fill_service.py's persist loop), so a *different*
-    # not-yet-real cell must never be handed a well an earlier day's cell already claimed,
-    # even if that well shows "free" on some particular day only because its owner simply
-    # isn't running that day (already placed its max for this batch, or blocked by the
-    # same-day/later-date rule). Without this, a well vacated once its owner's own planned
-    # uses run out (e.g. it hits its 3-use cap mid-week) silently gets handed to a
-    # brand-new PackedCell for the rest of the week - which the persistence layer's
-    # per-box well cache then resolves back to the SAME physical Cell as the first
-    # occupant (it only knows "well -> Cell" for an already-opened box, not which logical
-    # packed cell is entitled to it), stacking more than CELL_MAX_USES real uses onto one
-    # physical cell. Seeded up front with every cell that already has a real, known
-    # physical position (prior cells loaded from the DB - see engine_bridge.load_prior_cells);
-    # a freshly-opened cell registers itself here the moment it first claims a well below.
+    # - takes it, *unless* that occupant has truly finished its whole physical lifetime
+    # (see _well_is_vacated below): a different not-yet-real cell must never be handed a
+    # well an earlier day's cell still has business with, even if that well shows "free"
+    # on some particular day only because its current occupant simply isn't running that
+    # day (blocked by the same-day/later-date rule, or just not yet reached in this day's
+    # iteration). Without this, a well "vacated" only because its occupant is temporarily
+    # not running silently gets handed to an unrelated PackedCell for the rest of the
+    # week - which the persistence layer's per-box well cache then resolves back to the
+    # SAME physical Cell as the first occupant (it only knows "well -> Cell" for an
+    # already-opened box, not which logical packed cell is entitled to it), stacking more
+    # than CELL_MAX_USES real uses onto one physical cell. Seeded up front with every cell
+    # that already has a real, known physical position (prior cells loaded from the DB -
+    # see engine_bridge.load_prior_cells); a freshly-opened cell registers itself here the
+    # moment it first claims a well below.
     well_owner: dict[tuple[str, str], str] = {
         (cell.pinned_instrument_serial, cell.pinned_well): cell.id
         for cell in ordered_cells
         if cell.pinned_instrument_serial is not None and cell.pinned_well is not None
     }
+    by_id: dict[str, PackedCell] = {c.id: c for c in ordered_cells}
+
+    def _well_is_vacated(owner_id: str) -> bool:
+        """True once `owner_id` has truly reached the end of its physical life - every
+        use pack_cells ever intends to give it this batch has been placed, *and* its
+        lifetime total (existing consumed uses plus this batch's own) has hit the hard
+        cap. Reloading a terminal well with a brand-new tray mid-batch is legitimate (see
+        cell_service.open_new_tray's own "a box whose every cell has gone terminal is not
+        a collision" rule) - but only once the current occupant is genuinely spent, never
+        merely because it isn't running on one particular day. A cell pack_cells gave
+        fewer than CELL_MAX_USES uses to (e.g. the backlog simply ran out of compatible
+        samples for it) still owns its well indefinitely - it may get reused again in a
+        *later*, separate Auto Schedule call, and that must land back in this same well."""
+        owner = by_id.get(owner_id)
+        if owner is None:
+            return True
+        return owner.total_uses >= CELL_MAX_USES and next_idx[owner_id] >= len(owner.uses)
 
     # Loading more than half a slot's wells (i.e. tray 2) commits that instrument to the
     # full movie plus a settle buffer before it can start its next run - long enough to
@@ -115,11 +131,16 @@ def fill_slots(
                 free_wells[slot].remove(well)
             else:
                 # Skip any well this slot's free list still shows as unused but that some
-                # *other* cell already claimed earlier in this batch (see well_owner
-                # above) - only a well nobody has touched yet is truly available to a
-                # brand-new cell.
+                # *other*, not-yet-vacated cell already claimed earlier in this batch (see
+                # well_owner/_well_is_vacated above) - only a well nobody has claimed yet,
+                # or whose claimant has genuinely finished its physical lifetime, is truly
+                # available to a brand-new cell.
                 well = next(
-                    (w for w in free_wells[slot] if well_owner.get((slot.instrument_serial, w)) is None),
+                    (
+                        w
+                        for w in free_wells[slot]
+                        if (owner := well_owner.get((slot.instrument_serial, w))) is None or _well_is_vacated(owner)
+                    ),
                     None,
                 )
                 if well is None:

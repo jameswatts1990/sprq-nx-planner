@@ -6,6 +6,7 @@ import type { CellChoiceGateInput } from "./cellChoiceGate";
 function baseInput(overrides: Partial<CellChoiceGateInput> = {}): CellChoiceGateInput {
   return {
     isMove: false,
+    wellConflict: false,
     isNewRun: false,
     cellsLoading: false,
     cellsError: false,
@@ -37,14 +38,29 @@ describe("shouldShowCellChoiceModal", () => {
     expect(shouldShowCellChoiceModal({ ...ambiguous, isNewRun: true, mutationError: false })).toBe(true);
   });
 
-  it("shows for a move into a brand-new run - moves have no auto-place path at all", () => {
+  it("shows for a pure move (no well conflict) into a brand-new run - it has no auto-place path at all", () => {
     const input = baseInput({ isMove: true, isNewRun: true });
     expect(shouldShowCellChoiceModal({ ...input, mutationError: false })).toBe(true);
   });
 
-  it("stays hidden for a move into an existing run", () => {
+  it("stays hidden for a pure move into an existing run", () => {
     const input = baseInput({ isMove: true, isNewRun: false });
     expect(shouldShowCellChoiceModal({ ...input, mutationError: false })).toBe(false);
+  });
+
+  it("stays hidden for a well-conflict move with no compatible cells (forced new cell), even into a brand-new run", () => {
+    const input = baseInput({ isMove: true, wellConflict: true, isNewRun: true, compatibleCount: 0 });
+    expect(shouldShowCellChoiceModal({ ...input, mutationError: false })).toBe(false);
+  });
+
+  it("stays hidden for a well-conflict move landing on a valid ghost preselect", () => {
+    const input = baseInput({ isMove: true, wellConflict: true, compatibleCount: 1, preselectedValid: true });
+    expect(shouldShowCellChoiceModal({ ...input, mutationError: false })).toBe(false);
+  });
+
+  it("shows for a well-conflict move with real ambiguity (multiple compatible cells)", () => {
+    const input = baseInput({ isMove: true, wellConflict: true, compatibleCount: 2, preselectedValid: false });
+    expect(shouldShowCellChoiceModal({ ...input, mutationError: false })).toBe(true);
   });
 
   it("shows when the compatible-cells fetch errors (non-move only)", () => {
@@ -72,8 +88,24 @@ describe("shouldAutoPlace", () => {
     expect(shouldAutoPlace(baseInput({ isNewRun: true, compatibleCount: 0 }))).toBe(true);
   });
 
-  it("does not auto-place a move into a brand-new run", () => {
+  it("does not auto-place a pure move (no well conflict) into a brand-new run", () => {
     expect(shouldAutoPlace(baseInput({ isMove: true, isNewRun: true }))).toBe(false);
+  });
+
+  it("auto-places a well-conflict move with no compatible cells, even into a brand-new run", () => {
+    expect(shouldAutoPlace(baseInput({ isMove: true, wellConflict: true, isNewRun: true, compatibleCount: 0 }))).toBe(
+      true,
+    );
+  });
+
+  it("does not auto-place a well-conflict move while still loading compatible cells", () => {
+    expect(shouldAutoPlace(baseInput({ isMove: true, wellConflict: true, cellsLoading: true }))).toBe(false);
+  });
+
+  it("does not auto-place a well-conflict move with real ambiguity", () => {
+    expect(
+      shouldAutoPlace(baseInput({ isMove: true, wellConflict: true, compatibleCount: 2, preselectedValid: false })),
+    ).toBe(false);
   });
 
   it("does not auto-place while still loading compatible cells", () => {

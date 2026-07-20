@@ -35,6 +35,10 @@ export interface MoveSampleRequest {
   run_time_hours: RunTimeHours;
   start_hour?: number;
   start_minute?: number;
+  /** Required only when the destination well conflicts with the cell's own established
+   * pin (a different well than its other uses) - the cell can't go there, so this
+   * resolves which different cell the sample lands on instead. Ignored otherwise. */
+  cell_choice?: CellChoice;
 }
 
 export interface GridCellRef {
@@ -99,6 +103,11 @@ export interface PendingPlacement {
   slot_index: SlotIndex;
   /** Present when moving a sample from an existing filled slot: remove this use first. */
   moveFromCellUseId?: number;
+  /** The dragged slot's own cell - only present alongside moveFromCellUseId. Lets the
+   * picker check whether this cell is pinned to a different well elsewhere (it can't
+   * move there itself, so the sample needs a different cell instead - see
+   * cellChoiceGate.ts's wellConflict). */
+  moveFromCellId?: number;
   /** Set when a backlog sample was dropped directly onto a waiting-cell ghost placeholder
    * (see waitingCells.ts) - that drop target already identifies exactly one cell, so the
    * CellChoicePicker uses it without asking, rather than opening for a choice among

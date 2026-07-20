@@ -1,3 +1,8 @@
+.badgeGroup {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
 .toolbar {
   display: flex;
   gap: 10px;
