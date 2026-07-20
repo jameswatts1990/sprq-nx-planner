@@ -287,9 +287,9 @@ export function ScheduleSection() {
         own, since there&apos;s nothing left to discard.
       </p>
       <p>
-        <b>Use N in progress:</b> a cell whose remaining uses are already fully scheduled for later days — e.g. its
+        <b>Scheduled:</b> a cell whose remaining uses are already fully scheduled for later days — e.g. its
         next use is booked for Wednesday while today&apos;s column is the locked Tuesday in between — shows this
-        plain, solid-bordered card with a <b>&quot;Use N in progress&quot;</b> label instead of jumping straight to
+        plain, solid-bordered card with a <b>&quot;Scheduled&quot;</b> label instead of jumping straight to
         Exhausted or Window expired. It&apos;s fully booked, so this well can&apos;t take a new placement, but it
         hasn&apos;t actually reached the end of its own lifecycle as of this day, so calling it Exhausted here would
         be misleading. It switches over to the real Exhausted/Window expired card above once the calendar reaches

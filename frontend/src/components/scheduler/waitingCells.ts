@@ -228,8 +228,8 @@ function terminalBoundaryDate(cell: CellOut): string | null {
  * Whether `cell` has already gone terminal in its aggregate record (exhausted/window_expired)
  * purely because every remaining use is fully *scheduled*, while `day` still falls before the
  * calendar date it actually reaches that state - e.g. three uses booked for Mon/Wed/Fri, with
- * `day` the locked Tue or Thu column in between. Shown as a muted, informational "Use N in
- * progress" marker rather than computeTerminalGhost's red terminal badge, since the cell
+ * `day` the locked Tue or Thu column in between. Shown as a muted, informational "Scheduled"
+ * marker rather than computeTerminalGhost's red terminal badge, since the cell
  * hasn't really used up its capacity as of `day` - it's just fully committed. Excludes
  * "retired" (see computeTerminalGhost's boundary gate) since that status has no such window.
  */

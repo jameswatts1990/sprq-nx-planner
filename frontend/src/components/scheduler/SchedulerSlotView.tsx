@@ -271,7 +271,7 @@ export const SchedulerSlotView = memo(
             {ghost.terminalStatus
               ? CELL_STATUS_LABEL[ghost.terminalStatus]
               : ghost.pendingTerminalStatus
-                ? `Use ${ghost.useNumber} in progress`
+                ? "Scheduled"
                 : ghost.unused
                   ? "Not yet used"
                   : ghost.isHardCutoff
