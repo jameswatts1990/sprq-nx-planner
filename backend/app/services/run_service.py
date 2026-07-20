@@ -24,7 +24,9 @@ ALLOWED_CYCLE_TRANSITIONS = {
 }
 
 
-def update_cycle_status(db: Session, cycle: Cycle, status: str, at: datetime | None, actor: str | None) -> Cycle:
+def update_cycle_status(
+    db: Session, cycle: Cycle, status: str, at: datetime | None, actor: str | None, run_name: str | None = None
+) -> Cycle:
     if status not in ALLOWED_CYCLE_TRANSITIONS.get(cycle.status, set()):
         raise ValueError(f"Illegal cycle transition: {cycle.status} -> {status}.")
 
@@ -32,6 +34,11 @@ def update_cycle_status(db: Session, cycle: Cycle, status: str, at: datetime | N
     cycle.status = status
 
     if status == "running":
+        # Optional lab-assigned run label (e.g. "TRACTION-RUN-1234"), only settable at the
+        # moment of locking - blank/whitespace clears it. Left untouched on every other
+        # transition (Unlock included) so a name already given isn't silently discarded.
+        if run_name is not None:
+            cycle.run_name = run_name.strip() or None
         cycle.actual_start_at = cycle.actual_start_at or at
         for cu in cycle.cell_uses:
             if cu.status == "planned":

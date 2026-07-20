@@ -44,6 +44,9 @@ export interface StageOut {
 
 export interface CycleOut {
   cycle_id: number;
+  /** Optional lab-assigned label (e.g. "TRACTION-RUN-1234") set when the run is locked
+   * (Confirm loaded) - overrides "#<cycle_id>" everywhere a run is displayed. */
+  run_name: string | null;
   instrument_serial: string;
   run_date: string; // YYYY-MM-DD, absolute
   movie_hours: number;

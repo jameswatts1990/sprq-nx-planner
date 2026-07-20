@@ -16,6 +16,7 @@ import { Note } from "@/components/ui/Note";
 import type { CellUseHistoryOut } from "@/types/cell";
 import { CELL_STATUS_LABEL, CELL_STATUS_TONE } from "@/utils/cellStatus";
 import { canRecordQcOutcome, canUndoQcOutcome } from "@/utils/cellUseQc";
+import { runLabel } from "@/utils/runLabel";
 import { USE_STATUS_TONE } from "@/utils/useStatusTone";
 
 import styles from "./CellDetailPage.module.css";
@@ -336,7 +337,7 @@ export function CellDetailPage() {
                   {cell.use_history.map((u) => (
                     <tr key={u.id}>
                       <td>
-                        <Link to={`/history/runs/${u.cycle_id}`}>#{u.cycle_id}</Link>
+                        <Link to={`/history/runs/${u.cycle_id}`}>{runLabel(u)}</Link>
                       </td>
                       <td className={styles.mono}>{u.well}</td>
                       <td>
@@ -606,7 +607,7 @@ function MarkFailedModal({ use, pending, error, onCancel, onConfirm }: MarkFaile
 
   return (
     <ConfirmModal
-      title={`Mark ${use.well} (run #${use.cycle_id}) Failed?`}
+      title={`Mark ${use.well} (run ${runLabel(use)}) Failed?`}
       confirmLabel="Mark Failed"
       pendingLabel="Saving…"
       pending={pending}
@@ -644,7 +645,7 @@ function MarkAbortedModal({ use, pending, error, onCancel, onConfirm }: MarkAbor
 
   return (
     <ConfirmModal
-      title={`Mark ${use.well} (run #${use.cycle_id}) Aborted?`}
+      title={`Mark ${use.well} (run ${runLabel(use)}) Aborted?`}
       confirmLabel="Mark Aborted"
       pendingLabel="Saving…"
       pending={pending}
@@ -686,7 +687,7 @@ function UndoQcModal({ use, pending, error, onCancel, onConfirm }: UndoQcModalPr
 
   return (
     <ConfirmModal
-      title={`Undo ${use.well} (run #${use.cycle_id}) ${verdict}?`}
+      title={`Undo ${use.well} (run ${runLabel(use)}) ${verdict}?`}
       confirmLabel="Undo"
       pendingLabel="Undoing…"
       pending={pending}

@@ -27,6 +27,8 @@ class CycleStatusUpdate(BaseModel):
     status: str
     at: datetime | None = None
     actor: str | None = None
+    # Only meaningful when locking (status="running") - see update_cycle_status.
+    run_name: str | None = None
 
 
 @router.get("", response_model=list[CycleOut])
@@ -68,7 +70,7 @@ def patch_cycle(cycle_id: int, req: CycleStatusUpdate, db: SessionDep, actor: Ac
     if cycle is None:
         raise HTTPException(404, "Cycle not found")
     try:
-        cycle = update_cycle_status(db, cycle, req.status, req.at, req.actor or actor)
+        cycle = update_cycle_status(db, cycle, req.status, req.at, req.actor or actor, req.run_name)
     except ValueError as exc:
         raise HTTPException(409, str(exc)) from exc
     db.refresh(cycle, attribute_names=["cell_uses"])

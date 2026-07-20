@@ -75,14 +75,18 @@ export function SchedulerDayCell(props: SchedulerDayCellProps) {
   const crossInstrumentDragActive = activeDragInstrument !== null && activeDragInstrument !== instrumentSerial;
 
   const statusMutation = useMutation({
-    mutationFn: (status: "running" | "planned") => {
+    mutationFn: (req: { status: "running" | "planned"; run_name?: string }) => {
       if (!cycle) throw new Error("No run to update.");
-      return cyclesApi.updateStatus(cycle.cycle_id, { status });
+      return cyclesApi.updateStatus(cycle.cycle_id, req);
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["cycles"] });
+      setConfirmingLoad(false);
     },
   });
+
+  const [confirmingLoad, setConfirmingLoad] = useState(false);
+  const [runName, setRunName] = useState("");
 
   const [discardTrayId, setDiscardTrayId] = useState<number | null>(null);
   const discardMutation = useMutation({
@@ -191,7 +195,10 @@ export function SchedulerDayCell(props: SchedulerDayCellProps) {
           <>
             {locked ? (
               <>
-                <span className={styles.lockTag}>
+                <span
+                  className={styles.lockTag}
+                  title={cycle.run_name ? `Run name: ${cycle.run_name}` : undefined}
+                >
                   {cycle.status === "running" ? "LOADED" : cycle.status.toUpperCase()}
                   {lockExtendsPastToday && ` · locked until ${formatShortDateTimeUTC(cycle.lock_until)}`}
                 </span>
@@ -200,7 +207,7 @@ export function SchedulerDayCell(props: SchedulerDayCellProps) {
                     type="button"
                     className={styles.ctrl}
                     disabled={statusMutation.isPending}
-                    onClick={() => statusMutation.mutate("planned")}
+                    onClick={() => statusMutation.mutate({ status: "planned" })}
                   >
                     {statusMutation.isPending ? "…" : "Unlock"}
                   </button>
@@ -212,7 +219,10 @@ export function SchedulerDayCell(props: SchedulerDayCellProps) {
                   type="button"
                   className={`${styles.ctrl} ${styles.confirm}`}
                   disabled={statusMutation.isPending}
-                  onClick={() => statusMutation.mutate("running")}
+                  onClick={() => {
+                    setRunName(cycle.run_name ?? "");
+                    setConfirmingLoad(true);
+                  }}
                 >
                   {statusMutation.isPending ? "Confirming…" : "Confirm loaded"}
                 </button>
@@ -284,6 +294,36 @@ export function SchedulerDayCell(props: SchedulerDayCellProps) {
           );
         })}
       </div>
+
+      {confirmingLoad && (
+        <ConfirmModal
+          title="Confirm cells loaded?"
+          confirmLabel="Confirm loaded"
+          pendingLabel="Confirming…"
+          pending={statusMutation.isPending}
+          error={
+            statusMutation.isError
+              ? statusMutation.error instanceof ApiError
+                ? statusMutation.error.message
+                : "Status update failed."
+              : null
+          }
+          input={{
+            label: "Run name (optional)",
+            value: runName,
+            onChange: setRunName,
+            placeholder: "e.g. TRACTION-RUN-1234",
+          }}
+          onCancel={() => setConfirmingLoad(false)}
+          onConfirm={() => statusMutation.mutate({ status: "running", run_name: runName })}
+        >
+          <p>
+            This locks the run (marks it running/LOADED) so it can no longer be edited by accident. Give it a name
+            (e.g. your lab&apos;s TRACTION run id) if you&apos;d like it shown instead of the run number everywhere
+            this run appears.
+          </p>
+        </ConfirmModal>
+      )}
 
       {discardTrayId != null && (
         <ConfirmModal

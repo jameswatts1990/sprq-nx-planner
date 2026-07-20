@@ -39,3 +39,15 @@
   color: var(--grey);
   font-weight: 600;
 }
+.trayItemExpiry {
+  font-size: 11px;
+  color: var(--grey);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.trayItemExpiryUrgent {
+  font-size: 11px;
+  color: var(--red);
+  font-weight: 800;
+  white-space: nowrap;
+}

@@ -1,4 +1,5 @@
 import type { CellOut } from "@/types/cell";
+import { CELL_LIFETIME_H } from "@/utils/windowFade";
 
 /**
  * Buckets every currently-open cell's physical tray by the instrument it's sitting on,
@@ -35,4 +36,25 @@ export function countOpenTrays(byInstrument: Map<string, number[]>): number {
   let count = 0;
   for (const trayIds of byInstrument.values()) count += trayIds.length;
   return count;
+}
+
+/** Hours left before this cell's own 108h window closes, or null if its window hasn't
+ * started yet (never used) or it's no longer racing the clock (exhausted/retired/
+ * stopped/already window_expired - see cellStatus.ts). */
+export function windowHoursRemaining(cell: CellOut): number | null {
+  if (cell.status !== "open" || cell.window_hours_elapsed === null) return null;
+  return CELL_LIFETIME_H - cell.window_hours_elapsed;
+}
+
+/** Soonest window closure across a tray's sibling cells, for surfacing tray-level
+ * urgency in the Open trays list - null if no sibling has an active window (e.g. every
+ * cell in the tray is still unused). */
+export function soonestTrayExpiry(cells: CellOut[]): number | null {
+  let soonest: number | null = null;
+  for (const cell of cells) {
+    const remaining = windowHoursRemaining(cell);
+    if (remaining === null) continue;
+    if (soonest === null || remaining < soonest) soonest = remaining;
+  }
+  return soonest;
 }

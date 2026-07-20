@@ -26,6 +26,7 @@ class SampleOut(BaseModel):
 class SampleCellUseOut(BaseModel):
     id: int
     cycle_id: int
+    run_name: str | None
     run_batch_id: int
     cell_id: int
     cell_code: str

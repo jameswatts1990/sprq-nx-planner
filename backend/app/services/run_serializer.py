@@ -64,6 +64,7 @@ def cycle_out(db: Session, cycle: Cycle) -> CycleOut:
         run_date=run_batch.run_date,
         movie_hours=cycle.movie_hours,
         status=cycle.status,
+        run_name=cycle.run_name,
         planned_start_at=cycle.planned_start_at,
         planned_end_at=cycle.planned_end_at,
         actual_start_at=cycle.actual_start_at,

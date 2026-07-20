@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Note } from "@/components/ui/Note";
 import type { SampleOut } from "@/types/sample";
+import { runLabel } from "@/utils/runLabel";
 import { useDebouncedValue } from "@/utils/useDebouncedValue";
 
 import styles from "./HistorySamplesPage.module.css";
@@ -162,7 +163,7 @@ function SampleRow({ sample, expanded, onToggle }: SampleRowProps) {
                     {detailQuery.data.cell_uses.map((u) => (
                       <tr key={u.id}>
                         <td>
-                          <Link to={`/history/runs/${u.cycle_id}`}>#{u.cycle_id}</Link>
+                          <Link to={`/history/runs/${u.cycle_id}`}>{runLabel(u)}</Link>
                         </td>
                         <td className={styles.mono}>{u.cell_code}</td>
                         <td className={styles.mono}>{u.well}</td>

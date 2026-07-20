@@ -47,6 +47,7 @@ class CycleOut(BaseModel):
     run_date: date
     movie_hours: int
     status: str
+    run_name: str | None = None
     planned_start_at: datetime
     planned_end_at: datetime
     actual_start_at: datetime | None = None

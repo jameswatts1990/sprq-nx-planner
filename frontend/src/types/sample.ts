@@ -23,6 +23,7 @@ export interface SampleOut {
 export interface SampleCellUseOut {
   id: number;
   cycle_id: number;
+  run_name: string | null;
   run_batch_id: number;
   cell_id: number;
   cell_code: string;

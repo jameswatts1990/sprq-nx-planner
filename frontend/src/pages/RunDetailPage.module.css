@@ -22,6 +22,10 @@
 .metaRow b {
   color: var(--ink);
 }
+.meta {
+  color: var(--grey);
+  font-weight: 400;
+}
 .cancelRow {
   display: flex;
   align-items: center;

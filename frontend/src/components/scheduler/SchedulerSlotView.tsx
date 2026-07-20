@@ -222,11 +222,6 @@ export const SchedulerSlotView = memo(
             {stage!.sample_external_id ?? "—"}
           </div>
           <div className={styles.cellref}>{stage!.cell_ref}</div>
-          {stage!.tray_position !== null && (
-            <div className={styles.trayTag} title="Position within this cell's physical SPRQ-Nx SMRT Cell tray of 4">
-              Tray {stage!.tray_position}/4
-            </div>
-          )}
           {qcAlert && (
             <div
               className={

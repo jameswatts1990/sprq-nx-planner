@@ -12,6 +12,7 @@ import { Note } from "@/components/ui/Note";
 import { CYCLE_STATUSES } from "@/types/common";
 import type { CycleStatus } from "@/types/common";
 import type { CycleOut } from "@/types/schedule";
+import { runLabel } from "@/utils/runLabel";
 import { useDebouncedValue } from "@/utils/useDebouncedValue";
 
 import styles from "./HistoryRunsPage.module.css";
@@ -24,7 +25,7 @@ const STATUS_TONE: Record<CycleStatus, BadgeTone> = {
 };
 
 function matchesQuery(cycle: CycleOut, q: string): boolean {
-  const haystack = [String(cycle.cycle_id), cycle.instrument_serial, cycle.status, cycle.run_date]
+  const haystack = [String(cycle.cycle_id), cycle.run_name ?? "", cycle.instrument_serial, cycle.status, cycle.run_date]
     .join(" ")
     .toLowerCase();
   return haystack.includes(q.toLowerCase());
@@ -91,7 +92,7 @@ export function HistoryRunsPage() {
             <input
               type="search"
               className={styles.search}
-              placeholder="Filter by id, instrument, status, date…"
+              placeholder="Filter by id, name, instrument, status, date…"
               value={qInput}
               onChange={(e) => setQInput(e.target.value)}
             />
@@ -124,7 +125,7 @@ export function HistoryRunsPage() {
                 {visible.map((c) => (
                   <tr key={c.cycle_id}>
                     <td className={styles.mono}>
-                      <Link to={`/history/runs/${c.cycle_id}`}>#{c.cycle_id}</Link>
+                      <Link to={`/history/runs/${c.cycle_id}`}>{runLabel(c)}</Link>
                     </td>
                     <td className={styles.mono}>{c.run_date}</td>
                     <td className={styles.mono}>{c.instrument_serial}</td>

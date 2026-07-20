@@ -7,6 +7,8 @@ export function GettingStartedSection() {
         RunNx Planner tracks SMRT cells and schedules them across your Revio/SPRQ-Nx instruments. A typical week
         flows through the tabs left to right:
       </p>
+
+      <p className={styles.subheading}>The weekly workflow</p>
       <ol>
         <li>
           <b>Import</b> the samples and barcodes you want to sequence (paste or upload a CSV).
@@ -26,13 +28,17 @@ export function GettingStartedSection() {
           <b>History</b> is the record of past and planned runs and of completed/failed samples.
         </li>
       </ol>
+
+      <p className={styles.subheading}>Nothing is final until a run is loaded</p>
       <p>
         Nothing you do on the Schedule is final until you mark a run as loaded — until then, placements are
         &quot;planned&quot; and can be moved or cleared freely.
       </p>
+
+      <p className={styles.subheading}>Other tabs</p>
       <p>
         The <b>Admin</b> tab has raw database tools for development use, and this <b>Help</b> tab documents every
-        screen — see their sections below.
+        screen — see their sections below, or use the search box above to jump straight to a topic.
       </p>
     </div>
   );

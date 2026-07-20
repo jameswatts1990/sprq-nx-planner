@@ -30,8 +30,16 @@ export function CardHeader({ children, badge }: CardHeaderProps) {
 export interface CardBodyProps {
   children: ReactNode;
   className?: string;
+  /** Native `hidden` attribute passthrough - hides from layout and the a11y tree while
+   * keeping the element (and its text) in the DOM, e.g. so a collapsed Help accordion
+   * stays searchable. */
+  hidden?: boolean;
 }
 
-export function CardBody({ children, className }: CardBodyProps) {
-  return <div className={className ? `${styles.body} ${className}` : styles.body}>{children}</div>;
+export function CardBody({ children, className, hidden }: CardBodyProps) {
+  return (
+    <div className={className ? `${styles.body} ${className}` : styles.body} hidden={hidden}>
+      {children}
+    </div>
+  );
 }

@@ -9,6 +9,7 @@ function baseUse(overrides: Partial<CellUseHistoryOut> = {}): CellUseHistoryOut 
     id: 1,
     run_batch_id: 1,
     cycle_id: 1,
+    run_name: null,
     well: "A01",
     status: "planned",
     sample_id: 1,

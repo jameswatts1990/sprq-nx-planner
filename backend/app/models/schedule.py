@@ -12,8 +12,9 @@ CELL_USE_STATUSES = ("planned", "started", "completed", "failed", "aborted", "ca
 
 
 class RunBatch(Base):
-    """One grid "run": a single instrument on a single calendar day. Holds up to 4
-    wells (via its one Cycle). Uniquely identified by (instrument, run_date)."""
+    """One grid "run": a single instrument on a single calendar day. Holds up to 8
+    wells across both tray-loading positions (via its one Cycle). Uniquely identified
+    by (instrument, run_date)."""
 
     __tablename__ = "run_batches"
     __table_args__ = (UniqueConstraint("instrument_id", "run_date", name="uq_run_batch_instrument_date"),)
@@ -30,7 +31,8 @@ class RunBatch(Base):
 
 class Cycle(Base):
     """The status/timing holder for one RunBatch (1:1). movie_hours is the authoritative
-    run_time_hours for this specific run; the up-to-4 wells live on its cell_uses."""
+    run_time_hours for this specific run; the up-to-8 wells (both tray-loading positions)
+    live on its cell_uses."""
 
     __tablename__ = "cycles"
 
@@ -42,6 +44,9 @@ class Cycle(Base):
     actual_start_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     actual_end_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="planned", index=True)
+    # Lab-assigned label set optionally when the run is locked (e.g. Sanger's
+    # "TRACTION-RUN-1234"), overriding the plain cycle id everywhere a run is displayed.
+    run_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
 
     run_batch: Mapped["RunBatch"] = relationship(back_populates="cycles")
     cell_uses: Mapped[list["CellUse"]] = relationship(

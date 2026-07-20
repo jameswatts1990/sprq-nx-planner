@@ -23,3 +23,27 @@
 .trayBlock:last-child {
   margin-bottom: 0;
 }
+.trayHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+.trayId {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.trayExpiry {
+  font-size: 11.5px;
+  color: var(--grey);
+  font-weight: 600;
+}
+.trayExpiryUrgent {
+  font-size: 11.5px;
+  color: var(--red);
+  font-weight: 800;
+}
+.discardBtn {
+  margin-left: auto;
+}

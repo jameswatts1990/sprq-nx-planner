@@ -313,6 +313,7 @@ def serialize_cell_detail(cell: Cell) -> CellDetailOut:
                 id=cu.id,
                 run_batch_id=run_batch.id if run_batch else -1,
                 cycle_id=cu.cycle_id,
+                run_name=cu.cycle.run_name if cu.cycle else None,
                 well=cu.well,
                 status=cu.status,
                 sample_id=cu.sample_id,

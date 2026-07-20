@@ -1,10 +1,14 @@
-import { useQueries, useQuery } from "@tanstack/react-query";
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 
 import { ApiError } from "@/api/client";
 import { cellsApi } from "@/api/cells";
 import { Accordion } from "@/components/ui/Accordion";
+import { Button } from "@/components/ui/Button";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { Note } from "@/components/ui/Note";
-import { countOpenTrays, groupOpenTrayIdsByInstrument } from "@/utils/openTrays";
+import { countOpenTrays, groupOpenTrayIdsByInstrument, soonestTrayExpiry } from "@/utils/openTrays";
+import { FADE_MIN_HOURS } from "@/utils/windowFade";
 
 import { TraySiblingList } from "./TraySiblingList";
 import styles from "./OpenTraysAccordion.module.css";
@@ -20,12 +24,23 @@ import styles from "./OpenTraysAccordion.module.css";
  * still open, one never used - see docs/pacbio-sprq-nx-scheduling-reference.md's
  * "Tray-of-4 eager population").
  *
- * Expanded by default, unlike BacklogAccordion/RunDesignAccordion - the entire point of
- * this section is visibility at a glance, so collapsing it by default would reintroduce
- * the friction it exists to remove. The outer query still runs regardless of collapsed
- * state (same BacklogAccordion convention) so the header count stays live either way.
+ * Collapsed by default, matching BacklogAccordion/RunDesignAccordion - the header badge
+ * already surfaces the open tray count at a glance, so an open cell/instrument list isn't
+ * needed until the user actually wants to act on one. The outer query still runs
+ * regardless of collapsed state (same BacklogAccordion convention) so the header count
+ * stays live either way.
  */
 export function OpenTraysAccordion() {
+  const queryClient = useQueryClient();
+  const [discardTrayId, setDiscardTrayId] = useState<number | null>(null);
+  const discardMutation = useMutation({
+    mutationFn: (trayId: number) => cellsApi.discardTray({ tray_id: trayId }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["cells"] });
+      setDiscardTrayId(null);
+    },
+  });
+
   const openCellsQuery = useQuery({
     queryKey: ["cells", "open-trays"],
     queryFn: () => cellsApi.listAll({ status: "open" }),
@@ -51,7 +66,7 @@ export function OpenTraysAccordion() {
   const trayQueryById = new Map(allTrayIds.map((trayId, i) => [trayId, trayQueries[i]]));
 
   return (
-    <Accordion title="Open trays" badge={`${trayCount} tray${trayCount === 1 ? "" : "s"}`} defaultOpen>
+    <Accordion title="Open trays" badge={`${trayCount} tray${trayCount === 1 ? "" : "s"}`}>
       {openCellsQuery.isLoading && <div className={styles.status}>Loading open trays…</div>}
       {openCellsQuery.isError && (
         <Note tone="bad" icon="!">
@@ -67,8 +82,27 @@ export function OpenTraysAccordion() {
           <div className={styles.instrumentLabel}>{instrumentSerial}</div>
           {trayIds.map((trayId) => {
             const trayQuery = trayQueryById.get(trayId);
+            const soonestExpiry = trayQuery?.data ? soonestTrayExpiry(trayQuery.data.items) : null;
+            const urgent = soonestExpiry !== null && soonestExpiry <= FADE_MIN_HOURS;
             return (
               <div key={trayId} className={styles.trayBlock}>
+                <div className={styles.trayHeader}>
+                  <span className={styles.trayId}>Tray {trayId}</span>
+                  {soonestExpiry !== null && (
+                    <span className={urgent ? styles.trayExpiryUrgent : styles.trayExpiry}>
+                      {urgent ? "Expires soon — " : "Next expiry: "}
+                      {soonestExpiry <= 1 ? "<1h" : `${Math.ceil(soonestExpiry)}h`}
+                    </span>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className={styles.discardBtn}
+                    onClick={() => setDiscardTrayId(trayId)}
+                  >
+                    Discard all cells
+                  </Button>
+                </div>
                 {trayQuery?.isLoading && <div className={styles.status}>Loading tray…</div>}
                 {trayQuery?.isError && (
                   <Note tone="bad" icon="!">
@@ -81,6 +115,30 @@ export function OpenTraysAccordion() {
           })}
         </div>
       ))}
+
+      {discardTrayId != null && (
+        <ConfirmModal
+          title="Discard all cells in this tray?"
+          confirmLabel="Discard cells"
+          pendingLabel="Discarding…"
+          pending={discardMutation.isPending}
+          error={
+            discardMutation.isError
+              ? discardMutation.error instanceof ApiError
+                ? discardMutation.error.message
+                : "Failed to discard tray."
+              : null
+          }
+          onCancel={() => setDiscardTrayId(null)}
+          onConfirm={() => discardMutation.mutate(discardTrayId)}
+        >
+          <p>
+            This marks every cell physically in this tray as exhausted, regardless of how many uses it has left. Any
+            not-yet-run placements for these cells are cancelled and their samples return to the backlog. This cannot
+            be undone.
+          </p>
+        </ConfirmModal>
+      )}
     </Accordion>
   );
 }

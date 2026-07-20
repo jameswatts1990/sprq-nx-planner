@@ -6,6 +6,8 @@ export interface CycleStatusUpdate {
   status: CycleStatus;
   at?: string;
   actor?: string;
+  /** Only meaningful when status is "running" (locking the run) - see cycles.py. */
+  run_name?: string;
 }
 
 export interface ListCyclesParams {

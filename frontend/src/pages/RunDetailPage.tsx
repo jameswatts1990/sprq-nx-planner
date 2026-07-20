@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Note } from "@/components/ui/Note";
 import { CYCLE_STATUS_TONE } from "@/utils/cycleStatus";
+import { runLabel } from "@/utils/runLabel";
 
 import styles from "./RunDetailPage.module.css";
 
@@ -73,7 +74,8 @@ export function RunDetailPage() {
     <div className={styles.page}>
       <div className={styles.metaRow}>
         <span>
-          Run <b>#{cycle.cycle_id}</b>
+          Run <b>{runLabel(cycle)}</b>
+          {cycle.run_name && <span className={styles.meta}> (#{cycle.cycle_id})</span>}
         </span>
         <span>
           Instrument <b>{cycle.instrument_serial}</b>

@@ -254,12 +254,6 @@
   font-family: var(--mono);
   color: var(--grey);
 }
-.trayTag {
-  font-size: 8.5px;
-  font-weight: 600;
-  color: var(--faint);
-}
-
 /* Shades a filled slot by how far its cell has travelled through its own 108h window -
    --window-opacity is set inline per-slot by SchedulerSlotView's fade calculation (same
    curve as a waiting-cell ghost's fade, see utils/windowFade.ts): ~1 (full colour) fresh

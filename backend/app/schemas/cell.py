@@ -7,6 +7,7 @@ class CellUseHistoryOut(BaseModel):
     id: int
     run_batch_id: int
     cycle_id: int
+    run_name: str | None
     well: str
     status: str
     sample_id: int | None

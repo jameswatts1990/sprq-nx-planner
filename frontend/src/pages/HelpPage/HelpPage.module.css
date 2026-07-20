@@ -10,6 +10,22 @@
   margin: 0 0 4px;
   max-width: 68ch;
 }
+.search {
+  font-family: var(--sans);
+  font-size: 13px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 8px 10px;
+  min-width: 260px;
+  max-width: 420px;
+  margin-bottom: 4px;
+}
+.empty {
+  color: var(--grey);
+  font-size: 13.5px;
+  padding: 24px 4px;
+  text-align: center;
+}
 .helper {
   font-size: 13px;
   color: var(--grey);

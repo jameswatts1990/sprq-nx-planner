@@ -1,4 +1,9 @@
+import { CellStatusCard } from "@/components/cells/CellStatusCard";
+import { TraySiblingList } from "@/components/cells/TraySiblingList";
+import { WindowMeter } from "@/components/cells/WindowMeter";
+
 import styles from "../HelpPage.module.css";
+import { EXAMPLE_CELL_UNREPORTED, EXAMPLE_TRAY_SIBLINGS } from "./helpFixtures";
 
 export function CellsSection() {
   return (
@@ -7,36 +12,69 @@ export function CellsSection() {
         <b>What this tab is for:</b> browsing every physical SMRT cell the system knows about and its current
         state.
       </p>
+
+      <p className={styles.subheading}>Filters</p>
       <p>
-        <b>Filters:</b> the chips (All, Open, Exhausted, Window expired, Retired, Stopped, Unreported, Awaiting
-        credit) filter the list; the dropdown filters by instrument; <b>Search</b> matches cell code or barcode. The
-        page opens on <b>Open</b> cells by default. <b>Unreported</b> and <b>Awaiting credit</b> cut across the
-        ordinary status filters - they show cells with a QC issue (see below) at a particular stage of the PacBio
-        credit workflow, regardless of their Open/Exhausted/etc. status.
+        The chips (All, Open, Exhausted, Window expired, Retired, Stopped, Unreported, Awaiting credit) filter the
+        list; the dropdown filters by instrument; <b>Search</b> matches cell code or barcode. The page opens on{" "}
+        <b>Open</b> cells by default. <b>Unreported</b> and <b>Awaiting credit</b> cut across the ordinary status
+        filters - they show cells with a QC issue (see below) at a particular stage of the PacBio credit workflow,
+        regardless of their Open/Exhausted/etc. status.
+      </p>
+
+      <p className={styles.subheading}>Open trays</p>
+      <p>
+        A collapsible section above the cell list (collapsed by default - expand it to see the list) showing every
+        physical SPRQ-Nx SMRT Cell tray that currently has at least one open (usable) cell, grouped by which
+        instrument it&apos;s sitting on - so you can see, across every instrument at a glance, which trays still
+        have spare capacity waiting to be picked up, without opening a specific cell&apos;s detail page first. Any
+        open cell that has started its 108-hour window shows how many hours it has left, turning red once
+        it&apos;s down to its last 18 hours; the tray header itself flags &quot;Expires soon&quot; once any of its
+        cells is that close. There&apos;s no way to move a tray to a different instrument yet. (This is a different
+        &quot;tray&quot; from the Schedule grid&apos;s &quot;Tray 1&quot;/&quot;Tray 2&quot; loading positions - see
+        the Schedule section.)
       </p>
       <p>
-        <b>Open trays:</b> a collapsible section above the cell list showing every physical SPRQ-Nx SMRT Cell tray
-        that currently has at least one open (usable) cell, grouped by which instrument it&apos;s sitting on - so you
-        can see, across every instrument at a glance, which trays still have spare capacity waiting to be picked up,
-        without opening a specific cell&apos;s detail page first. Each tray shows its (up to 4) sibling cells with
-        their own status and uses, the same as the Cell detail page&apos;s Cell tray card below - a tray never shows
-        one merged status, since its own cells can genuinely be in different states (one exhausted, one still open,
-        one never used). It&apos;s expanded by default and read-only for now - there&apos;s no way to move a tray to
-        a different instrument yet. (This is a different &quot;tray&quot; from the Schedule grid&apos;s &quot;Tray
-        1&quot;/&quot;Tray 2&quot; loading positions - see the Schedule section.)
+        Each tray shows its (up to 4) sibling cells with their own status and uses - a tray never shows one merged
+        status, since its own cells can genuinely be in different states (one exhausted, one still open, one never
+        used):
       </p>
+      <div className={styles.legendGrid}>
+        <TraySiblingList cells={EXAMPLE_TRAY_SIBLINGS} />
+      </div>
+      <p>
+        <b>Discard all cells:</b> each tray has a <b>Discard all cells</b> button that force-closes every cell
+        still physically in that tray - cancelling any not-yet-run placements for those cells (their samples return
+        to the backlog) and marking every cell exhausted regardless of how many uses it has left. Use it when a
+        tray is being pulled from the instrument for good and its remaining capacity won&apos;t be used. This cannot
+        be undone.
+      </p>
+
+      <p className={styles.subheading}>Cell cards &amp; the 108-hour window</p>
       <p>
         <b>Each cell card shows:</b> the cell code (e.g. <b>CELL-A004821</b> — the letter is the cell&apos;s fixed
-        position within its physical tray, A–D, not a status or location code), a status badge, uses spent (e.g.
-        &quot;1 / 3 uses&quot;), which
+        position within its physical tray, A–D, not a status or location code), a status badge, uses spent, which
         instrument and well it&apos;s currently in, its burned barcodes, and a 108-hour window meter. Click a card
         to open its full detail.
       </p>
-      <p>
-        <b>The 108-hour window</b> is the lifetime a multi-use cell has from its first use to the start of its
-        third use; the meter fills toward 108 h and turns over-limit if breached. Exhausted and retired cells
-        don&apos;t show a meter.
-      </p>
+      <div className={styles.legendGrid}>
+        <div className={styles.legendRow}>
+          <div className={styles.ghostExampleSwatch}>
+            <CellStatusCard cell={EXAMPLE_CELL_UNREPORTED} />
+          </div>
+          <span>
+            <b>The 108-hour window</b> is the lifetime a multi-use cell has from its first use to the start of its
+            third use; the meter fills toward 108 h and turns over-limit if breached. Exhausted and retired cells
+            don&apos;t show a meter.
+          </span>
+        </div>
+        <div className={styles.legendRow}>
+          <div className={styles.ghostExampleSwatch}>
+            <WindowMeter windowHours={112} />
+          </div>
+          <span>The same meter once the 108-hour budget is breached - the fill turns red past the limit.</span>
+        </div>
+      </div>
       <p>
         <b>Register in-progress cell</b> (button, top right) is a one-off setup action for cells that were already
         running on an instrument <i>before this system went live</i> — it is <b>not</b> part of normal weekly work,
@@ -44,6 +82,7 @@ export function CellsSection() {
         barcodes were already burned, and optionally when the first use started. Register is disabled until you
         enter at least one burned barcode.
       </p>
+
       <p className={styles.subheading}>Cell detail page</p>
       <p>Opened from a card, it shows:</p>
       <ul>
@@ -57,10 +96,9 @@ export function CellsSection() {
         <li>
           <b>Cell tray</b> card: SPRQ-Nx SMRT Cells ship in a physical tray of 4. The moment any one cell in a tray
           gets a sample, all 4 are registered together, in cell-number order - this card lists the tray&apos;s other
-          cells (with a link, status, and uses) so you can see at a glance which are still available, even before
-          their own first use. Not shown for cells created before this feature, or via Register in-progress cell,
-          since those have no known tray. (This is a different &quot;tray&quot; from the Schedule grid&apos;s
-          &quot;Tray 1&quot;/&quot;Tray 2&quot; loading positions - see the Schedule section.)
+          cells (with a link, status, and uses, shown live above) so you can see at a glance which are still
+          available, even before their own first use. Not shown for cells created before this feature, or via
+          Register in-progress cell, since those have no known tray.
         </li>
         <li>
           <b>Retire cell</b> takes a cell permanently out of service. It&apos;s disabled — with a hover explanation
@@ -82,10 +120,10 @@ export function CellsSection() {
           instead of being revived — reviving it would double-book that sample against wherever it landed.
         </li>
         <li>
-          <b>Use history</b> lists every run the cell has been in: run number (links to the run), well, use status,
-          sample, container ID, barcodes, priority, target OPLC, adaptive loading, full resolution base Q, kinetics
-          (CCS output includes kinetics information), instrument, start/complete times, outcome notes, and{" "}
-          <b>Mark Failed</b> / <b>Mark Aborted</b> actions.
+          <b>Use history</b> lists every run the cell has been in: run name if one was set, otherwise its number
+          (links to the run), well, use status, sample, container ID, barcodes, priority, target OPLC, adaptive
+          loading, full resolution base Q, kinetics (CCS output includes kinetics information), instrument,
+          start/complete times, outcome notes, and <b>Mark Failed</b> / <b>Mark Aborted</b> actions.
         </li>
         <li>
           <b>Mark Failed</b> means that particular run produced no usable data and the cell itself may be at fault;

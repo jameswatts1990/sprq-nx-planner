@@ -1,12 +1,12 @@
 import { SchedulerSlotView } from "@/components/scheduler/SchedulerSlotView";
-import type { CellGhost } from "@/components/scheduler/waitingCells";
+import { CellStatusCard } from "@/components/cells/CellStatusCard";
+import { TraySiblingList } from "@/components/cells/TraySiblingList";
+import { WindowMeter } from "@/components/cells/WindowMeter";
 import { UseLegend } from "@/components/shared/SectionHeading";
 import { Badge, type BadgeTone } from "@/components/ui/Badge";
 import { Note, type NoteTone } from "@/components/ui/Note";
-import type { CellOut } from "@/types/cell";
 import { CELL_STATUSES, CELL_USE_STATUSES, CYCLE_STATUSES } from "@/types/common";
 import type { CellStatus, CellUseStatus, CycleStatus } from "@/types/common";
-import type { StageOut } from "@/types/schedule";
 import { CELL_QC_FLAG_LABEL, CELL_QC_FLAG_TONE } from "@/utils/cellQcFlag";
 import type { CellQcFlag } from "@/utils/cellQcFlag";
 import { CELL_STATUS_LABEL, CELL_STATUS_TONE } from "@/utils/cellStatus";
@@ -15,166 +15,21 @@ import { priorityTone } from "@/utils/priority";
 import { USE_STATUS_TONE } from "@/utils/useStatusTone";
 
 import styles from "../HelpPage.module.css";
-
-// Fabricated example cell/ghost, purely so the two waiting-cell ghost styles below render
-// from the real SchedulerSlotView component (see CLAUDE.md's Help Tab Maintenance rule) -
-// never hand-describe this colour scheme in prose.
-const GHOST_EXAMPLE_CELL: CellOut = {
-  id: 0,
-  code: "CELL-000042",
-  max_uses: 3,
-  status: "open",
-  uses_consumed: 1,
-  uses_remaining: 2,
-  burned_barcodes: [],
-  window_hours_elapsed: 60,
-  window_breached: false,
-  current_instrument_serial: "84047",
-  current_well: "A01",
-  last_use_run_date: "2026-07-13",
-  first_use_started_at: "2026-07-13T12:00:00Z",
-  first_use_planned_start_at: "2026-07-13T12:00:00Z",
-  created_at: "2026-07-13T12:00:00Z",
-  stopped_reason: null,
-  stopped_at: null,
-  has_failed_use: false,
-  needs_qc_report: false,
-  awaiting_credit: false,
-  pacbio_case_number: null,
-  pacbio_reported_at: null,
-  pacbio_credit_confirmed_at: null,
-  credit_received_at: null,
-  discarded_reason: null,
-  discarded_at: null,
-  tray_id: 7,
-  tray_position: 2,
-  tray_size: 4,
-};
-const GHOST_EXAMPLE_FADING: CellGhost = {
-  cell: GHOST_EXAMPLE_CELL,
-  useNumber: 2,
-  isHardCutoff: false,
-  fadeOpacity: 0.65,
-  cutoffDate: "2026-07-17",
-  deadlineAt: "2026-07-18T00:00:00Z",
-  deadlineIsEstimated: false,
-};
-const GHOST_EXAMPLE_CUTOFF: CellGhost = { ...GHOST_EXAMPLE_FADING, isHardCutoff: true };
-const GHOST_EXAMPLE_UNUSED: CellGhost = {
-  cell: { ...GHOST_EXAMPLE_CELL, code: "CELL-000043", uses_consumed: 0, uses_remaining: 3, current_well: "B01" },
-  useNumber: 1,
-  isHardCutoff: false,
-  fadeOpacity: 1,
-  cutoffDate: "2026-07-13",
-  deadlineAt: "",
-  deadlineIsEstimated: false,
-  unused: true,
-};
-
-// Fabricated stages sharing one cell_id, purely so the cell-link highlight swatches below
-// render from the real SchedulerSlotView component (see CLAUDE.md's Help Tab Maintenance
-// rule) - never hand-describe this colour/border scheme in prose.
-const LINK_EXAMPLE_SOURCE: StageOut = {
-  slot_index: 0,
-  well: "A01",
-  cell_use_id: 1,
-  cell_id: 42,
-  cell_ref: "CELL-000042",
-  use_number: 1,
-  sample_id: 1,
-  sample_external_id: "SAMPLE-101",
-  barcodes: ["bc1001"],
-  cell_use_status: "completed",
-  cell_status: "open",
-  tray_position: 2,
-  tray_id: 7,
-  window_hours_elapsed: 60,
-};
-const LINK_EXAMPLE_PEER: StageOut = {
-  ...LINK_EXAMPLE_SOURCE,
-  slot_index: 4,
-  well: "A02",
-  cell_use_id: 2,
-  use_number: 2,
-  sample_id: 2,
-  sample_external_id: "SAMPLE-205",
-  barcodes: ["bc2005"],
-};
-const LINK_EXAMPLE_UNRELATED: StageOut = {
-  ...LINK_EXAMPLE_SOURCE,
-  slot_index: 1,
-  well: "B01",
-  cell_use_id: 3,
-  cell_id: 99,
-  cell_ref: "CELL-000099",
-  sample_id: 3,
-  sample_external_id: "SAMPLE-310",
-  barcodes: ["bc3010"],
-};
-
-// Fabricated stage purely so the slot-shading swatch below renders from the real
-// SchedulerSlotView component (see CLAUDE.md's Help Tab Maintenance rule) - 95 of 108
-// hours elapsed, near enough its deadline to show the fade clearly.
-const WINDOW_SHADE_EXAMPLE_NEAR_DEADLINE: StageOut = {
-  ...LINK_EXAMPLE_SOURCE,
-  cell_use_id: 5,
-  cell_id: 55,
-  cell_ref: "CELL-000055",
-  sample_id: 5,
-  sample_external_id: "SAMPLE-509",
-  barcodes: ["bc5009"],
-  window_hours_elapsed: 95,
-};
-
-// Fabricated stages purely so the QC alert swatches below render from the real
-// SchedulerSlotView component (see CLAUDE.md's Help Tab Maintenance rule).
-const QC_EXAMPLE_FAILED: StageOut = {
-  ...LINK_EXAMPLE_SOURCE,
-  cell_use_id: 4,
-  cell_id: 7,
-  cell_ref: "CELL-000007",
-  sample_id: 4,
-  sample_external_id: "SAMPLE-410",
-  barcodes: ["bc4010"],
-  cell_use_status: "failed",
-  cell_status: "open",
-};
-const QC_EXAMPLE_STOPPED: StageOut = {
-  ...QC_EXAMPLE_FAILED,
-  cell_use_id: 5,
-  cell_id: 8,
-  cell_ref: "CELL-000008",
-  sample_id: 5,
-  sample_external_id: "SAMPLE-512",
-  barcodes: ["bc5012"],
-  // "started" (not yet its own recorded outcome) is what actually renders the Stopped
-  // ring - a use that already completed/failed/aborted keeps showing that instead, even
-  // once its cell is stopped (see SchedulerSlotView's qcAlert).
-  cell_use_status: "started",
-  cell_status: "stopped",
-};
-const QC_EXAMPLE_ABORTED: StageOut = {
-  ...QC_EXAMPLE_FAILED,
-  cell_use_id: 6,
-  cell_id: 9,
-  cell_ref: "CELL-000009",
-  sample_id: 6,
-  sample_external_id: "SAMPLE-618",
-  barcodes: ["bc6018"],
-  cell_use_status: "aborted",
-  cell_status: "open",
-};
-const QC_EXAMPLE_CANCELLED: StageOut = {
-  ...QC_EXAMPLE_FAILED,
-  cell_use_id: 7,
-  cell_id: 10,
-  cell_ref: "CELL-000010",
-  sample_id: 7,
-  sample_external_id: "SAMPLE-719",
-  barcodes: ["bc7019"],
-  cell_use_status: "cancelled",
-  cell_status: "stopped",
-};
+import {
+  EXAMPLE_CELL_UNREPORTED,
+  EXAMPLE_TRAY_SIBLINGS,
+  GHOST_EXAMPLE_CUTOFF,
+  GHOST_EXAMPLE_FADING,
+  GHOST_EXAMPLE_UNUSED,
+  STAGE_EXAMPLE_ABORTED,
+  STAGE_EXAMPLE_CANCELLED,
+  STAGE_EXAMPLE_FAILED,
+  STAGE_EXAMPLE_PEER,
+  STAGE_EXAMPLE_SOURCE,
+  STAGE_EXAMPLE_STOPPED,
+  STAGE_EXAMPLE_UNRELATED,
+  STAGE_EXAMPLE_WINDOW_NEAR_DEADLINE,
+} from "./helpFixtures";
 
 const CELL_STATUS_MEANING: Record<CellStatus, string> = {
   open: "Has uses remaining and its window is still valid; available to schedule.",
@@ -232,11 +87,11 @@ const NOTE_EXAMPLES: { tone: NoteTone; icon: string; label: string; text: string
   { tone: "bad", icon: "!", label: "Error (red)", text: "An action failed and needs attention." },
 ];
 
-/** Renders the *real* Badge/Note/UseLegend components sourced from the same shared
- * tone maps every other page uses (utils/cellStatus.ts, utils/cycleStatus.ts,
- * utils/useStatusTone.ts) - never hardcode or re-describe a colour in prose here, so
- * this legend can't visually drift from the live app as those maps or tokens.css
- * evolve. See CLAUDE.md's "Help Tab Maintenance" section. */
+/** Renders the *real* Badge/Note/UseLegend/CellStatusCard/WindowMeter/TraySiblingList
+ * components sourced from the same shared tone maps every other page uses
+ * (utils/cellStatus.ts, utils/cycleStatus.ts, utils/useStatusTone.ts) - never hardcode or
+ * re-describe a colour in prose here, so this legend can't visually drift from the live
+ * app as those maps or tokens.css evolve. See CLAUDE.md's "Help Tab Maintenance" section. */
 export function LegendSection() {
   return (
     <div className={styles.copy}>
@@ -361,7 +216,7 @@ export function LegendSection() {
       <div className={styles.legendGrid}>
         <div className={styles.legendRow}>
           <div className={styles.ghostExampleSwatch}>
-            <SchedulerSlotView stage={WINDOW_SHADE_EXAMPLE_NEAR_DEADLINE} slotIndex={0} />
+            <SchedulerSlotView stage={STAGE_EXAMPLE_WINDOW_NEAR_DEADLINE} slotIndex={0} />
           </div>
           <span>
             A loaded cell fades the same way a waiting-cell ghost does, but for time already elapsed on its own
@@ -376,19 +231,19 @@ export function LegendSection() {
       <div className={styles.legendGrid}>
         <div className={styles.legendRow}>
           <div className={styles.ghostExampleSwatch}>
-            <SchedulerSlotView stage={LINK_EXAMPLE_SOURCE} slotIndex={0} linkSource />
+            <SchedulerSlotView stage={STAGE_EXAMPLE_SOURCE} slotIndex={0} linkSource />
           </div>
           <span>The exact slot you&apos;re hovering or have pinned - a solid ring with a filled dot.</span>
         </div>
         <div className={styles.legendRow}>
           <div className={styles.ghostExampleSwatch}>
-            <SchedulerSlotView stage={LINK_EXAMPLE_PEER} slotIndex={4} linked />
+            <SchedulerSlotView stage={STAGE_EXAMPLE_PEER} slotIndex={4} linked />
           </div>
           <span>Another use of that same physical cell, wherever it lands on the calendar - a dashed ring with a hollow dot.</span>
         </div>
         <div className={styles.legendRow}>
           <div className={styles.ghostExampleSwatch}>
-            <SchedulerSlotView stage={LINK_EXAMPLE_UNRELATED} slotIndex={1} dimmed />
+            <SchedulerSlotView stage={STAGE_EXAMPLE_UNRELATED} slotIndex={1} dimmed />
           </div>
           <span>An unrelated cell, softened so the linked slots stand out.</span>
         </div>
@@ -398,7 +253,7 @@ export function LegendSection() {
       <div className={styles.legendGrid}>
         <div className={styles.legendRow}>
           <div className={styles.ghostExampleSwatch}>
-            <SchedulerSlotView stage={QC_EXAMPLE_ABORTED} slotIndex={0} />
+            <SchedulerSlotView stage={STAGE_EXAMPLE_ABORTED} slotIndex={0} />
           </div>
           <span>
             This use was marked Aborted - the mildest, amber/yellow ring, since the run/instrument was the problem
@@ -407,7 +262,7 @@ export function LegendSection() {
         </div>
         <div className={styles.legendRow}>
           <div className={styles.ghostExampleSwatch}>
-            <SchedulerSlotView stage={QC_EXAMPLE_FAILED} slotIndex={0} />
+            <SchedulerSlotView stage={STAGE_EXAMPLE_FAILED} slotIndex={0} />
           </div>
           <span>
             This use was marked Failed - an orange ring and label, one step more severe than Aborted; the cell may
@@ -416,7 +271,7 @@ export function LegendSection() {
         </div>
         <div className={styles.legendRow}>
           <div className={styles.ghostExampleSwatch}>
-            <SchedulerSlotView stage={QC_EXAMPLE_STOPPED} slotIndex={0} />
+            <SchedulerSlotView stage={STAGE_EXAMPLE_STOPPED} slotIndex={0} />
           </div>
           <span>
             This slot&apos;s physical cell has been Stopped while this specific use hadn&apos;t recorded its own
@@ -426,12 +281,39 @@ export function LegendSection() {
         </div>
         <div className={styles.legendRow}>
           <div className={styles.ghostExampleSwatch}>
-            <SchedulerSlotView stage={QC_EXAMPLE_CANCELLED} slotIndex={0} />
+            <SchedulerSlotView stage={STAGE_EXAMPLE_CANCELLED} slotIndex={0} />
           </div>
           <span>
             Blocked - this placement was cancelled by a Stop cell action before it ever ran. Shares Stopped&apos;s
             red severity, with an added cross-hatch texture since it&apos;s the more actionable claim (a slot you
             might otherwise expect to still happen).
+          </span>
+        </div>
+      </div>
+
+      <p className={styles.subheading}>Cell card, tray, and window meter (Cells &amp; Instruments, Cell detail)</p>
+      <div className={styles.legendGrid}>
+        <div className={styles.legendRow}>
+          <div className={styles.ghostExampleSwatch}>
+            <CellStatusCard cell={EXAMPLE_CELL_UNREPORTED} />
+          </div>
+          <span>
+            A cell card: code, status badge, uses spent, current instrument/well, burned barcodes, a QC flag if one
+            applies, and its 108-hour window meter.
+          </span>
+        </div>
+        <div className={styles.legendRow}>
+          <div className={styles.ghostExampleSwatch}>
+            <WindowMeter windowHours={112} />
+          </div>
+          <span>The same window meter once its 108-hour budget is breached - the fill turns red past the limit.</span>
+        </div>
+        <div className={styles.legendRow}>
+          <TraySiblingList cells={EXAMPLE_TRAY_SIBLINGS} />
+          <span>
+            A physical tray&apos;s four sibling cells (Cell detail&apos;s &quot;Cell tray&quot; card, and the Cells
+            tab&apos;s Open trays list) - each keeps its own independent status, since one cell&apos;s history can
+            diverge from its tray-mates.
           </span>
         </div>
       </div>

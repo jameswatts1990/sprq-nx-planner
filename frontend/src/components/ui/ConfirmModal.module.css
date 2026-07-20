@@ -20,3 +20,11 @@
   border-radius: var(--r-sm);
   padding: 8px 10px;
 }
+.field input[type="text"] {
+  width: 100%;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 8px 10px;
+}

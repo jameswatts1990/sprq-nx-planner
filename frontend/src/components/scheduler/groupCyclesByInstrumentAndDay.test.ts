@@ -27,6 +27,7 @@ function baseStage(overrides: Partial<StageOut> = {}): StageOut {
 function baseCycle(overrides: Partial<CycleOut> = {}): CycleOut {
   return {
     cycle_id: 1,
+    run_name: null,
     instrument_serial: "84047",
     run_date: "2026-07-20",
     movie_hours: 24,

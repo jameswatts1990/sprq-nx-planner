@@ -12,10 +12,20 @@ export interface ConfirmModalTextareaProps {
   placeholder?: string;
 }
 
+export interface ConfirmModalInputProps {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+}
+
 export interface ConfirmModalProps {
   title: ReactNode;
-  /** Explanatory copy above the (optional) textarea - a helper paragraph and/or a Note. */
+  /** Explanatory copy above the (optional) textarea/input - a helper paragraph and/or a Note. */
   children?: ReactNode;
+  /** Optional single-line labeled input (e.g. a short name/code field); omitted for
+   * warning-only confirms. Distinct from `textarea` below, which is multi-line. */
+  input?: ConfirmModalInputProps;
   /** Optional labeled textarea (e.g. a reason/notes field); omitted for warning-only confirms. */
   textarea?: ConfirmModalTextareaProps;
   confirmLabel: string;
@@ -35,6 +45,7 @@ export interface ConfirmModalProps {
 export function ConfirmModal({
   title,
   children,
+  input,
   textarea,
   confirmLabel,
   pendingLabel,
@@ -46,6 +57,18 @@ export function ConfirmModal({
   return (
     <Modal onClose={pending ? () => {} : onCancel} title={title}>
       {children}
+
+      {input && (
+        <div className={styles.field}>
+          <label className={styles.fieldLabel}>{input.label}</label>
+          <input
+            type="text"
+            value={input.value}
+            onChange={(e) => input.onChange(e.target.value)}
+            placeholder={input.placeholder}
+          />
+        </div>
+      )}
 
       {textarea && (
         <div className={styles.field}>

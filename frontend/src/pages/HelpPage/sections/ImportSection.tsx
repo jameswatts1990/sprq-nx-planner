@@ -1,3 +1,5 @@
+import { Note } from "@/components/ui/Note";
+
 import styles from "../HelpPage.module.css";
 
 export function ImportSection() {
@@ -7,6 +9,8 @@ export function ImportSection() {
         <b>What this tab is for:</b> loading a batch of samples and their barcodes into the planner. Imported
         samples appear in the Backlog, ready to schedule.
       </p>
+
+      <p className={styles.subheading}>Accepted formats</p>
       <p>
         <b>Two formats are accepted.</b> You can paste your full LIMS export (with the{" "}
         <i>Container, Parent Sample, Sanger Sample IDs, Barcodes, Volume to Load, Actual OPLC…</i> columns), or a
@@ -29,6 +33,8 @@ export function ImportSection() {
         The line/character counter under the box is only a rough check that text was pasted. The real parsing
         happens on the server when you press Import — so the counts don&apos;t guarantee a row will import cleanly.
       </p>
+
+      <p className={styles.subheading}>Result panel</p>
       <p>
         <b>After importing, the result panel shows four numbers:</b>
       </p>
@@ -42,14 +48,24 @@ export function ImportSection() {
         <dt>Skipped</dt>
         <dd>Rows that were not imported for another reason.</dd>
       </dl>
+
+      <p className={styles.subheading}>Warnings &amp; rejected rows</p>
+      <div className={styles.noteExamples}>
+        <Note tone="warn" icon="!">
+          <b>Warnings</b> (amber) flag rows that imported but need attention.
+        </Note>
+        <Note tone="info" icon="i">
+          If nothing imported and there were no warnings or rejects, you&apos;ll see &quot;No rows were
+          imported.&quot;
+        </Note>
+        <Note tone="bad" icon="!">
+          A red note means the import failed entirely (for example a server error) — the message describes what
+          went wrong; fix it and try again.
+        </Note>
+      </div>
       <p>
-        <b>Warnings</b> (amber notes) flag rows that imported but need attention. The <b>Rejected table</b> lists
-        each row that could not be imported, with its External ID and the reason. If nothing imported and there
-        were no warnings or rejects, you&apos;ll see &quot;No rows were imported.&quot;
-      </p>
-      <p>
-        A red note means the import failed entirely (for example a server error) — the message describes what went
-        wrong; fix it and try again. Use <b>View backlog →</b> to jump to the newly imported samples.
+        The <b>Rejected table</b> lists each row that could not be imported, with its External ID and the reason.
+        Use <b>View backlog →</b> to jump to the newly imported samples.
       </p>
     </div>
   );

@@ -3,6 +3,8 @@ import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/Badge";
 import type { CellOut } from "@/types/cell";
 import { CELL_STATUS_LABEL, CELL_STATUS_TONE } from "@/utils/cellStatus";
+import { windowHoursRemaining } from "@/utils/openTrays";
+import { FADE_MIN_HOURS } from "@/utils/windowFade";
 
 import styles from "./TraySiblingList.module.css";
 
@@ -23,22 +25,30 @@ export interface TraySiblingListProps {
 export function TraySiblingList({ cells, currentCellId }: TraySiblingListProps) {
   return (
     <div className={styles.trayList}>
-      {cells.map((sibling) => (
-        <Link
-          key={sibling.id}
-          to={`/cells/${sibling.id}`}
-          className={sibling.id === currentCellId ? styles.trayItemCurrent : styles.trayItem}
-        >
-          <span className={styles.trayItemPosition}>
-            {sibling.tray_position}/{sibling.tray_size}
-          </span>
-          <span className={styles.trayItemCode}>{sibling.code}</span>
-          <Badge tone={CELL_STATUS_TONE[sibling.status]}>{CELL_STATUS_LABEL[sibling.status]}</Badge>
-          <span className={styles.trayItemUses}>
-            {sibling.uses_consumed}/{sibling.max_uses} uses
-          </span>
-        </Link>
-      ))}
+      {cells.map((sibling) => {
+        const hoursRemaining = windowHoursRemaining(sibling);
+        return (
+          <Link
+            key={sibling.id}
+            to={`/cells/${sibling.id}`}
+            className={sibling.id === currentCellId ? styles.trayItemCurrent : styles.trayItem}
+          >
+            <span className={styles.trayItemPosition}>
+              {sibling.tray_position}/{sibling.tray_size}
+            </span>
+            <span className={styles.trayItemCode}>{sibling.code}</span>
+            <Badge tone={CELL_STATUS_TONE[sibling.status]}>{CELL_STATUS_LABEL[sibling.status]}</Badge>
+            <span className={styles.trayItemUses}>
+              {sibling.uses_consumed}/{sibling.max_uses} uses
+            </span>
+            {hoursRemaining !== null && (
+              <span className={hoursRemaining <= FADE_MIN_HOURS ? styles.trayItemExpiryUrgent : styles.trayItemExpiry}>
+                {hoursRemaining <= 1 ? "<1h left" : `${Math.ceil(hoursRemaining)}h left`}
+              </span>
+            )}
+          </Link>
+        );
+      })}
     </div>
   );
 }

@@ -1,3 +1,5 @@
+import { Note } from "@/components/ui/Note";
+
 import styles from "../HelpPage.module.css";
 
 export function AdminSection() {
@@ -9,10 +11,20 @@ export function AdminSection() {
         are not part of the shipped/live product and are expected to be removed or disabled before a real
         production launch.
       </p>
+
+      <Note tone="warn" icon="!">
+        These actions bypass business logic (for example, deleting a cell&apos;s row here doesn&apos;t check
+        whether it has planned uses the way <b>Retire cell</b> on the Cells &amp; Instruments tab does) — use with
+        care, and only against development data.
+      </Note>
+
+      <p className={styles.subheading}>Browsing tables</p>
       <p>
         The left-hand list shows every database table with its row count. Selecting one shows its rows in a
         paginated table (50 rows at a time), with a <b>Delete</b> button on each row.
       </p>
+
+      <p className={styles.subheading}>Delete &amp; Clear table</p>
       <dl className={styles.terms}>
         <dt>Delete (a single row)</dt>
         <dd>
@@ -25,12 +37,6 @@ export function AdminSection() {
           name into the confirmation dialog before the button enables.
         </dd>
       </dl>
-      <p>
-        The amber note at the top of the page is a standing reminder that these actions bypass business logic (for
-        example, deleting a cell&apos;s row here doesn&apos;t check whether it has planned uses the way{" "}
-        <b>Retire cell</b> on the Cells &amp; Instruments tab does) — use with care, and only against development
-        data.
-      </p>
     </div>
   );
 }

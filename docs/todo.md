@@ -45,11 +45,41 @@ Group C: Weekly scheduler column layout - DONE
 Improvements or additions
 Grouped the same way - each is fairly independent of the others, so these can be picked up in any order based on priority.
 
-Group D: Run locking UX
+Group D: Run locking UX - DONE
 - When locking a run, there should be an option to add a name to the run e.g. at Sanger we use the format TRACTION-RUN-1234 - this overrides the current run number
+  Fixed: clicking Confirm loaded now opens a small modal (SchedulerDayCell.tsx) with an
+  optional "Run name" field before locking the run; a new nullable `Cycle.run_name`
+  column (models/schedule.py + migration f2a7c9e1d4b6) stores it. Everywhere a run was
+  shown as "#<cycle id>" - Run detail, History > Runs (list, search, and column),
+  History > Samples, Cell Detail's use history and its QC modal titles - now shows the
+  name instead via a shared `runLabel()` helper, with the numeric id kept as a small
+  secondary reference on Run Detail. Unlock never clears a name once set; re-confirming
+  after Unlock reopens the modal prefilled with the existing name so it can be edited.
+  Help tab's Schedule/History/Cells sections updated to match.
 
-Group E: Help tab overhaul
+Group E: Help tab overhaul - DONE
 - Refactor the help section to make it easier for users to find information and read the information - using real life formatting from the app to highlight the relevant areas of the app being discussed. Add a search bar.
+  Fixed: added a search box (HelpPage.tsx) that matches each section's own rendered text
+  (via a ref), not a hand-maintained keyword list that could drift stale - matching
+  sections auto-expand and non-matching ones hide, restoring your manual open/closed
+  state exactly when the search is cleared. Required `Accordion` (components/ui/Accordion.tsx)
+  to gain optional controlled `open`/`onToggle` props and an `alwaysMounted` mode (content
+  hidden via the native `hidden` attribute instead of unmounted, so it stays searchable
+  while collapsed) - fully backward compatible, the 3 other Accordion consumers
+  (Run design/Backlog on Schedule, Open trays on Cells) pass none of the new props and
+  are unaffected. All 8 sections rewritten with subheadings for scannability (especially
+  ScheduleSection, previously ~25 undifferentiated paragraphs), and rewritten to embed
+  real live components in place of prose wherever safe to do so (no API/query
+  dependency): RunDesignAccordion, SchedulerSlotView (waiting-cell ghosts, blocked/used-up/
+  scheduled wells, slot shading, cell-link highlight, QC severity ring), CellStatusCard,
+  WindowMeter, TraySiblingList, Badge, and Note - shared fabricated example data factored
+  into a new `sections/helpFixtures.ts` (also adopted by the existing LegendSection) so
+  the same example cell/stage shows up consistently everywhere it's referenced.
+  OpenTraysAccordion/CellChoicePicker/SlotDetailPopover/WaitingCellPopover were left as
+  prose since they call live queries/mutations internally and aren't safe to embed
+  standalone. Verified in-browser: search narrows to matching sections and clears
+  cleanly, all embedded components render with sensible fabricated data, and the other
+  3 Accordion consumers on the live Schedule/Cells pages are unaffected.
 
 Group F: Schedule date navigation - DONE
 - Make the date selector next/previous a date picker
