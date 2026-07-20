@@ -120,7 +120,7 @@ def fill_slots(
 
             # A cell is physically fixed to one well for its whole life (see
             # docs/pacbio-sprq-nx-scheduling-reference.md's "must stay in the same well"
-            # invariant, already enforced for manual placement/move/change-cell). A
+            # invariant, already enforced for manual placement/move). A
             # pinned cell can only take *that* well here - if it isn't free this slot,
             # skip this cell for this slot rather than grabbing a different well, which
             # would silently relocate a physical cell that can't actually move.

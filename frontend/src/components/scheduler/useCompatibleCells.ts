@@ -19,9 +19,8 @@ export interface UseCompatibleCellsOptions {
 
 /** Returns true if this open cell can host the sample: it has an unused use left, none
  * of its already-burned barcodes clash with the sample's barcodes, and (once it has a
- * prior use) the target well matches the one it's already pinned to. Shared by the
- * placement picker (CellChoicePicker) and the "change cell" action (SlotDetailPopover)
- * so both surfaces agree on one compatibility ruleset. */
+ * prior use) the target well matches the one it's already pinned to. Used by the
+ * placement picker (CellChoicePicker) when a drag needs a cell decision. */
 function isCompatible(cell: CellOut, sampleBarcodes: string[], excludeCellId?: number, targetWell?: string): boolean {
   if (cell.id === excludeCellId) return false;
   if (cell.current_well !== null && targetWell !== undefined && cell.current_well !== targetWell) return false;

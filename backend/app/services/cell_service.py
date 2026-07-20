@@ -84,7 +84,7 @@ def current_location(cell: Cell) -> tuple[str | None, str | None]:
     return (instrument.serial_number if instrument else None), last.well
 
 
-def open_new_tray(db: Session, instrument_id: int, well: str, *, exclude_tray_id: int | None = None) -> list[Cell]:
+def open_new_tray(db: Session, instrument_id: int, well: str) -> list[Cell]:
     """Open a brand-new physical SMRT Cell tray: creates one CellTray row plus all
     CELLS_PER_TRAY Cell rows at once (position 1..4, status "open", 0 uses), not just the
     one about to be used. The other 3 are real, reusable cells from this point on - they
@@ -114,21 +114,26 @@ def open_new_tray(db: Session, instrument_id: int, well: str, *, exclude_tray_id
     tray has genuinely left the instrument, mirroring the frontend's own
     waitingCells.computeVacatedTrayIds - so a brand-new tray can be loaded into it again.
 
-    `exclude_tray_id` excludes one specific tray from the collision check - change_cell()'s
-    own "swap to a brand-new cell in this same well" path deliberately opens a fresh tray
-    right on top of the one it's about to vacate (passing the old cell's tray_id here), and
-    relies on cleanup_tray_if_fully_unused() to delete that old tray immediately afterward
-    once every one of its cells reads 0 uses. Excluding it here is what makes that a real
-    hot-swap instead of a collision with the caller's own soon-to-be-retired tray."""
+    This collision check has no exclusion/override of any kind - it used to accept an
+    `exclude_tray_id` for change_cell()'s "swap to a brand-new cell in this same well"
+    path, which deliberately opened a fresh tray right on top of the one it was about to
+    vacate. That let a still-live tray (one with other real, non-cancelled uses on its
+    other wells) get silently duplicated whenever the vacating cell wasn't its box's only
+    real occupant, since the exclusion blinded this check to those siblings too - see
+    docs/pacbio-sprq-nx-scheduling-reference.md's bug history. change_cell() has been
+    removed entirely rather than made to compute "is the rest of this tray actually fully
+    vacated first" - there's no remaining scenario where keeping a sample in its exact slot
+    while swapping in a brand-new physical cell reflects anything that can really happen;
+    a box that's genuinely gone terminal is already reachable by placing a fresh backlog
+    sample onto its now-empty well through the ordinary path below, unconditionally."""
     box_start = (WELLS.index(well) // CELLS_PER_TRAY) * CELLS_PER_TRAY
     box_wells = WELLS[box_start : box_start + CELLS_PER_TRAY]
 
-    collision_query = select(Cell.id).join(Cell.tray).where(
-        CellTray.instrument_id == instrument_id, Cell.home_well.in_(box_wells), Cell.status == "open"
+    collision = db.scalar(
+        select(Cell.id).join(Cell.tray).where(
+            CellTray.instrument_id == instrument_id, Cell.home_well.in_(box_wells), Cell.status == "open"
+        )
     )
-    if exclude_tray_id is not None:
-        collision_query = collision_query.where(CellTray.id != exclude_tray_id)
-    collision = db.scalar(collision_query)
     if collision is not None:
         raise ValueError(
             f"well {well} is already occupied by an existing physical tray (wells {box_wells}) on this instrument."
@@ -163,7 +168,7 @@ def open_new_tray(db: Session, instrument_id: int, well: str, *, exclude_tray_id
 
 def cleanup_tray_if_fully_unused(db: Session, cell: Cell) -> None:
     """The tray-wide counterpart to open_new_tray(): once a placement's last use is removed
-    (remove_sample/change_cell/cancel_run), a tray-linked cell normally stays open with 0
+    (remove_sample/move_sample/cancel_run), a tray-linked cell normally stays open with 0
     uses since it's still a real physical sibling - but only as long as *some* cell in the
     tray retains real history. If removing this use leaves every one of the tray's
     CELLS_PER_TRAY cells at 0 uses, the tray was never actually loaded onto anything

@@ -124,6 +124,55 @@ def test_place_sample_rejects_new_cell_when_its_tray_box_already_has_an_open_tra
     assert "occupied by an existing physical tray" in r2.json()["detail"].lower()
 
 
+def test_place_sample_rejects_new_cell_when_its_tray_box_is_fully_populated_with_real_uses(client):
+    """Regression for a reported bug: with a tray box's all 4 wells already carrying real,
+    active placements (not just unused ghost siblings) - one populated tray, exactly the
+    "Change cell" repro - a later mode="new" request targeting any well in that same box
+    must still be rejected. This used to be reachable via the now-removed change_cell(),
+    which excluded the *entire* old tray (all 4 wells, not just the one cell actually being
+    replaced) from open_new_tray()'s collision check, silently minting a second physical
+    tray on top of an already-live box whenever its other wells were still in real use -
+    see docs/pacbio-sprq-nx-scheduling-reference.md. change_cell() is gone entirely now, so
+    this exercises the one remaining "new cell" entry point (place_sample) against the
+    exact reported topology instead."""
+    client.post(
+        "/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1\nA2,bc2\nA3,bc3\nA4,bc4\nA5,bc5"}
+    )
+    mon, tue, wed, thu, fri = _weekdays(5)
+
+    r1 = _place(client, _sid(client, "A1"), mon, 0)
+    assert r1.status_code == 201, r1.text
+    tray_id = client.get(f"/api/cells/{r1.json()['stages'][0]['cell_id']}").json()["tray_id"]
+
+    def _sibling(well):
+        items = client.get("/api/cells", params={"tray_id": tray_id}).json()["items"]
+        return next(c["id"] for c in items if c["current_well"] == well)
+
+    r2 = _place(client, _sid(client, "A2"), tue, 1, {"mode": "existing", "cell_id": _sibling("B01")})
+    assert r2.status_code == 201, r2.text
+    r3 = _place(client, _sid(client, "A3"), wed, 2, {"mode": "existing", "cell_id": _sibling("C01")})
+    assert r3.status_code == 201, r3.text
+    r4 = _place(client, _sid(client, "A4"), thu, 3, {"mode": "existing", "cell_id": _sibling("D01")})
+    assert r4.status_code == 201, r4.text
+    # every well of the A01-D01 box now has a real, distinct active placement this week -
+    # the exact reported topology.
+
+    r5 = _place(client, _sid(client, "A5"), fri, 0, {"mode": "new"})
+    assert r5.status_code == 409, r5.text
+    assert "occupied by an existing physical tray" in r5.json()["detail"].lower()
+
+    # none of the 4 real placements were disturbed by the rejected attempt
+    for cell_id, expected_well in [
+        (r1.json()["stages"][0]["cell_id"], "A01"),
+        (r2.json()["stages"][0]["cell_id"], "B01"),
+        (r3.json()["stages"][0]["cell_id"], "C01"),
+        (r4.json()["stages"][0]["cell_id"], "D01"),
+    ]:
+        cell = client.get(f"/api/cells/{cell_id}").json()
+        assert cell["current_well"] == expected_well
+        assert cell["uses_consumed"] == 1
+
+
 def test_place_sample_rejects_movie_length_mismatch(client):
     client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1\nA2,bc2"})
     (mon,) = _weekdays(1)

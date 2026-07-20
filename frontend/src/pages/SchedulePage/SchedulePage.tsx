@@ -52,8 +52,6 @@ const DEFAULT_RUN_DESIGN: RunDesignState = {
 
 interface DetailTarget {
   stage: StageOut;
-  locked: boolean;
-  instrumentSerial: string;
   cycle: CycleOut;
 }
 
@@ -300,8 +298,8 @@ export function SchedulePage() {
   // users click away (blank page, etc.) to dismiss a selection without hunting for the
   // "Clear" button. Skipped while a modal/popover is open: those render as siblings of
   // the grid (not inside gridAreaRef), so their own clicks would otherwise count as
-  // "outside" and clear the selection out from under an in-progress action (e.g.
-  // SlotDetailPopover's onRemoved re-toggling slotSelection after removal). The
+  // "outside" and clear the selection out from under an in-progress action inside it
+  // (e.g. a QC action in SlotDetailPopover). The
   // accordions (Run Design's Auto-Schedule button in particular) are excluded from
   // "outside" for the same reason: mousedown fires before click, so without this a
   // click on Auto-Schedule cleared the selection an instant before onAutoSchedule read
@@ -386,8 +384,8 @@ export function SchedulePage() {
     autoFillMutation.mutate();
   }
 
-  function handleOpenDetail(stage: StageOut, locked: boolean, instrumentSerial: string, cycle: CycleOut) {
-    setDetail({ stage, locked, instrumentSerial, cycle });
+  function handleOpenDetail(stage: StageOut, cycle: CycleOut) {
+    setDetail({ stage, cycle });
   }
 
   const rangeLabel = `${formatShortDateUTC(parseDateOnly(win.dateFrom))} – ${formatShortDateUTC(
@@ -539,19 +537,7 @@ export function SchedulePage() {
         <PrintBatchSheetModal instruments={instrumentsQuery.data ?? []} onClose={() => setPrintSheetOpen(false)} />
       )}
 
-      {detail && (
-        <SlotDetailPopover
-          stage={detail.stage}
-          locked={detail.locked}
-          instrumentSerial={detail.instrumentSerial}
-          cycle={detail.cycle}
-          onClose={() => setDetail(null)}
-          onRemoved={() => {
-            if (slotSelection.isSelected(detail.stage.cell_use_id)) slotSelection.toggle(detail.stage);
-            setDetail(null);
-          }}
-        />
-      )}
+      {detail && <SlotDetailPopover stage={detail.stage} cycle={detail.cycle} onClose={() => setDetail(null)} />}
     </div>
   );
 }

@@ -31,7 +31,7 @@ export interface SchedulerDayCellProps {
   selected: boolean;
   placingSlotKey: string | null;
   onSelect: (r: number, c: number, shift: boolean, ctrl: boolean) => void;
-  onOpenDetail: (stage: StageOut, locked: boolean, instrumentSerial: string, cycle: CycleOut) => void;
+  onOpenDetail: (stage: StageOut, cycle: CycleOut) => void;
   slotSelection: SlotSelection;
   /** Source instrument of an in-progress filled-slot drag, or null. Cells cannot move
    * between instruments, so empty slots on any other instrument become ineligible. */
@@ -282,7 +282,7 @@ export function SchedulerDayCell(props: SchedulerDayCellProps) {
                       slots[i]!.cell_use_status !== "cancelled" &&
                       slotSelection.isSelected(slots[i]!.cell_use_id)
                     }
-                    onOpenDetail={(stage) => props.onOpenDetail(stage, locked, instrumentSerial, cycle as CycleOut)}
+                    onOpenDetail={(stage) => props.onOpenDetail(stage, cycle as CycleOut)}
                     onToggleSelect={slotSelection.toggle}
                     crossInstrumentDragActive={crossInstrumentDragActive}
                     ghost={ghostBySlot.get(i)}

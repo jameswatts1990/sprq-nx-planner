@@ -248,7 +248,7 @@ export function ScheduleSection() {
           <span>
             <b>Blocked</b> (red, cross-hatched) — a placement cancelled by a <b>Stop cell</b> action before it ever
             ran; its sample is back in the Backlog flagged <b>Aborted</b>, ready to be rescued onto a different
-            cell. A permanent, read-only marker (no drag, no Remove/Change cell).
+            cell. A permanent, read-only marker (no drag, no Remove).
           </span>
         </div>
       </div>
@@ -259,23 +259,19 @@ export function ScheduleSection() {
         uses with no outcome of its own recorded.
       </p>
       <p>
-        <b>Changing a placement&apos;s cell:</b> click a filled slot to open its detail, then <b>Change cell</b> to
-        swap it onto a different open, compatible cell on the same instrument — or onto a brand-new cell — without
-        moving it off its current day/slot. The same compatibility rules as placement apply. Unavailable once the
-        run is locked. This is the counterpart to dragging a placed sample to a different slot at the <i>same</i>{" "}
-        well, which moves it but always keeps its existing cell — <b>Change cell</b> is for the opposite mistake,
-        the right slot but the wrong cell.
+        <b>A cell&apos;s tray/well position never changes.</b> The weekly grid shows the fixed physical positions of
+        trays and cells across instruments and days — a tray is a real object sitting in one instrument bay, so
+        there&apos;s no action anywhere that swaps which physical cell occupies an already-loaded slot. What you&apos;re
+        actually doing when you schedule is assigning a <i>sample</i> to a specific, already-existing cell use.
+        Dragging a placed sample to a different slot reassigns the sample — it lands on whichever cell already lives
+        there (see above) — it never moves or replaces a cell.
       </p>
 
       <p className={styles.subheading}>Removing placements</p>
       <ul>
         <li>
-          Click a filled slot to open its detail, then <b>Unschedule</b> (shown in red, next to <b>Change cell</b>{" "}
-          in the popover&apos;s footer).
-        </li>
-        <li>
-          Or select placed samples and press <b>Remove from schedule (Del)</b> — the Delete/Backspace key does the
-          same, as long as you&apos;re not typing in a text box.
+          Select placed samples and press <b>Remove from schedule (Del)</b> — the Delete/Backspace key does the same,
+          as long as you&apos;re not typing in a text box.
         </li>
         <li>
           <b>Clear schedule (N planned)</b> wipes every <i>planned</i> placement in the current week view and
@@ -327,9 +323,9 @@ export function ScheduleSection() {
         &amp; reuse ghosts&quot; below for what an unused one looks like). The Use 1 / Use 2 / Use 3 colours
         (magenta / blue / teal) show which use of a cell each barcode chip belongs to — see the Colour &amp; Status
         Legend section. A physical cell also always stays in the exact same tray/well position for every one of
-        its reuses, never just any open slot — so once a cell has a well of its own, both the placement picker and{" "}
-        <b>Change cell</b> only offer it for a drop into that same well, and its waiting-cell ghost only ever
-        appears there. There is deliberately no way to start a brand-new cell in a slot that already belongs to
+        its reuses, never just any open slot — so once a cell has a well of its own, the placement picker only
+        offers it for a drop into that same well, and its waiting-cell ghost only ever appears there. There is
+        deliberately no way to start a brand-new cell in a slot that already belongs to
         another cell&apos;s reuse; a cell&apos;s first use can start in any open slot, but from then on it&apos;s
         pinned. This grid layout&apos;s own &quot;Tray 1&quot;/&quot;Tray 2&quot; loading positions are a different
         thing entirely from a physical SPRQ-Nx SMRT Cell tray of 4 cells (see the Cells tab&apos;s help) — a

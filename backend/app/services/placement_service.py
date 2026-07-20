@@ -120,8 +120,8 @@ def get_or_create_run(
 
 
 def _release_cell(db: Session, cell: Cell, now: datetime) -> None:
-    """Shared cleanup once a cell loses one of its uses - remove_sample, change_cell's
-    vacated old cell, and move_sample's cell-reassignment path all hit exactly this same
+    """Shared cleanup once a cell loses one of its uses - remove_sample and
+    move_sample's cell-reassignment path both hit exactly this same
     decision: recompute status if the cell still has other uses, delete it outright if it
     was only ever a placeholder for the use just lost (no tray backing it - it can never
     legitimately exist as an orphan "open, 0/3" cell), or otherwise leave it open as a real
@@ -143,10 +143,9 @@ def _resolve_cell_choice(
     instrument_serial: str,
     well: str,
     barcodes: list[str],
-    exclude_tray_id: int | None = None,
 ) -> Cell:
-    """Shared "which cell hosts this sample" resolution, shared by place_sample,
-    change_cell, and move_sample's cell-reassignment path: mode "new" opens a fresh tray
+    """Shared "which cell hosts this sample" resolution, shared by place_sample and
+    move_sample's cell-reassignment path: mode "new" opens a fresh tray
     pinned to `well`; mode "existing" validates the chosen cell is open, has capacity, has
     no burned-barcode clash with these barcodes, and - once it has a prior use - is
     already pinned to this exact instrument/well (cells stay in the same physical
@@ -191,7 +190,7 @@ def _resolve_cell_choice(
         return cell
     elif mode == "new":
         try:
-            return open_new_tray(db, instrument_id, well, exclude_tray_id=exclude_tray_id)[0]
+            return open_new_tray(db, instrument_id, well)[0]
         except ValueError as exc:
             raise PlacementError(409, str(exc)) from exc
     else:
@@ -623,95 +622,6 @@ def _move_sample_to_new_cell(
     db.commit()
     db.refresh(dest_cycle)
     return dest_cycle
-
-
-def change_cell(
-    db: Session,
-    *,
-    cell_use_id: int,
-    cell_choice: dict,
-    actor: str | None = None,
-) -> Cycle:
-    """Reassign an already-placed sample to a different cell, same slot - the orthogonal
-    counterpart to move_sample (which changes day/slot but always keeps the same cell).
-    Reuses place_sample's "existing"-mode validation rules and remove_sample's
-    orphan-cleanup convention for whichever cell ends up vacated."""
-    cell_use = db.get(
-        CellUse,
-        cell_use_id,
-        options=[
-            selectinload(CellUse.cycle).selectinload(Cycle.run_batch).selectinload(RunBatch.instrument),
-            selectinload(CellUse.cell).selectinload(Cell.cell_uses),
-            selectinload(CellUse.barcodes),
-        ],
-    )
-    if cell_use is None:
-        raise PlacementError(404, f"Cell use {cell_use_id} not found.")
-
-    cycle = cell_use.cycle
-    if cycle is None or cycle.status != "planned":
-        raise PlacementError(409, "Cannot change the cell for a placement on a run that is not planned.")
-    if cell_use.status == "cancelled":
-        raise PlacementError(409, "This placement was cancelled when its cell was stopped and can't be modified.")
-
-    old_cell = cell_use.cell
-    instrument_serial = cycle.run_batch.instrument.serial_number
-    use_barcodes = cell_use.barcode_list
-
-    # --- read-only validation (before any writes) ---
-    new_cell: Cell | None = None
-    mode = cell_choice.get("mode")
-    if mode == "existing":
-        cell_id = cell_choice.get("cell_id")
-        if cell_id is None:
-            raise PlacementError(400, "cell_choice.cell_id is required when mode is 'existing'.")
-        if cell_id == old_cell.id:
-            return cycle  # no-op: already on this cell
-        new_cell = _resolve_cell_choice(
-            db,
-            cell_choice,
-            instrument_id=cycle.run_batch.instrument_id,
-            instrument_serial=instrument_serial,
-            well=cell_use.well,
-            barcodes=use_barcodes,
-        )
-    elif mode != "new":
-        raise PlacementError(400, f"Unknown cell_choice.mode '{mode}'.")
-
-    # --- writes ---
-    if mode == "new":
-        try:
-            new_cell = open_new_tray(
-                db, cycle.run_batch.instrument_id, cell_use.well, exclude_tray_id=old_cell.tray_id
-            )[0]
-        except ValueError as exc:
-            raise PlacementError(409, str(exc)) from exc
-
-    cell_use.cell_id = new_cell.id
-    db.flush()
-
-    _release_cell(db, old_cell, utcnow())
-
-    db.refresh(new_cell, attribute_names=["cell_uses"])
-    recompute_status(new_cell, utcnow())
-
-    db.add(
-        AuditLog(
-            actor=actor or "unknown",
-            action="change_cell",
-            entity_type="cell_use",
-            entity_id=cell_use.id,
-            details_json={
-                "old_cell_id": old_cell.id,
-                "new_cell_id": new_cell.id,
-                "cycle_id": cycle.id,
-                "sample_id": cell_use.sample_id,
-            },
-        )
-    )
-    db.commit()
-    db.refresh(cycle)
-    return cycle
 
 
 def cancel_run(db: Session, cycle_id: int, actor: str | None = None) -> None:

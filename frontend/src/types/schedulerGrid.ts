@@ -22,11 +22,6 @@ export interface PlaceSampleRequest {
   start_minute?: number;
 }
 
-/** POST /api/cell-uses/{id}/change-cell body. */
-export interface ChangeCellRequest {
-  cell_choice: CellChoice;
-}
-
 /** POST /api/cell-uses/{id}/move body. */
 export interface MoveSampleRequest {
   instrument_serial: string;

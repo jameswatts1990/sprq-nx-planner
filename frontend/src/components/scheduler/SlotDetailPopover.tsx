@@ -11,42 +11,36 @@ import { Button } from "@/components/ui/Button";
 import { Modal, ModalActions } from "@/components/ui/Modal";
 import { Note } from "@/components/ui/Note";
 import type { CycleOut, StageOut } from "@/types/schedule";
-import type { CellChoice } from "@/types/schedulerGrid";
 import { canRecordQcOutcome, canUndoQcOutcome } from "@/utils/cellUseQc";
 import { runLabel } from "@/utils/runLabel";
 
-import { useCompatibleCells } from "./useCompatibleCells";
 import styles from "./SlotDetailPopover.module.css";
 
 export interface SlotDetailPopoverProps {
   stage: StageOut;
-  /** The owning run is confirmed/locked - hide the Remove/Change cell actions. */
-  locked: boolean;
-  instrumentSerial: string;
   /** The run this slot belongs to - drives the Run ID row. */
   cycle: CycleOut;
   onClose: () => void;
-  onRemoved: () => void;
 }
 
 /** Which of the popover's alternate inline views is showing, in place of the normal
  * detail + footer. Mutually exclusive, so a single field rather than several booleans. */
-type PopoverMode = "view" | "changeCell" | "markFailed" | "stop" | "undoQc" | "undoStop";
+type PopoverMode = "view" | "markFailed" | "stop" | "undoQc" | "undoStop";
 
-/** Detail for one filled slot: cell code, the cell's burned barcodes, the sample. When
- * the run is still "planned" (unlocked), offers "Unschedule" and "Change cell" (swap this
- * placement onto a different open cell, or a brand-new one, without touching its
- * day/slot - the orthogonal counterpart to dragging it to a new slot, which keeps the
- * cell fixed). Also offers the same QC quick actions as the Cell detail page, surfaced
+/** Detail for one filled slot: cell code, the cell's burned barcodes, the sample. A cell
+ * is physically fixed to its tray/well position for life, so this popover never offers a
+ * way to reassign it in place - reallocating a sample means dragging it to a different
+ * slot (it adopts whatever cell already lives there) or off the grid entirely to
+ * unschedule it back to Backlog, both handled by the grid's drag-and-drop. What this
+ * popover does offer is the same QC quick actions as the Cell detail page, surfaced
  * top-right next to the title rather than buried in the body - Mark Failed (this use
  * only) and Stop cell (this use, plus the whole physical cell for reuse), coloured red
  * since each takes something out of service, plus their neutral-toned Undo counterparts
  * for a mistaken verdict - so a problem spotted while browsing the grid doesn't require a
  * detour to that page. Built on Modal; folds in the old CellCard's cell-context display. */
-export function SlotDetailPopover({ stage, locked, instrumentSerial, cycle, onClose, onRemoved }: SlotDetailPopoverProps) {
+export function SlotDetailPopover({ stage, cycle, onClose }: SlotDetailPopoverProps) {
   const queryClient = useQueryClient();
   const [mode, setMode] = useState<PopoverMode>("view");
-  const [selected, setSelected] = useState<string>("new"); // "new" | "<cellId>"
   const [failNotes, setFailNotes] = useState("");
   const [stopReason, setStopReason] = useState("");
 
@@ -56,52 +50,18 @@ export function SlotDetailPopover({ stage, locked, instrumentSerial, cycle, onCl
     enabled: Number.isFinite(stage.cell_id),
   });
 
-  const { cellsQuery: compatibleQuery, compatible } = useCompatibleCells({
-    instrumentSerial,
-    sampleBarcodes: stage.barcodes,
-    excludeCellId: stage.cell_id,
-    targetWell: stage.well,
-    enabled: mode === "changeCell",
-  });
-
   function invalidateAfterQcAction() {
     void queryClient.invalidateQueries({ queryKey: ["cycles"] });
     void queryClient.invalidateQueries({ queryKey: ["cells"] });
     void queryClient.invalidateQueries({ queryKey: ["samples"] });
   }
 
-  const removeMutation = useMutation({
-    mutationFn: () => cellUsesApi.remove(stage.cell_use_id),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["cycles"] });
-      void queryClient.invalidateQueries({ queryKey: ["samples"] });
-      void queryClient.invalidateQueries({ queryKey: ["cells"] });
-      onRemoved();
-    },
-  });
-
-  const changeCellMutation = useMutation({
-    mutationFn: () => {
-      const cellChoice: CellChoice =
-        selected === "new" ? { mode: "new" } : { mode: "existing", cell_id: Number(selected) };
-      return cellUsesApi.changeCell(stage.cell_use_id, { cell_choice: cellChoice });
-    },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["cycles"] });
-      void queryClient.invalidateQueries({ queryKey: ["cells"] });
-      // Unlike Remove, this placement still exists (same slot, same selection state) -
-      // just close so the grid behind shows the swapped cell, rather than reusing
-      // onRemoved and disturbing any bulk-selection the user had on this slot.
-      onClose();
-    },
-  });
-
   const markFailedMutation = useMutation({
     mutationFn: () => cellUsesApi.updateStatus(stage.cell_use_id, { status: "failed", notes: failNotes || undefined }),
     onSuccess: () => {
       invalidateAfterQcAction();
       // The placement itself is untouched (same slot, same cell) - just the use's status
-      // flips, so close rather than onRemoved(), same reasoning as changeCellMutation.
+      // flips, so close is enough; nothing else needs to react.
       onClose();
     },
   });
@@ -268,63 +228,6 @@ export function SlotDetailPopover({ stage, locked, instrumentSerial, cycle, onCl
         </Note>
       )}
 
-      {mode === "changeCell" && (
-        <fieldset className={styles.choices}>
-          <legend className={styles.legend}>Change to</legend>
-          <label className={styles.choice}>
-            <input
-              type="radio"
-              name="changeCellChoice"
-              value="new"
-              checked={selected === "new"}
-              onChange={() => setSelected("new")}
-            />
-            <span className={styles.choiceMain}>Use a new cell</span>
-          </label>
-
-          {compatibleQuery.isError && (
-            <Note tone="bad" icon="!">
-              {compatibleQuery.error instanceof ApiError ? compatibleQuery.error.message : "Failed to load open cells."}
-            </Note>
-          )}
-          {!compatibleQuery.isLoading && !compatibleQuery.isError && compatible.length === 0 && (
-            <div className={styles.status}>No other reusable cells in use on {instrumentSerial}.</div>
-          )}
-
-          {compatible.map((c) => (
-            <label key={c.id} className={styles.choice}>
-              <input
-                type="radio"
-                name="changeCellChoice"
-                value={String(c.id)}
-                checked={selected === String(c.id)}
-                onChange={() => setSelected(String(c.id))}
-              />
-              <span className={styles.choiceMain}>
-                <span className={styles.code}>{c.code}</span>
-                <span className={styles.meta}>
-                  {c.uses_consumed}/{c.max_uses} uses
-                  {c.current_instrument_serial ? ` · ${c.current_instrument_serial}` : ""}
-                </span>
-              </span>
-              <BarcodeChips barcodes={c.burned_barcodes} variant="u2" />
-            </label>
-          ))}
-        </fieldset>
-      )}
-
-      {changeCellMutation.isError && (
-        <Note tone="bad" icon="!">
-          {changeCellMutation.error instanceof ApiError ? changeCellMutation.error.message : "Failed to change cell."}
-        </Note>
-      )}
-
-      {removeMutation.isError && (
-        <Note tone="bad" icon="!">
-          {removeMutation.error instanceof ApiError ? removeMutation.error.message : "Failed to remove placement."}
-        </Note>
-      )}
-
       {markFailedMutation.isError && (
         <Note tone="bad" icon="!">
           {markFailedMutation.error instanceof ApiError
@@ -356,8 +259,6 @@ export function SlotDetailPopover({ stage, locked, instrumentSerial, cycle, onCl
           variant="ghost"
           onClick={mode === "view" ? onClose : () => setMode("view")}
           disabled={
-            removeMutation.isPending ||
-            changeCellMutation.isPending ||
             markFailedMutation.isPending ||
             stopMutation.isPending ||
             undoQcMutation.isPending ||
@@ -369,11 +270,6 @@ export function SlotDetailPopover({ stage, locked, instrumentSerial, cycle, onCl
         <Link to={`/cells/${stage.cell_id}`} className={`btn primary sm ${styles.viewCellLink}`}>
           View cell →
         </Link>
-        {mode === "changeCell" && (
-          <Button variant="primary" onClick={() => changeCellMutation.mutate()} disabled={changeCellMutation.isPending}>
-            {changeCellMutation.isPending ? "Changing…" : "Confirm change"}
-          </Button>
-        )}
         {mode === "markFailed" && (
           <Button variant="primary" onClick={() => markFailedMutation.mutate()} disabled={markFailedMutation.isPending}>
             {markFailedMutation.isPending ? "Saving…" : "Mark Failed"}
@@ -393,16 +289,6 @@ export function SlotDetailPopover({ stage, locked, instrumentSerial, cycle, onCl
           <Button variant="primary" onClick={() => undoStopMutation.mutate()} disabled={undoStopMutation.isPending}>
             {undoStopMutation.isPending ? "Undoing…" : "Undo stop"}
           </Button>
-        )}
-        {!locked && !isCancelled && mode === "view" && (
-          <>
-            <Button variant="ghost" onClick={() => setMode("changeCell")}>
-              Change cell
-            </Button>
-            <Button variant="danger" onClick={() => removeMutation.mutate()} disabled={removeMutation.isPending}>
-              {removeMutation.isPending ? "Removing…" : "Unschedule"}
-            </Button>
-          </>
         )}
       </ModalActions>
     </Modal>
