@@ -178,6 +178,45 @@ def test_fill_slots_pins_a_fresh_cell_to_its_first_assigned_well():
     assert len(wells) == 1  # same well both times
 
 
+def test_fill_slots_never_hands_a_vacated_well_to_a_different_fresh_cell():
+    """Regression test for a real reported bug: auto-scheduling one instrument across a
+    full working week with cells_per_day=4 (tray 1 only) put 5 uses on one physical
+    cell - one more than the hard 3-use cap. Cause: two independently-capped fresh
+    PackedCells (C1, needing 3 uses; C2, needing 2 more once C1's own quota was full)
+    both landed in well A01 - C1 on Mon/Tue/Wed, then C2 on Thu/Fri once A01 showed
+    "free" again in that day's free_wells list (reset per-day). Both individually
+    respected the 3-use cap, but the persistence layer's per-box well cache resolves
+    a well back to the same physical Cell regardless of which logical PackedCell
+    claims it, so C1 + C2 together would stack 5 real uses onto one cell. Once C1
+    claims A01, it must stay C1's for the rest of the batch - C2 must go elsewhere or
+    come back unplaced, never reuse A01."""
+    # C1 needs exactly 3 uses (fills its own cap); C2 needs 2 more - together more than
+    # fit in one physical well's 3-use lifetime within this batch.
+    c1 = _cell("C1", _samples(3, prefix="A"))
+    c2 = _cell("C2", _samples(2, prefix="B"))
+    week = [
+        SlotInput(instrument_serial="84047", run_date=date(2026, 7, 20)),  # Mon
+        SlotInput(instrument_serial="84047", run_date=date(2026, 7, 21)),  # Tue
+        SlotInput(instrument_serial="84047", run_date=date(2026, 7, 22)),  # Wed
+        SlotInput(instrument_serial="84047", run_date=date(2026, 7, 23)),  # Thu
+        SlotInput(instrument_serial="84047", run_date=date(2026, 7, 24)),  # Fri
+    ]
+    # Cap this to a single well (cells_per_day=1) so C1 and C2 are forced to compete for
+    # the exact same well instead of just spreading across tray 1's other 3 wells.
+    result = fill_slots([c1, c2], week, run_time_hours=24, cells_per_day=1)
+
+    wells_by_cell: dict[str, set[str]] = {}
+    for a in result.assignments:
+        wells_by_cell.setdefault(a.cell.id, set()).add(a.well)
+
+    # C1 gets its full 3 uses in well A01; C2 must never be handed that same well once
+    # C1 has claimed it, even after C1's own quota is spent - it comes back unplaced
+    # instead (there's only one well on offer, and it's already spoken for).
+    assert wells_by_cell.get("C1") == {"A01"}
+    assert "C2" not in wells_by_cell
+    assert [s.id for s in result.unplaced] == ["B0", "B1"]
+
+
 def test_fill_slots_fresh_cell_reuses_stay_on_first_instrument_when_available():
     """Companion to the pin-on-first-placement test above: when the pinned instrument
     genuinely does have later capacity, reuse must land there rather than being stranded

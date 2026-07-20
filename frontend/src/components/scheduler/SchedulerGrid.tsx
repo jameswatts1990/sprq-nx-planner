@@ -26,7 +26,7 @@ export interface SchedulerGridProps {
   cycles: CycleOut[];
   selection: GridSelection;
   placingSlotKey: string | null;
-  onOpenDetail: (stage: StageOut, locked: boolean, instrumentSerial: string) => void;
+  onOpenDetail: (stage: StageOut, locked: boolean, instrumentSerial: string, cycle: CycleOut) => void;
   slotSelection: SlotSelection;
   activeDragInstrument: string | null;
   waitingGrouped: Map<string, Map<string, CellGhost[]>>;

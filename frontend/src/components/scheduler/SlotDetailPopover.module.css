@@ -24,22 +24,14 @@
   gap: 5px;
   padding: 10px 0 0;
 }
-.linkRow {
-  margin-top: 12px;
-}
-.qcRow {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  margin-top: 12px;
-  padding-top: 10px;
-  border-top: 1px solid var(--line-soft);
+.viewCellLink {
+  text-decoration: none;
 }
 .qcButtons {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   flex-wrap: wrap;
+  justify-content: flex-end;
 }
 .qcForm {
   margin-top: 10px;

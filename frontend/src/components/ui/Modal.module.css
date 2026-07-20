@@ -19,9 +19,23 @@
   max-height: 90vh;
   overflow-y: auto;
 }
+.titleRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
 .title {
   font-size: 17px;
-  margin-bottom: 12px;
+  margin-bottom: 0;
+}
+.titleExtra {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 .actions {
   display: flex;

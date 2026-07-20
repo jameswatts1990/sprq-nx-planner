@@ -32,7 +32,7 @@ import { SectionHeading, UseLegend } from "@/components/shared/SectionHeading";
 import { Button } from "@/components/ui/Button";
 import type { NoteTone } from "@/components/ui/Note";
 import { Note } from "@/components/ui/Note";
-import type { StageOut } from "@/types/schedule";
+import type { CycleOut, StageOut } from "@/types/schedule";
 import type { GridCellRef, RunDesignState } from "@/types/schedulerGrid";
 import { addDaysUTC, formatShortDateUTC, isWeekendUTC, parseDateOnly, toIsoDateUTC } from "@/utils/calendarDates";
 
@@ -54,6 +54,7 @@ interface DetailTarget {
   stage: StageOut;
   locked: boolean;
   instrumentSerial: string;
+  cycle: CycleOut;
 }
 
 interface AccordionNote {
@@ -385,8 +386,8 @@ export function SchedulePage() {
     autoFillMutation.mutate();
   }
 
-  function handleOpenDetail(stage: StageOut, locked: boolean, instrumentSerial: string) {
-    setDetail({ stage, locked, instrumentSerial });
+  function handleOpenDetail(stage: StageOut, locked: boolean, instrumentSerial: string, cycle: CycleOut) {
+    setDetail({ stage, locked, instrumentSerial, cycle });
   }
 
   const rangeLabel = `${formatShortDateUTC(parseDateOnly(win.dateFrom))} – ${formatShortDateUTC(
@@ -543,6 +544,7 @@ export function SchedulePage() {
           stage={detail.stage}
           locked={detail.locked}
           instrumentSerial={detail.instrumentSerial}
+          cycle={detail.cycle}
           onClose={() => setDetail(null)}
           onRemoved={() => {
             if (slotSelection.isSelected(detail.stage.cell_use_id)) slotSelection.toggle(detail.stage);

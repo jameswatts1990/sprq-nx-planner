@@ -46,6 +46,29 @@ def fill_slots(
     last_placed_date: dict[str, object] = {c.id: None for c in ordered_cells}
     first_placed_date: dict[str, object] = {c.id: None for c in ordered_cells}
 
+    # A well maps to one physical Cell for the rest of this batch once anyone - a prior
+    # cell already resident there, or a freshly-opened cell claiming it for the first time
+    # - takes it: reloading a terminal well with a brand-new physical tray mid-batch isn't
+    # safely representable here (a cell's status only gets recomputed to "exhausted" after
+    # the whole batch commits - see auto_fill_service.py's persist loop), so a *different*
+    # not-yet-real cell must never be handed a well an earlier day's cell already claimed,
+    # even if that well shows "free" on some particular day only because its owner simply
+    # isn't running that day (already placed its max for this batch, or blocked by the
+    # same-day/later-date rule). Without this, a well vacated once its owner's own planned
+    # uses run out (e.g. it hits its 3-use cap mid-week) silently gets handed to a
+    # brand-new PackedCell for the rest of the week - which the persistence layer's
+    # per-box well cache then resolves back to the SAME physical Cell as the first
+    # occupant (it only knows "well -> Cell" for an already-opened box, not which logical
+    # packed cell is entitled to it), stacking more than CELL_MAX_USES real uses onto one
+    # physical cell. Seeded up front with every cell that already has a real, known
+    # physical position (prior cells loaded from the DB - see engine_bridge.load_prior_cells);
+    # a freshly-opened cell registers itself here the moment it first claims a well below.
+    well_owner: dict[tuple[str, str], str] = {
+        (cell.pinned_instrument_serial, cell.pinned_well): cell.id
+        for cell in ordered_cells
+        if cell.pinned_instrument_serial is not None and cell.pinned_well is not None
+    }
+
     # Loading more than half a slot's wells (i.e. tray 2) commits that instrument to the
     # full movie plus a settle buffer before it can start its next run - long enough to
     # spill into the immediately following calendar day(s) (mirrors
@@ -91,7 +114,17 @@ def fill_slots(
                 well = cell.pinned_well
                 free_wells[slot].remove(well)
             else:
-                well = free_wells[slot].pop(0)
+                # Skip any well this slot's free list still shows as unused but that some
+                # *other* cell already claimed earlier in this batch (see well_owner
+                # above) - only a well nobody has touched yet is truly available to a
+                # brand-new cell.
+                well = next(
+                    (w for w in free_wells[slot] if well_owner.get((slot.instrument_serial, w)) is None),
+                    None,
+                )
+                if well is None:
+                    continue
+                free_wells[slot].remove(well)
 
             sample = cell.uses[idx]
             assignments.append(
@@ -120,6 +153,7 @@ def fill_slots(
             # batch is confined there too, not just prior cells loaded from the DB.
             if cell.pinned_well is None:
                 cell.pinned_well = well
+                well_owner[(slot.instrument_serial, well)] = cell.id
             if first_placed_date[cell.id] is None:
                 first_placed_date[cell.id] = slot.run_date
             last_placed_date[cell.id] = slot.run_date

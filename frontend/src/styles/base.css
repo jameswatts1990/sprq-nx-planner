@@ -59,6 +59,15 @@ h3 {
 .btn.ghost {
   background: transparent;
 }
+.btn.danger {
+  background: var(--red-tint);
+  border-color: #f4c6cc;
+  color: var(--red);
+}
+.btn.danger:hover {
+  background: #f8d3d8;
+  border-color: var(--red);
+}
 .btn.sm {
   padding: 6px 11px;
   font-size: 12.5px;

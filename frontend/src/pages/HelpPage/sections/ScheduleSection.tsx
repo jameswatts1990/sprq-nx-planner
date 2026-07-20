@@ -180,25 +180,29 @@ export function ScheduleSection() {
 
       <p className={styles.subheading}>QC actions</p>
       <p>
-        <b>From the grid:</b> click a filled slot to open its detail, then <b>Mark Failed</b>,{" "}
-        <b>Mark Aborted</b>, or <b>Stop cell</b> — the same actions available on the Cell detail page, without
-        leaving the schedule. <b>Mark Failed</b>/<b>Mark Aborted</b> only appear once that run has reached its
-        scheduled start time (see the Cells tab&apos;s help for exactly when); <b>Stop cell</b> is available any
-        time the cell isn&apos;t already stopped or retired. Each shows a short reason/notes box and a confirm step
-        in the same popover before applying. Use <b>Mark Aborted</b> instead of <b>Mark Failed</b> when the
-        run/instrument was the problem rather than the cell or sample — it returns the sample straight to the
-        Backlog for rescheduling instead of marking it Failed. <b>Stop cell</b> also cancels every one of that
-        cell&apos;s not-yet-run uses elsewhere on the grid (their samples go back to the Backlog too) — each stays
-        visible as a <b>Blocked</b> slot (see below) rather than disappearing, so a day&apos;s plan never silently
-        loses a placement without a trace.
+        <b>From the grid:</b> click a filled slot to open its detail. The Sample, Well, Run and Cell uses are shown
+        first — plus the cell&apos;s 108-hour window meter once its clock has started — and its QC quick actions sit
+        in the top-right corner of the popover, next to the cell code: <b>Mark Failed</b>, <b>Mark Aborted</b>, or{" "}
+        <b>Stop cell</b> — the same actions available on the Cell detail page, without leaving the schedule. All
+        three are shown in red, since each takes the use or the physical cell out of service; <b>Mark Failed</b>/
+        <b>Mark Aborted</b> only appear once that run has reached its scheduled start time (see the Cells
+        tab&apos;s help for exactly when); <b>Stop cell</b> is available any time the cell isn&apos;t already
+        stopped or retired. Each shows a short reason/notes box and a confirm step in the same popover before
+        applying. Use <b>Mark Aborted</b> instead of <b>Mark Failed</b> when the run/instrument was the problem
+        rather than the cell or sample — it returns the sample straight to the Backlog for rescheduling instead of
+        marking it Failed. <b>Stop cell</b> also cancels every one of that cell&apos;s not-yet-run uses elsewhere
+        on the grid (their samples go back to the Backlog too) — each stays visible as a <b>Blocked</b> slot (see
+        below) rather than disappearing, so a day&apos;s plan never silently loses a placement without a trace.
       </p>
       <p>
         <b>Undoing a QC mistake:</b> flagged the wrong slot? An <b>Undo Failed</b>/<b>Undo Aborted</b> button
         replaces <b>Mark Failed</b>/<b>Mark Aborted</b> once a verdict has been recorded, and an <b>Undo stop</b>{" "}
-        button appears once a cell is stopped — each restores the placement (or every cancelled use, for{" "}
-        <b>Undo stop</b>) to how it looked beforehand. The <b>Undo Failed</b>/<b>Undo Aborted</b> button disappears
-        again if the sample involved has since been requeued or rescheduled elsewhere, since undoing at that point
-        would double-book that sample — reschedule from the Backlog instead in that case.
+        button appears once a cell is stopped — shown in the same neutral style as the rest of the popover&apos;s
+        buttons, not red, since undoing isn&apos;t itself a destructive action. Each restores the placement (or
+        every cancelled use, for <b>Undo stop</b>) to how it looked beforehand. The <b>Undo Failed</b>/
+        <b>Undo Aborted</b> button disappears again if the sample involved has since been requeued or rescheduled
+        elsewhere, since undoing at that point would double-book that sample — reschedule from the Backlog instead
+        in that case.
       </p>
       <p>
         <b>Failed/Aborted/Stopped/Blocked indicator</b> on the grid flags a QC problem without opening the slot,
@@ -258,7 +262,8 @@ export function ScheduleSection() {
       <p className={styles.subheading}>Removing placements</p>
       <ul>
         <li>
-          Click a filled slot to open its detail, then <b>Remove from schedule</b>.
+          Click a filled slot to open its detail, then <b>Unschedule</b> (shown in red, next to <b>Change cell</b>{" "}
+          in the popover&apos;s footer).
         </li>
         <li>
           Or select placed samples and press <b>Remove from schedule (Del)</b> — the Delete/Backspace key does the

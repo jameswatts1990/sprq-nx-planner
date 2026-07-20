@@ -54,10 +54,16 @@ def _sid(client, external_id: str) -> int:
     return next(s["id"] for s in items if s["external_id"] == external_id)
 
 
-def _auto_fill(client, cells, objective="fastest", run_time_hours=24, max_uses=3):
+def _auto_fill(client, cells, objective="fastest", run_time_hours=24, max_uses=3, cells_per_day=8):
     return client.post(
         "/api/auto-fill",
-        json={"cells": cells, "objective": objective, "run_time_hours": run_time_hours, "max_uses": max_uses},
+        json={
+            "cells": cells,
+            "objective": objective,
+            "run_time_hours": run_time_hours,
+            "max_uses": max_uses,
+            "cells_per_day": cells_per_day,
+        },
     )
 
 
@@ -351,6 +357,40 @@ def test_auto_fill_keeps_a_reused_cell_on_one_instrument_when_multiple_are_offer
         assert instruments == {"84047"}, f"{cell_ref} spans instruments {instruments}"
     for cell_ref, by_use in dates_by_use_number.items():
         assert by_use[1] < by_use[2] < by_use[3], f"{cell_ref} use dates out of order: {by_use}"
+
+
+def test_auto_fill_never_exceeds_the_hard_three_use_cap_with_cells_per_day_four(client, db_session):
+    """Reproduces a real reported bug: auto-scheduling one instrument across a full
+    working week with cells_per_day=4 (tray 1 only - a half-tray run only locks the
+    short settle buffer, never the next day, so every weekday is a genuine touch
+    point) put 5 real uses on one physical cell, one more than the instrument's hard
+    3-use cap. 20 disjoint samples at max_uses=3/cells_per_day=4 exhaust 4 fresh
+    cells' own 3-use quota by Wednesday; before the fix, each of tray 1's 4 wells then
+    showed "free" again on Thursday (free_wells resets every day) and got handed to a
+    brand-new cell for Thu/Fri - which the persistence layer's per-box well cache
+    resolved back to the exact same physical Cell as the first occupant, stacking 5
+    uses onto one cell instead of opening a 5th distinct one. No cell may ever exceed
+    CELL_MAX_USES real (non-cancelled) uses, however many samples are on offer."""
+    client.post(
+        "/api/imports",
+        json={"raw_text": "sample,barcodes\n" + "\n".join(f"Q{i},bcq{i}" for i in range(1, 21))},
+    )
+    week = _next_working_week()
+
+    resp = _auto_fill(
+        client,
+        [{"instrument_serial": "84047", "run_date": d} for d in week],
+        objective="fewest",
+        max_uses=3,
+        cells_per_day=4,
+    )
+    assert resp.status_code == 200, resp.text
+
+    cells = db_session.query(Cell).all()
+    assert len(cells) > 0
+    for cell in cells:
+        active_uses = [cu for cu in cell.cell_uses if cu.status != "cancelled"]
+        assert len(active_uses) <= 3, f"{cell.code} has {len(active_uses)} uses - exceeds the hard 3-use cap"
 
 
 def test_auto_fill_prioritizes_higher_priority_sample_over_wells_scarcity(client):
