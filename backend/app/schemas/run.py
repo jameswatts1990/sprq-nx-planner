@@ -105,10 +105,11 @@ class PlaceSampleRequest(BaseModel):
 class MoveSampleRequest(BaseModel):
     """Move an existing placement to a different (instrument, day, slot) - see
     placement_service.move_sample. If the destination well conflicts with the cell's own
-    established pin (a different well than its other uses), the cell can't go there and
-    `cell_choice` resolves which different cell the sample lands on instead, exactly like
-    a fresh placement; omit it for a same-cell reschedule (same well, or the cell has no
-    other uses yet)."""
+    established pin (a different well than its other uses), OR a different physical cell
+    is already resident in that exact destination well (e.g. an eagerly-opened tray
+    sibling), the dragged cell can't go there and `cell_choice` resolves which different
+    cell the sample lands on instead, exactly like a fresh placement; omit it only for a
+    genuine same-cell reschedule, where the destination well is still this cell's own."""
 
     instrument_serial: str
     run_date: date

@@ -76,20 +76,25 @@ export function CellChoicePicker({ pending, runDesign, existingRun, onClose, onP
     excludeCellId: isMove ? pending.moveFromCellId : undefined,
   });
   // The dragged slot's own cell, found in the same open-cells list used for `compatible` -
-  // its current_well/uses_consumed tell us whether it's pinned elsewhere by another of its
-  // own uses (see wellConflict below). Not found at all (e.g. the cell has since gone
+  // its current_well tells us whether it's pinned elsewhere, even by just this one use (a
+  // cell's physical position is fixed the moment its tray opens, not just once it's been
+  // reused - see wellConflict below). Not found at all (e.g. the cell has since gone
   // non-open) is treated as "no conflict detected" - the move endpoint's own authoritative
   // check still applies server-side regardless.
   const draggedCell = isMove ? cellsQuery.data?.find((c) => c.id === pending.moveFromCellId) : undefined;
-  // True when this move's destination well isn't where the dragged cell is already
-  // pinned - the cell can't go there, so the sample needs a different cell instead,
-  // resolved via the same fieldset a fresh placement uses.
+  // True whenever this move's destination well isn't where the dragged cell truly belongs -
+  // either because the cell's own established well differs from the drop target, or
+  // because a *different* physical cell (the destination's real ghost/resident, already
+  // computed for us as preselectedCellId) already lives in that exact slot. Eager tray-of-4
+  // population means the latter is common even for a single-use cell, so this can't be
+  // gated on uses_consumed - the cell can't go there either way, and the sample needs a
+  // different cell instead, resolved via the same fieldset a fresh placement uses.
   const wellConflict =
     isMove &&
-    draggedCell !== undefined &&
-    draggedCell.uses_consumed > 1 &&
-    draggedCell.current_well !== null &&
-    draggedCell.current_well !== WELL_ORDER[pending.slot_index];
+    ((draggedCell !== undefined &&
+      draggedCell.current_well !== null &&
+      draggedCell.current_well !== WELL_ORDER[pending.slot_index]) ||
+      (pending.preselectedCellId !== undefined && pending.preselectedCellId !== pending.moveFromCellId));
   // Only trust the preselected ghost cell once it's confirmed still compatible (barcodes
   // could have changed since the ghost was computed) - otherwise fall back to the normal
   // choice-among-compatible-cells flow below.

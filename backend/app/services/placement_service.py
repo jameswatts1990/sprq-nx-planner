@@ -388,20 +388,22 @@ def move_sample(
 ) -> Cycle:
     """Move an existing placement to a different (instrument, day, slot).
 
-    If the destination well matches wherever this cell's other uses already sit (or it
-    has none yet), this is an in-place update of the CellUse's cycle/well - the same
-    physical cell just repositions to a different day, never a delete+recreate. That
-    avoids two real problems a client-side remove-then-place has: a rejected re-place
-    leaving the sample stranded in backlog with the old slot already gone, and the old
-    cell being deleted (as an emptied placeholder) out from under a move that intended to
-    reuse it.
+    If the destination well is genuinely still "owned" by this same physical cell (either
+    because another of its own uses already sits there, or - for a cell with only this one
+    use so far - because nothing else has ever claimed that exact well on that instrument),
+    this is an in-place update of the CellUse's cycle/well - the same physical cell just
+    repositions to a different day, never a delete+recreate. That avoids two real problems
+    a client-side remove-then-place has: a rejected re-place leaving the sample stranded in
+    backlog with the old slot already gone, and the old cell being deleted (as an emptied
+    placeholder) out from under a move that intended to reuse it.
 
-    If the destination well conflicts with the cell's own established pin, the cell
-    itself can't go there (cells stay in the same physical tray/well position for every
-    reuse - see docs/pacbio-sprq-nx-scheduling-reference.md) - moving the *sample* there
-    instead means handing it to a different cell, resolved via `cell_choice` exactly like
-    a fresh placement. See _move_sample_to_new_cell for that path's own atomicity
-    guarantees."""
+    If the destination well conflicts with the cell's own established pin, OR a different
+    physical cell is already resident in that exact well (e.g. an eagerly-opened tray
+    sibling, or an earlier tray that hasn't yet been superseded), the cell itself can't go
+    there (cells stay in the same physical tray/well position for every reuse - see
+    docs/pacbio-sprq-nx-scheduling-reference.md) - moving the *sample* there instead means
+    handing it to a different cell, resolved via `cell_choice` exactly like a fresh
+    placement. See _move_sample_to_new_cell for that path's own atomicity guarantees."""
     # --- read-only validation (before any writes) ---
     if run_date.weekday() >= 5:
         raise PlacementError(400, f"{run_date.isoformat()} is a weekend - runs are weekdays only.")
@@ -429,6 +431,10 @@ def move_sample(
     if cell_use.status == "cancelled":
         raise PlacementError(409, "This placement was cancelled when its cell was stopped and can't be modified.")
 
+    instrument = db.scalar(select(Instrument).where(Instrument.serial_number == instrument_serial))
+    if instrument is None:
+        raise PlacementError(400, f"Unknown instrument serial '{instrument_serial}'.")
+
     cell = cell_use.cell
     other_uses = [cu for cu in cell.cell_uses if cu.id != cell_use.id and cu.status != "cancelled"]
     reassign_to_new_cell = False
@@ -447,9 +453,26 @@ def move_sample(
         if well not in {cu.well for cu in other_uses}:
             reassign_to_new_cell = True
 
-    instrument = db.scalar(select(Instrument).where(Instrument.serial_number == instrument_serial))
-    if instrument is None:
-        raise PlacementError(400, f"Unknown instrument serial '{instrument_serial}'.")
+    if not reassign_to_new_cell:
+        # Even with no other uses yet, this cell's own tray may not be the one that
+        # belongs in the destination well at all - eager tray-of-4 population means a
+        # brand-new tray auto-opens all 4 sibling wells the moment any one of them gets a
+        # sample, and an older, unrelated tray may already have (and later vacated) that
+        # exact well. Either way, if a *different*, still-open physical cell already sits
+        # in this exact (instrument, well), that cell - not the one being dragged - is the
+        # one this sample must land on. Mirrors open_new_tray()'s own box-collision query.
+        resident_cell_id = db.scalar(
+            select(Cell.id)
+            .join(Cell.tray)
+            .where(
+                CellTray.instrument_id == instrument.id,
+                Cell.home_well == well,
+                Cell.status == "open",
+                Cell.id != cell.id,
+            )
+        )
+        if resident_cell_id is not None:
+            reassign_to_new_cell = True
 
     if reassign_to_new_cell:
         return _move_sample_to_new_cell(
@@ -536,15 +559,16 @@ def _move_sample_to_new_cell(
     cell_choice: dict | None,
     actor: str | None,
 ) -> Cycle:
-    """The dragged cell is pinned elsewhere by another of its own uses, so it can't take
-    this well - hand the sample to `cell_choice`'s resolved cell instead. One transaction:
-    a new CellUse under the resolved cell replaces this one, and the sample's status never
+    """The dragged cell can't take this well - either it's pinned elsewhere by another of
+    its own uses, or a different physical cell is already resident in the destination well
+    - so hand the sample to `cell_choice`'s resolved cell instead. One transaction: a new
+    CellUse under the resolved cell replaces this one, and the sample's status never
     bounces through "backlog" in between (unlike a naive remove-then-place)."""
     old_cell = cell_use.cell
     if cell_choice is None:
         raise PlacementError(
             400,
-            f"Cell {old_cell.code} must stay in well {cell_use.well} (its other uses' slot); "
+            f"Cell {old_cell.code} must stay in well {cell_use.well}; "
             f"cell_choice is required to move this sample to well {well}.",
         )
 

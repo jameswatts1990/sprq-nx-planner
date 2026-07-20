@@ -157,12 +157,14 @@ export function ScheduleSection() {
         so you can see a tray&apos;s other cells together. Picking <b>Use a new cell</b> opens a whole new physical
         tray of 4 at once — the other 3 appear immediately as open, reusable cells (in the Cells page, future
         pickers, and the grid itself — see &quot;Slots and trays&quot; below), even though only one of them has a
-        sample on it yet. Dragging an already-placed sample to a new slot <b>moves</b> it. If the new slot is the
-        same well as the cell&apos;s other uses (just a different day), it keeps its existing cell and a move that
-        starts a brand-new run always shows the picker, since that kind of move never auto-resolves. A physical cell
-        can never change wells, though — so dropping onto a <i>different</i> well hands the sample to a different
-        cell there instead (a new one, or another compatible reusable cell), using the exact same placement picker
-        and auto-resolve rules described above.
+        sample on it yet. Dragging an already-placed sample to a new slot <b>moves</b> it. A physical cell can never
+        change wells, so the destination decides which cell the sample lands on, not the sample&apos;s own prior
+        cell: dropping onto the exact well the cell already occupies keeps it there (a plain reschedule to a
+        different day), while dropping onto any other well — even one on the very same tray, even the same day —
+        hands the sample to whichever cell actually lives there instead (a new one, or another compatible reusable
+        cell), using the exact same placement picker and auto-resolve rules described above. A move that starts a
+        brand-new run and has no cell decision to make always shows the picker anyway, since that&apos;s the one
+        case it has no other way to collect a loading start time.
       </p>
       <p>
         <b>Auto-schedule result</b> summarises the outcome, e.g. &quot;12 placed · 3 unplaced · 1 cell(s) skipped ·
