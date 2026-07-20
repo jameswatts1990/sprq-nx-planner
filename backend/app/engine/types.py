@@ -118,7 +118,9 @@ class WindowFlag:
 @dataclass(frozen=True)
 class SlotInput:
     """A currently-empty grid cell offered to the auto-filler: an (instrument, day) run
-    with all 8 wells free by construction (occupied cells are never passed in)."""
+    with all wells free by construction (occupied cells are never passed in). How many
+    of its 8 wells `fill_slots` actually offers is capped by that call's own
+    `cells_per_day` argument, not by anything recorded here."""
 
     instrument_serial: str
     run_date: date

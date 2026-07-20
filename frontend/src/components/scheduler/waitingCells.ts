@@ -50,15 +50,6 @@ export interface CellGhost {
    * Mutually exclusive with terminalStatus: exactly one of the two is set once the cell has
    * gone terminal, depending on whether `day` is before or on/after that boundary date. */
   pendingTerminalStatus?: Exclude<CellStatus, "open" | "stopped" | "retired">;
-  /** Only meaningful when terminalStatus is set: true once every one of this cell's
-   * physical tray siblings has also gone terminal (exhausted/window_expired/retired) or
-   * been stopped - see computeVacatedTrayIds. Only then has the physical tray genuinely
-   * left the instrument, so only then can this well safely accept a brand-new tray. False
-   * (the common case right after just one cell in a tray goes terminal, while its siblings
-   * are still open/reusable/not-yet-used) means the tray is still loaded on the instrument,
-   * so the well must stay a read-only marker - see SchedulerSlot's DroppableSlot gating.
-   * Cells with no tray_id at all (no siblings to wait on) are always treated as vacated. */
-  terminalTrayVacated?: boolean;
 }
 
 function nextWeekdayAfter(isoDate: string): string {
@@ -159,13 +150,16 @@ export function computeUnusedTraySiblingGhost(cell: CellOut, day: string): CellG
  * (manually written off, e.g. via a never-yet-used sibling's "Discard remaining use(s)")
  * - and if so, still shows its old well as an informational marker on `day` rather than
  * letting it silently fall back to a bare "+" indistinguishable from a well that never
- * held anything. No day-gating, same as computeUnusedTraySiblingGhost - it persists on
- * every weekday until superseded by a real placement or a brand-new tray. Deliberately
- * excludes "stopped" (see groupBlockedWellsByInstrument): a QC stop permanently locks its
- * well against reuse, but exhaustion/expiry/retirement are routine turnover, so the
- * caller must only treat this well as a droppable "+" target underneath the marker once
- * `vacatedTrayIds` shows every sibling in its physical tray has also gone terminal - see
- * computeVacatedTrayIds and the `terminalTrayVacated` field this sets on the ghost.
+ * held anything. No day-gating otherwise, same as computeUnusedTraySiblingGhost - it
+ * persists on every weekday until superseded by a real placement. Deliberately excludes
+ * "stopped" (see groupBlockedWellsByInstrument): a QC stop permanently locks its well
+ * against reuse, but exhaustion/expiry/retirement are routine turnover. Once
+ * `vacatedTrayIds` shows every sibling in this cell's physical tray has also gone terminal
+ * or stopped (see computeVacatedTrayIds), the physical tray has genuinely left the
+ * instrument - at that point there's nothing left to show a marker for, so this returns
+ * null and the well falls straight through to an ordinary droppable "+", ready for a
+ * brand-new tray. Cells with no tray_id at all (no siblings to wait on) are always treated
+ * as vacated the moment they themselves go terminal.
  */
 export function computeTerminalGhost(
   cell: CellOut,
@@ -175,6 +169,7 @@ export function computeTerminalGhost(
   if (cell.status !== "exhausted" && cell.status !== "window_expired" && cell.status !== "retired") return null;
   if (!cell.current_instrument_serial || !cell.current_well) return null;
   if (isWeekendUTC(parseDateOnly(day))) return null;
+  if (cell.tray_id === null || vacatedTrayIds.has(cell.tray_id)) return null;
   // exhausted/window_expired can be reached purely by *scheduling* every remaining use up
   // front, before any of them have actually run - see computePendingTerminalGhost, which
   // covers `day` values before this boundary. retired has no such boundary (a one-off manual
@@ -193,7 +188,6 @@ export function computeTerminalGhost(
     deadlineAt: "",
     deadlineIsEstimated: false,
     terminalStatus: cell.status,
-    terminalTrayVacated: cell.tray_id === null || vacatedTrayIds.has(cell.tray_id),
   };
 }
 
@@ -291,12 +285,13 @@ export function groupBlockedWellsByInstrument(cells: CellOut[]): Map<string, Set
  * Physical tray IDs where every one of the tray's sibling cells has gone terminal
  * (exhausted/window_expired/retired) or been stopped - i.e. not one of them still holds
  * real, loadable capacity, so the whole physical tray can be treated as having actually
- * left the instrument. Drives `CellGhost.terminalTrayVacated` (see computeTerminalGhost):
- * until a tray shows up here, dropping a new cell onto any one of its wells would silently
- * mint a second physical tray on top of siblings that are still really sitting there.
- * `cells` must cover every status a tray-linked cell can be in - open, terminal, and
- * stopped (see SchedulePage's three cell queries) - otherwise a sibling simply missing
- * from the list reads as "no capacity" instead of the true "still open" it may well be.
+ * left the instrument. Feeds computeTerminalGhost, which stops showing any marker at all
+ * for a tray once it shows up here: until then, dropping a new cell onto any one of its
+ * wells would silently mint a second physical tray on top of siblings that are still
+ * really sitting there. `cells` must cover every status a tray-linked cell can be in -
+ * open, terminal, and stopped (see SchedulePage's three cell queries) - otherwise a
+ * sibling simply missing from the list reads as "no capacity" instead of the true "still
+ * open" it may well be.
  */
 export function computeVacatedTrayIds(cells: CellOut[]): Set<number> {
   const byTray = new Map<number, CellOut[]>();

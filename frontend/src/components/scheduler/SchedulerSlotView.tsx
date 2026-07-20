@@ -185,10 +185,11 @@ export const SchedulerSlotView = memo(
     mergedStyle = { ...mergedStyle, ["--window-opacity" as string]: expiryFadeOpacity(hoursRemaining) };
   }
 
-  // Why this well is dead, plus whether it can be reused for a brand-new physical tray yet
-  // - only once every sibling in the same tray has also gone terminal (see waitingCells.
-  // computeVacatedTrayIds); until then the tray is still loaded on the instrument, and no
-  // "+" placement is possible here no matter how dead this one cell already is.
+  // Why this well is dead. A terminal ghost only ever renders while at least one sibling in
+  // the same physical tray still holds real capacity (waitingCells.computeTerminalGhost
+  // stops returning one at all, in favour of a plain droppable "+", the moment every sibling
+  // has also gone terminal - see computeVacatedTrayIds), so this well always stays locked
+  // for as long as this marker is visible.
   const terminalGhostTitle = ghost?.terminalStatus
     ? `${
         ghost.terminalStatus === "exhausted"
@@ -196,11 +197,7 @@ export const SchedulerSlotView = memo(
           : ghost.terminalStatus === "window_expired"
             ? "This cell's 108-hour window closed before its remaining capacity could be used."
             : "This cell was manually retired."
-      } ${
-        ghost.terminalTrayVacated
-          ? "This well is open for a brand-new cell."
-          : "This well stays locked until every cell in its physical tray is also used up, expired, or retired - the tray is still loaded on the instrument."
-      }`
+      } This well stays locked until every cell in its physical tray is also used up, expired, or retired - the tray is still loaded on the instrument.`
     : undefined;
 
   // Every remaining use of this cell is already scheduled for a later day, so this well

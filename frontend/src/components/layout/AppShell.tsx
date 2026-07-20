@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useLayoutEffect, useRef, type ReactNode } from "react";
 import { NavLink } from "react-router-dom";
 
 import styles from "./AppShell.module.css";
@@ -14,9 +14,24 @@ const NAV_ITEMS = [
 ];
 
 export function AppShell({ children }: { children: ReactNode }) {
+  const topbarRef = useRef<HTMLElement>(null);
+
+  // Exposed as a CSS var so other sticky elements (e.g. the schedule page's date-picker
+  // toolbar) can position themselves directly beneath the nav instead of guessing its
+  // height - the nav can wrap onto a second line on narrow viewports.
+  useLayoutEffect(() => {
+    const el = topbarRef.current;
+    if (!el) return;
+    const setHeight = () => document.documentElement.style.setProperty("--topbar-h", `${el.offsetHeight}px`);
+    setHeight();
+    const observer = new ResizeObserver(setHeight);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
   return (
     <>
-      <header className={styles.topbar}>
+      <header className={styles.topbar} ref={topbarRef}>
         <div className={styles.topbarStrip} />
         <div className={styles.topbarInner}>
           <NavLink to="/schedule" className={styles.brand}>

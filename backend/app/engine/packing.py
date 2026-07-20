@@ -4,7 +4,7 @@ from __future__ import annotations
 import re
 from datetime import datetime, timezone
 
-from app.engine.constants import CELL_MAX_USES
+from app.engine.constants import CELL_MAX_USES, WELLS
 from app.engine.csv_parse import split_barcodes
 from app.engine.types import ConflictPair, PackedCell, PackResult, ParsedSample, PriorCellInput
 
@@ -46,6 +46,7 @@ def pack_cells(
     objective: str,
     prior_cells: list[PriorCellInput] | None = None,
     available_days: int | None = None,
+    cells_per_day: int | None = None,
 ) -> PackResult:
     """`max_uses` is this batch's target packing depth for newly-created cells (how many
     uses to plan onto a fresh cell before opening another one) - the user's explicit
@@ -67,7 +68,16 @@ def pack_cells(
     `objective` only breaks ties between reuse candidates that are otherwise equally
     eligible: "fastest" prefers the least-used fresh cell (spreads samples across more
     cells so more can start sooner); "fewest"/"balance" prefer the most-used fresh cell
-    (deepens existing cells first, for fewer distinct cells).
+    (deepens existing cells first, for fewer distinct cells). "utilisation" goes further
+    than "fastest": it withholds every not-yet-full fresh cell from consideration until
+    `cells_per_day` distinct fresh cells are open (falling back to `len(WELLS)` if not
+    given), so a run of same-priority samples opens enough physically distinct cells to
+    fill a whole instrument-day's wells before any of them is reused for a 2nd/3rd use -
+    matching PacBio's own "high-utilization schedule" example of loading a full tray (or
+    two) per touch point rather than trickling reuse across fewer cells (see
+    docs/pacbio-sprq-nx-scheduling-reference.md's "Instrument load-lock timing" section).
+    Once that many fresh cells are open, it behaves exactly like "fastest" (least-used
+    first) to round-robin further depth evenly across them.
 
     Samples are processed in priority order first (see `priority_rank`) - that's the
     ruling factor and always wins. Within equal priority, samples are then processed in
@@ -130,6 +140,8 @@ def pack_cells(
             if shared:
                 conflict_pairs.append(ConflictPair(a=samples[i].id, b=samples[j].id, shared=shared))
 
+    utilisation_width = cells_per_day or len(WELLS)
+
     unplaced: list[ParsedSample] = []
     for s in ordered:
         cands = [
@@ -142,7 +154,15 @@ def pack_cells(
             )
             and disjoint(c.barcodes, s.barcodes)
         ]
-        cands.sort(key=lambda c: (0 if c.prior else 1, len(c.uses) if objective == "fastest" else -len(c.uses)))
+        if objective == "utilisation" and sum(1 for c in cells if not c.prior) < utilisation_width:
+            # Not enough distinct fresh cells open yet to fill a whole instrument-day -
+            # refuse to deepen an existing fresh cell and fall through to opening another
+            # one instead. Prior (reuse) cells are unaffected: reuse-before-new-cell still
+            # wins regardless of objective (see docs/pacbio-sprq-nx-scheduling-reference.md #5).
+            cands = [c for c in cands if c.prior]
+        cands.sort(
+            key=lambda c: (0 if c.prior else 1, len(c.uses) if objective in ("fastest", "utilisation") else -len(c.uses))
+        )
 
         if cands:
             c = cands[0]

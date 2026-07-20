@@ -242,31 +242,33 @@ describe("computeVacatedTrayIds", () => {
   });
 });
 
-describe("computeTerminalGhost's terminalTrayVacated", () => {
-  it("is false while a sibling in the same tray is still open", () => {
+describe("computeTerminalGhost's vacated-tray gating", () => {
+  it("still shows the marker while a sibling in the same tray is still open", () => {
     const exhausted = baseCell({ id: 1, tray_id: 3, status: "exhausted" });
     const vacatedTrayIds = computeVacatedTrayIds([
       exhausted,
       baseUnusedTraySibling({ id: 2, tray_id: 3, status: "open" }),
     ]);
 
-    expect(computeTerminalGhost(exhausted, "2026-07-14", vacatedTrayIds)?.terminalTrayVacated).toBe(false);
+    expect(computeTerminalGhost(exhausted, "2026-07-14", vacatedTrayIds)?.terminalStatus).toBe("exhausted");
   });
 
-  it("is true once the whole tray has gone terminal", () => {
+  it("returns null (no marker at all) once the whole tray has gone terminal", () => {
     const exhausted = baseCell({ id: 1, tray_id: 4, status: "exhausted" });
     const expired = baseCell({ id: 2, tray_id: 4, status: "window_expired" });
     const vacatedTrayIds = computeVacatedTrayIds([exhausted, expired]);
 
-    expect(computeTerminalGhost(exhausted, "2026-07-14", vacatedTrayIds)?.terminalTrayVacated).toBe(true);
+    expect(computeTerminalGhost(exhausted, "2026-07-14", vacatedTrayIds)).toBeNull();
   });
 
-  it("defaults to true for a cell with no tray_id, and to false if vacatedTrayIds is omitted", () => {
+  it("returns null immediately for a cell with no tray_id, since it has no siblings to wait on", () => {
     const untracked = baseCell({ id: 1, tray_id: null, status: "retired" });
-    expect(computeTerminalGhost(untracked, "2026-07-14")?.terminalTrayVacated).toBe(true);
+    expect(computeTerminalGhost(untracked, "2026-07-14")).toBeNull();
+  });
 
+  it("still shows the marker for a tray-linked cell when vacatedTrayIds is omitted (defaults to empty)", () => {
     const trayLinked = baseCell({ id: 2, tray_id: 5, status: "retired" });
-    expect(computeTerminalGhost(trayLinked, "2026-07-14")?.terminalTrayVacated).toBe(false);
+    expect(computeTerminalGhost(trayLinked, "2026-07-14")?.terminalStatus).toBe("retired");
   });
 });
 
@@ -274,12 +276,16 @@ describe("computePendingTerminalGhost / computeTerminalGhost's day-gating", () =
   it("shows pending (not terminal) between an exhausted cell's own real placements, terminal only after the last one", () => {
     // Every use already scheduled up front for Mon 07-13 / Wed 07-15 / Fri 07-17 - the
     // aggregate status has already flipped to exhausted since there's no capacity left to
-    // schedule, even though only the Monday use has actually happened yet.
+    // schedule, even though only the Monday use has actually happened yet. tray_id is set
+    // (with no vacatedTrayIds passed below, so it reads as not-yet-vacated) purely so this
+    // test's own day-gating is exercised in isolation from vacated-tray gating, which is
+    // covered separately above.
     const cell = baseCell({
       status: "exhausted",
       uses_consumed: 3,
       uses_remaining: 0,
       last_use_run_date: "2026-07-17",
+      tray_id: 20,
     });
 
     // Tuesday - the locked day between Monday's and Wednesday's real placements.
@@ -300,13 +306,15 @@ describe("computePendingTerminalGhost / computeTerminalGhost's day-gating", () =
   it("gates window_expired on the actual 108h deadline, not last_use_run_date", () => {
     // Use 1 confirmed loaded Monday 07-13 12:00 UTC -> real deadline Saturday 07-18 00:00 UTC
     // (same math as computeGhost's own deadline tests). Only one use ever happened before
-    // the window closed.
+    // the window closed. tray_id set for the same isolation-from-vacated-gating reason as
+    // the test above.
     const cell = baseCell({
       status: "window_expired",
       uses_consumed: 1,
       uses_remaining: 2,
       last_use_run_date: "2026-07-13",
       first_use_started_at: "2026-07-13T12:00:00Z",
+      tray_id: 21,
     });
 
     // Wednesday - after last_use_run_date, but well before the 108h deadline actually closes.
@@ -319,7 +327,8 @@ describe("computePendingTerminalGhost / computeTerminalGhost's day-gating", () =
   });
 
   it("never gates retired - it has no scheduling-driven boundary, so it stays terminal on every visible weekday", () => {
-    const cell = baseCell({ status: "retired", last_use_run_date: "2026-07-17" });
+    // tray_id set for the same isolation-from-vacated-gating reason as the tests above.
+    const cell = baseCell({ status: "retired", last_use_run_date: "2026-07-17", tray_id: 22 });
     expect(computeTerminalGhost(cell, "2026-07-14")?.terminalStatus).toBe("retired");
     expect(computePendingTerminalGhost(cell, "2026-07-14")).toBeNull();
   });

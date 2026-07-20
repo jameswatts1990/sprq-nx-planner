@@ -127,7 +127,10 @@ class AutoFillRequest(BaseModel):
     max_uses: Literal[1, 2, 3] = 3  # target packing depth for new cells this batch (always honored in full,
     # subject only to how many distinct days are on offer); not a physical cap (always 3)
     run_time_hours: Literal[12, 24, 30] = 24
-    objective: Literal["fewest", "balance", "fastest"] = "fewest"
+    objective: Literal["fewest", "balance", "fastest", "utilisation"] = "fewest"
+    # 4 = tray 1 only; 8 = both trays. Caps how many of a run's 8 wells auto-fill will use
+    # per instrument-day - see engine/slot_scheduling.py::fill_slots.
+    cells_per_day: Literal[4, 8] = 8
     start_hour: int = Field(default=DAY_START_HOUR, ge=0, le=23)
     start_minute: int = Field(default=0, ge=0, le=59)
 

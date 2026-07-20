@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/Button";
 import { Note } from "@/components/ui/Note";
 import type { NoteTone } from "@/components/ui/Note";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
-import type { MaxUses, Objective, RunTimeHours } from "@/types/schedule";
+import type { CellsPerDay, MaxUses, Objective, RunTimeHours } from "@/types/schedule";
 import type { RunDesignState } from "@/types/schedulerGrid";
 
 import styles from "./RunDesignAccordion.module.css";
@@ -36,6 +36,11 @@ const OBJECTIVE_OPTIONS = [
   { value: "fewest" as Objective, label: "Fewest cells", hint: "lowest cost" },
   { value: "balance" as Objective, label: "Balance", hint: "cost + speed" },
   { value: "fastest" as Objective, label: "Fastest", hint: "fewest days" },
+  { value: "utilisation" as Objective, label: "Utilisation", hint: "full trays" },
+];
+const CELLS_PER_DAY_OPTIONS = [
+  { value: 4 as CellsPerDay, label: "4", hint: "1 tray" },
+  { value: 8 as CellsPerDay, label: "8", hint: "2 trays" },
 ];
 
 /** Run Design dials that feed both single placements (place mutation) and batch
@@ -54,7 +59,7 @@ export function RunDesignAccordion({
   return (
     <Accordion
       title="Run design"
-      badge={`${runDesign.max_uses}× · ${runDesign.run_time_hours} h · ${runDesign.objective}`}
+      badge={`${runDesign.max_uses}× · ${runDesign.run_time_hours} h · ${runDesign.objective} · ${runDesign.cells_per_day}/day`}
     >
       <div className={styles.field}>
         <div className={styles.fieldLabel}>
@@ -85,6 +90,18 @@ export function RunDesignAccordion({
           options={OBJECTIVE_OPTIONS}
           value={runDesign.objective}
           onChange={(v) => onChange({ ...runDesign, objective: v })}
+        />
+      </div>
+
+      <div className={styles.field}>
+        <div className={styles.fieldLabel}>
+          Cells per day <span className={styles.hint}>wells auto-fill uses per instrument-day</span>
+        </div>
+        <SegmentedControl
+          ariaLabel="Cells per day"
+          options={CELLS_PER_DAY_OPTIONS}
+          value={runDesign.cells_per_day}
+          onChange={(v) => onChange({ ...runDesign, cells_per_day: v })}
         />
       </div>
 

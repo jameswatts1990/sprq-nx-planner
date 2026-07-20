@@ -171,14 +171,14 @@
 }
 
 /* A cell that's gone terminal by ordinary attrition (exhausted/window_expired/retired -
-   see CellGhost.terminalStatus) - still shown in its old well as an informational marker.
-   Never a live reuse target, so no "solid + glow" hover preview ever applies to it - it
-   stays a plain, static informational card. Only once every sibling in its physical tray
-   has also gone terminal (ghost.terminalTrayVacated - see waitingCells.
-   computeVacatedTrayIds) does the "+" slot underneath actually accept a drop again; until
-   then SchedulerSlot never even registers it as droppable, so cursor:default here (rather
-   than the ordinary .ghost pointer) reflects that clicking/dropping never does anything
-   through this card regardless of which case applies. */
+   see CellGhost.terminalStatus) - still shown in its old well as an informational marker,
+   for as long as some sibling in its physical tray still holds real capacity (see
+   waitingCells.computeTerminalGhost/computeVacatedTrayIds; once every sibling has also gone
+   terminal, that function stops returning a ghost at all and the well reverts to a plain
+   droppable "+" instead of this card). Never a live reuse target, so no "solid + glow" hover
+   preview ever applies to it - it stays a plain, static informational card, and
+   cursor:default here (rather than the ordinary .ghost pointer) reflects that clicking/
+   dropping never does anything through this card. */
 .ghostTerminal {
   border-style: dotted;
   opacity: 0.85;

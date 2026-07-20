@@ -8,7 +8,10 @@ import type { CycleStatus } from "./common";
 
 export type MaxUses = 1 | 2 | 3;
 export type RunTimeHours = 12 | 24 | 30;
-export type Objective = "fewest" | "balance" | "fastest";
+export type Objective = "fewest" | "balance" | "fastest" | "utilisation";
+/** How many of a run's 8 wells auto-fill is allowed to use per instrument-day: 4 = tray
+ * 1 only, 8 = both trays. */
+export type CellsPerDay = 4 | 8;
 /** 0-3 = tray 1, 4-7 = tray 2 (two 4-cell trays loaded per run). */
 export type SlotIndex = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
 

@@ -2,7 +2,7 @@
  * Separate from types/schedule.ts (the raw Cycle/Stage backend mirror) because these
  * describe the drag-and-drop grid surface and its mutation payloads. */
 
-import type { CycleOut, MaxUses, Objective, RunTimeHours, SlotIndex } from "./schedule";
+import type { CellsPerDay, CycleOut, MaxUses, Objective, RunTimeHours, SlotIndex } from "./schedule";
 
 /** How a placed sample gets its cell: a brand-new cell, or an existing reusable one. */
 export type CellChoice = { mode: "new" } | { mode: "existing"; cell_id: number };
@@ -48,6 +48,7 @@ export interface AutoFillRequest {
   max_uses: MaxUses; // target packing depth for new cells this batch, not a physical cap (always 3)
   run_time_hours: RunTimeHours;
   objective: Objective;
+  cells_per_day: CellsPerDay;
 }
 
 export interface AutoFillWindowFlag {
@@ -74,11 +75,12 @@ export interface AutoFillResponse {
   runs: CycleOut[]; // every cycle touched
 }
 
-/** The three Run Design dials, held in page state and threaded into place/auto-fill. */
+/** The Run Design dials, held in page state and threaded into place/auto-fill. */
 export interface RunDesignState {
   max_uses: MaxUses;
   run_time_hours: RunTimeHours;
   objective: Objective;
+  cells_per_day: CellsPerDay;
 }
 
 /** A minimal sample reference carried by a drag operation - covers both a backlog

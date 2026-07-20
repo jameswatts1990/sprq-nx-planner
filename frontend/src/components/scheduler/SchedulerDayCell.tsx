@@ -89,6 +89,11 @@ export function SchedulerDayCell(props: SchedulerDayCellProps) {
     mutationFn: (trayId: number) => cellsApi.discardTray({ tray_id: trayId }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["cycles"] });
+      // Every cell in the tray just flipped to exhausted - without this, the grid's
+      // terminal/vacated-tray ghosts (waitingCells.ts, fed by SchedulePage's ["cells", ...]
+      // queries) would keep reading the pre-discard status until some unrelated mutation
+      // happened to invalidate them, so the tray wouldn't actually disappear from view.
+      void queryClient.invalidateQueries({ queryKey: ["cells"] });
       setDiscardTrayId(null);
     },
   });

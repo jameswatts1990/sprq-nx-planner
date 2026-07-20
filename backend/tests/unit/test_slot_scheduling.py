@@ -57,6 +57,17 @@ def test_fill_slots_leaves_extra_samples_unplaced_once_eight_wells_are_full():
     assert len(result.unplaced) == 1
 
 
+def test_fill_slots_caps_wells_to_tray_one_when_cells_per_day_is_four():
+    cells = _one_use_cells(8)
+    slot = SlotInput(instrument_serial="84047", run_date=date(2026, 7, 20))
+
+    result = fill_slots(cells, [slot], run_time_hours=24, cells_per_day=4)
+
+    assert len(result.assignments) == 4
+    assert {a.well for a in result.assignments} == {"A01", "B01", "C01", "D01"}
+    assert len(result.unplaced) == 4
+
+
 def test_fill_slots_respects_cross_instrument_pin_when_a_compatible_slot_exists():
     cell = _cell("P1", _samples(2), prior=True, pinned="84047")
     matching = SlotInput(instrument_serial="84047", run_date=date(2026, 7, 20))

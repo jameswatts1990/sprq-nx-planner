@@ -10,6 +10,11 @@
   gap: 14px;
   flex-wrap: wrap;
   margin-bottom: 6px;
+  position: sticky;
+  top: var(--topbar-h, 69px);
+  z-index: 20;
+  background: var(--bg);
+  padding: 10px 0;
 }
 .pager {
   display: flex;

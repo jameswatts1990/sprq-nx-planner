@@ -43,6 +43,7 @@ def auto_fill(
     max_uses: int,
     run_time_hours: float,
     objective: str,
+    cells_per_day: int = len(WELLS),
     start_hour: int = DAY_START_HOUR,
     start_minute: int = 0,
     actor: str | None = None,
@@ -126,9 +127,14 @@ def auto_fill(
     # would just come back as unplaced.
     available_days = len({s.run_date for s in empty_slots})
     pack = pack_cells(
-        parsed, max_uses=max_uses, objective=objective, prior_cells=prior_cells, available_days=available_days
+        parsed,
+        max_uses=max_uses,
+        objective=objective,
+        prior_cells=prior_cells,
+        available_days=available_days,
+        cells_per_day=cells_per_day,
     )
-    fill = fill_slots(pack.cells, empty_slots, run_time_hours)
+    fill = fill_slots(pack.cells, empty_slots, run_time_hours, cells_per_day=cells_per_day)
 
     # PackedCell.id -> DB Cell (prior cells resolve to real rows; fresh cells created on first use)
     ref_to_cell: dict[str, Cell] = {pc.id: cells_by_id[pc.cell_id] for pc in pack.cells if pc.prior}
@@ -162,7 +168,10 @@ def auto_fill(
             occupied_wells[cycle_id] = taken
         if requested_well not in taken:
             return requested_well
-        return next((w for w in WELLS if w not in taken), None)
+        # Only search within the wells this batch is actually allowed to use - falling
+        # back past cells_per_day would silently load a second tray on a day the user
+        # capped to one.
+        return next((w for w in WELLS[:cells_per_day] if w not in taken), None)
 
     # Process in chronological order per instrument (not pack/cell order) rather than
     # fill.assignments' own order. A full-tray run's lock can span into the next calendar

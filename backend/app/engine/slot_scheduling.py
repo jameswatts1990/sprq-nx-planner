@@ -3,9 +3,10 @@
 Pure and DB-free (mirrors the packing/scheduling modules). Unlike ``schedule_cells``
 - which lays out a fresh multi-day tray timeline from scratch - ``fill_slots`` places
 already-packed cells onto a fixed set of user-selected, currently-empty grid cells
-(each an (instrument, day) run with 8 free wells, two trays of 4). It never reasons
-about partial well-occupancy: a slot is either fully available or excluded by the
-caller.
+(each an (instrument, day) run with up to 8 free wells, two trays of 4 - or just the
+first 4, tray 1 only, when the caller's `cells_per_day` caps a run to one tray). It
+never reasons about partial well-occupancy: a slot is either fully available (up to
+the well cap) or excluded by the caller.
 """
 from __future__ import annotations
 
@@ -22,14 +23,21 @@ from app.engine.types import (
 )
 
 
-def fill_slots(cells: list[PackedCell], slots: list[SlotInput], run_time_hours: float) -> SlotFillResult:
+def fill_slots(
+    cells: list[PackedCell],
+    slots: list[SlotInput],
+    run_time_hours: float,
+    cells_per_day: int = len(WELLS),
+) -> SlotFillResult:
     # Deterministic order: earliest date first, then instrument serial.
     slots_sorted = sorted(slots, key=lambda s: (s.run_date, s.instrument_serial))
     # Same cell ordering as schedule_cells: prior cells first, then most-used first.
     ordered_cells = sorted(cells, key=lambda c: (0 if c.prior else 1, -c.future_uses))
 
-    # Free wells per slot, filled A01..D01 in order.
-    free_wells: dict[SlotInput, list[str]] = {s: list(WELLS) for s in slots_sorted}
+    # Free wells per slot, filled A01..D01 in order. `cells_per_day` restricts this to
+    # tray 1 only (WELLS[:4]) when the user has capped auto-fill to one tray/day - see
+    # docs/pacbio-sprq-nx-scheduling-reference.md's "Instrument load-lock timing" section.
+    free_wells: dict[SlotInput, list[str]] = {s: list(WELLS[:cells_per_day]) for s in slots_sorted}
 
     # Per-cell placement progress: index of the next not-yet-placed use, plus the date
     # of its most recent placement (a physical cell can't run twice on the same day, or

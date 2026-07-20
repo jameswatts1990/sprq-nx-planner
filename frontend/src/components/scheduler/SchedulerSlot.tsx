@@ -67,16 +67,16 @@ export function SchedulerSlot(props: SchedulerSlotProps) {
       );
     }
     // A terminal ghost's well (exhausted/window_expired/retired - see waitingCells.
-    // computeTerminalGhost) only accepts a brand-new physical tray once every sibling in
-    // that same physical tray has also gone terminal (ghost.terminalTrayVacated) - while
-    // any sibling still holds real capacity, the tray hasn't actually left the instrument,
-    // so this well must stay a read-only marker, same non-droppable treatment as a
+    // computeTerminalGhost) only exists at all while some sibling in that same physical
+    // tray still holds real capacity - computeTerminalGhost itself stops returning one the
+    // moment every sibling has also gone terminal (waitingCells.computeVacatedTrayIds), so
+    // reaching this branch always means the tray hasn't actually left the instrument yet,
+    // and this well must stay a read-only marker, same non-droppable treatment as a
     // `blocked` well above, never registered with dnd-kit at all. A pending-terminal ghost
     // (waitingCells.computePendingTerminalGhost) is never droppable either, unconditionally
     // - its cell still has a real future use already scheduled on this exact well, so the
-    // physical tray can't have left the instrument regardless of what terminalTrayVacated
-    // would say (that field isn't even set on this ghost variant).
-    if ((props.ghost?.terminalStatus && !props.ghost.terminalTrayVacated) || props.ghost?.pendingTerminalStatus) {
+    // physical tray can't have left the instrument.
+    if (props.ghost?.terminalStatus || props.ghost?.pendingTerminalStatus) {
       return <SchedulerSlotView stage={null} slotIndex={props.slotIndex} ghost={props.ghost} />;
     }
     return <DroppableSlot {...props} />;
@@ -102,14 +102,12 @@ function DroppableSlot({
   ghost,
   onOpenGhost,
 }: SchedulerSlotProps) {
-  // A terminal ghost (exhausted/window_expired/retired - see waitingCells.
-  // computeTerminalGhost) only ever reaches this droppable branch once its whole physical
-  // tray has been vacated (SchedulerSlot already filters out the still-loaded case above),
-  // so a drop here always resolves as an ordinary new-tray placement, never an attempted
-  // reuse of that dead cell (which the backend would reject with "cell is not open"). Only
-  // a still-open ghost (reuse-eligible or an unused sibling) is a real exact-match reuse
-  // target.
-  const reuseGhost = ghost && !ghost.terminalStatus ? ghost : undefined;
+  // A terminal ghost (exhausted/window_expired/retired) never reaches this droppable
+  // branch: computeTerminalGhost stops returning one at all once its whole physical tray
+  // has been vacated, and SchedulerSlot already filters out the still-loaded case above -
+  // so `ghost` here is always either undefined or a still-open, reuse-eligible/unused-
+  // sibling ghost, safe to treat as an exact-match reuse target.
+  const reuseGhost = ghost;
   const data: SlotDropData = {
     kind: "slot",
     instrument_serial: instrumentSerial,

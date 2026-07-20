@@ -108,6 +108,47 @@ def test_pack_honors_max_uses_regardless_of_objective():
         assert depths == [3, 2], f"objective={objective} produced {depths}"
 
 
+def test_pack_utilisation_opens_distinct_cells_up_to_cells_per_day_before_deepening():
+    # Unlike "fastest" (which only ever reorders candidates that already coexist, and in
+    # this no-barcode-conflict case never has more than one open-with-room fresh cell at
+    # a time - see the contrast below), "utilisation" refuses to reuse any fresh cell
+    # until cells_per_day distinct ones are open, so an instrument-day's wells fill with
+    # distinct cells before any of them starts a 2nd use.
+    samples = _disjoint_samples(8)
+    result = pack_cells(samples, max_uses=3, objective="utilisation", cells_per_day=4)
+    assert len(result.cells) == 4
+    assert sorted((len(c.uses) for c in result.cells), reverse=True) == [2, 2, 2, 2]
+    assert result.unplaced == []
+
+    fastest_result = pack_cells(samples, max_uses=3, objective="fastest")
+    assert sorted((len(c.uses) for c in fastest_result.cells), reverse=True) == [3, 3, 2]
+
+
+def test_pack_utilisation_round_robins_depth_once_width_is_reached():
+    samples = _disjoint_samples(12)
+    result = pack_cells(samples, max_uses=3, objective="utilisation", cells_per_day=4)
+    assert len(result.cells) == 4
+    assert sorted((len(c.uses) for c in result.cells), reverse=True) == [3, 3, 3, 3]
+    assert result.unplaced == []
+
+
+def test_pack_utilisation_defaults_width_to_len_wells_when_cells_per_day_omitted():
+    samples = _disjoint_samples(6)
+    result = pack_cells(samples, max_uses=3, objective="utilisation")
+    assert sorted((len(c.uses) for c in result.cells), reverse=True) == [1, 1, 1, 1, 1, 1]
+
+
+def test_pack_utilisation_still_prefers_reusing_a_prior_cell_over_opening_fresh():
+    prior = [PriorCellInput(barcodes_text="", uses_consumed=1, cell_id=42)]  # remaining=2
+    samples = [ParsedSample(id="S1", barcodes=["bc1"], key="S1#0")]
+
+    result = pack_cells(samples, max_uses=3, objective="utilisation", prior_cells=prior, cells_per_day=4)
+
+    prior_cell = next(c for c in result.all_cells if c.prior)
+    assert [u.id for u in prior_cell.uses] == ["S1"]
+    assert not any(not c.prior for c in result.cells)
+
+
 def test_pack_available_days_caps_depth_below_max_uses():
     # A cell can only be reused once per calendar day, so if only 2 days are actually on
     # offer, planning depth 3 onto a fresh cell would just strand its 3rd use as

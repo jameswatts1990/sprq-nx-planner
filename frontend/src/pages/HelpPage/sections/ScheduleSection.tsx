@@ -44,7 +44,16 @@ export function ScheduleSection() {
         <dd>
           <b>Fewest cells</b> and <b>Balance</b> both reuse cells as deep as your Max uses setting allows;{" "}
           <b>Fastest</b> instead spreads new samples across more cells so more of them can start sooner, at the
-          cost of using more cells.
+          cost of using more cells. <b>Utilisation</b> goes further still: it opens enough distinct cells to fill a
+          whole instrument-day&apos;s wells (matching your Cells per day setting) before reusing any of them for a
+          2nd/3rd use — fewer half-loaded runs, at the cost of using more cells.
+        </dd>
+        <dt>Cells per day (4 / 8)</dt>
+        <dd>
+          How many of a run&apos;s 8 wells auto-fill is allowed to use per instrument/day. <b>8</b> (default) can
+          fill both trays; <b>4</b> restricts auto-fill to tray 1 only, so it never proposes loading tray 2 that
+          day — useful if only one tray&apos;s worth of loading capacity is available. This only limits what
+          auto-fill proposes; dragging a sample onto tray 2 by hand is unaffected.
         </dd>
       </dl>
       <p>
@@ -191,6 +200,8 @@ export function ScheduleSection() {
           physical cell in that tray as Exhausted, regardless of how many uses it actually has left. Use it once a
           tray is done with in real life even though the system still thinks it has spare uses. Any not-yet-run
           placements for those cells are cancelled and their samples return to the backlog. This cannot be undone.
+          Since it exhausts every cell in the tray at once, the whole tray disappears from the schedule immediately
+          afterwards and its wells open up for a brand-new one (see &quot;Used-up wells&quot; below).
         </li>
         <li>
           <b>Locked until [date/time]</b> means the run&apos;s instrument stays reserved past this day (a long

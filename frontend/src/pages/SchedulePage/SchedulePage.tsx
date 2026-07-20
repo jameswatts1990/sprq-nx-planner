@@ -43,7 +43,12 @@ import { RunDesignAccordion } from "./RunDesignAccordion";
 import styles from "./SchedulePage.module.css";
 import { useSchedulerWindow } from "./useSchedulerWindow";
 
-const DEFAULT_RUN_DESIGN: RunDesignState = { max_uses: 3, run_time_hours: 24, objective: "fewest" };
+const DEFAULT_RUN_DESIGN: RunDesignState = {
+  max_uses: 3,
+  run_time_hours: 24,
+  objective: "fewest",
+  cells_per_day: 8,
+};
 
 interface DetailTarget {
   stage: StageOut;
@@ -346,6 +351,7 @@ export function SchedulePage() {
         max_uses: runDesign.max_uses,
         run_time_hours: runDesign.run_time_hours,
         objective: runDesign.objective,
+        cells_per_day: runDesign.cells_per_day,
       }),
     onSuccess: (res) => {
       void queryClient.invalidateQueries({ queryKey: ["cycles"] });
