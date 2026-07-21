@@ -117,6 +117,30 @@ describe("computeGhost", () => {
     expect(thu!.fadeOpacity).toBeGreaterThanOrEqual(0.4);
     expect(tue!.fadeOpacity).toBeLessThanOrEqual(1);
   });
+
+  it("marks a day before this cell's own (not-yet-run) next use as pending-reuse, not a free well", () => {
+    // Only 1 of 3 uses consumed - still genuinely "open", not fully booked/terminal - but
+    // its one real use is booked for Thursday. Monday, viewed in the same visible week,
+    // must not read as an ordinary free "+": this well is already claimed by that Thursday
+    // use, even though it hasn't happened yet and the cell still has 2 uses of spare
+    // capacity. Regression test for a bug where dropping a different sample onto Monday's
+    // slot here silently sent "open a new cell" and the server rejected it as a well
+    // collision - the frontend never showed the well was actually taken.
+    const cell = baseCell({ uses_consumed: 1, uses_remaining: 2, last_use_run_date: "2026-07-16" }); // Thursday
+
+    const mon = computeGhost(cell, "2026-07-13");
+    expect(mon?.pendingReuseStatus).toBe(true);
+    expect(mon?.unused).toBeUndefined();
+    expect(mon?.terminalStatus).toBeUndefined();
+    expect(mon?.pendingTerminalStatus).toBeUndefined();
+
+    // The last-use day itself (Thursday) still renders null here - the real stage covers
+    // that day, not a ghost - and Friday onward resumes the ordinary reuse-eligible ghost.
+    expect(computeGhost(cell, "2026-07-16")).toBeNull();
+    const fri = computeGhost(cell, "2026-07-17");
+    expect(fri?.pendingReuseStatus).toBeUndefined();
+    expect(fri?.useNumber).toBe(2);
+  });
 });
 
 function baseUnusedTraySibling(overrides: Partial<CellOut> = {}): CellOut {

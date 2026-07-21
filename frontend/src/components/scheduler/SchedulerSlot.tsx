@@ -72,8 +72,10 @@ export function SchedulerSlot(props: SchedulerSlotProps) {
     // `blocked` well above, never registered with dnd-kit at all. A pending-terminal ghost
     // (waitingCells.computePendingTerminalGhost) is never droppable either, unconditionally
     // - its cell still has a real future use already scheduled on this exact well, so the
-    // physical tray can't have left the instrument.
-    if (props.ghost?.terminalStatus || props.ghost?.pendingTerminalStatus) {
+    // physical tray can't have left the instrument. Same for a pending-reuse ghost
+    // (waitingCells.computeGhost's pendingReuseStatus branch): the cell isn't fully booked
+    // or terminal, but this exact well is already claimed by its own not-yet-run next use.
+    if (props.ghost?.terminalStatus || props.ghost?.pendingTerminalStatus || props.ghost?.pendingReuseStatus) {
       return <SchedulerSlotView stage={null} slotIndex={props.slotIndex} ghost={props.ghost} />;
     }
     return <DroppableSlot {...props} />;

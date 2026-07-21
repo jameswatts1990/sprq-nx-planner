@@ -118,11 +118,13 @@ export function SchedulerDayCell(props: SchedulerDayCellProps) {
 
   // A locked day can no longer accept placements, so reuse ghosts (which double as a
   // droppable "place it here" affordance) don't apply there. Unused-tray-sibling ghosts,
-  // terminal ghosts, and pending-terminal ghosts are different: they're purely informational
-  // (a cell physically already sitting in the tray, one that's simply gone terminal, or one
-  // that's fully booked but hasn't reached that state as of this day - see waitingCells.
-  // computePendingTerminalGhost), never a placement offer, so they must stay visible even
-  // once the day is locked (see "Never-yet-used tray cells" in the Schedule help section).
+  // terminal ghosts, pending-terminal ghosts, and pending-reuse ghosts are different:
+  // they're purely informational (a cell physically already sitting in the tray, one that's
+  // simply gone terminal, one that's fully booked but hasn't reached that state as of this
+  // day, or one that's still open but already claimed by its own not-yet-run next use - see
+  // waitingCells.computePendingTerminalGhost / computeGhost's pendingReuseStatus branch),
+  // never a placement offer, so they must stay visible even once the day is locked (see
+  // "Never-yet-used tray cells" in the Schedule help section).
   // Each waiting cell is pinned to the exact slot matching its own last-used well
   // (WELL_ORDER) - cells stay in the same physical tray/well position for every reuse, never
   // just "the next open slot" - so a ghost only shows if that specific slot is free. In the
@@ -131,7 +133,8 @@ export function SchedulerDayCell(props: SchedulerDayCellProps) {
   // no ghost that day.
   const ghostBySlot = new Map<SlotIndex, CellGhost>();
   for (const ghost of waitingCells) {
-    if (locked && !ghost.unused && !ghost.terminalStatus && !ghost.pendingTerminalStatus) continue;
+    if (locked && !ghost.unused && !ghost.terminalStatus && !ghost.pendingTerminalStatus && !ghost.pendingReuseStatus)
+      continue;
     const pinnedIndex = ghost.cell.current_well ? WELL_ORDER.indexOf(ghost.cell.current_well) : -1;
     if (pinnedIndex < 0) continue;
     const slot = pinnedIndex as SlotIndex;

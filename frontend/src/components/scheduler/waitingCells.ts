@@ -50,6 +50,16 @@ export interface CellGhost {
    * Mutually exclusive with terminalStatus: exactly one of the two is set once the cell has
    * gone terminal, depending on whether `day` is before or on/after that boundary date. */
   pendingTerminalStatus?: Exclude<CellStatus, "open" | "stopped" | "retired">;
+  /** Set when this still-open, not-fully-booked cell already has its *next* use scheduled
+   * for a later day, and `day` falls before that day - e.g. a cell with 1 of 3 uses
+   * consumed, next use booked for Thursday, viewed on Monday's column. Distinct from
+   * pendingTerminalStatus (which only applies once every remaining use is booked and the
+   * cell's aggregate status has flipped to exhausted/window_expired): this cell may still
+   * have real spare capacity, just not eligible for a *new* reuse offer until its already-
+   * scheduled next use has passed - so this well isn't a droppable "+" on `day` either, even
+   * though it isn't fully booked yet. Without this, a well already claimed by a future,
+   * not-yet-run use silently looked identical to a genuinely free slot on any earlier day. */
+  pendingReuseStatus?: true;
 }
 
 function nextWeekdayAfter(isoDate: string): string {
@@ -75,6 +85,25 @@ export function computeGhost(cell: CellOut, day: string): CellGhost | null {
   if (cell.status !== "open" || cell.uses_remaining <= 0) return null;
   if (cell.uses_consumed <= 0 || !cell.last_use_run_date || !cell.current_instrument_serial) return null;
   if (isWeekendUTC(parseDateOnly(day))) return null;
+
+  if (day < cell.last_use_run_date) {
+    // A day strictly before this cell's own last (possibly not-yet-run) use - that use
+    // already claims this exact well, so it's not a droppable "+" here either, even though
+    // the cell still has real spare capacity and isn't terminal (see
+    // CellGhost.pendingReuseStatus). The last-use day itself, and any weekend between it and
+    // the next eligible weekday, fall through to the plain `day < earliestDate` null below -
+    // the real stage already renders on the last-use day itself.
+    return {
+      cell,
+      useNumber: cell.uses_consumed + 1,
+      isHardCutoff: false,
+      fadeOpacity: 1,
+      cutoffDate: day,
+      deadlineAt: "",
+      deadlineIsEstimated: false,
+      pendingReuseStatus: true,
+    };
+  }
 
   const earliestDate = nextWeekdayAfter(cell.last_use_run_date);
   if (day < earliestDate) return null;

@@ -141,11 +141,12 @@ export const SchedulerSlotView = memo(
       // Neutral/severity-coded by *why* it went terminal, never tinted by use number -
       // this cell is done, so it must never read as a live Use 1/2/3 chip.
       classes.push(styles.ghostTerminal, TERMINAL_STATUS_CLASS[ghost.terminalStatus]);
-    } else if (ghost.pendingTerminalStatus) {
+    } else if (ghost.pendingTerminalStatus || ghost.pendingReuseStatus) {
       // Already fully booked (every remaining use scheduled) but not yet actually at that
-      // state as of this column's day - a calmer, informational look, distinct from both
-      // the red terminal severity above and the actionable Use-N tint below, since this
-      // well is neither dead nor a live drop target.
+      // state as of this column's day, or still open with spare capacity but already
+      // claimed by its own not-yet-run next use - either way, a calmer, informational look,
+      // distinct from both the red terminal severity above and the actionable Use-N tint
+      // below, since this well is neither dead nor a live drop target.
       classes.push(styles.ghostPending);
     } else if (ghost.unused) {
       // Muted grey, not tinted by use number - it hasn't been used yet, so colouring it
@@ -203,9 +204,10 @@ export const SchedulerSlotView = memo(
   // can't be picked for a new placement - but it hasn't actually reached the end of its own
   // lifecycle as of this column's day (that happens on a later, already-scheduled day), so
   // it isn't "done" the way terminalGhostTitle's cell is.
-  const pendingGhostTitle = ghost?.pendingTerminalStatus
-    ? "This cell's next use is already scheduled for a later day - not available for a new placement here, but it hasn't reached the end of its own lifecycle yet."
-    : undefined;
+  const pendingGhostTitle =
+    ghost?.pendingTerminalStatus || ghost?.pendingReuseStatus
+      ? "This cell's next use is already scheduled for a later day - not available for a new placement here, but it hasn't reached the end of its own lifecycle yet."
+      : undefined;
 
   return (
     <div
@@ -261,7 +263,7 @@ export const SchedulerSlotView = memo(
           <div className={styles.ghostLabel} title={terminalGhostTitle ?? pendingGhostTitle}>
             {ghost.terminalStatus
               ? CELL_STATUS_LABEL[ghost.terminalStatus]
-              : ghost.pendingTerminalStatus
+              : ghost.pendingTerminalStatus || ghost.pendingReuseStatus
                 ? "Scheduled"
                 : ghost.unused
                   ? "Not yet used"
