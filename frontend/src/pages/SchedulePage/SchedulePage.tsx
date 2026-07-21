@@ -22,7 +22,6 @@ import { useGridSelection } from "@/components/scheduler/useGridSelection";
 import { useSchedulerDnd } from "@/components/scheduler/useSchedulerDnd";
 import { useSlotSelection } from "@/components/scheduler/useSlotSelection";
 import {
-  computeTrayFoundingDates,
   computeVacatedTrayIds,
   groupBlockedWellsByInstrument,
   groupWaitingCellsByInstrumentAndDay,
@@ -146,27 +145,14 @@ export function SchedulePage() {
       ]),
     [waitingCellsQuery.data, terminalCellsQuery.data, blockedCellsQuery.data],
   );
-  // Same broader cell universe as vacatedTrayIds - a tray's founding cell may itself have
-  // since gone terminal or been stopped, and its planned first-use date must still anchor
-  // its still-open siblings' ghosts (see waitingCells.computeTrayFoundingDates).
-  const trayFoundingDates = useMemo(
-    () =>
-      computeTrayFoundingDates([
-        ...(waitingCellsQuery.data ?? []),
-        ...(terminalCellsQuery.data ?? []),
-        ...(blockedCellsQuery.data ?? []),
-      ]),
-    [waitingCellsQuery.data, terminalCellsQuery.data, blockedCellsQuery.data],
-  );
   const waitingGrouped = useMemo(
     () =>
       groupWaitingCellsByInstrumentAndDay(
         [...(waitingCellsQuery.data ?? []), ...(terminalCellsQuery.data ?? [])],
         win.days,
         vacatedTrayIds,
-        trayFoundingDates,
       ),
-    [waitingCellsQuery.data, terminalCellsQuery.data, win.days, vacatedTrayIds, trayFoundingDates],
+    [waitingCellsQuery.data, terminalCellsQuery.data, win.days, vacatedTrayIds],
   );
   const blockedWellsByInstrument = useMemo(
     () => groupBlockedWellsByInstrument(blockedCellsQuery.data ?? []),

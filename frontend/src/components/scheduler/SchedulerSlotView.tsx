@@ -137,14 +137,6 @@ export const SchedulerSlotView = memo(
     // [cell's] expiry" (see docs/pacbio-sprq-nx-scheduling-reference.md #2: this is always
     // per-cell, never a shared tray-level clock).
     if (stage!.window_hours_elapsed !== null) classes.push(styles.windowShaded);
-  } else if (ghost?.beforeTrayFounding) {
-    // This ghost's physical tray hasn't reached its own founding placement as of this
-    // day yet - render as a plain blank slot (no "Scheduled"/"Not yet used" label, no
-    // tint) so the grid doesn't read as if the tray were already sitting on the
-    // instrument. The ghost's real data still flows through untouched below (still
-    // droppable, still hoverable for its title), so reuse / insert-earlier-use behaviour
-    // is unaffected - only the resting-state label is suppressed.
-    classes.push(styles.empty);
   } else if (ghost) {
     classes.push(styles.ghost);
     if (ghost.terminalStatus) {
@@ -287,16 +279,6 @@ export const SchedulerSlotView = memo(
             />
           )}
         </>
-      ) : ghost?.beforeTrayFounding ? (
-        <span
-          className={styles.placeholder}
-          title={
-            ghost.pendingReuseStatus
-              ? "This cell's first use is scheduled for later this week - this well is already reserved, so it stays blank until then."
-              : "This cell hasn't been used yet - it'll show once this physical tray's own first placement happens."
-          }
-          aria-hidden="true"
-        />
       ) : ghost ? (
         <>
           <div className={styles.ghostCode} title={ghost.cell.code}>
