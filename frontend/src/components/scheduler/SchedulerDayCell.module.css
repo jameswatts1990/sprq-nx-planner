@@ -1,7 +1,6 @@
 /* Weekend + empty-cell affordances ported from the old CalendarCell.module.css.
    Column width itself comes from SchedulerGrid's <colgroup> (.dayCol/.weekendCol under
-   table-layout: fixed) so every weekday column stays the same width whether the cell
-   holds one tray or two - it just gets more breathing room on a one-tray day. */
+   table-layout: fixed) so every weekday column stays the same width. */
 .cell {
   padding: 6px;
   background: var(--card);

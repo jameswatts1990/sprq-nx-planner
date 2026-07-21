@@ -52,9 +52,9 @@ export interface SchedulerDayCellProps {
 
 /**
  * One (instrument, day) grid cell. Weekends render closed/non-interactive. Otherwise two
- * 4-slot trays (tray 2 only shown once either tray has a sample loaded), with a header carrying
- * the Confirm-loaded / Unlock control once the day's run exists. Empty non-weekend cells
- * participate in spreadsheet-style range selection for auto-fill.
+ * 4-slot trays, always both shown in full, with a header carrying the Confirm-loaded / Unlock
+ * control once the day's run exists. Empty non-weekend cells participate in spreadsheet-style
+ * range selection for auto-fill.
  */
 export function SchedulerDayCell(props: SchedulerDayCellProps) {
   const {
@@ -129,8 +129,6 @@ export function SchedulerDayCell(props: SchedulerDayCellProps) {
   // (or past) subsequent days, worth calling out right where it started.
   const lockExtendsPastToday = cycle !== undefined && cycle.lock_until.slice(0, 10) > runDate;
   const slots = padStages(cycle);
-  const tray1Filled = TRAY_INDICES[0].some((i) => slots[i] !== null);
-  const tray2Filled = TRAY_INDICES[1].some((i) => slots[i] !== null);
 
   // A locked day can no longer accept placements, so reuse ghosts (which double as a
   // droppable "place it here" affordance) don't apply there. Unused-tray-sibling ghosts,
@@ -157,7 +155,6 @@ export function SchedulerDayCell(props: SchedulerDayCellProps) {
     if (slots[slot] !== null || ghostBySlot.has(slot)) continue;
     ghostBySlot.set(slot, ghost);
   }
-  const tray2HasGhost = TRAY_INDICES[1].some((i) => ghostBySlot.has(i));
 
   // A well left behind by a stopped cell (see waitingCells.groupBlockedWellsByInstrument)
   // never gets a ghost (stop_cell excludes it from reuse) and never gets a stage again, so
@@ -168,14 +165,6 @@ export function SchedulerDayCell(props: SchedulerDayCellProps) {
     const slot = i as SlotIndex;
     if (slots[slot] === null && !ghostBySlot.has(slot) && blockedWells.has(well)) blockedSlotSet.add(slot);
   });
-  const tray2HasBlocked = TRAY_INDICES[1].some((i) => blockedSlotSet.has(i));
-
-  const trayVisible = [true, tray1Filled || tray2Filled || tray2HasGhost || tray2HasBlocked];
-  // Beyond any ghost-assigned/blocked slots, still surface exactly one plain "+"
-  // placeholder per tray so "use a new cell" always stays available alongside reuse ghosts.
-  const firstEmptyByTray = TRAY_INDICES.map((indices) =>
-    indices.find((i) => !slots[i] && !ghostBySlot.has(i) && !blockedSlotSet.has(i)),
-  );
 
   function onCellClick(e: MouseEvent<HTMLTableCellElement>) {
     if (selectable) onSelect(rowIndex, colIndex, e.shiftKey, e.ctrlKey || e.metaKey);
@@ -260,8 +249,6 @@ export function SchedulerDayCell(props: SchedulerDayCellProps) {
 
       <div className={styles.slots}>
         {TRAY_INDICES.map((indices, trayIdx) => {
-          if (!trayVisible[trayIdx]) return null;
-          const firstEmptyIndex = firstEmptyByTray[trayIdx];
           // Any filled slot in this tray carries the physical tray's id (see StageOut.tray_id) -
           // used to target every sibling cell, not just the ones with a filled slot this cycle.
           const trayId = indices.map((i) => slots[i]).find((s) => s?.tray_id != null)?.tray_id ?? null;
@@ -281,32 +268,30 @@ export function SchedulerDayCell(props: SchedulerDayCellProps) {
                   </button>
                 )}
               </div>
-              {indices
-                .filter((i) => slots[i] !== null || i === firstEmptyIndex || ghostBySlot.has(i) || blockedSlotSet.has(i))
-                .map((i) => (
-                  <SchedulerSlot
-                    key={i}
-                    stage={slots[i]}
-                    slotIndex={i}
-                    instrumentSerial={instrumentSerial}
-                    runDate={runDate}
-                    locked={locked}
-                    placing={placingSlotKey === slotKey(instrumentSerial, runDate, i)}
-                    selected={
-                      !locked &&
-                      slots[i] !== null &&
-                      slots[i]!.cell_use_status !== "cancelled" &&
-                      slotSelection.isSelected(slots[i]!.cell_use_id)
-                    }
-                    onOpenDetail={(stage) => props.onOpenDetail(stage, cycle as CycleOut)}
-                    onToggleSelect={(stage) => slotSelection.toggle(stage, { r: rowIndex, c: colIndex })}
-                    onExtendSelect={(stage) => onExtendSelect(stage, { r: rowIndex, c: colIndex })}
-                    onDragSelectStart={(stage) => onDragSelectStart(stage, { r: rowIndex, c: colIndex })}
-                    ghost={ghostBySlot.get(i)}
-                    blocked={blockedSlotSet.has(i)}
-                    onOpenGhost={onOpenGhost}
-                  />
-                ))}
+              {indices.map((i) => (
+                <SchedulerSlot
+                  key={i}
+                  stage={slots[i]}
+                  slotIndex={i}
+                  instrumentSerial={instrumentSerial}
+                  runDate={runDate}
+                  locked={locked}
+                  placing={placingSlotKey === slotKey(instrumentSerial, runDate, i)}
+                  selected={
+                    !locked &&
+                    slots[i] !== null &&
+                    slots[i]!.cell_use_status !== "cancelled" &&
+                    slotSelection.isSelected(slots[i]!.cell_use_id)
+                  }
+                  onOpenDetail={(stage) => props.onOpenDetail(stage, cycle as CycleOut)}
+                  onToggleSelect={(stage) => slotSelection.toggle(stage, { r: rowIndex, c: colIndex })}
+                  onExtendSelect={(stage) => onExtendSelect(stage, { r: rowIndex, c: colIndex })}
+                  onDragSelectStart={(stage) => onDragSelectStart(stage, { r: rowIndex, c: colIndex })}
+                  ghost={ghostBySlot.get(i)}
+                  blocked={blockedSlotSet.has(i)}
+                  onOpenGhost={onOpenGhost}
+                />
+              ))}
             </div>
           );
         })}

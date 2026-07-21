@@ -341,12 +341,13 @@ export function ScheduleSection() {
 
       <p className={styles.subheading}>Slots and trays</p>
       <p>
-        Each day cell has two trays of four slots, each drawn as its own bordered card so a tray&apos;s four cells
-        read as one physical object — they always stay together. Tray 2 only appears once a sample is loaded. The
-        moment any one cell in a tray gets a sample, its other cells appear immediately too — every well in that
-        tray box shows its own reserved <b>CELL-A00XXXX</b> ID from then on, not just the well(s) actually in use,
-        and this keeps showing on every later day until each one is loaded or discarded (see &quot;Waiting cells
-        &amp; reuse ghosts&quot; below for what an unused one looks like). The Use 1 / Use 2 / Use 3 colours
+        Each day cell always shows both trays of four slots, each drawn as its own bordered card so a tray&apos;s
+        four cells read as one physical object — they always stay together, whether empty or loaded. An empty well
+        shows the plain <b>+</b> cross-hatched placeholder. The moment any one cell in a tray gets a sample, its
+        other cells switch from that plain placeholder to their own reserved <b>CELL-A00XXXX</b> ID — not just the
+        well(s) actually in use — and this keeps showing on every later day until each one is loaded or discarded
+        (see &quot;Waiting cells &amp; reuse ghosts&quot; below for what an unused one looks like). The Use 1 / Use 2
+        / Use 3 colours
         (magenta / blue / teal) show which use of a cell each barcode chip belongs to — see the Colour &amp; Status
         Legend section. A physical cell also always stays in the exact same tray/well position for every one of
         its reuses, never just any open slot — so once a cell has a well of its own, the placement picker only
