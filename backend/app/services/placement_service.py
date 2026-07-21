@@ -437,17 +437,30 @@ def move_sample(
 
     cell = cell_use.cell
     other_uses = [cu for cu in cell.cell_uses if cu.id != cell_use.id and cu.status != "cancelled"]
-    reassign_to_new_cell = False
+    # A cell's pinned instrument comes from whichever of its uses is authoritative for
+    # "where this physical cell currently is": its other real uses if it has any, or - for
+    # a cell with no other uses yet - this very use's own (old) run batch, since that's
+    # the only placement that's ever pinned this cell anywhere so far. Without this
+    # fallback, a cell with no other uses skipped the instrument check entirely and a
+    # cross-instrument move would silently rewrite this CellUse onto another instrument's
+    # cycle - the physical cell's tray never actually moved, so its derived pin would then
+    # disagree with where its own use says it is.
     if other_uses:
         last_other = max(other_uses, key=lambda cu: (use_run_date(cu) or date.min, cu.id))
-        last_run_batch = last_other.cycle.run_batch if last_other.cycle else None
-        pinned_serial = last_run_batch.instrument.serial_number if last_run_batch and last_run_batch.instrument else None
-        if pinned_serial is not None and pinned_serial != instrument_serial:
-            raise PlacementError(
-                409,
-                f"Cell {cell.code} is already in use on instrument {pinned_serial}; "
-                f"cannot move it to {instrument_serial}.",
-            )
+        pinned_run_batch = last_other.cycle.run_batch if last_other.cycle else None
+    else:
+        pinned_run_batch = old_cycle.run_batch
+    pinned_serial = pinned_run_batch.instrument.serial_number if pinned_run_batch and pinned_run_batch.instrument else None
+
+    # A sample isn't physically loaded onto anything until its run actually executes - it
+    # sits on a plate until then - so re-pointing an unexecuted placement at a different
+    # instrument is just re-planning, not relocating a physical object. The physical Cell
+    # itself still can never move between instruments once it has a real use (see
+    # docs/pacbio-sprq-nx-scheduling-reference.md), so crossing instruments always means
+    # handing the sample to a (possibly new) cell on the destination instrument instead,
+    # exactly like the same-instrument well-conflict case below - never a hard rejection.
+    reassign_to_new_cell = pinned_serial is not None and pinned_serial != instrument_serial
+    if other_uses and not reassign_to_new_cell:
         # Cells stay in the same physical tray/well position for every reuse - the cell
         # itself can't take this well, so the sample has to go to a different cell there.
         if well not in {cu.well for cu in other_uses}:

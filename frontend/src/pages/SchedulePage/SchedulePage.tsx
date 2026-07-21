@@ -495,7 +495,6 @@ export function SchedulePage() {
                 placingSlotKey={dnd.placingSlotKey}
                 onOpenDetail={handleOpenDetail}
                 slotSelection={slotSelection}
-                activeDragInstrument={dnd.activeDragInstrument}
                 waitingGrouped={waitingGrouped}
                 blockedWellsByInstrument={blockedWellsByInstrument}
                 onOpenGhost={setGhostDetail}

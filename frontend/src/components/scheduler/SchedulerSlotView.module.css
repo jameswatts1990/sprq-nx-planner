@@ -280,10 +280,6 @@
 .selected {
   box-shadow: inset 0 0 0 2px var(--magenta);
 }
-.ineligible {
-  opacity: 0.45;
-  pointer-events: none;
-}
 
 /* Cross-time "same cell" hover/pin highlight (see useCellLinkHighlight.tsx). Border
  * style/width carries the signal alongside colour (solid vs dashed, source vs peer) so it

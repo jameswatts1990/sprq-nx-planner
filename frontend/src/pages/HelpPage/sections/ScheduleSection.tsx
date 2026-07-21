@@ -146,25 +146,39 @@ export function ScheduleSection() {
         drop a backlog sample onto an empty slot with more than one compatible open cell on that instrument, it
         offers <b>Use a new cell</b> (default) or any of those compatible cells. A cell is offered only if it still
         has a use left <i>and</i> none of its already-used (&quot;burned&quot;) barcodes clash with your
-        sample&apos;s barcodes — running the same barcode twice on one cell isn&apos;t allowed. If there&apos;s no
-        real choice — you dropped directly onto a waiting-cell ghost, or there are no reusable cells at all on that
-        instrument — the picker skips itself entirely and proceeds automatically with a default{" "}
-        <b>12:00 loading start time</b>, even if this is the first placement on that instrument/day. The picker only
-        still stops to ask when your drop <i>would</i> start a brand-new run <i>and</i> there&apos;s a genuine cell
-        choice to make (more than one compatible cell, with no ghost telling it which one you meant) — in that case
-        it shows both the <b>Loading start time</b> field and the cell choice together. When compatible cells are
-        offered, they&apos;re grouped by which physical SPRQ-Nx SMRT Cell tray they came from, in cell-number order,
-        so you can see a tray&apos;s other cells together. Picking <b>Use a new cell</b> opens a whole new physical
-        tray of 4 at once — the other 3 appear immediately as open, reusable cells (in the Cells page, future
-        pickers, and the grid itself — see &quot;Slots and trays&quot; below), even though only one of them has a
-        sample on it yet. Dragging an already-placed sample to a new slot <b>moves</b> it. A physical cell can never
-        change wells, so the destination decides which cell the sample lands on, not the sample&apos;s own prior
-        cell: dropping onto the exact well the cell already occupies keeps it there (a plain reschedule to a
-        different day), while dropping onto any other well — even one on the very same tray, even the same day —
-        hands the sample to whichever cell actually lives there instead (a new one, or another compatible reusable
-        cell), using the exact same placement picker and auto-resolve rules described above. A move that starts a
-        brand-new run and has no cell decision to make always shows the picker anyway, since that&apos;s the one
-        case it has no other way to collect a loading start time.
+        sample&apos;s barcodes — running the same barcode twice on one cell isn&apos;t allowed, and there is no way
+        to override this. If there&apos;s no real choice — you dropped directly onto a waiting-cell ghost, or there
+        are no reusable cells at all on that instrument — the picker skips itself entirely and proceeds
+        automatically with a default <b>12:00 loading start time</b>, even if this is the first placement on that
+        instrument/day. The picker only still stops to ask when your drop <i>would</i> start a brand-new run{" "}
+        <i>and</i> there&apos;s a genuine cell choice to make (more than one compatible cell, with no ghost telling
+        it which one you meant) — in that case it shows both the <b>Loading start time</b> field and the cell
+        choice together. When compatible cells are offered, they&apos;re grouped by which physical SPRQ-Nx SMRT Cell
+        tray they came from, in cell-number order, so you can see a tray&apos;s other cells together. Picking{" "}
+        <b>Use a new cell</b> opens a whole new physical tray of 4 at once — the other 3 appear immediately as open,
+        reusable cells (in the Cells page, future pickers, and the grid itself — see &quot;Slots and trays&quot;
+        below), even though only one of them has a sample on it yet.
+      </p>
+      <p>
+        If you drop directly onto a waiting-cell ghost whose burned barcodes clash with your sample&apos;s, the
+        picker doesn&apos;t quietly substitute a new cell instead — it opens with a clear warning naming the exact
+        barcode and cell involved, so you can see why that cell was rejected before choosing a different one.
+      </p>
+      <p>
+        <b>Dragging an already-placed sample to a new slot moves it</b> — to any open slot on any instrument and
+        any day, not just the one it&apos;s already on. A sample doesn&apos;t get physically loaded onto anything
+        until its run is actually confirmed loaded; until then it&apos;s just a plan, so moving it anywhere valid
+        never needs a confirmation step. A physical cell can never change wells or instruments, though, so the{" "}
+        <i>destination</i> decides which cell the sample lands on, not the sample&apos;s own prior cell: dropping
+        onto the exact well the cell already occupies keeps it there (a plain reschedule to a different day), while
+        dropping onto any other well or a different instrument entirely — even one on the very same tray, even the
+        same day — hands the sample to whichever cell actually lives there instead (a new one, or another
+        compatible reusable cell), using the exact same placement picker and auto-resolve rules described above. The
+        cell it came from is untouched by this — it keeps its own other uses, if it has any, right where they are.
+        A move that starts a brand-new run and has no cell decision to make always shows the picker anyway, since
+        that&apos;s the one case it has no other way to collect a loading start time. Dropping a sample back onto
+        the exact slot it came from does nothing. Dropping it onto a slot that already has a <i>different</i>
+        sample in it is rejected — it never swaps the two samples or overwrites what&apos;s there.
       </p>
       <p>
         <b>Auto-schedule result</b> summarises the outcome, e.g. &quot;12 placed · 3 unplaced · 1 cell(s) skipped ·

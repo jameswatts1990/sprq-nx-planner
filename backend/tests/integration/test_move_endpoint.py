@@ -1,6 +1,9 @@
 """POST /api/cell-uses/{id}/move: an atomic move of an existing placement to a different
-(instrument, day, slot), replacing the old client-side remove-then-place sequence. Cells
-cannot move between instruments once they have another use elsewhere."""
+(instrument, day, slot), replacing the old client-side remove-then-place sequence. A
+physical cell can never move between instruments (or off its pinned well, once it has
+another use) - but an unexecuted sample isn't loaded onto anything yet, so crossing
+instruments just reassigns the sample to a (possibly new) cell there, the same as the
+same-instrument well-conflict case, rather than being rejected."""
 from datetime import date, timedelta
 
 
@@ -123,7 +126,12 @@ def test_move_to_a_different_slot_same_day_requires_cell_choice_for_the_resident
     assert client.get(f"/api/cells/{sibling_id}").json()["uses_consumed"] == 1
 
 
-def test_move_across_instruments_rejected_when_cell_has_another_use(client):
+def test_move_across_instruments_reassigns_to_a_new_cell_when_cell_has_another_use(client):
+    """A physical cell already pinned to 84047 by A1's use still can never cross to 84098 -
+    but the *sample* isn't physically loaded onto anything until its run executes, so
+    dragging A2's use there is just re-planning: it must hand A2 to a (possibly new) cell on
+    the destination instrument, exactly like the same-instrument well-conflict case, rather
+    than being hard-rejected."""
     client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1\nA2,bc2"})
     mon, tue = _weekdays(2)
 
@@ -133,25 +141,56 @@ def test_move_across_instruments_rejected_when_cell_has_another_use(client):
     assert r2.status_code == 201, r2.text
     cell_use_id_2 = r2.json()["stages"][0]["cell_use_id"]
 
-    # A2's use of this cell cannot move to a different instrument, since A1's use pins the
-    # cell to 84047.
+    # Without a cell_choice, the move can't just carry the cell to 84098 - A1's use still
+    # pins it to 84047.
     moved = _move(client, cell_use_id_2, tue, slot_index=1, instrument="84098", start_hour=15)
-    assert moved.status_code == 409, moved.text
-    assert "instrument" in moved.json()["detail"].lower()
+    assert moved.status_code == 400, moved.text
+    assert "cell_choice" in moved.json()["detail"]
+
+    # Supplying a cell choice hands A2 to a fresh cell on 84098 instead - A1's cell and its
+    # pin on 84047 are untouched, and A2 never bounces through backlog in between.
+    moved = _move(
+        client, cell_use_id_2, tue, slot_index=1, instrument="84098", start_hour=15, cell_choice={"mode": "new"}
+    )
+    assert moved.status_code == 200, moved.text
+    stage = next(s for s in moved.json()["stages"] if s["sample_external_id"] == "A2")
+    new_cell_id = stage["cell_id"]
+    assert new_cell_id != cell_id
+
+    assert client.get(f"/api/cells/{cell_id}").json()["uses_consumed"] == 1
+    assert client.get(f"/api/cells/{new_cell_id}").json()["uses_consumed"] == 1
+    assert client.get("/api/samples", params={"status": "scheduled"}).json()["total"] == 2
+    assert client.get("/api/samples", params={"status": "backlog"}).json()["total"] == 0
 
 
-def test_move_across_instruments_allowed_when_it_is_the_cells_only_use(client):
+def test_move_across_instruments_reassigns_to_a_new_cell_even_as_the_cells_only_use(client):
+    """The bug this fix closes: with nothing else pinning it, a single-use cell's own
+    CellUse.cycle previously got silently rewritten onto the destination instrument's cycle
+    - the physical cell's tray never actually moved, so its derived pin would then disagree
+    with where its own use said it was. Even a cell's only use must reassign to a (possibly
+    new) cell on the destination instrument instead, same as when other uses pin it."""
     client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1"})
     (mon,) = _weekdays(1)
 
     r1 = _place(client, _sid(client, "A1"), mon, slot_index=0)
     cell_use_id = r1.json()["stages"][0]["cell_use_id"]
+    cell_id = r1.json()["stages"][0]["cell_id"]
 
-    # Nothing else pins this cell anywhere yet - a same-day move to a different instrument
-    # is equivalent to placing it fresh there, and must be allowed.
+    # Without a cell_choice, the move can't just carry this cell to a different instrument.
     moved = _move(client, cell_use_id, mon, slot_index=0, instrument="84098")
+    assert moved.status_code == 400, moved.text
+    assert "cell_choice" in moved.json()["detail"]
+
+    # Supplying a cell choice hands the sample to a fresh cell on 84098 instead.
+    moved = _move(client, cell_use_id, mon, slot_index=0, instrument="84098", cell_choice={"mode": "new"})
     assert moved.status_code == 200, moved.text
     assert moved.json()["instrument_serial"] == "84098"
+    new_cell_id = moved.json()["stages"][0]["cell_id"]
+    assert new_cell_id != cell_id
+
+    # The old cell had no other real use anywhere, so its whole (never-otherwise-touched)
+    # tray is cleaned up, same as remove_sample would do.
+    assert client.get(f"/api/cells/{cell_id}").status_code == 404
 
 
 def test_move_rejects_slot_already_occupied(client):

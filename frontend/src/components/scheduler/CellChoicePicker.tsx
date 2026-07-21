@@ -82,18 +82,31 @@ export function CellChoicePicker({ pending, runDesign, existingRun, onClose, onP
   // non-open) is treated as "no conflict detected" - the move endpoint's own authoritative
   // check still applies server-side regardless.
   const draggedCell = isMove ? cellsQuery.data?.find((c) => c.id === pending.moveFromCellId) : undefined;
+  // The exact cell a direct ghost/resident drop targeted, looked up in the *raw* (unfiltered)
+  // open-cells list rather than `compatible` - `compatible` already excludes a barcode-
+  // clashing cell for other reasons too (capacity, wrong well), and we need to know
+  // specifically whether a clash is why it's missing so it can be surfaced loudly instead
+  // of silently substituting a new cell (see shouldAutoPlace/shouldShowCellChoiceModal).
+  const preselectedCell =
+    pending.preselectedCellId !== undefined ? cellsQuery.data?.find((c) => c.id === pending.preselectedCellId) : undefined;
+  const clashingBarcodes = preselectedCell?.burned_barcodes.filter((b) => pending.sample.barcodes.includes(b)) ?? [];
+  const preselectedBarcodeClash = preselectedCell !== undefined && clashingBarcodes.length > 0;
   // True whenever this move's destination well isn't where the dragged cell truly belongs -
-  // either because the cell's own established well differs from the drop target, or
-  // because a *different* physical cell (the destination's real ghost/resident, already
-  // computed for us as preselectedCellId) already lives in that exact slot. Eager tray-of-4
-  // population means the latter is common even for a single-use cell, so this can't be
-  // gated on uses_consumed - the cell can't go there either way, and the sample needs a
-  // different cell instead, resolved via the same fieldset a fresh placement uses.
+  // either it's crossing instruments outright (a cell can never move between instruments,
+  // regardless of well - two different instruments' grids reuse the same well-label set,
+  // so a well-string match alone doesn't mean "same physical position"), or its own
+  // established well differs from the drop target, or a *different* physical cell (the
+  // destination's real ghost/resident, already computed for us as preselectedCellId)
+  // already lives in that exact slot. Eager tray-of-4 population means the latter is
+  // common even for a single-use cell, so this can't be gated on uses_consumed - the cell
+  // can't go there either way, and the sample needs a different cell instead, resolved via
+  // the same fieldset a fresh placement uses.
   const wellConflict =
     isMove &&
-    ((draggedCell !== undefined &&
-      draggedCell.current_well !== null &&
-      draggedCell.current_well !== WELL_ORDER[pending.slot_index]) ||
+    (pending.fromInstrumentSerial !== pending.instrument_serial ||
+      (draggedCell !== undefined &&
+        draggedCell.current_well !== null &&
+        draggedCell.current_well !== WELL_ORDER[pending.slot_index]) ||
       (pending.preselectedCellId !== undefined && pending.preselectedCellId !== pending.moveFromCellId));
   // Only trust the preselected ghost cell once it's confirmed still compatible (barcodes
   // could have changed since the ghost was computed) - otherwise fall back to the normal
@@ -159,6 +172,7 @@ export function CellChoicePicker({ pending, runDesign, existingRun, onClose, onP
     cellsError: cellsQuery.isError,
     compatibleCount: compatible.length,
     preselectedValid,
+    preselectedBarcodeClash,
   };
   const showModal = shouldShowCellChoiceModal({ ...gateInput, mutationError: mutation.isError });
 
@@ -167,6 +181,13 @@ export function CellChoicePicker({ pending, runDesign, existingRun, onClose, onP
   useEffect(() => {
     setPlacingSlotKey(showModal ? null : targetKey);
   }, [showModal, targetKey, setPlacingSlotKey]);
+
+  // The initial `selected` state defaults to the preselected cell before its barcodes have
+  // even loaded (see useState above) - once loading confirms a clash, steer the radio off
+  // it so confirming doesn't just resubmit the same rejected cell.
+  useEffect(() => {
+    if (preselectedBarcodeClash && selected === String(pending.preselectedCellId)) setSelected("new");
+  }, [preselectedBarcodeClash, pending.preselectedCellId, selected]);
 
   const autoPlacedRef = useRef(false);
   useEffect(() => {
@@ -200,6 +221,15 @@ export function CellChoicePicker({ pending, runDesign, existingRun, onClose, onP
         <span className={styles.barcodeLabel}>Sample barcodes</span>
         <BarcodeChips barcodes={pending.sample.barcodes} />
       </div>
+
+      {preselectedBarcodeClash && preselectedCell && (
+        <Note tone="bad" icon="!">
+          <strong>Can&apos;t use cell {preselectedCell.code} here.</strong> It already has barcode
+          {clashingBarcodes.length > 1 ? "s" : ""} {clashingBarcodes.join(", ")} burned in from an earlier use, which
+          clashes with this sample&apos;s own barcode{pending.sample.barcodes.length > 1 ? "s" : ""} - the same
+          barcode can never be read twice on one cell. Choose a different cell below, or use a new one.
+        </Note>
+      )}
 
       {isNewRun && (
         <div className={styles.choices}>

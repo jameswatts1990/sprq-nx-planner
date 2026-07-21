@@ -40,8 +40,6 @@ export interface SchedulerSlotViewProps extends HTMLAttributes<HTMLDivElement> {
   dragging?: boolean;
   /** Selected via ctrl/cmd-click, for the bulk-delete affordance. */
   selected?: boolean;
-  /** Not a valid drop target for the drag currently in progress (cross-instrument move). */
-  ineligible?: boolean;
   /** An empty slot that a waiting, reusable cell could be loaded into today - renders a
    * Use-N tinted placeholder instead of the plain "+" (see waitingCells.ts). Ignored when
    * `stage` is set. */
@@ -75,7 +73,6 @@ export const SchedulerSlotView = memo(
       over,
       dragging,
       selected,
-      ineligible,
       ghost,
       linkSource,
       linked,
@@ -173,7 +170,6 @@ export const SchedulerSlotView = memo(
   if (over) classes.push(ghost ? styles.ghostOver : styles.over);
   if (dragging) classes.push(styles.dragging);
   if (selected) classes.push(styles.selected);
-  if (ineligible) classes.push(styles.ineligible);
   if (linkSource) classes.push(styles.linkSource);
   else if (linked) classes.push(styles.linkPeer);
   if (dimmed) classes.push(styles.dimmed);
@@ -283,7 +279,12 @@ export const SchedulerSlotView = memo(
           ✕
         </span>
       ) : (
-        <span className={styles.placeholder}>{placing ? "placing…" : dragging ? "" : "+"}</span>
+        <span
+          className={styles.placeholder}
+          title={locked && !placing ? "This run is locked - it can't accept new placements or moves." : undefined}
+        >
+          {placing ? "placing…" : dragging ? "" : "+"}
+        </span>
       )}
       {showStage && placing && <div className={styles.shimmer}>placing…</div>}
     </div>

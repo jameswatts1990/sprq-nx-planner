@@ -15,6 +15,11 @@ export interface CellChoiceGateInput {
   compatibleCount: number;
   /** The drop landed on a still-valid waiting-cell ghost, so the cell choice is already made. */
   preselectedValid: boolean;
+  /** The drop landed directly on a specific ghost/resident cell that turns out to share a
+   * burned barcode with the sample - a hard, no-override block. This must never silently
+   * resolve to "use a new cell" instead; the user needs to see exactly why their intended
+   * cell was rejected before choosing what to do next. */
+  preselectedBarcodeClash: boolean;
 }
 
 /** True whenever this placement/move actually has a cell to resolve - a fresh placement
@@ -35,12 +40,20 @@ function hasUnresolvedPlacementChoice(input: CellChoiceGateInput): boolean {
  * that's the only case isNewRun alone should force the popup. Otherwise the popup is only
  * for genuine ambiguity or a failed mutation. */
 export function shouldShowCellChoiceModal(input: CellChoiceGateInput & { mutationError: boolean }): boolean {
-  return (!needsCellChoice(input) && input.isNewRun) || hasUnresolvedPlacementChoice(input) || input.mutationError;
+  return (
+    (!needsCellChoice(input) && input.isNewRun) ||
+    hasUnresolvedPlacementChoice(input) ||
+    input.mutationError ||
+    input.preselectedBarcodeClash
+  );
 }
 
 /** Whether it's safe to silently confirm the placement/move without ever showing the
- * modal - a ghost-drop or forced-new-cell case, even into a brand-new run. */
+ * modal - a ghost-drop or forced-new-cell case, even into a brand-new run. A barcode
+ * clash on the preselected cell is never safe to auto-resolve: silently substituting a
+ * new cell would hide from the user that their intended drop target was rejected. */
 export function shouldAutoPlace(input: CellChoiceGateInput): boolean {
+  if (input.preselectedBarcodeClash) return false;
   if (!needsCellChoice(input) && input.isNewRun) return false;
   if (needsCellChoice(input) && input.cellsLoading) return false;
   if (hasUnresolvedPlacementChoice(input)) return false;

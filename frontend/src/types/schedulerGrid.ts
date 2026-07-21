@@ -103,6 +103,13 @@ export interface PendingPlacement {
    * move there itself, so the sample needs a different cell instead - see
    * cellChoiceGate.ts's wellConflict). */
   moveFromCellId?: number;
+  /** The dragged slot's own instrument - only present alongside moveFromCellUseId. A move
+   * that crosses instruments can never keep the same physical cell (see
+   * docs/pacbio-sprq-nx-scheduling-reference.md's "a cell can never move between
+   * instruments" invariant), even when the destination happens to reuse the same well
+   * label - so this is compared against `instrument_serial` (the destination) to decide
+   * wellConflict alongside the well-string comparison. */
+  fromInstrumentSerial?: string;
   /** Set when a backlog sample was dropped directly onto a waiting-cell ghost placeholder
    * (see waitingCells.ts) - that drop target already identifies exactly one cell, so the
    * CellChoicePicker uses it without asking, rather than opening for a choice among

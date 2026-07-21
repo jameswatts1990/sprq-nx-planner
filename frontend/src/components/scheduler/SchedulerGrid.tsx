@@ -28,7 +28,6 @@ export interface SchedulerGridProps {
   placingSlotKey: string | null;
   onOpenDetail: (stage: StageOut, cycle: CycleOut) => void;
   slotSelection: SlotSelection;
-  activeDragInstrument: string | null;
   waitingGrouped: Map<string, Map<string, CellGhost[]>>;
   /** Wells permanently blocked by a stopped cell, keyed by instrument (see waitingCells.
    * groupBlockedWellsByInstrument). */
@@ -91,7 +90,6 @@ export function SchedulerGrid({
   placingSlotKey,
   onOpenDetail,
   slotSelection,
-  activeDragInstrument,
   waitingGrouped,
   blockedWellsByInstrument,
   onOpenGhost,
@@ -182,7 +180,6 @@ export function SchedulerGrid({
               placingSlotKey={placingSlotKey}
               onOpenDetail={onOpenDetail}
               slotSelection={slotSelection}
-              activeDragInstrument={activeDragInstrument}
               waitingCellsByDate={waitingGrouped.get(serial) ?? new Map()}
               blockedWells={blockedWellsByInstrument.get(serial) ?? EMPTY_BLOCKED_WELLS}
               onOpenGhost={onOpenGhost}

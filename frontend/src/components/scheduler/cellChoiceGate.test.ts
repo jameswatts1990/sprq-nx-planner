@@ -12,6 +12,7 @@ function baseInput(overrides: Partial<CellChoiceGateInput> = {}): CellChoiceGate
     cellsError: false,
     compatibleCount: 0,
     preselectedValid: false,
+    preselectedBarcodeClash: false,
     ...overrides,
   };
 }
@@ -77,6 +78,11 @@ describe("shouldShowCellChoiceModal", () => {
     const input = baseInput({ cellsLoading: true, compatibleCount: 0 });
     expect(shouldShowCellChoiceModal({ ...input, mutationError: false })).toBe(false);
   });
+
+  it("always shows for a preselected cell with a barcode clash, even when otherwise unambiguous", () => {
+    const input = baseInput({ isNewRun: true, compatibleCount: 0, preselectedBarcodeClash: true });
+    expect(shouldShowCellChoiceModal({ ...input, mutationError: false })).toBe(true);
+  });
 });
 
 describe("shouldAutoPlace", () => {
@@ -122,5 +128,11 @@ describe("shouldAutoPlace", () => {
 
   it("auto-places a plain move into an existing run (never touches cell choice)", () => {
     expect(shouldAutoPlace(baseInput({ isMove: true, isNewRun: false }))).toBe(true);
+  });
+
+  it("never auto-places a preselected cell with a barcode clash, even when otherwise unambiguous", () => {
+    expect(
+      shouldAutoPlace(baseInput({ isNewRun: true, compatibleCount: 0, preselectedBarcodeClash: true })),
+    ).toBe(false);
   });
 });

@@ -25,9 +25,6 @@ export interface SchedulerSlotProps {
   onOpenDetail: (stage: StageOut) => void;
   /** Ctrl/cmd-click on a filled, unlocked slot toggles selection instead of opening detail. */
   onToggleSelect: (stage: StageOut) => void;
-  /** A filled-slot ("move") drag is in progress from a *different* instrument than this
-   * slot's - cells cannot move between instruments, so this slot must reject the drop. */
-  crossInstrumentDragActive?: boolean;
   /** A waiting, reusable cell eligible to load into this empty slot today. */
   ghost?: CellGhost;
   /** Opens the waiting-cell detail/discard popover; only meaningful when `ghost` is set. */
@@ -98,7 +95,6 @@ function DroppableSlot({
   instrumentSerial,
   runDate,
   placing,
-  crossInstrumentDragActive,
   ghost,
   onOpenGhost,
 }: SchedulerSlotProps) {
@@ -118,7 +114,6 @@ function DroppableSlot({
   const { setNodeRef, isOver } = useDroppable({
     id: slotKey(instrumentSerial, runDate, slotIndex),
     data,
-    disabled: crossInstrumentDragActive,
   });
   return (
     <SchedulerSlotView
@@ -127,7 +122,6 @@ function DroppableSlot({
       slotIndex={slotIndex}
       over={isOver}
       placing={placing}
-      ineligible={crossInstrumentDragActive}
       ghost={ghost}
       onClick={reuseGhost && onOpenGhost ? () => onOpenGhost(reuseGhost) : undefined}
     />

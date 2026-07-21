@@ -33,9 +33,6 @@ export interface SchedulerDayCellProps {
   onSelect: (r: number, c: number, shift: boolean, ctrl: boolean) => void;
   onOpenDetail: (stage: StageOut, cycle: CycleOut) => void;
   slotSelection: SlotSelection;
-  /** Source instrument of an in-progress filled-slot drag, or null. Cells cannot move
-   * between instruments, so empty slots on any other instrument become ineligible. */
-  activeDragInstrument: string | null;
   /** Waiting, reusable cells eligible to load on this instrument+day (see waitingCells.ts).
    * Ignored while the day's run is locked, since it can no longer accept placements. */
   waitingCells: CellGhost[];
@@ -66,13 +63,11 @@ export function SchedulerDayCell(props: SchedulerDayCellProps) {
     placingSlotKey,
     onSelect,
     slotSelection,
-    activeDragInstrument,
     waitingCells,
     blockedWells,
     onOpenGhost,
   } = props;
   const queryClient = useQueryClient();
-  const crossInstrumentDragActive = activeDragInstrument !== null && activeDragInstrument !== instrumentSerial;
 
   const statusMutation = useMutation({
     mutationFn: (req: { status: "running" | "planned"; run_name?: string }) => {
@@ -284,7 +279,6 @@ export function SchedulerDayCell(props: SchedulerDayCellProps) {
                     }
                     onOpenDetail={(stage) => props.onOpenDetail(stage, cycle as CycleOut)}
                     onToggleSelect={slotSelection.toggle}
-                    crossInstrumentDragActive={crossInstrumentDragActive}
                     ghost={ghostBySlot.get(i)}
                     blocked={blockedSlotSet.has(i)}
                     onOpenGhost={onOpenGhost}
