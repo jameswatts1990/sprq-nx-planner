@@ -26,6 +26,14 @@ export interface SlotDropData {
   ghostCellId?: number;
 }
 
+/** Payload attached to a filled slot's useDroppable (a placed sample dropped onto it). */
+export interface OccupiedSlotDropData {
+  kind: "occupiedSlot";
+  cell_use_id: number;
+}
+
+export type DropData = SlotDropData | OccupiedSlotDropData;
+
 /** Payload attached to a backlog sample card's useDraggable. */
 export interface SampleDragData {
   kind: "sample";
@@ -70,8 +78,13 @@ export interface SchedulerDnd {
  * @param onRemoveOutside Called with a placed sample's cell_use_id when it's dragged off
  * its slot and dropped somewhere that isn't a valid drop target (e.g. off the grid
  * entirely) - the drag-and-drop equivalent of the "Remove from schedule" action.
+ * @param onSwap Called with the dragged and target cell_use_ids when a placed sample is
+ * dropped onto a *different* already-occupied slot - the two samples exchange places.
  */
-export function useSchedulerDnd(onRemoveOutside: (cellUseId: number) => void): SchedulerDnd {
+export function useSchedulerDnd(
+  onRemoveOutside: (cellUseId: number) => void,
+  onSwap: (draggedCellUseId: number, targetCellUseId: number) => void,
+): SchedulerDnd {
   const [activeSample, setActiveSample] = useState<DragSampleRef | null>(null);
   const [pendingPlacement, setPendingPlacement] = useState<PendingPlacement | null>(null);
   const [placingSlotKey, setPlacingSlotKey] = useState<string | null>(null);
@@ -95,8 +108,8 @@ export function useSchedulerDnd(onRemoveOutside: (cellUseId: number) => void): S
       setActiveSample(null);
       const activeData = event.active.data.current as DragData | undefined;
       const over = event.over;
-      const overData = over?.data.current as SlotDropData | undefined;
-      if (!overData || overData.kind !== "slot") {
+      const overData = over?.data.current as DropData | undefined;
+      if (!overData || (overData.kind !== "slot" && overData.kind !== "occupiedSlot")) {
         // Dropped outside any valid slot. A backlog sample was never placed, so there's
         // nothing to undo; a picked-up placed sample is removed from the schedule, same
         // as the "Remove from schedule" action.
@@ -104,6 +117,16 @@ export function useSchedulerDnd(onRemoveOutside: (cellUseId: number) => void): S
         return;
       }
       if (!activeData) return;
+
+      if (overData.kind === "occupiedSlot") {
+        // Only a filled-slot drag (an already-placed sample) can land here - a backlog
+        // sample dropped onto an already-occupied slot is deliberately a no-op (nothing to
+        // swap with), same as any other invalid target for it.
+        if (activeData.kind !== "filledSlot") return;
+        if (activeData.cell_use_id === overData.cell_use_id) return; // dropped back onto its own slot
+        onSwap(activeData.cell_use_id, overData.cell_use_id);
+        return;
+      }
 
       if (activeData.kind === "sample") {
         setPendingPlacement({
@@ -137,7 +160,7 @@ export function useSchedulerDnd(onRemoveOutside: (cellUseId: number) => void): S
         preselectedCellId: overData.ghostCellId,
       });
     },
-    [onRemoveOutside],
+    [onRemoveOutside, onSwap],
   );
 
   return {

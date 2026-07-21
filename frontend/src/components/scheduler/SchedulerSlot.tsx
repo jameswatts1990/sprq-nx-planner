@@ -1,4 +1,4 @@
-import { useDraggable, useDroppable } from "@dnd-kit/core";
+import { useDndContext, useDraggable, useDroppable } from "@dnd-kit/core";
 import { useContext } from "react";
 import type { KeyboardEvent, MouseEvent } from "react";
 
@@ -8,7 +8,7 @@ import { deriveLinkState } from "./cellLinkState";
 import { slotKey } from "./gridKeys";
 import { SchedulerSlotView } from "./SchedulerSlotView";
 import { CellLinkContext } from "./useCellLinkHighlight";
-import type { FilledSlotDragData, SlotDropData } from "./useSchedulerDnd";
+import type { FilledSlotDragData, OccupiedSlotDropData, SlotDropData } from "./useSchedulerDnd";
 import type { CellGhost } from "./waitingCells";
 
 export interface SchedulerSlotProps {
@@ -35,9 +35,11 @@ export interface SchedulerSlotProps {
 }
 
 /**
- * Interactive slot: droppable when empty+unlocked, draggable when filled+unlocked,
- * click-to-open-detail when filled. dnd-kit hooks can't be called conditionally, so the
- * empty/filled branches are separate leaf components (React swaps them on transition).
+ * Interactive slot: droppable when empty+unlocked, draggable AND droppable when
+ * filled+unlocked (dropping a placed sample there either no-ops onto itself or swaps with
+ * whatever's there - see useSchedulerDnd's onDragEnd), click-to-open-detail when filled.
+ * dnd-kit hooks can't be called conditionally, so the empty/filled branches are separate
+ * leaf components (React swaps them on transition).
  */
 export function SchedulerSlot(props: SchedulerSlotProps) {
   const { stage, locked, blocked } = props;
@@ -71,11 +73,14 @@ export function SchedulerSlot(props: SchedulerSlotProps) {
     // and this well must stay a read-only marker, same non-droppable treatment as a
     // `blocked` well above, never registered with dnd-kit at all. A pending-terminal ghost
     // (waitingCells.computePendingTerminalGhost) is never droppable either, unconditionally
-    // - its cell still has a real future use already scheduled on this exact well, so the
-    // physical tray can't have left the instrument. Same for a pending-reuse ghost
-    // (waitingCells.computeGhost's pendingReuseStatus branch): the cell isn't fully booked
-    // or terminal, but this exact well is already claimed by its own not-yet-run next use.
-    if (props.ghost?.terminalStatus || props.ghost?.pendingTerminalStatus || props.ghost?.pendingReuseStatus) {
+    // - every one of its remaining uses is already scheduled, so there's no spare capacity
+    // left to insert into (would blow the 3-use cap). A pending-reuse ghost
+    // (waitingCells.computeGhost's pendingReuseStatus branch) IS droppable, below: the cell
+    // still has real spare capacity, just already claimed on this well by its own
+    // not-yet-run next use - dropping a sample here inserts an earlier use, moving that
+    // later use to a higher Use N (see _resolve_cell_choice's chronological-order guard,
+    // which rejects this once the later use has actually started).
+    if (props.ghost?.terminalStatus || props.ghost?.pendingTerminalStatus) {
       return <SchedulerSlotView stage={null} slotIndex={props.slotIndex} ghost={props.ghost} />;
     }
     return <DroppableSlot {...props} />;
@@ -153,10 +158,28 @@ function DraggableSlot({
     run_date: runDate,
     slot_index: slotIndex,
   };
-  const { setNodeRef, listeners, attributes, isDragging } = useDraggable({
+  const { setNodeRef: setDragRef, listeners, attributes, isDragging } = useDraggable({
     id: slotKey(instrumentSerial, runDate, slotIndex),
     data,
   });
+  // Also droppable, so dropping a dragged sample back onto this exact slot (a no-op) or
+  // onto a different occupied slot (a swap) can be distinguished from "dropped outside
+  // any valid target" (which today evicts the dragged sample to the backlog).
+  const dropData: OccupiedSlotDropData = { kind: "occupiedSlot", cell_use_id: stage.cell_use_id };
+  const { setNodeRef: setDropRef, isOver: rawIsOver } = useDroppable({
+    id: slotKey(instrumentSerial, runDate, slotIndex),
+    data: dropData,
+  });
+  // A backlog sample dragged over an occupied slot is deliberately a no-op (nothing to
+  // swap with - see useSchedulerDnd's onDragEnd), so it gets no hover preview at all;
+  // only an already-placed sample's drag (which will either no-op onto itself or swap
+  // onto a different slot) shows one.
+  const { active } = useDndContext();
+  const isOver = rawIsOver && (active?.data.current as { kind?: string } | undefined)?.kind === "filledSlot";
+  function setNodeRef(node: HTMLDivElement | null) {
+    setDragRef(node);
+    setDropRef(node);
+  }
   const link = useContext(CellLinkContext);
   const { isSource, isPeer, isDimmed } = deriveLinkState(link.active, stage);
   const linkTarget = { cellId: stage.cell_id, sourceUseId: stage.cell_use_id };
@@ -189,6 +212,7 @@ function DraggableSlot({
       slotIndex={slotIndex}
       placing={placing}
       dragging={isDragging}
+      over={isOver}
       selected={selected}
       linked={isPeer}
       linkSource={isSource}

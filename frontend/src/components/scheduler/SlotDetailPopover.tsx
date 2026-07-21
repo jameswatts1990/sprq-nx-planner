@@ -143,27 +143,29 @@ export function SlotDetailPopover({ stage, cycle, onClose }: SlotDetailPopoverPr
           This placement was cancelled{cell?.stopped_reason ? ` when its cell was stopped: ${cell.stopped_reason}` : " when its cell was stopped"} before it could run. Its sample was returned to the Backlog and can be rescheduled elsewhere.
         </Note>
       )}
-      <div className={styles.row}>
-        <span className={styles.label}>Sample</span>
-        <b className={styles.value}>{stage.sample_external_id ?? "—"}</b>
-      </div>
-      <div className={styles.row}>
-        <span className={styles.label}>Well</span>
-        <b className={styles.value}>{stage.well}</b>
-      </div>
-      <div className={styles.row}>
-        <span className={styles.label}>Run</span>
-        <b className={styles.value}>{runLabel(cycle)}</b>
-      </div>
-      {cell && (
+      <div className={styles.details}>
         <div className={styles.row}>
-          <span className={styles.label}>Cell uses</span>
-          <b className={styles.value}>
-            {cell.uses_consumed}/{cell.max_uses}
-            {cell.current_instrument_serial ? ` · ${cell.current_instrument_serial}` : ""}
-          </b>
+          <span className={styles.label}>Sample</span>
+          <b className={styles.value}>{stage.sample_external_id ?? "—"}</b>
         </div>
-      )}
+        <div className={styles.row}>
+          <span className={styles.label}>Well</span>
+          <b className={styles.value}>{stage.well}</b>
+        </div>
+        <div className={styles.row}>
+          <span className={styles.label}>Run</span>
+          <b className={styles.value}>{runLabel(cycle)}</b>
+        </div>
+        {cell && (
+          <div className={styles.row}>
+            <span className={styles.label}>Cell uses</span>
+            <b className={styles.value}>
+              {cell.uses_consumed}/{cell.max_uses}
+              {cell.current_instrument_serial ? ` · ${cell.current_instrument_serial}` : ""}
+            </b>
+          </div>
+        )}
+      </div>
 
       {showWindowMeter && <WindowMeter windowHours={cell!.window_hours_elapsed as number} />}
 

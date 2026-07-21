@@ -248,7 +248,26 @@ export function SchedulePage() {
     },
   });
 
-  const dnd = useSchedulerDnd((cellUseId) => dragRemoveMutation.mutate(cellUseId));
+  // Dragging a placed sample onto a *different* already-occupied slot swaps the two
+  // samples' placements - the drag-and-drop equivalent of moving each into the other's
+  // slot in one step.
+  const swapMutation = useMutation({
+    mutationFn: ({ a, b }: { a: number; b: number }) => cellUsesApi.swap(a, b),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["cycles"] });
+      void queryClient.invalidateQueries({ queryKey: ["samples"] });
+      void queryClient.invalidateQueries({ queryKey: ["cells"] });
+      setRemoveSlotsError(null);
+    },
+    onError: (err) => {
+      setRemoveSlotsError(err instanceof ApiError ? err.message : "Failed to swap samples.");
+    },
+  });
+
+  const dnd = useSchedulerDnd(
+    (cellUseId) => dragRemoveMutation.mutate(cellUseId),
+    (a, b) => swapMutation.mutate({ a, b }),
+  );
   // Suppressed during any drag (backlog-sample or filled-slot move) so the hover/pin
   // highlight never fights the drag/drop visuals - see useCellLinkHighlight.tsx.
   const cellLink = useCellLinkHighlight(dnd.activeSample !== null);

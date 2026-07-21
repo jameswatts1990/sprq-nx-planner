@@ -40,4 +40,9 @@ export const cellUsesApi = {
    * they looked beforehand. 409 if the sample has since moved on (requeued or
    * rescheduled elsewhere) - undo is no longer safe once that's happened. */
   undo: (id: number) => api.post<CellUseOut>(`/api/cell-uses/${id}/undo`),
+  /** Exchange which sample sits on two already-placed cell uses; neither placement's
+   * day/well/cell changes. 200 -> the 1-2 touched CycleOuts. 409 on a lock, a
+   * cancelled/non-planned use, or a cross-cell barcode clash. */
+  swap: (id: number, otherCellUseId: number) =>
+    api.post<CycleOut[]>(`/api/cell-uses/${id}/swap`, { other_cell_use_id: otherCellUseId }),
 };

@@ -34,10 +34,27 @@ export function WaitingCellPopover({ ghost, onClose }: WaitingCellPopoverProps) 
 
   return (
     <Modal onClose={onClose} title={cell.code}>
-      <div className={styles.row}>
-        <span className={styles.label}>Instrument</span>
-        <b className={styles.value}>{cell.current_instrument_serial}</b>
+      <div className={styles.details}>
+        <div className={styles.row}>
+          <span className={styles.label}>Instrument</span>
+          <b className={styles.value}>{cell.current_instrument_serial}</b>
+        </div>
+        {!unused && (
+          <>
+            <div className={styles.row}>
+              <span className={styles.label}>Next use</span>
+              <b className={styles.value}>
+                Use {useNumber} / {cell.max_uses}
+              </b>
+            </div>
+            <div className={styles.row}>
+              <span className={styles.label}>{deadlineIsEstimated ? "Est. window closes" : "Window closes"}</span>
+              <b className={styles.value}>{formatShortDateTimeUTC(deadlineAt)}</b>
+            </div>
+          </>
+        )}
       </div>
+
       {unused ? (
         <Note tone="info" icon="i">
           Reserved on this physical tray, but not yet used - its 108-hour window hasn&apos;t started. It'll stay
@@ -45,17 +62,6 @@ export function WaitingCellPopover({ ghost, onClose }: WaitingCellPopoverProps) 
         </Note>
       ) : (
         <>
-          <div className={styles.row}>
-            <span className={styles.label}>Next use</span>
-            <b className={styles.value}>
-              Use {useNumber} / {cell.max_uses}
-            </b>
-          </div>
-          <div className={styles.row}>
-            <span className={styles.label}>{deadlineIsEstimated ? "Est. window closes" : "Window closes"}</span>
-            <b className={styles.value}>{formatShortDateTimeUTC(deadlineAt)}</b>
-          </div>
-
           {deadlineIsEstimated && (
             <Note tone="info" icon="i">
               Use 1 hasn&apos;t been confirmed loaded yet, so this is estimated from its planned loading time, not
@@ -71,12 +77,6 @@ export function WaitingCellPopover({ ghost, onClose }: WaitingCellPopoverProps) 
       )}
       {cell.window_hours_elapsed !== null && <WindowMeter windowHours={cell.window_hours_elapsed} />}
 
-      <div className={styles.linkRow}>
-        <Link to={`/cells/${cell.id}`} className="btn primary sm">
-          View cell →
-        </Link>
-      </div>
-
       <p className={styles.hint}>Drag a backlog sample onto this slot to load it here.</p>
 
       {retireMutation.isError && (
@@ -89,6 +89,9 @@ export function WaitingCellPopover({ ghost, onClose }: WaitingCellPopoverProps) 
         <Button variant="ghost" onClick={onClose} disabled={retireMutation.isPending}>
           Close
         </Button>
+        <Link to={`/cells/${cell.id}`} className={`btn primary sm ${styles.viewCellLink}`}>
+          View cell →
+        </Link>
         <Button variant="primary" onClick={() => retireMutation.mutate()} disabled={retireMutation.isPending}>
           {retireMutation.isPending ? "Discarding…" : `Discard remaining use${cell.uses_remaining > 1 ? "s" : ""}`}
         </Button>

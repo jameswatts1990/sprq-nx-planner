@@ -7,7 +7,7 @@ from sqlalchemy.orm import selectinload
 from app.api.deps import ActorDep, SessionDep
 from app.models.schedule import CELL_USE_STATUSES, CellUse, Cycle, RunBatch
 from app.schemas.run import CycleOut, MoveSampleRequest, PlaceSampleRequest
-from app.services.placement_service import PlacementError, move_sample, place_sample, remove_sample
+from app.services.placement_service import PlacementError, move_sample, place_sample, remove_sample, swap_samples
 from app.services.run_serializer import cycle_out
 from app.services.run_service import undo_cell_use_status, update_cell_use_status
 
@@ -28,6 +28,10 @@ class CellUseStatusUpdate(BaseModel):
     at: datetime | None = None
     notes: str | None = None
     actor: str | None = None
+
+
+class SwapCellUsesRequest(BaseModel):
+    other_cell_use_id: int
 
 
 def _cell_use_dict(cu: CellUse) -> dict:
@@ -87,6 +91,16 @@ def move_cell_use(cell_use_id: int, req: MoveSampleRequest, db: SessionDep, acto
         raise HTTPException(exc.status_code, exc.detail) from exc
     cycle = db.get(Cycle, cycle.id, options=_CYCLE_OPTIONS)
     return cycle_out(db, cycle)
+
+
+@router.post("/{cell_use_id}/swap", response_model=list[CycleOut])
+def swap_cell_use(cell_use_id: int, req: SwapCellUsesRequest, db: SessionDep, actor: ActorDep) -> list[CycleOut]:
+    try:
+        cycles = swap_samples(db, cell_use_id_a=cell_use_id, cell_use_id_b=req.other_cell_use_id, actor=actor)
+    except PlacementError as exc:
+        raise HTTPException(exc.status_code, exc.detail) from exc
+    refreshed = [db.get(Cycle, c.id, options=_CYCLE_OPTIONS) for c in cycles]
+    return [cycle_out(db, c) for c in refreshed]
 
 
 @router.get("/{cell_use_id}")

@@ -32,11 +32,13 @@ export interface SchedulerSlotViewProps extends HTMLAttributes<HTMLDivElement> {
   locked?: boolean;
   /** Mid-mutation: show the "placing…" shimmer. */
   placing?: boolean;
-  /** A droppable slot currently being hovered by a drag. */
+  /** A droppable slot currently being hovered by a drag. Combined with `dragging` this is
+   * the drag's own origin slot being hovered again - a no-op drop, previewed distinctly
+   * from a dropped-elsewhere eviction (see .noopOver). */
   over?: boolean;
   /** This filled slot is the active drag source - rendered as if unplaced (dashed
    * placeholder, or its ghost if one applies), matching what dropping it outside the
-   * grid would actually do. */
+   * grid would actually do (unless also `over` - see above). */
   dragging?: boolean;
   /** Selected via ctrl/cmd-click, for the bulk-delete affordance. */
   selected?: boolean;
@@ -165,10 +167,29 @@ export const SchedulerSlotView = memo(
   }
   if (locked) classes.push(styles.locked);
   if (placing) classes.push(styles.placing);
-  // Hovering directly over a ghost previews an exact-match reuse of that specific cell -
-  // a distinct highlight from the generic "valid drop target" look, which is reserved for
-  // drops that still need the cell-choice popup (e.g. the plain "+" placeholder).
-  if (over) classes.push(ghost ? styles.ghostOver : styles.over);
+  if (over) {
+    if (dragging) {
+      // Hovering back over the exact slot a drag started from - dropping here changes
+      // nothing, so it gets a calm, neutral look rather than either "valid new
+      // placement" (.over) or "will swap" (.swapOver).
+      classes.push(styles.noopOver);
+    } else if (showStage) {
+      // Hovering a dragged, already-placed sample over a *different* occupied slot
+      // previews a swap - layered on top of the target's own Use-N tint, not replacing
+      // it, so the sample about to be displaced stays visible underneath.
+      classes.push(styles.swapOver);
+    } else if (ghost?.pendingReuseStatus) {
+      // Hovering a "Scheduled" ghost previews inserting a new, earlier use of this cell -
+      // distinct from an exact-match reuse of an already-eligible ghost (.ghostOver).
+      classes.push(styles.ghostInsertOver);
+    } else {
+      // Hovering directly over a ghost previews an exact-match reuse of that specific
+      // cell - a distinct highlight from the generic "valid drop target" look, which is
+      // reserved for drops that still need the cell-choice popup (e.g. the plain "+"
+      // placeholder).
+      classes.push(ghost ? styles.ghostOver : styles.over);
+    }
+  }
   if (dragging) classes.push(styles.dragging);
   if (selected) classes.push(styles.selected);
   if (linkSource) classes.push(styles.linkSource);
@@ -200,13 +221,16 @@ export const SchedulerSlotView = memo(
       } This well stays locked until every cell in its physical tray is also used up, expired, or retired - the tray is still loaded on the instrument.`
     : undefined;
 
-  // Every remaining use of this cell is already scheduled for a later day, so this well
-  // can't be picked for a new placement - but it hasn't actually reached the end of its own
-  // lifecycle as of this column's day (that happens on a later, already-scheduled day), so
-  // it isn't "done" the way terminalGhostTitle's cell is.
-  const pendingGhostTitle =
-    ghost?.pendingTerminalStatus || ghost?.pendingReuseStatus
-      ? "This cell's next use is already scheduled for a later day - not available for a new placement here, but it hasn't reached the end of its own lifecycle yet."
+  // pendingTerminalStatus: every remaining use of this cell is already scheduled, so this
+  // well can't take a new placement at all - but it hasn't actually reached the end of its
+  // own lifecycle as of this column's day (that happens on a later, already-scheduled day).
+  // pendingReuseStatus: this cell still has real spare capacity - dropping a sample here
+  // inserts an earlier use, moving its already-planned later use to a higher Use N (never
+  // removing it), as long as that later use hasn't actually started in the lab yet.
+  const pendingGhostTitle = ghost?.pendingTerminalStatus
+    ? "This cell's next use is already scheduled for a later day - not available for a new placement here, but it hasn't reached the end of its own lifecycle yet."
+    : ghost?.pendingReuseStatus
+      ? "This cell's next use is already scheduled for a later day. Drop a sample here to schedule an earlier use instead - the later use moves to the next Use number, unless it's already been confirmed loaded."
       : undefined;
 
   return (
@@ -285,7 +309,7 @@ export const SchedulerSlotView = memo(
           className={styles.placeholder}
           title={locked && !placing ? "This run is locked - it can't accept new placements or moves." : undefined}
         >
-          {placing ? "placing…" : dragging ? "" : "+"}
+          {placing ? "placing…" : dragging ? (over ? "stays here" : "") : "+"}
         </span>
       )}
       {showStage && placing && <div className={styles.shimmer}>placing…</div>}

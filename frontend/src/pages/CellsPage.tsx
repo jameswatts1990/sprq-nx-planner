@@ -8,6 +8,7 @@ import { instrumentsApi } from "@/api/instruments";
 import { CellStatusCard } from "@/components/cells/CellStatusCard";
 import { OpenTraysAccordion } from "@/components/cells/OpenTraysAccordion";
 import { Button } from "@/components/ui/Button";
+import { Modal, ModalActions } from "@/components/ui/Modal";
 import { Note } from "@/components/ui/Note";
 import type { CellStatus } from "@/types/common";
 import { useDebouncedValue } from "@/utils/useDebouncedValue";
@@ -174,56 +175,53 @@ function RegisterInProgressCellModal({ onClose, onRegistered }: RegisterInProgre
   const barcodes = splitBarcodes(barcodesText);
 
   return (
-    <div className={styles.overlay} role="dialog" aria-modal="true" onClick={onClose}>
-      <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
-        <h2>Register in-progress cell</h2>
-        <p className={styles.helper}>
-          For cells already on an instrument before go-live only - not a routine workflow.
-        </p>
-        <form onSubmit={handleSubmit}>
-          <div className={styles.field}>
-            <label className={styles.fieldLabel}>Uses already consumed (of {CELL_MAX_USES})</label>
-            <input
-              type="number"
-              min={0}
-              max={CELL_MAX_USES - 1}
-              value={usesConsumed}
-              onChange={(e) => setUsesConsumed(Math.max(0, Math.min(CELL_MAX_USES - 1, Number(e.target.value))))}
-            />
-          </div>
-          <div className={styles.field}>
-            <label className={styles.fieldLabel}>Burned barcodes</label>
-            <textarea
-              value={barcodesText}
-              onChange={(e) => setBarcodesText(e.target.value)}
-              placeholder="e.g. bc2021 bc2044"
-            />
-          </div>
-          <div className={styles.field}>
-            <label className={styles.fieldLabel}>First use started at (optional)</label>
-            <input
-              type="datetime-local"
-              value={firstUseStartedAt}
-              onChange={(e) => setFirstUseStartedAt(e.target.value)}
-            />
-          </div>
+    <Modal onClose={onClose} title="Register in-progress cell">
+      <p className={styles.helper}>
+        For cells already on an instrument before go-live only - not a routine workflow.
+      </p>
+      <form onSubmit={handleSubmit}>
+        <div className={styles.field}>
+          <label className={styles.fieldLabel}>Uses already consumed (of {CELL_MAX_USES})</label>
+          <input
+            type="number"
+            min={0}
+            max={CELL_MAX_USES - 1}
+            value={usesConsumed}
+            onChange={(e) => setUsesConsumed(Math.max(0, Math.min(CELL_MAX_USES - 1, Number(e.target.value))))}
+          />
+        </div>
+        <div className={styles.field}>
+          <label className={styles.fieldLabel}>Burned barcodes</label>
+          <textarea
+            value={barcodesText}
+            onChange={(e) => setBarcodesText(e.target.value)}
+            placeholder="e.g. bc2021 bc2044"
+          />
+        </div>
+        <div className={styles.field}>
+          <label className={styles.fieldLabel}>First use started at (optional)</label>
+          <input
+            type="datetime-local"
+            value={firstUseStartedAt}
+            onChange={(e) => setFirstUseStartedAt(e.target.value)}
+          />
+        </div>
 
-          {mutation.isError && (
-            <Note tone="bad" icon="!">
-              {mutation.error instanceof ApiError ? mutation.error.message : "Failed to register cell."}
-            </Note>
-          )}
+        {mutation.isError && (
+          <Note tone="bad" icon="!">
+            {mutation.error instanceof ApiError ? mutation.error.message : "Failed to register cell."}
+          </Note>
+        )}
 
-          <div className={styles.actions}>
-            <Button variant="ghost" type="button" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button variant="primary" type="submit" disabled={mutation.isPending || barcodes.length === 0}>
-              {mutation.isPending ? "Registering…" : "Register cell"}
-            </Button>
-          </div>
-        </form>
-      </div>
-    </div>
+        <ModalActions>
+          <Button variant="ghost" type="button" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button variant="primary" type="submit" disabled={mutation.isPending || barcodes.length === 0}>
+            {mutation.isPending ? "Registering…" : "Register cell"}
+          </Button>
+        </ModalActions>
+      </form>
+    </Modal>
   );
 }

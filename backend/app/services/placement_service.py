@@ -27,6 +27,7 @@ from app.services.cell_service import (
     derive_cell_state,
     open_new_tray,
     recompute_status,
+    run_has_started,
     use_run_date,
 )
 from app.timeutil import utcnow
@@ -143,13 +144,15 @@ def _resolve_cell_choice(
     instrument_serial: str,
     well: str,
     barcodes: list[str],
+    run_date: date,
 ) -> Cell:
     """Shared "which cell hosts this sample" resolution, shared by place_sample and
     move_sample's cell-reassignment path: mode "new" opens a fresh tray
     pinned to `well`; mode "existing" validates the chosen cell is open, has capacity, has
-    no burned-barcode clash with these barcodes, and - once it has a prior use - is
-    already pinned to this exact instrument/well (cells stay in the same physical
-    tray/well position for every reuse)."""
+    no burned-barcode clash with these barcodes, is already pinned to this exact
+    instrument/well once it has a prior use (cells stay in the same physical tray/well
+    position for every reuse), and - see the chronological-order check below - isn't
+    displacing an already-started later use of the same cell."""
     mode = cell_choice.get("mode")
     if mode == "existing":
         cell_id = cell_choice.get("cell_id")
@@ -160,6 +163,7 @@ def _resolve_cell_choice(
             cell_id,
             options=[
                 selectinload(Cell.cell_uses).selectinload(CellUse.barcodes),
+                selectinload(Cell.cell_uses).selectinload(CellUse.cycle).selectinload(Cycle.run_batch),
                 selectinload(Cell.tray).selectinload(CellTray.instrument),
             ],
         )
@@ -187,6 +191,27 @@ def _resolve_cell_choice(
                 f"Cell {cell.code} must stay in well {current_well} (its last used slot); "
                 f"cannot place it in well {well}.",
             )
+        # A cell's next use may already be scheduled for a later day than `run_date` (see
+        # waitingCells.ts's pendingReuseStatus ghost, the "Scheduled" placeholder the grid
+        # lets a sample be dropped onto ahead of that later use). Inserting this use only
+        # bumps the later one to a higher Use N - it's never removed, and use numbering is
+        # already derived live by run_date order (run_serializer._use_number) - so this is
+        # only safe while that later use is still pure planning. Reuse must stay strictly
+        # sequential once a use has actually started in the lab (see
+        # docs/pacbio-sprq-nx-scheduling-reference.md #4), so any other use already running
+        # blocks an earlier insert ahead of it, regardless of which use that is.
+        for other in cell.cell_uses:
+            if other.status == "cancelled":
+                continue
+            other_date = use_run_date(other)
+            if other_date is None or other_date <= run_date:
+                continue
+            if run_has_started(other):
+                raise PlacementError(
+                    409,
+                    f"Cell {cell.code} already has a use on {other_date.isoformat()} that has "
+                    f"started; cannot insert an earlier use ahead of it.",
+                )
         return cell
     elif mode == "new":
         try:
@@ -241,6 +266,7 @@ def place_sample(
             instrument_serial=instrument_serial,
             well=well,
             barcodes=sample_barcodes,
+            run_date=run_date,
         )
     elif mode != "new":
         raise PlacementError(400, f"Unknown cell_choice.mode '{mode}'.")
@@ -609,6 +635,7 @@ def _move_sample_to_new_cell(
         instrument_serial=instrument.serial_number,
         well=well,
         barcodes=barcodes,
+        run_date=run_date,
     )
 
     old_cycle_id = old_cycle.id
@@ -659,6 +686,98 @@ def _move_sample_to_new_cell(
     db.commit()
     db.refresh(dest_cycle)
     return dest_cycle
+
+
+def swap_samples(db: Session, *, cell_use_id_a: int, cell_use_id_b: int, actor: str | None = None) -> list[Cycle]:
+    """Exchange which sample is loaded onto two already-placed CellUses - dragging a placed
+    sample onto a *different* occupied slot in the weekly grid. Deliberately never touches
+    cycle_id/well/cell_id on either row: only sample_id and its barcode snapshot move. So
+    neither cell gains or loses a use, no use's run_date changes, and the well each cell is
+    pinned to (see docs/pacbio-sprq-nx-scheduling-reference.md's "a cell can never move
+    between instruments"/"must stay in its own well") is untouched on both sides - the
+    3-use cap, 108h window, and the (cycle_id, well) unique constraint all stay
+    structurally unaffected, with nothing left to re-validate beyond a barcode clash."""
+    if cell_use_id_a == cell_use_id_b:
+        raise PlacementError(400, "Cannot swap a placement with itself.")
+
+    options = [
+        selectinload(CellUse.cycle),
+        selectinload(CellUse.cell).selectinload(Cell.cell_uses).selectinload(CellUse.barcodes),
+        selectinload(CellUse.barcodes),
+    ]
+    use_a = db.get(CellUse, cell_use_id_a, options=options)
+    use_b = db.get(CellUse, cell_use_id_b, options=options)
+    if use_a is None:
+        raise PlacementError(404, f"Cell use {cell_use_id_a} not found.")
+    if use_b is None:
+        raise PlacementError(404, f"Cell use {cell_use_id_b} not found.")
+
+    for use in (use_a, use_b):
+        if use.cycle is None or use.cycle.status != "planned":
+            raise PlacementError(409, "Cannot swap a placement on a run that is not planned.")
+        if use.status != "planned":
+            raise PlacementError(409, f"Cell use {use.id} is not a re-plannable placement (status: {use.status}).")
+        if use.sample_id is None:
+            raise PlacementError(400, "Cannot swap a placement with no sample loaded.")
+
+    cell_a, cell_b = use_a.cell, use_b.cell
+    sample_a_id, sample_b_id = use_a.sample_id, use_b.sample_id
+    sample_a_barcodes, sample_b_barcodes = use_a.barcode_list, use_b.barcode_list
+
+    if cell_a.id != cell_b.id:
+        # Barcode clash is only a real concern crossing cells - two uses of the *same*
+        # physical cell already share one burned-barcode set, so a same-cell swap can
+        # never introduce a new clash.
+        def burned_excluding(cell: Cell, exclude_use_id: int) -> set[str]:
+            burned: set[str] = set()
+            for cu in cell.cell_uses:
+                if cu.id == exclude_use_id or cu.status == "cancelled":
+                    continue
+                burned.update(cu.barcode_list)
+            return burned
+
+        clash_b_on_a = burned_excluding(cell_a, use_a.id) & set(sample_b_barcodes)
+        if clash_b_on_a:
+            raise PlacementError(
+                409,
+                f"barcode conflict: moving this sample onto cell {cell_a.code} clashes with "
+                f"barcode(s) {', '.join(sorted(clash_b_on_a))} already burned there.",
+            )
+        clash_a_on_b = burned_excluding(cell_b, use_b.id) & set(sample_a_barcodes)
+        if clash_a_on_b:
+            raise PlacementError(
+                409,
+                f"barcode conflict: moving this sample onto cell {cell_b.code} clashes with "
+                f"barcode(s) {', '.join(sorted(clash_a_on_b))} already burned there.",
+            )
+
+    use_a.sample_id, use_b.sample_id = sample_b_id, sample_a_id
+    for row in list(use_a.barcodes) + list(use_b.barcodes):
+        db.delete(row)
+    db.flush()
+    for bc in sample_b_barcodes:
+        db.add(CellUseBarcode(cell_use_id=use_a.id, barcode=bc))
+    for bc in sample_a_barcodes:
+        db.add(CellUseBarcode(cell_use_id=use_b.id, barcode=bc))
+
+    db.add(
+        AuditLog(
+            actor=actor or "unknown",
+            action="swap_samples",
+            entity_type="cell_use",
+            entity_id=use_a.id,
+            details_json={
+                "cell_use_id_a": use_a.id,
+                "cell_use_id_b": use_b.id,
+                "sample_id_a_before": sample_a_id,
+                "sample_id_b_before": sample_b_id,
+            },
+        )
+    )
+    db.commit()
+    db.refresh(use_a.cycle)
+    db.refresh(use_b.cycle)
+    return [use_a.cycle] if use_a.cycle.id == use_b.cycle.id else [use_a.cycle, use_b.cycle]
 
 
 def cancel_run(db: Session, cycle_id: int, actor: str | None = None) -> None:
