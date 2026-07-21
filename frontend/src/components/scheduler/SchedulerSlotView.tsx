@@ -91,6 +91,15 @@ export const SchedulerSlotView = memo(
   // outside a valid drop target (see useSchedulerDnd's onDragEnd).
   const showStage = !!stage && !dragging;
 
+  // Before this ghost's own physical tray has had its first real placement, it renders
+  // exactly like an ordinary empty "+" slot below - no "Scheduled"/"Not yet used" label or
+  // tint, since the schedule isn't locked in yet and showing that this early reads as if
+  // the tray were already physically present (see CellGhost.beforeTrayFounding). The real
+  // `ghost` prop still flows through untouched to SchedulerSlot's droppable wiring, so
+  // dropping here still targets this exact cell for reuse - only this component's own
+  // rendering treats it as if there were no ghost at all.
+  const renderGhost = ghost?.beforeTrayFounding ? undefined : ghost;
+
   // Surfaces a QC problem directly on the grid, independent of the Use 1/2/3 tint. A
   // use's own recorded outcome (cancelled/failed/aborted) always wins over the whole-cell
   // "stopped" flag - stopping a cell only cuts off its *future* (see cell_service.
@@ -118,7 +127,7 @@ export const SchedulerSlotView = memo(
   // Colour groups by which physical cell is loaded (stage.use_number), not by well
   // position - so a cell reused across two wells in the same run shares one colour. A
   // ghost slot (no stage yet) colours by the use number it's waiting to become.
-  const useClass = classForUseIndex(showStage ? stage!.use_number : ghost ? ghost.useNumber : slotIndex + 1);
+  const useClass = classForUseIndex(showStage ? stage!.use_number : renderGhost ? renderGhost.useNumber : slotIndex + 1);
   const classes = [styles.slot];
   if (showStage) {
     classes.push(styles.filled, styles[useClass]);
@@ -137,20 +146,20 @@ export const SchedulerSlotView = memo(
     // [cell's] expiry" (see docs/pacbio-sprq-nx-scheduling-reference.md #2: this is always
     // per-cell, never a shared tray-level clock).
     if (stage!.window_hours_elapsed !== null) classes.push(styles.windowShaded);
-  } else if (ghost) {
+  } else if (renderGhost) {
     classes.push(styles.ghost);
-    if (ghost.terminalStatus) {
+    if (renderGhost.terminalStatus) {
       // Neutral/severity-coded by *why* it went terminal, never tinted by use number -
       // this cell is done, so it must never read as a live Use 1/2/3 chip.
-      classes.push(styles.ghostTerminal, TERMINAL_STATUS_CLASS[ghost.terminalStatus]);
-    } else if (ghost.pendingTerminalStatus || ghost.pendingReuseStatus) {
+      classes.push(styles.ghostTerminal, TERMINAL_STATUS_CLASS[renderGhost.terminalStatus]);
+    } else if (renderGhost.pendingTerminalStatus || renderGhost.pendingReuseStatus) {
       // Already fully booked (every remaining use scheduled) but not yet actually at that
       // state as of this column's day, or still open with spare capacity but already
       // claimed by its own not-yet-run next use - either way, a calmer, informational look,
       // distinct from both the red terminal severity above and the actionable Use-N tint
       // below, since this well is neither dead nor a live drop target.
       classes.push(styles.ghostPending);
-    } else if (ghost.unused) {
+    } else if (renderGhost.unused) {
       // Muted grey, not tinted by use number - it hasn't been used yet, so colouring it
       // like a real Use 1 (which .u1.ghost's higher-specificity two-class selector would
       // otherwise win over this single class regardless of declaration order) reads as
@@ -158,7 +167,7 @@ export const SchedulerSlotView = memo(
       classes.push(styles.ghostUnused);
     } else {
       classes.push(styles[useClass]);
-      if (ghost.isHardCutoff) classes.push(styles.ghostCutoff);
+      if (renderGhost.isHardCutoff) classes.push(styles.ghostCutoff);
     }
   } else if (blocked) {
     classes.push(styles.blocked);
@@ -178,7 +187,7 @@ export const SchedulerSlotView = memo(
       // previews a swap - layered on top of the target's own Use-N tint, not replacing
       // it, so the sample about to be displaced stays visible underneath.
       classes.push(styles.swapOver);
-    } else if (ghost?.pendingReuseStatus) {
+    } else if (renderGhost?.pendingReuseStatus) {
       // Hovering a "Scheduled" ghost previews inserting a new, earlier use of this cell -
       // distinct from an exact-match reuse of an already-eligible ghost (.ghostOver).
       classes.push(styles.ghostInsertOver);
@@ -187,7 +196,7 @@ export const SchedulerSlotView = memo(
       // cell - a distinct highlight from the generic "valid drop target" look, which is
       // reserved for drops that still need the cell-choice popup (e.g. the plain "+"
       // placeholder).
-      classes.push(ghost ? styles.ghostOver : styles.over);
+      classes.push(renderGhost ? styles.ghostOver : styles.over);
     }
   }
   if (dragging) classes.push(styles.dragging);
@@ -200,7 +209,7 @@ export const SchedulerSlotView = memo(
   // Fade intensity only applies to the calm (non-cutoff) ghost look - the cutoff variant
   // is a fixed, fully-opaque "act now" style regardless of how the fade would otherwise sit.
   let mergedStyle: CSSProperties | undefined =
-    ghost && !ghost.isHardCutoff ? { ...style, ["--ghost-opacity" as string]: ghost.fadeOpacity } : style;
+    renderGhost && !renderGhost.isHardCutoff ? { ...style, ["--ghost-opacity" as string]: renderGhost.fadeOpacity } : style;
   if (showStage && stage!.window_hours_elapsed !== null) {
     const hoursRemaining = CELL_LIFETIME_H - stage!.window_hours_elapsed;
     mergedStyle = { ...mergedStyle, ["--window-opacity" as string]: expiryFadeOpacity(hoursRemaining) };
@@ -211,11 +220,11 @@ export const SchedulerSlotView = memo(
   // stops returning one at all, in favour of a plain droppable "+", the moment every sibling
   // has also gone terminal - see computeVacatedTrayIds), so this well always stays locked
   // for as long as this marker is visible.
-  const terminalGhostTitle = ghost?.terminalStatus
+  const terminalGhostTitle = renderGhost?.terminalStatus
     ? `${
-        ghost.terminalStatus === "exhausted"
+        renderGhost.terminalStatus === "exhausted"
           ? "This cell has used up all its lawful uses."
-          : ghost.terminalStatus === "window_expired"
+          : renderGhost.terminalStatus === "window_expired"
             ? "This cell's 108-hour window closed before its remaining capacity could be used."
             : "This cell was manually retired."
       } This well stays locked until every cell in its physical tray is also used up, expired, or retired - the tray is still loaded on the instrument.`
@@ -227,9 +236,9 @@ export const SchedulerSlotView = memo(
   // pendingReuseStatus: this cell still has real spare capacity - dropping a sample here
   // inserts an earlier use, moving its already-planned later use to a higher Use N (never
   // removing it), as long as that later use hasn't actually started in the lab yet.
-  const pendingGhostTitle = ghost?.pendingTerminalStatus
+  const pendingGhostTitle = renderGhost?.pendingTerminalStatus
     ? "This cell's next use is already scheduled for a later day - not available for a new placement here, but it hasn't reached the end of its own lifecycle yet."
-    : ghost?.pendingReuseStatus
+    : renderGhost?.pendingReuseStatus
       ? "This cell's next use is already scheduled for a later day. Drop a sample here to schedule an earlier use instead - the later use moves to the next Use number, unless it's already been confirmed loaded."
       : undefined;
 
@@ -279,21 +288,21 @@ export const SchedulerSlotView = memo(
             />
           )}
         </>
-      ) : ghost ? (
+      ) : renderGhost ? (
         <>
-          <div className={styles.ghostCode} title={ghost.cell.code}>
-            {ghost.cell.code}
+          <div className={styles.ghostCode} title={renderGhost.cell.code}>
+            {renderGhost.cell.code}
           </div>
           <div className={styles.ghostLabel} title={terminalGhostTitle ?? pendingGhostTitle}>
-            {ghost.terminalStatus
-              ? CELL_STATUS_LABEL[ghost.terminalStatus]
-              : ghost.pendingTerminalStatus || ghost.pendingReuseStatus
+            {renderGhost.terminalStatus
+              ? CELL_STATUS_LABEL[renderGhost.terminalStatus]
+              : renderGhost.pendingTerminalStatus || renderGhost.pendingReuseStatus
                 ? "Scheduled"
-                : ghost.unused
+                : renderGhost.unused
                   ? "Not yet used"
-                  : ghost.isHardCutoff
-                    ? `Use ${ghost.useNumber} · expires today`
-                    : `Use ${ghost.useNumber} · by ${formatShortDateUTC(parseDateOnly(ghost.cutoffDate))}`}
+                  : renderGhost.isHardCutoff
+                    ? `Use ${renderGhost.useNumber} · expires today`
+                    : `Use ${renderGhost.useNumber} · by ${formatShortDateUTC(parseDateOnly(renderGhost.cutoffDate))}`}
           </div>
         </>
       ) : blocked ? (

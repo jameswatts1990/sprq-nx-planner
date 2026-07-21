@@ -1,8 +1,9 @@
 """Derives an instrument's run-lock window from its Cycle's own columns plus how many
-wells are currently loaded onto it. Loading only tray 1 (<=4 wells) only commits the
-instrument for a short loading/setup window; loading tray 2 as well commits it for the
-full movie. See docs/pacbio-sprq-nx-scheduling-reference.md's "Instrument load-lock
-timing" section for the vendor timing this is derived from.
+wells are currently loaded onto it. Loading only one physical tray (<=4 wells, whichever
+bay - a run can start directly in tray 2's wells without tray 1 ever being touched) only
+commits the instrument for a short loading/setup window; loading both trays commits it
+for the full movie. See docs/pacbio-sprq-nx-scheduling-reference.md's "Instrument
+load-lock timing" section for the vendor timing this is derived from.
 
 A locked instrument still accepts placements into an *existing* run (see
 placement_service.place_sample) - only a brand-new run's start time is checked against
@@ -23,34 +24,41 @@ from app.timeutil import ensure_aware, utcnow
 # day can therefore still be locked two calendar days later, so look back that far.
 LOOKBACK_DAYS = 2
 
-# Wells belonging to tray 2 (see WELLS: tray 1 is indices 0-3, tray 2 is 4-7). Loading
-# any of these onto a cycle is what commits the instrument for the full movie instead of
-# just the short loading window - see cycle_lock_until.
+# Wells belonging to each physical tray (see WELLS: tray 1 is indices 0-3, tray 2 is
+# 4-7). Whether a cycle has loaded wells in *both* groups is what commits the instrument
+# for the full movie instead of just the short loading window - see cycle_lock_until.
+TRAY_1_WELLS = frozenset(WELLS[:4])
 TRAY_2_WELLS = frozenset(WELLS[4:])
 
 
-def _tray2_loaded(db: Session, cycle_id: int) -> bool:
+def _both_trays_loaded(db: Session, cycle_id: int) -> bool:
     """Queried directly against CellUse (never through the Cycle.cell_uses relationship)
     on purpose: placement/move mid-transaction later reassigns a CellUse's cycle_id by
     raw column assignment, bypassing the ORM relationship API. If this instead populated
     Cycle.cell_uses via the relationship, that collection would go stale - at the old
     cycle's cascade-delete (once it's emptied), SQLAlchemy would still see the
     already-moved CellUse sitting in the old cycle's in-memory collection and wrongly
-    delete it out from under the move."""
-    return (
-        db.scalar(select(CellUse.id).where(CellUse.cycle_id == cycle_id, CellUse.well.in_(TRAY_2_WELLS)).limit(1))
-        is not None
-    )
+    delete it out from under the move.
+
+    Checks for a loaded well in *each* tray, not merely "any tray 2 well loaded" - a run
+    can start directly in tray 2 (e.g. tray 1's box is still fully occupied by an older,
+    not-yet-vacated tray) with tray 1 never touched that day, and that's still only a
+    one-tray touch point for lock purposes, same short window as loading tray 1 alone."""
+
+    def _any_well_in(wells: frozenset[str]) -> bool:
+        return db.scalar(select(CellUse.id).where(CellUse.cycle_id == cycle_id, CellUse.well.in_(wells)).limit(1)) is not None
+
+    return _any_well_in(TRAY_1_WELLS) and _any_well_in(TRAY_2_WELLS)
 
 
 def cycle_lock_until(db: Session, cycle: Cycle) -> datetime:
-    """Only tray 1 loaded: the instrument is free again after the LOCK_BUFFER_HOURS
+    """Only one tray loaded: the instrument is free again after the LOCK_BUFFER_HOURS
     loading/setup window, regardless of movie_hours - the operator can still walk up and
-    load tray 2 (or a different instrument's run) once that settles. Once tray 2 is also
-    loaded, the instrument is committed to the full movie and stays locked until it
-    completes plus the next run's own LOCK_BUFFER_HOURS setup."""
+    load the other tray (or a different instrument's run) once that settles. Once both
+    trays are loaded, the instrument is committed to the full movie and stays locked
+    until it completes plus the next run's own LOCK_BUFFER_HOURS setup."""
     start = ensure_aware(cycle.planned_start_at)
-    hours = cycle.movie_hours + LOCK_BUFFER_HOURS if _tray2_loaded(db, cycle.id) else LOCK_BUFFER_HOURS
+    hours = cycle.movie_hours + LOCK_BUFFER_HOURS if _both_trays_loaded(db, cycle.id) else LOCK_BUFFER_HOURS
     return start + timedelta(hours=hours)
 
 

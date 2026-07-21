@@ -1,10 +1,10 @@
-"""Instrument run-locking: loading only tray 1 (<=4 wells) locks the instrument for just
-LOCK_BUFFER_HOURS (a short loading/setup window); loading tray 2 as well commits it to
-the full movie_hours + LOCK_BUFFER_HOURS. A *new* run on that instrument can't start
-before the prior lock ends, but loading more samples into an *already-existing* run is
-never blocked by it - and CycleOut/InstrumentOut both expose the derived lock state to
-the frontend. See docs/pacbio-sprq-nx-scheduling-reference.md's "Instrument load-lock
-timing" section."""
+"""Instrument run-locking: loading only one physical tray (<=4 wells, whichever bay)
+locks the instrument for just LOCK_BUFFER_HOURS (a short loading/setup window); loading
+both trays commits it to the full movie_hours + LOCK_BUFFER_HOURS. A *new* run on that
+instrument can't start before the prior lock ends, but loading more samples into an
+*already-existing* run is never blocked by it - and CycleOut/InstrumentOut both expose
+the derived lock state to the frontend. See
+docs/pacbio-sprq-nx-scheduling-reference.md's "Instrument load-lock timing" section."""
 from datetime import date, timedelta, timezone
 
 from app.models.schedule import Cycle, RunBatch
@@ -69,6 +69,27 @@ def test_single_tray_run_only_locks_for_the_short_setup_window(client):
     # Reuses Monday's cell for its Use 2 (well A01 is already that cell's own tray - see
     # open_new_tray()'s box guard) rather than opening a second, unrelated tray.
     r2 = _place(client, _sid(client, "A2"), tue, run_time_hours=24, cell_choice={"mode": "existing", "cell_id": cell_id_1})
+    assert r2.status_code == 201, r2.text
+
+
+def test_tray_2_only_run_also_only_locks_for_the_short_setup_window(client):
+    """A run can start directly in tray 2's wells with tray 1 never touched that day -
+    still just a one-tray touch point for lock purposes, same short window as loading
+    tray 1 alone (see instrument_lock._both_trays_loaded - a naive "is tray 2 loaded at
+    all" check would wrongly treat this as a full-movie lock)."""
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1\nA2,bc2"})
+    mon, tue = _weekdays(2)
+
+    # Only tray 2 (slot 4) loaded on Monday - lock clears same day at noon + 6h = 18:00,
+    # so Tuesday's default noon start is well past it and succeeds.
+    r1 = _place(client, _sid(client, "A1"), mon, slot_index=4, run_time_hours=24)
+    assert r1.status_code == 201, r1.text
+    cell_id_1 = r1.json()["stages"][0]["cell_id"]
+
+    # Reuses Monday's cell for its Use 2 - stays pinned to well A02 (slot 4).
+    r2 = _place(
+        client, _sid(client, "A2"), tue, slot_index=4, run_time_hours=24, cell_choice={"mode": "existing", "cell_id": cell_id_1}
+    )
     assert r2.status_code == 201, r2.text
 
 

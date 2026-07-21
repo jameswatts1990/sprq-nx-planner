@@ -60,9 +60,9 @@ export function SchedulerSlot(props: SchedulerSlotProps) {
       return <SchedulerSlotView stage={null} slotIndex={props.slotIndex} blocked />;
     }
     if (locked) {
-      // Only an unused-tray-sibling, terminal, or pending-terminal ghost ever reaches here
-      // (SchedulerDayCell excludes reuse ghosts once locked), so it's purely informational -
-      // no droppable wrapper.
+      // Any ghost type can reach here once its day is locked (SchedulerDayCell no longer
+      // excludes plain reuse ghosts) - always purely informational, no droppable wrapper,
+      // regardless of which ghost it is.
       return (
         <SchedulerSlotView
           stage={null}
