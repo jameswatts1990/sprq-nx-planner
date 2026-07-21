@@ -1,6 +1,6 @@
 import { useDndContext, useDraggable, useDroppable } from "@dnd-kit/core";
 import { useContext } from "react";
-import type { KeyboardEvent, MouseEvent } from "react";
+import type { KeyboardEvent, MouseEvent, PointerEvent } from "react";
 
 import type { SlotIndex, StageOut } from "@/types/schedule";
 
@@ -29,6 +29,10 @@ export interface SchedulerSlotProps {
    * toggled slot and this one (see useSlotSelection's anchor / SchedulePage's
    * onExtendSlotSelect). */
   onExtendSelect: (stage: StageOut) => void;
+  /** Ctrl/cmd-mousedown on a filled, unlocked slot starts a click-and-drag rectangle
+   * selection instead of (dnd-kit) moving the sample - see SchedulePage's
+   * onDragSelectStart. */
+  onDragSelectStart: (stage: StageOut) => void;
   /** A waiting, reusable cell eligible to load into this empty slot today. */
   ghost?: CellGhost;
   /** Opens the waiting-cell detail/discard popover; only meaningful when `ghost` is set. */
@@ -149,6 +153,7 @@ function DraggableSlot({
   onOpenDetail,
   onToggleSelect,
   onExtendSelect,
+  onDragSelectStart,
 }: SchedulerSlotProps & { stage: StageOut }) {
   const data: FilledSlotDragData = {
     kind: "filledSlot",
@@ -214,6 +219,18 @@ function DraggableSlot({
     }
     (listeners?.onKeyDown as ((e: KeyboardEvent<HTMLDivElement>) => void) | undefined)?.(e);
   }
+  // Ctrl/cmd-mousedown opts this pointer interaction out of dnd-kit's own drag entirely
+  // (never forwarded to `listeners.onPointerDown`, so its sensor never activates) and
+  // starts a rectangle-select drag instead - a plain ctrl-click with no movement still
+  // fires a normal click afterward, handled by onClick's toggle branch above.
+  function onPointerDown(e: PointerEvent<HTMLDivElement>) {
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      onDragSelectStart(stage);
+      return;
+    }
+    (listeners?.onPointerDown as ((e: PointerEvent<HTMLDivElement>) => void) | undefined)?.(e);
+  }
   return (
     <SchedulerSlotView
       ref={setNodeRef}
@@ -232,6 +249,7 @@ function DraggableSlot({
       {...listeners}
       {...attributes}
       onKeyDown={onKeyDown}
+      onPointerDown={onPointerDown}
     />
   );
 }
@@ -245,6 +263,7 @@ function ClickableSlot({
   onOpenDetail,
   onToggleSelect,
   onExtendSelect,
+  onDragSelectStart,
 }: SchedulerSlotProps & { stage: StageOut }) {
   const link = useContext(CellLinkContext);
   const { isSource, isPeer, isDimmed } = deriveLinkState(link.active, stage);
@@ -278,6 +297,14 @@ function ClickableSlot({
       onOpenDetail(stage);
     }
   }
+  // No dnd-kit listeners here (this branch is never draggable), so there's no drag to opt
+  // out of - just start the rectangle-select tracking directly.
+  function onPointerDown(e: PointerEvent<HTMLDivElement>) {
+    if (selectable && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      onDragSelectStart(stage);
+    }
+  }
   return (
     <SchedulerSlotView
       stage={stage}
@@ -292,6 +319,7 @@ function ClickableSlot({
       tabIndex={0}
       onClick={onClick}
       onKeyDown={onKeyDown}
+      onPointerDown={onPointerDown}
       onMouseEnter={() => link.setHover(linkTarget)}
       onMouseLeave={link.clearHover}
     />

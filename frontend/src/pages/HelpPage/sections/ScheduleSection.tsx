@@ -287,11 +287,12 @@ export function ScheduleSection() {
       <ul>
         <li>
           <b>Ctrl/Cmd-click</b> a filled slot to toggle it into a selection (a &quot;N sample(s) selected&quot; bar
-          appears above the grid); ctrl/cmd-click again, or the bar&apos;s <b>Clear</b> button, to deselect. Once you
-          have at least one sample selected, <b>Ctrl/Cmd+Shift-click</b> another filled slot to extend the selection
-          to every eligible sample in the rectangle between the two — handy for grabbing a whole block spanning
-          several instruments and days in two clicks instead of many. Locked (confirmed-loaded) and already-cancelled
-          slots inside that rectangle are skipped automatically.
+          appears above the grid); ctrl/cmd-click again, or the bar&apos;s <b>Clear</b> button, to deselect.
+          <b> Ctrl/Cmd-click and drag</b> across several samples to draw a selection rectangle over all of them in
+          one motion — the easiest way to grab a whole block spanning several instruments and days at once. Without
+          dragging, ctrl/cmd-click one sample, then <b>Ctrl/Cmd+Shift-click</b> another to select the rectangle
+          between the two instead. Either way, locked (confirmed-loaded) and already-cancelled slots inside that
+          rectangle are skipped automatically.
         </li>
         <li>
           With samples selected, press <b>Remove from schedule (Del)</b> — the Delete/Backspace key does the same, as

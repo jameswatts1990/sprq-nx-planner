@@ -60,6 +60,40 @@ export interface CellGhost {
    * though it isn't fully booked yet. Without this, a well already claimed by a future,
    * not-yet-run use silently looked identical to a genuinely free slot on any earlier day. */
   pendingReuseStatus?: true;
+  /** True when `day` falls before this ghost's own physical tray's founding placement (the
+   * earliest planned first-use date across any cell sharing its tray_id) - see
+   * computeTrayFoundingDates. The tray hasn't actually landed on the instrument as of this
+   * day, even though eager population (see "Tray-of-4 eager population" above) already
+   * created every sibling's Cell row up front. The ghost still carries its real data (still
+   * droppable/clickable, same as any other day) so reuse/insert-earlier-use behaviour is
+   * unchanged - only the rendered label is suppressed, since showing "Scheduled"/"Not yet
+   * used" this early reads as if the tray were already physically present. */
+  beforeTrayFounding?: boolean;
+}
+
+/**
+ * Earliest calendar day (YYYY-MM-DD) any cell in each physical tray was actually scheduled
+ * for its own first use - the day that tray genuinely became "loaded" on an instrument,
+ * despite every sibling's Cell row existing from that same moment (see "Tray-of-4 eager
+ * population" above). Feeds CellGhost.beforeTrayFounding. `cells` should cover every status
+ * a tray-linked cell can be in (open, terminal, stopped), same as computeVacatedTrayIds, so
+ * a founding cell that has since gone terminal or been stopped still anchors the date.
+ * Prefers first_use_started_at (the real, confirmed anchor) over first_use_planned_start_at,
+ * same precedence as computeGhost's own deadline anchor - once a use is actually confirmed
+ * loaded, its planned estimate can go stale (e.g. after the placement was later moved to a
+ * different day) while started_at always reflects where it really landed.
+ */
+export function computeTrayFoundingDates(cells: CellOut[]): Map<number, string> {
+  const dates = new Map<number, string>();
+  for (const cell of cells) {
+    if (cell.tray_id === null) continue;
+    const anchor = cell.first_use_started_at ?? cell.first_use_planned_start_at;
+    if (!anchor) continue;
+    const day = anchor.slice(0, 10);
+    const existing = dates.get(cell.tray_id);
+    if (!existing || day < existing) dates.set(cell.tray_id, day);
+  }
+  return dates;
 }
 
 function nextWeekdayAfter(isoDate: string): string {
@@ -81,10 +115,16 @@ function dayStart(isoDate: string): Date {
  * already-fetched CellOut data - no "now" dependency, so the same day always renders the
  * same way regardless of when the page happens to be viewed.
  */
-export function computeGhost(cell: CellOut, day: string): CellGhost | null {
+export function computeGhost(
+  cell: CellOut,
+  day: string,
+  trayFoundingDates: Map<number, string> = new Map(),
+): CellGhost | null {
   if (cell.status !== "open" || cell.uses_remaining <= 0) return null;
   if (cell.uses_consumed <= 0 || !cell.last_use_run_date || !cell.current_instrument_serial) return null;
   if (isWeekendUTC(parseDateOnly(day))) return null;
+
+  const foundingDate = cell.tray_id !== null ? trayFoundingDates.get(cell.tray_id) : undefined;
 
   if (day < cell.last_use_run_date) {
     // A day strictly before this cell's own last (possibly not-yet-run) use - that use
@@ -102,6 +142,7 @@ export function computeGhost(cell: CellOut, day: string): CellGhost | null {
       deadlineAt: "",
       deadlineIsEstimated: false,
       pendingReuseStatus: true,
+      beforeTrayFounding: foundingDate !== undefined && day < foundingDate,
     };
   }
 
@@ -156,10 +197,16 @@ export function computeGhost(cell: CellOut, day: string): CellGhost | null {
  * gating on created_at hid the siblings on every day before that real-world insert moment,
  * even within the same week as their own founding placement.
  */
-export function computeUnusedTraySiblingGhost(cell: CellOut, day: string): CellGhost | null {
+export function computeUnusedTraySiblingGhost(
+  cell: CellOut,
+  day: string,
+  trayFoundingDates: Map<number, string> = new Map(),
+): CellGhost | null {
   if (cell.status !== "open" || cell.uses_consumed > 0) return null;
   if (!cell.current_instrument_serial || !cell.current_well) return null;
   if (isWeekendUTC(parseDateOnly(day))) return null;
+
+  const foundingDate = cell.tray_id !== null ? trayFoundingDates.get(cell.tray_id) : undefined;
 
   return {
     cell,
@@ -170,6 +217,7 @@ export function computeUnusedTraySiblingGhost(cell: CellOut, day: string): CellG
     deadlineAt: "",
     deadlineIsEstimated: false,
     unused: true,
+    beforeTrayFounding: foundingDate !== undefined && day < foundingDate,
   };
 }
 
@@ -345,14 +393,15 @@ export function computeVacatedTrayIds(cells: CellOut[]): Set<number> {
  * (computeTerminalGhost/computePendingTerminalGhost) - the four compute functions are
  * mutually exclusive (by status, and for the terminal pair, by which side of
  * terminalBoundaryDate `day` falls on), so no cell ever produces more than one ghost for a
- * given day. `vacatedTrayIds` (see computeVacatedTrayIds) should be computed from the
- * wider cell universe that also
- * includes stopped cells, so pass it in separately rather than deriving it from `cells`.
+ * given day. `vacatedTrayIds` (see computeVacatedTrayIds) and `trayFoundingDates` (see
+ * computeTrayFoundingDates) should both be computed from the wider cell universe that also
+ * includes stopped cells, so pass them in separately rather than deriving them from `cells`.
  */
 export function groupWaitingCellsByInstrumentAndDay(
   cells: CellOut[],
   days: string[],
   vacatedTrayIds: Set<number> = new Set(),
+  trayFoundingDates: Map<number, string> = new Map(),
 ): Map<string, Map<string, CellGhost[]>> {
   const byInstrument = new Map<string, Map<string, CellGhost[]>>();
 
@@ -365,8 +414,8 @@ export function groupWaitingCellsByInstrumentAndDay(
     if (!cell.current_instrument_serial) continue;
     for (const day of days) {
       const ghost =
-        computeGhost(cell, day) ??
-        computeUnusedTraySiblingGhost(cell, day) ??
+        computeGhost(cell, day, trayFoundingDates) ??
+        computeUnusedTraySiblingGhost(cell, day, trayFoundingDates) ??
         computePendingTerminalGhost(cell, day) ??
         computeTerminalGhost(cell, day, vacatedTrayIds);
       if (!ghost) continue;

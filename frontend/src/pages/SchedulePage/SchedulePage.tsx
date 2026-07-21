@@ -22,6 +22,7 @@ import { useGridSelection } from "@/components/scheduler/useGridSelection";
 import { useSchedulerDnd } from "@/components/scheduler/useSchedulerDnd";
 import { useSlotSelection } from "@/components/scheduler/useSlotSelection";
 import {
+  computeTrayFoundingDates,
   computeVacatedTrayIds,
   groupBlockedWellsByInstrument,
   groupWaitingCellsByInstrumentAndDay,
@@ -145,14 +146,27 @@ export function SchedulePage() {
       ]),
     [waitingCellsQuery.data, terminalCellsQuery.data, blockedCellsQuery.data],
   );
+  // Same broader cell universe as vacatedTrayIds - a tray's founding cell may itself have
+  // since gone terminal or been stopped, and its planned first-use date must still anchor
+  // its still-open siblings' ghosts (see waitingCells.computeTrayFoundingDates).
+  const trayFoundingDates = useMemo(
+    () =>
+      computeTrayFoundingDates([
+        ...(waitingCellsQuery.data ?? []),
+        ...(terminalCellsQuery.data ?? []),
+        ...(blockedCellsQuery.data ?? []),
+      ]),
+    [waitingCellsQuery.data, terminalCellsQuery.data, blockedCellsQuery.data],
+  );
   const waitingGrouped = useMemo(
     () =>
       groupWaitingCellsByInstrumentAndDay(
         [...(waitingCellsQuery.data ?? []), ...(terminalCellsQuery.data ?? [])],
         win.days,
         vacatedTrayIds,
+        trayFoundingDates,
       ),
-    [waitingCellsQuery.data, terminalCellsQuery.data, win.days, vacatedTrayIds],
+    [waitingCellsQuery.data, terminalCellsQuery.data, win.days, vacatedTrayIds, trayFoundingDates],
   );
   const blockedWellsByInstrument = useMemo(
     () => groupBlockedWellsByInstrument(blockedCellsQuery.data ?? []),
@@ -197,21 +211,10 @@ export function SchedulePage() {
     [visibleCycles],
   );
 
-  // Ctrl/cmd+shift-click on a filled slot: extend slotSelection to every eligible
-  // (unlocked, non-cancelled) sample in the rectangle between the last-toggled slot
-  // (slotSelection.anchor) and this one - same grid coordinates useGridSelection uses
-  // for empty-cell rectangle selection. Falls back to a plain toggle if there's no
-  // anchor yet (e.g. the very first click was already a ctrl+shift-click).
-  function onExtendSlotSelect(stage: StageOut, coord: { r: number; c: number }) {
-    const anchor = slotSelection.anchor;
-    if (!anchor) {
-      slotSelection.toggle(stage, coord);
-      return;
-    }
-    const r0 = Math.min(anchor.r, coord.r);
-    const r1 = Math.max(anchor.r, coord.r);
-    const c0 = Math.min(anchor.c, coord.c);
-    const c1 = Math.max(anchor.c, coord.c);
+  // Every eligible (unlocked, non-cancelled) sample anywhere in the (instrument row, day
+  // column) rectangle bounded by [r0,r1] x [c0,c1] - the shared basis for both the
+  // ctrl/cmd+shift-click rectangle extend and the ctrl/cmd-drag rectangle select below.
+  function stagesInRect(r0: number, r1: number, c0: number, c1: number): StageOut[] {
     const stages: StageOut[] = [];
     for (let r = r0; r <= r1; r++) {
       const serial = instrumentSerials[r];
@@ -228,7 +231,55 @@ export function SchedulePage() {
         }
       }
     }
-    slotSelection.replaceWith(stages);
+    return stages;
+  }
+
+  // Ctrl/cmd+shift-click on a filled slot: extend slotSelection to every eligible sample
+  // in the rectangle between the last-toggled slot (slotSelection.anchor) and this one -
+  // same grid coordinates useGridSelection uses for empty-cell rectangle selection. Falls
+  // back to a plain toggle if there's no anchor yet (e.g. the very first click was
+  // already a ctrl+shift-click).
+  function onExtendSlotSelect(stage: StageOut, coord: { r: number; c: number }) {
+    const anchor = slotSelection.anchor;
+    if (!anchor) {
+      slotSelection.toggle(stage, coord);
+      return;
+    }
+    slotSelection.replaceWith(
+      stagesInRect(Math.min(anchor.r, coord.r), Math.max(anchor.r, coord.r), Math.min(anchor.c, coord.c), Math.max(anchor.c, coord.c)),
+    );
+  }
+
+  // Ctrl/cmd-mousedown on a filled slot: draws a live rectangle selection as the mouse
+  // moves, mirroring onExtendSlotSelect but continuously instead of via a second click.
+  // SchedulerSlot opts this pointer interaction out of dnd-kit's own drag entirely (see
+  // its onPointerDown), so this is the only thing that runs for a ctrl-held drag. Plain
+  // window listeners (not React state) drive it, the same pattern the outside-click
+  // clear effect above uses, since every intermediate frame just needs to read the
+  // cursor position - not trigger a page-level re-render on its own.
+  function onDragSelectStart(_stage: StageOut, coord: { r: number; c: number }) {
+    const state: { anchor: { r: number; c: number }; lastKey: string | null } = { anchor: coord, lastKey: null };
+    function handlePointerMove(e: globalThis.PointerEvent) {
+      const td = (document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null)?.closest<HTMLElement>(
+        "td[data-row]",
+      );
+      if (!td) return;
+      const r = Number(td.dataset.row);
+      const c = Number(td.dataset.col);
+      const r0 = Math.min(state.anchor.r, r);
+      const r1 = Math.max(state.anchor.r, r);
+      const c0 = Math.min(state.anchor.c, c);
+      const c1 = Math.max(state.anchor.c, c);
+      const key = `${r0}-${r1}-${c0}-${c1}`;
+      if (key === state.lastKey) return;
+      state.lastKey = key;
+      slotSelection.replaceWith(stagesInRect(r0, r1, c0, c1));
+    }
+    function handlePointerUp() {
+      window.removeEventListener("pointermove", handlePointerMove);
+    }
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp, { once: true });
   }
 
   // Clear both selections whenever the window pages.
@@ -540,6 +591,7 @@ export function SchedulePage() {
                 onOpenDetail={handleOpenDetail}
                 slotSelection={slotSelection}
                 onExtendSelect={onExtendSlotSelect}
+                onDragSelectStart={onDragSelectStart}
                 waitingGrouped={waitingGrouped}
                 blockedWellsByInstrument={blockedWellsByInstrument}
                 onOpenGhost={setGhostDetail}

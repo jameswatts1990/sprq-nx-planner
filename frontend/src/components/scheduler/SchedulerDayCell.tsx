@@ -37,6 +37,9 @@ export interface SchedulerDayCellProps {
   /** Ctrl/cmd+shift-click on a filled slot - extends slotSelection to a rectangle
    * between the last-toggled slot and this one (see SchedulePage.onExtendSlotSelect). */
   onExtendSelect: (stage: StageOut, coord: { r: number; c: number }) => void;
+  /** Ctrl/cmd-mousedown on a filled slot - starts a click-and-drag rectangle selection
+   * (see SchedulePage.onDragSelectStart). */
+  onDragSelectStart: (stage: StageOut, coord: { r: number; c: number }) => void;
   /** Waiting, reusable cells eligible to load on this instrument+day (see waitingCells.ts).
    * Ignored while the day's run is locked, since it can no longer accept placements. */
   waitingCells: CellGhost[];
@@ -68,6 +71,7 @@ export function SchedulerDayCell(props: SchedulerDayCellProps) {
     onSelect,
     slotSelection,
     onExtendSelect,
+    onDragSelectStart,
     waitingCells,
     blockedWells,
     onOpenGhost,
@@ -103,7 +107,14 @@ export function SchedulerDayCell(props: SchedulerDayCellProps) {
   });
 
   if (weekend) {
-    return <td className={`${styles.cell} ${styles.weekend}`} aria-hidden="true" />;
+    return (
+      <td
+        className={`${styles.cell} ${styles.weekend}`}
+        aria-hidden="true"
+        data-row={rowIndex}
+        data-col={colIndex}
+      />
+    );
   }
 
   // A day with no cycle of its own is still effectively locked if an earlier run's lock
@@ -189,6 +200,8 @@ export function SchedulerDayCell(props: SchedulerDayCellProps) {
       role={selectable ? "button" : undefined}
       tabIndex={selectable ? 0 : undefined}
       aria-pressed={selectable ? selected : undefined}
+      data-row={rowIndex}
+      data-col={colIndex}
     >
       {/* Always rendered (even with nothing to show) so every cell's tray/placeholder
           area starts at the same vertical offset within the row, whether or not this
@@ -288,6 +301,7 @@ export function SchedulerDayCell(props: SchedulerDayCellProps) {
                     onOpenDetail={(stage) => props.onOpenDetail(stage, cycle as CycleOut)}
                     onToggleSelect={(stage) => slotSelection.toggle(stage, { r: rowIndex, c: colIndex })}
                     onExtendSelect={(stage) => onExtendSelect(stage, { r: rowIndex, c: colIndex })}
+                    onDragSelectStart={(stage) => onDragSelectStart(stage, { r: rowIndex, c: colIndex })}
                     ghost={ghostBySlot.get(i)}
                     blocked={blockedSlotSet.has(i)}
                     onOpenGhost={onOpenGhost}
