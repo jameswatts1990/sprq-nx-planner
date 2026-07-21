@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { Note } from "@/components/ui/Note";
+import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
 import type { CellUseHistoryOut } from "@/types/cell";
 import { CELL_STATUS_LABEL, CELL_STATUS_TONE } from "@/utils/cellStatus";
 import { canRecordQcOutcome, canUndoQcOutcome } from "@/utils/cellUseQc";
@@ -52,8 +53,7 @@ export function CellDetailPage() {
   const [caseNumber, setCaseNumber] = useState("");
 
   function invalidateCell() {
-    void queryClient.invalidateQueries({ queryKey: ["cell", id] });
-    void queryClient.invalidateQueries({ queryKey: ["cells"] });
+    invalidateScheduleRelated(queryClient);
   }
 
   const retireMutation = useMutation({
@@ -92,7 +92,6 @@ export function CellDetailPage() {
     mutationFn: (useId: number) => cellUsesApi.undo(useId),
     onSuccess: () => {
       invalidateCell();
-      void queryClient.invalidateQueries({ queryKey: ["samples"] });
       setUndoTarget(null);
     },
   });
@@ -101,7 +100,6 @@ export function CellDetailPage() {
     mutationFn: () => cellsApi.undoStop(id),
     onSuccess: () => {
       invalidateCell();
-      void queryClient.invalidateQueries({ queryKey: ["samples"] });
       setUndoStopModalOpen(false);
     },
   });

@@ -32,6 +32,7 @@ import { SectionHeading, UseLegend } from "@/components/shared/SectionHeading";
 import { Button } from "@/components/ui/Button";
 import type { NoteTone } from "@/components/ui/Note";
 import { Note } from "@/components/ui/Note";
+import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
 import type { CycleOut, StageOut } from "@/types/schedule";
 import type { GridCellRef, RunDesignState } from "@/types/schedulerGrid";
 import { addDaysUTC, formatShortDateUTC, isWeekendUTC, parseDateOnly, toIsoDateUTC } from "@/utils/calendarDates";
@@ -196,6 +197,40 @@ export function SchedulePage() {
     [visibleCycles],
   );
 
+  // Ctrl/cmd+shift-click on a filled slot: extend slotSelection to every eligible
+  // (unlocked, non-cancelled) sample in the rectangle between the last-toggled slot
+  // (slotSelection.anchor) and this one - same grid coordinates useGridSelection uses
+  // for empty-cell rectangle selection. Falls back to a plain toggle if there's no
+  // anchor yet (e.g. the very first click was already a ctrl+shift-click).
+  function onExtendSlotSelect(stage: StageOut, coord: { r: number; c: number }) {
+    const anchor = slotSelection.anchor;
+    if (!anchor) {
+      slotSelection.toggle(stage, coord);
+      return;
+    }
+    const r0 = Math.min(anchor.r, coord.r);
+    const r1 = Math.max(anchor.r, coord.r);
+    const c0 = Math.min(anchor.c, coord.c);
+    const c1 = Math.max(anchor.c, coord.c);
+    const stages: StageOut[] = [];
+    for (let r = r0; r <= r1; r++) {
+      const serial = instrumentSerials[r];
+      if (!serial) continue;
+      const byDate = grouped.get(serial);
+      if (!byDate) continue;
+      for (let c = c0; c <= c1; c++) {
+        const date = win.days[c];
+        if (!date) continue;
+        const cycle = byDate.get(date);
+        if (!cycle || cycle.status !== "planned") continue;
+        for (const s of cycle.stages) {
+          if (s.cell_use_status !== "cancelled") stages.push(s);
+        }
+      }
+    }
+    slotSelection.replaceWith(stages);
+  }
+
   // Clear both selections whenever the window pages.
   useEffect(() => {
     selection.clear();
@@ -213,9 +248,7 @@ export function SchedulePage() {
       return { total: stages.length, failed: failed.length, firstError: failed[0] };
     },
     onSuccess: ({ total, failed, firstError }) => {
-      void queryClient.invalidateQueries({ queryKey: ["cycles"] });
-      void queryClient.invalidateQueries({ queryKey: ["samples"] });
-      void queryClient.invalidateQueries({ queryKey: ["cells"] });
+      invalidateScheduleRelated(queryClient);
       slotSelection.clear();
       if (failed === 0) {
         setRemoveSlotsError(null);
@@ -238,9 +271,7 @@ export function SchedulePage() {
   const dragRemoveMutation = useMutation({
     mutationFn: (cellUseId: number) => cellUsesApi.remove(cellUseId),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["cycles"] });
-      void queryClient.invalidateQueries({ queryKey: ["samples"] });
-      void queryClient.invalidateQueries({ queryKey: ["cells"] });
+      invalidateScheduleRelated(queryClient);
       setRemoveSlotsError(null);
     },
     onError: (err) => {
@@ -254,9 +285,7 @@ export function SchedulePage() {
   const swapMutation = useMutation({
     mutationFn: ({ a, b }: { a: number; b: number }) => cellUsesApi.swap(a, b),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["cycles"] });
-      void queryClient.invalidateQueries({ queryKey: ["samples"] });
-      void queryClient.invalidateQueries({ queryKey: ["cells"] });
+      invalidateScheduleRelated(queryClient);
       setRemoveSlotsError(null);
     },
     onError: (err) => {
@@ -282,9 +311,7 @@ export function SchedulePage() {
       return { total: stages.length, succeeded: stages.length - failed.length, failed: failed.length, firstError: failed[0] };
     },
     onSuccess: ({ total, succeeded, failed, firstError }) => {
-      void queryClient.invalidateQueries({ queryKey: ["cycles"] });
-      void queryClient.invalidateQueries({ queryKey: ["samples"] });
-      void queryClient.invalidateQueries({ queryKey: ["cells"] });
+      invalidateScheduleRelated(queryClient);
       setClearConfirmOpen(false);
       if (failed === 0) {
         setRunDesignNote({ tone: "good", icon: "✓", text: `${succeeded} sample(s) cleared from the schedule.` });
@@ -372,9 +399,7 @@ export function SchedulePage() {
         cells_per_day: runDesign.cells_per_day,
       }),
     onSuccess: (res) => {
-      void queryClient.invalidateQueries({ queryKey: ["cycles"] });
-      void queryClient.invalidateQueries({ queryKey: ["samples"] });
-      void queryClient.invalidateQueries({ queryKey: ["cells"] });
+      invalidateScheduleRelated(queryClient);
       selection.clear();
       const parts = [`${res.placed_sample_ids.length} placed`];
       if (res.unplaced_sample_ids.length > 0) parts.push(`${res.unplaced_sample_ids.length} unplaced`);
@@ -514,6 +539,7 @@ export function SchedulePage() {
                 placingSlotKey={dnd.placingSlotKey}
                 onOpenDetail={handleOpenDetail}
                 slotSelection={slotSelection}
+                onExtendSelect={onExtendSlotSelect}
                 waitingGrouped={waitingGrouped}
                 blockedWellsByInstrument={blockedWellsByInstrument}
                 onOpenGhost={setGhostDetail}

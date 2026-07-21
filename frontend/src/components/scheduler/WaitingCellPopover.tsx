@@ -7,6 +7,7 @@ import { WindowMeter } from "@/components/cells/WindowMeter";
 import { Button } from "@/components/ui/Button";
 import { Modal, ModalActions } from "@/components/ui/Modal";
 import { Note } from "@/components/ui/Note";
+import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
 import { formatShortDateTimeUTC } from "@/utils/calendarDates";
 
 import styles from "./SlotDetailPopover.module.css";
@@ -27,7 +28,7 @@ export function WaitingCellPopover({ ghost, onClose }: WaitingCellPopoverProps) 
   const retireMutation = useMutation({
     mutationFn: () => cellsApi.retire(cell.id),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["cells"] });
+      invalidateScheduleRelated(queryClient);
       onClose();
     },
   });

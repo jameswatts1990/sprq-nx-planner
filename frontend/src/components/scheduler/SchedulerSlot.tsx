@@ -25,6 +25,10 @@ export interface SchedulerSlotProps {
   onOpenDetail: (stage: StageOut) => void;
   /** Ctrl/cmd-click on a filled, unlocked slot toggles selection instead of opening detail. */
   onToggleSelect: (stage: StageOut) => void;
+  /** Ctrl/cmd+shift-click extends the selection to every eligible slot between the last
+   * toggled slot and this one (see useSlotSelection's anchor / SchedulePage's
+   * onExtendSlotSelect). */
+  onExtendSelect: (stage: StageOut) => void;
   /** A waiting, reusable cell eligible to load into this empty slot today. */
   ghost?: CellGhost;
   /** Opens the waiting-cell detail/discard popover; only meaningful when `ghost` is set. */
@@ -144,6 +148,7 @@ function DraggableSlot({
   selected,
   onOpenDetail,
   onToggleSelect,
+  onExtendSelect,
 }: SchedulerSlotProps & { stage: StageOut }) {
   const data: FilledSlotDragData = {
     kind: "filledSlot",
@@ -185,6 +190,10 @@ function DraggableSlot({
   const linkTarget = { cellId: stage.cell_id, sourceUseId: stage.cell_use_id };
 
   function onClick(e: MouseEvent<HTMLDivElement>) {
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey) {
+      onExtendSelect(stage);
+      return;
+    }
     if (e.shiftKey) {
       link.togglePin(linkTarget);
       return;
@@ -235,17 +244,24 @@ function ClickableSlot({
   selected,
   onOpenDetail,
   onToggleSelect,
+  onExtendSelect,
 }: SchedulerSlotProps & { stage: StageOut }) {
   const link = useContext(CellLinkContext);
   const { isSource, isPeer, isDimmed } = deriveLinkState(link.active, stage);
   const linkTarget = { cellId: stage.cell_id, sourceUseId: stage.cell_use_id };
 
+  const selectable = !locked && stage.cell_use_status !== "cancelled";
+
   function onClick(e: MouseEvent<HTMLDivElement>) {
+    if (selectable && (e.ctrlKey || e.metaKey) && e.shiftKey) {
+      onExtendSelect(stage);
+      return;
+    }
     if (e.shiftKey) {
       link.togglePin(linkTarget);
       return;
     }
-    if (!locked && stage.cell_use_status !== "cancelled" && (e.ctrlKey || e.metaKey)) {
+    if (selectable && (e.ctrlKey || e.metaKey)) {
       onToggleSelect(stage);
       return;
     }

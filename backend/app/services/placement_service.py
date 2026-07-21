@@ -494,24 +494,38 @@ def move_sample(
 
     if not reassign_to_new_cell:
         # Even with no other uses yet, this cell's own tray may not be the one that
-        # belongs in the destination well at all - eager tray-of-4 population means a
-        # brand-new tray auto-opens all 4 sibling wells the moment any one of them gets a
-        # sample, and an older, unrelated tray may already have (and later vacated) that
-        # exact well. Either way, if a *different*, still-open physical cell already sits
-        # in this exact (instrument, well), that cell - not the one being dragged - is the
-        # one this sample must land on. Mirrors open_new_tray()'s own box-collision query.
-        resident_cell_id = db.scalar(
-            select(Cell.id)
-            .join(Cell.tray)
-            .where(
-                CellTray.instrument_id == instrument.id,
-                Cell.home_well == well,
-                Cell.status == "open",
-                Cell.id != cell.id,
-            )
-        )
-        if resident_cell_id is not None:
+        # belongs in the destination well at all. A tray-linked cell's home_well is its
+        # one true physical slot for life (set once in open_new_tray(), never rewritten -
+        # see docs/pacbio-sprq-nx-scheduling-reference.md), so if the destination well
+        # isn't it, the cell itself can't go there - regardless of whether anything else
+        # currently sits in that well. Without this direct check, a cell whose destination
+        # box happens to have no other *open* resident right now (never yet opened, or
+        # gone fully terminal) would fall through to the in-place branch below and have
+        # its CellUse.well silently rewritten outside its own tray box, leaving it (and
+        # the grid's derived tray card for it) permanently out of sync with home_well.
+        if cell.home_well is not None and cell.home_well != well:
             reassign_to_new_cell = True
+        else:
+            # Cells created via bootstrap_cell() (the one-time historical cutover tool)
+            # have no tray/home_well at all, so they fall back to this box-collision
+            # check instead: eager tray-of-4 population means a brand-new tray auto-opens
+            # all 4 sibling wells the moment any one of them gets a sample, and an older,
+            # unrelated tray may already have (and later vacated) that exact well. Either
+            # way, if a *different*, still-open physical cell already sits in this exact
+            # (instrument, well), that cell - not the one being dragged - is the one this
+            # sample must land on. Mirrors open_new_tray()'s own box-collision query.
+            resident_cell_id = db.scalar(
+                select(Cell.id)
+                .join(Cell.tray)
+                .where(
+                    CellTray.instrument_id == instrument.id,
+                    Cell.home_well == well,
+                    Cell.status == "open",
+                    Cell.id != cell.id,
+                )
+            )
+            if resident_cell_id is not None:
+                reassign_to_new_cell = True
 
     if reassign_to_new_cell:
         return _move_sample_to_new_cell(

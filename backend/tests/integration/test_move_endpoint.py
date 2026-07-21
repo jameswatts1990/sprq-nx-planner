@@ -126,6 +126,42 @@ def test_move_to_a_different_slot_same_day_requires_cell_choice_for_the_resident
     assert client.get(f"/api/cells/{sibling_id}").json()["uses_consumed"] == 1
 
 
+def test_move_to_a_never_opened_tray_box_requires_cell_choice(client):
+    """The bug this fix closes: a single-use cell (no other_uses) dragged to a well in a
+    *different* tray box that has never been opened had no resident cell there either, so
+    move_sample() silently carried the dragged cell's own CellUse.well into that box - the
+    physical cell's tray never actually moved, but the grid's tray card (derived from
+    CellUse.well) disagreed with the cell's own immutable home_well/tray from then on.
+    Even with nothing else claiming the destination well, a tray-linked cell still can't
+    go anywhere but its own home_well; the sample must reassign to a (possibly new) cell
+    there instead, same as every other well-conflict case."""
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1"})
+    (mon,) = _weekdays(1)
+
+    r1 = _place(client, _sid(client, "A1"), mon, slot_index=0)
+    cell_use_id = r1.json()["stages"][0]["cell_use_id"]
+    cell_id = r1.json()["stages"][0]["cell_id"]
+
+    # slot 4 (well A02, tray box 2) has never been opened - no resident cell sits there,
+    # so without the home_well check this used to fall through to an in-place reschedule.
+    moved = _move(client, cell_use_id, mon, slot_index=4)
+    assert moved.status_code == 400, moved.text
+    assert "cell_choice" in moved.json()["detail"]
+
+    # Supplying a cell choice opens a fresh cell in box 2 instead - the original cell's
+    # own home_well/tray (box 1) is left untouched.
+    moved = _move(client, cell_use_id, mon, slot_index=4, cell_choice={"mode": "new"})
+    assert moved.status_code == 200, moved.text
+    stage = next(s for s in moved.json()["stages"] if s["sample_external_id"] == "A1")
+    new_cell_id = stage["cell_id"]
+    assert new_cell_id != cell_id
+    assert stage["slot_index"] == 4
+
+    # The old cell had no other real use anywhere, so its whole tray is cleaned up.
+    assert client.get(f"/api/cells/{cell_id}").status_code == 404
+    assert client.get(f"/api/cells/{new_cell_id}").json()["current_well"] == "A02"
+
+
 def test_move_across_instruments_reassigns_to_a_new_cell_when_cell_has_another_use(client):
     """A physical cell already pinned to 84047 by A1's use still can never cross to 84098 -
     but the *sample* isn't physically loaded onto anything until its run executes, so

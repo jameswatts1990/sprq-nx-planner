@@ -7,6 +7,7 @@ import { Accordion } from "@/components/ui/Accordion";
 import { Button } from "@/components/ui/Button";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { Note } from "@/components/ui/Note";
+import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
 import { countOpenTrays, groupOpenTrayIdsByInstrument, soonestTrayExpiry } from "@/utils/openTrays";
 import { FADE_MIN_HOURS } from "@/utils/windowFade";
 
@@ -36,7 +37,7 @@ export function OpenTraysAccordion() {
   const discardMutation = useMutation({
     mutationFn: (trayId: number) => cellsApi.discardTray({ tray_id: trayId }),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["cells"] });
+      invalidateScheduleRelated(queryClient);
       setDiscardTrayId(null);
     },
   });

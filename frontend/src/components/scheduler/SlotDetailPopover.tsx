@@ -10,6 +10,7 @@ import { BarcodeChips } from "@/components/shared/BarcodeChips";
 import { Button } from "@/components/ui/Button";
 import { Modal, ModalActions } from "@/components/ui/Modal";
 import { Note } from "@/components/ui/Note";
+import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
 import type { CycleOut, StageOut } from "@/types/schedule";
 import { canRecordQcOutcome, canUndoQcOutcome } from "@/utils/cellUseQc";
 import { runLabel } from "@/utils/runLabel";
@@ -51,9 +52,7 @@ export function SlotDetailPopover({ stage, cycle, onClose }: SlotDetailPopoverPr
   });
 
   function invalidateAfterQcAction() {
-    void queryClient.invalidateQueries({ queryKey: ["cycles"] });
-    void queryClient.invalidateQueries({ queryKey: ["cells"] });
-    void queryClient.invalidateQueries({ queryKey: ["samples"] });
+    invalidateScheduleRelated(queryClient);
   }
 
   const markFailedMutation = useMutation({

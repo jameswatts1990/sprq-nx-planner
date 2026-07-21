@@ -10,6 +10,7 @@ import { SectionHeading, UseLegend } from "@/components/shared/SectionHeading";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Note } from "@/components/ui/Note";
+import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
 import { CYCLE_STATUS_TONE } from "@/utils/cycleStatus";
 import { runLabel } from "@/utils/runLabel";
 
@@ -33,8 +34,7 @@ export function RunDetailPage() {
   const cancelMutation = useMutation({
     mutationFn: () => cyclesApi.cancel(id),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["cycle", id] });
-      void queryClient.invalidateQueries({ queryKey: ["cycles"] });
+      invalidateScheduleRelated(queryClient);
     },
   });
 

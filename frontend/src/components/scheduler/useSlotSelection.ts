@@ -2,13 +2,21 @@ import { useCallback, useMemo, useState } from "react";
 
 import type { StageOut } from "@/types/schedule";
 
+import type { Coord } from "./useGridSelection";
+
 export interface SlotSelection {
   isSelected: (cellUseId: number) => boolean;
   selectedStages: StageOut[];
   /** Ctrl/cmd-click a filled, unlocked slot to toggle it in/out of the selection. */
-  toggle: (stage: StageOut) => void;
+  toggle: (stage: StageOut, coord: Coord) => void;
+  /** Replace the whole selection outright (used for ctrl/cmd+shift-click rectangle
+   * extension - see SchedulePage's onExtendSlotSelect). */
+  replaceWith: (stages: StageOut[]) => void;
   clear: () => void;
   hasSelection: boolean;
+  /** Grid coordinate of the last toggled slot, so a later ctrl/cmd+shift-click knows
+   * where to extend a rectangle from. */
+  anchor: Coord | null;
 }
 
 /**
@@ -19,21 +27,30 @@ export interface SlotSelection {
  */
 export function useSlotSelection(): SlotSelection {
   const [selected, setSelected] = useState<Map<number, StageOut>>(() => new Map());
+  const [anchor, setAnchor] = useState<Coord | null>(null);
 
   const isSelected = useCallback((cellUseId: number) => selected.has(cellUseId), [selected]);
 
-  const toggle = useCallback((stage: StageOut) => {
+  const toggle = useCallback((stage: StageOut, coord: Coord) => {
     setSelected((prev) => {
       const next = new Map(prev);
       if (next.has(stage.cell_use_id)) next.delete(stage.cell_use_id);
       else next.set(stage.cell_use_id, stage);
       return next;
     });
+    setAnchor(coord);
   }, []);
 
-  const clear = useCallback(() => setSelected(new Map()), []);
+  const replaceWith = useCallback((stages: StageOut[]) => {
+    setSelected(new Map(stages.map((stage) => [stage.cell_use_id, stage])));
+  }, []);
+
+  const clear = useCallback(() => {
+    setSelected(new Map());
+    setAnchor(null);
+  }, []);
 
   const selectedStages = useMemo(() => Array.from(selected.values()), [selected]);
 
-  return { isSelected, selectedStages, toggle, clear, hasSelection: selected.size > 0 };
+  return { isSelected, selectedStages, toggle, replaceWith, clear, hasSelection: selected.size > 0, anchor };
 }

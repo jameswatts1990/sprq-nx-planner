@@ -7,6 +7,7 @@ import { BarcodeChips } from "@/components/shared/BarcodeChips";
 import { Button } from "@/components/ui/Button";
 import { Modal, ModalActions } from "@/components/ui/Modal";
 import { Note } from "@/components/ui/Note";
+import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
 import type { CycleOut } from "@/types/schedule";
 import type { CellChoice, PendingPlacement, RunDesignState } from "@/types/schedulerGrid";
 import { formatShortDateUTC, parseDateOnly } from "@/utils/calendarDates";
@@ -89,7 +90,15 @@ export function CellChoicePicker({ pending, runDesign, existingRun, onClose, onP
   // of silently substituting a new cell (see shouldAutoPlace/shouldShowCellChoiceModal).
   const preselectedCell =
     pending.preselectedCellId !== undefined ? cellsQuery.data?.find((c) => c.id === pending.preselectedCellId) : undefined;
-  const clashingBarcodes = preselectedCell?.burned_barcodes.filter((b) => pending.sample.barcodes.includes(b)) ?? [];
+  // A move whose preselected (ghost) cell IS the cell the dragged sample is already on -
+  // e.g. dropping onto that same cell's own earlier "Scheduled" ghost - can never be a real
+  // clash: the cell's burned_barcodes aggregate includes this sample's own not-yet-moved
+  // use, so it always "clashes" with itself here. No other use on the same cell could ever
+  // already carry this exact barcode (placement/move already reject that for every use but
+  // this one), so a same-cell move is always barcode-safe.
+  const isMoveOntoOwnCell = isMove && pending.preselectedCellId === pending.moveFromCellId;
+  const clashingBarcodes =
+    !isMoveOntoOwnCell && preselectedCell ? preselectedCell.burned_barcodes.filter((b) => pending.sample.barcodes.includes(b)) : [];
   const preselectedBarcodeClash = preselectedCell !== undefined && clashingBarcodes.length > 0;
   // True whenever this move's destination well isn't where the dragged cell truly belongs -
   // either it's crossing instruments outright (a cell can never move between instruments,
@@ -110,9 +119,14 @@ export function CellChoicePicker({ pending, runDesign, existingRun, onClose, onP
       (pending.preselectedCellId !== undefined && pending.preselectedCellId !== pending.moveFromCellId));
   // Only trust the preselected ghost cell once it's confirmed still compatible (barcodes
   // could have changed since the ghost was computed) - otherwise fall back to the normal
-  // choice-among-compatible-cells flow below.
+  // choice-among-compatible-cells flow below. `compatible` deliberately excludes the
+  // dragged cell itself (useCompatibleCells' excludeCellId) - it's the current placement,
+  // not an alternative to offer - so a ghost-drop onto that same cell's own earlier
+  // "Scheduled" slot (isMoveOntoOwnCell) has to be recognized as valid here directly,
+  // rather than via that list, or it would wrongly fall back to "use a new cell".
   const preselectedValid =
-    pending.preselectedCellId !== undefined && compatible.some((c) => c.id === pending.preselectedCellId);
+    pending.preselectedCellId !== undefined &&
+    (isMoveOntoOwnCell || compatible.some((c) => c.id === pending.preselectedCellId));
 
   const targetKey = slotKey(pending.instrument_serial, pending.run_date, pending.slot_index);
 
@@ -141,9 +155,7 @@ export function CellChoicePicker({ pending, runDesign, existingRun, onClose, onP
       });
     },
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["cycles"] });
-      void queryClient.invalidateQueries({ queryKey: ["samples"] });
-      void queryClient.invalidateQueries({ queryKey: ["cells"] });
+      invalidateScheduleRelated(queryClient);
       setPlacingSlotKey(null);
       onPlaced();
     },

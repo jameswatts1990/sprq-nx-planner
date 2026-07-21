@@ -5,6 +5,7 @@ import { cellsApi } from "@/api/cells";
 import { ApiError } from "@/api/client";
 import { cyclesApi } from "@/api/cycles";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
 import type { SlotIndex, CycleOut, StageOut } from "@/types/schedule";
 import { formatShortDateTimeUTC } from "@/utils/calendarDates";
 
@@ -33,6 +34,9 @@ export interface SchedulerDayCellProps {
   onSelect: (r: number, c: number, shift: boolean, ctrl: boolean) => void;
   onOpenDetail: (stage: StageOut, cycle: CycleOut) => void;
   slotSelection: SlotSelection;
+  /** Ctrl/cmd+shift-click on a filled slot - extends slotSelection to a rectangle
+   * between the last-toggled slot and this one (see SchedulePage.onExtendSlotSelect). */
+  onExtendSelect: (stage: StageOut, coord: { r: number; c: number }) => void;
   /** Waiting, reusable cells eligible to load on this instrument+day (see waitingCells.ts).
    * Ignored while the day's run is locked, since it can no longer accept placements. */
   waitingCells: CellGhost[];
@@ -63,6 +67,7 @@ export function SchedulerDayCell(props: SchedulerDayCellProps) {
     placingSlotKey,
     onSelect,
     slotSelection,
+    onExtendSelect,
     waitingCells,
     blockedWells,
     onOpenGhost,
@@ -87,12 +92,12 @@ export function SchedulerDayCell(props: SchedulerDayCellProps) {
   const discardMutation = useMutation({
     mutationFn: (trayId: number) => cellsApi.discardTray({ tray_id: trayId }),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["cycles"] });
-      // Every cell in the tray just flipped to exhausted - without this, the grid's
-      // terminal/vacated-tray ghosts (waitingCells.ts, fed by SchedulePage's ["cells", ...]
-      // queries) would keep reading the pre-discard status until some unrelated mutation
-      // happened to invalidate them, so the tray wouldn't actually disappear from view.
-      void queryClient.invalidateQueries({ queryKey: ["cells"] });
+      // Every cell in the tray just flipped to exhausted and its bumped samples returned
+      // to the backlog - without this, the grid's terminal/vacated-tray ghosts
+      // (waitingCells.ts, fed by SchedulePage's ["cells", ...] queries) and the Backlog
+      // page would keep reading pre-discard data until some unrelated mutation happened
+      // to invalidate them.
+      invalidateScheduleRelated(queryClient);
       setDiscardTrayId(null);
     },
   });
@@ -281,7 +286,8 @@ export function SchedulerDayCell(props: SchedulerDayCellProps) {
                       slotSelection.isSelected(slots[i]!.cell_use_id)
                     }
                     onOpenDetail={(stage) => props.onOpenDetail(stage, cycle as CycleOut)}
-                    onToggleSelect={slotSelection.toggle}
+                    onToggleSelect={(stage) => slotSelection.toggle(stage, { r: rowIndex, c: colIndex })}
+                    onExtendSelect={(stage) => onExtendSelect(stage, { r: rowIndex, c: colIndex })}
                     ghost={ghostBySlot.get(i)}
                     blocked={blockedSlotSet.has(i)}
                     onOpenGhost={onOpenGhost}
