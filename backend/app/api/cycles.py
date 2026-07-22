@@ -3,24 +3,16 @@ from datetime import date, datetime
 from fastapi import APIRouter, HTTPException, Response
 from pydantic import BaseModel
 from sqlalchemy import select
-from sqlalchemy.orm import selectinload
 
 from app.api.deps import ActorDep, SessionDep
 from app.models.instrument import Instrument
-from app.models.schedule import CYCLE_STATUSES, CellUse, Cycle, RunBatch
+from app.models.schedule import CYCLE_STATUSES, Cycle, RunBatch
 from app.schemas.run import CycleOut
 from app.services.placement_service import PlacementError, cancel_run
-from app.services.run_serializer import cycle_out
+from app.services.run_serializer import CYCLE_LOAD_OPTIONS, cycle_out
 from app.services.run_service import update_cycle_status
 
 router = APIRouter(prefix="/api/cycles", tags=["cycles"])
-
-_CYCLE_OPTIONS = [
-    selectinload(Cycle.run_batch).selectinload(RunBatch.instrument),
-    selectinload(Cycle.cell_uses).selectinload(CellUse.cell),
-    selectinload(Cycle.cell_uses).selectinload(CellUse.sample),
-    selectinload(Cycle.cell_uses).selectinload(CellUse.barcodes),
-]
 
 
 class CycleStatusUpdate(BaseModel):
@@ -40,7 +32,7 @@ def list_cycles(
     date_to: date | None = None,
 ) -> list[CycleOut]:
     """Instrument calendar: the grid runs on a given machine over a date range."""
-    stmt = select(Cycle).join(Cycle.run_batch).options(*_CYCLE_OPTIONS)
+    stmt = select(Cycle).join(Cycle.run_batch).options(*CYCLE_LOAD_OPTIONS)
     if instrument_serial:
         stmt = stmt.join(RunBatch.instrument).where(Instrument.serial_number == instrument_serial)
     if status:
@@ -56,7 +48,7 @@ def list_cycles(
 
 @router.get("/{cycle_id}", response_model=CycleOut)
 def get_cycle(cycle_id: int, db: SessionDep) -> CycleOut:
-    cycle = db.get(Cycle, cycle_id, options=_CYCLE_OPTIONS)
+    cycle = db.get(Cycle, cycle_id, options=CYCLE_LOAD_OPTIONS)
     if cycle is None:
         raise HTTPException(404, "Cycle not found")
     return cycle_out(db, cycle)
@@ -66,7 +58,7 @@ def get_cycle(cycle_id: int, db: SessionDep) -> CycleOut:
 def patch_cycle(cycle_id: int, req: CycleStatusUpdate, db: SessionDep, actor: ActorDep) -> CycleOut:
     if req.status not in CYCLE_STATUSES:
         raise HTTPException(400, f"Unknown status '{req.status}'. Valid: {', '.join(CYCLE_STATUSES)}")
-    cycle = db.get(Cycle, cycle_id, options=_CYCLE_OPTIONS)
+    cycle = db.get(Cycle, cycle_id, options=CYCLE_LOAD_OPTIONS)
     if cycle is None:
         raise HTTPException(404, "Cycle not found")
     try:

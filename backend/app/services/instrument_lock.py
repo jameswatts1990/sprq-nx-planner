@@ -11,6 +11,7 @@ a prior run's lock (see placement_service.get_or_create_run), so loading the nex
 cells while the current one is sequencing is never blocked."""
 from __future__ import annotations
 
+from collections.abc import Iterable
 from datetime import date, datetime, timedelta
 
 from sqlalchemy import select
@@ -51,14 +52,29 @@ def _both_trays_loaded(db: Session, cycle_id: int) -> bool:
     return _any_well_in(TRAY_1_WELLS) and _any_well_in(TRAY_2_WELLS)
 
 
-def cycle_lock_until(db: Session, cycle: Cycle) -> datetime:
+def _both_trays_loaded_in_memory(cell_uses: Iterable[CellUse]) -> bool:
+    """In-memory equivalent of _both_trays_loaded for callers holding a freshly-loaded
+    Cycle.cell_uses collection (e.g. run_serializer.cycle_out). Same all-statuses grain as
+    the DB query - it counts every use's well, cancelled included, so the derived lock is
+    identical. Only safe when the relationship isn't mid-transaction stale (see
+    _both_trays_loaded's docstring for when it is); serialization/post-commit paths qualify."""
+    wells = {cu.well for cu in cell_uses}
+    return bool(wells & TRAY_1_WELLS) and bool(wells & TRAY_2_WELLS)
+
+
+def cycle_lock_until(db: Session, cycle: Cycle, *, cell_uses: Iterable[CellUse] | None = None) -> datetime:
     """Only one tray loaded: the instrument is free again after the LOCK_BUFFER_HOURS
     loading/setup window, regardless of movie_hours - the operator can still walk up and
     load the other tray (or a different instrument's run) once that settles. Once both
     trays are loaded, the instrument is committed to the full movie and stays locked
-    until it completes plus the next run's own LOCK_BUFFER_HOURS setup."""
+    until it completes plus the next run's own LOCK_BUFFER_HOURS setup.
+
+    Pass `cell_uses` (a reliably-loaded Cycle.cell_uses) to skip the two per-cycle CellUse
+    queries and derive the both-trays check in memory instead - only where the collection
+    is known fresh (post-commit/serialization). Omit it and it queries, as before."""
     start = ensure_aware(cycle.planned_start_at)
-    hours = cycle.movie_hours + LOCK_BUFFER_HOURS if _both_trays_loaded(db, cycle.id) else LOCK_BUFFER_HOURS
+    both = _both_trays_loaded_in_memory(cell_uses) if cell_uses is not None else _both_trays_loaded(db, cycle.id)
+    hours = cycle.movie_hours + LOCK_BUFFER_HOURS if both else LOCK_BUFFER_HOURS
     return start + timedelta(hours=hours)
 
 

@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 export interface Coord {
   r: number;
@@ -104,5 +104,10 @@ export function useGridSelection(): GridSelection {
     setAnchor(null);
   }, []);
 
-  return { isSelected, hasSelection: selected.size > 0, handleCellClick, selectMany, clear };
+  // Memoized so consumers (SchedulePage's selectedCells memo, the memoized grid rows) get a
+  // stable object identity that only changes when the selection actually changes.
+  return useMemo(
+    () => ({ isSelected, hasSelection: selected.size > 0, handleCellClick, selectMany, clear }),
+    [isSelected, selected.size, handleCellClick, selectMany, clear],
+  );
 }

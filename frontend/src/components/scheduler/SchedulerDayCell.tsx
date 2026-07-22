@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState, type KeyboardEvent, type MouseEvent } from "react";
+import { memo, useState, type KeyboardEvent, type MouseEvent } from "react";
 
 import { cellsApi } from "@/api/cells";
 import { ApiError } from "@/api/client";
@@ -61,7 +61,7 @@ export interface SchedulerDayCellProps {
  * control once the day's run exists. Empty non-weekend cells participate in spreadsheet-style
  * range selection for auto-fill.
  */
-export function SchedulerDayCell(props: SchedulerDayCellProps) {
+export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerDayCellProps) {
   const {
     instrumentSerial,
     runDate,
@@ -377,4 +377,4 @@ export function SchedulerDayCell(props: SchedulerDayCellProps) {
       )}
     </td>
   );
-}
+});

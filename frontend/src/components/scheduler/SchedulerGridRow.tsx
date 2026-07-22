@@ -1,4 +1,4 @@
-import type { KeyboardEvent, MouseEvent } from "react";
+import { memo, type KeyboardEvent, type MouseEvent } from "react";
 
 import type { CycleOut, StageOut } from "@/types/schedule";
 import { isWeekendUTC, parseDateOnly } from "@/utils/calendarDates";
@@ -12,6 +12,7 @@ import type { CellGhost, TrayDisposalWarning } from "./waitingCells";
 
 // Stable empty references so a day with nothing to show doesn't hand SchedulerDayCell a new
 // object identity on every render.
+const EMPTY_GHOSTS: CellGhost[] = [];
 const EMPTY_BLOCKED_WELLS: Set<string> = new Set();
 const EMPTY_DISPOSAL: TrayDisposalWarning[] = [];
 
@@ -35,8 +36,11 @@ export interface SchedulerGridRowProps {
 }
 
 /** One instrument row: sticky-left <th> serial, then one SchedulerDayCell per day.
- * Mirrors the old InstrumentRow. */
-export function SchedulerGridRow({
+ * Mirrors the old InstrumentRow. memo'd so a page-level state change that leaves this row's
+ * props untouched (a popover opening, the 60s cycles poll returning identical data) doesn't
+ * re-render the whole row - relies on SchedulePage passing stable (useCallback/useMemo)
+ * handlers and grouping. */
+export const SchedulerGridRow = memo(function SchedulerGridRow({
   serial,
   rowIndex,
   days,
@@ -52,12 +56,17 @@ export function SchedulerGridRow({
   disposalByDate,
   onOpenGhost,
 }: SchedulerGridRowProps) {
-  const selectableCols: number[] = [];
-  days.forEach((date, colIndex) => {
+  // Everything each day-cell needs, derived once per day. carryOverLock is the only costly
+  // bit (it scans cyclesByDate) and used to be computed twice per day - here it's computed
+  // a single time, and skipped entirely for weekend/has-cycle days that never consult it.
+  const dayInfos = days.map((date, colIndex) => {
     const weekend = isWeekendUTC(parseDateOnly(date));
     const cycle = cyclesByDate.get(date);
-    if (!weekend && isCellOpen(cycle, cycle ? undefined : findCarryOverLock(cyclesByDate, date))) selectableCols.push(colIndex);
+    const carryOverLock = weekend || cycle ? undefined : findCarryOverLock(cyclesByDate, date);
+    const selectable = !weekend && isCellOpen(cycle, carryOverLock);
+    return { date, colIndex, weekend, cycle, carryOverLock, selectable };
   });
+  const selectableCols = dayInfos.filter((d) => d.selectable).map((d) => d.colIndex);
 
   // Ctrl/cmd-click unions this instrument's row into the existing selection instead of
   // replacing it, so several instruments can be built up one header-click at a time.
@@ -95,11 +104,7 @@ export function SchedulerGridRow({
         <div className={styles.ml}>Revio</div>
         <div className={styles.mid}>{serial}</div>
       </th>
-      {days.map((date, colIndex) => {
-        const weekend = isWeekendUTC(parseDateOnly(date));
-        const cycle = cyclesByDate.get(date);
-        const carryOverLock = cycle ? undefined : findCarryOverLock(cyclesByDate, date);
-        const selectable = !weekend && isCellOpen(cycle, carryOverLock);
+      {dayInfos.map(({ date, colIndex, weekend, cycle, carryOverLock, selectable }) => {
         const selected = selectable && selection.isSelected(rowIndex, colIndex);
         return (
           <SchedulerDayCell
@@ -119,7 +124,7 @@ export function SchedulerGridRow({
             slotSelection={slotSelection}
             onExtendSelect={onExtendSelect}
             onDragSelectStart={onDragSelectStart}
-            waitingCells={waitingCellsByDate.get(date) ?? []}
+            waitingCells={waitingCellsByDate.get(date) ?? EMPTY_GHOSTS}
             blockedWells={blockedWellsByDate.get(date) ?? EMPTY_BLOCKED_WELLS}
             disposalWarnings={disposalByDate.get(date) ?? EMPTY_DISPOSAL}
             onOpenGhost={onOpenGhost}
@@ -128,4 +133,4 @@ export function SchedulerGridRow({
       })}
     </tr>
   );
-}
+});

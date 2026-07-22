@@ -8,15 +8,17 @@ import {
   shortWeekdayUTC,
 } from "@/utils/calendarDates";
 
-import { findCarryOverLock, groupCyclesByInstrumentAndDay, isCellOpen } from "./groupCyclesByInstrumentAndDay";
+import { findCarryOverLock, isCellOpen } from "./groupCyclesByInstrumentAndDay";
 import { SchedulerGridRow } from "./SchedulerGridRow";
 import styles from "./SchedulerGrid.module.css";
 import type { Coord, GridSelection } from "./useGridSelection";
 import type { SlotSelection } from "./useSlotSelection";
 import type { CellGhost, TrayDisposalWarning } from "./waitingCells";
 
-// Stable empty references for instruments with nothing to show, so SchedulerGridRow doesn't
-// see a new object identity on every render.
+// Stable empty references for instruments with nothing to show, so the memoized
+// SchedulerGridRow doesn't see a new object identity on every render.
+const EMPTY_CYCLES_BY_DATE: Map<string, CycleOut> = new Map();
+const EMPTY_WAITING_BY_DATE: Map<string, CellGhost[]> = new Map();
 const EMPTY_BLOCKED_BY_DATE: Map<string, Set<string>> = new Map();
 const EMPTY_DISPOSAL_BY_DATE: Map<string, TrayDisposalWarning[]> = new Map();
 
@@ -24,7 +26,9 @@ export interface SchedulerGridProps {
   instrumentSerials: string[];
   /** The 5 weekday (Mon-Fri) YYYY-MM-DD strings for the current window. */
   days: string[];
-  cycles: CycleOut[];
+  /** Cycles pre-grouped by (instrument_serial, run_date) - computed once in SchedulePage
+   * and passed down so the grouping isn't rebuilt on every grid render. */
+  grouped: Map<string, Map<string, CycleOut>>;
   selection: GridSelection;
   placingSlotKey: string | null;
   onOpenDetail: (stage: StageOut, cycle: CycleOut) => void;
@@ -93,7 +97,7 @@ function SchedulerDayHeader({
 export function SchedulerGrid({
   instrumentSerials,
   days,
-  cycles,
+  grouped,
   selection,
   placingSlotKey,
   onOpenDetail,
@@ -105,8 +109,6 @@ export function SchedulerGrid({
   disposalGrouped,
   onOpenGhost,
 }: SchedulerGridProps) {
-  const grouped = groupCyclesByInstrumentAndDay(cycles);
-
   // Mirrors SchedulerGridRow's own selectable computation - a day with no cycle of its
   // own is still closed if an earlier run's lock carries over onto it.
   function isDateOpen(serial: string, date: string): boolean {
@@ -186,14 +188,14 @@ export function SchedulerGrid({
               serial={serial}
               rowIndex={rowIndex}
               days={days}
-              cyclesByDate={grouped.get(serial) ?? new Map()}
+              cyclesByDate={grouped.get(serial) ?? EMPTY_CYCLES_BY_DATE}
               selection={selection}
               placingSlotKey={placingSlotKey}
               onOpenDetail={onOpenDetail}
               slotSelection={slotSelection}
               onExtendSelect={onExtendSelect}
               onDragSelectStart={onDragSelectStart}
-              waitingCellsByDate={waitingGrouped.get(serial) ?? new Map()}
+              waitingCellsByDate={waitingGrouped.get(serial) ?? EMPTY_WAITING_BY_DATE}
               blockedWellsByDate={blockedGrouped.get(serial) ?? EMPTY_BLOCKED_BY_DATE}
               disposalByDate={disposalGrouped.get(serial) ?? EMPTY_DISPOSAL_BY_DATE}
               onOpenGhost={onOpenGhost}

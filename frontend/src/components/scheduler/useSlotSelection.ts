@@ -52,5 +52,10 @@ export function useSlotSelection(): SlotSelection {
 
   const selectedStages = useMemo(() => Array.from(selected.values()), [selected]);
 
-  return { isSelected, selectedStages, toggle, replaceWith, clear, hasSelection: selected.size > 0, anchor };
+  // Memoized so the object identity only changes when the selection/anchor changes - lets
+  // the memoized grid rows/cells skip re-renders on unrelated page state changes.
+  return useMemo(
+    () => ({ isSelected, selectedStages, toggle, replaceWith, clear, hasSelection: selected.size > 0, anchor }),
+    [isSelected, selectedStages, toggle, replaceWith, clear, selected.size, anchor],
+  );
 }

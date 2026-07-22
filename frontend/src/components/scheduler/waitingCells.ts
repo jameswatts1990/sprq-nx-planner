@@ -118,6 +118,32 @@ function dayStart(isoDate: string): Date {
   return d;
 }
 
+/** Walks forward from `earliestDate` to the last weekday whose day-start still falls on or
+ * before `deadlineAtMs`. Computed the same way regardless of which day is being rendered,
+ * so every caller reports one cutoff. Shared by reuseWindow (the reuse cutoff) and
+ * terminalBoundaryDate (the window_expired boundary). */
+function lastWeekdayWithin(earliestDate: string, deadlineAtMs: number): string {
+  let cutoffDate = earliestDate;
+  while (dayStart(nextWeekdayAfter(cutoffDate)).getTime() <= deadlineAtMs) {
+    cutoffDate = nextWeekdayAfter(cutoffDate);
+  }
+  return cutoffDate;
+}
+
+/** Buckets cells by their physical tray id (skipping tray-less cells). Shared by the
+ * tray-level derivations that each need "all siblings of a tray" (computeVacatedTrayIds,
+ * computeTrayDisposalWarnings). */
+function groupCellsByTray(cells: CellOut[]): Map<number, CellOut[]> {
+  const byTray = new Map<number, CellOut[]>();
+  for (const cell of cells) {
+    if (cell.tray_id === null) continue;
+    const siblings = byTray.get(cell.tray_id);
+    if (siblings) siblings.push(cell);
+    else byTray.set(cell.tray_id, [cell]);
+  }
+  return byTray;
+}
+
 /**
  * The bounds of a previously-used cell's remaining reuse window, or null when it has no
  * window to bound (never used, no first-use anchor, or the window has already been fully
@@ -155,12 +181,7 @@ function reuseWindow(
   }
   const earliestDate = nextWeekdayAfter(cell.last_use_run_date);
   if (dayStart(earliestDate).getTime() > deadlineAtMs) return null; // window shuts before any reuse day
-  // Walk forward from the earliest eligible day to the last qualifying weekday - computed the
-  // same way regardless of which day is being rendered, so every caller reports one cutoff.
-  let cutoffDate = earliestDate;
-  while (dayStart(nextWeekdayAfter(cutoffDate)).getTime() <= deadlineAtMs) {
-    cutoffDate = nextWeekdayAfter(cutoffDate);
-  }
+  const cutoffDate = lastWeekdayWithin(earliestDate, deadlineAtMs);
   return { earliestDate, cutoffDate, deadlineAtMs };
 }
 
@@ -360,11 +381,7 @@ function terminalBoundaryDate(cell: CellOut): string | null {
   const anchor = cell.first_use_started_at ?? cell.first_use_planned_start_at;
   if (!anchor) return earliestDate;
   const deadlineAtMs = new Date(anchor).getTime() + CELL_LIFETIME_H * 3_600_000;
-  let cutoffDate = earliestDate;
-  while (dayStart(nextWeekdayAfter(cutoffDate)).getTime() <= deadlineAtMs) {
-    cutoffDate = nextWeekdayAfter(cutoffDate);
-  }
-  return nextWeekdayAfter(cutoffDate);
+  return nextWeekdayAfter(lastWeekdayWithin(earliestDate, deadlineAtMs));
 }
 
 /**
@@ -642,13 +659,7 @@ export function computeTrayDisposalWarnings(
   days: string[],
   trayEvictionDates: Map<number, string> = new Map(),
 ): Map<string, Map<string, TrayDisposalWarning[]>> {
-  const byTray = new Map<number, CellOut[]>();
-  for (const cell of cells) {
-    if (cell.tray_id === null) continue;
-    const siblings = byTray.get(cell.tray_id);
-    if (siblings) siblings.push(cell);
-    else byTray.set(cell.tray_id, [cell]);
-  }
+  const byTray = groupCellsByTray(cells);
 
   const daySet = new Set(days);
   const lastVisibleDay = days[days.length - 1];
@@ -729,15 +740,8 @@ export function computeTrayDisposalWarnings(
  * open" it may well be.
  */
 export function computeVacatedTrayIds(cells: CellOut[]): Set<number> {
-  const byTray = new Map<number, CellOut[]>();
-  for (const cell of cells) {
-    if (cell.tray_id === null) continue;
-    const siblings = byTray.get(cell.tray_id);
-    if (siblings) siblings.push(cell);
-    else byTray.set(cell.tray_id, [cell]);
-  }
   const vacated = new Set<number>();
-  for (const [trayId, siblings] of byTray) {
+  for (const [trayId, siblings] of groupCellsByTray(cells)) {
     if (siblings.every((c) => c.status !== "open")) vacated.add(trayId);
   }
   return vacated;

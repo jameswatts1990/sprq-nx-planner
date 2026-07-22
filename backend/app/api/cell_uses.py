@@ -5,22 +5,15 @@ from pydantic import BaseModel
 from sqlalchemy.orm import selectinload
 
 from app.api.deps import ActorDep, SessionDep
-from app.models.schedule import CELL_USE_STATUSES, CellUse, Cycle, RunBatch
+from app.models.schedule import CELL_USE_STATUSES, CellUse, Cycle
 from app.schemas.run import CycleOut, MoveSampleRequest, PlaceSampleRequest
 from app.services.placement_service import PlacementError, move_sample, place_sample, remove_sample, swap_samples
-from app.services.run_serializer import cycle_out
+from app.services.run_serializer import CYCLE_LOAD_OPTIONS, cycle_out
 from app.services.run_service import undo_cell_use_status, update_cell_use_status
 
 router = APIRouter(prefix="/api/cell-uses", tags=["cell-uses"])
 
 _OPTIONS = [selectinload(CellUse.cell), selectinload(CellUse.sample), selectinload(CellUse.barcodes)]
-
-_CYCLE_OPTIONS = [
-    selectinload(Cycle.run_batch).selectinload(RunBatch.instrument),
-    selectinload(Cycle.cell_uses).selectinload(CellUse.cell),
-    selectinload(Cycle.cell_uses).selectinload(CellUse.sample),
-    selectinload(Cycle.cell_uses).selectinload(CellUse.barcodes),
-]
 
 
 class CellUseStatusUpdate(BaseModel):
@@ -68,7 +61,7 @@ def create_cell_use(req: PlaceSampleRequest, db: SessionDep, actor: ActorDep) ->
         )
     except PlacementError as exc:
         raise HTTPException(exc.status_code, exc.detail) from exc
-    cycle = db.get(Cycle, cycle.id, options=_CYCLE_OPTIONS)
+    cycle = db.get(Cycle, cycle.id, options=CYCLE_LOAD_OPTIONS)
     return cycle_out(db, cycle)
 
 
@@ -89,7 +82,7 @@ def move_cell_use(cell_use_id: int, req: MoveSampleRequest, db: SessionDep, acto
         )
     except PlacementError as exc:
         raise HTTPException(exc.status_code, exc.detail) from exc
-    cycle = db.get(Cycle, cycle.id, options=_CYCLE_OPTIONS)
+    cycle = db.get(Cycle, cycle.id, options=CYCLE_LOAD_OPTIONS)
     return cycle_out(db, cycle)
 
 
@@ -99,7 +92,7 @@ def swap_cell_use(cell_use_id: int, req: SwapCellUsesRequest, db: SessionDep, ac
         cycles = swap_samples(db, cell_use_id_a=cell_use_id, cell_use_id_b=req.other_cell_use_id, actor=actor)
     except PlacementError as exc:
         raise HTTPException(exc.status_code, exc.detail) from exc
-    refreshed = [db.get(Cycle, c.id, options=_CYCLE_OPTIONS) for c in cycles]
+    refreshed = [db.get(Cycle, c.id, options=CYCLE_LOAD_OPTIONS) for c in cycles]
     return [cycle_out(db, c) for c in refreshed]
 
 

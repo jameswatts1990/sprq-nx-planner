@@ -1,21 +1,13 @@
 from fastapi import APIRouter, HTTPException
-from sqlalchemy.orm import selectinload
 
 from app.api.deps import ActorDep, SessionDep
-from app.models.schedule import CellUse, Cycle, RunBatch
+from app.models.schedule import Cycle
 from app.schemas.run import AutoFillRequest, AutoFillResponse, BarcodeConflictOut, CycleOut, GridCellRef, WindowFlagOut
 from app.services.auto_fill_service import auto_fill
 from app.services.placement_service import PlacementError
-from app.services.run_serializer import cycle_out
+from app.services.run_serializer import CYCLE_LOAD_OPTIONS, cycle_out
 
 router = APIRouter(prefix="/api/auto-fill", tags=["auto-fill"])
-
-_CYCLE_OPTIONS = [
-    selectinload(Cycle.run_batch).selectinload(RunBatch.instrument),
-    selectinload(Cycle.cell_uses).selectinload(CellUse.cell),
-    selectinload(Cycle.cell_uses).selectinload(CellUse.sample),
-    selectinload(Cycle.cell_uses).selectinload(CellUse.barcodes),
-]
 
 
 @router.post("", response_model=AutoFillResponse)
@@ -37,7 +29,7 @@ def auto_fill_endpoint(req: AutoFillRequest, db: SessionDep, actor: ActorDep) ->
 
     runs: list[CycleOut] = []
     for cycle_id in result.run_cycle_ids:
-        cycle = db.get(Cycle, cycle_id, options=_CYCLE_OPTIONS)
+        cycle = db.get(Cycle, cycle_id, options=CYCLE_LOAD_OPTIONS)
         if cycle is not None:
             runs.append(cycle_out(db, cycle))
 

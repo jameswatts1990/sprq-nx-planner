@@ -37,16 +37,22 @@ QC_STATUSES = ("unreported", "awaiting_credit")
 
 router = APIRouter(prefix="/api/cells", tags=["cells"])
 
+# Everything serialize_cell() reads: each use's cycle->run_batch->instrument (for
+# current_location/last_use_run_date/first_use_planned_start_at), its barcodes (burned set),
+# and the cell's own tray->instrument (for a zero-use sibling's location). Deliberately no
+# CellUse.sample - the list serializer never touches it.
 _LIST_OPTIONS = [
     selectinload(Cell.cell_uses).selectinload(CellUse.cycle).selectinload(Cycle.run_batch).selectinload(
         RunBatch.instrument
     ),
+    selectinload(Cell.cell_uses).selectinload(CellUse.barcodes),
     selectinload(Cell.tray).selectinload(CellTray.instrument),
 ]
+# Detail additionally needs each use's sample - serialize_cell_detail's history renders
+# sample fields. Kept out of _LIST_OPTIONS so the (much larger) list query doesn't load it.
 _DETAIL_OPTIONS = [
     *_LIST_OPTIONS,
     selectinload(Cell.cell_uses).selectinload(CellUse.sample),
-    selectinload(Cell.cell_uses).selectinload(CellUse.barcodes),
 ]
 
 
@@ -61,7 +67,7 @@ def list_cells(
     page: int = 1,
     page_size: int = 50,
 ) -> Page[CellOut]:
-    stmt = select(Cell).options(*_DETAIL_OPTIONS)
+    stmt = select(Cell).options(*_LIST_OPTIONS)
     if status:
         statuses = [s.strip() for s in status.split(",") if s.strip()]
         for s in statuses:

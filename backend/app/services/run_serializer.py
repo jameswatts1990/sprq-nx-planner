@@ -5,14 +5,34 @@ from __future__ import annotations
 
 from datetime import date
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.engine.constants import WELLS
-from app.models.schedule import CellUse, Cycle
+from app.models.cell import Cell
+from app.models.schedule import CellUse, Cycle, RunBatch
 from app.schemas.run import CycleOut, StageOut
 from app.services.cell_service import has_failed_use, use_run_date, window_hours_elapsed
 from app.services.instrument_lock import cycle_lock_until
 from app.timeutil import ensure_aware, utcnow
+
+# The eager-load set every cycle_out caller must use. Beyond the cycle's own run_batch/
+# instrument and its stages' cell/sample/barcodes, this deep-loads each stage's cell's
+# *full* sibling-use list plus each sibling's cycle->run_batch: _use_number() sorts a
+# cell's uses by run_date (via use_run_date -> cycle.run_batch), and has_failed_use()
+# scans the cell's use statuses. Without the Cell.cell_uses->cycle->run_batch chain both
+# lazy-load per stage, turning one grid fetch into an N+1 (the cells API already loads
+# this same chain - see app/api/cells.py). Shared here so cycles/auto-fill/cell-uses
+# endpoints can never drift out of step with what the serializer actually walks.
+CYCLE_LOAD_OPTIONS = [
+    selectinload(Cycle.run_batch).selectinload(RunBatch.instrument),
+    selectinload(Cycle.cell_uses)
+    .selectinload(CellUse.cell)
+    .selectinload(Cell.cell_uses)
+    .selectinload(CellUse.cycle)
+    .selectinload(Cycle.run_batch),
+    selectinload(Cycle.cell_uses).selectinload(CellUse.sample),
+    selectinload(Cycle.cell_uses).selectinload(CellUse.barcodes),
+]
 
 
 def _use_number(cell_use: CellUse) -> int:
@@ -55,7 +75,10 @@ def cycle_out(db: Session, cycle: Cycle) -> CycleOut:
         for cu in sorted(cycle.cell_uses, key=lambda x: x.well)
     ]
 
-    lock_until = cycle_lock_until(db, cycle)
+    # cycle.cell_uses is always freshly eager-loaded before cycle_out runs (every caller
+    # loads via CYCLE_LOAD_OPTIONS / refreshes post-commit), so the both-trays check can
+    # read it in memory instead of re-querying CellUse twice per cycle.
+    lock_until = cycle_lock_until(db, cycle, cell_uses=cycle.cell_uses)
     now = utcnow()
     is_locked = cycle.status not in ("aborted", "completed") and ensure_aware(cycle.planned_start_at) <= now < lock_until
 

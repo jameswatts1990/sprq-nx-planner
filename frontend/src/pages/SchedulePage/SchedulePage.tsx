@@ -1,13 +1,11 @@
 import { DndContext, DragOverlay } from "@dnd-kit/core";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ApiError } from "@/api/client";
 import { cellsApi } from "@/api/cells";
-import { cellUsesApi } from "@/api/cellUses";
 import { cyclesApi } from "@/api/cycles";
 import { instrumentsApi } from "@/api/instruments";
-import { schedulerApi } from "@/api/schedulerGrid";
 import { CellChoicePicker } from "@/components/scheduler/CellChoicePicker";
 import {
   findCarryOverLock,
@@ -33,9 +31,7 @@ import {
 import { WaitingCellPopover } from "@/components/scheduler/WaitingCellPopover";
 import { SectionHeading, UseLegend } from "@/components/shared/SectionHeading";
 import { Button } from "@/components/ui/Button";
-import type { NoteTone } from "@/components/ui/Note";
 import { Note } from "@/components/ui/Note";
-import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
 import type { CycleOut, StageOut } from "@/types/schedule";
 import type { GridCellRef, RunDesignState } from "@/types/schedulerGrid";
 import { addDaysUTC, formatShortDateUTC, isWeekendUTC, parseDateOnly, toIsoDateUTC } from "@/utils/calendarDates";
@@ -45,6 +41,7 @@ import { ClearScheduleModal } from "./ClearScheduleModal";
 import { PrintBatchSheetModal } from "./PrintBatchSheetModal";
 import { RunDesignAccordion } from "./RunDesignAccordion";
 import styles from "./SchedulePage.module.css";
+import { useScheduleActions } from "./useScheduleActions";
 import { useSchedulerWindow } from "./useSchedulerWindow";
 
 const DEFAULT_RUN_DESIGN: RunDesignState = {
@@ -59,23 +56,13 @@ interface DetailTarget {
   cycle: CycleOut;
 }
 
-interface AccordionNote {
-  tone: NoteTone;
-  icon: string;
-  text: string;
-}
-
 export function SchedulePage() {
-  const queryClient = useQueryClient();
   const win = useSchedulerWindow();
   const selection = useGridSelection();
   const slotSelection = useSlotSelection();
 
   const [runDesign, setRunDesign] = useState<RunDesignState>(DEFAULT_RUN_DESIGN);
   const [detail, setDetail] = useState<DetailTarget | null>(null);
-  const [runDesignNote, setRunDesignNote] = useState<AccordionNote | null>(null);
-  const [removeSlotsError, setRemoveSlotsError] = useState<string | null>(null);
-  const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
   const [printSheetOpen, setPrintSheetOpen] = useState(false);
   const [ghostDetail, setGhostDetail] = useState<CellGhost | null>(null);
   const gridAreaRef = useRef<HTMLDivElement>(null);
@@ -230,41 +217,47 @@ export function SchedulePage() {
   // Every eligible (unlocked, non-cancelled) sample anywhere in the (instrument row, day
   // column) rectangle bounded by [r0,r1] x [c0,c1] - the shared basis for both the
   // ctrl/cmd+shift-click rectangle extend and the ctrl/cmd-drag rectangle select below.
-  function stagesInRect(r0: number, r1: number, c0: number, c1: number): StageOut[] {
-    const stages: StageOut[] = [];
-    for (let r = r0; r <= r1; r++) {
-      const serial = instrumentSerials[r];
-      if (!serial) continue;
-      const byDate = grouped.get(serial);
-      if (!byDate) continue;
-      for (let c = c0; c <= c1; c++) {
-        const date = win.days[c];
-        if (!date) continue;
-        const cycle = byDate.get(date);
-        if (!cycle || cycle.status !== "planned") continue;
-        for (const s of cycle.stages) {
-          if (s.cell_use_status !== "cancelled") stages.push(s);
+  const stagesInRect = useCallback(
+    (r0: number, r1: number, c0: number, c1: number): StageOut[] => {
+      const stages: StageOut[] = [];
+      for (let r = r0; r <= r1; r++) {
+        const serial = instrumentSerials[r];
+        if (!serial) continue;
+        const byDate = grouped.get(serial);
+        if (!byDate) continue;
+        for (let c = c0; c <= c1; c++) {
+          const date = win.days[c];
+          if (!date) continue;
+          const cycle = byDate.get(date);
+          if (!cycle || cycle.status !== "planned") continue;
+          for (const s of cycle.stages) {
+            if (s.cell_use_status !== "cancelled") stages.push(s);
+          }
         }
       }
-    }
-    return stages;
-  }
+      return stages;
+    },
+    [instrumentSerials, grouped, win.days],
+  );
 
   // Ctrl/cmd+shift-click on a filled slot: extend slotSelection to every eligible sample
   // in the rectangle between the last-toggled slot (slotSelection.anchor) and this one -
   // same grid coordinates useGridSelection uses for empty-cell rectangle selection. Falls
   // back to a plain toggle if there's no anchor yet (e.g. the very first click was
   // already a ctrl+shift-click).
-  function onExtendSlotSelect(stage: StageOut, coord: { r: number; c: number }) {
-    const anchor = slotSelection.anchor;
-    if (!anchor) {
-      slotSelection.toggle(stage, coord);
-      return;
-    }
-    slotSelection.replaceWith(
-      stagesInRect(Math.min(anchor.r, coord.r), Math.max(anchor.r, coord.r), Math.min(anchor.c, coord.c), Math.max(anchor.c, coord.c)),
-    );
-  }
+  const onExtendSlotSelect = useCallback(
+    (stage: StageOut, coord: { r: number; c: number }) => {
+      const anchor = slotSelection.anchor;
+      if (!anchor) {
+        slotSelection.toggle(stage, coord);
+        return;
+      }
+      slotSelection.replaceWith(
+        stagesInRect(Math.min(anchor.r, coord.r), Math.max(anchor.r, coord.r), Math.min(anchor.c, coord.c), Math.max(anchor.c, coord.c)),
+      );
+    },
+    [slotSelection, stagesInRect],
+  );
 
   // Ctrl/cmd-mousedown on a filled slot: draws a live rectangle selection as the mouse
   // moves, mirroring onExtendSlotSelect but continuously instead of via a second click.
@@ -273,139 +266,50 @@ export function SchedulePage() {
   // window listeners (not React state) drive it, the same pattern the outside-click
   // clear effect above uses, since every intermediate frame just needs to read the
   // cursor position - not trigger a page-level re-render on its own.
-  function onDragSelectStart(_stage: StageOut, coord: { r: number; c: number }) {
-    const state: { anchor: { r: number; c: number }; lastKey: string | null } = { anchor: coord, lastKey: null };
-    function handlePointerMove(e: globalThis.PointerEvent) {
-      const td = (document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null)?.closest<HTMLElement>(
-        "td[data-row]",
-      );
-      if (!td) return;
-      const r = Number(td.dataset.row);
-      const c = Number(td.dataset.col);
-      const r0 = Math.min(state.anchor.r, r);
-      const r1 = Math.max(state.anchor.r, r);
-      const c0 = Math.min(state.anchor.c, c);
-      const c1 = Math.max(state.anchor.c, c);
-      const key = `${r0}-${r1}-${c0}-${c1}`;
-      if (key === state.lastKey) return;
-      state.lastKey = key;
-      slotSelection.replaceWith(stagesInRect(r0, r1, c0, c1));
-    }
-    function handlePointerUp() {
-      window.removeEventListener("pointermove", handlePointerMove);
-    }
-    window.addEventListener("pointermove", handlePointerMove);
-    window.addEventListener("pointerup", handlePointerUp, { once: true });
-  }
+  const onDragSelectStart = useCallback(
+    (_stage: StageOut, coord: { r: number; c: number }) => {
+      const state: { anchor: { r: number; c: number }; lastKey: string | null } = { anchor: coord, lastKey: null };
+      function handlePointerMove(e: globalThis.PointerEvent) {
+        const td = (document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null)?.closest<HTMLElement>(
+          "td[data-row]",
+        );
+        if (!td) return;
+        const r = Number(td.dataset.row);
+        const c = Number(td.dataset.col);
+        const r0 = Math.min(state.anchor.r, r);
+        const r1 = Math.max(state.anchor.r, r);
+        const c0 = Math.min(state.anchor.c, c);
+        const c1 = Math.max(state.anchor.c, c);
+        const key = `${r0}-${r1}-${c0}-${c1}`;
+        if (key === state.lastKey) return;
+        state.lastKey = key;
+        slotSelection.replaceWith(stagesInRect(r0, r1, c0, c1));
+      }
+      function handlePointerUp() {
+        window.removeEventListener("pointermove", handlePointerMove);
+      }
+      window.addEventListener("pointermove", handlePointerMove);
+      window.addEventListener("pointerup", handlePointerUp, { once: true });
+    },
+    [slotSelection, stagesInRect],
+  );
 
-  // Clear both selections whenever the window pages.
+  const actions = useScheduleActions({ selection, slotSelection, selectedCells, runDesign, weekPlannedStages });
+
+  // Clear both selections and any action feedback whenever the window pages.
   useEffect(() => {
     selection.clear();
     slotSelection.clear();
-    setRunDesignNote(null);
-    setRemoveSlotsError(null);
-    setClearConfirmOpen(false);
-  }, [win.from, selection.clear, slotSelection.clear]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const removeSlotsMutation = useMutation({
-    mutationFn: async () => {
-      const stages = slotSelection.selectedStages;
-      const results = await Promise.allSettled(stages.map((stage) => cellUsesApi.remove(stage.cell_use_id)));
-      const failed = results.filter((r): r is PromiseRejectedResult => r.status === "rejected");
-      return { total: stages.length, failed: failed.length, firstError: failed[0] };
-    },
-    onSuccess: ({ total, failed, firstError }) => {
-      invalidateScheduleRelated(queryClient);
-      slotSelection.clear();
-      if (failed === 0) {
-        setRemoveSlotsError(null);
-      } else {
-        const detail = firstError?.reason instanceof ApiError ? firstError.reason.message : undefined;
-        setRemoveSlotsError(
-          `${total - failed} of ${total} sample(s) removed; ${failed} could not be removed${detail ? ` (${detail})` : ""}.`,
-        );
-      }
-    },
-    onError: (err) => {
-      // Defensive only - mutationFn resolves via Promise.allSettled and shouldn't reject.
-      setRemoveSlotsError(err instanceof ApiError ? err.message : "Failed to remove selected samples.");
-    },
-  });
-
-  // Dragging a placed sample off its slot and dropping it somewhere that isn't a valid
-  // grid slot (e.g. off the grid entirely) removes it from the schedule - the drag
-  // equivalent of the "Remove from schedule" action.
-  const dragRemoveMutation = useMutation({
-    mutationFn: (cellUseId: number) => cellUsesApi.remove(cellUseId),
-    onSuccess: () => {
-      invalidateScheduleRelated(queryClient);
-      setRemoveSlotsError(null);
-    },
-    onError: (err) => {
-      setRemoveSlotsError(err instanceof ApiError ? err.message : "Failed to remove sample from schedule.");
-    },
-  });
-
-  // Dragging a placed sample onto a *different* already-occupied slot swaps the two
-  // samples' placements - the drag-and-drop equivalent of moving each into the other's
-  // slot in one step.
-  const swapMutation = useMutation({
-    mutationFn: ({ a, b }: { a: number; b: number }) => cellUsesApi.swap(a, b),
-    onSuccess: () => {
-      invalidateScheduleRelated(queryClient);
-      setRemoveSlotsError(null);
-    },
-    onError: (err) => {
-      setRemoveSlotsError(err instanceof ApiError ? err.message : "Failed to swap samples.");
-    },
-  });
+    actions.resetFeedback();
+  }, [win.from, selection.clear, slotSelection.clear, actions.resetFeedback]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const dnd = useSchedulerDnd(
-    (cellUseId) => dragRemoveMutation.mutate(cellUseId),
-    (a, b) => swapMutation.mutate({ a, b }),
+    (cellUseId) => actions.dragRemove.mutate(cellUseId),
+    (a, b) => actions.swap.mutate({ a, b }),
   );
   // Suppressed during any drag (backlog-sample or filled-slot move) so the hover/pin
   // highlight never fights the drag/drop visuals - see useCellLinkHighlight.tsx.
   const cellLink = useCellLinkHighlight(dnd.activeSample !== null);
-
-  // Bulk-remove every planned (unlocked) sample in the currently-viewed week - gated
-  // behind the confirm modal below since it's destructive and can span every instrument.
-  const clearScheduleMutation = useMutation({
-    mutationFn: async () => {
-      const stages = weekPlannedStages;
-      const results = await Promise.allSettled(stages.map((stage) => cellUsesApi.remove(stage.cell_use_id)));
-      const failed = results.filter((r): r is PromiseRejectedResult => r.status === "rejected");
-      return { total: stages.length, succeeded: stages.length - failed.length, failed: failed.length, firstError: failed[0] };
-    },
-    onSuccess: ({ total, succeeded, failed, firstError }) => {
-      invalidateScheduleRelated(queryClient);
-      setClearConfirmOpen(false);
-      if (failed === 0) {
-        setRunDesignNote({ tone: "good", icon: "✓", text: `${succeeded} sample(s) cleared from the schedule.` });
-      } else {
-        const detail = firstError?.reason instanceof ApiError ? firstError.reason.message : undefined;
-        setRunDesignNote({
-          tone: "warn",
-          icon: "!",
-          text: `${succeeded} of ${total} sample(s) cleared; ${failed} could not be removed${detail ? ` (${detail})` : ""}.`,
-        });
-      }
-    },
-    onError: (err) => {
-      // Defensive only - mutationFn resolves via Promise.allSettled and shouldn't reject.
-      setRunDesignNote({
-        tone: "bad",
-        icon: "!",
-        text: err instanceof ApiError ? err.message : "Failed to clear schedule.",
-      });
-    },
-  });
-
-  function onRequestClearSchedule() {
-    setRunDesignNote(null);
-    clearScheduleMutation.reset();
-    setClearConfirmOpen(true);
-  }
 
   // Clicking anywhere outside the weekly schedule grid deselects both selections - lets
   // users click away (blank page, etc.) to dismiss a selection without hunting for the
@@ -419,7 +323,7 @@ export function SchedulePage() {
   // it, making the click silently schedule zero cells.
   useEffect(() => {
     if (!selection.hasSelection && !slotSelection.hasSelection) return;
-    if (detail || ghostDetail || printSheetOpen || clearConfirmOpen || dnd.pendingPlacement) return;
+    if (detail || ghostDetail || printSheetOpen || actions.clearConfirmOpen || dnd.pendingPlacement) return;
     function onMouseDown(e: MouseEvent) {
       const target = e.target as Node;
       if (gridAreaRef.current?.contains(target)) return;
@@ -429,17 +333,9 @@ export function SchedulePage() {
     }
     window.addEventListener("mousedown", onMouseDown);
     return () => window.removeEventListener("mousedown", onMouseDown);
-  }, [
-    selection.hasSelection,
-    slotSelection.hasSelection,
-    selection.clear,
-    slotSelection.clear,
-    detail,
-    ghostDetail,
-    printSheetOpen,
-    clearConfirmOpen,
-    dnd.pendingPlacement,
-  ]);
+    // selection/slotSelection are stable (memoized in their hooks), so depending on the
+    // whole objects re-subscribes only on a real selection change, same as before.
+  }, [selection, slotSelection, detail, ghostDetail, printSheetOpen, actions.clearConfirmOpen, dnd.pendingPlacement]);
 
   // Delete/Backspace removes the selected samples from the schedule, as long as focus
   // isn't in a text field (so it doesn't hijack editing elsewhere on the page).
@@ -450,54 +346,15 @@ export function SchedulePage() {
       const target = e.target as HTMLElement | null;
       if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) return;
       e.preventDefault();
-      removeSlotsMutation.mutate();
+      actions.removeSlots.mutate();
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [slotSelection.hasSelection, removeSlotsMutation]);
+  }, [slotSelection.hasSelection, actions.removeSlots]);
 
-  const autoFillMutation = useMutation({
-    mutationFn: () =>
-      schedulerApi.autoFill({
-        cells: selectedCells,
-        max_uses: runDesign.max_uses,
-        run_time_hours: runDesign.run_time_hours,
-        objective: runDesign.objective,
-        cells_per_day: runDesign.cells_per_day,
-      }),
-    onSuccess: (res) => {
-      invalidateScheduleRelated(queryClient);
-      selection.clear();
-      const parts = [`${res.placed_sample_ids.length} placed`];
-      if (res.unplaced_sample_ids.length > 0) parts.push(`${res.unplaced_sample_ids.length} unplaced`);
-      if (res.skipped_cells.length > 0) parts.push(`${res.skipped_cells.length} cell(s) skipped`);
-      if (res.window_flags.length > 0) parts.push(`${res.window_flags.length} window flag(s)`);
-      if (res.barcode_conflicts.length > 0) parts.push(`${res.barcode_conflicts.length} barcode conflict(s)`);
-      const clean =
-        res.unplaced_sample_ids.length === 0 && res.window_flags.length === 0 && res.barcode_conflicts.length === 0;
-      setRunDesignNote({
-        tone: clean ? "good" : "warn",
-        icon: clean ? "✓" : "!",
-        text: parts.join(" · "),
-      });
-    },
-    onError: (err) => {
-      setRunDesignNote({
-        tone: "bad",
-        icon: "!",
-        text: err instanceof ApiError ? err.message : "Auto-schedule failed.",
-      });
-    },
-  });
-
-  function onAutoSchedule() {
-    setRunDesignNote(null);
-    autoFillMutation.mutate();
-  }
-
-  function handleOpenDetail(stage: StageOut, cycle: CycleOut) {
+  const handleOpenDetail = useCallback((stage: StageOut, cycle: CycleOut) => {
     setDetail({ stage, cycle });
-  }
+  }, []);
 
   const rangeLabel = `${formatShortDateUTC(parseDateOnly(win.dateFrom))} – ${formatShortDateUTC(
     parseDateOnly(win.dateTo),
@@ -541,18 +398,18 @@ export function SchedulePage() {
         {slotSelection.hasSelection && (
           <div className={styles.selectionInfo}>
             <span>{slotSelection.selectedStages.length} sample(s) selected</span>
-            <Button size="sm" variant="ghost" onClick={slotSelection.clear} disabled={removeSlotsMutation.isPending}>
+            <Button size="sm" variant="ghost" onClick={slotSelection.clear} disabled={actions.removeSlots.isPending}>
               Clear
             </Button>
-            <Button size="sm" variant="primary" onClick={() => removeSlotsMutation.mutate()} disabled={removeSlotsMutation.isPending}>
-              {removeSlotsMutation.isPending ? "Removing…" : "Remove from schedule (Del)"}
+            <Button size="sm" variant="primary" onClick={() => actions.removeSlots.mutate()} disabled={actions.removeSlots.isPending}>
+              {actions.removeSlots.isPending ? "Removing…" : "Remove from schedule (Del)"}
             </Button>
           </div>
         )}
       </div>
-      {removeSlotsError && (
+      {actions.removeSlotsError && (
         <Note tone="bad" icon="!">
-          {removeSlotsError}
+          {actions.removeSlotsError}
         </Note>
       )}
 
@@ -568,11 +425,11 @@ export function SchedulePage() {
               runDesign={runDesign}
               onChange={setRunDesign}
               selectedCount={selectedCells.length}
-              onAutoSchedule={onAutoSchedule}
-              autoFilling={autoFillMutation.isPending}
+              onAutoSchedule={actions.onAutoSchedule}
+              autoFilling={actions.autoFill.isPending}
               weekPlannedCount={weekPlannedStages.length}
-              onRequestClearSchedule={onRequestClearSchedule}
-              note={runDesignNote}
+              onRequestClearSchedule={actions.onRequestClearSchedule}
+              note={actions.runDesignNote}
             />
             <BacklogAccordion />
           </div>
@@ -601,7 +458,7 @@ export function SchedulePage() {
               <SchedulerGrid
                 instrumentSerials={instrumentSerials}
                 days={win.days}
-                cycles={cycles}
+                grouped={grouped}
                 selection={selection}
                 placingSlotKey={dnd.placingSlotKey}
                 onOpenDetail={handleOpenDetail}
@@ -633,14 +490,14 @@ export function SchedulePage() {
         />
       )}
 
-      {clearConfirmOpen && (
+      {actions.clearConfirmOpen && (
         <ClearScheduleModal
           weekLabel={rangeLabel}
           count={weekPlannedStages.length}
-          pending={clearScheduleMutation.isPending}
-          error={clearScheduleMutation.error}
-          onCancel={() => setClearConfirmOpen(false)}
-          onConfirm={() => clearScheduleMutation.mutate()}
+          pending={actions.clearSchedule.isPending}
+          error={actions.clearSchedule.error}
+          onCancel={() => actions.setClearConfirmOpen(false)}
+          onConfirm={() => actions.clearSchedule.mutate()}
         />
       )}
 
