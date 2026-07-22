@@ -249,13 +249,19 @@ export function SchedulerDayCell(props: SchedulerDayCellProps) {
           w.wastedCells.length === 1
             ? `${w.wastedCells[0].code} (${w.wastedCells[0].usesRemaining} unused)`
             : `${w.wastedCells.length} cells (${w.wastedUses} unused uses)`;
+        // The deadline is either the cells' own 108h expiry or a new tray needing this
+        // carousel position - spell out which so the user knows why today is the last chance.
+        const reason = w.evictedBySuccessor
+          ? "a new tray is loaded into this position next, so it must be disposed to make room"
+          : "it can't be reused after this day";
         return (
           <div
             key={w.trayId}
             className={styles.disposalWarn}
-            title={`${w.positionLabel} (tray #${w.trayId}) can't be reused after this day and will be physically disposed with unused capacity — ${detail}. Reuse these cells by today, or accept the waste.`}
+            title={`${w.positionLabel} (tray #${w.trayId}) will be physically disposed with unused capacity — ${reason}: ${detail}. Reuse these cells by today, or accept the waste.`}
           >
             ⚠ {w.positionLabel} · #{w.trayId} — {summary} will be disposed unused
+            {w.evictedBySuccessor ? " (new tray loads next)" : ""}
           </div>
         );
       })}

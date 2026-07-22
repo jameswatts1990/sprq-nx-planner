@@ -106,6 +106,12 @@ function nextWeekdayAfter(isoDate: string): string {
   return toIsoDateUTC(d);
 }
 
+function prevWeekdayBefore(isoDate: string): string {
+  let d = addDaysUTC(parseDateOnly(isoDate), -1);
+  while (isWeekendUTC(d)) d = addDaysUTC(d, -1);
+  return toIsoDateUTC(d);
+}
+
 function dayStart(isoDate: string): Date {
   const d = parseDateOnly(isoDate);
   d.setUTCHours(DAY_START_HOUR, 0, 0, 0);
@@ -113,23 +119,40 @@ function dayStart(isoDate: string): Date {
 }
 
 /**
- * The bounds of a previously-used cell's remaining 108h reuse window, or null when it has no
- * running clock to bound (never used, or no first-use anchor at all). `earliestDate` is the
- * first weekday its next use could start (the weekday after its last use); `cutoffDate` is
- * the last weekday it could still start before the window closes; `deadlineAtMs` is the exact
- * closing instant. The clock is anchored on first_use_started_at once Use 1 is confirmed
- * loaded, falling back to first_use_planned_start_at as a provisional estimate before then
- * (see docs/pacbio-sprq-nx-scheduling-reference.md #2). Pure function of already-fetched cell
- * data - no "now" dependency, so every caller agrees on the same window. Shared by
- * computeGhost (per-day reuse ghost) and cellReuseCutoffDate (the tray disposal warning's
- * genuine last-chance day). Returns null when the window has already closed before any reuse
- * weekday is even reachable.
+ * The bounds of a previously-used cell's remaining reuse window, or null when it has no
+ * window to bound (never used, no first-use anchor, or the window has already been fully
+ * closed off). `earliestDate` is the first weekday its next use could start (the weekday
+ * after its last use); `cutoffDate` is the last weekday it could still start; `deadlineAtMs`
+ * is the effective closing instant.
+ *
+ * Two things close the window, whichever comes first:
+ *   - the cell's own 108h clock, anchored on first_use_started_at once Use 1 is confirmed
+ *     loaded (falling back to first_use_planned_start_at as a provisional estimate before
+ *     then - see docs/pacbio-sprq-nx-scheduling-reference.md #2); and
+ *   - `evictionDate`, the day a *successor* physical tray is founded in this cell's carousel
+ *     position (see computeTrayEvictionDates). A cell keeps a fixed tray/well position for
+ *     life and two trays can never share one position, so once the next tray lands the whole
+ *     prior tray - this cell included - has physically left the instrument and cannot be
+ *     reused, even if its 108h clock hasn't run out. The last usable day is then the weekday
+ *     before eviction.
+ *
+ * Pure function of already-fetched data - no "now" dependency, so every caller agrees on the
+ * same window. Shared by computeGhost (per-day reuse ghost) and cellReuseCutoffDate (the tray
+ * disposal warning's genuine last-chance day).
  */
-function reuseWindow(cell: CellOut): { earliestDate: string; cutoffDate: string; deadlineAtMs: number } | null {
+function reuseWindow(
+  cell: CellOut,
+  evictionDate?: string | null,
+): { earliestDate: string; cutoffDate: string; deadlineAtMs: number } | null {
   if (!cell.last_use_run_date) return null;
   const anchor = cell.first_use_started_at ?? cell.first_use_planned_start_at;
   if (!anchor) return null;
-  const deadlineAtMs = new Date(anchor).getTime() + CELL_LIFETIME_H * 3_600_000;
+  let deadlineAtMs = new Date(anchor).getTime() + CELL_LIFETIME_H * 3_600_000;
+  if (evictionDate) {
+    // The tray is gone from `evictionDate` on, so the last usable instant is strictly before
+    // that day's start - clamp the deadline down to it if the 108h clock would run longer.
+    deadlineAtMs = Math.min(deadlineAtMs, dayStart(evictionDate).getTime() - 1);
+  }
   const earliestDate = nextWeekdayAfter(cell.last_use_run_date);
   if (dayStart(earliestDate).getTime() > deadlineAtMs) return null; // window shuts before any reuse day
   // Walk forward from the earliest eligible day to the last qualifying weekday - computed the
@@ -142,15 +165,16 @@ function reuseWindow(cell: CellOut): { earliestDate: string; cutoffDate: string;
 }
 
 /**
- * The last weekday `cell` could still be reused before its 108h window closes - i.e. the
- * final day its still-open capacity is salvageable before the physical tray holding it is
- * disposed with that capacity stranded. null for a cell that carries no expiry-based deadline
- * of its own: no usable remaining capacity, or no running 108h clock yet (a never-used tray
- * sibling has a reserved well but no first use, so nothing to time out).
+ * The last weekday `cell` could still be reused - the earlier of its 108h window closing and
+ * its physical tray being evicted by a successor tray (see reuseWindow / computeTrayEviction-
+ * Dates) - i.e. the final day its still-open capacity is salvageable before the tray holding
+ * it is disposed with that capacity stranded. null for a cell that carries no deadline of its
+ * own: no usable remaining capacity, or no running 108h clock yet (a never-used tray sibling
+ * has a reserved well but no first use, so nothing to time out).
  */
-function cellReuseCutoffDate(cell: CellOut): string | null {
+function cellReuseCutoffDate(cell: CellOut, evictionDate?: string | null): string | null {
   if (cell.status !== "open" || cell.uses_remaining <= 0 || cell.uses_consumed <= 0) return null;
-  return reuseWindow(cell)?.cutoffDate ?? null;
+  return reuseWindow(cell, evictionDate)?.cutoffDate ?? null;
 }
 
 /**
@@ -164,12 +188,17 @@ export function computeGhost(
   cell: CellOut,
   day: string,
   trayFoundingDates: Map<number, string> = new Map(),
+  trayEvictionDates: Map<number, string> = new Map(),
 ): CellGhost | null {
   if (cell.status !== "open" || cell.uses_remaining <= 0) return null;
   if (cell.uses_consumed <= 0 || !cell.last_use_run_date || !cell.current_instrument_serial) return null;
   if (isWeekendUTC(parseDateOnly(day))) return null;
 
   const foundingDate = cell.tray_id !== null ? trayFoundingDates.get(cell.tray_id) : undefined;
+  const evictionDate = cell.tray_id !== null ? trayEvictionDates.get(cell.tray_id) : undefined;
+  // A successor tray has taken this carousel position, so this cell's whole physical tray has
+  // left the instrument - it can't be reused (or even shown as a reuse offer) any more.
+  if (evictionDate !== undefined && day >= evictionDate) return null;
 
   if (day < cell.last_use_run_date) {
     // A day strictly before this cell's own last (possibly not-yet-run) use - that use
@@ -196,7 +225,7 @@ export function computeGhost(
   // as a provisional estimate so a not-yet-confirmed cell still shows a concrete, bounded
   // deadline instead of reading as available indefinitely.
   const deadlineIsEstimated = !cell.first_use_started_at;
-  const window = reuseWindow(cell);
+  const window = reuseWindow(cell, evictionDate);
   if (!window) return null; // no cycle for the first use, or the window has already closed
   const { earliestDate, cutoffDate, deadlineAtMs } = window;
   if (day < earliestDate) return null;
@@ -237,10 +266,17 @@ export function computeUnusedTraySiblingGhost(
   cell: CellOut,
   day: string,
   trayFoundingDates: Map<number, string> = new Map(),
+  trayEvictionDates: Map<number, string> = new Map(),
 ): CellGhost | null {
   if (cell.status !== "open" || cell.uses_consumed > 0) return null;
   if (!cell.current_instrument_serial || !cell.current_well) return null;
   if (isWeekendUTC(parseDateOnly(day))) return null;
+
+  // A successor tray has taken this carousel position from `evictionDate` on, so this
+  // never-used sibling's physical tray has left the instrument - stop showing its reserved
+  // well (a genuinely idle "+" belongs there now, ready for the successor's own cells).
+  const evictionDate = cell.tray_id !== null ? trayEvictionDates.get(cell.tray_id) : undefined;
+  if (evictionDate !== undefined && day >= evictionDate) return null;
 
   const foundingDate = cell.tray_id !== null ? trayFoundingDates.get(cell.tray_id) : undefined;
 
@@ -498,10 +534,63 @@ export function computeBlockedWellsByInstrumentAndDay(
   return out;
 }
 
+/** The physical carousel position a well sits in - tray 1 is wells A01-D01 (index 0-3),
+ * tray 2 is A02-D02 (4-7). A physical tray occupies exactly one position, and only one tray
+ * can be in a position at a time, so this is the grain at which one tray evicts another. */
+function trayPositionGroup(well: string | null): number {
+  const idx = well ? WELL_ORDER.indexOf(well) : -1;
+  return idx < 0 ? -1 : Math.floor(idx / 4);
+}
+
+/**
+ * For each physical tray, the founding date of the *next* tray to take over its carousel
+ * position - i.e. the day that tray is physically removed from the instrument. A cell keeps a
+ * fixed tray/well position for life and two trays can never share one carousel position (see
+ * docs/pacbio-sprq-nx-scheduling-reference.md), so once a successor tray is founded in the
+ * same position (tray 1 = wells A01-D01, tray 2 = A02-D02), the entire prior tray - every one
+ * of its cells, including wells the successor doesn't refill - has necessarily left, and none
+ * of its cells can be reused from that day on. Trays with no successor (the one currently
+ * loaded in that position) are absent from the map. `cells` should be the wider open+terminal
+ * +stopped universe and `trayFoundingDates` built from that same universe, so a later tray's
+ * founding is visible even when the prior tray's cells have all gone terminal/stopped.
+ */
+export function computeTrayEvictionDates(
+  cells: CellOut[],
+  trayFoundingDates: Map<number, string>,
+): Map<number, string> {
+  // Per (instrument, position group), the founding date of every tray occupying it. One
+  // entry per tray - all four of a tray's cells share a position, so the first is enough.
+  const byPosition = new Map<string, { founding: string; trayId: number }[]>();
+  const seenTrays = new Set<number>();
+  for (const cell of cells) {
+    if (cell.tray_id === null || seenTrays.has(cell.tray_id)) continue;
+    if (!cell.current_instrument_serial || !cell.current_well) continue;
+    const group = trayPositionGroup(cell.current_well);
+    if (group < 0) continue;
+    const founding = trayFoundingDates.get(cell.tray_id);
+    if (!founding) continue;
+    seenTrays.add(cell.tray_id);
+    const key = `${cell.current_instrument_serial}${OCCUPANCY_SEP}${group}`;
+    const list = byPosition.get(key);
+    if (list) list.push({ founding, trayId: cell.tray_id });
+    else byPosition.set(key, [{ founding, trayId: cell.tray_id }]);
+  }
+
+  const evictions = new Map<number, string>();
+  for (const list of byPosition.values()) {
+    list.sort((a, b) => (a.founding < b.founding ? -1 : a.founding > b.founding ? 1 : 0));
+    for (const entry of list) {
+      const next = list.find((e) => e.founding > entry.founding);
+      if (next) evictions.set(entry.trayId, next.founding);
+    }
+  }
+  return evictions;
+}
+
 /** One physical tray whose next physical disposal will waste still-unused cell capacity -
- * surfaced next to Confirm loaded on the tray's genuine last-chance day: the later of its
- * last scheduled use and its cells' 108h reuse cutoff (see computeTrayDisposalWarnings /
- * SchedulerDayCell). */
+ * surfaced next to Confirm loaded on the tray's genuine last-chance day: the last day it's
+ * still present and still holds salvageable capacity, bounded by its cells' 108h reuse cutoffs
+ * and by a successor tray evicting it (see computeTrayDisposalWarnings / SchedulerDayCell). */
 export interface TrayDisposalWarning {
   /** The physical tray's id (same id the tray Discard action targets). */
   trayId: number;
@@ -512,6 +601,10 @@ export interface TrayDisposalWarning {
   wastedCells: { code: string; well: string | null; usesRemaining: number }[];
   /** Total unused cell-uses across wastedCells. */
   wastedUses: number;
+  /** True when the deadline is being forced by a *successor* tray founded in this carousel
+   * position (the tray must be disposed to make room), rather than only its cells' own 108h
+   * windows running out - lets the UI say why this is the last chance. */
+  evictedBySuccessor: boolean;
 }
 
 function trayPositionLabel(cells: CellOut[]): string {
@@ -524,25 +617,30 @@ function trayPositionLabel(cells: CellOut[]): string {
 /**
  * Buckets, by (instrument, day), every physical tray whose disposal will waste still-unused
  * cell capacity - keyed to the tray's genuine *last chance* day, so the warning lands right
- * where the user can still act (next to Confirm loaded). That day is the later of:
- *   - the tray's last scheduled-use day, and
- *   - the latest 108h reuse cutoff across its still-open cells (the day those cells read
- *     "expires today") - since a used cell keeps loadable capacity right up to its cutoff,
- *     the tray isn't really disposed-with-waste until then, not on its final *scheduled* run.
- * This stops a freshly-loaded tray (used once Monday, cells good all week) from crying waste
- * on Monday when the real deadline to reuse those cells is Friday. When no still-open cell has
- * a running clock yet (only never-used siblings, which never time out), it falls back to the
- * last scheduled-use day. A tray is flagged only when its last scheduled use falls within the
- * visible window (before then it may still gain more uses, and there's no column to warn on)
- * and it still has open cells with uses_remaining > 0. A cutoff spilling past the visible
- * window is clamped to the last column so the warning still surfaces. Fully-consumed trays
- * produce nothing. `cells` should be the wider open+terminal+stopped universe so a tray's
- * true last-use day and full membership are visible; only its still-open cells count as
- * wasted (terminal/stopped cells have no live capacity left to strand).
+ * where the user can still act (next to Confirm loaded). That day is the latest day the tray
+ * is both still physically present AND still holds salvageable capacity:
+ *   - a still-open, previously-used cell keeps loadable capacity right up to its reuse cutoff
+ *     (the earlier of its 108h window closing and the tray being evicted - see reuseWindow /
+ *     computeTrayEvictionDates), so the tray isn't disposed-with-waste until then, not on its
+ *     final *scheduled* run. This stops a freshly-loaded tray (used once Monday, cells good
+ *     all week) from crying waste on Monday when the real deadline is Friday;
+ *   - a never-used sibling has no clock of its own, but if a successor tray is founded in the
+ *     same carousel position the whole tray must physically leave, so its last usable day is
+ *     the weekday before that eviction - the "dispose the old tray to make room" deadline.
+ * Falls back to the last scheduled-use day when neither force gives a later deadline. A tray
+ * is flagged only when its last scheduled use falls within the visible window (before then it
+ * may still gain more uses, and there's no column to warn on) and it still has open cells with
+ * uses_remaining > 0. A deadline spilling past the visible window is clamped to the last
+ * column so the warning still surfaces. Fully-consumed trays produce nothing. `cells` should
+ * be the wider open+terminal+stopped universe so a tray's true last-use day and full
+ * membership are visible; only its still-open cells count as wasted (terminal/stopped cells
+ * have no live capacity left to strand). `trayEvictionDates` should be computed from that same
+ * universe (see computeTrayEvictionDates).
  */
 export function computeTrayDisposalWarnings(
   cells: CellOut[],
   days: string[],
+  trayEvictionDates: Map<number, string> = new Map(),
 ): Map<string, Map<string, TrayDisposalWarning[]>> {
   const byTray = new Map<number, CellOut[]>();
   for (const cell of cells) {
@@ -574,15 +672,25 @@ export function computeTrayDisposalWarnings(
       .sort((a, b) => wellSortKey(a.current_well) - wellSortKey(b.current_well));
     if (wasted.length === 0) continue;
 
-    // Push the warning out to the last day this tray's capacity is still salvageable: the
-    // latest reuse cutoff across its open cells, or the last scheduled use if none has a clock.
+    // The day a successor tray takes this carousel position, if any - the tray is physically
+    // gone from then on, so the last day it's still present is the weekday before.
+    const evictionDate = trayEvictionDates.get(trayId);
+    const evictionFloor = evictionDate ? prevWeekdayBefore(evictionDate) : null;
+
+    // Push the warning out to the last day this tray's capacity is still salvageable.
     let warnDay = lastUseDay;
     for (const c of wasted) {
-      const cutoff = cellReuseCutoffDate(c);
-      if (cutoff && cutoff > warnDay) warnDay = cutoff;
+      if (c.uses_consumed > 0) {
+        // A used cell is reusable up to its own cutoff (already capped by eviction).
+        const cutoff = cellReuseCutoffDate(c, evictionDate);
+        if (cutoff && cutoff > warnDay) warnDay = cutoff;
+      } else if (evictionFloor && evictionFloor > warnDay) {
+        // A never-used sibling has no clock, so it stays usable right up to eviction.
+        warnDay = evictionFloor;
+      }
     }
     if (!daySet.has(warnDay)) {
-      // A cutoff beyond the visible week has no column of its own - surface it on the last
+      // A deadline beyond the visible week has no column of its own - surface it on the last
       // visible day rather than dropping the warning; otherwise fall back to the last use.
       warnDay = warnDay > lastVisibleDay ? lastVisibleDay : lastUseDay;
     }
@@ -593,6 +701,7 @@ export function computeTrayDisposalWarnings(
       positionLabel: trayPositionLabel(siblings),
       wastedCells,
       wastedUses: wastedCells.reduce((sum, c) => sum + c.usesRemaining, 0),
+      evictedBySuccessor: evictionDate !== undefined,
     };
 
     let byDay = out.get(instrument);
@@ -642,15 +751,17 @@ export function computeVacatedTrayIds(cells: CellOut[]): Set<number> {
  * (computeTerminalGhost/computePendingTerminalGhost) - the four compute functions are
  * mutually exclusive (by status, and for the terminal pair, by which side of
  * terminalBoundaryDate `day` falls on), so no cell ever produces more than one ghost for a
- * given day. `vacatedTrayIds` (see computeVacatedTrayIds) and `trayFoundingDates` (see
- * computeTrayFoundingDates) should both be computed from the wider cell universe that also
- * includes stopped cells, so pass them in separately rather than deriving them from `cells`.
+ * given day. `vacatedTrayIds` (see computeVacatedTrayIds), `trayFoundingDates` (see
+ * computeTrayFoundingDates) and `trayEvictionDates` (see computeTrayEvictionDates) should all
+ * be computed from the wider cell universe that also includes stopped cells, so pass them in
+ * separately rather than deriving them from `cells`.
  */
 export function groupWaitingCellsByInstrumentAndDay(
   cells: CellOut[],
   days: string[],
   vacatedTrayIds: Set<number> = new Set(),
   trayFoundingDates: Map<number, string> = new Map(),
+  trayEvictionDates: Map<number, string> = new Map(),
 ): Map<string, Map<string, CellGhost[]>> {
   const byInstrument = new Map<string, Map<string, CellGhost[]>>();
 
@@ -663,8 +774,8 @@ export function groupWaitingCellsByInstrumentAndDay(
     if (!cell.current_instrument_serial) continue;
     for (const day of days) {
       const ghost =
-        computeGhost(cell, day, trayFoundingDates) ??
-        computeUnusedTraySiblingGhost(cell, day, trayFoundingDates) ??
+        computeGhost(cell, day, trayFoundingDates, trayEvictionDates) ??
+        computeUnusedTraySiblingGhost(cell, day, trayFoundingDates, trayEvictionDates) ??
         computePendingTerminalGhost(cell, day) ??
         computeTerminalGhost(cell, day, vacatedTrayIds);
       if (!ghost) continue;

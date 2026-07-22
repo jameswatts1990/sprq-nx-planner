@@ -327,11 +327,14 @@ export function ScheduleSection() {
         </li>
         <li>
           An amber <b>&quot;⚠ Tray N · #… — … will be disposed unused&quot;</b> note next to Confirm loaded means
-          this day is the <b>last chance to reuse</b> a physical tray that still has cells with uses left over —
-          whichever is later, the tray&apos;s final scheduled run or the day its cells reach their reuse deadline
-          (&quot;expires today&quot;). Once that day passes the tray is disposed and any spare capacity is lost. It
-          names the tray (its position and id) and the specific cells being wasted (hover for the full list) — so
-          you can decide whether to reuse those cells before then, or accept the waste.
+          this day is the <b>last chance to reuse</b> a physical tray that still has cells with uses left over.
+          That last-chance day is the last day the tray is still on the instrument with usable capacity, set by
+          whichever comes first: the day its cells reach their reuse deadline (&quot;expires today&quot;), or the day
+          before a <b>new tray</b> needs that carousel position — in which case the note adds{" "}
+          <b>&quot;(new tray loads next)&quot;</b> to flag that you must dispose the old tray to make room. Once
+          that day passes the tray is disposed and any spare capacity is lost. It names the tray (its position and
+          id) and the specific cells being wasted (hover for the full list) — so you can decide whether to reuse
+          those cells before then, or accept the waste.
         </li>
         <li>
           The <b>✕</b> button in a tray&apos;s top-right corner is <b>Discard Cells</b> — it force-marks every

@@ -24,6 +24,7 @@ import { useSlotSelection } from "@/components/scheduler/useSlotSelection";
 import {
   computeBlockedWellsByInstrumentAndDay,
   computeTrayDisposalWarnings,
+  computeTrayEvictionDates,
   computeTrayFoundingDates,
   computeVacatedTrayIds,
   groupWaitingCellsByInstrumentAndDay,
@@ -150,6 +151,14 @@ export function SchedulePage() {
   // planned first-use date must still anchor its still-open siblings' ghosts (see
   // waitingCells.computeTrayFoundingDates).
   const trayFoundingDates = useMemo(() => computeTrayFoundingDates(allTrayCells), [allTrayCells]);
+  // The day each physical tray is evicted by a successor tray founded in the same carousel
+  // position - past it, none of that tray's cells can be reused or shown, since a cell keeps a
+  // fixed tray/well position for life and two trays never share a position (see
+  // waitingCells.computeTrayEvictionDates).
+  const trayEvictionDates = useMemo(
+    () => computeTrayEvictionDates(allTrayCells, trayFoundingDates),
+    [allTrayCells, trayFoundingDates],
+  );
   const waitingGrouped = useMemo(
     () =>
       groupWaitingCellsByInstrumentAndDay(
@@ -157,8 +166,9 @@ export function SchedulePage() {
         win.days,
         vacatedTrayIds,
         trayFoundingDates,
+        trayEvictionDates,
       ),
-    [waitingCellsQuery.data, terminalCellsQuery.data, win.days, vacatedTrayIds, trayFoundingDates],
+    [waitingCellsQuery.data, terminalCellsQuery.data, win.days, vacatedTrayIds, trayFoundingDates, trayEvictionDates],
   );
   // Wells permanently dead from a stopped cell, per (instrument, day). Day-aware because a
   // later tray legitimately reuses the same well letter once the stopped cell's own tray has
@@ -169,11 +179,15 @@ export function SchedulePage() {
     [allTrayCells, win.days, trayFoundingDates],
   );
   // Physical trays whose disposal will strand still-unused cell capacity, keyed to the
-  // tray's last-chance day - later of its last scheduled run and its cells' 108h reuse
-  // cutoff - so the warning sits by the Confirm loaded control on the day the user can still
-  // act, not on a freshly-loaded run days before the cells actually expire (see
+  // tray's last-chance day - the last day it's still present and still has salvageable
+  // capacity (bounded by its cells' 108h reuse cutoffs and by a successor tray evicting it) -
+  // so the warning sits by the Confirm loaded control on the day the user can still act, not
+  // on a freshly-loaded run days before the cells actually expire (see
   // computeTrayDisposalWarnings).
-  const disposalGrouped = useMemo(() => computeTrayDisposalWarnings(allTrayCells, win.days), [allTrayCells, win.days]);
+  const disposalGrouped = useMemo(
+    () => computeTrayDisposalWarnings(allTrayCells, win.days, trayEvictionDates),
+    [allTrayCells, win.days, trayEvictionDates],
+  );
   // `cycles` is fetched a few days wider than the visible window (see lookbackDateFrom
   // above), purely so carry-over locks can see runs that started just before it. Anything
   // deriving from the actually-visible week (bulk clear, etc.) must filter back down.

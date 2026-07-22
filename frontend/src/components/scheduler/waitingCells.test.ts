@@ -10,6 +10,7 @@ import {
   computePendingTerminalGhost,
   computeTerminalGhost,
   computeTrayDisposalWarnings,
+  computeTrayEvictionDates,
   computeTrayFoundingDates,
   computeUnusedTraySiblingGhost,
   computeVacatedTrayIds,
@@ -645,6 +646,140 @@ describe("computeTrayDisposalWarnings", () => {
       c.last_use_run_date === "2026-07-22" ? { ...c, last_use_run_date: "2026-07-29" } : c,
     );
     expect(computeTrayDisposalWarnings(cells, WEEK).size).toBe(0);
+  });
+
+  it("warns on the day before a successor tray evicts it, not the cells' later 108h expiry", () => {
+    // The reported scenario: tray 76 (A-D) used Mon-Wed, cell A still has capacity and its own
+    // 108h window runs to Friday - but a *successor* tray 77 is founded Thursday in the same
+    // carousel position, so tray 76 must physically leave by Wednesday to make room. The
+    // warning belongs on Wednesday (the disposal deadline), not Friday (A's 108h expiry).
+    const cellA = baseCell({
+      id: 696,
+      code: "CELL-A000696",
+      tray_id: 76,
+      current_well: "A01",
+      current_instrument_serial: "84047",
+      status: "open",
+      uses_consumed: 1,
+      uses_remaining: 2,
+      last_use_run_date: "2026-07-20", // Monday
+      first_use_started_at: "2026-07-20T12:00:00Z", // 108h window would run to Friday on its own
+    });
+    // Tray 77's founding cell, founded Thursday in the same A01 well / carousel position.
+    const successor = baseCell({
+      id: 700,
+      code: "CELL-A000700",
+      tray_id: 77,
+      current_well: "A01",
+      current_instrument_serial: "84047",
+      status: "open",
+      uses_consumed: 0,
+      uses_remaining: 3,
+      last_use_run_date: null,
+      first_use_started_at: null,
+      first_use_planned_start_at: "2026-07-23T12:00:00Z", // Thursday
+    });
+    const cells = [cellA, successor];
+    const eviction = computeTrayEvictionDates(cells, computeTrayFoundingDates(cells));
+    const warnings = computeTrayDisposalWarnings(cells, WEEK, eviction);
+
+    // On A's unconstrained 108h expiry (Friday) there is now nothing - eviction moved it back.
+    expect(warnings.get("84047")?.get("2026-07-24")).toBeUndefined();
+    const wed = warnings.get("84047")?.get("2026-07-22");
+    expect(wed).toHaveLength(1);
+    expect(wed![0]).toMatchObject({ trayId: 76, wastedUses: 2, evictedBySuccessor: true });
+    // Tray 77 is the one loaded (no successor of its own) - not itself flagged for disposal.
+    expect(wed!.some((w) => w.trayId === 77)).toBe(false);
+  });
+});
+
+describe("computeTrayEvictionDates + reuse suppression", () => {
+  // Tray 76 in wells A01-D01 founded Monday; tray 77 founded Thursday in the SAME carousel
+  // position (well D01 here - the successor need not refill every well of the old tray).
+  const oldTrayCell = baseCell({
+    id: 699,
+    code: "CELL-D000699",
+    tray_id: 76,
+    current_well: "D01",
+    current_instrument_serial: "84047",
+    status: "open",
+    uses_consumed: 2,
+    uses_remaining: 1,
+    last_use_run_date: "2026-07-22", // Wednesday
+    first_use_started_at: "2026-07-20T12:00:00Z", // Monday - 108h window alone runs past Wed
+  });
+  const successorCell = baseCell({
+    id: 703,
+    code: "CELL-D000703",
+    tray_id: 77,
+    current_well: "D01",
+    current_instrument_serial: "84047",
+    status: "open",
+    uses_consumed: 0,
+    uses_remaining: 3,
+    last_use_run_date: null,
+    first_use_started_at: null,
+    first_use_planned_start_at: "2026-07-23T12:00:00Z", // Thursday founding
+  });
+
+  it("maps a tray to the founding date of the next tray in its carousel position", () => {
+    const cells = [oldTrayCell, successorCell];
+    const eviction = computeTrayEvictionDates(cells, computeTrayFoundingDates(cells));
+    expect(eviction.get(76)).toBe("2026-07-23"); // tray 76 evicted when tray 77 founds Thursday
+    expect(eviction.has(77)).toBe(false); // the currently-loaded tray has no successor
+  });
+
+  it("evicts based on carousel position even when the successor doesn't refill the same well", () => {
+    // Successor tray 77 lands in A01 (not D01), but it's still the same physical position, so
+    // tray 76's D01 cell is evicted all the same.
+    const successorInA = { ...successorCell, id: 704, code: "CELL-A000704", current_well: "A01" };
+    const cells = [oldTrayCell, successorInA];
+    const eviction = computeTrayEvictionDates(cells, computeTrayFoundingDates(cells));
+    expect(eviction.get(76)).toBe("2026-07-23");
+  });
+
+  it("stops offering an evicted tray's cell for reuse from the successor's founding day on", () => {
+    const eviction = computeTrayEvictionDates([oldTrayCell, successorCell], computeTrayFoundingDates([oldTrayCell, successorCell]));
+    const founding = computeTrayFoundingDates([oldTrayCell, successorCell]);
+    // Before eviction (Wednesday is its last use; earliest reuse is Thursday, already evicted)
+    // there's no reuse day left at all - and Thursday/Friday must be null, never a ghost.
+    expect(computeGhost(oldTrayCell, "2026-07-23", founding, eviction)).toBeNull(); // Thu
+    expect(computeGhost(oldTrayCell, "2026-07-24", founding, eviction)).toBeNull(); // Fri
+    // Without the eviction map, the old cell would wrongly still be offered on Thursday.
+    expect(computeGhost(oldTrayCell, "2026-07-23", founding)).not.toBeNull();
+  });
+
+  it("caps an evicted cell's reuse ghost at the day before eviction, not its 108h expiry", () => {
+    // A cell last used Monday would normally be reusable Tue-Fri (108h). With its tray evicted
+    // Thursday, Tuesday and Wednesday remain, but Thursday onward is gone.
+    const cell = { ...oldTrayCell, uses_consumed: 1, uses_remaining: 2, last_use_run_date: "2026-07-20" };
+    const cells = [cell, successorCell];
+    const eviction = computeTrayEvictionDates(cells, computeTrayFoundingDates(cells));
+    const founding = computeTrayFoundingDates(cells);
+    expect(computeGhost(cell, "2026-07-21", founding, eviction)).not.toBeNull(); // Tue - still there
+    expect(computeGhost(cell, "2026-07-22", founding, eviction)?.isHardCutoff).toBe(true); // Wed - last day
+    expect(computeGhost(cell, "2026-07-23", founding, eviction)).toBeNull(); // Thu - tray gone
+  });
+
+  it("hides a never-used sibling of an evicted tray", () => {
+    const unusedSibling = baseCell({
+      id: 698,
+      code: "CELL-C000698",
+      tray_id: 76,
+      current_well: "C01",
+      current_instrument_serial: "84047",
+      status: "open",
+      uses_consumed: 0,
+      uses_remaining: 3,
+      last_use_run_date: null,
+      first_use_started_at: null,
+      first_use_planned_start_at: "2026-07-20T12:00:00Z", // Monday founding
+    });
+    const cells = [unusedSibling, successorCell];
+    const eviction = computeTrayEvictionDates(cells, computeTrayFoundingDates(cells));
+    const founding = computeTrayFoundingDates(cells);
+    expect(computeUnusedTraySiblingGhost(unusedSibling, "2026-07-22", founding, eviction)).not.toBeNull(); // Wed
+    expect(computeUnusedTraySiblingGhost(unusedSibling, "2026-07-23", founding, eviction)).toBeNull(); // Thu - gone
   });
 });
 
