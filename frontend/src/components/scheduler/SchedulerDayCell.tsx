@@ -48,9 +48,9 @@ export interface SchedulerDayCellProps {
    * "blocked" placeholder instead of the plain "+" so this well never reads as an ordinary
    * free slot. */
   blockedWells: Set<string>;
-  /** Physical trays whose disposal after this day's run will strand still-unused cell
-   * capacity - this day is their last scheduled use (see waitingCells.
-   * computeTrayDisposalWarnings). Surfaced next to Confirm loaded. */
+  /** Physical trays whose disposal will strand still-unused cell capacity - this day is
+   * their last chance to be reused (later of last scheduled run and 108h reuse cutoff; see
+   * waitingCells.computeTrayDisposalWarnings). Surfaced next to Confirm loaded. */
   disposalWarnings: TrayDisposalWarning[];
   onOpenGhost: (ghost: CellGhost) => void;
 }
@@ -236,10 +236,11 @@ export function SchedulerDayCell(props: SchedulerDayCellProps) {
         )}
       </div>
 
-      {/* This day is the last scheduled use of one or more physical trays that still hold
-          unused cell capacity - once disposed after this run, that capacity is lost. Shown
-          right under the Confirm-loaded control so the waste is obvious before the run is
-          locked in. */}
+      {/* This day is the last chance to reuse one or more physical trays that still hold
+          unused cell capacity - the later of their last scheduled run and their cells' 108h
+          reuse cutoff. Once the tray leaves after this, that capacity is lost. Shown right
+          under the Confirm-loaded control so the waste is obvious before the run is locked
+          in. */}
       {disposalWarnings.map((w) => {
         const detail = w.wastedCells
           .map((c) => `${c.code}: ${c.usesRemaining} unused use${c.usesRemaining === 1 ? "" : "s"}`)
@@ -252,7 +253,7 @@ export function SchedulerDayCell(props: SchedulerDayCellProps) {
           <div
             key={w.trayId}
             className={styles.disposalWarn}
-            title={`${w.positionLabel} (tray #${w.trayId}) reaches its last scheduled use on this day and will be physically disposed with unused capacity — ${detail}. Reuse these cells earlier this week, or accept the waste.`}
+            title={`${w.positionLabel} (tray #${w.trayId}) can't be reused after this day and will be physically disposed with unused capacity — ${detail}. Reuse these cells by today, or accept the waste.`}
           >
             ⚠ {w.positionLabel} · #{w.trayId} — {summary} will be disposed unused
           </div>

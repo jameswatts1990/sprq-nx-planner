@@ -37,7 +37,8 @@ export interface SchedulerGridProps {
    * reuses the same well once the stopped cell's tray leaves). */
   blockedGrouped: Map<string, Map<string, Set<string>>>;
   /** Trays that will strand unused capacity on disposal, keyed by instrument then the
-   * tray's last scheduled-use day (see waitingCells.computeTrayDisposalWarnings). */
+   * tray's last-chance day - later of last scheduled run and 108h reuse cutoff (see
+   * waitingCells.computeTrayDisposalWarnings). */
   disposalGrouped: Map<string, Map<string, TrayDisposalWarning[]>>;
   onOpenGhost: (ghost: CellGhost) => void;
 }

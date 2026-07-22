@@ -113,6 +113,47 @@ function dayStart(isoDate: string): Date {
 }
 
 /**
+ * The bounds of a previously-used cell's remaining 108h reuse window, or null when it has no
+ * running clock to bound (never used, or no first-use anchor at all). `earliestDate` is the
+ * first weekday its next use could start (the weekday after its last use); `cutoffDate` is
+ * the last weekday it could still start before the window closes; `deadlineAtMs` is the exact
+ * closing instant. The clock is anchored on first_use_started_at once Use 1 is confirmed
+ * loaded, falling back to first_use_planned_start_at as a provisional estimate before then
+ * (see docs/pacbio-sprq-nx-scheduling-reference.md #2). Pure function of already-fetched cell
+ * data - no "now" dependency, so every caller agrees on the same window. Shared by
+ * computeGhost (per-day reuse ghost) and cellReuseCutoffDate (the tray disposal warning's
+ * genuine last-chance day). Returns null when the window has already closed before any reuse
+ * weekday is even reachable.
+ */
+function reuseWindow(cell: CellOut): { earliestDate: string; cutoffDate: string; deadlineAtMs: number } | null {
+  if (!cell.last_use_run_date) return null;
+  const anchor = cell.first_use_started_at ?? cell.first_use_planned_start_at;
+  if (!anchor) return null;
+  const deadlineAtMs = new Date(anchor).getTime() + CELL_LIFETIME_H * 3_600_000;
+  const earliestDate = nextWeekdayAfter(cell.last_use_run_date);
+  if (dayStart(earliestDate).getTime() > deadlineAtMs) return null; // window shuts before any reuse day
+  // Walk forward from the earliest eligible day to the last qualifying weekday - computed the
+  // same way regardless of which day is being rendered, so every caller reports one cutoff.
+  let cutoffDate = earliestDate;
+  while (dayStart(nextWeekdayAfter(cutoffDate)).getTime() <= deadlineAtMs) {
+    cutoffDate = nextWeekdayAfter(cutoffDate);
+  }
+  return { earliestDate, cutoffDate, deadlineAtMs };
+}
+
+/**
+ * The last weekday `cell` could still be reused before its 108h window closes - i.e. the
+ * final day its still-open capacity is salvageable before the physical tray holding it is
+ * disposed with that capacity stranded. null for a cell that carries no expiry-based deadline
+ * of its own: no usable remaining capacity, or no running 108h clock yet (a never-used tray
+ * sibling has a reserved well but no first use, so nothing to time out).
+ */
+function cellReuseCutoffDate(cell: CellOut): string | null {
+  if (cell.status !== "open" || cell.uses_remaining <= 0 || cell.uses_consumed <= 0) return null;
+  return reuseWindow(cell)?.cutoffDate ?? null;
+}
+
+/**
  * Whether `cell` is waiting to be reused on `day` (a weekday), and if so, how urgent that
  * looks. Returns null when the cell isn't an open, idle, previously-used cell, `day` falls
  * outside its reuse window, or the window has already closed. Pure function of
@@ -150,28 +191,19 @@ export function computeGhost(
     };
   }
 
-  const earliestDate = nextWeekdayAfter(cell.last_use_run_date);
-  if (day < earliestDate) return null;
-
   // The 108h clock's real anchor is when Use 1 is actually confirmed loaded
-  // (first_use_started_at); until then, fall back to its *planned* loading time as a
-  // provisional estimate so a not-yet-confirmed cell still shows a concrete, bounded
+  // (first_use_started_at); until then, reuseWindow falls back to its *planned* loading time
+  // as a provisional estimate so a not-yet-confirmed cell still shows a concrete, bounded
   // deadline instead of reading as available indefinitely.
   const deadlineIsEstimated = !cell.first_use_started_at;
-  const anchor = cell.first_use_started_at ?? cell.first_use_planned_start_at;
-  if (!anchor) return null; // no cycle at all for the first use - shouldn't happen once uses_consumed >= 1
+  const window = reuseWindow(cell);
+  if (!window) return null; // no cycle for the first use, or the window has already closed
+  const { earliestDate, cutoffDate, deadlineAtMs } = window;
+  if (day < earliestDate) return null;
 
-  const deadlineAtMs = new Date(anchor).getTime() + CELL_LIFETIME_H * 3_600_000;
   const thisDayStart = dayStart(day).getTime();
   if (thisDayStart > deadlineAtMs) return null; // already past the cutoff
 
-  // Walk forward from the earliest eligible day to find the actual last qualifying
-  // weekday - computed the same way regardless of which day is being rendered, so every
-  // ghost for this cell reports the same cutoffDate.
-  let cutoffDate = earliestDate;
-  while (dayStart(nextWeekdayAfter(cutoffDate)).getTime() <= deadlineAtMs) {
-    cutoffDate = nextWeekdayAfter(cutoffDate);
-  }
   const isHardCutoff = day === cutoffDate;
 
   // Dark (full colour) when far from the deadline, fading toward light as it approaches.
@@ -467,15 +499,16 @@ export function computeBlockedWellsByInstrumentAndDay(
 }
 
 /** One physical tray whose next physical disposal will waste still-unused cell capacity -
- * surfaced next to Confirm loaded on the tray's last scheduled-use day (see
- * computeTrayDisposalWarnings / SchedulerDayCell). */
+ * surfaced next to Confirm loaded on the tray's genuine last-chance day: the later of its
+ * last scheduled use and its cells' 108h reuse cutoff (see computeTrayDisposalWarnings /
+ * SchedulerDayCell). */
 export interface TrayDisposalWarning {
   /** The physical tray's id (same id the tray Discard action targets). */
   trayId: number;
   /** "Tray 1" / "Tray 2" carousel position, derived from the cells' well letters. */
   positionLabel: string;
-  /** The still-open cells in this tray that keep unused capacity as of its last scheduled
-   * use - each will be physically disposed with these uses unspent, tray-position order. */
+  /** The still-open cells in this tray that keep unused capacity - each will be physically
+   * disposed with these uses unspent once the tray leaves, in tray-position order. */
   wastedCells: { code: string; well: string | null; usesRemaining: number }[];
   /** Total unused cell-uses across wastedCells. */
   wastedUses: number;
@@ -490,12 +523,19 @@ function trayPositionLabel(cells: CellOut[]): string {
 
 /**
  * Buckets, by (instrument, day), every physical tray whose disposal will waste still-unused
- * cell capacity - keyed to the tray's *last* scheduled-use day, so the warning lands right
- * where the user is about to lock that final run in (next to Confirm loaded). A tray is
- * flagged when, as of its last scheduled use, it still has open cells with uses_remaining > 0
- * and nothing more scheduled for them anywhere in the plan (the last-use day is by definition
- * the latest scheduled use across the whole tray, so any leftover capacity is genuinely
- * stranded). Fully-consumed trays, and trays whose last use falls outside the visible window,
+ * cell capacity - keyed to the tray's genuine *last chance* day, so the warning lands right
+ * where the user can still act (next to Confirm loaded). That day is the later of:
+ *   - the tray's last scheduled-use day, and
+ *   - the latest 108h reuse cutoff across its still-open cells (the day those cells read
+ *     "expires today") - since a used cell keeps loadable capacity right up to its cutoff,
+ *     the tray isn't really disposed-with-waste until then, not on its final *scheduled* run.
+ * This stops a freshly-loaded tray (used once Monday, cells good all week) from crying waste
+ * on Monday when the real deadline to reuse those cells is Friday. When no still-open cell has
+ * a running clock yet (only never-used siblings, which never time out), it falls back to the
+ * last scheduled-use day. A tray is flagged only when its last scheduled use falls within the
+ * visible window (before then it may still gain more uses, and there's no column to warn on)
+ * and it still has open cells with uses_remaining > 0. A cutoff spilling past the visible
+ * window is clamped to the last column so the warning still surfaces. Fully-consumed trays
  * produce nothing. `cells` should be the wider open+terminal+stopped universe so a tray's
  * true last-use day and full membership are visible; only its still-open cells count as
  * wasted (terminal/stopped cells have no live capacity left to strand).
@@ -513,6 +553,7 @@ export function computeTrayDisposalWarnings(
   }
 
   const daySet = new Set(days);
+  const lastVisibleDay = days[days.length - 1];
   const out = new Map<string, Map<string, TrayDisposalWarning[]>>();
   for (const [trayId, siblings] of byTray) {
     const instrument = siblings.find((c) => c.current_instrument_serial)?.current_instrument_serial;
@@ -525,13 +566,26 @@ export function computeTrayDisposalWarnings(
       }
     }
     // Only flag a tray whose last scheduled use actually falls on a rendered day - before
-    // then it may still gain more uses; there's no "final run" column to warn on yet.
+    // then it may still gain more uses; there's no run column to warn against yet.
     if (lastUseDay === null || !daySet.has(lastUseDay)) continue;
 
     const wasted = siblings
       .filter((c) => c.status === "open" && c.uses_remaining > 0)
       .sort((a, b) => wellSortKey(a.current_well) - wellSortKey(b.current_well));
     if (wasted.length === 0) continue;
+
+    // Push the warning out to the last day this tray's capacity is still salvageable: the
+    // latest reuse cutoff across its open cells, or the last scheduled use if none has a clock.
+    let warnDay = lastUseDay;
+    for (const c of wasted) {
+      const cutoff = cellReuseCutoffDate(c);
+      if (cutoff && cutoff > warnDay) warnDay = cutoff;
+    }
+    if (!daySet.has(warnDay)) {
+      // A cutoff beyond the visible week has no column of its own - surface it on the last
+      // visible day rather than dropping the warning; otherwise fall back to the last use.
+      warnDay = warnDay > lastVisibleDay ? lastVisibleDay : lastUseDay;
+    }
 
     const wastedCells = wasted.map((c) => ({ code: c.code, well: c.current_well, usesRemaining: c.uses_remaining }));
     const warning: TrayDisposalWarning = {
@@ -546,9 +600,9 @@ export function computeTrayDisposalWarnings(
       byDay = new Map();
       out.set(instrument, byDay);
     }
-    const list = byDay.get(lastUseDay);
+    const list = byDay.get(warnDay);
     if (list) list.push(warning);
-    else byDay.set(lastUseDay, [warning]);
+    else byDay.set(warnDay, [warning]);
   }
   return out;
 }

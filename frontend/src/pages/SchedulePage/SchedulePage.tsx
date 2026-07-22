@@ -169,8 +169,10 @@ export function SchedulePage() {
     [allTrayCells, win.days, trayFoundingDates],
   );
   // Physical trays whose disposal will strand still-unused cell capacity, keyed to the
-  // tray's last scheduled-use day so the warning sits by that final run's Confirm loaded
-  // control (see computeTrayDisposalWarnings).
+  // tray's last-chance day - later of its last scheduled run and its cells' 108h reuse
+  // cutoff - so the warning sits by the Confirm loaded control on the day the user can still
+  // act, not on a freshly-loaded run days before the cells actually expire (see
+  // computeTrayDisposalWarnings).
   const disposalGrouped = useMemo(() => computeTrayDisposalWarnings(allTrayCells, win.days), [allTrayCells, win.days]);
   // `cycles` is fetched a few days wider than the visible window (see lookbackDateFrom
   // above), purely so carry-over locks can see runs that started just before it. Anything

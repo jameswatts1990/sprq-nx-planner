@@ -539,10 +539,11 @@ describe("pinGhostsToSlots", () => {
 });
 
 describe("computeTrayDisposalWarnings", () => {
-  // The reported scenario: tray 1 (A-D) founded Monday. Cells A/B/C were reused Mon-Wed (3
-  // uses, exhausted); cell D was used Monday only and then its Tue/Wed uses were moved off,
-  // so it's still open with 2 uses left and nothing more scheduled. The tray's last use is
-  // Wednesday - after that it's disposed with D's capacity stranded.
+  // Tray 1 (A-D) founded Monday. Cells A/B/C were reused Mon-Wed (3 uses, exhausted); cell D
+  // was used Monday only and then its Tue/Wed uses were moved off, so it's still open with 2
+  // uses left and nothing more scheduled. Its last *scheduled* use is Wednesday, but D's own
+  // 108h window (first used Monday noon) keeps it reusable through Friday - so the tray's real
+  // last chance, and the day its capacity is genuinely stranded, is Friday, not Wednesday.
   function trayOneCells(): CellOut[] {
     const consumed = (well: string, id: number, code: string) =>
       baseCell({
@@ -574,14 +575,64 @@ describe("computeTrayDisposalWarnings", () => {
     ];
   }
 
-  it("flags the tray's last-use day with the still-open cell that will be disposed unused", () => {
+  it("flags the tray's reuse cutoff, not its last scheduled use, with the cell disposed unused", () => {
     const warnings = computeTrayDisposalWarnings(trayOneCells(), WEEK);
-    const wed = warnings.get("84047")?.get("2026-07-22");
-    expect(wed).toHaveLength(1);
-    expect(wed![0]).toMatchObject({ trayId: 1, positionLabel: "Tray 1", wastedUses: 2 });
-    expect(wed![0].wastedCells).toEqual([{ code: "CELL-D000699", well: "D01", usesRemaining: 2 }]);
-    // Nothing on any other day - it's keyed only to the tray's final scheduled use.
+    // D's 108h window (first used Monday noon) closes Saturday, so Friday is the last weekday
+    // it can still be reused - later than the tray's Wednesday final scheduled run.
+    const fri = warnings.get("84047")?.get("2026-07-24");
+    expect(fri).toHaveLength(1);
+    expect(fri![0]).toMatchObject({ trayId: 1, positionLabel: "Tray 1", wastedUses: 2 });
+    expect(fri![0].wastedCells).toEqual([{ code: "CELL-D000699", well: "D01", usesRemaining: 2 }]);
+    // Nothing on the last-scheduled-use day (Wed) or any other day - only the last-chance day.
+    expect(warnings.get("84047")?.get("2026-07-22")).toBeUndefined();
     expect(warnings.get("84047")?.get("2026-07-20")).toBeUndefined();
+  });
+
+  it("shows on the cells' expiry day, not the loading day, for a freshly-loaded tray", () => {
+    // The screenshot scenario: tray founded Monday, cell A used once (Use 1) Monday and good
+    // for reuse all week, B/C/D never used. The only scheduled use is Monday, but nothing is
+    // wasted until A's window closes - so warn on Friday (A's cutoff), not Monday.
+    const cellA = baseCell({
+      id: 704,
+      code: "CELL-A000704",
+      tray_id: 78,
+      current_well: "A01",
+      current_instrument_serial: "84047",
+      status: "open",
+      uses_consumed: 1,
+      uses_remaining: 2,
+      last_use_run_date: "2026-07-20", // Monday - its only scheduled use so far
+      first_use_started_at: "2026-07-20T12:00:00Z", // Use 1 confirmed loaded Monday noon
+    });
+    const sibling = (well: string, id: number, code: string) =>
+      baseCell({
+        id,
+        code,
+        tray_id: 78,
+        current_well: well,
+        current_instrument_serial: "84047",
+        status: "open",
+        uses_consumed: 0,
+        uses_remaining: 3,
+        last_use_run_date: null,
+        first_use_started_at: null,
+        first_use_planned_start_at: null,
+      });
+    const cells = [cellA, sibling("B01", 705, "CELL-B000705"), sibling("C01", 706, "CELL-C000706"), sibling("D01", 707, "CELL-D000707")];
+
+    const warnings = computeTrayDisposalWarnings(cells, WEEK);
+    // Nothing on Monday (the loading / only-scheduled-run day) - there's a whole week left.
+    expect(warnings.get("84047")?.get("2026-07-20")).toBeUndefined();
+    const fri = warnings.get("84047")?.get("2026-07-24");
+    expect(fri).toHaveLength(1);
+    // All four still-open cells count as wasted: A (2) + B/C/D (3 each) = 11 unused uses.
+    expect(fri![0]).toMatchObject({ trayId: 78, positionLabel: "Tray 1", wastedUses: 11 });
+    expect(fri![0].wastedCells.map((c) => c.code)).toEqual([
+      "CELL-A000704",
+      "CELL-B000705",
+      "CELL-C000706",
+      "CELL-D000707",
+    ]);
   });
 
   it("produces nothing for a fully-consumed tray (no capacity stranded)", () => {
