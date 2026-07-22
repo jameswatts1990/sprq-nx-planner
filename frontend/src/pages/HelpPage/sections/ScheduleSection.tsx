@@ -495,8 +495,9 @@ export function ScheduleSection() {
             <b>Scheduled:</b> a cell whose remaining uses are already fully booked for later days — e.g. its next
             use is Wednesday while today&apos;s locked column falls in between — shows this plain card instead of
             jumping straight to Exhausted/Window expired, since it hasn&apos;t actually reached the end of its own
-            lifecycle yet. It switches to the real terminal card once the calendar reaches that day. Informational
-            only, same as Used-up — never a drop target, no click-to-open popover.
+            lifecycle yet. It switches to the real terminal card once the calendar reaches that day. It only appears
+            from the tray&apos;s first use onward — on any week before the tray is loaded, that well is just a plain
+            empty <b>+</b>. Informational only, same as Used-up — never a drop target, no click-to-open popover.
           </span>
         </div>
       </div>

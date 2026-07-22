@@ -1,0 +1,28 @@
+.block {
+  min-width: 0; /* let charts shrink inside the grid instead of forcing overflow */
+}
+.blockHead {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.blockHead h3 {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.subtitle {
+  font-size: 12px;
+  color: var(--faint);
+}
+.empty {
+  height: 240px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--faint);
+  font-size: 13px;
+  background: var(--line-soft);
+  border-radius: var(--r-sm);
+}

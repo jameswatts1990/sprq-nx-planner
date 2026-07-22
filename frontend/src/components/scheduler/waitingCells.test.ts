@@ -473,6 +473,32 @@ describe("computePendingTerminalGhost / computeTerminalGhost's day-gating", () =
     expect(computeTerminalGhost(cell, "2026-07-14")?.terminalStatus).toBe("retired");
     expect(computePendingTerminalGhost(cell, "2026-07-14")).toBeNull();
   });
+
+  it("does not paint a fully-booked cell 'Scheduled' before its own tray is founded", () => {
+    // A tray booked up front for Thu 07-23 / Fri 07-24 / Mon 07-27: uses_consumed counts
+    // *scheduled* uses, so the cell already reads exhausted even though its very first use
+    // (the tray's founding) is still Thursday. On any weekday before that founding the tray
+    // isn't on the instrument yet, so the well must stay a plain "+", not a "Scheduled" card.
+    const cell = baseCell({
+      status: "exhausted",
+      uses_consumed: 3,
+      uses_remaining: 0,
+      last_use_run_date: "2026-07-27",
+      first_use_planned_start_at: "2026-07-23T12:00:00Z", // Thursday - the tray's founding
+      tray_id: 30,
+    });
+    const founding = computeTrayFoundingDates([cell]);
+    expect(founding.get(30)).toBe("2026-07-23");
+
+    // Before founding (Wed 07-22): suppressed to a plain droppable "+" (null ghost).
+    expect(computePendingTerminalGhost(cell, "2026-07-22", founding)).toBeNull();
+    // On the founding day itself, and after, it's a real pending-terminal "Scheduled" card.
+    expect(computePendingTerminalGhost(cell, "2026-07-23", founding)?.pendingTerminalStatus).toBe("exhausted");
+    expect(computePendingTerminalGhost(cell, "2026-07-24", founding)?.pendingTerminalStatus).toBe("exhausted");
+    // Without any founding-date info it can't tell - falls back to the old always-show behaviour
+    // (a legacy/tray-less cell has no founding to gate on).
+    expect(computePendingTerminalGhost(cell, "2026-07-22")?.pendingTerminalStatus).toBe("exhausted");
+  });
 });
 
 describe("pinGhostsToSlots", () => {
@@ -690,6 +716,48 @@ describe("computeTrayDisposalWarnings", () => {
     expect(wed![0]).toMatchObject({ trayId: 76, wastedUses: 2, evictedBySuccessor: true });
     // Tray 77 is the one loaded (no successor of its own) - not itself flagged for disposal.
     expect(wed!.some((w) => w.trayId === 77)).toBe(false);
+  });
+
+  it("surfaces the warning on the reuse deadline's own week, not clamped onto the last-use week", () => {
+    // The reported scenario: a tray founded Thursday, its cells used Thu (Use 1) + Fri (Use 2)
+    // with one use left each. Their 108h window (first used Thursday noon) keeps them reusable
+    // until Monday *next* week, so the tray's genuine last-chance day is that Monday. It must
+    // NOT be clamped onto this week's Friday (which read as "disposed Friday" while the cells
+    // are still good) - this week shows nothing, and next week's Monday column carries it.
+    const NEXT_WEEK = ["2026-07-27", "2026-07-28", "2026-07-29", "2026-07-30", "2026-07-31"];
+    const cell = (well: string, id: number, code: string) =>
+      baseCell({
+        id,
+        code,
+        tray_id: 82,
+        current_well: well,
+        current_instrument_serial: "84047",
+        status: "open",
+        uses_consumed: 2,
+        uses_remaining: 1,
+        last_use_run_date: "2026-07-24", // Friday - last scheduled use
+        first_use_started_at: "2026-07-23T12:00:00Z", // Thursday noon -> 108h runs to Mon 07-27
+      });
+    const cells = [
+      cell("A01", 716, "CELL-A000716"),
+      cell("B01", 717, "CELL-B000717"),
+      cell("C01", 718, "CELL-C000718"),
+      cell("D01", 719, "CELL-D000719"),
+    ];
+
+    // The last-use week (Fri 07-24 falls here): nothing - the deadline is next Monday, and the
+    // old clamp-onto-Friday behaviour is gone.
+    const thisWeek = computeTrayDisposalWarnings(cells, WEEK);
+    expect(thisWeek.size).toBe(0);
+
+    // The deadline's own week: the warning lands on Monday 07-27, the cells' real reuse cutoff -
+    // even though the tray's last scheduled run (Fri 07-24) isn't on a rendered column here.
+    const nextWeek = computeTrayDisposalWarnings(cells, NEXT_WEEK);
+    const mon = nextWeek.get("84047")?.get("2026-07-27");
+    expect(mon).toHaveLength(1);
+    expect(mon![0]).toMatchObject({ trayId: 82, positionLabel: "Tray 1", wastedUses: 4 });
+    expect(nextWeek.get("84047")?.get("2026-07-28")).toBeUndefined();
+    expect(nextWeek.get("84047")?.get("2026-07-31")).toBeUndefined();
   });
 });
 

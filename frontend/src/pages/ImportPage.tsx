@@ -8,6 +8,7 @@ import { ApiError } from "@/api/client";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Note } from "@/components/ui/Note";
+import { StatTile, StatTiles } from "@/components/shared/StatTile";
 import type { ImportResult } from "@/types/importing";
 
 import styles from "./ImportPage.module.css";
@@ -156,22 +157,12 @@ function ImportResultPanel({ result }: { result: ImportResult }) {
       </CardHeader>
       <CardBody>
         <div className={styles.resultStats}>
-          <div className={styles.stat}>
-            <div className={styles.statLabel}>Rows read</div>
-            <div className={styles.statVal}>{result.row_count}</div>
-          </div>
-          <div className={styles.stat}>
-            <div className={styles.statLabel}>Imported</div>
-            <div className={styles.statVal}>{result.imported_count}</div>
-          </div>
-          <div className={styles.stat}>
-            <div className={styles.statLabel}>Duplicates</div>
-            <div className={styles.statVal}>{result.duplicate_count}</div>
-          </div>
-          <div className={styles.stat}>
-            <div className={styles.statLabel}>Skipped</div>
-            <div className={styles.statVal}>{result.skipped_count}</div>
-          </div>
+          <StatTiles>
+            <StatTile label="Rows read" value={result.row_count} />
+            <StatTile label="Imported" value={result.imported_count} />
+            <StatTile label="Duplicates" value={result.duplicate_count} />
+            <StatTile label="Skipped" value={result.skipped_count} />
+          </StatTiles>
         </div>
 
         {result.warnings.length > 0 && (

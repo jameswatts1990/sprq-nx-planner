@@ -392,11 +392,30 @@ function terminalBoundaryDate(cell: CellOut): string | null {
  * marker rather than computeTerminalGhost's red terminal badge, since the cell
  * hasn't really used up its capacity as of `day` - it's just fully committed. Excludes
  * "retired" (see computeTerminalGhost's boundary gate) since that status has no such window.
+ *
+ * A cell's aggregate status flips to exhausted/window_expired the moment every use is merely
+ * *scheduled* (uses_consumed counts non-cancelled uses, run or not - see cell_service.
+ * derive_cell_state), so a tray fully booked up front reads as terminal on weeks that precede
+ * its own first use. On any `day` before this cell's physical tray is founded (its earliest
+ * planned first-use date - see computeTrayFoundingDates) the tray isn't on the instrument yet
+ * and the well is genuinely empty, so we must NOT paint a "Scheduled" marker there: return
+ * null and let the slot fall through to a plain, droppable "+". This is the fully-booked
+ * analogue of computeGhost's beforeTrayFounding handling; it returns null rather than setting
+ * that flag because SchedulerSlot renders every pendingTerminal ghost non-droppable, so a
+ * suppressed-to-"+" flag would leave a dead, non-interactive placeholder instead of a real
+ * empty slot. Needs `trayFoundingDates` built from the wider cell universe (see caller).
  */
-export function computePendingTerminalGhost(cell: CellOut, day: string): CellGhost | null {
+export function computePendingTerminalGhost(
+  cell: CellOut,
+  day: string,
+  trayFoundingDates: Map<number, string> = new Map(),
+): CellGhost | null {
   if (cell.status !== "exhausted" && cell.status !== "window_expired") return null;
   if (!cell.current_instrument_serial || !cell.current_well) return null;
   if (isWeekendUTC(parseDateOnly(day))) return null;
+
+  const foundingDate = cell.tray_id !== null ? trayFoundingDates.get(cell.tray_id) : undefined;
+  if (foundingDate !== undefined && day < foundingDate) return null;
 
   const boundary = terminalBoundaryDate(cell);
   if (!boundary || day >= boundary) return null;
@@ -644,15 +663,20 @@ function trayPositionLabel(cells: CellOut[]): string {
  *   - a never-used sibling has no clock of its own, but if a successor tray is founded in the
  *     same carousel position the whole tray must physically leave, so its last usable day is
  *     the weekday before that eviction - the "dispose the old tray to make room" deadline.
- * Falls back to the last scheduled-use day when neither force gives a later deadline. A tray
- * is flagged only when its last scheduled use falls within the visible window (before then it
- * may still gain more uses, and there's no column to warn on) and it still has open cells with
- * uses_remaining > 0. A deadline spilling past the visible window is clamped to the last
- * column so the warning still surfaces. Fully-consumed trays produce nothing. `cells` should
- * be the wider open+terminal+stopped universe so a tray's true last-use day and full
- * membership are visible; only its still-open cells count as wasted (terminal/stopped cells
- * have no live capacity left to strand). `trayEvictionDates` should be computed from that same
- * universe (see computeTrayEvictionDates).
+ * Falls back to the last scheduled-use day when neither force gives a later deadline. The
+ * warning is surfaced on that genuine last-chance day (`warnDay`), in whichever week it falls -
+ * so a tray whose last scheduled run is this week but whose cells stay reusable into next week
+ * is NOT warned about until next week's column, rather than being clamped onto this week's last
+ * day (which read as "disposed this week" when the tray is still usable later). Equally, a tray
+ * last used in a *past* week whose reuse deadline lands in the visible window is warned about
+ * here, even though its last run isn't itself on a rendered day. A tray is flagged only when it
+ * still has open cells with uses_remaining > 0 and `warnDay` falls on a rendered day;
+ * fully-consumed trays produce nothing, and a `warnDay` outside the visible window is simply
+ * left for the week that actually contains it. `cells` should be the wider open+terminal+
+ * stopped universe so a tray's true last-use day and full membership are visible; only its
+ * still-open cells count as wasted (terminal/stopped cells have no live capacity left to
+ * strand). `trayEvictionDates` should be computed from that same universe (see
+ * computeTrayEvictionDates).
  */
 export function computeTrayDisposalWarnings(
   cells: CellOut[],
@@ -662,7 +686,6 @@ export function computeTrayDisposalWarnings(
   const byTray = groupCellsByTray(cells);
 
   const daySet = new Set(days);
-  const lastVisibleDay = days[days.length - 1];
   const out = new Map<string, Map<string, TrayDisposalWarning[]>>();
   for (const [trayId, siblings] of byTray) {
     const instrument = siblings.find((c) => c.current_instrument_serial)?.current_instrument_serial;
@@ -674,9 +697,10 @@ export function computeTrayDisposalWarnings(
         lastUseDay = c.last_use_run_date;
       }
     }
-    // Only flag a tray whose last scheduled use actually falls on a rendered day - before
-    // then it may still gain more uses; there's no run column to warn against yet.
-    if (lastUseDay === null || !daySet.has(lastUseDay)) continue;
+    // A never-used tray has no scheduled run to anchor a disposal deadline off yet - nothing
+    // to warn about. Which week the warning surfaces in is decided by `warnDay` below (the
+    // real last-chance day), NOT by whether this last-use day is on a rendered column.
+    if (lastUseDay === null) continue;
 
     const wasted = siblings
       .filter((c) => c.status === "open" && c.uses_remaining > 0)
@@ -700,11 +724,10 @@ export function computeTrayDisposalWarnings(
         warnDay = evictionFloor;
       }
     }
-    if (!daySet.has(warnDay)) {
-      // A deadline beyond the visible week has no column of its own - surface it on the last
-      // visible day rather than dropping the warning; otherwise fall back to the last use.
-      warnDay = warnDay > lastVisibleDay ? lastVisibleDay : lastUseDay;
-    }
+    // The warning belongs on its genuine last-chance day. If that day isn't a rendered column
+    // it lives in a different week - leave it for that week rather than clamping it onto this
+    // one (which would falsely read as "disposed this week" while the tray is still usable).
+    if (!daySet.has(warnDay)) continue;
 
     const wastedCells = wasted.map((c) => ({ code: c.code, well: c.current_well, usesRemaining: c.uses_remaining }));
     const warning: TrayDisposalWarning = {
@@ -780,7 +803,7 @@ export function groupWaitingCellsByInstrumentAndDay(
       const ghost =
         computeGhost(cell, day, trayFoundingDates, trayEvictionDates) ??
         computeUnusedTraySiblingGhost(cell, day, trayFoundingDates, trayEvictionDates) ??
-        computePendingTerminalGhost(cell, day) ??
+        computePendingTerminalGhost(cell, day, trayFoundingDates) ??
         computeTerminalGhost(cell, day, vacatedTrayIds);
       if (!ghost) continue;
 

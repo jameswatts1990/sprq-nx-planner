@@ -12,6 +12,7 @@ import { HistorySamplesPage } from "@/pages/HistorySamplesPage";
 import { ImportPage } from "@/pages/ImportPage";
 import { RunDetailPage } from "@/pages/RunDetailPage";
 import { SchedulePage } from "@/pages/SchedulePage/SchedulePage";
+import { StatsPage } from "@/pages/StatsPage/StatsPage";
 
 export default function App() {
   return (
@@ -27,6 +28,7 @@ export default function App() {
         <Route path="/history/runs" element={<HistoryRunsPage />} />
         <Route path="/history/runs/:cycleId" element={<RunDetailPage />} />
         <Route path="/history/samples" element={<HistorySamplesPage />} />
+        <Route path="/stats" element={<StatsPage />} />
         <Route path="/admin" element={<AdminPage />} />
         <Route path="/help" element={<HelpPage />} />
         <Route path="*" element={<Navigate to="/schedule" replace />} />

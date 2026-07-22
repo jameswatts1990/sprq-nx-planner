@@ -1,0 +1,36 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.select {
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--card);
+  font-size: 13px;
+  color: var(--ink);
+}
+.rangeNote {
+  font-size: 12px;
+  color: var(--faint);
+}
+.status {
+  padding: 24px 0;
+  color: var(--faint);
+  font-size: 13px;
+}
+/* Two charts per row on wide screens, one when it gets tight - each block can shrink
+   (min-width:0 in charts.module.css) so recharts' ResponsiveContainer never overflows. */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 28px 32px;
+}

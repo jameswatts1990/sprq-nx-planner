@@ -27,6 +27,10 @@ export function GettingStartedSection() {
         <li>
           <b>History</b> is the record of past and planned runs and of completed/failed samples.
         </li>
+        <li>
+          <b>Stats</b> turns all of the above into charts — throughput, cell reuse, failures and credits, and
+          inventory — so you can see at a glance how the lab is doing.
+        </li>
       </ol>
 
       <p className={styles.subheading}>Nothing is final until a run is loaded</p>

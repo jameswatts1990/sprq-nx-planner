@@ -69,29 +69,9 @@ textarea::placeholder {
 .error {
   margin-top: 12px;
 }
+/* Tile look now lives in the shared StatTile component; this just spaces the row. */
 .resultStats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: 12px;
   margin-bottom: 16px;
-}
-.stat {
-  background: var(--line-soft);
-  border-radius: var(--r-sm);
-  padding: 12px 14px;
-}
-.statLabel {
-  font-size: 11px;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--grey);
-  font-weight: 700;
-}
-.statVal {
-  font-size: 22px;
-  font-weight: 800;
-  margin-top: 3px;
-  font-variant-numeric: tabular-nums;
 }
 .notesList {
   display: flex;

@@ -12,6 +12,7 @@ import { HistorySection } from "./sections/HistorySection";
 import { ImportSection } from "./sections/ImportSection";
 import { LegendSection } from "./sections/LegendSection";
 import { ScheduleSection } from "./sections/ScheduleSection";
+import { StatsSection } from "./sections/StatsSection";
 
 const SECTIONS = [
   { key: "gettingStarted", title: "Getting started", Component: GettingStartedSection },
@@ -20,6 +21,7 @@ const SECTIONS = [
   { key: "schedule", title: "Schedule", Component: ScheduleSection },
   { key: "cells", title: "Cells & Instruments", Component: CellsSection },
   { key: "history", title: "History", Component: HistorySection },
+  { key: "stats", title: "Stats", Component: StatsSection },
   { key: "admin", title: "Admin", Component: AdminSection },
   { key: "legend", title: "Colour & Status Legend", Component: LegendSection },
 ] as const;
