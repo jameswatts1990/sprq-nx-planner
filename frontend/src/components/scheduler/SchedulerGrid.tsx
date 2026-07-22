@@ -13,11 +13,12 @@ import { SchedulerGridRow } from "./SchedulerGridRow";
 import styles from "./SchedulerGrid.module.css";
 import type { Coord, GridSelection } from "./useGridSelection";
 import type { SlotSelection } from "./useSlotSelection";
-import type { CellGhost } from "./waitingCells";
+import type { CellGhost, TrayDisposalWarning } from "./waitingCells";
 
-// Stable empty-set reference for instruments with no blocked wells, so SchedulerGridRow
-// doesn't see a new object identity on every render.
-const EMPTY_BLOCKED_WELLS: Set<string> = new Set();
+// Stable empty references for instruments with nothing to show, so SchedulerGridRow doesn't
+// see a new object identity on every render.
+const EMPTY_BLOCKED_BY_DATE: Map<string, Set<string>> = new Map();
+const EMPTY_DISPOSAL_BY_DATE: Map<string, TrayDisposalWarning[]> = new Map();
 
 export interface SchedulerGridProps {
   instrumentSerials: string[];
@@ -31,9 +32,13 @@ export interface SchedulerGridProps {
   onExtendSelect: (stage: StageOut, coord: { r: number; c: number }) => void;
   onDragSelectStart: (stage: StageOut, coord: { r: number; c: number }) => void;
   waitingGrouped: Map<string, Map<string, CellGhost[]>>;
-  /** Wells permanently blocked by a stopped cell, keyed by instrument (see waitingCells.
-   * groupBlockedWellsByInstrument). */
-  blockedWellsByInstrument: Map<string, Set<string>>;
+  /** Wells permanently blocked by a stopped cell, keyed by instrument then day (see
+   * waitingCells.computeBlockedWellsByInstrumentAndDay - day-aware because a later tray
+   * reuses the same well once the stopped cell's tray leaves). */
+  blockedGrouped: Map<string, Map<string, Set<string>>>;
+  /** Trays that will strand unused capacity on disposal, keyed by instrument then the
+   * tray's last scheduled-use day (see waitingCells.computeTrayDisposalWarnings). */
+  disposalGrouped: Map<string, Map<string, TrayDisposalWarning[]>>;
   onOpenGhost: (ghost: CellGhost) => void;
 }
 
@@ -95,7 +100,8 @@ export function SchedulerGrid({
   onExtendSelect,
   onDragSelectStart,
   waitingGrouped,
-  blockedWellsByInstrument,
+  blockedGrouped,
+  disposalGrouped,
   onOpenGhost,
 }: SchedulerGridProps) {
   const grouped = groupCyclesByInstrumentAndDay(cycles);
@@ -187,7 +193,8 @@ export function SchedulerGrid({
               onExtendSelect={onExtendSelect}
               onDragSelectStart={onDragSelectStart}
               waitingCellsByDate={waitingGrouped.get(serial) ?? new Map()}
-              blockedWells={blockedWellsByInstrument.get(serial) ?? EMPTY_BLOCKED_WELLS}
+              blockedWellsByDate={blockedGrouped.get(serial) ?? EMPTY_BLOCKED_BY_DATE}
+              disposalByDate={disposalGrouped.get(serial) ?? EMPTY_DISPOSAL_BY_DATE}
               onOpenGhost={onOpenGhost}
             />
           ))}

@@ -1,5 +1,6 @@
 import type { CellOut } from "@/types/cell";
 import type { CellStatus } from "@/types/common";
+import type { SlotIndex, StageOut } from "@/types/schedule";
 import { addDaysUTC, isWeekendUTC, parseDateOnly, toIsoDateUTC } from "@/utils/calendarDates";
 import { CELL_LIFETIME_H, expiryFadeOpacity } from "@/utils/windowFade";
 
@@ -340,25 +341,216 @@ function wellSortKey(well: string | null): number {
 }
 
 /**
- * Buckets every stopped cell's well by the instrument it was last sitting on. A stopped
- * cell's well "stays occupied ... as a permanent marker" (see backend cell_service.
- * stop_cell) - no cycle ever fills it again, so without this the slot would silently look
- * like any other free "+" placeholder even though placing a new cell there is pointless
- * (the physical well already holds a dead cell). Unlike computeGhost, this has no per-day
- * gating - a stopped cell's well is blocked on every future day, not just a window.
+ * Pins each waiting-cell ghost to the physical slot (0-7) matching the well its cell last
+ * occupied (WELL_ORDER) - cells keep the same physical tray/well position for every reuse,
+ * never just "the next open slot", so a ghost only shows if that exact slot is still free
+ * (its `slots` entry is null; a real placed stage always wins).
+ *
+ * Two *different* physical trays occupy the same carousel position - and therefore reuse the
+ * same well letters (A01-D01 / A02-D02) - at different times over a week; the well on any
+ * given day belongs to whichever tray is actually loaded then. So when two eligible ghosts
+ * both map to the same still-free slot, a cell whose physical tray has NOT been founded yet
+ * as of this day (beforeTrayFounding - see computeGhost / CellGhost.beforeTrayFounding) must
+ * never win the slot over a cell whose tray IS physically present today. Without this, a
+ * later tray's not-yet-existent sibling (rendered as a bare "+", since beforeTrayFounding
+ * suppresses its label/tint) silently hid the real reuse/expiry ghost of the cell physically
+ * sitting in that well, and clicking the "+" opened a cell that can't legally be there - a
+ * future tray's cell that would have to teleport out of its own tray into today's. Among
+ * ghosts of equal founding-standing, the first in `ghosts` order keeps the slot (see the
+ * same-well note in groupWaitingCellsByInstrumentAndDay's callers).
  */
-export function groupBlockedWellsByInstrument(cells: CellOut[]): Map<string, Set<string>> {
-  const byInstrument = new Map<string, Set<string>>();
+export function pinGhostsToSlots(
+  ghosts: CellGhost[],
+  slots: readonly (StageOut | null)[],
+): Map<SlotIndex, CellGhost> {
+  const bySlot = new Map<SlotIndex, CellGhost>();
+  for (const ghost of ghosts) {
+    const idx = ghost.cell.current_well ? WELL_ORDER.indexOf(ghost.cell.current_well) : -1;
+    if (idx < 0 || idx >= slots.length) continue;
+    const slot = idx as SlotIndex;
+    if (slots[slot] !== null) continue;
+    const existing = bySlot.get(slot);
+    if (!existing) {
+      bySlot.set(slot, ghost);
+    } else if (existing.beforeTrayFounding && !ghost.beforeTrayFounding) {
+      // A cell whose tray is physically present today displaces one that only provisionally
+      // claimed the slot before its own tray was founded.
+      bySlot.set(slot, ghost);
+    }
+  }
+  return bySlot;
+}
+
+const OCCUPANCY_SEP = "\u0000";
+function occupancyKey(instrument: string, well: string): string {
+  return `${instrument}${OCCUPANCY_SEP}${well}`;
+}
+
+/**
+ * Buckets every stopped cell's permanently-dead well by (instrument, day) across the
+ * visible window. A stopped cell's well "stays occupied ... as a permanent marker" (see
+ * backend cell_service.stop_cell) - no cycle ever fills it again, so without this the slot
+ * would silently look like any other free "+" placeholder even though placing a new cell
+ * there is pointless (the physical well already holds a dead cell).
+ *
+ * But that marker only holds for as long as the stopped cell's *own physical tray* is the
+ * one loaded in that carousel position. Two different trays reuse the same well letters
+ * (A01-D01 / A02-D02) at different times, so a stopped cell in tray A's D01 must NOT keep
+ * D01 blocked once tray A has left and a later tray B is founded in the same position -
+ * that well now physically belongs to tray B's live cell. So a stopped well is blocked only
+ * on days within its own tray's tenure: from that tray's founding (see
+ * computeTrayFoundingDates) up to, but not including, the founding of the next tray to
+ * occupy the same (instrument, well). Stopped cells with no tray_id (legacy cells created
+ * before tray tracking) have no tenure to bound, so they fall back to the original
+ * behaviour - blocked on every visible day. `cells` should be the wider open+terminal+
+ * stopped universe (same as computeVacatedTrayIds), so the founding of a *later* tray that
+ * takes over the well is visible even though that tray's own cells aren't stopped;
+ * `trayFoundingDates` must be built from that same universe.
+ */
+export function computeBlockedWellsByInstrumentAndDay(
+  cells: CellOut[],
+  days: string[],
+  trayFoundingDates: Map<number, string> = new Map(),
+): Map<string, Map<string, Set<string>>> {
+  // Per (instrument, well), the ascending founding dates of every tray that occupies it -
+  // used to find when the *next* tray takes over a stopped cell's well.
+  const occupancy = new Map<string, string[]>();
   for (const cell of cells) {
-    if (cell.status !== "stopped" || !cell.current_instrument_serial || !cell.current_well) continue;
-    let wells = byInstrument.get(cell.current_instrument_serial);
+    if (cell.tray_id === null || !cell.current_instrument_serial || !cell.current_well) continue;
+    const founding = trayFoundingDates.get(cell.tray_id);
+    if (!founding) continue;
+    const key = occupancyKey(cell.current_instrument_serial, cell.current_well);
+    const list = occupancy.get(key);
+    if (list) {
+      if (!list.includes(founding)) list.push(founding);
+    } else {
+      occupancy.set(key, [founding]);
+    }
+  }
+  for (const list of occupancy.values()) list.sort();
+
+  const out = new Map<string, Map<string, Set<string>>>();
+  function block(instrument: string, well: string, day: string) {
+    let byDay = out.get(instrument);
+    if (!byDay) {
+      byDay = new Map();
+      out.set(instrument, byDay);
+    }
+    let wells = byDay.get(day);
     if (!wells) {
       wells = new Set();
-      byInstrument.set(cell.current_instrument_serial, wells);
+      byDay.set(day, wells);
     }
-    wells.add(cell.current_well);
+    wells.add(well);
   }
-  return byInstrument;
+
+  for (const cell of cells) {
+    if (cell.status !== "stopped" || !cell.current_instrument_serial || !cell.current_well) continue;
+    const instrument = cell.current_instrument_serial;
+    const well = cell.current_well;
+    const founding = cell.tray_id !== null ? trayFoundingDates.get(cell.tray_id) : undefined;
+    if (!founding) {
+      // No tray tenure to bound (legacy cell, or a tray with no first use on record) -
+      // preserve the original "blocked on every visible day" behaviour.
+      for (const day of days) block(instrument, well, day);
+      continue;
+    }
+    const foundings = occupancy.get(occupancyKey(instrument, well)) ?? [founding];
+    const nextTrayFounding = foundings.find((f) => f > founding);
+    for (const day of days) {
+      if (day >= founding && (nextTrayFounding === undefined || day < nextTrayFounding)) {
+        block(instrument, well, day);
+      }
+    }
+  }
+  return out;
+}
+
+/** One physical tray whose next physical disposal will waste still-unused cell capacity -
+ * surfaced next to Confirm loaded on the tray's last scheduled-use day (see
+ * computeTrayDisposalWarnings / SchedulerDayCell). */
+export interface TrayDisposalWarning {
+  /** The physical tray's id (same id the tray Discard action targets). */
+  trayId: number;
+  /** "Tray 1" / "Tray 2" carousel position, derived from the cells' well letters. */
+  positionLabel: string;
+  /** The still-open cells in this tray that keep unused capacity as of its last scheduled
+   * use - each will be physically disposed with these uses unspent, tray-position order. */
+  wastedCells: { code: string; well: string | null; usesRemaining: number }[];
+  /** Total unused cell-uses across wastedCells. */
+  wastedUses: number;
+}
+
+function trayPositionLabel(cells: CellOut[]): string {
+  const well = cells.find((c) => c.current_well)?.current_well;
+  const idx = well ? WELL_ORDER.indexOf(well) : -1;
+  if (idx < 0) return "Tray";
+  return idx < 4 ? "Tray 1" : "Tray 2";
+}
+
+/**
+ * Buckets, by (instrument, day), every physical tray whose disposal will waste still-unused
+ * cell capacity - keyed to the tray's *last* scheduled-use day, so the warning lands right
+ * where the user is about to lock that final run in (next to Confirm loaded). A tray is
+ * flagged when, as of its last scheduled use, it still has open cells with uses_remaining > 0
+ * and nothing more scheduled for them anywhere in the plan (the last-use day is by definition
+ * the latest scheduled use across the whole tray, so any leftover capacity is genuinely
+ * stranded). Fully-consumed trays, and trays whose last use falls outside the visible window,
+ * produce nothing. `cells` should be the wider open+terminal+stopped universe so a tray's
+ * true last-use day and full membership are visible; only its still-open cells count as
+ * wasted (terminal/stopped cells have no live capacity left to strand).
+ */
+export function computeTrayDisposalWarnings(
+  cells: CellOut[],
+  days: string[],
+): Map<string, Map<string, TrayDisposalWarning[]>> {
+  const byTray = new Map<number, CellOut[]>();
+  for (const cell of cells) {
+    if (cell.tray_id === null) continue;
+    const siblings = byTray.get(cell.tray_id);
+    if (siblings) siblings.push(cell);
+    else byTray.set(cell.tray_id, [cell]);
+  }
+
+  const daySet = new Set(days);
+  const out = new Map<string, Map<string, TrayDisposalWarning[]>>();
+  for (const [trayId, siblings] of byTray) {
+    const instrument = siblings.find((c) => c.current_instrument_serial)?.current_instrument_serial;
+    if (!instrument) continue;
+
+    let lastUseDay: string | null = null;
+    for (const c of siblings) {
+      if (c.last_use_run_date && (lastUseDay === null || c.last_use_run_date > lastUseDay)) {
+        lastUseDay = c.last_use_run_date;
+      }
+    }
+    // Only flag a tray whose last scheduled use actually falls on a rendered day - before
+    // then it may still gain more uses; there's no "final run" column to warn on yet.
+    if (lastUseDay === null || !daySet.has(lastUseDay)) continue;
+
+    const wasted = siblings
+      .filter((c) => c.status === "open" && c.uses_remaining > 0)
+      .sort((a, b) => wellSortKey(a.current_well) - wellSortKey(b.current_well));
+    if (wasted.length === 0) continue;
+
+    const wastedCells = wasted.map((c) => ({ code: c.code, well: c.current_well, usesRemaining: c.uses_remaining }));
+    const warning: TrayDisposalWarning = {
+      trayId,
+      positionLabel: trayPositionLabel(siblings),
+      wastedCells,
+      wastedUses: wastedCells.reduce((sum, c) => sum + c.usesRemaining, 0),
+    };
+
+    let byDay = out.get(instrument);
+    if (!byDay) {
+      byDay = new Map();
+      out.set(instrument, byDay);
+    }
+    const list = byDay.get(lastUseDay);
+    if (list) list.push(warning);
+    else byDay.set(lastUseDay, [warning]);
+  }
+  return out;
 }
 
 /**

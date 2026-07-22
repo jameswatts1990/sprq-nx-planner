@@ -22,9 +22,10 @@ import { useGridSelection } from "@/components/scheduler/useGridSelection";
 import { useSchedulerDnd } from "@/components/scheduler/useSchedulerDnd";
 import { useSlotSelection } from "@/components/scheduler/useSlotSelection";
 import {
+  computeBlockedWellsByInstrumentAndDay,
+  computeTrayDisposalWarnings,
   computeTrayFoundingDates,
   computeVacatedTrayIds,
-  groupBlockedWellsByInstrument,
   groupWaitingCellsByInstrumentAndDay,
   type CellGhost,
 } from "@/components/scheduler/waitingCells";
@@ -132,32 +133,23 @@ export function SchedulePage() {
   );
   const cycles = useMemo(() => cyclesQuery.data ?? [], [cyclesQuery.data]);
   const grouped = useMemo(() => groupCyclesByInstrumentAndDay(cycles), [cycles]);
+  // The full tray-linked cell universe (open + terminal + stopped) - several tray-level
+  // derivations below need visibility into every status a tray-linked cell can be in, not
+  // just the open+terminal cells the reuse ghosts are built from: a since-terminal or
+  // stopped sibling still anchors its tray's founding date and its vacated/occupied state,
+  // and a stopped well's block must know when a *later* tray takes the well over.
+  const allTrayCells = useMemo(
+    () => [...(waitingCellsQuery.data ?? []), ...(terminalCellsQuery.data ?? []), ...(blockedCellsQuery.data ?? [])],
+    [waitingCellsQuery.data, terminalCellsQuery.data, blockedCellsQuery.data],
+  );
   // Whether a terminal cell's physical tray has been fully vacated (see
-  // waitingCells.computeVacatedTrayIds) needs visibility into every status a tray-linked
-  // cell can be in, including stopped - not just the open+terminal cells the ghosts
-  // themselves are built from - otherwise a still-open or stopped sibling missing from the
+  // waitingCells.computeVacatedTrayIds) - a still-open or stopped sibling missing from the
   // check would wrongly read as "no capacity left anywhere in this tray".
-  const vacatedTrayIds = useMemo(
-    () =>
-      computeVacatedTrayIds([
-        ...(waitingCellsQuery.data ?? []),
-        ...(terminalCellsQuery.data ?? []),
-        ...(blockedCellsQuery.data ?? []),
-      ]),
-    [waitingCellsQuery.data, terminalCellsQuery.data, blockedCellsQuery.data],
-  );
-  // Same broader cell universe as vacatedTrayIds - a tray's founding cell may itself have
-  // since gone terminal or been stopped, and its planned first-use date must still anchor
-  // its still-open siblings' ghosts (see waitingCells.computeTrayFoundingDates).
-  const trayFoundingDates = useMemo(
-    () =>
-      computeTrayFoundingDates([
-        ...(waitingCellsQuery.data ?? []),
-        ...(terminalCellsQuery.data ?? []),
-        ...(blockedCellsQuery.data ?? []),
-      ]),
-    [waitingCellsQuery.data, terminalCellsQuery.data, blockedCellsQuery.data],
-  );
+  const vacatedTrayIds = useMemo(() => computeVacatedTrayIds(allTrayCells), [allTrayCells]);
+  // A tray's founding cell may itself have since gone terminal or been stopped, and its
+  // planned first-use date must still anchor its still-open siblings' ghosts (see
+  // waitingCells.computeTrayFoundingDates).
+  const trayFoundingDates = useMemo(() => computeTrayFoundingDates(allTrayCells), [allTrayCells]);
   const waitingGrouped = useMemo(
     () =>
       groupWaitingCellsByInstrumentAndDay(
@@ -168,10 +160,18 @@ export function SchedulePage() {
       ),
     [waitingCellsQuery.data, terminalCellsQuery.data, win.days, vacatedTrayIds, trayFoundingDates],
   );
-  const blockedWellsByInstrument = useMemo(
-    () => groupBlockedWellsByInstrument(blockedCellsQuery.data ?? []),
-    [blockedCellsQuery.data],
+  // Wells permanently dead from a stopped cell, per (instrument, day). Day-aware because a
+  // later tray legitimately reuses the same well letter once the stopped cell's own tray has
+  // left the instrument (see computeBlockedWellsByInstrumentAndDay) - so the block can't be a
+  // single all-days set per instrument.
+  const blockedGrouped = useMemo(
+    () => computeBlockedWellsByInstrumentAndDay(allTrayCells, win.days, trayFoundingDates),
+    [allTrayCells, win.days, trayFoundingDates],
   );
+  // Physical trays whose disposal will strand still-unused cell capacity, keyed to the
+  // tray's last scheduled-use day so the warning sits by that final run's Confirm loaded
+  // control (see computeTrayDisposalWarnings).
+  const disposalGrouped = useMemo(() => computeTrayDisposalWarnings(allTrayCells, win.days), [allTrayCells, win.days]);
   // `cycles` is fetched a few days wider than the visible window (see lookbackDateFrom
   // above), purely so carry-over locks can see runs that started just before it. Anything
   // deriving from the actually-visible week (bulk clear, etc.) must filter back down.
@@ -593,7 +593,8 @@ export function SchedulePage() {
                 onExtendSelect={onExtendSlotSelect}
                 onDragSelectStart={onDragSelectStart}
                 waitingGrouped={waitingGrouped}
-                blockedWellsByInstrument={blockedWellsByInstrument}
+                blockedGrouped={blockedGrouped}
+                disposalGrouped={disposalGrouped}
                 onOpenGhost={setGhostDetail}
               />
             )}

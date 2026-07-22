@@ -2,15 +2,23 @@ import { describe, expect, it } from "vitest";
 
 import type { CellOut } from "@/types/cell";
 
+import type { StageOut } from "@/types/schedule";
+
 import {
+  computeBlockedWellsByInstrumentAndDay,
   computeGhost,
   computePendingTerminalGhost,
   computeTerminalGhost,
+  computeTrayDisposalWarnings,
   computeTrayFoundingDates,
   computeUnusedTraySiblingGhost,
   computeVacatedTrayIds,
   groupWaitingCellsByInstrumentAndDay,
+  pinGhostsToSlots,
 } from "./waitingCells";
+
+// Mon-Fri of the visible window used across the tray-level tests below.
+const WEEK = ["2026-07-20", "2026-07-21", "2026-07-22", "2026-07-23", "2026-07-24"];
 
 function baseCell(overrides: Partial<CellOut> = {}): CellOut {
   const lastUseRunDate = overrides.last_use_run_date !== undefined ? overrides.last_use_run_date : "2026-07-13";
@@ -463,5 +471,177 @@ describe("computePendingTerminalGhost / computeTerminalGhost's day-gating", () =
     const cell = baseCell({ status: "retired", last_use_run_date: "2026-07-17", tray_id: 22 });
     expect(computeTerminalGhost(cell, "2026-07-14")?.terminalStatus).toBe("retired");
     expect(computePendingTerminalGhost(cell, "2026-07-14")).toBeNull();
+  });
+});
+
+describe("pinGhostsToSlots", () => {
+  const EMPTY_SLOTS: (StageOut | null)[] = [null, null, null, null, null, null, null, null];
+
+  // The reported bug: two physical trays reuse the same D01 well at different times. Tray A
+  // (699) is founded Monday and physically present all week; tray B (703) is a fresh tray
+  // auto-scheduled to found on Thursday. On Tuesday, tray A's cell D is still idle and waiting
+  // to be reused, so its reuse/expiry ghost must own the D01 slot - not tray B's not-yet-
+  // founded sibling, which can't legally be in that well until Thursday.
+  function tuesdayGhosts() {
+    // Tray A: cell D used once on Monday, now idle and reusable.
+    const cellA = baseCell({
+      id: 699,
+      code: "CELL-D000699",
+      tray_id: 1,
+      current_well: "D01",
+      uses_consumed: 1,
+      uses_remaining: 2,
+      last_use_run_date: "2026-07-20",
+      first_use_planned_start_at: "2026-07-20T12:00:00Z",
+    });
+    // Tray B: sibling cell D, never used yet, its tray founded Thursday.
+    const cellB = baseCell({
+      id: 703,
+      code: "CELL-D000703",
+      tray_id: 2,
+      current_well: "D01",
+      uses_consumed: 0,
+      uses_remaining: 3,
+      last_use_run_date: null,
+      first_use_planned_start_at: "2026-07-23T12:00:00Z",
+    });
+    const founding = computeTrayFoundingDates([cellA, cellB]);
+    const presentGhost = computeGhost(cellA, "2026-07-21", founding);
+    const futureGhost = computeUnusedTraySiblingGhost(cellB, "2026-07-21", founding);
+    expect(presentGhost?.beforeTrayFounding).toBeFalsy();
+    expect(futureGhost?.beforeTrayFounding).toBe(true);
+    return { presentGhost: presentGhost!, futureGhost: futureGhost! };
+  }
+
+  it("gives the D01 well to the tray physically present today, not a not-yet-founded tray's sibling", () => {
+    const { presentGhost, futureGhost } = tuesdayGhosts();
+    // Regardless of input order (the cells API is newest-first, so the future tray's cell
+    // often comes first), the present tray's cell must win the slot.
+    for (const order of [[futureGhost, presentGhost], [presentGhost, futureGhost]]) {
+      const bySlot = pinGhostsToSlots(order, EMPTY_SLOTS);
+      expect(bySlot.get(3)?.cell.id).toBe(699);
+    }
+  });
+
+  it("still pins a lone not-yet-founded ghost when no present tray competes for the well", () => {
+    const { futureGhost } = tuesdayGhosts();
+    const bySlot = pinGhostsToSlots([futureGhost], EMPTY_SLOTS);
+    expect(bySlot.get(3)?.cell.id).toBe(703);
+  });
+
+  it("never pins a ghost onto a slot already holding a real placement", () => {
+    const { presentGhost } = tuesdayGhosts();
+    const slots = [...EMPTY_SLOTS];
+    slots[3] = { slot_index: 3 } as StageOut;
+    const bySlot = pinGhostsToSlots([presentGhost], slots);
+    expect(bySlot.has(3)).toBe(false);
+  });
+});
+
+describe("computeTrayDisposalWarnings", () => {
+  // The reported scenario: tray 1 (A-D) founded Monday. Cells A/B/C were reused Mon-Wed (3
+  // uses, exhausted); cell D was used Monday only and then its Tue/Wed uses were moved off,
+  // so it's still open with 2 uses left and nothing more scheduled. The tray's last use is
+  // Wednesday - after that it's disposed with D's capacity stranded.
+  function trayOneCells(): CellOut[] {
+    const consumed = (well: string, id: number, code: string) =>
+      baseCell({
+        id,
+        code,
+        tray_id: 1,
+        current_well: well,
+        current_instrument_serial: "84047",
+        status: "exhausted",
+        uses_consumed: 3,
+        uses_remaining: 0,
+        last_use_run_date: "2026-07-22", // Wednesday
+      });
+    return [
+      consumed("A01", 696, "CELL-A000696"),
+      consumed("B01", 697, "CELL-B000697"),
+      consumed("C01", 698, "CELL-C000698"),
+      baseCell({
+        id: 699,
+        code: "CELL-D000699",
+        tray_id: 1,
+        current_well: "D01",
+        current_instrument_serial: "84047",
+        status: "open",
+        uses_consumed: 1,
+        uses_remaining: 2,
+        last_use_run_date: "2026-07-20", // Monday - its only remaining scheduled use
+      }),
+    ];
+  }
+
+  it("flags the tray's last-use day with the still-open cell that will be disposed unused", () => {
+    const warnings = computeTrayDisposalWarnings(trayOneCells(), WEEK);
+    const wed = warnings.get("84047")?.get("2026-07-22");
+    expect(wed).toHaveLength(1);
+    expect(wed![0]).toMatchObject({ trayId: 1, positionLabel: "Tray 1", wastedUses: 2 });
+    expect(wed![0].wastedCells).toEqual([{ code: "CELL-D000699", well: "D01", usesRemaining: 2 }]);
+    // Nothing on any other day - it's keyed only to the tray's final scheduled use.
+    expect(warnings.get("84047")?.get("2026-07-20")).toBeUndefined();
+  });
+
+  it("produces nothing for a fully-consumed tray (no capacity stranded)", () => {
+    const cells = trayOneCells().map((c) => ({ ...c, status: "exhausted" as const, uses_remaining: 0 }));
+    expect(computeTrayDisposalWarnings(cells, WEEK).size).toBe(0);
+  });
+
+  it("produces nothing when the tray's last use falls outside the visible window", () => {
+    const cells = trayOneCells().map((c) =>
+      c.last_use_run_date === "2026-07-22" ? { ...c, last_use_run_date: "2026-07-29" } : c,
+    );
+    expect(computeTrayDisposalWarnings(cells, WEEK).size).toBe(0);
+  });
+});
+
+describe("computeBlockedWellsByInstrumentAndDay", () => {
+  it("blocks a stopped cell's well only while its own tray is loaded, not after a later tray takes the well over", () => {
+    // Tray 1's D01 cell was stopped; tray 1 founded Monday. Tray 2 is founded Thursday and
+    // reuses the same D01 well letter - so D01 belongs to tray 1 (blocked) Mon-Wed, then to
+    // tray 2's live cell (not blocked) Thu-Fri.
+    const stoppedD = baseCell({
+      id: 1,
+      tray_id: 1,
+      current_well: "D01",
+      current_instrument_serial: "84047",
+      status: "stopped",
+      first_use_planned_start_at: "2026-07-20T12:00:00Z", // Monday founding
+    });
+    const nextTrayD = baseCell({
+      id: 2,
+      tray_id: 2,
+      current_well: "D01",
+      current_instrument_serial: "84047",
+      status: "open",
+      uses_consumed: 0,
+      uses_remaining: 3,
+      last_use_run_date: null,
+      first_use_planned_start_at: "2026-07-23T12:00:00Z", // Thursday founding
+    });
+    const cells = [stoppedD, nextTrayD];
+    const founding = computeTrayFoundingDates(cells);
+    const blocked = computeBlockedWellsByInstrumentAndDay(cells, WEEK, founding);
+
+    expect(blocked.get("84047")?.get("2026-07-20")?.has("D01")).toBe(true); // Mon
+    expect(blocked.get("84047")?.get("2026-07-22")?.has("D01")).toBe(true); // Wed
+    expect(blocked.get("84047")?.get("2026-07-23")?.has("D01")).toBeFalsy(); // Thu - tray 2's well now
+    expect(blocked.get("84047")?.get("2026-07-24")?.has("D01")).toBeFalsy(); // Fri
+  });
+
+  it("falls back to blocking on every visible day for a legacy stopped cell with no tray", () => {
+    const legacy = baseCell({
+      id: 5,
+      tray_id: null,
+      current_well: "C01",
+      current_instrument_serial: "84047",
+      status: "stopped",
+    });
+    const blocked = computeBlockedWellsByInstrumentAndDay([legacy], WEEK, new Map());
+    for (const day of WEEK) {
+      expect(blocked.get("84047")?.get(day)?.has("C01")).toBe(true);
+    }
   });
 });

@@ -14,7 +14,7 @@ import { padStages } from "./groupCyclesByInstrumentAndDay";
 import { SchedulerSlot } from "./SchedulerSlot";
 import styles from "./SchedulerDayCell.module.css";
 import type { SlotSelection } from "./useSlotSelection";
-import { WELL_ORDER, type CellGhost } from "./waitingCells";
+import { pinGhostsToSlots, WELL_ORDER, type CellGhost, type TrayDisposalWarning } from "./waitingCells";
 
 export interface SchedulerDayCellProps {
   instrumentSerial: string;
@@ -43,10 +43,15 @@ export interface SchedulerDayCellProps {
   /** Waiting, reusable cells eligible to load on this instrument+day (see waitingCells.ts).
    * Ignored while the day's run is locked, since it can no longer accept placements. */
   waitingCells: CellGhost[];
-  /** Wells on this instrument permanently blocked by a stopped cell (see waitingCells.
-   * groupBlockedWellsByInstrument) - rendered as a non-droppable "blocked" placeholder
-   * instead of the plain "+" so this well never reads as an ordinary free slot. */
+  /** Wells on this instrument permanently blocked by a stopped cell on this day (see
+   * waitingCells.computeBlockedWellsByInstrumentAndDay) - rendered as a non-droppable
+   * "blocked" placeholder instead of the plain "+" so this well never reads as an ordinary
+   * free slot. */
   blockedWells: Set<string>;
+  /** Physical trays whose disposal after this day's run will strand still-unused cell
+   * capacity - this day is their last scheduled use (see waitingCells.
+   * computeTrayDisposalWarnings). Surfaced next to Confirm loaded. */
+  disposalWarnings: TrayDisposalWarning[];
   onOpenGhost: (ghost: CellGhost) => void;
 }
 
@@ -74,6 +79,7 @@ export function SchedulerDayCell(props: SchedulerDayCellProps) {
     onDragSelectStart,
     waitingCells,
     blockedWells,
+    disposalWarnings,
     onOpenGhost,
   } = props;
   const queryClient = useQueryClient();
@@ -138,20 +144,14 @@ export function SchedulerDayCell(props: SchedulerDayCellProps) {
   // section), it's only the placement *offer* that a locked day can't honour.
   // Each waiting cell is pinned to the exact slot matching its own last-used well
   // (WELL_ORDER) - cells stay in the same physical tray/well position for every reuse, never
-  // just "the next open slot" - so a ghost only shows if that specific slot is free. In the
-  // rare case two different waiting cells both last sat in the same well letter and are
-  // eligible the same day, the first one in waitingCells order gets it; the other simply has
-  // no ghost that day.
-  const ghostBySlot = new Map<SlotIndex, CellGhost>();
-  for (const ghost of waitingCells) {
-    const pinnedIndex = ghost.cell.current_well ? WELL_ORDER.indexOf(ghost.cell.current_well) : -1;
-    if (pinnedIndex < 0) continue;
-    const slot = pinnedIndex as SlotIndex;
-    if (slots[slot] !== null || ghostBySlot.has(slot)) continue;
-    ghostBySlot.set(slot, ghost);
-  }
+  // just "the next open slot" - so a ghost only shows if that specific slot is free. When two
+  // different waiting cells both last sat in the same well letter and are eligible the same
+  // day, a cell whose physical tray is actually present today beats one from a tray not yet
+  // founded as of this day (see pinGhostsToSlots); otherwise the first in waitingCells order
+  // wins and the other simply has no ghost that day.
+  const ghostBySlot = pinGhostsToSlots(waitingCells, slots);
 
-  // A well left behind by a stopped cell (see waitingCells.groupBlockedWellsByInstrument)
+  // A well left behind by a stopped cell (see waitingCells.computeBlockedWellsByInstrumentAndDay)
   // never gets a ghost (stop_cell excludes it from reuse) and never gets a stage again, so
   // without this it would silently fall through to the plain "+" placeholder below and
   // read as an ordinary free slot - even though the physical well is permanently dead.
@@ -235,6 +235,29 @@ export function SchedulerDayCell(props: SchedulerDayCellProps) {
           <span className={styles.carryLockTag}>Locked until {formatShortDateTimeUTC(carryOverLock.lock_until)}</span>
         )}
       </div>
+
+      {/* This day is the last scheduled use of one or more physical trays that still hold
+          unused cell capacity - once disposed after this run, that capacity is lost. Shown
+          right under the Confirm-loaded control so the waste is obvious before the run is
+          locked in. */}
+      {disposalWarnings.map((w) => {
+        const detail = w.wastedCells
+          .map((c) => `${c.code}: ${c.usesRemaining} unused use${c.usesRemaining === 1 ? "" : "s"}`)
+          .join(", ");
+        const summary =
+          w.wastedCells.length === 1
+            ? `${w.wastedCells[0].code} (${w.wastedCells[0].usesRemaining} unused)`
+            : `${w.wastedCells.length} cells (${w.wastedUses} unused uses)`;
+        return (
+          <div
+            key={w.trayId}
+            className={styles.disposalWarn}
+            title={`${w.positionLabel} (tray #${w.trayId}) reaches its last scheduled use on this day and will be physically disposed with unused capacity — ${detail}. Reuse these cells earlier this week, or accept the waste.`}
+          >
+            ⚠ {w.positionLabel} · #{w.trayId} — {summary} will be disposed unused
+          </div>
+        );
+      })}
 
       {statusMutation.isError && (
         <div className={styles.err}>

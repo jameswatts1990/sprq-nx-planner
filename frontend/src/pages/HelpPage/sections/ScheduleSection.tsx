@@ -326,6 +326,13 @@ export function ScheduleSection() {
           A <b>LOADED</b> tag marks a locked run; <b>Unlock</b> returns it to planned so you can edit it again.
         </li>
         <li>
+          An amber <b>&quot;⚠ Tray N · #… — … will be disposed unused&quot;</b> note next to Confirm loaded means
+          this day is the <b>last scheduled use</b> of a physical tray that still has cells with uses left over. Once
+          the tray is physically disposed after this run, that spare capacity is lost. It names the tray (its
+          position and id) and the specific cells being wasted (hover for the full list) — so before you lock the
+          run in, you can decide whether to reuse those cells earlier in the week instead, or accept the waste.
+        </li>
+        <li>
           The <b>✕</b> button in a tray&apos;s top-right corner is <b>Discard Cells</b> — it force-marks every
           physical cell in that tray as Exhausted, regardless of how many uses it actually has left. Use it once a
           tray is done with in real life even though the system still thinks it has spare uses. Any not-yet-run
@@ -458,8 +465,10 @@ export function ScheduleSection() {
             <SchedulerSlotView stage={null} slotIndex={0} blocked />
           </div>
           <span>
-            <b>Blocked:</b> once a physical cell is stopped, its well is retired for good — no waiting-cell ghost
-            ever appears there again, and no new cell can be loaded into that exact slot either.
+            <b>Blocked:</b> once a physical cell is stopped, its well is retired for the rest of that tray&apos;s time
+            on the instrument — no waiting-cell ghost appears there and no new cell can be loaded into that exact
+            slot. The block lifts only once that physical tray leaves and a brand-new tray is loaded into the same
+            bay on a later day, since that later tray&apos;s cell is a different physical object.
           </span>
         </div>
         <div className={styles.legendRow}>
