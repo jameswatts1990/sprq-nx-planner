@@ -12,10 +12,19 @@ export function ImportSection() {
 
       <p className={styles.subheading}>Accepted formats</p>
       <p>
-        <b>Two formats are accepted.</b> You can paste your full LIMS export (with the{" "}
+        <b>Three formats are accepted.</b> You can paste your full LIMS export (with the{" "}
         <i>Container, Parent Sample, Sanger Sample IDs, Barcodes, Volume to Load, Actual OPLC…</i> columns), or a
         simple two-column list of <i>sample ID, barcodes</i>. The Barcodes column may hold one or several codes per
         row.
+      </p>
+      <p>
+        You can also paste rows straight from the <b>sequencing tracker</b> Google Sheet. The planner recognises
+        that layout automatically and maps the columns it understands — Traction ID, barcodes (from the{" "}
+        <i>Complex Batch ID</i> column), Sanger Sample ID, Plate ID, loading concentrations, priority and CCS
+        kinetics. Only rows marked <b>Pending</b> (or with a blank status) are added to the Backlog; rows already{" "}
+        <i>In Progress</i> or <i>Loaded</i> are on the instrument and are skipped (each is listed as a warning). The
+        sheet&apos;s blank separator and label rows are ignored. When a tracker paste is detected you&apos;ll see a
+        note saying so in the result panel.
       </p>
       <dl className={styles.terms}>
         <dt>Upload CSV</dt>

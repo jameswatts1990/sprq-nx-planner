@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.engine.csv_parse import parse_csv
 from app.engine.normalize import normalize_samples
+from app.engine.tracker_import import looks_like_tracker, normalize_tracker
 from app.models.importing import ImportBatch
 from app.models.sample import SAMPLE_TERMINAL_STATUSES, Sample, SampleBarcode
 from app.schemas.importing import ImportRequest, ImportResult, RejectedRow
@@ -12,9 +13,13 @@ from app.serializers import sample_out
 
 
 def import_samples(db: Session, req: ImportRequest) -> ImportResult:
-    normalized = normalize_samples(req.raw_text)
-
     all_rows = parse_csv(req.raw_text)
+    if looks_like_tracker(all_rows):
+        normalized = normalize_tracker(req.raw_text)
+        normalized.warnings.insert(0, "Read as sequencing-tracker layout (mapped Traction ID, barcodes, Status…).")
+    else:
+        normalized = normalize_samples(req.raw_text)
+
     header_detected = not any(w.startswith("No header row detected") for w in normalized.warnings)
     row_count = max(0, len(all_rows) - (1 if header_detected else 0))
     skipped_count = sum(1 for w in normalized.warnings if "no barcodes" in w)

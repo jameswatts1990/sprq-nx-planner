@@ -12,6 +12,7 @@ from app.api import (
     imports,
     instruments,
     samples,
+    schedule_export,
     stats,
 )
 from app.config import settings
@@ -31,6 +32,7 @@ app.include_router(samples.router)
 app.include_router(auto_fill.router)
 app.include_router(cycles.router)
 app.include_router(batch_sheet.router)
+app.include_router(schedule_export.router)
 app.include_router(cell_uses.router)
 app.include_router(cells.router)
 app.include_router(instruments.router)

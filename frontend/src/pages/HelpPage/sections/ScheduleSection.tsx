@@ -77,6 +77,16 @@ export function ScheduleSection() {
         your browser&apos;s normal print dialog (choose a physical printer, or &quot;Save as PDF&quot;).
       </p>
 
+      <p className={styles.subheading}>Export schedule</p>
+      <p>
+        <b>Export schedule</b> downloads the currently-visible week as a CSV in the exact column layout of the
+        sequencing tracker Google Sheet, so you can paste the rows straight in. There is one row per scheduled well;
+        the columns the planner tracks (date, instrument, Traction ID, barcodes, Sanger ID, cell location, run time,
+        loading concentrations, status and priority) are filled in, and every other column in the sheet is left
+        blank for you to complete. Because the blanks would overwrite existing values, use this to <b>add new rows</b>{" "}
+        to the sheet rather than to paste over rows that already have complexing or charging data.
+      </p>
+
       <p className={styles.subheading}>Run design &amp; auto-fill</p>
       <p>
         <b>Run design</b> (collapsible panel, shown live below) sets the parameters used for both single placements

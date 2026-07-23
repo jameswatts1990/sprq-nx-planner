@@ -6,6 +6,7 @@ import { ApiError } from "@/api/client";
 import { cellsApi } from "@/api/cells";
 import { cyclesApi } from "@/api/cycles";
 import { instrumentsApi } from "@/api/instruments";
+import { scheduleExportUrl } from "@/api/scheduleExport";
 import { CellChoicePicker } from "@/components/scheduler/CellChoicePicker";
 import {
   findCarryOverLock,
@@ -356,6 +357,15 @@ export function SchedulePage() {
     setDetail({ stage, cycle });
   }, []);
 
+  const handleExportSchedule = useCallback(() => {
+    const a = document.createElement("a");
+    a.href = scheduleExportUrl({ date_from: win.dateFrom, date_to: win.dateTo });
+    a.download = ""; // let the server's Content-Disposition name the file
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }, [win.dateFrom, win.dateTo]);
+
   const rangeLabel = `${formatShortDateUTC(parseDateOnly(win.dateFrom))} – ${formatShortDateUTC(
     parseDateOnly(win.dateTo),
   )}`;
@@ -384,6 +394,14 @@ export function SchedulePage() {
           />
           <Button size="sm" variant="ghost" onClick={() => setPrintSheetOpen(true)}>
             Print Batch Sheet
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={handleExportSchedule}
+            title="Download the visible week as a sequencing-tracker CSV to paste into the Google Sheet"
+          >
+            Export schedule
           </Button>
         </div>
         <div className={styles.spacer} />
