@@ -22,11 +22,11 @@ export function BacklogSection() {
 
       <p className={styles.subheading}>Columns &amp; sorting</p>
       <p>
-        <b>Columns:</b> External ID, Barcodes, Parent sample, Sanger IDs, Priority, Target OPLC, and Created (when
+        <b>Columns:</b> Container ID, Barcodes, Parent sample, Sanger IDs, Priority, Target OPLC, and Created (when
         it was imported). A dash (—) means that field is empty for the sample.
       </p>
       <p>
-        <b>Sorting:</b> click the <b>External ID</b>, <b>Barcodes</b>, or <b>Priority</b> column header to sort by
+        <b>Sorting:</b> click the <b>Container ID</b>, <b>Barcodes</b>, or <b>Priority</b> column header to sort by
         that field; click again to reverse the direction. An arrow (▲/▼) on the header shows the active sort and
         direction. Priority sorts by rank (High before Standard), not alphabetically.
       </p>
@@ -60,10 +60,11 @@ export function BacklogSection() {
       <p className={styles.subheading}>Actions</p>
       <p>
         <b>+ Add sample</b> (top-right of the toolbar) opens a form to add one sample to the backlog by hand — handy
-        when a sample isn&apos;t in a file to import. <b>Traction / External ID</b> and at least one <b>barcode</b>{" "}
-        are required (enter several barcodes separated by commas or spaces); every other field is optional. The new
-        sample lands in the backlog exactly like an imported one. If the Traction ID already belongs to an active
-        sample, the form says so and nothing is added.
+        when a sample isn&apos;t in a file to import. <b>Container ID</b> and at least one <b>barcode</b>{" "}
+        are required (enter several barcodes separated by commas or spaces); every other field is optional. The
+        three True/False settings (Adaptive Loading, Full-Resolution Base Q, Include Base Kinetics) are chosen from a
+        dropdown. The new sample lands in the backlog exactly like an imported one. If the Container ID already
+        belongs to an active sample, the form says so and nothing is added.
       </p>
       <p>
         <b>Cancel</b> (on each row) removes a sample from the backlog when you never intend to sequence it. Use it

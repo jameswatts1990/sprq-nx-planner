@@ -28,7 +28,6 @@ def to_parsed_samples(samples: list[Sample]) -> list[ParsedSample]:
             barcodes=s.barcode_list,
             parent=s.parent_sample or "",
             sanger=s.sanger_ids or [],
-            oplc=s.oplc,
             volume=s.volume,
             priority=s.priority or "",
             key=f"sample:{s.id}",

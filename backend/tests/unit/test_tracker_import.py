@@ -6,8 +6,6 @@ from app.engine.csv_parse import parse_csv
 from app.engine.tracker_columns import (
     K_BARCODES,
     K_CCS_KINETICS,
-    K_LOADING_CONC,
-    K_PLATE_ID,
     K_PRIORITY,
     K_SANGER,
     K_STATUS,
@@ -48,9 +46,7 @@ def test_normalize_tracker_maps_p1_fields_and_skips_non_backlog_and_separators()
                 K_TRACTION_ID: "TRAC-2-26256",
                 K_BARCODES: "bc2074",
                 K_SANGER: '["DTOL1","DTOL2"]',
-                K_PLATE_ID: "NT1885345D",
                 K_TARGET_OPLC: "300",
-                K_LOADING_CONC: "250",
                 K_PRIORITY: "High",
                 K_CCS_KINETICS: "Yes",
                 K_STATUS: "Pending",
@@ -74,11 +70,9 @@ def test_normalize_tracker_maps_p1_fields_and_skips_non_backlog_and_separators()
     s = by_id["TRAC-2-26256"]
     assert s.barcodes == ["bc2074"]
     assert s.sanger == ["DTOL1", "DTOL2"]
-    assert s.container_id == "NT1885345D"
     assert s.target_oplc == 300.0
-    assert s.oplc == 250.0
     assert s.priority == "High"
-    assert s.ccs_kinetics == "Yes"
+    assert s.ccs_kinetics == "True"  # "Yes" normalized to canonical True/False
 
     assert by_id["TRAC-2-26279"].barcodes == ["bc2094", "bc2095"]
 

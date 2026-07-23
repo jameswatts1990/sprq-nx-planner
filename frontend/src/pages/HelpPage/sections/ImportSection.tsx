@@ -36,11 +36,11 @@ export function ImportSection() {
 
       <p className={styles.subheading}>Step 2 — review columns</p>
       <p>
-        Each field (Traction / External ID, Barcodes, Sanger IDs, Plate ID, priority, loading concentrations…) has a
+        Each field (Container ID, Barcodes, Sanger IDs, Target OPLC, priority, True/False settings…) has a
         dropdown where you pick which column of your file feeds it. The planner <b>pre-fills its best guess</b>, so
         usually you just glance and confirm; correct any that are wrong, or set one to <i>“— not imported —”</i>. A
         live preview of the first rows shows exactly what will be imported, and the mapping updates it as you change
-        a dropdown. Fields marked <span aria-hidden>*</span> are required — <b>Traction / External ID</b> and{" "}
+        a dropdown. Fields marked <span aria-hidden>*</span> are required — <b>Container ID</b> and{" "}
         <b>Barcodes</b> must be mapped before the <b>Import</b> button enables. Rows with no barcode are skipped, and
         a note tells you how many. Use <b>‹ Back</b> to return to the text without losing it.
       </p>
@@ -55,14 +55,14 @@ export function ImportSection() {
         <dt>Imported</dt>
         <dd>New samples added to the Backlog.</dd>
         <dt>Duplicates</dt>
-        <dd>Rows whose Traction ID already matched an active sample, so they were not added again.</dd>
+        <dd>Rows whose Container ID already matched an active sample, so they were not added again.</dd>
         <dt>Skipped</dt>
         <dd>Rows that parsed but weren&apos;t imported — usually because they had no barcode.</dd>
       </dl>
       <p>
         Two tables make skipped and duplicate rows <b>actionable</b>: the <b>Skipped rows</b> table lists each
         sample ID and why it was skipped (e.g. &quot;No barcodes&quot;) so you can fix the source and re-import, and
-        the <b>Duplicates</b> table lists each External ID that already existed. Use <b>Import another file</b> to
+        the <b>Duplicates</b> table lists each Container ID that already existed. Use <b>Import another file</b> to
         start over, or <b>View backlog →</b> to jump to the newly imported samples.
       </p>
       <div className={styles.noteExamples}>

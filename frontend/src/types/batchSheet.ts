@@ -9,13 +9,11 @@ export interface BatchSheetWellOut {
   window_breached: boolean;
   sample_id: number | null;
   sample_external_id: string | null;
-  sample_container_id: string | null;
   barcodes: string[];
   adaptive_loading: string | null;
   ccs_kinetics: string | null;
   full_resolution_base_q: string | null;
   target_oplc: number | null;
-  oplc: number | null;
   volume: number | null;
 }
 

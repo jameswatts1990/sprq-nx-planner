@@ -29,7 +29,7 @@ def test_normalize_example_csv_produces_eight_samples_with_expected_fields():
     assert s1597.barcodes == ["bc2021", "bc2066"]
     assert s1597.parent == "TRAC-2-25402"
     assert s1597.sanger == ["DTOL16756088", "AEGISDNA16711039"]
-    assert s1597.oplc == 268.0
+    assert s1597.target_oplc == 268.0
     assert s1597.volume == 24.0
 
     s1598 = by_id["BNCH-1598"]
@@ -71,8 +71,8 @@ def test_normalize_empty_text_returns_no_rows_warning():
 
 
 def test_normalize_zero_oplc_is_treated_as_none_matching_js_falsy_quirk():
-    text = 'sample,barcodes,Actual OPLC\nA,bc1,0\nB,bc2,150'
+    text = 'sample,barcodes,Target OPLC\nA,bc1,0\nB,bc2,150'
     result = normalize_samples(text)
     by_id = {s.id: s for s in result.samples}
-    assert by_id["A"].oplc is None
-    assert by_id["B"].oplc == 150.0
+    assert by_id["A"].target_oplc is None
+    assert by_id["B"].target_oplc == 150.0

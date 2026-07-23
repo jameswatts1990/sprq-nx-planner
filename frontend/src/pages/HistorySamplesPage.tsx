@@ -46,7 +46,7 @@ export function HistorySamplesPage() {
           <input
             type="search"
             className={styles.search}
-            placeholder="Search by external ID, barcode, or parent sample…"
+            placeholder="Search by container ID, barcode, or parent sample…"
             value={qInput}
             onChange={(e) => {
               setQInput(e.target.value);
@@ -70,11 +70,11 @@ export function HistorySamplesPage() {
                 <thead>
                   <tr>
                     <th />
-                    <th>External ID</th>
+                    <th>Container ID</th>
                     <th>Status</th>
                     <th>Barcodes</th>
                     <th>Parent sample</th>
-                    <th>OPLC</th>
+                    <th>Target OPLC</th>
                     <th>Volume</th>
                     <th>Priority</th>
                     <th>Updated</th>
@@ -129,7 +129,7 @@ function SampleRow({ sample, expanded, onToggle }: SampleRowProps) {
           <BarcodeChips barcodes={sample.barcodes} />
         </td>
         <td>{sample.parent_sample ?? "—"}</td>
-        <td>{sample.oplc ?? "—"}</td>
+        <td>{sample.target_oplc ?? "—"}</td>
         <td>{sample.volume ?? "—"}</td>
         <td>{sample.priority ?? "—"}</td>
         <td>{formatDateTime(sample.updated_at)}</td>

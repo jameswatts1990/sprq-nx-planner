@@ -17,10 +17,8 @@ from app.engine.import_fields import (
     K_ADAPTIVE_LOADING,
     K_BARCODES,
     K_CCS_KINETICS,
-    K_CONTAINER_ID,
     K_EXTERNAL_ID,
     K_FULL_RES_BASE_Q,
-    K_OPLC,
     K_PARENT_SAMPLE,
     K_PRIORITY,
     K_SANGER,
@@ -68,6 +66,30 @@ def _parse_float_or_none(raw: str | None) -> float | None:
     return v if v else None
 
 
+# Boolean settings fields (Adaptive Loading, Full-Resolution Base Q, Include Base Kinetics)
+# are stored canonically as "True"/"False". Import accepts the common truthy/falsy spellings
+# a lab sheet might use and rejects anything else (recorded as a per-row warning, value blanked).
+_TRUE_TOKENS = {"true", "t", "yes", "y", "1", "adaptive"}
+_FALSE_TOKENS = {"false", "f", "no", "n", "0"}
+
+
+def parse_bool_field(raw: str | None) -> tuple[str | None, bool]:
+    """Normalize a free-text True/False cell to canonical "True"/"False".
+
+    Returns (value, ok): value is "True"/"False"/None (blank -> None); ok is False when a
+    non-empty value couldn't be interpreted as a boolean, so callers can flag it."""
+    if raw is None:
+        return None, True
+    s = raw.strip().lower()
+    if not s:
+        return None, True
+    if s in _TRUE_TOKENS:
+        return "True", True
+    if s in _FALSE_TOKENS:
+        return "False", True
+    return None, False
+
+
 def _parse_sanger(raw: str) -> list[str]:
     raw = raw.strip()
     try:
@@ -104,6 +126,12 @@ def normalize_with_map(data_rows: list[list[str]], column_map: dict[str, int]) -
             skipped.append(SkippedRow(identifier=sample_id, reason="No barcodes"))
             continue
 
+        def boolean(key: str, label: str) -> str | None:
+            value, ok = parse_bool_field(cell(r, key))
+            if not ok:
+                warnings.append(f'Row "{sample_id}": {label} must be True or False — left blank.')
+            return value
+
         sanger_raw = cell(r, K_SANGER)
         samples.append(
             ParsedSample(
@@ -111,14 +139,12 @@ def normalize_with_map(data_rows: list[list[str]], column_map: dict[str, int]) -
                 barcodes=barcodes,
                 parent=cell(r, K_PARENT_SAMPLE).strip(),
                 sanger=_parse_sanger(sanger_raw) if sanger_raw.strip() else [],
-                oplc=_parse_float_or_none(cell(r, K_OPLC)),
                 target_oplc=_parse_float_or_none(cell(r, K_TARGET_OPLC)),
                 volume=_parse_float_or_none(cell(r, K_VOLUME)),
-                container_id=cell(r, K_CONTAINER_ID).strip(),
-                adaptive_loading=cell(r, K_ADAPTIVE_LOADING).strip(),
-                full_resolution_base_q=cell(r, K_FULL_RES_BASE_Q).strip(),
+                adaptive_loading=boolean(K_ADAPTIVE_LOADING, "Adaptive Loading"),
+                full_resolution_base_q=boolean(K_FULL_RES_BASE_Q, "Full-Resolution Base Q"),
                 priority=cell(r, K_PRIORITY).strip(),
-                ccs_kinetics=cell(r, K_CCS_KINETICS).strip(),
+                ccs_kinetics=boolean(K_CCS_KINETICS, "Include Base Kinetics"),
                 key=f"{sample_id}#{n}",
             )
         )

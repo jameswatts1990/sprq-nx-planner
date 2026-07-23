@@ -314,14 +314,13 @@ export function CellDetailPage() {
                     <th>Run</th>
                     <th>Well</th>
                     <th>Status</th>
-                    <th>Sample</th>
                     <th>Container ID</th>
                     <th>Barcodes</th>
                     <th>Priority</th>
                     <th>Target OPLC</th>
                     <th>Adaptive Loading</th>
                     <th>Full Res. Base Q</th>
-                    <th>Kinetics</th>
+                    <th>Include Base Kinetics</th>
                     <th>Instrument</th>
                     <th>Started</th>
                     <th>Completed</th>
@@ -340,7 +339,6 @@ export function CellDetailPage() {
                         <Badge tone={USE_STATUS_TONE[u.status] ?? "default"}>{u.status}</Badge>
                       </td>
                       <td>{u.sample_external_id ?? "—"}</td>
-                      <td>{u.sample_container_id ?? "—"}</td>
                       <td>
                         <BarcodeChips barcodes={u.barcodes} />
                       </td>

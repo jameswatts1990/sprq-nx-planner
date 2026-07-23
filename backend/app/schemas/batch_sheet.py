@@ -15,13 +15,11 @@ class BatchSheetWellOut(BaseModel):
     window_breached: bool
     sample_id: int | None
     sample_external_id: str | None
-    sample_container_id: str | None
     barcodes: list[str]
     adaptive_loading: str | None
     ccs_kinetics: str | None
     full_resolution_base_q: str | None
     target_oplc: float | None
-    oplc: float | None
     volume: float | None
 
 

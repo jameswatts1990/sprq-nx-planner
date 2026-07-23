@@ -16,11 +16,11 @@ class Sample(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     import_batch_id: Mapped[int | None] = mapped_column(ForeignKey("import_batches.id"), nullable=True)
+    # Surfaced to lab users as "Container ID" (see the import-field spec); the DB column
+    # keeps its historical `external_id` name.
     external_id: Mapped[str] = mapped_column(String(255), index=True)
-    container_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     parent_sample: Mapped[str | None] = mapped_column(String(255), nullable=True)
     sanger_ids: Mapped[list[str]] = mapped_column(JSON, default=list)
-    oplc: Mapped[float | None] = mapped_column(Float, nullable=True)
     target_oplc: Mapped[float | None] = mapped_column(Float, nullable=True)
     volume: Mapped[float | None] = mapped_column(Float, nullable=True)
     adaptive_loading: Mapped[str | None] = mapped_column(String(20), nullable=True)

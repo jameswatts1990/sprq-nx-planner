@@ -20,13 +20,12 @@ from app.engine.tracker_columns import normalize_header
 
 # Field keys. These match ParsedSample attribute names where they differ from the DB
 # column (external_id -> ParsedSample.id, parent_sample -> ParsedSample.parent).
+# The `external_id` column is surfaced to lab users as "Container ID" (see its label).
 K_EXTERNAL_ID = "external_id"
 K_BARCODES = "barcodes"
 K_SANGER = "sanger"
-K_CONTAINER_ID = "container_id"
 K_PARENT_SAMPLE = "parent_sample"
 K_TARGET_OPLC = "target_oplc"
-K_OPLC = "oplc"
 K_VOLUME = "volume"
 K_ADAPTIVE_LOADING = "adaptive_loading"
 K_FULL_RES_BASE_Q = "full_resolution_base_q"
@@ -39,7 +38,7 @@ class ImportField:
     key: str
     label: str
     example: str
-    kind: str = "text"  # text | number | barcodes | sanger
+    kind: str = "text"  # text | number | barcodes | sanger | boolean
     required: bool = False
     aliases: tuple[str, ...] = field(default_factory=tuple)
 
@@ -47,30 +46,28 @@ class ImportField:
 # Order here is the order shown in the mapping UI, the manual-add form, and the template.
 IMPORTABLE_FIELDS: list[ImportField] = [
     ImportField(
-        K_EXTERNAL_ID, "Traction / External ID", "TRAC-2-26256", required=True,
-        aliases=("traction id", "external id", "container", "parent sample", "sample"),
+        K_EXTERNAL_ID, "Container ID", "TRAC-2-26256", required=True,
+        aliases=("container id", "container", "traction id", "external id", "parent sample", "sample"),
     ),
     ImportField(
         K_BARCODES, "Barcodes", "bc2074, bc2075", kind="barcodes", required=True,
         aliases=("barcode", "complex batch id"),
     ),
     ImportField(K_SANGER, "Sanger Sample IDs", "DTOL16944651", kind="sanger", aliases=("sanger",)),
-    ImportField(K_CONTAINER_ID, "Plate ID / Container", "NT1885345D", aliases=("plate id", "container")),
     ImportField(K_PARENT_SAMPLE, "Parent Sample", "TRAC-2-26256", aliases=("parent sample",)),
     ImportField(
         K_TARGET_OPLC, "Target OPLC (pM)", "300", kind="number",
         aliases=("target oplc", "target loading concentration"),
     ),
-    ImportField(
-        K_OPLC, "OPLC / Loading Conc. (pM)", "250", kind="number",
-        aliases=("actual oplc", "loading conc.", "oplc"),
-    ),
     ImportField(K_VOLUME, "Volume to Load (uL)", "12", kind="number",
                 aliases=("volume to load", "library volume", "volume")),
-    ImportField(K_ADAPTIVE_LOADING, "Adaptive Loading", "Adaptive", aliases=("adaptive loading",)),
-    ImportField(K_FULL_RES_BASE_Q, "Full-Resolution Base Q", "No", aliases=("full resolution", "full-resolution")),
+    ImportField(K_ADAPTIVE_LOADING, "Adaptive Loading", "True", kind="boolean",
+                aliases=("adaptive loading",)),
+    ImportField(K_FULL_RES_BASE_Q, "Full-Resolution Base Q", "False", kind="boolean",
+                aliases=("full resolution", "full-resolution")),
     ImportField(K_PRIORITY, "Priority", "High", aliases=("priority", "prioity")),
-    ImportField(K_CCS_KINETICS, "CCS Kinetics", "Yes", aliases=("kinetics",)),
+    ImportField(K_CCS_KINETICS, "Include Base Kinetics", "True", kind="boolean",
+                aliases=("include base kinetics", "base kinetics", "kinetics")),
 ]
 
 FIELDS_BY_KEY: dict[str, ImportField] = {f.key: f for f in IMPORTABLE_FIELDS}

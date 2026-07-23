@@ -6,18 +6,18 @@ from app.services.import_service import template_csv
 
 DEFAULT_HEADER = [
     "Container", "Parent Sample", "Sanger Sample IDs", "Parent Sample ID",
-    "Barcodes", "Volume to Load", "Actual OPLC",
+    "Barcodes", "Volume to Load", "Target OPLC",
 ]
 
 
 def test_suggest_map_default_lims_header():
     m = suggest_column_map(DEFAULT_HEADER)
-    assert m["external_id"] == 0  # Container
+    assert m["external_id"] == 0  # Container -> the "Container ID" field
     assert m["barcodes"] == 4
     assert m["sanger"] == 2
     assert m["parent_sample"] == 1
     assert m["volume"] == 5
-    assert m["oplc"] == 6
+    assert m["target_oplc"] == 6
 
 
 def test_suggest_map_tracker_header_maps_traction_id_and_complex_batch_id():
@@ -63,4 +63,4 @@ def test_template_round_trips_through_the_mapper():
 def test_tracker_layout_and_importable_fields_stay_independent():
     # sanity: the tracker export spec is a different, larger layout than the import fields
     assert len(TRACKER_COLUMNS) == 56
-    assert len(IMPORTABLE_FIELDS) == 12
+    assert len(IMPORTABLE_FIELDS) == 10

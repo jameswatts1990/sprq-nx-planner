@@ -23,6 +23,9 @@ K_INSTRUMENT = "instrument"
 K_PLATE_ID = "plate_id"
 K_TRACTION_ID = "traction_id"
 K_SANGER = "sanger"
+K_POOL_ID = "pool_id"
+K_PORTION = "portion_of_smrt_cell"
+K_SEQ_COMMENTS = "sequencing_comments"
 K_CELL_LOCATION = "cell_location"
 K_RUN_TIME = "run_time_hr"
 K_TARGET_OPLC = "target_oplc"
@@ -46,15 +49,15 @@ TRACKER_COLUMNS: list[tuple[str, str | None]] = [
     ("Plate ID", K_PLATE_ID),
     ("Traction ID", K_TRACTION_ID),
     ("Sanger Sample ID", K_SANGER),
-    ("Pool ID", None),
-    ("Portion of SMRT Cell", None),
+    ("Pool ID", K_POOL_ID),
+    ("Portion of SMRT Cell", K_PORTION),
     ("Plate Number", None),
     ("cell location", K_CELL_LOCATION),
     ("Run Time (hr)", K_RUN_TIME),
     ("Pre Extention time (Mins)", None),
     ("Polymerase Kit Version", None),
     ("Auto Batch ID", None),
-    ("Sequencing Comments", None),
+    ("Sequencing Comments", K_SEQ_COMMENTS),
     ("Target Loading Concentration (pM)", K_TARGET_OPLC),
     (TRACKER_BARCODE_HEADER, K_BARCODES),
     ("User ID (Complexes)", None),

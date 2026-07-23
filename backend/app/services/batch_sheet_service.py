@@ -73,12 +73,10 @@ def _well_out(cell_use: CellUse) -> BatchSheetWellOut:
         window_breached=cell.window_breached if cell else False,
         sample_id=cell_use.sample_id,
         sample_external_id=sample.external_id if sample else None,
-        sample_container_id=sample.container_id if sample else None,
         barcodes=cell_use.barcode_list,
         adaptive_loading=sample.adaptive_loading if sample else None,
         ccs_kinetics=sample.ccs_kinetics if sample else None,
         full_resolution_base_q=sample.full_resolution_base_q if sample else None,
         target_oplc=sample.target_oplc if sample else None,
-        oplc=sample.oplc if sample else None,
         volume=sample.volume if sample else None,
     )

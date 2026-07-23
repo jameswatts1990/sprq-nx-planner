@@ -13,12 +13,16 @@ on the instrument (In Progress / Loaded) are skipped, since import is a backlog 
 from __future__ import annotations
 
 from app.engine.csv_parse import parse_csv, split_barcodes
-from app.engine.normalize import NormalizeResult, SkippedRow, _parse_float_or_none, _parse_sanger
+from app.engine.normalize import (
+    NormalizeResult,
+    SkippedRow,
+    _parse_float_or_none,
+    _parse_sanger,
+    parse_bool_field,
+)
 from app.engine.tracker_columns import (
     K_BARCODES,
     K_CCS_KINETICS,
-    K_LOADING_CONC,
-    K_PLATE_ID,
     K_PRIORITY,
     K_SANGER,
     K_STATUS,
@@ -85,16 +89,15 @@ def normalize_tracker(text: str | None) -> NormalizeResult:
             continue
 
         sanger_raw = get(K_SANGER)
+        ccs_kinetics, _ = parse_bool_field(get(K_CCS_KINETICS))
         samples.append(
             ParsedSample(
                 id=raw_id or f"Sample {n + 1}",
                 barcodes=barcodes,
                 sanger=_parse_sanger(sanger_raw) if sanger_raw else [],
-                oplc=_parse_float_or_none(get(K_LOADING_CONC)),
                 target_oplc=_parse_float_or_none(get(K_TARGET_OPLC)),
-                container_id=get(K_PLATE_ID),
                 priority=get(K_PRIORITY),
-                ccs_kinetics=get(K_CCS_KINETICS),
+                ccs_kinetics=ccs_kinetics,
                 key=f"{raw_id}#{n}",
             )
         )

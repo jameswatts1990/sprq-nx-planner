@@ -8,10 +8,8 @@ def sample_out(sample: Sample) -> SampleOut:
     return SampleOut(
         id=sample.id,
         external_id=sample.external_id,
-        container_id=sample.container_id,
         parent_sample=sample.parent_sample,
         sanger_ids=sample.sanger_ids or [],
-        oplc=sample.oplc,
         target_oplc=sample.target_oplc,
         volume=sample.volume,
         adaptive_loading=sample.adaptive_loading,

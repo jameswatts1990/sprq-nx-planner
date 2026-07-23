@@ -86,7 +86,7 @@ def create_sample(req: SampleCreate, db: SessionDep, actor: ActorDep) -> SampleO
     """Manually add one sample to the backlog (same landing spot as CSV import)."""
     external_id = req.external_id.strip()
     if not external_id:
-        raise HTTPException(422, "External / Traction ID is required")
+        raise HTTPException(422, "Container ID is required")
     barcodes = split_barcodes(" ".join(req.barcodes))
     if not barcodes:
         raise HTTPException(422, "At least one barcode is required")
@@ -96,9 +96,7 @@ def create_sample(req: SampleCreate, db: SessionDep, actor: ActorDep) -> SampleO
             external_id=external_id,
             barcodes=barcodes,
             sanger_ids=req.sanger_ids,
-            container_id=req.container_id,
             parent_sample=req.parent_sample,
-            oplc=req.oplc,
             target_oplc=req.target_oplc,
             volume=req.volume,
             adaptive_loading=req.adaptive_loading,

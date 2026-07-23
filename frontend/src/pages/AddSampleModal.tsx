@@ -41,7 +41,7 @@ export function AddSampleModal({ onClose }: { onClose: () => void }) {
     setClientError(null);
     const externalId = (values.external_id ?? "").trim();
     const barcodes = splitList(values.barcodes ?? "");
-    if (!externalId) return setClientError("Traction / External ID is required.");
+    if (!externalId) return setClientError("Container ID is required.");
     if (barcodes.length === 0) return setClientError("At least one barcode is required.");
 
     const str = (k: string) => ((values[k] ?? "").trim() ? (values[k] ?? "").trim() : null);
@@ -56,9 +56,7 @@ export function AddSampleModal({ onClose }: { onClose: () => void }) {
       external_id: externalId,
       barcodes,
       sanger_ids: splitList(values.sanger ?? ""),
-      container_id: str("container_id"),
       parent_sample: str("parent_sample"),
-      oplc: num("oplc"),
       target_oplc: num("target_oplc"),
       volume: num("volume"),
       adaptive_loading: str("adaptive_loading"),
@@ -79,7 +77,7 @@ export function AddSampleModal({ onClose }: { onClose: () => void }) {
   return (
     <Modal onClose={onClose} title="Add sample to backlog" maxWidth={560}>
       <p className={styles.intro}>
-        Add one sample by hand. It lands in the backlog just like an imported row. Traction / External ID and at least
+        Add one sample by hand. It lands in the backlog just like an imported row. Container ID and at least
         one barcode are required.
       </p>
 
@@ -90,13 +88,25 @@ export function AddSampleModal({ onClose }: { onClose: () => void }) {
               {f.label}
               {f.required && <span className={styles.req}> *</span>}
             </span>
-            <input
-              className={styles.input}
-              value={values[f.key] ?? ""}
-              placeholder={f.example}
-              inputMode={f.kind === "number" ? "decimal" : undefined}
-              onChange={(e) => set(f.key, e.target.value)}
-            />
+            {f.kind === "boolean" ? (
+              <select
+                className={styles.input}
+                value={values[f.key] ?? ""}
+                onChange={(e) => set(f.key, e.target.value)}
+              >
+                <option value="">—</option>
+                <option value="True">True</option>
+                <option value="False">False</option>
+              </select>
+            ) : (
+              <input
+                className={styles.input}
+                value={values[f.key] ?? ""}
+                placeholder={f.example}
+                inputMode={f.kind === "number" ? "decimal" : undefined}
+                onChange={(e) => set(f.key, e.target.value)}
+              />
+            )}
             {(f.kind === "barcodes" || f.kind === "sanger") && (
               <span className={styles.hint}>Separate multiple with commas or spaces.</span>
             )}

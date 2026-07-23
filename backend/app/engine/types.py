@@ -16,14 +16,13 @@ class ParsedSample:
     barcodes: list[str]
     parent: str = ""
     sanger: list[str] = field(default_factory=list)
-    oplc: float | None = None
     target_oplc: float | None = None
     volume: float | None = None
-    container_id: str = ""
-    adaptive_loading: str = ""
-    full_resolution_base_q: str = ""
+    # Boolean settings stored canonically as "True"/"False" (None when unspecified).
+    adaptive_loading: str | None = None
+    full_resolution_base_q: str | None = None
     priority: str = ""
-    ccs_kinetics: str = ""
+    ccs_kinetics: str | None = None
     key: str = ""
     sample_id: int | None = None  # DB id, populated once persisted; unused by pure engine
     # When this sample entered the backlog (Sample.created_at) - drives the "oldest

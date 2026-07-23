@@ -13,7 +13,7 @@ import type { ImportField, ImportPreviewResult, ImportResult } from "@/types/imp
 
 import styles from "./ImportPage.module.css";
 
-const EXAMPLE_CSV = `Container,Parent Sample,Sanger Sample IDs,Parent Sample ID,Barcodes,Volume to Load,Actual OPLC,Task ID,Task Status,Lookup Status
+const EXAMPLE_CSV = `Container,Parent Sample,Sanger Sample IDs,Parent Sample ID,Barcodes,Volume to Load,Target OPLC,Task ID,Task Status,Lookup Status
 BNCH-1597,TRAC-2-25402,"[""DTOL16756088"",""AEGISDNA16711039""]",TRAC-2-25402,"bc2021, bc2066",24.0,268.0,LR-SEQ-LD42-T1,Planned,Found
 BNCH-1598,TRAC-2-25403,"[""DTOL16756088"",""AEGISDNA16711039""]",TRAC-2-25403,"bc2029, bc2030, bc2040, bc2057",13.19,300.0,LR-SEQ-LD42-T2,Planned,Found
 BNCH-1599,TRAC-2-22911,AEGISDNA16711029,TRAC-2-22911,bc2011,17.82,300.0,LR-SEQ-LD43-T1,Planned,Found`;
@@ -233,7 +233,7 @@ export function ImportPage() {
             spellCheck={false}
             placeholder={
               "Paste CSV here — any columns. You'll match them to fields on the next step.\n" +
-              "Container,Parent Sample,Sanger Sample IDs,Barcodes,Actual OPLC,...\n" +
+              "Container,Parent Sample,Sanger Sample IDs,Barcodes,Target OPLC,...\n" +
               'BNCH-1597,TRAC-2-25402,...,"bc2021, bc2066",268.0,...\n\n' +
               "…or a simple two-column list (untick “First row is a header”):\n" +
               "TRAC-2-25402, bc2021 bc2066"
@@ -356,7 +356,7 @@ function ImportResultPanel({ result }: { result: ImportResult }) {
             <table className={styles.rejectedTable}>
               <thead>
                 <tr>
-                  <th>External ID</th>
+                  <th>Container ID</th>
                   <th>Reason</th>
                 </tr>
               </thead>

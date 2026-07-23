@@ -71,10 +71,19 @@ export function ScheduleSection() {
         <b>Print Batch Sheet</b> opens a printable loading sheet for the Revios. Pick a day and tick which
         instruments to include — handy when different people load different machines, since each person can print
         just their own. The sheet opens in a new tab with every well&apos;s cell code, use number and 108-hour
-        reuse deadline, the sample to load and its barcode(s)/container, and the run settings (adaptive loading,
-        CCS kinetics, full-resolution baseQ, OPLC, volume) — everything needed to find the right samples, load them
+        reuse deadline, the sample to load and its barcode(s), and the run settings (adaptive loading,
+        include base kinetics, full-resolution baseQ, Target OPLC, volume) — everything needed to find the right samples, load them
         in the right wells, and set up the run. Use the page&apos;s <b>Print / Save as PDF</b> button, which opens
         your browser&apos;s normal print dialog (choose a physical printer, or &quot;Save as PDF&quot;).
+      </p>
+      <p>
+        Below each instrument&apos;s table the sheet also prints two <b>fill-in worksheets</b> to record the bench
+        work as you go. The <b>7.3 · Final complex loading dilution</b> table has a row per well, pre-filled with the
+        well, Traction ID and Target OPLC, and blank boxes to write in the complex, loading-buffer and control-dilution
+        volumes, the final volume and the OPLC you actually achieved. The <b>7.4 · Plate loading</b> checklist (one per
+        plate/tray) has a space to note the plate&apos;s QR / serial number, tick boxes for the plate-prep steps
+        (vortexed, spun down, foil pierced) and a per-well tick for &quot;23 µL loaded&quot; and &quot;sealed&quot;.
+        These are for writing on the printout by hand — the values aren&apos;t stored back in the app.
       </p>
 
       <p className={styles.subheading}>Export schedule</p>
@@ -82,9 +91,17 @@ export function ScheduleSection() {
         <b>Export schedule</b> downloads the currently-visible week as a CSV in the exact column layout of the
         sequencing tracker Google Sheet, so you can paste the rows straight in. There is one row per scheduled well;
         the columns the planner tracks (date, instrument, Traction ID, barcodes, Sanger ID, cell location, run time,
-        loading concentrations, status and priority) are filled in, and every other column in the sheet is left
+        target OPLC, status and priority) are filled in, and every other column in the sheet is left
         blank for you to complete. Because the blanks would overwrite existing values, use this to <b>add new rows</b>{" "}
         to the sheet rather than to paste over rows that already have complexing or charging data.
+      </p>
+      <p>
+        A <b>multiplexed pool</b> (a well with more than one barcode) is split into <b>one row per barcode</b>, so each
+        sample in the pool gets its own line — with its barcode, its matching Sanger ID, the pool&apos;s Traction ID in{" "}
+        <b>Pool ID</b>, and an equal <b>Portion of SMRT Cell</b> (four barcodes = 25% each). Splitting only happens when
+        the number of barcodes matches the number of Sanger IDs; if they don&apos;t line up, the pool stays on a single
+        row and a note in <b>Sequencing Comments</b> tells you it wasn&apos;t split (e.g. &quot;Not split: 4 barcodes /
+        1 Sanger IDs&quot;) so you can correct the sample and export again.
       </p>
 
       <p className={styles.subheading}>Run design &amp; auto-fill</p>

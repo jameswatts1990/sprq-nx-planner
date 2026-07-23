@@ -1,4 +1,4 @@
-Container,Parent Sample,Sanger Sample IDs,Parent Sample ID,Barcodes,Volume to Load,Actual OPLC,Task ID,Task Status,Lookup Status
+Container,Parent Sample,Sanger Sample IDs,Parent Sample ID,Barcodes,Volume to Load,Target OPLC,Task ID,Task Status,Lookup Status
 BNCH-1597,TRAC-2-25402,"[""DTOL16756088"",""AEGISDNA16711039""]",TRAC-2-25402,"bc2021, bc2066",24.0,268.0,LR-SEQ-LD42-T1,Planned,Found
 BNCH-1598,TRAC-2-25403,"[""DTOL16756088"",""AEGISDNA16711039""]",TRAC-2-25403,"bc2029, bc2030, bc2040, bc2057",13.19,300.0,LR-SEQ-LD42-T2,Planned,Found
 BNCH-1599,TRAC-2-22911,AEGISDNA16711029,TRAC-2-22911,bc2011,17.82,300.0,LR-SEQ-LD43-T1,Planned,Found

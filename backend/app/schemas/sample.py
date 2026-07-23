@@ -1,18 +1,22 @@
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+from app.engine.normalize import parse_bool_field
+
+# Boolean settings surfaced as True/False in the UI and template.
+_BOOL_FIELDS = ("adaptive_loading", "full_resolution_base_q", "ccs_kinetics")
 
 
 class SampleCreate(BaseModel):
-    """Manual "Add to backlog" input. external_id and at least one barcode are required;
-    everything else is optional (mirrors the canonical importable-field set)."""
+    """Manual "Add to backlog" input. external_id (shown as "Container ID") and at least one
+    barcode are required; everything else is optional (mirrors the canonical importable-field
+    set). The three boolean settings are validated/normalized to "True"/"False"."""
 
     external_id: str = Field(min_length=1)
     barcodes: list[str] = Field(min_length=1)
     sanger_ids: list[str] = []
-    container_id: str | None = None
     parent_sample: str | None = None
-    oplc: float | None = None
     target_oplc: float | None = None
     volume: float | None = None
     adaptive_loading: str | None = None
@@ -20,14 +24,22 @@ class SampleCreate(BaseModel):
     priority: str | None = None
     ccs_kinetics: str | None = None
 
+    @field_validator(*_BOOL_FIELDS, mode="before")
+    @classmethod
+    def _normalize_bool(cls, value: object) -> str | None:
+        if value is None:
+            return None
+        normalized, ok = parse_bool_field(str(value))
+        if not ok:
+            raise ValueError("must be True or False")
+        return normalized
+
 
 class SampleOut(BaseModel):
     id: int
     external_id: str
-    container_id: str | None
     parent_sample: str | None
     sanger_ids: list[str]
-    oplc: float | None
     target_oplc: float | None
     volume: float | None
     adaptive_loading: str | None

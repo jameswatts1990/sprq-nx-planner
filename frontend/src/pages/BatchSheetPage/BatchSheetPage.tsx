@@ -38,20 +38,124 @@ function WellRow({ well }: { well: BatchSheetWellOut }) {
       </td>
       <td>
         <div>{well.sample_external_id ?? "—"}</div>
-        {well.sample_container_id && <div className={styles.meta}>Container {well.sample_container_id}</div>}
       </td>
       <td>{well.barcodes.length > 0 ? well.barcodes.join(", ") : "—"}</td>
       <td>
         <div>Adaptive loading: {well.adaptive_loading ?? "—"}</div>
-        <div>CCS kinetics: {well.ccs_kinetics ?? "—"}</div>
+        <div>Include base kinetics: {well.ccs_kinetics ?? "—"}</div>
         <div>Full-res baseQ: {well.full_resolution_base_q ?? "—"}</div>
       </td>
-      <td>
-        {well.oplc ?? "—"}
-        {well.target_oplc != null && <div className={styles.meta}>Target {well.target_oplc}</div>}
-      </td>
+      <td>{well.target_oplc ?? "—"}</td>
       <td>{well.volume ?? "—"}</td>
     </tr>
+  );
+}
+
+/** SOP 7.3 — Final complex loading dilution. One row per well; the app pre-fills what it
+ * knows (well, Traction ID, target OPLC) and leaves the dilution volumes and achieved OPLC as
+ * blank cells to hand-write at the bench, since the app has no complex-concentration data. */
+function DilutionWorksheet({ wells }: { wells: BatchSheetWellOut[] }) {
+  return (
+    <>
+      <div className={styles.sectionSub}>7.3 · Final complex loading dilution</div>
+      <table className={styles.worksheetTable}>
+        <thead>
+          <tr>
+            <th>Well</th>
+            <th>Traction ID</th>
+            <th>
+              Target OPLC <span className={styles.unit}>(pM)</span>
+            </th>
+            <th>
+              Complex vol <span className={styles.unit}>(µL)</span>
+            </th>
+            <th>
+              Loading buffer <span className={styles.unit}>(µL)</span>
+            </th>
+            <th>
+              Control Dil-3 <span className={styles.unit}>(µL)</span>
+            </th>
+            <th>
+              Final vol <span className={styles.unit}>(µL)</span>
+            </th>
+            <th>
+              Actual OPLC <span className={styles.unit}>(pM)</span>
+            </th>
+            <th>Init</th>
+          </tr>
+        </thead>
+        <tbody>
+          {wells.map((w) => (
+            <tr key={w.well}>
+              <td>{w.well}</td>
+              <td>{w.sample_external_id ?? "—"}</td>
+              <td>{w.target_oplc ?? ""}</td>
+              <td className={styles.entryCell} />
+              <td className={styles.entryCell} />
+              <td className={styles.entryCell} />
+              <td className={styles.entryCell} />
+              <td className={styles.entryCell} />
+              <td className={styles.entryCell} />
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </>
+  );
+}
+
+/** SOP 7.4 — Adding samples to the sequencing plate. One block per physical plate (tray), with a
+ * QR/serial write-in, plate-prep ticks, and a per-well "23 µL loaded / sealed" checklist. */
+function PlateLoadingChecklist({ tray, wells }: { tray: 1 | 2; wells: BatchSheetWellOut[] }) {
+  return (
+    <div className={styles.plateBlock}>
+      <div className={styles.sectionSub}>7.4 · Plate loading — Tray {tray}</div>
+      <div className={styles.qrLine}>
+        Plate QR / serial no.: <span className={styles.qrBlank} />
+      </div>
+      <div className={styles.prepChecks}>
+        <span>
+          <span className={styles.check} />
+          Vortexed 1 min @ 1800
+        </span>
+        <span>
+          <span className={styles.check} />
+          Spun down
+        </span>
+        <span>
+          <span className={styles.check} />
+          Foil pierced (A1–D1)
+        </span>
+      </div>
+      <table className={styles.worksheetTable}>
+        <thead>
+          <tr>
+            <th>Well</th>
+            <th>Sample</th>
+            <th>
+              23 <span className={styles.unit}>µL</span> loaded
+            </th>
+            <th>Sealed</th>
+            <th>Init</th>
+          </tr>
+        </thead>
+        <tbody>
+          {wells.map((w) => (
+            <tr key={w.well}>
+              <td>{w.well}</td>
+              <td>{w.sample_external_id ?? "—"}</td>
+              <td>
+                <span className={styles.check} />
+              </td>
+              <td>
+                <span className={styles.check} />
+              </td>
+              <td className={styles.entryCell} />
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -79,10 +183,10 @@ function InstrumentSection({ instrument }: { instrument: BatchSheetInstrumentOut
           <tr>
             <th>Well</th>
             <th>Cell</th>
-            <th>Sample</th>
+            <th>Container ID</th>
             <th>Barcodes</th>
             <th>Settings</th>
-            <th>OPLC</th>
+            <th>Target OPLC</th>
             <th>Volume</th>
           </tr>
         </thead>
@@ -107,6 +211,10 @@ function InstrumentSection({ instrument }: { instrument: BatchSheetInstrumentOut
           </tbody>
         )}
       </table>
+
+      <DilutionWorksheet wells={instrument.wells} />
+      {tray1.length > 0 && <PlateLoadingChecklist tray={1} wells={tray1} />}
+      {tray2.length > 0 && <PlateLoadingChecklist tray={2} wells={tray2} />}
     </section>
   );
 }

@@ -2,11 +2,10 @@ import type { SampleStatus } from "./common";
 
 export interface SampleOut {
   id: number;
+  /** The sample identifier, shown to users as "Container ID". */
   external_id: string;
-  container_id: string | null;
   parent_sample: string | null;
   sanger_ids: string[];
-  oplc: number | null;
   target_oplc: number | null;
   volume: number | null;
   adaptive_loading: string | null;
@@ -24,9 +23,7 @@ export interface SampleCreate {
   external_id: string;
   barcodes: string[];
   sanger_ids?: string[];
-  container_id?: string | null;
   parent_sample?: string | null;
-  oplc?: number | null;
   target_oplc?: number | null;
   volume?: number | null;
   adaptive_loading?: string | null;

@@ -36,7 +36,7 @@ export interface ImportResult {
 export interface ImportField {
   key: string;
   label: string;
-  kind: "text" | "number" | "barcodes" | "sanger";
+  kind: "text" | "number" | "barcodes" | "sanger" | "boolean";
   required: boolean;
   example: string;
 }

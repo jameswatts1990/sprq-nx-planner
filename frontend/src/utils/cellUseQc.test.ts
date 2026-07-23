@@ -14,7 +14,6 @@ function baseUse(overrides: Partial<CellUseHistoryOut> = {}): CellUseHistoryOut 
     status: "planned",
     sample_id: 1,
     sample_external_id: "SAMPLE-1",
-    sample_container_id: null,
     sample_priority: null,
     sample_target_oplc: null,
     sample_adaptive_loading: null,

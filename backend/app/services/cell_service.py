@@ -323,7 +323,6 @@ def serialize_cell_detail(cell: Cell) -> CellDetailOut:
                 status=cu.status,
                 sample_id=cu.sample_id,
                 sample_external_id=cu.sample.external_id if cu.sample else None,
-                sample_container_id=cu.sample.container_id if cu.sample else None,
                 sample_priority=cu.sample.priority if cu.sample else None,
                 sample_target_oplc=cu.sample.target_oplc if cu.sample else None,
                 sample_adaptive_loading=cu.sample.adaptive_loading if cu.sample else None,

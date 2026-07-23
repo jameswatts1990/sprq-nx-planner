@@ -17,8 +17,10 @@ def export_schedule_csv(
 ) -> Response:
     """Download the scheduled grid as the lab's 56-column sequencing-tracker CSV.
 
-    One row per scheduled well in the [date_from, date_to] window. Columns the app does
-    not store are present but blank — intended for appending new rows to the Google Sheet."""
+    One row per scheduled well in the [date_from, date_to] window — or one row per barcode
+    for a multi-barcode pool that splits cleanly (each with its share of the SMRT cell).
+    Columns the app does not store are present but blank — intended for appending new rows
+    to the Google Sheet."""
     csv_text = build_schedule_csv(db, date_from, date_to, instrument_serial)
     suffix = f"_{date_from.isoformat()}_{date_to.isoformat()}" if date_from and date_to else ""
     filename = f"schedule{suffix}.csv"

@@ -28,7 +28,7 @@ const PAGE_SIZE_OPTIONS: SegmentedOption<number>[] = [25, 50, 100, 200].map((n) 
 }));
 const SORT_OPTIONS: SegmentedOption<SampleSortBy>[] = [
   { value: "created_at", label: "Created" },
-  { value: "external_id", label: "External ID" },
+  { value: "external_id", label: "Container ID" },
   { value: "barcode", label: "Barcode" },
   { value: "priority", label: "Priority" },
 ];

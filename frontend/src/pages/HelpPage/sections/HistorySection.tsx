@@ -49,8 +49,8 @@ export function HistorySection() {
       <p className={styles.subheading}>History → Samples</p>
       <p>
         <b>What it&apos;s for:</b> every sample that has finished, either <b>completed</b> (green) or <b>failed</b>{" "}
-        (red). Search by external ID, barcode, or parent sample. Each row shows the sample&apos;s status, barcodes,
-        parent sample, OPLC, volume, and last-updated time. Click a row to expand it and see that sample&apos;s
+        (red). Search by container ID, barcode, or parent sample. Each row shows the sample&apos;s status, barcodes,
+        parent sample, Target OPLC, volume, and last-updated time. Click a row to expand it and see that sample&apos;s
         individual cell uses — which cell and well, the use status, start/complete times, and notes.
       </p>
     </div>

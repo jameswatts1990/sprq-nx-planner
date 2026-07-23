@@ -74,6 +74,69 @@
   font-weight: 700;
 }
 
+/* --- SOP 7.3 / 7.4 data-entry worksheets ------------------------------- */
+.sectionSub {
+  font-size: 13px;
+  font-weight: 700;
+  margin: 16px 0 6px;
+}
+.worksheetTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.worksheetTable th,
+.worksheetTable td {
+  border: 1px solid var(--line);
+  padding: 6px 6px;
+  text-align: left;
+  vertical-align: top;
+}
+.worksheetTable th {
+  background: var(--line-soft);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+/* Units must not be uppercased — "µL" would become "ML" (reads as millilitres). */
+.unit {
+  text-transform: none;
+}
+/* Blank cell to write into by hand: no content, just a tall bordered box. */
+.entryCell {
+  height: 26px;
+}
+/* Small bordered square to tick. */
+.check {
+  display: inline-block;
+  width: 13px;
+  height: 13px;
+  border: 1px solid var(--fg, #333);
+  vertical-align: -2px;
+  margin-right: 6px;
+}
+.plateBlock {
+  margin-top: 12px;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+.prepChecks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  font-size: 12px;
+  margin: 6px 0 8px;
+}
+.qrLine {
+  font-size: 12px;
+  margin: 4px 0;
+}
+.qrBlank {
+  display: inline-block;
+  min-width: 220px;
+  border-bottom: 1px solid var(--fg, #333);
+}
+
 .noPrint {
   /* placeholder class, hidden below in @media print */
 }
@@ -88,5 +151,14 @@
   }
   .instrumentSection {
     page-break-inside: avoid;
+  }
+  /* Keep the light header shading and checkbox borders when printing. */
+  .wellTable th,
+  .worksheetTable th,
+  .trayHeader td,
+  .check,
+  .qrBlank {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 }

@@ -12,7 +12,6 @@ class CellUseHistoryOut(BaseModel):
     status: str
     sample_id: int | None
     sample_external_id: str | None
-    sample_container_id: str | None
     sample_priority: str | None
     sample_target_oplc: float | None
     sample_adaptive_loading: str | None

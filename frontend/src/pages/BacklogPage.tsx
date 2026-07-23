@@ -103,7 +103,7 @@ export function BacklogPage() {
   }
 
   const columns = [
-    columnHelper.accessor("external_id", { header: () => sortableHeader("External ID", "external_id") }),
+    columnHelper.accessor("external_id", { header: () => sortableHeader("Container ID", "external_id") }),
     columnHelper.accessor("barcodes", {
       header: () => sortableHeader("Barcodes", "barcode"),
       cell: (info) => <BarcodeChips barcodes={info.getValue()} />,
@@ -170,7 +170,7 @@ export function BacklogPage() {
             <input
               type="search"
               className={styles.search}
-              placeholder="Search by external ID, barcode, parent sample, or priority…"
+              placeholder="Search by container ID, barcode, parent sample, or priority…"
               value={qInput}
               onChange={(e) => {
                 setQInput(e.target.value);
