@@ -13,7 +13,7 @@ on the instrument (In Progress / Loaded) are skipped, since import is a backlog 
 from __future__ import annotations
 
 from app.engine.csv_parse import parse_csv, split_barcodes
-from app.engine.normalize import NormalizeResult, _parse_float_or_none, _parse_sanger
+from app.engine.normalize import NormalizeResult, SkippedRow, _parse_float_or_none, _parse_sanger
 from app.engine.tracker_columns import (
     K_BARCODES,
     K_CCS_KINETICS,
@@ -56,6 +56,7 @@ def normalize_tracker(text: str | None) -> NormalizeResult:
             colmap[key] = i
 
     warnings: list[str] = []
+    skipped: list[SkippedRow] = []
     samples: list[ParsedSample] = []
 
     for n, r in enumerate(rows[1:]):
@@ -78,7 +79,9 @@ def normalize_tracker(text: str | None) -> NormalizeResult:
 
         barcodes = split_barcodes(raw_bc)
         if not barcodes:
-            warnings.append(f'Row "{raw_id or f"Sample {n + 1}"}" has no barcodes — skipped.')
+            ident = raw_id or f"Sample {n + 1}"
+            warnings.append(f'Row "{ident}" has no barcodes — skipped.')
+            skipped.append(SkippedRow(identifier=ident, reason="No barcodes"))
             continue
 
         sanger_raw = get(K_SANGER)
@@ -96,4 +99,4 @@ def normalize_tracker(text: str | None) -> NormalizeResult:
             )
         )
 
-    return NormalizeResult(samples=samples, warnings=warnings)
+    return NormalizeResult(samples=samples, warnings=warnings, skipped=skipped)

@@ -4,10 +4,19 @@ export interface ImportRequest {
   raw_text: string;
   filename?: string | null;
   actor?: string | null;
+  /** Field-key -> column-index map confirmed in the review wizard. */
+  column_map?: Record<string, number>;
+  /** Whether row 0 is a header (stripped) or data. Only used on the column_map path. */
+  has_header?: boolean;
 }
 
 export interface RejectedRow {
   external_id: string;
+  reason: string;
+}
+
+export interface SkippedRow {
+  identifier: string;
   reason: string;
 }
 
@@ -19,7 +28,36 @@ export interface ImportResult {
   duplicate_count: number;
   warnings: string[];
   rejected: RejectedRow[];
+  skipped: SkippedRow[];
   samples: SampleOut[];
+}
+
+/** One canonical importable field (target of the mapping UI + the add-sample form). */
+export interface ImportField {
+  key: string;
+  label: string;
+  kind: "text" | "number" | "barcodes" | "sanger";
+  required: boolean;
+  example: string;
+}
+
+export interface PreviewColumn {
+  index: number;
+  name: string;
+}
+
+export interface ImportPreviewRequest {
+  raw_text: string;
+  has_header: boolean;
+}
+
+export interface ImportPreviewResult {
+  has_header: boolean;
+  columns: PreviewColumn[];
+  suggested_map: Record<string, number>;
+  sample_rows: string[][];
+  row_count: number;
+  unmatched_required: string[];
 }
 
 export interface ImportBatchOut {

@@ -1,10 +1,21 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Response
 from sqlalchemy import select
 
 from app.api.deps import SessionDep
 from app.models.importing import ImportBatch
-from app.schemas.importing import ImportRequest, ImportResult
-from app.services.import_service import import_samples
+from app.schemas.importing import (
+    ImportFieldOut,
+    ImportPreviewRequest,
+    ImportPreviewResult,
+    ImportRequest,
+    ImportResult,
+)
+from app.services.import_service import (
+    import_samples,
+    importable_fields,
+    preview_import,
+    template_csv,
+)
 
 router = APIRouter(prefix="/api/imports", tags=["imports"])
 
@@ -12,6 +23,28 @@ router = APIRouter(prefix="/api/imports", tags=["imports"])
 @router.post("", response_model=ImportResult)
 def create_import(req: ImportRequest, db: SessionDep) -> ImportResult:
     return import_samples(db, req)
+
+
+@router.post("/preview", response_model=ImportPreviewResult)
+def preview(req: ImportPreviewRequest) -> ImportPreviewResult:
+    """Parse a paste/upload without committing: columns + suggested mapping + sample rows."""
+    return preview_import(req.raw_text, req.has_header)
+
+
+@router.get("/fields", response_model=list[ImportFieldOut])
+def list_fields() -> list[ImportFieldOut]:
+    """The canonical importable fields — target list for the mapping UI and the add-sample form."""
+    return importable_fields()
+
+
+@router.get("/template.csv")
+def download_template() -> Response:
+    """A blank import template (canonical headers + one example row) to fill and re-import."""
+    return Response(
+        content=template_csv(),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="import-template.csv"'},
+    )
 
 
 @router.get("")

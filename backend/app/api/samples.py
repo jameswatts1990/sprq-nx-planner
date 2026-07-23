@@ -5,12 +5,14 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import selectinload
 
 from app.api.deps import ActorDep, SessionDep, pagination
+from app.engine.csv_parse import split_barcodes
 from app.engine.packing import priority_rank
 from app.models.audit import AuditLog
 from app.models.sample import SAMPLE_STATUSES, Sample, SampleBarcode
 from app.schemas.common import Page
-from app.schemas.sample import SampleDetailOut, SampleOut
+from app.schemas.sample import SampleCreate, SampleDetailOut, SampleOut
 from app.serializers import sample_detail_out, sample_out
+from app.services.sample_service import DuplicateSampleError, create_backlog_sample
 
 router = APIRouter(prefix="/api/samples", tags=["samples"])
 
@@ -77,6 +79,39 @@ def list_samples(
     start = (page - 1) * page_size
     page_items = all_matching[start : start + page_size]
     return Page[SampleOut](items=[sample_out(s) for s in page_items], total=total)
+
+
+@router.post("", response_model=SampleOut, status_code=201)
+def create_sample(req: SampleCreate, db: SessionDep, actor: ActorDep) -> SampleOut:
+    """Manually add one sample to the backlog (same landing spot as CSV import)."""
+    external_id = req.external_id.strip()
+    if not external_id:
+        raise HTTPException(422, "External / Traction ID is required")
+    barcodes = split_barcodes(" ".join(req.barcodes))
+    if not barcodes:
+        raise HTTPException(422, "At least one barcode is required")
+    try:
+        sample = create_backlog_sample(
+            db,
+            external_id=external_id,
+            barcodes=barcodes,
+            sanger_ids=req.sanger_ids,
+            container_id=req.container_id,
+            parent_sample=req.parent_sample,
+            oplc=req.oplc,
+            target_oplc=req.target_oplc,
+            volume=req.volume,
+            adaptive_loading=req.adaptive_loading,
+            full_resolution_base_q=req.full_resolution_base_q,
+            priority=req.priority,
+            ccs_kinetics=req.ccs_kinetics,
+        )
+    except DuplicateSampleError as err:
+        raise HTTPException(409, str(err)) from err
+    db.add(AuditLog(actor=actor, action="create_sample", entity_type="sample", entity_id=sample.id, details_json={}))
+    db.commit()
+    db.refresh(sample)
+    return sample_out(sample)
 
 
 @router.get("/priorities", response_model=list[str])

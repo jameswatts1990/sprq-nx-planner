@@ -20,6 +20,21 @@ export interface SampleOut {
   updated_at: string;
 }
 
+export interface SampleCreate {
+  external_id: string;
+  barcodes: string[];
+  sanger_ids?: string[];
+  container_id?: string | null;
+  parent_sample?: string | null;
+  oplc?: number | null;
+  target_oplc?: number | null;
+  volume?: number | null;
+  adaptive_loading?: string | null;
+  full_resolution_base_q?: string | null;
+  priority?: string | null;
+  ccs_kinetics?: string | null;
+}
+
 export interface SampleCellUseOut {
   id: number;
   cycle_id: number;

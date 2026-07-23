@@ -10,37 +10,39 @@ export function ImportSection() {
         samples appear in the Backlog, ready to schedule.
       </p>
 
-      <p className={styles.subheading}>Accepted formats</p>
+      <p className={styles.subheading}>Step 1 — paste or upload</p>
       <p>
-        <b>Three formats are accepted.</b> You can paste your full LIMS export (with the{" "}
-        <i>Container, Parent Sample, Sanger Sample IDs, Barcodes, Volume to Load, Actual OPLC…</i> columns), or a
-        simple two-column list of <i>sample ID, barcodes</i>. The Barcodes column may hold one or several codes per
-        row.
-      </p>
-      <p>
-        You can also paste rows straight from the <b>sequencing tracker</b> Google Sheet. The planner recognises
-        that layout automatically and maps the columns it understands — Traction ID, barcodes (from the{" "}
-        <i>Complex Batch ID</i> column), Sanger Sample ID, Plate ID, loading concentrations, priority and CCS
-        kinetics. Only rows marked <b>Pending</b> (or with a blank status) are added to the Backlog; rows already{" "}
-        <i>In Progress</i> or <i>Loaded</i> are on the instrument and are skipped (each is listed as a warning). The
-        sheet&apos;s blank separator and label rows are ignored. When a tracker paste is detected you&apos;ll see a
-        note saying so in the result panel.
+        <b>Any column layout works.</b> Paste your LIMS export, a sequencing-tracker sheet, or any CSV — you match
+        the columns to fields on the next step, so the headers don&apos;t have to be named a particular way. Each
+        Barcodes cell may hold one or several codes.
       </p>
       <dl className={styles.terms}>
         <dt>Upload CSV</dt>
         <dd>Pick a .csv, .tsv, or .txt file from your computer; its contents fill the box.</dd>
         <dt>Load example data</dt>
         <dd>Fills the box with a sample batch so you can see the expected shape.</dd>
-        <dt>Clear</dt>
-        <dd>Empties the box and resets the result panel.</dd>
-        <dt>Import samples</dt>
-        <dd>Sends the data to the server. Disabled until there&apos;s text to import; reads &quot;Importing…&quot; while it runs.</dd>
+        <dt>Download template</dt>
+        <dd>Saves a blank CSV with the right column headers and one example row — fill it in and upload it back.</dd>
+        <dt>First row is a header</dt>
+        <dd>
+          Leave ticked for normal CSVs (the first line names the columns). Untick it for a bare two-column list of{" "}
+          <i>sample ID, barcodes</i> with no header line.
+        </dd>
+        <dt>Continue to mapping →</dt>
+        <dd>Reads the file (without importing yet) and takes you to the column-matching step.</dd>
         <dt>Filename (optional)</dt>
         <dd>A label stored with the batch (e.g. batch-2026-07.csv); purely for your own reference.</dd>
       </dl>
+
+      <p className={styles.subheading}>Step 2 — review columns</p>
       <p>
-        The line/character counter under the box is only a rough check that text was pasted. The real parsing
-        happens on the server when you press Import — so the counts don&apos;t guarantee a row will import cleanly.
+        Each field (Traction / External ID, Barcodes, Sanger IDs, Plate ID, priority, loading concentrations…) has a
+        dropdown where you pick which column of your file feeds it. The planner <b>pre-fills its best guess</b>, so
+        usually you just glance and confirm; correct any that are wrong, or set one to <i>“— not imported —”</i>. A
+        live preview of the first rows shows exactly what will be imported, and the mapping updates it as you change
+        a dropdown. Fields marked <span aria-hidden>*</span> are required — <b>Traction / External ID</b> and{" "}
+        <b>Barcodes</b> must be mapped before the <b>Import</b> button enables. Rows with no barcode are skipped, and
+        a note tells you how many. Use <b>‹ Back</b> to return to the text without losing it.
       </p>
 
       <p className={styles.subheading}>Result panel</p>
@@ -53,29 +55,24 @@ export function ImportSection() {
         <dt>Imported</dt>
         <dd>New samples added to the Backlog.</dd>
         <dt>Duplicates</dt>
-        <dd>Rows that matched a sample already in the system, so they were not added again.</dd>
+        <dd>Rows whose Traction ID already matched an active sample, so they were not added again.</dd>
         <dt>Skipped</dt>
-        <dd>Rows that were not imported for another reason.</dd>
+        <dd>Rows that parsed but weren&apos;t imported — usually because they had no barcode.</dd>
       </dl>
-
-      <p className={styles.subheading}>Warnings &amp; rejected rows</p>
+      <p>
+        Two tables make skipped and duplicate rows <b>actionable</b>: the <b>Skipped rows</b> table lists each
+        sample ID and why it was skipped (e.g. &quot;No barcodes&quot;) so you can fix the source and re-import, and
+        the <b>Duplicates</b> table lists each External ID that already existed. Use <b>Import another file</b> to
+        start over, or <b>View backlog →</b> to jump to the newly imported samples.
+      </p>
       <div className={styles.noteExamples}>
         <Note tone="warn" icon="!">
-          <b>Warnings</b> (amber) flag rows that imported but need attention.
-        </Note>
-        <Note tone="info" icon="i">
-          If nothing imported and there were no warnings or rejects, you&apos;ll see &quot;No rows were
-          imported.&quot;
+          <b>Warnings</b> (amber) flag rows that need attention.
         </Note>
         <Note tone="bad" icon="!">
-          A red note means the import failed entirely (for example a server error) — the message describes what
-          went wrong; fix it and try again.
+          A red note means the import failed entirely (for example a server error) — fix it and try again.
         </Note>
       </div>
-      <p>
-        The <b>Rejected table</b> lists each row that could not be imported, with its External ID and the reason.
-        Use <b>View backlog →</b> to jump to the newly imported samples.
-      </p>
     </div>
   );
 }

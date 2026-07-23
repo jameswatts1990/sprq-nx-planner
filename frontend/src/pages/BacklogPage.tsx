@@ -17,6 +17,7 @@ import type { SampleOut } from "@/types/sample";
 import { useDebouncedValue } from "@/utils/useDebouncedValue";
 import { ABORTED_PRIORITY, priorityTone } from "@/utils/priority";
 
+import { AddSampleModal } from "./AddSampleModal";
 import styles from "./BacklogPage.module.css";
 
 const DEFAULT_PAGE_SIZE = 50;
@@ -42,6 +43,7 @@ export function BacklogPage() {
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [sortBy, setSortBy] = useState<SampleSortBy>("created_at");
   const [sortDir, setSortDir] = useState<SampleSortDir>("desc");
+  const [addOpen, setAddOpen] = useState(false);
   const q = useDebouncedValue(qInput, 350);
   const queryClient = useQueryClient();
 
@@ -199,6 +201,10 @@ export function BacklogPage() {
                 setPage(1);
               }}
             />
+            <div className={styles.spacer} />
+            <Button size="sm" variant="primary" onClick={() => setAddOpen(true)}>
+              + Add sample
+            </Button>
           </div>
 
           {query.isLoading && <div className={styles.status}>Loading backlog…</div>}
@@ -245,6 +251,7 @@ export function BacklogPage() {
           )}
         </CardBody>
       </Card>
+      {addOpen && <AddSampleModal onClose={() => setAddOpen(false)} />}
     </div>
   );
 }

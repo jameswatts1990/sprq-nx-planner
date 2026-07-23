@@ -29,6 +29,9 @@
   border-radius: var(--r-sm);
   padding: 8px 10px;
 }
+.spacer {
+  flex: 1 1 auto;
+}
 .status {
   color: var(--grey);
   font-size: 13.5px;

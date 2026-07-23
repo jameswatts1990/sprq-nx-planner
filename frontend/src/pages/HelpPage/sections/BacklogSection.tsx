@@ -59,6 +59,13 @@ export function BacklogSection() {
 
       <p className={styles.subheading}>Actions</p>
       <p>
+        <b>+ Add sample</b> (top-right of the toolbar) opens a form to add one sample to the backlog by hand — handy
+        when a sample isn&apos;t in a file to import. <b>Traction / External ID</b> and at least one <b>barcode</b>{" "}
+        are required (enter several barcodes separated by commas or spaces); every other field is optional. The new
+        sample lands in the backlog exactly like an imported one. If the Traction ID already belongs to an active
+        sample, the form says so and nothing is added.
+      </p>
+      <p>
         <b>Cancel</b> (on each row) removes a sample from the backlog when you never intend to sequence it. Use it
         to clear out mistakes or withdrawn samples; it does not delete sequencing history. If a cancel fails, a red
         note explains why.

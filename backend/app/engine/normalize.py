@@ -1,10 +1,10 @@
-"""Direct port of normalizeSamples from revio-nx-planner.html (lines 399-429).
+"""Turns parsed CSV rows into ParsedSample records.
 
-Column-priority fallback (Container -> Parent Sample -> Sample -> column 0), the
-no-header two-column fallback, and the "sanger IDs as JSON array or raw string" and
-"parseFloat(x)||null" quirks (including treating 0 as falsy, matching the JS `||`
-operator) are all preserved intentionally - see the backend plan's "porting the
-algorithms" section for why these are kept bug-compatible with the prototype.
+Column->field resolution now goes through an explicit column map (field key -> column
+index): the mapping-review import passes one the user has confirmed, and the legacy
+one-shot path derives one via `suggest_column_map` (engine/import_fields.py). The
+"sanger IDs as JSON array or raw string" and "parseFloat(x)||null" (0 is falsy) quirks are
+preserved intentionally - see the backend plan's "porting the algorithms" section.
 """
 from __future__ import annotations
 
@@ -13,15 +13,40 @@ import re
 from dataclasses import dataclass, field
 
 from app.engine.csv_parse import parse_csv, split_barcodes
+from app.engine.import_fields import (
+    K_ADAPTIVE_LOADING,
+    K_BARCODES,
+    K_CCS_KINETICS,
+    K_CONTAINER_ID,
+    K_EXTERNAL_ID,
+    K_FULL_RES_BASE_Q,
+    K_OPLC,
+    K_PARENT_SAMPLE,
+    K_PRIORITY,
+    K_SANGER,
+    K_TARGET_OPLC,
+    K_VOLUME,
+    suggest_column_map,
+)
 from app.engine.types import ParsedSample
 
 _LEADING_NUMBER_RE = re.compile(r"^\s*[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?")
 
 
 @dataclass
+class SkippedRow:
+    """A row that parsed but was not imported (e.g. no barcodes), surfaced as an actionable
+    list of sample IDs so the user can fix the source and re-import."""
+
+    identifier: str
+    reason: str
+
+
+@dataclass
 class NormalizeResult:
     samples: list[ParsedSample]
     warnings: list[str] = field(default_factory=list)
+    skipped: list[SkippedRow] = field(default_factory=list)
 
 
 def _js_parse_float(raw: str | None) -> float | None:
@@ -43,13 +68,6 @@ def _parse_float_or_none(raw: str | None) -> float | None:
     return v if v else None
 
 
-def _find(header: list[str], *needles: str) -> int:
-    for i, h in enumerate(header):
-        if any(needle in h for needle in needles):
-            return i
-    return -1
-
-
 def _parse_sanger(raw: str) -> list[str]:
     raw = raw.strip()
     try:
@@ -61,83 +79,68 @@ def _parse_sanger(raw: str) -> list[str]:
     return [str(parsed)]
 
 
+def normalize_with_map(data_rows: list[list[str]], column_map: dict[str, int]) -> NormalizeResult:
+    """Build ParsedSamples from data rows (header already stripped) using an explicit
+    field-key -> column-index map. Rows with neither an ID nor barcodes are dropped silently
+    (blank/separator rows); rows with an ID but no barcodes are recorded in `skipped`."""
+    warnings: list[str] = []
+    skipped: list[SkippedRow] = []
+    samples: list[ParsedSample] = []
+
+    def cell(r: list[str], key: str) -> str:
+        idx = column_map.get(key, -1)
+        return r[idx] if 0 <= idx < len(r) else ""
+
+    for n, r in enumerate(data_rows):
+        raw_id = cell(r, K_EXTERNAL_ID).strip()
+        barcodes = split_barcodes(cell(r, K_BARCODES))
+
+        if not raw_id and not barcodes:
+            continue  # blank / separator / label row
+
+        sample_id = raw_id or f"Sample {n + 1}"
+        if not barcodes:
+            warnings.append(f'Row "{sample_id}" has no barcodes — skipped.')
+            skipped.append(SkippedRow(identifier=sample_id, reason="No barcodes"))
+            continue
+
+        sanger_raw = cell(r, K_SANGER)
+        samples.append(
+            ParsedSample(
+                id=sample_id,
+                barcodes=barcodes,
+                parent=cell(r, K_PARENT_SAMPLE).strip(),
+                sanger=_parse_sanger(sanger_raw) if sanger_raw.strip() else [],
+                oplc=_parse_float_or_none(cell(r, K_OPLC)),
+                target_oplc=_parse_float_or_none(cell(r, K_TARGET_OPLC)),
+                volume=_parse_float_or_none(cell(r, K_VOLUME)),
+                container_id=cell(r, K_CONTAINER_ID).strip(),
+                adaptive_loading=cell(r, K_ADAPTIVE_LOADING).strip(),
+                full_resolution_base_q=cell(r, K_FULL_RES_BASE_Q).strip(),
+                priority=cell(r, K_PRIORITY).strip(),
+                ccs_kinetics=cell(r, K_CCS_KINETICS).strip(),
+                key=f"{sample_id}#{n}",
+            )
+        )
+
+    return NormalizeResult(samples=samples, warnings=warnings, skipped=skipped)
+
+
 def normalize_samples(text: str | None) -> NormalizeResult:
+    """Legacy one-shot path (no user-confirmed mapping): auto-detect the header and map.
+
+    Kept for direct API posts without a column_map; the mapping-review wizard calls
+    normalize_with_map with an explicit, user-confirmed map instead."""
     rows = parse_csv(text)
     if not rows:
         return NormalizeResult(samples=[], warnings=["No rows found in the pasted text."])
 
     header = [h.strip().lower() for h in rows[0]]
     has_header = any("barcode" in h for h in header)
-    warnings: list[str] = []
-    parent_idx = sanger_idx = oplc_idx = vol_idx = -1
-    container_idx = target_oplc_idx = adaptive_idx = full_res_idx = priority_idx = kinetics_idx = -1
 
     if has_header:
-        id_idx = _find(header, "container")
-        if id_idx < 0:
-            id_idx = _find(header, "parent sample")
-        if id_idx < 0:
-            id_idx = _find(header, "sample")
-        if id_idx < 0:
-            id_idx = 0
-        bc_idx = _find(header, "barcode")
-        parent_idx = _find(header, "parent sample")
-        sanger_idx = _find(header, "sanger")
-        oplc_idx = _find(header, "actual oplc")
-        if oplc_idx < 0:
-            oplc_idx = _find(header, "oplc")
-        target_oplc_idx = _find(header, "target oplc")
-        vol_idx = _find(header, "volume")
-        container_idx = _find(header, "container")
-        adaptive_idx = _find(header, "adaptive loading")
-        full_res_idx = _find(header, "full resolution")
-        priority_idx = _find(header, "priority")
-        kinetics_idx = _find(header, "kinetics")
-        data_rows = rows[1:]
-    else:
-        id_idx, bc_idx = 0, 1
-        data_rows = rows
-        warnings.append("No header row detected — read as two columns: sample, barcodes.")
+        return normalize_with_map(rows[1:], suggest_column_map(rows[0]))
 
-    samples: list[ParsedSample] = []
-    for n, r in enumerate(data_rows):
-        raw_id = r[id_idx] if id_idx < len(r) else ""
-        sample_id = (raw_id or f"Sample {n + 1}").strip()
-        raw_bc = r[bc_idx] if bc_idx < len(r) else ""
-        barcodes = split_barcodes(raw_bc)
-        if not barcodes:
-            warnings.append(f'Row "{sample_id}" has no barcodes — skipped.')
-            continue
-
-        sanger: list[str] = []
-        if 0 <= sanger_idx < len(r) and r[sanger_idx]:
-            sanger = _parse_sanger(r[sanger_idx])
-
-        parent = (r[parent_idx] or "").strip() if 0 <= parent_idx < len(r) else ""
-        oplc = _parse_float_or_none(r[oplc_idx]) if 0 <= oplc_idx < len(r) else None
-        target_oplc = _parse_float_or_none(r[target_oplc_idx]) if 0 <= target_oplc_idx < len(r) else None
-        volume = _parse_float_or_none(r[vol_idx]) if 0 <= vol_idx < len(r) else None
-        container_id = (r[container_idx] or "").strip() if 0 <= container_idx < len(r) else ""
-        adaptive_loading = (r[adaptive_idx] or "").strip() if 0 <= adaptive_idx < len(r) else ""
-        full_resolution_base_q = (r[full_res_idx] or "").strip() if 0 <= full_res_idx < len(r) else ""
-        priority = (r[priority_idx] or "").strip() if 0 <= priority_idx < len(r) else ""
-        ccs_kinetics = (r[kinetics_idx] or "").strip() if 0 <= kinetics_idx < len(r) else ""
-
-        samples.append(
-            ParsedSample(
-                id=sample_id,
-                barcodes=barcodes,
-                parent=parent,
-                sanger=sanger,
-                oplc=oplc,
-                target_oplc=target_oplc,
-                volume=volume,
-                container_id=container_id,
-                adaptive_loading=adaptive_loading,
-                full_resolution_base_q=full_resolution_base_q,
-                priority=priority,
-                ccs_kinetics=ccs_kinetics,
-                key=f"{sample_id}#{n}",
-            )
-        )
-    return NormalizeResult(samples=samples, warnings=warnings)
+    result = normalize_with_map(rows, {K_EXTERNAL_ID: 0, K_BARCODES: 1})
+    result.warnings.insert(0, "No header row detected — read as two columns: sample, barcodes.")
+    return result
