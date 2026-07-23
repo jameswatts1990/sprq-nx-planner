@@ -1,5 +1,5 @@
 import { api, buildQuery } from "./client";
-import type { ClearResult, RowPage, TableInfo } from "@/types/admin";
+import type { ClearBacklogResult, ClearResult, RowPage, TableInfo } from "@/types/admin";
 
 export interface ListRowsParams {
   page?: number;
@@ -12,4 +12,5 @@ export const adminApi = {
     api.get<RowPage>(`/api/admin/tables/${table}/rows${buildQuery(params)}`),
   deleteRow: (table: string, rowId: string | number) => api.del<void>(`/api/admin/tables/${table}/rows/${rowId}`),
   clearTable: (table: string) => api.post<ClearResult>(`/api/admin/tables/${table}/clear`),
+  clearBacklog: () => api.post<ClearBacklogResult>("/api/admin/clear-backlog"),
 };

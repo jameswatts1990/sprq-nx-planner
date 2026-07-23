@@ -19,3 +19,7 @@ export interface ClearResult {
   table: string;
   deleted: number;
 }
+
+export interface ClearBacklogResult {
+  deleted: number;
+}

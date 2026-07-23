@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
 from sqlalchemy import Table, delete, func, select, update
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app import models  # noqa: F401  ensures every model is registered on Base.metadata
 from app.api.deps import SessionDep, pagination
@@ -116,6 +116,10 @@ class ClearResult(BaseModel):
     deleted: int
 
 
+class ClearBacklogResult(BaseModel):
+    deleted: int
+
+
 def _get_table(table_name: str) -> Table:
     table = Base.metadata.tables.get(table_name)
     if table is None:
@@ -192,6 +196,21 @@ def delete_row(table_name: str, row_id: str, db: SessionDep) -> Response:
     if result.rowcount == 0:
         raise HTTPException(404, f"No row with {pk_col.name}={row_id} in '{table_name}'")
     return Response(status_code=204)
+
+
+@router.post("/clear-backlog")
+def clear_backlog(db: SessionDep) -> ClearBacklogResult:
+    """Delete every backlog (status='backlog') sample and its barcodes. Backlog samples
+    are by definition unscheduled, so they have no cell_uses to reconcile and nothing
+    references them - a plain delete-per-row (which fires the barcode delete-orphan
+    cascade), unlike the cascade-aware table clears below."""
+    samples = list(
+        db.scalars(select(Sample).options(selectinload(Sample.barcodes)).where(Sample.status == "backlog"))
+    )
+    for sample in samples:
+        db.delete(sample)
+    db.commit()
+    return ClearBacklogResult(deleted=len(samples))
 
 
 @router.post("/tables/{table_name}/clear")

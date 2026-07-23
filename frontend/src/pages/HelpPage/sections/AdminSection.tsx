@@ -18,6 +18,14 @@ export function AdminSection() {
         care, and only against development data.
       </Note>
 
+      <p className={styles.subheading}>Clear backlog</p>
+      <p>
+        The <b>Clear backlog</b> action near the top of the tab permanently deletes every sample currently in the
+        backlog (and its barcodes) in one step. Samples that have already been scheduled, are in progress, or have
+        completed are left untouched. It asks for confirmation first and shows how many samples will be removed; the
+        button is disabled when the backlog is already empty. This can&apos;t be undone.
+      </p>
+
       <p className={styles.subheading}>Browsing tables</p>
       <p>
         The left-hand list shows every database table with its row count. Selecting one shows its rows in a
