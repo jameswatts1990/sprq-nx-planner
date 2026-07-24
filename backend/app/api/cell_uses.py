@@ -1,5 +1,7 @@
 from datetime import datetime
 
+from typing import Literal
+
 from fastapi import APIRouter, HTTPException, Response
 from pydantic import BaseModel
 from sqlalchemy.orm import selectinload
@@ -15,6 +17,7 @@ from app.services.placement_service import (
     remove_sample,
     return_cancelled_use_to_backlog,
     swap_samples,
+    update_cell_use_run_time,
 )
 from app.services.run_serializer import CYCLE_LOAD_OPTIONS, cycle_out
 from app.services.run_service import undo_cell_use_status, update_cell_use_status
@@ -40,6 +43,10 @@ class CellUseNotesUpdate(BaseModel):
     notes: str | None = None
 
 
+class CellUseRunTimeUpdate(BaseModel):
+    run_time_hours: Literal[12, 24, 30]
+
+
 def _cell_use_dict(cu: CellUse) -> dict:
     return {
         "id": cu.id,
@@ -49,6 +56,7 @@ def _cell_use_dict(cu: CellUse) -> dict:
         "sample_id": cu.sample_id,
         "sample_external_id": cu.sample.external_id if cu.sample else None,
         "well": cu.well,
+        "run_time_hours": cu.run_time_hours,
         "status": cu.status,
         "barcodes": cu.barcode_list,
         "outcome_notes": cu.outcome_notes,
@@ -146,6 +154,19 @@ def patch_cell_use_notes(cell_use_id: int, req: CellUseNotesUpdate, db: SessionD
     db.commit()
     db.refresh(cu)
     return _cell_use_dict(cu)
+
+
+@router.patch("/{cell_use_id}/run-time", response_model=CycleOut)
+def patch_cell_use_run_time(cell_use_id: int, req: CellUseRunTimeUpdate, db: SessionDep, actor: ActorDep) -> CycleOut:
+    """Change one well's own movie / run time (12/24/30 h) from the slot-detail popover.
+    Returns the owning run's refreshed CycleOut so the grid reflects the new representative
+    run time / planned end. 409 if the run is locked or this placement isn't planned."""
+    try:
+        cycle = update_cell_use_run_time(db, cell_use_id=cell_use_id, run_time_hours=req.run_time_hours, actor=actor)
+    except PlacementError as exc:
+        raise HTTPException(exc.status_code, exc.detail) from exc
+    cycle = db.get(Cycle, cycle.id, options=CYCLE_LOAD_OPTIONS)
+    return cycle_out(db, cycle)
 
 
 @router.post("/{cell_use_id}/undo")

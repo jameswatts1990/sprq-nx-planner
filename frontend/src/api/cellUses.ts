@@ -1,5 +1,5 @@
 import { api } from "./client";
-import type { CycleOut } from "@/types/schedule";
+import type { CycleOut, RunTimeHours } from "@/types/schedule";
 import type { MoveSampleRequest, PlaceSampleRequest } from "@/types/schedulerGrid";
 
 export interface CellUseOut {
@@ -10,6 +10,7 @@ export interface CellUseOut {
   sample_id: number | null;
   sample_external_id: string | null;
   well: string;
+  run_time_hours: number;
   status: string;
   barcodes: string[];
   outcome_notes: string | null;
@@ -31,6 +32,11 @@ export const cellUsesApi = {
   /** Set/clear the free-text note on a placement. Not gated by the run lock - a note
    * stays editable after the run is confirmed. Blank clears it. */
   updateNotes: (id: number, notes: string) => api.patch<CellUseOut>(`/api/cell-uses/${id}/notes`, { notes }),
+  /** Change one well's own movie / run time (12/24/30 h). Returns the owning run's refreshed
+   * CycleOut (its representative run time / planned end may change). 409 if the run is locked
+   * or the placement isn't planned. */
+  updateRunTime: (id: number, runTimeHours: RunTimeHours) =>
+    api.patch<CycleOut>(`/api/cell-uses/${id}/run-time`, { run_time_hours: runTimeHours }),
   /** Place a backlog sample into a slot. 201 -> the updated CycleOut for that
    * (instrument_serial, run_date). 400/409 on clash/lock. */
   place: (req: PlaceSampleRequest) => api.post<CycleOut>("/api/cell-uses", req),

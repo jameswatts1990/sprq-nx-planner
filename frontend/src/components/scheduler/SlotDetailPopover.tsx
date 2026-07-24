@@ -10,12 +10,19 @@ import { BarcodeChips } from "@/components/shared/BarcodeChips";
 import { Button } from "@/components/ui/Button";
 import { Modal, ModalActions } from "@/components/ui/Modal";
 import { Note } from "@/components/ui/Note";
+import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
-import type { CycleOut, StageOut } from "@/types/schedule";
+import type { CycleOut, RunTimeHours, StageOut } from "@/types/schedule";
 import { canRecordQcOutcome, canUndoQcOutcome } from "@/utils/cellUseQc";
 import { runLabel } from "@/utils/runLabel";
 
 import styles from "./SlotDetailPopover.module.css";
+
+const RUN_TIME_OPTIONS = [
+  { value: 12 as RunTimeHours, label: "12 h" },
+  { value: 24 as RunTimeHours, label: "24 h" },
+  { value: 30 as RunTimeHours, label: "30 h" },
+];
 
 export interface SlotDetailPopoverProps {
   stage: StageOut;
@@ -49,6 +56,12 @@ export function SlotDetailPopover({ stage, cycle, onClose }: SlotDetailPopoverPr
   // isn't refreshed in place after the mutation, so we can't compare against it.
   const [notes, setNotes] = useState(stage.notes ?? "");
   const [savedNotes, setSavedNotes] = useState(stage.notes ?? "");
+  // Per-cell run time. Like notes, `stage` is captured at click time, so track the shown
+  // value locally; `savedRunTime` is the last value the server accepted, to revert to on
+  // error. Editing changes only THIS well - the run's overall movie time follows its
+  // longest well (recomputed server-side), so the grid may show a new run duration after.
+  const [runTime, setRunTime] = useState<RunTimeHours>(stage.run_time_hours);
+  const [savedRunTime, setSavedRunTime] = useState<RunTimeHours>(stage.run_time_hours);
 
   const cellQuery = useQuery({
     queryKey: ["cell", stage.cell_id],
@@ -93,6 +106,19 @@ export function SlotDetailPopover({ stage, cycle, onClose }: SlotDetailPopoverPr
   });
   const notesDirty = notes !== savedNotes;
 
+  // Editing a single cell's run time. Fires immediately on selection (no separate Save) -
+  // the server recomputes the run's representative movie time and returns the fresh cycle,
+  // so the grid/batch sheet pick up any new duration. On error, revert to the last accepted
+  // value so the control never shows an unsaved state.
+  const runTimeMutation = useMutation({
+    mutationFn: (v: RunTimeHours) => cellUsesApi.updateRunTime(stage.cell_use_id, v),
+    onSuccess: (_data, v) => {
+      setSavedRunTime(v);
+      invalidateScheduleRelated(queryClient);
+    },
+    onError: () => setRunTime(savedRunTime),
+  });
+
   const undoQcMutation = useMutation({
     mutationFn: () => cellUsesApi.undo(stage.cell_use_id),
     onSuccess: () => {
@@ -131,6 +157,10 @@ export function SlotDetailPopover({ stage, cycle, onClose }: SlotDetailPopoverPr
   const canUndoQc = !!currentUse && canUndoQcOutcome(currentUse);
   const canUndoStop = !!cell && cell.status === "stopped";
   const isCancelled = stage.cell_use_status === "cancelled";
+  // Run time is a planning dial: editable only while the run and this placement are both
+  // still planned (mirrors the backend guard in update_cell_use_run_time). Once locked, the
+  // movie time is what the instrument actually acquired, so it's shown read-only.
+  const canEditRunTime = cycle.status === "planned" && stage.cell_use_status === "planned";
   // A "Blocked" slot that came from a discard (not a QC Stop) - recoverable back to the
   // Backlog. Told apart by the cell's discarded_at, which only a discard ever sets.
   const isDiscardBlocked = isCancelled && !!cell?.discarded_at;
@@ -207,7 +237,29 @@ export function SlotDetailPopover({ stage, cycle, onClose }: SlotDetailPopoverPr
             </b>
           </div>
         )}
+        <div className={`${styles.row} ${styles.runTimeRow}`}>
+          <span className={styles.label}>Run time</span>
+          {mode === "view" && canEditRunTime ? (
+            <SegmentedControl
+              ariaLabel="Run time for this cell"
+              options={RUN_TIME_OPTIONS}
+              value={runTime}
+              onChange={(v) => {
+                setRunTime(v);
+                runTimeMutation.mutate(v);
+              }}
+            />
+          ) : (
+            <b className={styles.value}>{runTime} h</b>
+          )}
+        </div>
       </div>
+
+      {mode === "view" && runTimeMutation.isError && (
+        <Note tone="bad" icon="!">
+          {runTimeMutation.error instanceof ApiError ? runTimeMutation.error.message : "Failed to change run time."}
+        </Note>
+      )}
 
       {showWindowMeter && <WindowMeter windowHours={cell!.window_hours_elapsed as number} />}
 

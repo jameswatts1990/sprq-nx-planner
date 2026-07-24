@@ -291,6 +291,11 @@ def auto_fill(
             cell_id=db_cell.id,
             sample_id=a.sample.sample_id,
             well=well,
+            # Every well an auto-fill batch places shares the one Run Design dial value, so a
+            # run's representative movie_hours (set at get_or_create_run) already equals this
+            # - no per-cycle recompute needed. Editing a single cell's run time afterward
+            # (slot-detail popover) is what makes a run's wells diverge later.
+            run_time_hours=int(run_time_hours),
             status="planned",
         )
         db.add(cell_use)

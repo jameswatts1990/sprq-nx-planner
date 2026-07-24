@@ -388,6 +388,7 @@ def bootstrap_cell(db: Session, req: CellBootstrapRequest) -> Cell:
                 cell_id=cell.id,
                 sample_id=None,
                 well="A01",
+                run_time_hours=24,  # matches this synthetic cycle's movie_hours
                 status="completed",
                 started_at=started_at,
                 completed_at=now,

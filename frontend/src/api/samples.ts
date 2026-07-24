@@ -19,7 +19,8 @@ export const samplesApi = {
   list: (params: ListSamplesParams = {}) => api.get<Page<SampleOut>>(`/api/samples${buildQuery(params)}`),
   create: (body: SampleCreate) => api.post<SampleOut>("/api/samples", body),
   update: (id: number, body: SampleUpdate) => api.patch<SampleOut>(`/api/samples/${id}`, body),
-  listPriorities: () => api.get<string[]>("/api/samples/priorities"),
+  listPriorities: (status?: string) =>
+    api.get<string[]>(`/api/samples/priorities${buildQuery({ status })}`),
   get: (id: number) => api.get<SampleDetailOut>(`/api/samples/${id}`),
   cancel: (id: number) => api.post<SampleOut>(`/api/samples/${id}/cancel`),
   requeue: (id: number) => api.post<SampleOut>(`/api/samples/${id}/requeue`),

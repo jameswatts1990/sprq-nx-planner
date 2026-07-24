@@ -67,6 +67,24 @@ def _bootstrap(client, instrument_serial="84047", uses_consumed=0, burned_barcod
     return resp.json()
 
 
+def test_move_preserves_the_cells_own_run_time(client):
+    """A move re-plans a placement; it must NOT reset the cell's run time to the Run Design
+    dial value the client happens to send (that dial only sets run time for *new* placements).
+    Place at 30h, move with the request carrying the default 24h, and the moved cell keeps 30h."""
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1"})
+    mon, tue = _weekdays(2)
+
+    r1 = _place(client, _sid(client, "A1"), mon, slot_index=0, run_time_hours=30)
+    cell_use_id = r1.json()["stages"][0]["cell_use_id"]
+    assert r1.json()["movie_hours"] == 30
+
+    moved = _move(client, cell_use_id, tue, slot_index=0, run_time_hours=24)  # dial says 24
+    assert moved.status_code == 200, moved.text
+    body = moved.json()
+    assert body["stages"][0]["run_time_hours"] == 30  # preserved, not reset to 24
+    assert body["movie_hours"] == 30
+
+
 def test_move_within_same_instrument_to_a_different_day_same_slot(client):
     """A genuine same-well reschedule (day changes, tray position doesn't): the physical
     cell just repositions, no cell_choice needed - this must stay a plain in-place move."""

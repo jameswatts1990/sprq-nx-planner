@@ -78,9 +78,10 @@ export function ScheduleSection() {
         <b>Print Batch Sheet</b> opens a printable loading sheet for the Revios. Pick a day and tick which
         instruments to include — handy when different people load different machines, since each person can print
         just their own. The sheet opens in a new tab with every well&apos;s cell code, use number and 108-hour
-        reuse deadline, the sample to load and its barcode(s), and the run settings (adaptive loading,
-        include base kinetics, full-resolution baseQ, Target OPLC, volume) — everything needed to find the right samples, load them
-        in the right wells, and set up the run. A final <b>Notes</b> column prints any note you&apos;ve added to a
+        reuse deadline, the sample to load and its barcode(s), and the per-cell run settings (movie / run time,
+        adaptive loading, include base kinetics, full-resolution baseQ, Target OPLC, volume) — everything needed to
+        find the right samples, load them in the right wells, and set up the run. Because run time is now per-cell,
+        each well shows its own movie time and the instrument header shows the longest one. A final <b>Notes</b> column prints any note you&apos;ve added to a
         sample on its cell (see <b>Sample notes</b> under QC actions below). Use the page&apos;s <b>Print / Save as PDF</b> button, which opens
         your browser&apos;s normal print dialog (choose a physical printer, or &quot;Save as PDF&quot;).
       </p>
@@ -126,7 +127,12 @@ export function ScheduleSection() {
           acquisitions.
         </dd>
         <dt>Movie / run time (12 h / 24 h / 30 h)</dt>
-        <dd>The sequencing movie length applied to runs you create.</dd>
+        <dd>
+          The sequencing movie length given to each cell as you place or auto-schedule it. It&apos;s a per-cell
+          setting: cells in the same run can have different run times, and you can change any one cell&apos;s run time
+          later by clicking its slot (see <b>Run time</b> under QC actions below). The run&apos;s overall duration —
+          and how long its instrument stays reserved — follows its longest cell.
+        </dd>
         <dt>Optimise for</dt>
         <dd>
           <b>Fewest cells</b> and <b>Balance</b> both reuse cells as deep as your Max uses setting allows;{" "}
@@ -239,8 +245,9 @@ export function ScheduleSection() {
 
       <p className={styles.subheading}>QC actions</p>
       <p>
-        <b>From the grid:</b> click a filled slot to open its detail. The Sample, Well, Run and Cell uses are shown
-        first — plus the cell&apos;s 108-hour window meter once its clock has started — and its QC quick actions sit
+        <b>From the grid:</b> click a filled slot to open its detail. The Sample, Well, Run, Cell uses and this
+        cell&apos;s <b>Run time</b> are shown first — plus the cell&apos;s 108-hour window meter once its clock has
+        started — and its QC quick actions sit
         in the top-right corner of the popover, next to the cell code: <b>Mark Failed</b> or <b>Stop cell</b> — the
         same two actions available on the Cell detail page, without leaving the schedule. Both are shown in red,
         since each takes the use or the physical cell out of service, and both only appear once that run is locked
@@ -254,6 +261,14 @@ export function ScheduleSection() {
         that already ran on this cell before the stop are left completely untouched. Every cancelled use stays
         visible as a <b>Blocked</b> slot (see below) rather than disappearing, so a day&apos;s plan never silently
         loses a placement without a trace.
+      </p>
+      <p>
+        <b>Run time:</b> the popover shows this cell&apos;s own movie / run time, and while the run is still planned
+        (not yet <b>Confirm loaded</b>) you can change it right there with the <b>12 h / 24 h / 30 h</b> buttons — the
+        change saves as soon as you pick a value. Each cell in a run carries its own run time, so this only affects the
+        cell you clicked; the run&apos;s overall length and how long its instrument stays reserved follow its longest
+        cell, so those may update after you change one. Once the run is locked, the run time is shown read-only (it
+        records what the instrument actually ran).
       </p>
       <p>
         <b>Sample notes:</b> the same popover has a <b>Notes</b> box for a free-text note about this sample on this

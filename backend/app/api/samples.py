@@ -6,7 +6,7 @@ from sqlalchemy.orm import selectinload
 
 from app.api.deps import ActorDep, SessionDep, pagination
 from app.engine.csv_parse import split_barcodes
-from app.engine.packing import priority_rank
+from app.engine.packing import external_id_sort_key, priority_rank
 from app.models.audit import AuditLog
 from app.models.sample import SAMPLE_STATUSES, Sample, SampleBarcode
 from app.schemas.common import Page
@@ -74,7 +74,15 @@ def list_samples(
     elif sort_by == "barcode":
         all_matching.sort(key=lambda s: _first_barcode(s).lower(), reverse=reverse)
     elif sort_by == "priority":
-        all_matching.sort(key=lambda s: priority_rank(s.priority), reverse=reverse)
+        # Tie-break equal-rank samples by External ID (natural sort), mirroring the
+        # scheduler's processing order (engine/packing.pack_samples) so the Backlog's
+        # displayed priority order matches the order samples will actually be packed -
+        # and so identical priority labels group together instead of scattering by an
+        # arbitrary insertion/created_at order.
+        all_matching.sort(
+            key=lambda s: (priority_rank(s.priority), external_id_sort_key(s.external_id)),
+            reverse=reverse,
+        )
     # "created_at" is already the base query order (desc); re-sort only if asc requested
     elif sort_dir == "asc":
         all_matching.reverse()
@@ -117,11 +125,21 @@ def create_sample(req: SampleCreate, db: SessionDep, actor: ActorDep) -> SampleO
 
 
 @router.get("/priorities", response_model=list[str])
-def list_priorities(db: SessionDep) -> list[str]:
+def list_priorities(db: SessionDep, status: str | None = None) -> list[str]:
     """Distinct priority values in use, ranked the same way the table sorts them, so a
     filter dropdown built from this lines up with the Backlog's own priority ordering.
+    `status` scopes the list to matching samples (the Backlog filter passes status=backlog)
+    so the dropdown never offers a priority that only exists on cancelled/completed samples
+    and would return zero rows once selected.
     Registered above /{sample_id} so this literal path isn't shadowed by that int route."""
-    values = db.scalars(select(Sample.priority).distinct().where(Sample.priority.isnot(None))).all()
+    stmt = select(Sample.priority).distinct().where(Sample.priority.isnot(None))
+    if status:
+        statuses = [s.strip() for s in status.split(",") if s.strip()]
+        for s in statuses:
+            if s not in SAMPLE_STATUSES:
+                raise HTTPException(400, f"Unknown status '{s}'. Valid: {', '.join(SAMPLE_STATUSES)}")
+        stmt = stmt.where(Sample.status.in_(statuses))
+    values = db.scalars(stmt).all()
     return sorted(values, key=priority_rank)
 
 

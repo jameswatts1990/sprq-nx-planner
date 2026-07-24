@@ -49,8 +49,8 @@ export function BacklogPage() {
   const queryClient = useQueryClient();
 
   const prioritiesQuery = useQuery({
-    queryKey: ["samples", "priorities"],
-    queryFn: () => samplesApi.listPriorities(),
+    queryKey: ["samples", "priorities", "backlog"],
+    queryFn: () => samplesApi.listPriorities("backlog"),
   });
 
   const query = useQuery({

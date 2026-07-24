@@ -11,6 +11,7 @@ class BatchSheetWellOut(BaseModel):
     slot_index: int  # 0-3 = tray 1, 4-7 = tray 2
     cell_ref: str
     use_number: int  # 1-based Use 1/2/3 position, same derivation as StageOut.use_number
+    run_time_hours: int  # this well's own movie / run time (12/24/30) - per-cell, may differ within a run
     cell_window_deadline: datetime | None  # cell.first_use_started_at + CELL_LIFETIME_H, if started
     window_breached: bool
     sample_id: int | None

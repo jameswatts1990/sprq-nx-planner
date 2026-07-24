@@ -21,6 +21,11 @@
   color: var(--ink);
   text-align: right;
 }
+/* Run-time row hosts a SegmentedControl on the right, so centre-align it rather than the
+   baseline the text rows use, and let the control keep its natural width. */
+.runTimeRow {
+  align-items: center;
+}
 .barcodes {
   display: flex;
   flex-direction: column;

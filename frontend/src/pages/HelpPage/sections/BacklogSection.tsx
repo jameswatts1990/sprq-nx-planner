@@ -16,7 +16,8 @@ export function BacklogSection() {
       <p className={styles.subheading}>Filters &amp; search</p>
       <p>
         <b>Search</b> by external ID, barcode, parent sample, or priority; results narrow as you type. Use the{" "}
-        <b>priority dropdown</b> to narrow the list to one priority value. The <b>rows-per-page</b> control (25 /
+        <b>priority dropdown</b> to narrow the list to one priority value — it only lists priorities that are
+        actually present in the backlog, so a choice never comes back empty. The <b>rows-per-page</b> control (25 /
         50 / 100 / 200, defaulting to 50) sets how many samples are shown at once.
       </p>
 
@@ -28,7 +29,8 @@ export function BacklogSection() {
       <p>
         <b>Sorting:</b> click the <b>Container ID</b>, <b>Barcodes</b>, or <b>Priority</b> column header to sort by
         that field; click again to reverse the direction. An arrow (▲/▼) on the header shows the active sort and
-        direction. Priority sorts by rank (High before Standard), not alphabetically.
+        direction. Priority sorts by rank (High before Standard), not alphabetically; samples that share a
+        priority are then ordered by Container ID — the same order the scheduler processes them in.
       </p>
       <p>
         <b>Priority</b> shows as a coloured badge so the most urgent samples stand out at a glance, both here and

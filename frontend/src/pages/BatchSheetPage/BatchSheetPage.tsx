@@ -41,6 +41,7 @@ function WellRow({ well }: { well: BatchSheetWellOut }) {
       </td>
       <td>{well.barcodes.length > 0 ? well.barcodes.join(", ") : "—"}</td>
       <td>
+        <div>Movie time: {well.run_time_hours}h</div>
         <div>Adaptive loading: {well.adaptive_loading ?? "—"}</div>
         <div>Include base kinetics: {well.ccs_kinetics ?? "—"}</div>
         <div>Full-res baseQ: {well.full_resolution_base_q ?? "—"}</div>
@@ -173,7 +174,7 @@ function InstrumentSection({ instrument }: { instrument: BatchSheetInstrumentOut
         )}
       </h2>
       <div className={styles.instrumentMeta}>
-        <span>Movie time: {instrument.movie_hours}h</span>
+        <span>Movie time (longest): {instrument.movie_hours}h</span>
         <span>Planned start: {new Date(instrument.planned_start_at).toLocaleString()}</span>
         <span>Planned end: {new Date(instrument.planned_end_at).toLocaleString()}</span>
         <span>Status: {instrument.status}</span>

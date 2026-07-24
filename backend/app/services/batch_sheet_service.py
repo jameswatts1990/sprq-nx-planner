@@ -69,6 +69,7 @@ def _well_out(cell_use: CellUse) -> BatchSheetWellOut:
         slot_index=WELLS.index(cell_use.well) if cell_use.well in WELLS else 0,
         cell_ref=cell.code if cell else "?",
         use_number=_use_number(cell_use),
+        run_time_hours=cell_use.run_time_hours,
         cell_window_deadline=deadline,
         window_breached=cell.window_breached if cell else False,
         sample_id=cell_use.sample_id,

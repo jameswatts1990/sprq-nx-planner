@@ -23,6 +23,10 @@ export interface StageOut {
   cell_ref: string; // Cell.code
   /** 1-based position of this cell_use among its cell's loads - drives the Use 1/2/3 colour. */
   use_number: number;
+  /** This well's own movie / run time (h). Per-cell: set from the Run Design dial on
+   * placement/auto-schedule, editable per-cell in the slot-detail popover. Different wells of
+   * one run may differ; CycleOut.movie_hours is the longest of them. */
+  run_time_hours: RunTimeHours;
   sample_id: number | null;
   sample_external_id: string | null;
   barcodes: string[];
@@ -56,6 +60,8 @@ export interface CycleOut {
   run_name: string | null;
   instrument_serial: string;
   run_date: string; // YYYY-MM-DD, absolute
+  /** The run's representative run time: the longest of its wells' per-cell run_time_hours
+   * (see StageOut.run_time_hours). Drives planned_end/lock. */
   movie_hours: number;
   status: CycleStatus;
   planned_start_at: string; // ISO datetime

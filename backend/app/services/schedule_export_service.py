@@ -124,7 +124,9 @@ def _row_values(cell_use: CellUse, cycle: Cycle, serial: str) -> dict[str, str]:
         K_TRACTION_ID: (sample.external_id or "") if sample else "",
         K_SANGER: _fmt_sanger(sample.sanger_ids if sample else None),
         K_CELL_LOCATION: _cell_location(cell_use),
-        K_RUN_TIME: _fmt_number(cycle.movie_hours),
+        # Per-cell run time: each exported well row carries its own movie time, which can
+        # differ from other wells in the same run (see CellUse.run_time_hours).
+        K_RUN_TIME: _fmt_number(cell_use.run_time_hours),
         K_TARGET_OPLC: _fmt_number(sample.target_oplc) if sample else "",
         # Barcodes live in the "Complex Batch ID" column (see tracker_columns). Prefer the
         # per-use snapshot; fall back to the sample's own barcodes if the snapshot is empty.

@@ -173,15 +173,69 @@ def test_place_sample_rejects_new_cell_when_its_tray_box_is_fully_populated_with
         assert cell["uses_consumed"] == 1
 
 
-def test_place_sample_rejects_movie_length_mismatch(client):
+def test_place_sample_allows_mixed_run_times_per_cell(client):
+    """Run time is per-cell now: two wells of the same run can carry different movie times.
+    Each stage keeps its own run_time_hours, and the run's representative movie_hours (and
+    thus planned_end / lock) tracks the longest of them. Uses slots 0 (tray 1) and 4 (tray 2)
+    so both fresh-cell placements open their own tray box without a box collision."""
     client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1\nA2,bc2"})
     (mon,) = _weekdays(1)
     r1 = _place(client, _sid(client, "A1"), mon, 0, run_time_hours=24)
     assert r1.status_code == 201, r1.text
-    # a second placement into the same run demanding a different movie length is rejected
-    r2 = _place(client, _sid(client, "A2"), mon, 1, run_time_hours=30)
-    assert r2.status_code == 409
-    assert "h" in r2.json()["detail"].lower()
+    # a second placement into the same run with a different movie length is now accepted
+    r2 = _place(client, _sid(client, "A2"), mon, 4, run_time_hours=30)
+    assert r2.status_code == 201, r2.text
+
+    cycle = r2.json()
+    by_slot = {s["slot_index"]: s for s in cycle["stages"]}
+    assert by_slot[0]["run_time_hours"] == 24
+    assert by_slot[4]["run_time_hours"] == 30
+    # Run-level movie_hours + planned end follow the longest well (30h from noon = next day).
+    assert cycle["movie_hours"] == 30
+    assert cycle["planned_end_at"].startswith(_iso_date_plus(mon, 1))
+
+
+def _iso_date_plus(iso_date: str, days: int) -> str:
+    from datetime import date, timedelta
+
+    d = date.fromisoformat(iso_date) + timedelta(days=days)
+    return d.isoformat()
+
+
+def test_edit_cell_use_run_time_updates_run_representative(client):
+    """Editing one cell's run time via the popover endpoint bumps the run's movie_hours when
+    that cell becomes the longest, and holds when a shorter cell is lowered further."""
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1\nA2,bc2"})
+    (mon,) = _weekdays(1)
+    r1 = _place(client, _sid(client, "A1"), mon, 0, run_time_hours=24)
+    cu0 = r1.json()["stages"][0]["cell_use_id"]
+    r2 = _place(client, _sid(client, "A2"), mon, 4, run_time_hours=12)
+    cu4 = r2.json()["stages"][-1]["cell_use_id"]
+    assert r2.json()["movie_hours"] == 24  # longest is still A1's 24h
+
+    # Raise A2 to 30h -> it becomes the longest, run movie_hours follows.
+    up = client.patch(f"/api/cell-uses/{cu4}/run-time", json={"run_time_hours": 30})
+    assert up.status_code == 200, up.text
+    assert up.json()["movie_hours"] == 30
+
+    # Lower A1 (the old longest) to 12h -> longest is now A2's 30h, unchanged.
+    up2 = client.patch(f"/api/cell-uses/{cu0}/run-time", json={"run_time_hours": 12})
+    assert up2.status_code == 200
+    assert up2.json()["movie_hours"] == 30
+    by_slot = {s["slot_index"]: s for s in up2.json()["stages"]}
+    assert by_slot[0]["run_time_hours"] == 12
+
+
+def test_edit_run_time_rejected_when_run_locked(client):
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1"})
+    (mon,) = _weekdays(1)
+    r1 = _place(client, _sid(client, "A1"), mon, 0, run_time_hours=24)
+    cycle_id = r1.json()["cycle_id"]
+    cu = r1.json()["stages"][0]["cell_use_id"]
+    lock = client.patch(f"/api/cycles/{cycle_id}", json={"status": "running"})
+    assert lock.status_code == 200, lock.text
+    resp = client.patch(f"/api/cell-uses/{cu}/run-time", json={"run_time_hours": 30})
+    assert resp.status_code == 409
 
 
 def test_remove_sample_reverts_to_backlog_and_cleans_up_emptied_run(client):

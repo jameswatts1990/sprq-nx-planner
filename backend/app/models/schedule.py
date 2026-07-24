@@ -30,14 +30,20 @@ class RunBatch(Base):
 
 
 class Cycle(Base):
-    """The status/timing holder for one RunBatch (1:1). movie_hours is the authoritative
-    run_time_hours for this specific run; the up-to-8 wells (both tray-loading positions)
-    live on its cell_uses."""
+    """The status/timing holder for one RunBatch (1:1). Run time is stored per-cell on each
+    CellUse (CellUse.run_time_hours) - the Revio can run different movie times in different
+    wells of the same run (a deliberate divergence from the vendor's "one acquisition time
+    per plate" default; see docs/pacbio-sprq-nx-scheduling-reference.md). movie_hours here is
+    the *representative* run time for the whole run: the longest of its cell uses' run times,
+    kept in sync by placement_service.recompute_cycle_timing. It drives planned_end_at and
+    the instrument lock (the instrument stays busy until the longest well finishes). The
+    up-to-8 wells (both tray-loading positions) live on its cell_uses."""
 
     __tablename__ = "cycles"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     run_batch_id: Mapped[int] = mapped_column(ForeignKey("run_batches.id", ondelete="CASCADE"), index=True)
+    # Representative (= longest) run time across this run's cell_uses; see class docstring.
     movie_hours: Mapped[int] = mapped_column(Integer)
     planned_start_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     planned_end_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
@@ -65,6 +71,12 @@ class CellUse(Base):
     cell_id: Mapped[int] = mapped_column(ForeignKey("cells.id"), index=True)
     sample_id: Mapped[int | None] = mapped_column(ForeignKey("samples.id"), nullable=True, index=True)
     well: Mapped[str] = mapped_column(String(8))
+    # This well's own movie / run time (12/24/30 h). Set from the Run Design "Movie / run
+    # time" dial when the sample is placed or auto-scheduled, then editable per-cell from the
+    # slot-detail popover. Different wells of the same run may carry different values - the
+    # owning Cycle.movie_hours tracks the longest of them (see Cycle docstring). server_default
+    # is for the migration's existing rows only; every code path sets it explicitly.
+    run_time_hours: Mapped[int] = mapped_column(Integer, nullable=False, server_default="24")
     status: Mapped[str] = mapped_column(String(20), default="planned", index=True)
     outcome_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Free-text note the lab user attaches to this sample-on-this-cell placement. Distinct

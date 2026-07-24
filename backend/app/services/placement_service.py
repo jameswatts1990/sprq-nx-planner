@@ -30,7 +30,7 @@ from app.services.cell_service import (
     run_has_started,
     use_run_date,
 )
-from app.timeutil import utcnow
+from app.timeutil import ensure_aware, utcnow
 
 
 class PlacementError(Exception):
@@ -45,6 +45,32 @@ def planned_window(
 ) -> tuple[datetime, datetime]:
     start = datetime.combine(run_date, time(hour=start_hour, minute=start_minute), tzinfo=timezone.utc)
     return start, start + timedelta(hours=run_time_hours)
+
+
+def recompute_cycle_timing(db: Session, cycle: Cycle) -> None:
+    """Re-derive a run's representative run time from its wells after any placement change.
+
+    Run time is stored per-well (CellUse.run_time_hours); a run's Cycle.movie_hours is the
+    *longest* of its non-cancelled wells - the instrument stays busy (and planned_end_at
+    runs) until the last well finishes. Called after any add/move/remove/edit that can
+    change which wells - or which run times - a cycle holds. Cancelled wells (a stopped
+    cell's permanent marker) never run, so they don't extend the window. If a cycle has no
+    live wells left, movie_hours/planned_end_at are left as-is (the cycle is about to be
+    deleted by the caller, or holds only a cancelled marker whose old timing is harmless).
+
+    Queried straight off CellUse rather than through cycle.cell_uses: callers reach here
+    mid-transaction after raw cycle_id reassignments (see move_sample), where the ORM
+    relationship can be stale - the same reason instrument_lock._both_trays_loaded queries
+    directly."""
+    longest = db.scalar(
+        select(func.max(CellUse.run_time_hours)).where(
+            CellUse.cycle_id == cycle.id, CellUse.status != "cancelled"
+        )
+    )
+    if longest is None:
+        return
+    cycle.movie_hours = int(longest)
+    cycle.planned_end_at = ensure_aware(cycle.planned_start_at) + timedelta(hours=int(longest))
 
 
 def get_or_create_run(
@@ -281,11 +307,9 @@ def place_sample(
         start_minute=start_minute,
     )
 
-    if cycle.movie_hours != int(run_time_hours):
-        raise PlacementError(
-            409,
-            f"This run is already set to {cycle.movie_hours}h; cannot mix a {int(run_time_hours)}h placement into it.",
-        )
+    # Run time is per-well now, so a differing run time no longer conflicts with the run -
+    # this placement just carries its own run_time_hours, and recompute_cycle_timing below
+    # bumps the run's representative (longest) movie_hours if this well is the new longest.
     if cycle.status != "planned":
         raise PlacementError(409, f"Run is locked (status: {cycle.status}); cannot place into it.")
 
@@ -302,6 +326,7 @@ def place_sample(
         cell_id=cell.id,
         sample_id=sample.id,
         well=well,
+        run_time_hours=int(run_time_hours),
         status="planned",
     )
     db.add(cell_use)
@@ -316,6 +341,7 @@ def place_sample(
 
     sample.status = "scheduled"
 
+    recompute_cycle_timing(db, cycle)
     db.refresh(cell, attribute_names=["cell_uses"])
     recompute_status(cell, utcnow())
 
@@ -381,8 +407,11 @@ def remove_sample(db: Session, cell_use_id: int, actor: str | None = None) -> No
 
     remaining = db.scalar(select(func.count()).select_from(CellUse).where(CellUse.cycle_id == cycle_id))
     if remaining == 0 and run_batch is not None:
-        # frees the run_time_hours choice for that grid cell again
         db.delete(run_batch)
+    else:
+        # The removed well may have been the run's longest; re-derive its representative
+        # run time / planned end from whatever wells remain.
+        recompute_cycle_timing(db, cycle)
 
     if cell is not None:
         _release_cell(db, cell, utcnow())
@@ -534,6 +563,12 @@ def move_sample(
     if cell_use.status == "cancelled":
         raise PlacementError(409, "This placement was cancelled when its cell was stopped and can't be modified.")
 
+    # A move preserves this well's own run time - the client sends the current Run Design
+    # dial value, but that dial only sets run time for *new* placements; rescheduling an
+    # existing placement (or reassigning it to a fresh cell) keeps whatever run time it was
+    # given, editable only via the slot-detail popover. Ignore the passed value.
+    run_time_hours = cell_use.run_time_hours
+
     instrument = db.scalar(select(Instrument).where(Instrument.serial_number == instrument_serial))
     if instrument is None:
         raise PlacementError(400, f"Unknown instrument serial '{instrument_serial}'.")
@@ -628,11 +663,6 @@ def move_sample(
         start_hour=start_hour,
         start_minute=start_minute,
     )
-    if dest_cycle.movie_hours != int(run_time_hours):
-        raise PlacementError(
-            409,
-            f"This run is already set to {dest_cycle.movie_hours}h; cannot mix a {int(run_time_hours)}h placement into it.",
-        )
     if dest_cycle.status != "planned":
         raise PlacementError(409, f"Run is locked (status: {dest_cycle.status}); cannot place into it.")
 
@@ -650,10 +680,19 @@ def move_sample(
         db.rollback()
         raise PlacementError(409, f"slot already occupied: well {well} is taken on this run.")
 
+    old_batch_deleted = False
     if not same_cycle:
         remaining = db.scalar(select(func.count()).select_from(CellUse).where(CellUse.cycle_id == old_cycle_id))
         if remaining == 0 and old_run_batch is not None:
             db.delete(old_run_batch)
+            old_batch_deleted = True
+
+    # Run time travels with the well, so both ends may need re-deriving: the destination
+    # gains this well (its representative run time may now be longer), and the source loses
+    # it (its longest may now be shorter). Skip a cycle that was just deleted.
+    recompute_cycle_timing(db, dest_cycle)
+    if not same_cycle and not old_batch_deleted:
+        recompute_cycle_timing(db, old_cycle)
 
     db.add(
         AuditLog(
@@ -710,11 +749,6 @@ def _move_sample_to_new_cell(
         start_hour=start_hour,
         start_minute=start_minute,
     )
-    if dest_cycle.movie_hours != int(run_time_hours):
-        raise PlacementError(
-            409,
-            f"This run is already set to {dest_cycle.movie_hours}h; cannot mix a {int(run_time_hours)}h placement into it.",
-        )
     if dest_cycle.status != "planned":
         raise PlacementError(409, f"Run is locked (status: {dest_cycle.status}); cannot place into it.")
 
@@ -733,7 +767,12 @@ def _move_sample_to_new_cell(
     old_run_batch = old_cycle.run_batch
 
     new_cell_use = CellUse(
-        cycle_id=dest_cycle.id, cell_id=new_cell.id, sample_id=cell_use.sample_id, well=well, status="planned"
+        cycle_id=dest_cycle.id,
+        cell_id=new_cell.id,
+        sample_id=cell_use.sample_id,
+        well=well,
+        run_time_hours=int(run_time_hours),
+        status="planned",
     )
     db.add(new_cell_use)
     try:
@@ -748,9 +787,16 @@ def _move_sample_to_new_cell(
     db.delete(cell_use)
     db.flush()
 
+    old_batch_deleted = False
     remaining = db.scalar(select(func.count()).select_from(CellUse).where(CellUse.cycle_id == old_cycle_id))
     if remaining == 0 and old_run_batch is not None:
         db.delete(old_run_batch)
+        old_batch_deleted = True
+
+    # Same as the same-cell reschedule: destination gains this well, source loses it.
+    recompute_cycle_timing(db, dest_cycle)
+    if old_cycle.id != dest_cycle.id and not old_batch_deleted:
+        recompute_cycle_timing(db, old_cycle)
 
     now = utcnow()
     _release_cell(db, old_cell, now)
@@ -869,6 +915,49 @@ def swap_samples(db: Session, *, cell_use_id_a: int, cell_use_id_b: int, actor: 
     db.refresh(use_a.cycle)
     db.refresh(use_b.cycle)
     return [use_a.cycle] if use_a.cycle.id == use_b.cycle.id else [use_a.cycle, use_b.cycle]
+
+
+def update_cell_use_run_time(
+    db: Session, *, cell_use_id: int, run_time_hours: int, actor: str | None = None
+) -> Cycle:
+    """Change one well's own movie / run time from the slot-detail popover, then re-derive
+    the owning run's representative movie_hours / planned end (see recompute_cycle_timing).
+
+    Editable only while both the run and this use are still `planned`: once a run is locked
+    (running/completed) its movie time is what the instrument actually acquired, not a
+    planning dial, and a cancelled ("Blocked") marker isn't a live placement. Like the rest
+    of this module's instrument-lock handling, this does NOT retroactively re-validate a
+    *later* run on the same instrument against the (possibly longer) lock this extends - the
+    lock is a forward-looking planning aid checked when a new run is created (see
+    get_or_create_run), consistent with docs/pacbio-sprq-nx-scheduling-reference.md's
+    "planned, not running" note. Returns the owning Cycle for re-serialization."""
+    cell_use = db.get(CellUse, cell_use_id, options=[selectinload(CellUse.cycle)])
+    if cell_use is None:
+        raise PlacementError(404, f"Cell use {cell_use_id} not found.")
+
+    cycle = cell_use.cycle
+    if cycle is None or cycle.status != "planned":
+        raise PlacementError(409, "Run time can only be changed on a run that is still planned.")
+    if cell_use.status != "planned":
+        raise PlacementError(409, "This placement isn't editable (it has started, run, or been cancelled).")
+
+    old = cell_use.run_time_hours
+    cell_use.run_time_hours = int(run_time_hours)
+    db.flush()
+    recompute_cycle_timing(db, cycle)
+
+    db.add(
+        AuditLog(
+            actor=actor or "unknown",
+            action="update_cell_use_run_time",
+            entity_type="cell_use",
+            entity_id=cell_use.id,
+            details_json={"from": old, "to": int(run_time_hours), "cycle_id": cycle.id},
+        )
+    )
+    db.commit()
+    db.refresh(cycle)
+    return cycle
 
 
 def cancel_run(db: Session, cycle_id: int, actor: str | None = None) -> None:

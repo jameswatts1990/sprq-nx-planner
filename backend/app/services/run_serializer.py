@@ -62,6 +62,7 @@ def cycle_out(db: Session, cycle: Cycle) -> CycleOut:
             cell_id=cu.cell_id,
             cell_ref=cu.cell.code if cu.cell else "?",
             use_number=_use_number(cu),
+            run_time_hours=cu.run_time_hours,
             sample_id=cu.sample_id,
             sample_external_id=cu.sample.external_id if cu.sample else None,
             barcodes=cu.barcode_list,

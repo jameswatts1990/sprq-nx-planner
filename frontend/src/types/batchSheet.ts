@@ -5,6 +5,7 @@ export interface BatchSheetWellOut {
   slot_index: number; // 0-3 = tray 1, 4-7 = tray 2
   cell_ref: string;
   use_number: number;
+  run_time_hours: number; // this well's own movie / run time (12/24/30) - per-cell, may differ within a run
   cell_window_deadline: string | null; // ISO datetime
   window_breached: boolean;
   sample_id: number | null;

@@ -18,6 +18,10 @@ class StageOut(BaseModel):
     cell_id: int
     cell_ref: str
     use_number: int  # 1-based position of this cell_use among its cell's loads - drives the Use 1/2/3 colour
+    # This well's own movie / run time in hours (12/24/30). Per-cell: different wells of one
+    # run may differ, editable from the slot-detail popover. The run-level CycleOut.movie_hours
+    # is the longest of these (see CycleOut.movie_hours).
+    run_time_hours: int
     sample_id: int | None
     sample_external_id: str | None
     barcodes: list[str]
@@ -55,6 +59,9 @@ class CycleOut(BaseModel):
     cycle_id: int
     instrument_serial: str
     run_date: date
+    # The run's representative run time: the longest of its wells' per-cell run_time_hours
+    # (each well carries its own on StageOut.run_time_hours). Drives planned_end_at and the
+    # instrument lock - the instrument is busy until the longest well finishes.
     movie_hours: int
     status: str
     run_name: str | None = None

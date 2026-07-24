@@ -88,8 +88,8 @@ export function BacklogAccordion() {
   const q = useDebouncedValue(qInput, 350);
 
   const prioritiesQuery = useQuery({
-    queryKey: ["samples", "priorities"],
-    queryFn: () => samplesApi.listPriorities(),
+    queryKey: ["samples", "priorities", "backlog"],
+    queryFn: () => samplesApi.listPriorities("backlog"),
   });
 
   // Lightweight count-only check (page_size 1, just reading .total) so the warning badge
