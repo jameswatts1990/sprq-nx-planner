@@ -18,7 +18,7 @@ import { gridCoordinateGetter } from "./gridKeyboardCoordinates";
 export interface SlotDropData {
   kind: "slot";
   instrument_serial: string;
-  run_date: string;
+  load_date: string;
   slot_index: SlotIndex;
   /** Set when this slot is currently showing a waiting-cell ghost placeholder - the id of
    * the specific cell it represents (see waitingCells.ts). A sample dropped directly here
@@ -47,7 +47,7 @@ export interface FilledSlotDragData {
   cell_use_id: number;
   cell_id: number;
   instrument_serial: string;
-  run_date: string;
+  load_date: string;
   slot_index: SlotIndex;
 }
 
@@ -132,7 +132,7 @@ export function useSchedulerDnd(
         setPendingPlacement({
           sample: activeData.sample,
           instrument_serial: overData.instrument_serial,
-          run_date: overData.run_date,
+          load_date: overData.load_date,
           slot_index: overData.slot_index,
           preselectedCellId: overData.ghostCellId,
         });
@@ -145,14 +145,14 @@ export function useSchedulerDnd(
       // (possibly new) cell backs it there, same as a same-instrument well conflict.
       const sameSlot =
         activeData.instrument_serial === overData.instrument_serial &&
-        activeData.run_date === overData.run_date &&
+        activeData.load_date === overData.load_date &&
         activeData.slot_index === overData.slot_index;
       if (sameSlot) return;
 
       setPendingPlacement({
         sample: activeData.sample,
         instrument_serial: overData.instrument_serial,
-        run_date: overData.run_date,
+        load_date: overData.load_date,
         slot_index: overData.slot_index,
         moveFromCellUseId: activeData.cell_use_id,
         moveFromCellId: activeData.cell_id,

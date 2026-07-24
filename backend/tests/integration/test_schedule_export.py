@@ -46,14 +46,14 @@ def test_export_fills_p1_columns_for_a_loaded_run(client):
         json={
             "sample_id": _sid(client, "TRAC-2-9001"),
             "instrument_serial": "84047",
-            "run_date": past,
+            "load_date": past,
             "slot_index": 0,
             "cell_choice": {"mode": "new"},
             "run_time_hours": 24,
         },
     )
     assert placed.status_code == 201, placed.text
-    cycle_id = placed.json()["cycle_id"]
+    cycle_id = placed.json()["run_id"]
     client.patch(f"/api/cycles/{cycle_id}", json={"status": "running", "run_name": "TRACTION-RUN-TEST"})
 
     resp = client.get("/api/schedule/export.csv", params={"date_from": past, "date_to": past})
@@ -83,14 +83,14 @@ def _place_running(client, external_id: str, run_name: str, past: str) -> None:
         json={
             "sample_id": _sid(client, external_id),
             "instrument_serial": "84047",
-            "run_date": past,
+            "load_date": past,
             "slot_index": 0,
             "cell_choice": {"mode": "new"},
             "run_time_hours": 24,
         },
     )
     assert placed.status_code == 201, placed.text
-    client.patch(f"/api/cycles/{placed.json()['cycle_id']}", json={"status": "running", "run_name": run_name})
+    client.patch(f"/api/cycles/{placed.json()['run_id']}", json={"status": "running", "run_name": run_name})
 
 
 def test_export_splits_a_clean_multibarcode_pool_one_row_per_barcode(client):
@@ -149,14 +149,14 @@ def test_export_falls_back_to_hash_id_when_run_unnamed(client):
         json={
             "sample_id": _sid(client, "UNNAMED1"),
             "instrument_serial": "84047",
-            "run_date": past,
+            "load_date": past,
             "slot_index": 0,
             "cell_choice": {"mode": "new"},
             "run_time_hours": 24,
         },
     )
     assert placed.status_code == 201, placed.text
-    cycle_id = placed.json()["cycle_id"]
+    cycle_id = placed.json()["run_id"]
 
     rows = _rows(client.get("/api/schedule/export.csv", params={"date_from": past, "date_to": past}).text)
     assert len(rows) == 2
@@ -171,7 +171,7 @@ def test_export_window_excludes_out_of_range_runs(client):
         json={
             "sample_id": _sid(client, "OUT1"),
             "instrument_serial": "84098",
-            "run_date": past,
+            "load_date": past,
             "slot_index": 0,
             "cell_choice": {"mode": "new"},
             "run_time_hours": 24,

@@ -40,7 +40,7 @@ def test_stats_reflects_a_completed_run(client):
         json={
             "sample_id": _sid(client, "S1"),
             "instrument_serial": "84047",
-            "run_date": past,
+            "load_date": past,
             "slot_index": 0,
             "cell_choice": {"mode": "new"},
             "run_time_hours": 24,
@@ -48,7 +48,7 @@ def test_stats_reflects_a_completed_run(client):
         },
     )
     assert r1.status_code == 201, r1.text
-    cycle_id = r1.json()["cycle_id"]
+    cycle_id = r1.json()["run_id"]
     assert client.patch(f"/api/cycles/{cycle_id}", json={"status": "running"}).status_code == 200
     assert client.patch(f"/api/cycles/{cycle_id}", json={"status": "completed"}).status_code == 200
 

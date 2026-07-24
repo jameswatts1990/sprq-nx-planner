@@ -58,14 +58,17 @@ def derive_cell_state(cell: Cell) -> tuple[int, int, list[str]]:
 
 
 def use_run_date(cell_use: CellUse) -> date | None:
-    """The calendar day a specific use is/was scheduled for, via its Cycle's RunBatch -
-    the only correct way to order a cell's uses chronologically. CellUse.id (insertion
-    order) is not a reliable stand-in: a batch auto-fill can commit multiple cells' rows
-    in an order grouped by instrument rather than by any one cell's own date sequence
-    (see auto_fill_service.py's persist loop), so "inserted later" does not imply
-    "happened later" once a schedule spans more than one instrument."""
-    run_batch = cell_use.cycle.run_batch if cell_use.cycle else None
-    return run_batch.run_date if run_batch else None
+    """The calendar day a specific use is/was acquired, via its Cycle (the Plate) -
+    ``Cycle.acquire_date``. The only correct way to order a cell's uses chronologically.
+    CellUse.id (insertion order) is not a reliable stand-in: a batch auto-fill can commit
+    multiple cells' rows in an order grouped by instrument rather than by any one cell's own
+    date sequence (see auto_fill_service.py's persist loop), so "inserted later" does not
+    imply "happened later" once a schedule spans more than one instrument.
+
+    (Named for the pre-split RunBatch.run_date; the value is now the plate's acquire_date,
+    which for a reused cell's second use is genuinely a later day than its first use even
+    though both plates were loaded in the same session.)"""
+    return cell_use.cycle.acquire_date if cell_use.cycle else None
 
 
 def current_location(cell: Cell) -> tuple[str | None, str | None]:
@@ -318,7 +321,7 @@ def serialize_cell_detail(cell: Cell) -> CellDetailOut:
                 id=cu.id,
                 run_batch_id=run_batch.id if run_batch else -1,
                 cycle_id=cu.cycle_id,
-                run_name=cu.cycle.run_name if cu.cycle else None,
+                run_name=run_batch.run_name if run_batch else None,
                 well=cu.well,
                 status=cu.status,
                 sample_id=cu.sample_id,
@@ -345,9 +348,9 @@ def bootstrap_cell(db: Session, req: CellBootstrapRequest) -> Cell:
     an instrument before this system existed. Not a routine workflow - see the backend
     plan's "porting the algorithms" deviation #1.
 
-    Each historical use is recorded as its own RunBatch+Cycle (1:1) on a distinct synthetic
-    run_date, counting backward one weekday-agnostic day per use, so the unique
-    (instrument_id, run_date) constraint never self-collides."""
+    Each historical use is recorded as its own Run (RunBatch) + single Plate (Cycle) on a
+    distinct synthetic date, counting backward one weekday-agnostic day per use, so the
+    unique (instrument_id, load_date) constraint never self-collides."""
     if req.instrument_serial:
         instrument = db.scalar(select(Instrument).where(Instrument.serial_number == req.instrument_serial))
         if instrument is None:
@@ -369,11 +372,13 @@ def bootstrap_cell(db: Session, req: CellBootstrapRequest) -> Cell:
         for i in range(req.uses_consumed):
             # earliest use gets the earliest date; each use a distinct calendar day
             run_date = base_date - timedelta(days=(req.uses_consumed - 1 - i))
-            run_batch = RunBatch(instrument_id=instrument.id, run_date=run_date)
+            run_batch = RunBatch(instrument_id=instrument.id, load_date=run_date)
             db.add(run_batch)
             db.flush()
             cycle = Cycle(
                 run_batch_id=run_batch.id,
+                plate_index=1,
+                acquire_date=run_date,
                 movie_hours=24,
                 planned_start_at=now,
                 planned_end_at=now,

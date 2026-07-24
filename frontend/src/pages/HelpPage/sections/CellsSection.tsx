@@ -30,9 +30,9 @@ export function CellsSection() {
         have spare capacity waiting to be picked up, without opening a specific cell&apos;s detail page first. Any
         open cell that has started its 108-hour window shows how many hours it has left, turning red once
         it&apos;s down to its last 18 hours; the tray header itself flags &quot;Expires soon&quot; once any of its
-        cells is that close. There&apos;s no way to move a tray to a different instrument yet. (This is a different
-        &quot;tray&quot; from the Schedule grid&apos;s &quot;Tray 1&quot;/&quot;Tray 2&quot; loading positions - see
-        the Schedule section.)
+        cells is that close. There&apos;s no way to move a tray to a different instrument yet. (This physical
+        &quot;tray&quot; is a different thing from the Schedule grid&apos;s &quot;Plate 1&quot;/&quot;Plate 2&quot;
+        loading positions within a run - see the Schedule section.)
       </p>
       <p>
         Each tray shows its (up to 4) sibling cells with their own status and uses - a tray never shows one merged

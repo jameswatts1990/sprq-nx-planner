@@ -8,12 +8,12 @@ from datetime import datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models.schedule import CellUse, Cycle
+from app.models.schedule import CellUse, Cycle, RunBatch
 from app.models.audit import AuditLog
 from app.services.cell_service import recompute_status, run_has_started
 from app.timeutil import ensure_aware, utcnow
 
-# Legal cycle status transitions. "Unlock" (running -> planned) is the only way back to
+# Legal plate/run status transitions. "Unlock" (running -> planned) is the only way back to
 # planned, so a completed/aborted run can never silently discard its recorded per-CellUse
 # outcomes by being reverted.
 ALLOWED_CYCLE_TRANSITIONS = {
@@ -24,21 +24,13 @@ ALLOWED_CYCLE_TRANSITIONS = {
 }
 
 
-def update_cycle_status(
-    db: Session, cycle: Cycle, status: str, at: datetime | None, actor: str | None, run_name: str | None = None
-) -> Cycle:
-    if status not in ALLOWED_CYCLE_TRANSITIONS.get(cycle.status, set()):
-        raise ValueError(f"Illegal cycle transition: {cycle.status} -> {status}.")
-
-    at = ensure_aware(at) if at else utcnow()
+def _apply_cycle_status(cycle: Cycle, status: str, at: datetime) -> None:
+    """Apply one plate's status transition and its cascade down to cell_uses / samples /
+    the cell's 108h-window anchor (first_use_started_at). No commit/audit - update_run_status
+    wraps this across all of a run's plates (both are loaded in one session, so they move
+    together)."""
     cycle.status = status
-
     if status == "running":
-        # Optional lab-assigned run label (e.g. "TRACTION-RUN-1234"), only settable at the
-        # moment of locking - blank/whitespace clears it. Left untouched on every other
-        # transition (Unlock included) so a name already given isn't silently discarded.
-        if run_name is not None:
-            cycle.run_name = run_name.strip() or None
         cycle.actual_start_at = cycle.actual_start_at or at
         for cu in cycle.cell_uses:
             if cu.status == "planned":
@@ -67,12 +59,10 @@ def update_cycle_status(
                 cu.started_at = cu.started_at or at
                 cu.completed_at = at
                 # Aborted is a run/instrument problem, not the sample's - straight back to
-                # backlog for a fresh attempt, matching the per-CellUse Mark Aborted action
-                # (see update_cell_use_status below). Gated to uses actually transitioning
-                # here, unlike the sibling "completed" cascade above - a cell_use already
-                # terminal (e.g. a stopped-cell's cancelled marker) may share a sample_id
-                # with an unrelated, since-rescheduled placement elsewhere and must not have
-                # its sample status clobbered by this cycle's own outcome.
+                # backlog for a fresh attempt. Gated to uses actually transitioning here: a
+                # cell_use already terminal (e.g. a stopped-cell's cancelled marker) may share
+                # a sample_id with an unrelated, since-rescheduled placement and must not have
+                # its sample status clobbered by this run's own outcome.
                 if cu.sample is not None and cu.sample.status not in ("completed", "failed"):
                     cu.sample.status = "backlog"
             if cu.cell.first_use_started_at is None:
@@ -96,21 +86,45 @@ def update_cycle_status(
             if cell.first_use_started_at is None:
                 cell.window_breached = False
 
-    for cu in cycle.cell_uses:
-        recompute_status(cu.cell, at)
+
+def update_run_status(
+    db: Session, run_batch: RunBatch, status: str, at: datetime | None, actor: str | None, run_name: str | None = None
+) -> RunBatch:
+    """Move a whole run (all its plates) through the load lifecycle - Confirm loaded
+    (planned->running), Complete/Abort, or Unlock (running->planned). A run's plates are
+    loaded in one session, so they transition together; run_name (Traction ID) is run-level
+    and set at Confirm loaded."""
+    cycles = list(run_batch.cycles)
+    for c in cycles:
+        if c.status != status and status not in ALLOWED_CYCLE_TRANSITIONS.get(c.status, set()):
+            raise ValueError(f"Illegal run transition: plate {c.plate_index} is {c.status} -> {status}.")
+
+    at = ensure_aware(at) if at else utcnow()
+    if status == "running" and run_name is not None:
+        # Only settable at lock time; blank/whitespace clears it. Untouched on every other
+        # transition (Unlock included) so a name already given isn't silently discarded.
+        run_batch.run_name = run_name.strip() or None
+
+    for c in cycles:
+        if c.status != status:
+            _apply_cycle_status(c, status, at)
+
+    for c in cycles:
+        for cu in c.cell_uses:
+            recompute_status(cu.cell, at)
 
     db.add(
         AuditLog(
             actor=actor or "unknown",
-            action="update_cycle_status",
-            entity_type="cycle",
-            entity_id=cycle.id,
+            action="update_run_status",
+            entity_type="run_batch",
+            entity_id=run_batch.id,
             details_json={"status": status},
         )
     )
     db.commit()
-    db.refresh(cycle)
-    return cycle
+    db.refresh(run_batch)
+    return run_batch
 
 
 def update_cell_use_status(

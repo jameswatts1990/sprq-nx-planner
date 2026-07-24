@@ -22,6 +22,13 @@ def _weekdays(n: int) -> list[str]:
     return out
 
 
+def _stages(run):
+    """All stages across a run's plates, flattened (plate 1 then plate 2). A single
+    placement into slot 0-3 yields one plate; a fresh parallel/second-tray or reuse
+    placement adds a second plate."""
+    return [s for p in run["plates"] for s in p["stages"]]
+
+
 def _sid(client, external_id: str) -> int:
     items = client.get("/api/samples", params={"page_size": 200}).json()["items"]
     return next(s["id"] for s in items if s["external_id"] == external_id)
@@ -31,7 +38,7 @@ def _place(client, sample_id, run_date, slot_index, cell_choice, run_time_hours=
     payload = {
         "sample_id": sample_id,
         "instrument_serial": instrument,
-        "run_date": run_date,
+        "load_date": run_date,
         "slot_index": slot_index,
         "cell_choice": cell_choice,
         "run_time_hours": run_time_hours,
@@ -50,8 +57,8 @@ def test_cell_with_remaining_capacity_is_reused_across_days_and_burned_barcodes_
     r1 = _place(client, _sid(client, "S1"), mon, 0, {"mode": "new"})
     assert r1.status_code == 201, r1.text
     cycle1 = r1.json()
-    cell_id = cycle1["stages"][0]["cell_id"]
-    assert cycle1["stages"][0]["sample_external_id"] == "S1"
+    cell_id = _stages(cycle1)[0]["cell_id"]
+    assert _stages(cycle1)[0]["sample_external_id"] == "S1"
 
     cell = client.get(f"/api/cells/{cell_id}").json()
     assert cell["uses_consumed"] == 1
@@ -62,7 +69,7 @@ def test_cell_with_remaining_capacity_is_reused_across_days_and_burned_barcodes_
     # test's own timing regardless of what the default loading start time happens to be.
     r2 = _place(client, _sid(client, "S2"), tue, 0, {"mode": "existing", "cell_id": cell_id}, start_hour=15)
     assert r2.status_code == 201, r2.text
-    assert r2.json()["stages"][0]["cell_id"] == cell_id
+    assert _stages(r2.json())[0]["cell_id"] == cell_id
 
     cell = client.get(f"/api/cells/{cell_id}").json()
     assert cell["uses_consumed"] == 2
@@ -96,7 +103,7 @@ def test_reusing_a_cell_on_a_different_instrument_than_its_current_one_is_reject
 
     r1 = _place(client, _sid(client, "T1"), mon, 0, {"mode": "new"}, instrument="84047")
     assert r1.status_code == 201, r1.text
-    cell_id = r1.json()["stages"][0]["cell_id"]
+    cell_id = _stages(r1.json())[0]["cell_id"]
 
     r2 = _place(client, _sid(client, "T2"), mon, 0, {"mode": "existing", "cell_id": cell_id}, instrument="84098")
     assert r2.status_code == 409, r2.text

@@ -63,7 +63,7 @@ export function PrintBatchSheetModal({ instruments, onClose }: PrintBatchSheetMo
     <Modal onClose={onClose} title="Print Batch Sheet">
       <div className={styles.field}>
         <label className={styles.label} htmlFor="batch-sheet-date">
-          Day
+          Load day
         </label>
         <input
           id="batch-sheet-date"
@@ -82,7 +82,7 @@ export function PrintBatchSheetModal({ instruments, onClose }: PrintBatchSheetMo
       )}
       {noneScheduled && (
         <Note tone="info" icon="i">
-          No runs scheduled on this day.
+          No runs loaded on this day.
         </Note>
       )}
 

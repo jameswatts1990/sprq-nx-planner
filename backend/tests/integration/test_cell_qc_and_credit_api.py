@@ -22,6 +22,13 @@ def _past_weekday() -> str:
     return d.isoformat()
 
 
+def _stages(run):
+    """All stages across a run's plates, flattened (plate 1 then plate 2). A single
+    placement into slot 0-3 yields one plate; a fresh parallel/second-tray or reuse
+    placement adds a second plate."""
+    return [s for p in run["plates"] for s in p["stages"]]
+
+
 def _sid(client, external_id: str) -> int:
     items = client.get("/api/samples", params={"page_size": 200}).json()["items"]
     return next(s["id"] for s in items if s["external_id"] == external_id)
@@ -36,7 +43,7 @@ def _place(client, sample_id, run_date, slot_index, cell_choice, run_time_hours=
     payload = {
         "sample_id": sample_id,
         "instrument_serial": instrument,
-        "run_date": run_date,
+        "load_date": run_date,
         "slot_index": slot_index,
         "cell_choice": cell_choice,
         "run_time_hours": run_time_hours,
@@ -53,8 +60,8 @@ def test_mark_cell_use_failed_keeps_cell_open_and_sample_can_be_requeued(client)
 
     r1 = _place(client, _sid(client, "F1"), past, 0, {"mode": "new"})
     assert r1.status_code == 201, r1.text
-    stage = r1.json()["stages"][0]
-    assert client.patch(f"/api/cycles/{r1.json()['cycle_id']}", json={"status": "running"}).status_code == 200
+    stage = _stages(r1.json())[0]
+    assert client.patch(f"/api/cycles/{r1.json()['run_id']}", json={"status": "running"}).status_code == 200
 
     resp = client.patch(f"/api/cell-uses/{stage['cell_use_id']}", json={"status": "failed", "notes": "no data produced"})
     assert resp.status_code == 200, resp.text
@@ -82,8 +89,8 @@ def test_stop_cell_cascades_planned_future_use_back_to_backlog_and_excludes_from
 
     r1 = _place(client, _sid(client, "G1"), mon, 0, {"mode": "new"})
     assert r1.status_code == 201, r1.text
-    cell_id = r1.json()["stages"][0]["cell_id"]
-    cycle1_id = r1.json()["cycle_id"]
+    cell_id = _stages(r1.json())[0]["cell_id"]
+    cycle1_id = r1.json()["run_id"]
 
     # confirm Monday's run loaded and complete it - Use 1 becomes real, untouchable history
     assert client.patch(f"/api/cycles/{cycle1_id}", json={"status": "running"}).status_code == 200
@@ -93,8 +100,8 @@ def test_stop_cell_cascades_planned_future_use_back_to_backlog_and_excludes_from
     # still-planned Use 2 on Wednesday
     r2 = _place(client, _sid(client, "G2"), wed, 0, {"mode": "existing", "cell_id": cell_id})
     assert r2.status_code == 201, r2.text
-    cycle2_id = r2.json()["cycle_id"]
-    g2_use_id = r2.json()["stages"][0]["cell_use_id"]
+    cycle2_id = r2.json()["run_id"]
+    g2_use_id = _stages(r2.json())[0]["cell_use_id"]
     g2_id = _sid(client, "G2")
 
     stop = client.post(f"/api/cells/{cell_id}/stop", json={"reason": "visible crack on tray"})
@@ -113,7 +120,7 @@ def test_stop_cell_cascades_planned_future_use_back_to_backlog_and_excludes_from
     # Wednesday's cycle/stage stay visible as a cancelled, blocked record - not deleted -
     # so the grid never silently loses a placement without a trace
     wed_cycle = client.get(f"/api/cycles/{cycle2_id}").json()
-    wed_stage = next(s for s in wed_cycle["stages"] if s["cell_use_id"] == g2_use_id)
+    wed_stage = next(s for s in _stages(wed_cycle) if s["cell_use_id"] == g2_use_id)
     assert wed_stage["cell_use_status"] == "cancelled"
     assert wed_stage["cell_status"] == "stopped"
     assert wed_stage["sample_external_id"] == "G2"
@@ -126,7 +133,7 @@ def test_stop_cell_cascades_planned_future_use_back_to_backlog_and_excludes_from
     # Monday's completed Use 1 is untouched history
     mon_cycle = client.get(f"/api/cycles/{cycle1_id}").json()
     assert mon_cycle["status"] == "completed"
-    assert mon_cycle["stages"][0]["sample_external_id"] == "G1"
+    assert _stages(mon_cycle)[0]["sample_external_id"] == "G1"
 
     # excluded from all future reuse: an explicit re-placement onto the stopped cell is rejected
     reuse_attempt = _place(client, _sid(client, "G3"), wed, 1, {"mode": "existing", "cell_id": cell_id})
@@ -147,17 +154,17 @@ def test_stop_cell_from_a_specific_use_does_not_touch_an_earlier_still_started_u
 
     r1 = _place(client, _sid(client, "R1"), mon, 0, {"mode": "new"})
     assert r1.status_code == 201, r1.text
-    cell_id = r1.json()["stages"][0]["cell_id"]
-    use1_id = r1.json()["stages"][0]["cell_use_id"]
+    cell_id = _stages(r1.json())[0]["cell_id"]
+    use1_id = _stages(r1.json())[0]["cell_use_id"]
     r1_id = _sid(client, "R1")
     # Confirm Use 1 loaded (started) - deliberately never marked "completed"
-    assert client.patch(f"/api/cycles/{r1.json()['cycle_id']}", json={"status": "running"}).status_code == 200
+    assert client.patch(f"/api/cycles/{r1.json()['run_id']}", json={"status": "running"}).status_code == 200
 
     r2 = _place(client, _sid(client, "R2"), wed, 0, {"mode": "existing", "cell_id": cell_id})
     assert r2.status_code == 201, r2.text
-    use2_id = r2.json()["stages"][0]["cell_use_id"]
+    use2_id = _stages(r2.json())[0]["cell_use_id"]
     r2_id = _sid(client, "R2")
-    assert client.patch(f"/api/cycles/{r2.json()['cycle_id']}", json={"status": "running"}).status_code == 200
+    assert client.patch(f"/api/cycles/{r2.json()['run_id']}", json={"status": "running"}).status_code == 200
 
     stop = client.post(f"/api/cells/{cell_id}/stop", json={"reason": "cell died on Use 2", "cell_use_id": use2_id})
     assert stop.status_code == 200, stop.text
@@ -190,25 +197,25 @@ def test_stage_flags_cell_has_failed_use_so_an_untouched_earlier_use_is_not_repa
 
     r1 = _place(client, _sid(client, "S1"), mon, 0, {"mode": "new"})
     assert r1.status_code == 201, r1.text
-    cell_id = r1.json()["stages"][0]["cell_id"]
-    cycle1_id = r1.json()["cycle_id"]
+    cell_id = _stages(r1.json())[0]["cell_id"]
+    cycle1_id = r1.json()["run_id"]
     assert client.patch(f"/api/cycles/{cycle1_id}", json={"status": "running"}).status_code == 200
 
     r2 = _place(client, _sid(client, "S2"), wed, 0, {"mode": "existing", "cell_id": cell_id})
     assert r2.status_code == 201, r2.text
-    use2_id = r2.json()["stages"][0]["cell_use_id"]
-    cycle2_id = r2.json()["cycle_id"]
+    use2_id = _stages(r2.json())[0]["cell_use_id"]
+    cycle2_id = r2.json()["run_id"]
     assert client.patch(f"/api/cycles/{cycle2_id}", json={"status": "running"}).status_code == 200
 
     stop = client.post(f"/api/cells/{cell_id}/stop", json={"reason": "cell died on Use 2", "cell_use_id": use2_id})
     assert stop.status_code == 200, stop.text
 
-    mon_stage = client.get(f"/api/cycles/{cycle1_id}").json()["stages"][0]
+    mon_stage = _stages(client.get(f"/api/cycles/{cycle1_id}").json())[0]
     assert mon_stage["cell_use_status"] == "started"
     assert mon_stage["cell_status"] == "stopped"
     assert mon_stage["cell_has_failed_use"] is True
 
-    wed_stage = client.get(f"/api/cycles/{cycle2_id}").json()["stages"][0]
+    wed_stage = _stages(client.get(f"/api/cycles/{cycle2_id}").json())[0]
     assert wed_stage["cell_use_status"] == "failed"
     assert wed_stage["cell_has_failed_use"] is True
 
@@ -219,17 +226,17 @@ def test_stop_cell_cancels_only_later_planned_uses_and_flags_them_aborted_priori
 
     r1 = _place(client, _sid(client, "R3"), mon, 0, {"mode": "new"})
     assert r1.status_code == 201, r1.text
-    cell_id = r1.json()["stages"][0]["cell_id"]
-    assert client.patch(f"/api/cycles/{r1.json()['cycle_id']}", json={"status": "running"}).status_code == 200
+    cell_id = _stages(r1.json())[0]["cell_id"]
+    assert client.patch(f"/api/cycles/{r1.json()['run_id']}", json={"status": "running"}).status_code == 200
 
     r2 = _place(client, _sid(client, "R4"), wed, 0, {"mode": "existing", "cell_id": cell_id})
     assert r2.status_code == 201, r2.text
-    use2_id = r2.json()["stages"][0]["cell_use_id"]
-    assert client.patch(f"/api/cycles/{r2.json()['cycle_id']}", json={"status": "running"}).status_code == 200
+    use2_id = _stages(r2.json())[0]["cell_use_id"]
+    assert client.patch(f"/api/cycles/{r2.json()['run_id']}", json={"status": "running"}).status_code == 200
 
     r3 = _place(client, _sid(client, "R5"), thu, 0, {"mode": "existing", "cell_id": cell_id})
     assert r3.status_code == 201, r3.text
-    use3_id = r3.json()["stages"][0]["cell_use_id"]
+    use3_id = _stages(r3.json())[0]["cell_use_id"]
     r5_id = _sid(client, "R5")
     # Use 3 stays "planned" - never confirmed loaded
 
@@ -250,14 +257,14 @@ def test_undo_stop_cell_restores_both_failed_origin_and_cancelled_later_use(clie
 
     r1 = _place(client, _sid(client, "R6"), mon, 0, {"mode": "new"})
     assert r1.status_code == 201, r1.text
-    cell_id = r1.json()["stages"][0]["cell_id"]
-    use1_id = r1.json()["stages"][0]["cell_use_id"]
+    cell_id = _stages(r1.json())[0]["cell_id"]
+    use1_id = _stages(r1.json())[0]["cell_use_id"]
     r6_id = _sid(client, "R6")
-    assert client.patch(f"/api/cycles/{r1.json()['cycle_id']}", json={"status": "running"}).status_code == 200
+    assert client.patch(f"/api/cycles/{r1.json()['run_id']}", json={"status": "running"}).status_code == 200
 
     r2 = _place(client, _sid(client, "R7"), wed, 0, {"mode": "existing", "cell_id": cell_id})
     assert r2.status_code == 201, r2.text
-    use2_id = r2.json()["stages"][0]["cell_use_id"]
+    use2_id = _stages(r2.json())[0]["cell_use_id"]
     r7_id = _sid(client, "R7")
     # Use 2 stays "planned"
 
@@ -294,9 +301,9 @@ def test_stop_cell_rejects_cell_use_id_that_is_already_terminal(client):
 
     r1 = _place(client, _sid(client, "R8"), mon, 0, {"mode": "new"})
     assert r1.status_code == 201, r1.text
-    cell_id = r1.json()["stages"][0]["cell_id"]
-    use1_id = r1.json()["stages"][0]["cell_use_id"]
-    cycle_id = r1.json()["cycle_id"]
+    cell_id = _stages(r1.json())[0]["cell_id"]
+    use1_id = _stages(r1.json())[0]["cell_use_id"]
+    cycle_id = r1.json()["run_id"]
     assert client.patch(f"/api/cycles/{cycle_id}", json={"status": "running"}).status_code == 200
     assert client.patch(f"/api/cycles/{cycle_id}", json={"status": "completed"}).status_code == 200
 
@@ -311,8 +318,8 @@ def test_stop_cell_rejects_cell_use_id_before_its_run_is_locked_in(client):
 
     r1 = _place(client, _sid(client, "R9"), mon, 0, {"mode": "new"})
     assert r1.status_code == 201, r1.text
-    cell_id = r1.json()["stages"][0]["cell_id"]
-    use1_id = r1.json()["stages"][0]["cell_use_id"]
+    cell_id = _stages(r1.json())[0]["cell_id"]
+    use1_id = _stages(r1.json())[0]["cell_use_id"]
     # Never confirmed loaded - cycle stays "planned"
 
     stop = client.post(f"/api/cells/{cell_id}/stop", json={"reason": "too early", "cell_use_id": use1_id})
@@ -328,8 +335,8 @@ def test_stop_cell_rejects_cell_use_id_from_a_different_cell(client):
     assert ra.status_code == 201, ra.text
     rb = _place(client, _sid(client, "RB"), tue, 4, {"mode": "new"})
     assert rb.status_code == 201, rb.text
-    cell_a_id = ra.json()["stages"][0]["cell_id"]
-    use_b_id = rb.json()["stages"][0]["cell_use_id"]
+    cell_a_id = _stages(ra.json())[0]["cell_id"]
+    use_b_id = _stages(rb.json())[0]["cell_use_id"]
 
     stop = client.post(f"/api/cells/{cell_a_id}/stop", json={"reason": "wrong id", "cell_use_id": use_b_id})
     assert stop.status_code == 409, stop.text
@@ -358,8 +365,8 @@ def test_stopped_cell_status_is_sticky_against_later_cell_use_updates(client):
     (mon,) = _weekdays(1)
     r1 = _place(client, _sid(client, "H1"), mon, 0, {"mode": "new"})
     assert r1.status_code == 201, r1.text
-    stage = r1.json()["stages"][0]
-    cycle_id = r1.json()["cycle_id"]
+    stage = _stages(r1.json())[0]
+    cycle_id = r1.json()["run_id"]
 
     client.patch(f"/api/cycles/{cycle_id}", json={"status": "running"})
     client.patch(f"/api/cycles/{cycle_id}", json={"status": "completed"})
@@ -446,13 +453,13 @@ def test_mark_failed_available_once_run_confirmed_loaded_regardless_of_scheduled
 
     r_past = _place(client, _sid(client, "P1"), past, 0, {"mode": "new"}, instrument="84093")
     assert r_past.status_code == 201, r_past.text
-    past_stage = r_past.json()["stages"][0]
-    past_cycle_id = r_past.json()["cycle_id"]
+    past_stage = _stages(r_past.json())[0]
+    past_cycle_id = r_past.json()["run_id"]
 
     r_future = _place(client, _sid(client, "P2"), future, 0, {"mode": "new"}, instrument="84309")
     assert r_future.status_code == 201, r_future.text
-    future_stage = r_future.json()["stages"][0]
-    future_cycle_id = r_future.json()["cycle_id"]
+    future_stage = _stages(r_future.json())[0]
+    future_cycle_id = r_future.json()["run_id"]
 
     def _run_started(cell_id: int, use_id: int) -> bool:
         detail = client.get(f"/api/cells/{cell_id}").json()
@@ -495,7 +502,7 @@ def test_mark_failed_and_aborted_rejected_before_run_has_started(client):
 
     r1 = _place(client, _sid(client, "P3"), future, 0, {"mode": "new"}, instrument="84093")
     assert r1.status_code == 201, r1.text
-    use_id = r1.json()["stages"][0]["cell_use_id"]
+    use_id = _stages(r1.json())[0]["cell_use_id"]
 
     fail = client.patch(f"/api/cell-uses/{use_id}", json={"status": "failed", "notes": "too early"})
     assert fail.status_code == 409, fail.text
@@ -519,16 +526,16 @@ def test_stage_surfaces_qc_status_for_failed_use_and_stopped_cell(client):
 
     r1 = _place(client, _sid(client, "Q1"), past, 0, {"mode": "new"})
     assert r1.status_code == 201, r1.text
-    cycle1_id = r1.json()["cycle_id"]
-    cell_use_id = r1.json()["stages"][0]["cell_use_id"]
-    cell_id = r1.json()["stages"][0]["cell_id"]
+    cycle1_id = r1.json()["run_id"]
+    cell_use_id = _stages(r1.json())[0]["cell_use_id"]
+    cell_id = _stages(r1.json())[0]["cell_id"]
     assert client.patch(f"/api/cycles/{cycle1_id}", json={"status": "running"}).status_code == 200
 
     # Mark this use Failed - only this stage's cell_use_status flips, the cell stays open
     fail = client.patch(f"/api/cell-uses/{cell_use_id}", json={"status": "failed"})
     assert fail.status_code == 200, fail.text
 
-    stage = client.get(f"/api/cycles/{cycle1_id}").json()["stages"][0]
+    stage = _stages(client.get(f"/api/cycles/{cycle1_id}").json())[0]
     assert stage["cell_use_status"] == "failed"
     assert stage["cell_status"] == "open"
 
@@ -544,7 +551,7 @@ def test_stage_surfaces_qc_status_for_failed_use_and_stopped_cell(client):
     # cell's own status now correctly reads "stopped" too, since the physical cell itself is
     # out of service. The frontend grid relies on exactly this distinction to keep showing
     # "Failed" here rather than repainting it "Stopped" (see SchedulerSlotView's qcAlert).
-    stage_after_stop = client.get(f"/api/cycles/{cycle1_id}").json()["stages"][0]
+    stage_after_stop = _stages(client.get(f"/api/cycles/{cycle1_id}").json())[0]
     assert stage_after_stop["cell_use_status"] == "failed"
     assert stage_after_stop["cell_status"] == "stopped"
 
@@ -559,8 +566,8 @@ def test_mark_cell_use_aborted_returns_sample_straight_to_backlog(client):
 
     r1 = _place(client, _sid(client, "A1"), past, 0, {"mode": "new"})
     assert r1.status_code == 201, r1.text
-    stage = r1.json()["stages"][0]
-    cycle_id = r1.json()["cycle_id"]
+    stage = _stages(r1.json())[0]
+    cycle_id = r1.json()["run_id"]
     assert client.patch(f"/api/cycles/{cycle_id}", json={"status": "running"}).status_code == 200
 
     resp = client.patch(
@@ -578,7 +585,7 @@ def test_mark_cell_use_aborted_returns_sample_straight_to_backlog(client):
     assert cell["has_failed_use"] is False  # aborted is not a cell-quality failure
     assert cell["needs_qc_report"] is False  # so it never drives the PacBio credit workflow
 
-    stage_after = client.get(f"/api/cycles/{cycle_id}").json()["stages"][0]
+    stage_after = _stages(client.get(f"/api/cycles/{cycle_id}").json())[0]
     assert stage_after["cell_use_status"] == "aborted"
 
     # The backlog-returned sample can be rescheduled immediately - no extra step needed.
@@ -596,10 +603,10 @@ def test_undo_mark_failed_restores_use_and_sample(client):
 
     r1 = _place(client, _sid(client, "U1"), past, 0, {"mode": "new"}, instrument="84093")
     assert r1.status_code == 201, r1.text
-    stage = r1.json()["stages"][0]
+    stage = _stages(r1.json())[0]
     u1_id = _sid(client, "U1")
     assert _sample(client, u1_id)["status"] == "scheduled"
-    assert client.patch(f"/api/cycles/{r1.json()['cycle_id']}", json={"status": "running"}).status_code == 200
+    assert client.patch(f"/api/cycles/{r1.json()['run_id']}", json={"status": "running"}).status_code == 200
 
     fail = client.patch(f"/api/cell-uses/{stage['cell_use_id']}", json={"status": "failed", "notes": "no data"})
     assert fail.status_code == 200, fail.text
@@ -624,9 +631,9 @@ def test_undo_mark_aborted_restores_use_and_sample(client):
 
     r1 = _place(client, _sid(client, "U2"), past, 0, {"mode": "new"}, instrument="84093")
     assert r1.status_code == 201, r1.text
-    stage = r1.json()["stages"][0]
+    stage = _stages(r1.json())[0]
     u2_id = _sid(client, "U2")
-    assert client.patch(f"/api/cycles/{r1.json()['cycle_id']}", json={"status": "running"}).status_code == 200
+    assert client.patch(f"/api/cycles/{r1.json()['run_id']}", json={"status": "running"}).status_code == 200
 
     abort = client.patch(f"/api/cell-uses/{stage['cell_use_id']}", json={"status": "aborted"})
     assert abort.status_code == 200, abort.text
@@ -644,7 +651,7 @@ def test_undo_rejected_for_a_use_that_was_never_flagged(client):
 
     r1 = _place(client, _sid(client, "U3"), mon, 0, {"mode": "new"})
     assert r1.status_code == 201, r1.text
-    use_id = r1.json()["stages"][0]["cell_use_id"]
+    use_id = _stages(r1.json())[0]["cell_use_id"]
 
     undo = client.post(f"/api/cell-uses/{use_id}/undo")
     assert undo.status_code == 409, undo.text
@@ -662,9 +669,9 @@ def test_undo_mark_failed_blocked_once_sample_has_moved_on(client):
 
     r1 = _place(client, _sid(client, "U4"), past, 0, {"mode": "new"}, instrument="84093")
     assert r1.status_code == 201, r1.text
-    old_use_id = r1.json()["stages"][0]["cell_use_id"]
+    old_use_id = _stages(r1.json())[0]["cell_use_id"]
     u4_id = _sid(client, "U4")
-    assert client.patch(f"/api/cycles/{r1.json()['cycle_id']}", json={"status": "running"}).status_code == 200
+    assert client.patch(f"/api/cycles/{r1.json()['run_id']}", json={"status": "running"}).status_code == 200
 
     assert client.patch(f"/api/cell-uses/{old_use_id}", json={"status": "failed"}).status_code == 200
     assert client.post(f"/api/samples/{u4_id}/requeue").status_code == 200
@@ -688,15 +695,15 @@ def test_undo_stop_cell_reopens_cell_and_restores_planned_use(client):
 
     r1 = _place(client, _sid(client, "U5"), mon, 0, {"mode": "new"})
     assert r1.status_code == 201, r1.text
-    cell_id = r1.json()["stages"][0]["cell_id"]
-    cycle1_id = r1.json()["cycle_id"]
+    cell_id = _stages(r1.json())[0]["cell_id"]
+    cycle1_id = r1.json()["run_id"]
 
     assert client.patch(f"/api/cycles/{cycle1_id}", json={"status": "running"}).status_code == 200
     assert client.patch(f"/api/cycles/{cycle1_id}", json={"status": "completed"}).status_code == 200
 
     r2 = _place(client, _sid(client, "U6"), wed, 0, {"mode": "existing", "cell_id": cell_id})
     assert r2.status_code == 201, r2.text
-    u6_use_id = r2.json()["stages"][0]["cell_use_id"]
+    u6_use_id = _stages(r2.json())[0]["cell_use_id"]
     u6_id = _sid(client, "U6")
 
     stop = client.post(f"/api/cells/{cell_id}/stop", json={"reason": "wrong cell selected"})
@@ -737,8 +744,8 @@ def test_undo_stop_cell_leaves_drifted_use_cancelled_but_restores_the_rest(clien
 
     r1 = _place(client, _sid(client, "U7"), mon, 0, {"mode": "new"})
     assert r1.status_code == 201, r1.text
-    cell_id = r1.json()["stages"][0]["cell_id"]
-    cycle1_id = r1.json()["cycle_id"]
+    cell_id = _stages(r1.json())[0]["cell_id"]
+    cycle1_id = r1.json()["run_id"]
 
     # confirm+complete U7's run so its own use is real history, not itself a "planned" use
     # that Stop cell would also cancel - isolates the drift scenario to U8 vs U9 below.
@@ -747,12 +754,12 @@ def test_undo_stop_cell_leaves_drifted_use_cancelled_but_restores_the_rest(clien
 
     r2 = _place(client, _sid(client, "U8"), tue, 0, {"mode": "existing", "cell_id": cell_id})
     assert r2.status_code == 201, r2.text
-    u8_use_id = r2.json()["stages"][0]["cell_use_id"]
+    u8_use_id = _stages(r2.json())[0]["cell_use_id"]
     u8_id = _sid(client, "U8")
 
     r3 = _place(client, _sid(client, "U9"), wed, 0, {"mode": "existing", "cell_id": cell_id})
     assert r3.status_code == 201, r3.text
-    u9_use_id = r3.json()["stages"][0]["cell_use_id"]
+    u9_use_id = _stages(r3.json())[0]["cell_use_id"]
     u9_id = _sid(client, "U9")
 
     stop = client.post(f"/api/cells/{cell_id}/stop", json={"reason": "damaged"})
@@ -792,9 +799,9 @@ def test_bulk_clear_style_removal_skips_cancelled_marker_and_removes_the_rest(cl
     (mon,) = _weekdays(1)
 
     r1 = _place(client, _sid(client, "D1"), mon, 0, {"mode": "new"})
-    cell_id = r1.json()["stages"][0]["cell_id"]
-    cycle_id = r1.json()["cycle_id"]
-    tray_id = r1.json()["stages"][0]["tray_id"]
+    cell_id = _stages(r1.json())[0]["cell_id"]
+    cycle_id = r1.json()["run_id"]
+    tray_id = _stages(r1.json())[0]["tray_id"]
     # D1's placement already opened the whole physical tray (eager tray-of-4 population) -
     # its 3 unused siblings occupy wells B01/C01/D01, so D2-D4 must reuse them via
     # "existing" (see open_new_tray()'s box guard) rather than each opening a competing
@@ -811,7 +818,7 @@ def test_bulk_clear_style_removal_skips_cancelled_marker_and_removes_the_rest(cl
     # stages[0] is always D1's own use (well A01) in every one of r1..r4's payload. Read the
     # final response (r4, which by now includes all 4 stages) and key off slot_index (which
     # each _place call above pinned explicitly to 0/1/2/3) instead.
-    final_stages = {s["slot_index"]: s["cell_use_id"] for s in r4.json()["stages"]}
+    final_stages = {s["slot_index"]: s["cell_use_id"] for s in _stages(r4.json())}
     all_use_ids = [final_stages[i] for i in range(4)]
 
     stop = client.post(f"/api/cells/{cell_id}/stop", json={"reason": "damaged"})
@@ -824,8 +831,8 @@ def test_bulk_clear_style_removal_skips_cancelled_marker_and_removes_the_rest(cl
     assert statuses.count(409) == 1
 
     cycle = client.get(f"/api/cycles/{cycle_id}").json()
-    assert len(cycle["stages"]) == 1
-    assert cycle["stages"][0]["cell_use_status"] == "cancelled"
+    assert len(_stages(cycle)) == 1
+    assert _stages(cycle)[0]["cell_use_status"] == "cancelled"
 
     backlog_ids = {
         s["id"] for s in client.get("/api/samples", params={"status": "backlog", "page_size": 50}).json()["items"]

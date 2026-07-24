@@ -1,64 +1,80 @@
-import type { CycleOut, StageOut } from "@/types/schedule";
+import type { RunOut, StageOut } from "@/types/schedule";
 import { parseDateOnly } from "@/utils/calendarDates";
 
 import { SLOT_INDICES } from "./gridKeys";
 
-/** Longest possible lock span is 30h movie + 6h buffer = 36h, so a run can still be
- * locking its instrument up to two calendar days later - widen the cycles fetch window
- * by this many days (see SchedulePage) so carry-over locks are visible even when their
- * origin run's day isn't itself in the visible window. */
+/** Longest possible lock span is 30h movie + 6h buffer per plate, and a reuse run's Plate 2
+ * acquires a day after loading - so a run can still be occupying its instrument up to two
+ * calendar days after its load_date. Widen the runs fetch window by this many days (see
+ * SchedulePage) so continuation markers are visible even when their origin run's load day
+ * isn't itself in the visible window. */
 export const LOCK_LOOKBACK_DAYS = 2;
 
-/**
- * Groups cycles by (instrument_serial, run_date) for grid-cell placement. Analogous to
- * the old calendar's groupCyclesByInstrumentAndDay, but keyed by the absolute run_date
- * string instead of a relative day_idx, and holding a single CycleOut per cell (the new
- * model has exactly one cycle per instrument+day). Any (instrument, date) pair with no
- * entry is a fully-empty grid cell.
- */
-export function groupCyclesByInstrumentAndDay(cycles: CycleOut[]): Map<string, Map<string, CycleOut>> {
-  const byInstrument = new Map<string, Map<string, CycleOut>>();
+/** Every filled-well stage of a run, flattened across its 1-2 plates. The run's plates hold
+ * only their own filled wells; the grid renders from a length-8 pad (see padStages). */
+export function allStages(run: RunOut): StageOut[] {
+  return run.plates.flatMap((p) => p.stages);
+}
 
-  for (const cycle of cycles) {
-    let byDate = byInstrument.get(cycle.instrument_serial);
+/**
+ * Groups runs by (instrument_serial, load_date) for grid-cell placement. Exactly one run per
+ * (instrument, load day) - the run is the load session that day. Any (instrument, date) pair
+ * with no entry is a fully-empty grid cell.
+ */
+export function groupCyclesByInstrumentAndDay(runs: RunOut[]): Map<string, Map<string, RunOut>> {
+  const byInstrument = new Map<string, Map<string, RunOut>>();
+
+  for (const run of runs) {
+    let byDate = byInstrument.get(run.instrument_serial);
     if (!byDate) {
       byDate = new Map();
-      byInstrument.set(cycle.instrument_serial, byDate);
+      byInstrument.set(run.instrument_serial, byDate);
     }
-    byDate.set(cycle.run_date, cycle);
+    byDate.set(run.load_date, run);
   }
 
   return byInstrument;
 }
 
 /**
- * Whether a grid cell is open for selection/placement: no cycle exists yet, or one exists
- * but has no *active* stages, AND no carry-over lock from an earlier run on this same
- * instrument is still occupying the day (see findCarryOverLock below) - a day with no
- * cycle of its own can still be physically closed if the instrument is still loaded from
- * a run that started one or two days earlier. A stage-less cycle can happen when every
- * stage of a run gets removed (normally the backend deletes the now-empty cycle too, but a
- * concurrent bulk removal - "Remove from schedule" multi-select or "Clear schedule" - can
- * race and leave a stage-less cycle behind). A cancelled-only cycle happens when a cell
- * was Stopped before its planned use ran: that stage is kept forever as a permanent marker
- * (the backend refuses to remove it), occupying one well while the rest of the run stays
- * genuinely empty. Neither case should leave the whole grid cell permanently stuck as
- * unselectable.
+ * A day column with no run of its own that an *earlier* run on the same instrument is still
+ * occupying: either one of that run's plates acquires exactly on this day (a reuse Plate 2 the
+ * instrument runs itself the day after loading) OR its lock still spans this day (a long movie
+ * bleeding past). Rendered as a lightweight, non-interactive continuation marker (see
+ * SchedulerDayCell). `acquiresToday` distinguishes the "Plate 2 acquiring here" case (no action
+ * needed - the instrument runs it) from a bare lock carry-over.
  */
-export function isCellOpen(cycle: CycleOut | undefined, carryOverLock: CycleOut | undefined): boolean {
-  if (carryOverLock !== undefined) return false;
-  return cycle === undefined || cycle.stages.every((s) => s.cell_use_status === "cancelled");
+export interface Continuation {
+  run: RunOut;
+  /** A plate of the earlier run acquires exactly on this day (reuse Plate 2), vs only a
+   * lock-until carry-over. */
+  acquiresToday: boolean;
 }
 
 /**
- * Expands a cycle's sparse `stages` (only filled wells) into a fixed length-8 array
- * indexed by slot_index, with `null` for empty slots - the shape the two-tray grid cell
- * renders from.
+ * Whether a grid cell is open for selection/placement: no run exists yet, or one exists but
+ * has no *active* stages, AND no continuation from an earlier run still occupies the day (see
+ * findContinuation). A day with no run of its own can still be physically closed if the
+ * instrument is running an earlier run's later plate, or is still locked. A stage-less run can
+ * happen when every stage gets removed (normally the backend deletes the now-empty run too,
+ * but a concurrent bulk removal can race and leave one behind). A cancelled-only run happens
+ * when a cell was Stopped before its planned use ran: that stage is kept forever as a
+ * permanent marker, occupying one well while the rest stays genuinely empty.
  */
-export function padStages(cycle: CycleOut | undefined): (StageOut | null)[] {
+export function isCellOpen(run: RunOut | undefined, continuation: Continuation | undefined): boolean {
+  if (continuation !== undefined) return false;
+  return run === undefined || allStages(run).every((s) => s.cell_use_status === "cancelled");
+}
+
+/**
+ * Expands a run's sparse plate stages (only filled wells, across both plates) into a fixed
+ * length-8 array indexed by slot_index (Plate 1 -> 0-3, Plate 2 -> 4-7), with `null` for empty
+ * slots - the shape the two-plate grid cell renders from.
+ */
+export function padStages(run: RunOut | undefined): (StageOut | null)[] {
   const slots: (StageOut | null)[] = SLOT_INDICES.map(() => null);
-  if (cycle) {
-    for (const stage of cycle.stages) {
+  if (run) {
+    for (const stage of allStages(run)) {
       if (SLOT_INDICES.includes(stage.slot_index)) slots[stage.slot_index] = stage;
     }
   }
@@ -66,21 +82,28 @@ export function padStages(cycle: CycleOut | undefined): (StageOut | null)[] {
 }
 
 /**
- * For a day with no run of its own, finds the most recent earlier run on this instrument
- * whose lock (movie_hours + LOCK_BUFFER_HOURS from its start) hasn't elapsed by the start
- * of `day` - i.e. it's still "carrying over" a lock onto this otherwise-empty day. Returns
- * the latest-locking candidate if more than one qualifies. `cyclesByDate` must include
- * cycles from before the visible window (see LOCK_LOOKBACK_DAYS) for this to see runs
- * that started outside it.
+ * For a day with no run of its own, finds the earlier run on this instrument that still
+ * occupies it - either one of its plates acquires exactly on `day` (a reuse Plate 2), or its
+ * lock hasn't elapsed by the start of `day`. Prefers an acquiring run (the more informative
+ * "the instrument is running Plate 2 here" case) over a bare lock carry-over, and the
+ * latest-locking candidate when several qualify equally. `runsByDate` must include runs from
+ * before the visible window (see LOCK_LOOKBACK_DAYS) so it sees runs loaded outside it.
  */
-export function findCarryOverLock(cyclesByDate: Map<string, CycleOut>, day: string): CycleOut | undefined {
+export function findContinuation(runsByDate: Map<string, RunOut>, day: string): Continuation | undefined {
   const dayStart = parseDateOnly(day).getTime();
-  let latest: CycleOut | undefined;
-  for (const cycle of cyclesByDate.values()) {
-    if (cycle.run_date >= day) continue; // only an earlier run can carry over
-    const lockUntil = new Date(cycle.lock_until).getTime();
-    if (lockUntil <= dayStart) continue; // its lock already elapsed before this day starts
-    if (!latest || lockUntil > new Date(latest.lock_until).getTime()) latest = cycle;
+  let best: { run: RunOut; acquiresToday: boolean; lockUntil: number } | undefined;
+  for (const run of runsByDate.values()) {
+    if (run.load_date >= day) continue; // only an earlier run can carry over
+    const acquiresToday = run.plates.some((p) => p.acquire_date === day);
+    const lockUntil = new Date(run.lock_until).getTime();
+    if (!acquiresToday && lockUntil <= dayStart) continue; // neither acquiring nor still locking here
+    if (!best) {
+      best = { run, acquiresToday, lockUntil };
+    } else if (acquiresToday && !best.acquiresToday) {
+      best = { run, acquiresToday, lockUntil }; // an acquiring continuation beats a bare lock
+    } else if (acquiresToday === best.acquiresToday && lockUntil > best.lockUntil) {
+      best = { run, acquiresToday, lockUntil };
+    }
   }
-  return latest;
+  return best ? { run: best.run, acquiresToday: best.acquiresToday } : undefined;
 }

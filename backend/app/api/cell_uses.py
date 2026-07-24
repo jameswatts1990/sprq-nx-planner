@@ -8,8 +8,8 @@ from sqlalchemy.orm import selectinload
 
 from app.api.deps import ActorDep, SessionDep
 from app.models.audit import AuditLog
-from app.models.schedule import CELL_USE_STATUSES, CellUse, Cycle
-from app.schemas.run import CycleOut, MoveSampleRequest, PlaceSampleRequest
+from app.models.schedule import CELL_USE_STATUSES, CellUse, RunBatch
+from app.schemas.run import MoveSampleRequest, PlaceSampleRequest, RunOut
 from app.services.placement_service import (
     PlacementError,
     move_sample,
@@ -19,7 +19,7 @@ from app.services.placement_service import (
     swap_samples,
     update_cell_use_run_time,
 )
-from app.services.run_serializer import CYCLE_LOAD_OPTIONS, cycle_out
+from app.services.run_serializer import RUN_LOAD_OPTIONS, run_out
 from app.services.run_service import undo_cell_use_status, update_cell_use_status
 
 router = APIRouter(prefix="/api/cell-uses", tags=["cell-uses"])
@@ -66,14 +66,14 @@ def _cell_use_dict(cu: CellUse) -> dict:
     }
 
 
-@router.post("", response_model=CycleOut, status_code=201)
-def create_cell_use(req: PlaceSampleRequest, db: SessionDep, actor: ActorDep) -> CycleOut:
+@router.post("", response_model=RunOut, status_code=201)
+def create_cell_use(req: PlaceSampleRequest, db: SessionDep, actor: ActorDep) -> RunOut:
     try:
-        cycle = place_sample(
+        run_batch = place_sample(
             db,
             sample_id=req.sample_id,
             instrument_serial=req.instrument_serial,
-            run_date=req.run_date,
+            load_date=req.load_date,
             slot_index=req.slot_index,
             cell_choice=req.cell_choice.model_dump(),
             run_time_hours=req.run_time_hours,
@@ -83,18 +83,18 @@ def create_cell_use(req: PlaceSampleRequest, db: SessionDep, actor: ActorDep) ->
         )
     except PlacementError as exc:
         raise HTTPException(exc.status_code, exc.detail) from exc
-    cycle = db.get(Cycle, cycle.id, options=CYCLE_LOAD_OPTIONS)
-    return cycle_out(db, cycle)
+    run_batch = db.get(RunBatch, run_batch.id, options=RUN_LOAD_OPTIONS)
+    return run_out(db, run_batch)
 
 
-@router.post("/{cell_use_id}/move", response_model=CycleOut)
-def move_cell_use(cell_use_id: int, req: MoveSampleRequest, db: SessionDep, actor: ActorDep) -> CycleOut:
+@router.post("/{cell_use_id}/move", response_model=RunOut)
+def move_cell_use(cell_use_id: int, req: MoveSampleRequest, db: SessionDep, actor: ActorDep) -> RunOut:
     try:
-        cycle = move_sample(
+        run_batch = move_sample(
             db,
             cell_use_id=cell_use_id,
             instrument_serial=req.instrument_serial,
-            run_date=req.run_date,
+            load_date=req.load_date,
             slot_index=req.slot_index,
             run_time_hours=req.run_time_hours,
             start_hour=req.start_hour,
@@ -104,18 +104,18 @@ def move_cell_use(cell_use_id: int, req: MoveSampleRequest, db: SessionDep, acto
         )
     except PlacementError as exc:
         raise HTTPException(exc.status_code, exc.detail) from exc
-    cycle = db.get(Cycle, cycle.id, options=CYCLE_LOAD_OPTIONS)
-    return cycle_out(db, cycle)
+    run_batch = db.get(RunBatch, run_batch.id, options=RUN_LOAD_OPTIONS)
+    return run_out(db, run_batch)
 
 
-@router.post("/{cell_use_id}/swap", response_model=list[CycleOut])
-def swap_cell_use(cell_use_id: int, req: SwapCellUsesRequest, db: SessionDep, actor: ActorDep) -> list[CycleOut]:
+@router.post("/{cell_use_id}/swap", response_model=list[RunOut])
+def swap_cell_use(cell_use_id: int, req: SwapCellUsesRequest, db: SessionDep, actor: ActorDep) -> list[RunOut]:
     try:
-        cycles = swap_samples(db, cell_use_id_a=cell_use_id, cell_use_id_b=req.other_cell_use_id, actor=actor)
+        runs = swap_samples(db, cell_use_id_a=cell_use_id, cell_use_id_b=req.other_cell_use_id, actor=actor)
     except PlacementError as exc:
         raise HTTPException(exc.status_code, exc.detail) from exc
-    refreshed = [db.get(Cycle, c.id, options=CYCLE_LOAD_OPTIONS) for c in cycles]
-    return [cycle_out(db, c) for c in refreshed]
+    refreshed = [db.get(RunBatch, rb.id, options=RUN_LOAD_OPTIONS) for rb in runs]
+    return [run_out(db, rb) for rb in refreshed]
 
 
 @router.get("/{cell_use_id}")
@@ -156,17 +156,17 @@ def patch_cell_use_notes(cell_use_id: int, req: CellUseNotesUpdate, db: SessionD
     return _cell_use_dict(cu)
 
 
-@router.patch("/{cell_use_id}/run-time", response_model=CycleOut)
-def patch_cell_use_run_time(cell_use_id: int, req: CellUseRunTimeUpdate, db: SessionDep, actor: ActorDep) -> CycleOut:
+@router.patch("/{cell_use_id}/run-time", response_model=RunOut)
+def patch_cell_use_run_time(cell_use_id: int, req: CellUseRunTimeUpdate, db: SessionDep, actor: ActorDep) -> RunOut:
     """Change one well's own movie / run time (12/24/30 h) from the slot-detail popover.
-    Returns the owning run's refreshed CycleOut so the grid reflects the new representative
+    Returns the owning run's refreshed RunOut so the grid reflects the new representative
     run time / planned end. 409 if the run is locked or this placement isn't planned."""
     try:
-        cycle = update_cell_use_run_time(db, cell_use_id=cell_use_id, run_time_hours=req.run_time_hours, actor=actor)
+        run_batch = update_cell_use_run_time(db, cell_use_id=cell_use_id, run_time_hours=req.run_time_hours, actor=actor)
     except PlacementError as exc:
         raise HTTPException(exc.status_code, exc.detail) from exc
-    cycle = db.get(Cycle, cycle.id, options=CYCLE_LOAD_OPTIONS)
-    return cycle_out(db, cycle)
+    run_batch = db.get(RunBatch, run_batch.id, options=RUN_LOAD_OPTIONS)
+    return run_out(db, run_batch)
 
 
 @router.post("/{cell_use_id}/undo")

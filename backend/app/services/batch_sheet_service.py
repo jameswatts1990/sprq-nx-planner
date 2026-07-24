@@ -1,6 +1,9 @@
-"""Assembles the printable batch sheet: for a given run_date (and optional subset of
-instruments), one section per instrument's Cycle listing everything needed to load it -
-which cell/well, which sample, and what settings to dial in on the Revio."""
+"""Assembles the printable batch sheet: for a given load_date (and optional subset of
+instruments), one section per run listing everything needed to load it in one session -
+both plates, with their acquisition dates, and for each well which cell/sample goes where
+and what settings to dial in. Because it is keyed on the run's load day (not each plate's
+acquisition day), a reuse run's Plate 2 - loaded now but sequenced the next weekday - prints
+on the same sheet as Plate 1 instead of being stranded on a separate day's sheet."""
 from __future__ import annotations
 
 from datetime import date, timedelta
@@ -8,55 +11,73 @@ from datetime import date, timedelta
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from app.engine.constants import CELL_LIFETIME_H, WELLS
+from app.engine.constants import CELL_LIFETIME_H
 from app.models.instrument import Instrument
 from app.models.schedule import CellUse, Cycle, RunBatch
-from app.schemas.batch_sheet import BatchSheetInstrumentOut, BatchSheetOut, BatchSheetWellOut
-from app.services.run_serializer import _use_number
+from app.schemas.batch_sheet import BatchSheetOut, BatchSheetPlateOut, BatchSheetRunOut, BatchSheetWellOut
+from app.services.run_serializer import _slot_index, _use_number
 from app.timeutil import ensure_aware
 
 _OPTIONS = [
-    selectinload(Cycle.run_batch).selectinload(RunBatch.instrument),
-    selectinload(Cycle.cell_uses).selectinload(CellUse.cell),
-    selectinload(Cycle.cell_uses).selectinload(CellUse.sample),
-    selectinload(Cycle.cell_uses).selectinload(CellUse.barcodes),
+    selectinload(RunBatch.instrument),
+    selectinload(RunBatch.cycles).selectinload(Cycle.cell_uses).selectinload(CellUse.cell),
+    selectinload(RunBatch.cycles).selectinload(Cycle.cell_uses).selectinload(CellUse.sample),
+    selectinload(RunBatch.cycles).selectinload(Cycle.cell_uses).selectinload(CellUse.barcodes),
 ]
 
 
-def get_batch_sheet(db: Session, run_date: date, instrument_serials: list[str] | None = None) -> BatchSheetOut:
-    stmt = select(Cycle).join(Cycle.run_batch).where(RunBatch.run_date == run_date).options(*_OPTIONS)
+def get_batch_sheet(db: Session, load_date: date, instrument_serials: list[str] | None = None) -> BatchSheetOut:
+    stmt = select(RunBatch).where(RunBatch.load_date == load_date).options(*_OPTIONS)
     if instrument_serials:
         stmt = stmt.join(RunBatch.instrument).where(Instrument.serial_number.in_(instrument_serials))
 
-    cycles = list(db.scalars(stmt).unique().all())
+    runs = list(db.scalars(stmt).unique().all())
     # Stable, deterministic ordering for the printed sheet regardless of query plan.
-    cycles.sort(key=lambda c: (c.run_batch.instrument.serial_number if c.run_batch and c.run_batch.instrument else "?"))
+    runs.sort(key=lambda rb: (rb.instrument.serial_number if rb.instrument else "?"))
 
-    instruments = [_instrument_out(cycle) for cycle in cycles]
-    return BatchSheetOut(run_date=run_date, instruments=instruments)
+    return BatchSheetOut(load_date=load_date, runs=[_run_out(rb) for rb in runs])
 
 
-def _instrument_out(cycle: Cycle) -> BatchSheetInstrumentOut:
-    run_batch = cycle.run_batch
-    instrument = run_batch.instrument if run_batch else None
+def _run_out(run_batch: RunBatch) -> BatchSheetRunOut:
+    instrument = run_batch.instrument
     serial = instrument.serial_number if instrument else "?"
     name = (instrument.name or instrument.serial_number) if instrument else "?"
-
-    wells = [_well_out(cu) for cu in sorted(cycle.cell_uses, key=lambda x: x.well)]
-
-    return BatchSheetInstrumentOut(
+    plates = [_plate_out(run_batch, c) for c in sorted(run_batch.cycles, key=lambda c: c.plate_index)]
+    return BatchSheetRunOut(
         instrument_serial=serial,
         instrument_name=name,
-        cycle_id=cycle.id,
+        run_id=run_batch.id,
+        run_name=run_batch.run_name,
+        load_date=run_batch.load_date,
+        # A run reads as running/completed once its plates are; else planned. Kept simple here
+        # (the grid's run_serializer has the authoritative derivation) - a plate's status is
+        # enough for the sheet's header line.
+        status=_run_status(run_batch.cycles),
+        plates=plates,
+    )
+
+
+def _run_status(cycles: list[Cycle]) -> str:
+    statuses = [c.status for c in cycles]
+    if any(s == "running" for s in statuses):
+        return "running"
+    if statuses and all(s in ("completed", "aborted") for s in statuses):
+        return "completed" if any(s == "completed" for s in statuses) else "aborted"
+    return "planned"
+
+
+def _plate_out(run_batch: RunBatch, cycle: Cycle) -> BatchSheetPlateOut:
+    wells = [_well_out(cu, cycle.plate_index) for cu in sorted(cycle.cell_uses, key=lambda x: x.well)]
+    return BatchSheetPlateOut(
+        plate_number=cycle.plate_index,
+        acquire_date=cycle.acquire_date,
+        is_reuse=cycle.acquire_date > run_batch.load_date,
         movie_hours=cycle.movie_hours,
-        status=cycle.status,
-        planned_start_at=cycle.planned_start_at,
-        planned_end_at=cycle.planned_end_at,
         wells=wells,
     )
 
 
-def _well_out(cell_use: CellUse) -> BatchSheetWellOut:
+def _well_out(cell_use: CellUse, plate_index: int) -> BatchSheetWellOut:
     cell = cell_use.cell
     sample = cell_use.sample
 
@@ -66,7 +87,8 @@ def _well_out(cell_use: CellUse) -> BatchSheetWellOut:
 
     return BatchSheetWellOut(
         well=cell_use.well,
-        slot_index=WELLS.index(cell_use.well) if cell_use.well in WELLS else 0,
+        slot_index=_slot_index(plate_index, cell_use.well),
+        plate_number=plate_index,
         cell_ref=cell.code if cell else "?",
         use_number=_use_number(cell_use),
         run_time_hours=cell_use.run_time_hours,

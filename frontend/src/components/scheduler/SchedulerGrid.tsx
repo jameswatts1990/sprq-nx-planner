@@ -1,6 +1,6 @@
 import type { KeyboardEvent, MouseEvent } from "react";
 
-import type { CycleOut, StageOut } from "@/types/schedule";
+import type { RunOut, StageOut } from "@/types/schedule";
 import {
   formatShortDateUTC,
   isWeekendUTC,
@@ -9,7 +9,7 @@ import {
   todayIsoUTC,
 } from "@/utils/calendarDates";
 
-import { findCarryOverLock, isCellOpen } from "./groupCyclesByInstrumentAndDay";
+import { findContinuation, isCellOpen } from "./groupCyclesByInstrumentAndDay";
 import { SchedulerGridRow } from "./SchedulerGridRow";
 import styles from "./SchedulerGrid.module.css";
 import type { Coord, GridSelection } from "./useGridSelection";
@@ -18,7 +18,7 @@ import type { CellGhost, TrayDisposalWarning } from "./waitingCells";
 
 // Stable empty references for instruments with nothing to show, so the memoized
 // SchedulerGridRow doesn't see a new object identity on every render.
-const EMPTY_CYCLES_BY_DATE: Map<string, CycleOut> = new Map();
+const EMPTY_CYCLES_BY_DATE: Map<string, RunOut> = new Map();
 const EMPTY_WAITING_BY_DATE: Map<string, CellGhost[]> = new Map();
 const EMPTY_BLOCKED_BY_DATE: Map<string, Set<string>> = new Map();
 const EMPTY_DISPOSAL_BY_DATE: Map<string, TrayDisposalWarning[]> = new Map();
@@ -27,12 +27,12 @@ export interface SchedulerGridProps {
   instrumentSerials: string[];
   /** The 5 weekday (Mon-Fri) YYYY-MM-DD strings for the current window. */
   days: string[];
-  /** Cycles pre-grouped by (instrument_serial, run_date) - computed once in SchedulePage
+  /** Runs pre-grouped by (instrument_serial, load_date) - computed once in SchedulePage
    * and passed down so the grouping isn't rebuilt on every grid render. */
-  grouped: Map<string, Map<string, CycleOut>>;
+  grouped: Map<string, Map<string, RunOut>>;
   selection: GridSelection;
   placingSlotKey: string | null;
-  onOpenDetail: (stage: StageOut, cycle: CycleOut) => void;
+  onOpenDetail: (stage: StageOut, run: RunOut) => void;
   slotSelection: SlotSelection;
   onExtendSelect: (stage: StageOut, coord: { r: number; c: number }) => void;
   onDragSelectStart: (stage: StageOut, coord: { r: number; c: number }) => void;
@@ -117,15 +117,15 @@ export function SchedulerGrid({
   disposalGrouped,
   onOpenGhost,
 }: SchedulerGridProps) {
-  // Mirrors SchedulerGridRow's own selectable computation - a day with no cycle of its
-  // own is still closed if an earlier run's lock carries over onto it.
+  // Mirrors SchedulerGridRow's own selectable computation - a day with no run of its
+  // own is still closed if an earlier run's continuation still occupies it.
   function isDateOpen(serial: string, date: string): boolean {
     const byDate = grouped.get(serial);
-    const cycle = byDate?.get(date);
-    return isCellOpen(cycle, cycle || !byDate ? undefined : findCarryOverLock(byDate, date));
+    const run = byDate?.get(date);
+    return isCellOpen(run, run || !byDate ? undefined : findContinuation(byDate, date));
   }
 
-  // Select every open (non-weekend, cycle-free) cell in a day's column, across all
+  // Select every open (non-weekend, run-free) cell in a day's column, across all
   // instruments - the header equivalent of shift-selecting a rectangle for a whole day.
   // Ctrl/cmd-click unions this into the existing selection instead of replacing it, so
   // several days can be built up one header-click at a time.

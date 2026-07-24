@@ -3,7 +3,7 @@ import { useParams } from "react-router-dom";
 
 import { ApiError } from "@/api/client";
 import { cyclesApi } from "@/api/cycles";
-import { SLOT_INDICES } from "@/components/scheduler/gridKeys";
+import { PLATE_INDICES } from "@/components/scheduler/gridKeys";
 import { padStages } from "@/components/scheduler/groupCyclesByInstrumentAndDay";
 import { SchedulerSlotView } from "@/components/scheduler/SchedulerSlotView";
 import { SectionHeading, UseLegend } from "@/components/shared/SectionHeading";
@@ -16,12 +16,12 @@ import { runLabel } from "@/utils/runLabel";
 
 import styles from "./RunDetailPage.module.css";
 
-/** Read-only detail for a single run (Cycle): its up-to-4 stages rendered with the same
- * SchedulerSlotView leaf used interactively in the grid. No KPI strip - a single day's
- * run has no coherent lifetime-cost figure. */
+/** Read-only detail for a single run (RunBatch): its 1-2 plates, each rendered with the same
+ * SchedulerSlotView leaf used interactively in the grid. No KPI strip - a single run has no
+ * coherent lifetime-cost figure. */
 export function RunDetailPage() {
-  const { cycleId } = useParams<{ cycleId: string }>();
-  const id = Number(cycleId);
+  const { runId } = useParams<{ runId: string }>();
+  const id = Number(runId);
   const idIsValid = Number.isFinite(id);
   const queryClient = useQueryClient();
 
@@ -62,39 +62,32 @@ export function RunDetailPage() {
     );
   }
 
-  const cycle = query.data;
-  if (!cycle) {
+  const run = query.data;
+  if (!run) {
     return <div className={styles.status}>Run not found.</div>;
   }
 
-  const slots = padStages(cycle);
-  const canCancel = cycle.status === "planned";
+  const slots = padStages(run);
+  const canCancel = run.status === "planned";
 
   return (
     <div className={styles.page}>
       <div className={styles.metaRow}>
         <span>
-          Run <b>{runLabel(cycle)}</b>
-          {cycle.run_name && <span className={styles.meta}> (#{cycle.cycle_id})</span>}
+          Run <b>{runLabel(run)}</b>
+          {run.run_name && <span className={styles.meta}> (#{run.run_id})</span>}
         </span>
         <span>
-          Instrument <b>{cycle.instrument_serial}</b>
+          Instrument <b>{run.instrument_serial}</b>
         </span>
         <span>
-          Run date <b>{cycle.run_date}</b>
+          Load date <b>{run.load_date}</b>
         </span>
         <span>
-          Status <Badge tone={CYCLE_STATUS_TONE[cycle.status]}>{cycle.status}</Badge>
+          Status <Badge tone={CYCLE_STATUS_TONE[run.status]}>{run.status}</Badge>
         </span>
         <span>
-          Active now <b>{cycle.is_locked ? "Yes" : "No"}</b>
-        </span>
-        <span>
-          Movie <b>{cycle.movie_hours} h</b>
-        </span>
-        <span>
-          Planned <b>{new Date(cycle.planned_start_at).toLocaleString()}</b> →{" "}
-          <b>{new Date(cycle.planned_end_at).toLocaleString()}</b>
+          Active now <b>{run.is_locked ? "Yes" : "No"}</b>
         </span>
         <div className={styles.cancelRow}>
           {canCancel && (
@@ -111,11 +104,31 @@ export function RunDetailPage() {
         </Note>
       )}
 
-      <SectionHeading title="Run slots" legend={<UseLegend />} />
-      <div className={styles.runSlots}>
-        {SLOT_INDICES.map((i) => (
-          <SchedulerSlotView key={i} stage={slots[i]} slotIndex={i} locked />
-        ))}
+      <SectionHeading title="Run plates" legend={<UseLegend />} />
+      <div className={styles.plates}>
+        {PLATE_INDICES.map((indices, plateIdx) => {
+          const plate = run.plates.find((p) => p.plate_index === plateIdx + 1);
+          return (
+            <div key={plateIdx} className={styles.plate}>
+              <div className={styles.plateHead}>
+                <span className={styles.plateTitle}>Plate {plateIdx + 1}</span>
+                {plate ? (
+                  <span className={styles.plateMeta}>
+                    acquires <b>{plate.acquire_date}</b> · {plate.movie_hours} h
+                    {plate.is_reuse && <span className={styles.reuse}> · reuse</span>}
+                  </span>
+                ) : (
+                  <span className={styles.plateMeta}>—</span>
+                )}
+              </div>
+              <div className={styles.runSlots}>
+                {indices.map((i) => (
+                  <SchedulerSlotView key={i} stage={slots[i]} slotIndex={i} locked />
+                ))}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

@@ -22,7 +22,7 @@ import json
 from datetime import date
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.engine.tracker_columns import (
     K_BARCODES,
@@ -43,9 +43,20 @@ from app.engine.tracker_columns import (
     TRACKER_COLUMNS,
     TRACKER_HEADER,
 )
+from app.models.cell import Cell
 from app.models.instrument import Instrument
 from app.models.schedule import CellUse, Cycle, RunBatch
-from app.services.run_serializer import CYCLE_LOAD_OPTIONS, _use_number
+from app.services.run_serializer import _use_number
+
+# Eager-load a Cycle (plate) down to what _use_number and the row builder walk: each stage's
+# cell + that cell's full sibling-use list (with each sibling's cycle, for acquire_date order),
+# plus samples/barcodes, and the plate's run_batch/instrument.
+_EXPORT_OPTIONS = [
+    selectinload(Cycle.run_batch).selectinload(RunBatch.instrument),
+    selectinload(Cycle.cell_uses).selectinload(CellUse.cell).selectinload(Cell.cell_uses).selectinload(CellUse.cycle),
+    selectinload(Cycle.cell_uses).selectinload(CellUse.sample),
+    selectinload(Cycle.cell_uses).selectinload(CellUse.barcodes),
+]
 
 
 def _fmt_date(d: date | None) -> str:
@@ -112,11 +123,15 @@ def _effective_barcodes(cell_use: CellUse) -> list[str]:
 def _row_values(cell_use: CellUse, cycle: Cycle, serial: str) -> dict[str, str]:
     sample = cell_use.sample
     return {
-        K_DATE_RUN_STARTED: _fmt_date(cycle.run_batch.run_date if cycle.run_batch else None),
-        # The run's identifier, mirroring the app's runLabel: the lab-assigned run_name
-        # (e.g. "TRACTION-RUN-1234") when set, otherwise the "#<cycle id>" fallback the grid
-        # shows — so a scheduled run never exports a blank Traction Run ID.
-        K_TRACTION_RUN_ID: cycle.run_name or f"#{cycle.id}",
+        # The day THIS plate actually sequences (its acquire_date) - a reuse run's Plate 2
+        # exports the next weekday, not the load day.
+        K_DATE_RUN_STARTED: _fmt_date(cycle.acquire_date),
+        # The run's identifier, mirroring the app's runLabel: the run-level run_name
+        # (e.g. "TRACTION-RUN-1234") when set, otherwise the "#<run id>" fallback the grid
+        # shows - so a scheduled run never exports a blank Traction Run ID, and both plates
+        # of one run share the same id.
+        K_TRACTION_RUN_ID: (cycle.run_batch.run_name if cycle.run_batch else None)
+        or (f"#{cycle.run_batch.id}" if cycle.run_batch else f"#c{cycle.id}"),
         K_INSTRUMENT: serial,
         # Plate ID and Loading Conc. columns are left blank: the app no longer stores a
         # separate plate id or actual-OPLC value (only the Target OPLC), so those sheet
@@ -182,20 +197,21 @@ def build_schedule_csv(
     date_to: date | None = None,
     instrument_serial: str | None = None,
 ) -> str:
-    stmt = select(Cycle).join(Cycle.run_batch).options(*CYCLE_LOAD_OPTIONS)
+    stmt = select(Cycle).join(Cycle.run_batch).options(*_EXPORT_OPTIONS)
     if instrument_serial:
         stmt = stmt.join(RunBatch.instrument).where(Instrument.serial_number == instrument_serial)
     if date_from:
-        stmt = stmt.where(RunBatch.run_date >= date_from)
+        stmt = stmt.where(RunBatch.load_date >= date_from)
     if date_to:
-        stmt = stmt.where(RunBatch.run_date <= date_to)
+        stmt = stmt.where(RunBatch.load_date <= date_to)
     cycles = list(db.scalars(stmt).unique().all())
 
-    # Deterministic order: by run date, then instrument, then well — matching the grid.
+    # Deterministic order: by the plate's acquisition date, then instrument, then plate, then
+    # well - so both plates of a reuse run stay adjacent, ordered by when each sequences.
     def cycle_key(c: Cycle) -> tuple:
         rb = c.run_batch
         serial = rb.instrument.serial_number if rb and rb.instrument else ""
-        return (rb.run_date if rb else date.min, serial, c.id)
+        return (c.acquire_date, serial, c.plate_index, c.id)
 
     buf = io.StringIO()
     writer = csv.writer(buf, lineterminator="\r\n")

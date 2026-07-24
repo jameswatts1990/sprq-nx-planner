@@ -8,12 +8,12 @@ import { Button } from "@/components/ui/Button";
 import { Modal, ModalActions } from "@/components/ui/Modal";
 import { Note } from "@/components/ui/Note";
 import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
-import type { CycleOut } from "@/types/schedule";
+import type { RunOut } from "@/types/schedule";
 import type { CellChoice, PendingPlacement, RunDesignState } from "@/types/schedulerGrid";
 import { formatShortDateUTC, parseDateOnly } from "@/utils/calendarDates";
 
 import { shouldAutoPlace, shouldShowCellChoiceModal } from "./cellChoiceGate";
-import { slotKey, trayOfSlot } from "./gridKeys";
+import { plateOfSlot, slotKey } from "./gridKeys";
 import { useCompatibleCells } from "./useCompatibleCells";
 import { WELL_ORDER } from "./waitingCells";
 import styles from "./CellChoicePicker.module.css";
@@ -23,10 +23,10 @@ const DEFAULT_START_TIME = "12:00";
 export interface CellChoicePickerProps {
   pending: PendingPlacement;
   runDesign: RunDesignState;
-  /** The run already occupying (pending.instrument_serial, pending.run_date), if any.
+  /** The run already occupying (pending.instrument_serial, pending.load_date), if any.
    * Undefined means this placement/move would create a brand-new run - the only case
    * where a loading start time actually matters. */
-  existingRun: CycleOut | undefined;
+  existingRun: RunOut | undefined;
   onClose: () => void;
   /** Called after a successful place/move. */
   onPlaced: () => void;
@@ -128,14 +128,14 @@ export function CellChoicePicker({ pending, runDesign, existingRun, onClose, onP
     pending.preselectedCellId !== undefined &&
     (isMoveOntoOwnCell || compatible.some((c) => c.id === pending.preselectedCellId));
 
-  const targetKey = slotKey(pending.instrument_serial, pending.run_date, pending.slot_index);
+  const targetKey = slotKey(pending.instrument_serial, pending.load_date, pending.slot_index);
 
   const mutation = useMutation({
     mutationFn: async (vars: ConfirmVars) => {
       if (isMove) {
         return cellUsesApi.move(pending.moveFromCellUseId as number, {
           instrument_serial: pending.instrument_serial,
-          run_date: pending.run_date,
+          load_date: pending.load_date,
           slot_index: pending.slot_index,
           run_time_hours: runDesign.run_time_hours,
           start_hour: vars.startHour,
@@ -146,7 +146,7 @@ export function CellChoicePicker({ pending, runDesign, existingRun, onClose, onP
       return cellUsesApi.place({
         sample_id: pending.sample.id,
         instrument_serial: pending.instrument_serial,
-        run_date: pending.run_date,
+        load_date: pending.load_date,
         slot_index: pending.slot_index,
         cell_choice: vars.cellChoice,
         run_time_hours: runDesign.run_time_hours,
@@ -220,14 +220,14 @@ export function CellChoicePicker({ pending, runDesign, existingRun, onClose, onP
 
   if (!showModal) return null;
 
-  const runDate = formatShortDateUTC(parseDateOnly(pending.run_date));
-  const tray = trayOfSlot(pending.slot_index) + 1;
-  const slotInTray = (pending.slot_index % 4) + 1;
+  const loadDate = formatShortDateUTC(parseDateOnly(pending.load_date));
+  const plate = plateOfSlot(pending.slot_index) + 1;
+  const well = WELL_ORDER[pending.slot_index];
 
   return (
     <Modal onClose={onClose} title={isMove ? "Move sample" : `Place ${pending.sample.external_id || "sample"}`}>
       <p className={styles.target}>
-        {pending.instrument_serial} · {runDate} · Tray {tray}, slot {slotInTray}
+        {pending.instrument_serial} · {loadDate} · Plate {plate}, well {well}
       </p>
       <div className={styles.barcodes}>
         <span className={styles.barcodeLabel}>Sample barcodes</span>

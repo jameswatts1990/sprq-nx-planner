@@ -5,8 +5,9 @@ import { ApiError } from "@/api/client";
 import { batchSheetApi } from "@/api/batchSheet";
 import { Button } from "@/components/ui/Button";
 import { Note } from "@/components/ui/Note";
-import type { BatchSheetInstrumentOut, BatchSheetWellOut } from "@/types/batchSheet";
+import type { BatchSheetPlateOut, BatchSheetRunOut, BatchSheetWellOut } from "@/types/batchSheet";
 import { formatShortDateTimeUTC, parseDateOnly } from "@/utils/calendarDates";
+import { runLabel } from "@/utils/runLabel";
 
 import styles from "./BatchSheetPage.module.css";
 
@@ -20,8 +21,24 @@ function formatFullDate(isoDate: string): string {
   });
 }
 
-function trayOf(well: BatchSheetWellOut): 1 | 2 {
-  return well.slot_index < 4 ? 1 : 2;
+/** Compact "Thu 24 Jul" for a plate's acquisition day. */
+function formatAcquireDate(isoDate: string): string {
+  return parseDateOnly(isoDate).toLocaleDateString("en-GB", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    timeZone: "UTC",
+  });
+}
+
+/** "Plate 1 · acquires Thu 24 Jul" / "Plate 2 · acquires Fri 25 Jul · reuse (Use 2)". */
+function plateHeading(plate: BatchSheetPlateOut): string {
+  const parts = [`Plate ${plate.plate_number}`, `acquires ${formatAcquireDate(plate.acquire_date)}`];
+  if (plate.is_reuse) {
+    const use = plate.wells[0]?.use_number;
+    parts.push(use ? `reuse (Use ${use})` : "reuse");
+  }
+  return parts.join(" · ");
 }
 
 function WellRow({ well }: { well: BatchSheetWellOut }) {
@@ -53,13 +70,14 @@ function WellRow({ well }: { well: BatchSheetWellOut }) {
   );
 }
 
-/** SOP 7.3 — Final complex loading dilution. One row per well; the app pre-fills what it
- * knows (well, Traction ID, target OPLC) and leaves the dilution volumes and achieved OPLC as
- * blank cells to hand-write at the bench, since the app has no complex-concentration data. */
-function DilutionWorksheet({ wells }: { wells: BatchSheetWellOut[] }) {
+/** SOP 7.3 — Final complex loading dilution, per plate. One row per well; the app pre-fills
+ * what it knows (well, Traction ID, target OPLC) and leaves the dilution volumes and achieved
+ * OPLC as blank cells to hand-write at the bench, since the app has no complex-concentration
+ * data. */
+function DilutionWorksheet({ plate }: { plate: BatchSheetPlateOut }) {
   return (
     <>
-      <div className={styles.sectionSub}>7.3 · Final complex loading dilution</div>
+      <div className={styles.sectionSub}>7.3 · Final complex loading dilution — {plateHeading(plate)}</div>
       <table className={styles.worksheetTable}>
         <thead>
           <tr>
@@ -87,8 +105,8 @@ function DilutionWorksheet({ wells }: { wells: BatchSheetWellOut[] }) {
           </tr>
         </thead>
         <tbody>
-          {wells.map((w) => (
-            <tr key={w.well}>
+          {plate.wells.map((w) => (
+            <tr key={w.slot_index}>
               <td>{w.well}</td>
               <td>{w.sample_external_id ?? "—"}</td>
               <td>{w.target_oplc ?? ""}</td>
@@ -106,12 +124,14 @@ function DilutionWorksheet({ wells }: { wells: BatchSheetWellOut[] }) {
   );
 }
 
-/** SOP 7.4 — Adding samples to the sequencing plate. One block per physical plate (tray), with a
- * QR/serial write-in, plate-prep ticks, and a per-well "23 µL loaded / sealed" checklist. */
-function PlateLoadingChecklist({ tray, wells }: { tray: 1 | 2; wells: BatchSheetWellOut[] }) {
+/** SOP 7.4 — Adding samples to the sequencing plate. One block per plate (both plates load in
+ * the same session), with a QR/serial write-in, plate-prep ticks, and a per-well "23 µL loaded
+ * / sealed" checklist. A reuse Plate 2 is loaded now too even though the instrument sequences
+ * it a day later. */
+function PlateLoadingChecklist({ plate }: { plate: BatchSheetPlateOut }) {
   return (
     <div className={styles.plateBlock}>
-      <div className={styles.sectionSub}>7.4 · Plate loading — Tray {tray}</div>
+      <div className={styles.sectionSub}>7.4 · Plate loading — {plateHeading(plate)}</div>
       <div className={styles.qrLine}>
         Plate QR / serial no.: <span className={styles.qrBlank} />
       </div>
@@ -142,8 +162,8 @@ function PlateLoadingChecklist({ tray, wells }: { tray: 1 | 2; wells: BatchSheet
           </tr>
         </thead>
         <tbody>
-          {wells.map((w) => (
-            <tr key={w.well}>
+          {plate.wells.map((w) => (
+            <tr key={w.slot_index}>
               <td>{w.well}</td>
               <td>{w.sample_external_id ?? "—"}</td>
               <td>
@@ -161,23 +181,26 @@ function PlateLoadingChecklist({ tray, wells }: { tray: 1 | 2; wells: BatchSheet
   );
 }
 
-function InstrumentSection({ instrument }: { instrument: BatchSheetInstrumentOut }) {
-  const tray1 = instrument.wells.filter((w) => trayOf(w) === 1);
-  const tray2 = instrument.wells.filter((w) => trayOf(w) === 2);
+/** One run = one load session on one instrument, holding 1-2 plates. The well table splits
+ * into a tbody per plate; the SOP 7.3/7.4 worksheets repeat per plate too. */
+function RunSection({ run }: { run: BatchSheetRunOut }) {
+  const movieHours = run.plates.map((p) => p.movie_hours);
+  const longestMovie = movieHours.length > 0 ? Math.max(...movieHours) : 0;
 
   return (
     <section className={styles.instrumentSection}>
       <h2 className={styles.instrumentTitle}>
-        {instrument.instrument_name}
-        {instrument.instrument_name !== instrument.instrument_serial && (
-          <span className={styles.meta}> ({instrument.instrument_serial})</span>
+        {run.instrument_name}
+        {run.instrument_name !== run.instrument_serial && (
+          <span className={styles.meta}> ({run.instrument_serial})</span>
         )}
+        <span className={styles.meta}> · Run {runLabel(run)}</span>
       </h2>
       <div className={styles.instrumentMeta}>
-        <span>Movie time (longest): {instrument.movie_hours}h</span>
-        <span>Planned start: {new Date(instrument.planned_start_at).toLocaleString()}</span>
-        <span>Planned end: {new Date(instrument.planned_end_at).toLocaleString()}</span>
-        <span>Status: {instrument.status}</span>
+        <span>Load day: {formatFullDate(run.load_date)}</span>
+        <span>Plates: {run.plates.length}</span>
+        <span>Movie time (longest): {longestMovie}h</span>
+        <span>Status: {run.status}</span>
       </div>
 
       <table className={styles.wellTable}>
@@ -193,31 +216,24 @@ function InstrumentSection({ instrument }: { instrument: BatchSheetInstrumentOut
             <th>Notes</th>
           </tr>
         </thead>
-        {tray1.length > 0 && (
-          <tbody>
+        {run.plates.map((plate) => (
+          <tbody key={plate.plate_number}>
             <tr className={styles.trayHeader}>
-              <td colSpan={8}>Tray 1</td>
+              <td colSpan={8}>{plateHeading(plate)}</td>
             </tr>
-            {tray1.map((w) => (
-              <WellRow key={w.well} well={w} />
+            {plate.wells.map((w) => (
+              <WellRow key={w.slot_index} well={w} />
             ))}
           </tbody>
-        )}
-        {tray2.length > 0 && (
-          <tbody>
-            <tr className={styles.trayHeader}>
-              <td colSpan={8}>Tray 2</td>
-            </tr>
-            {tray2.map((w) => (
-              <WellRow key={w.well} well={w} />
-            ))}
-          </tbody>
-        )}
+        ))}
       </table>
 
-      <DilutionWorksheet wells={instrument.wells} />
-      {tray1.length > 0 && <PlateLoadingChecklist tray={1} wells={tray1} />}
-      {tray2.length > 0 && <PlateLoadingChecklist tray={2} wells={tray2} />}
+      {run.plates.map((plate) => (
+        <DilutionWorksheet key={plate.plate_number} plate={plate} />
+      ))}
+      {run.plates.map((plate) => (
+        <PlateLoadingChecklist key={plate.plate_number} plate={plate} />
+      ))}
     </section>
   );
 }
@@ -264,14 +280,14 @@ export function BatchSheetPage() {
 
       {query.data && (
         <>
-          <h1 className={styles.title}>Batch Sheet — {formatFullDate(query.data.run_date)}</h1>
-          {query.data.instruments.length === 0 && (
+          <h1 className={styles.title}>Batch Sheet — loaded {formatFullDate(query.data.load_date)}</h1>
+          {query.data.runs.length === 0 && (
             <Note tone="info" icon="i">
-              No runs scheduled for the selected instrument(s) on this day.
+              No runs loaded for the selected instrument(s) on this day.
             </Note>
           )}
-          {query.data.instruments.map((instrument) => (
-            <InstrumentSection key={instrument.cycle_id} instrument={instrument} />
+          {query.data.runs.map((run) => (
+            <RunSection key={run.run_id} run={run} />
           ))}
         </>
       )}

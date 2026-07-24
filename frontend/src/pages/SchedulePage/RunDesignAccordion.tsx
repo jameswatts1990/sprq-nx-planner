@@ -38,9 +38,9 @@ const OBJECTIVE_OPTIONS = [
   { value: "fastest" as Objective, label: "Fastest", hint: "fewest days" },
   { value: "utilisation" as Objective, label: "Utilisation", hint: "full trays" },
 ];
-const CELLS_PER_DAY_OPTIONS = [
-  { value: 4 as CellsPerDay, label: "4", hint: "1 tray" },
-  { value: 8 as CellsPerDay, label: "8", hint: "2 trays" },
+const PLATES_PER_RUN_OPTIONS = [
+  { value: 4 as CellsPerDay, label: "1 plate", hint: "1 tray · 4 wells" },
+  { value: 8 as CellsPerDay, label: "2 plates", hint: "2 trays · 8 wells" },
 ];
 
 /** Run Design dials that feed both single placements (place mutation) and batch
@@ -59,7 +59,9 @@ export function RunDesignAccordion({
   return (
     <Accordion
       title="Run design"
-      badge={`${runDesign.max_uses}× · ${runDesign.run_time_hours} h · ${runDesign.objective} · ${runDesign.cells_per_day}/day`}
+      badge={`${runDesign.max_uses}× · ${runDesign.run_time_hours} h · ${runDesign.objective} · ${
+        runDesign.cells_per_day === 8 ? "2 plates" : "1 plate"
+      }`}
     >
       <div className={styles.field}>
         <div className={styles.fieldLabel}>
@@ -95,11 +97,11 @@ export function RunDesignAccordion({
 
       <div className={styles.field}>
         <div className={styles.fieldLabel}>
-          Cells per day <span className={styles.hint}>wells auto-fill uses per instrument-day</span>
+          Plates per run <span className={styles.hint}>1 tray (4 wells) or 2 trays (8 wells) per run</span>
         </div>
         <SegmentedControl
-          ariaLabel="Cells per day"
-          options={CELLS_PER_DAY_OPTIONS}
+          ariaLabel="Plates per run"
+          options={PLATES_PER_RUN_OPTIONS}
           value={runDesign.cells_per_day}
           onChange={(v) => onChange({ ...runDesign, cells_per_day: v })}
         />

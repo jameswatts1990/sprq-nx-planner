@@ -4,6 +4,7 @@ fit onto those cells - re-running the exact same engine path (pack_cells + fill_
 server-side rather than trusting any client plan."""
 from __future__ import annotations
 
+from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import date
 
@@ -33,7 +34,7 @@ class AutoFillResult:
     skipped_cells: list[tuple[str, date]] = field(default_factory=list)
     window_flags: list[tuple[str, float]] = field(default_factory=list)
     barcode_conflicts: list[ConflictPair] = field(default_factory=list)
-    run_cycle_ids: list[int] = field(default_factory=list)
+    run_ids: list[int] = field(default_factory=list)  # RunBatch (run) ids the batch created/touched
 
 
 def auto_fill(
@@ -50,8 +51,8 @@ def auto_fill(
 ):
     # --- validation ---
     for c in cells:
-        if c.run_date.weekday() >= 5:
-            raise PlacementError(400, f"{c.run_date.isoformat()} is a weekend - runs are weekdays only.")
+        if c.load_date.weekday() >= 5:
+            raise PlacementError(400, f"{c.load_date.isoformat()} is a weekend - runs are weekdays only.")
 
     serials = {c.instrument_serial for c in cells}
     instruments = {
@@ -66,7 +67,7 @@ def auto_fill(
     requested: list[tuple[str, date]] = []
     seen: set[tuple[str, date]] = set()
     for c in cells:
-        key = (c.instrument_serial, c.run_date)
+        key = (c.instrument_serial, c.load_date)
         if key not in seen:
             seen.add(key)
             requested.append(key)
@@ -91,7 +92,7 @@ def auto_fill(
             .join(Cycle.run_batch)
             .where(
                 RunBatch.instrument_id == inst.id,
-                RunBatch.run_date == run_date,
+                RunBatch.load_date == run_date,
                 CellUse.status != "cancelled",
             )
         )
@@ -140,8 +141,39 @@ def auto_fill(
     ref_to_cell: dict[str, Cell] = {pc.id: cells_by_id[pc.cell_id] for pc in pack.cells if pc.prior}
 
     # --- persist ---
-    run_cycles: dict[tuple[str, date], int] = {}
-    skipped_keys: set[tuple[str, date]] = set()
+    # Each PackedCell's earliest acquisition day is the load day of the run it belongs to: a
+    # fresh cell used on day D loads on D; that same cell's later reuse (D+1) still belongs to
+    # the run loaded on D, as its Plate 2. So group assignments by (instrument, load_date)
+    # into runs, and by plate within each run: acquire > load_date -> reuse Plate 2; a tray-2
+    # well on the load day -> a fresh parallel Plate 2; otherwise Plate 1.
+    # Group each assignment into a run (instrument, load_date) + a plate (1|2). How a cell's
+    # uses map to runs depends on the tray shape:
+    #
+    # - One tray (cells_per_day <= 4, only tray-1 wells offered): a cell's uses pair up -
+    #   use 1 + use 2 are loaded in ONE session (Plate 1, then the sequential reuse Plate 2,
+    #   acquiring the next weekday). A 3rd use starts a NEW run (a third load session; the
+    #   confirmed 2-plate cap), so uses chunk 2-at-a-time and the load day is each pair's
+    #   first use day. This is the headline reuse-run shape.
+    # - Two trays (cells_per_day == 8): each acquisition DAY is its own run/load session -
+    #   reloading the deck the next day is a fresh session, not a plate of the prior run.
+    #   Plate 1 = tray-1 wells, Plate 2 = tray-2 wells; a cell reused on a later day forms a
+    #   separate same-shaped run that day (its Use N shows via the grid colour).
+    cell_uses_by_id: dict[str, list] = defaultdict(list)
+    for a in sorted(fill.assignments, key=lambda x: (x.run_date, x.well)):
+        cell_uses_by_id[a.cell.id].append(a)
+    plan: dict[int, tuple[date, int]] = {}  # id(assignment) -> (run load_date, plate_index)
+    one_tray = cells_per_day <= CELLS_PER_TRAY
+    for uses in cell_uses_by_id.values():
+        for i, a in enumerate(uses):
+            if one_tray:
+                load_date = uses[i - (i % 2)].run_date  # the first use of a's pair
+                plan[id(a)] = (load_date, 2 if i % 2 == 1 else 1)
+            else:
+                plan[id(a)] = (a.run_date, 2 if a.well in WELLS[CELLS_PER_TRAY:] else 1)
+
+    run_plate_cycles: dict[tuple[str, date, int], int] = {}  # (instrument, load_date, plate) -> cycle id
+    run_ids: set[int] = set()
+    skipped_keys: set[tuple[str, date]] = set()  # (instrument, load_date) runs whose creation was locked out
     touched_cells: set[Cell] = set()
     placed_sample_ids: list[int] = []
     # fill_slots plans every slot as 8 fully-free wells (SlotInput's own documented
@@ -195,26 +227,31 @@ def auto_fill(
     # (same as an already-locked day is skipped above) instead of letting it raise mid-loop
     # and roll back every other day already placed.
     for a in sorted(fill.assignments, key=lambda a: (a.instrument_serial, a.run_date)):
-        key = (a.instrument_serial, a.run_date)
-        if key in skipped_keys:
+        load_date, plate_index = plan[id(a)]
+        run_key = (a.instrument_serial, load_date)
+        if run_key in skipped_keys:
             continue
-        cycle_id = run_cycles.get(key)
+        plate_key = (a.instrument_serial, load_date, plate_index)
+        cycle_id = run_plate_cycles.get(plate_key)
         if cycle_id is None:
             try:
                 cyc = get_or_create_run(
                     db,
                     instrument=instruments[a.instrument_serial],
-                    run_date=a.run_date,
+                    load_date=load_date,
+                    plate_index=plate_index,
+                    acquire_date=a.run_date,
                     run_time_hours=run_time_hours,
                     start_hour=start_hour,
                     start_minute=start_minute,
                 )
             except PlacementError:
-                skipped_keys.add(key)
-                skipped.append(key)
+                skipped_keys.add(run_key)
+                skipped.append(run_key)
                 continue
             cycle_id = cyc.id
-            run_cycles[key] = cycle_id
+            run_plate_cycles[plate_key] = cycle_id
+            run_ids.add(cyc.run_batch_id)
 
         well = _resolve_well(cycle_id, a.well)
         if well is None:
@@ -328,7 +365,7 @@ def auto_fill(
 
     last_date_by_ref: dict[str, date] = {}
     for a in fill.assignments:
-        if (a.instrument_serial, a.run_date) in skipped_keys:
+        if (a.instrument_serial, plan[id(a)][0]) in skipped_keys:
             continue
         cur = last_date_by_ref.get(a.cell.id)
         if cur is None or a.run_date > cur:
@@ -359,7 +396,7 @@ def auto_fill(
                 "placed": len(placed_sample_ids),
                 "unplaced": len(unplaced_sample_ids),
                 "skipped": len(skipped),
-                "runs": len(run_cycles),
+                "runs": len(run_ids),
             },
         )
     )
@@ -371,5 +408,5 @@ def auto_fill(
         skipped_cells=skipped,
         window_flags=[(code, span) for code, span in flag_span.items()],
         barcode_conflicts=pack.conflict_pairs,
-        run_cycle_ids=list(run_cycles.values()),
+        run_ids=list(run_ids),
     )

@@ -6,11 +6,12 @@ import { ApiError } from "@/api/client";
 import { cyclesApi } from "@/api/cycles";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
-import type { SlotIndex, CycleOut, StageOut } from "@/types/schedule";
-import { formatShortDateTimeUTC } from "@/utils/calendarDates";
+import type { SlotIndex, RunOut, StageOut } from "@/types/schedule";
+import { formatShortDateTimeUTC, formatShortDateUTC, parseDateOnly, shortWeekdayUTC } from "@/utils/calendarDates";
+import { runLabel } from "@/utils/runLabel";
 
-import { slotKey, TRAY_INDICES } from "./gridKeys";
-import { padStages } from "./groupCyclesByInstrumentAndDay";
+import { PLATE_INDICES, slotKey } from "./gridKeys";
+import { allStages, padStages, type Continuation } from "./groupCyclesByInstrumentAndDay";
 import { SchedulerSlot } from "./SchedulerSlot";
 import styles from "./SchedulerDayCell.module.css";
 import type { SlotSelection } from "./useSlotSelection";
@@ -18,21 +19,22 @@ import { pinGhostsToSlots, WELL_ORDER, type CellGhost, type TrayDisposalWarning 
 
 export interface SchedulerDayCellProps {
   instrumentSerial: string;
-  runDate: string;
+  loadDate: string;
   rowIndex: number;
   colIndex: number;
   weekend: boolean;
-  cycle: CycleOut | undefined;
-  /** An earlier run on this instrument whose lock hasn't elapsed yet, when this day has
-   * no run of its own - purely informational, never affects `selectable`. */
-  carryOverLock: CycleOut | undefined;
-  /** No cycle yet and not a weekend - eligible for select + auto-fill. */
+  run: RunOut | undefined;
+  /** An earlier run on this instrument still occupying this day (its Plate 2 acquires here,
+   * or its lock spans it), when this day has no run of its own - purely informational, never
+   * affects `selectable`. */
+  continuation: Continuation | undefined;
+  /** No run yet and not a weekend - eligible for select + auto-fill. */
   selectable: boolean;
   /** Currently selected (and selectable) - via shift-click rectangle or ctrl/cmd-click toggle. */
   selected: boolean;
   placingSlotKey: string | null;
   onSelect: (r: number, c: number, shift: boolean, ctrl: boolean) => void;
-  onOpenDetail: (stage: StageOut, cycle: CycleOut) => void;
+  onOpenDetail: (stage: StageOut, run: RunOut) => void;
   slotSelection: SlotSelection;
   /** Ctrl/cmd+shift-click on a filled slot - extends slotSelection to a rectangle
    * between the last-toggled slot and this one (see SchedulePage.onExtendSlotSelect). */
@@ -56,20 +58,23 @@ export interface SchedulerDayCellProps {
 }
 
 /**
- * One (instrument, day) grid cell. Weekends render closed/non-interactive. Otherwise two
- * 4-slot trays, always both shown in full, with a header carrying the Confirm-loaded / Unlock
- * control once the day's run exists. Empty non-weekend cells participate in spreadsheet-style
- * range selection for auto-fill.
+ * One (instrument, load-day) grid cell. Weekends render closed/non-interactive. Otherwise a
+ * run's two plate blocks (Plate 1 = slots 0-3, Plate 2 = slots 4-7), always both shown in
+ * full, with a header carrying the single per-run Confirm-loaded / Unlock control once the
+ * run exists. A day with no run of its own but occupied by an earlier run's continuation
+ * (a reuse Plate 2 acquiring here, or a lock carry-over) renders read-only with a lightweight
+ * marker. Empty non-weekend cells participate in spreadsheet-style range selection for
+ * auto-fill.
  */
 export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerDayCellProps) {
   const {
     instrumentSerial,
-    runDate,
+    loadDate,
     rowIndex,
     colIndex,
     weekend,
-    cycle,
-    carryOverLock,
+    run,
+    continuation,
     selectable,
     selected,
     placingSlotKey,
@@ -86,8 +91,8 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
 
   const statusMutation = useMutation({
     mutationFn: (req: { status: "running" | "planned"; run_name?: string }) => {
-      if (!cycle) throw new Error("No run to update.");
-      return cyclesApi.updateStatus(cycle.cycle_id, req);
+      if (!run) throw new Error("No run to update.");
+      return cyclesApi.updateStatus(run.run_id, req);
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["cycles"] });
@@ -100,7 +105,7 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
 
   const [rotateTrayId, setRotateTrayId] = useState<number | null>(null);
   const rotateMutation = useMutation({
-    mutationFn: (trayId: number) => cellsApi.rotateTray({ tray_id: trayId, from_date: runDate }),
+    mutationFn: (trayId: number) => cellsApi.rotateTray({ tray_id: trayId, from_date: loadDate }),
     onSuccess: () => {
       // The old tray's cells just went terminal and this day's (plus every later) use moved
       // onto a freshly-minted tray - without this, the grid's real stages, waiting/terminal/
@@ -123,18 +128,25 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
     );
   }
 
-  // A day with no cycle of its own is still effectively locked if an earlier run's lock
-  // carries over onto it (carryOverLock) - the instrument is still physically loaded, so
-  // every slot below must render as a read-only marker (or non-droppable ghost), same as
-  // a genuinely locked cycle, rather than falling through to a live, droppable "+" just
-  // because this exact day has no Cycle row of its own yet (see isCellOpen, which gates
+  // A day with no run of its own is still effectively locked if an earlier run's continuation
+  // occupies it (continuation) - the instrument is running that run's later plate, or is still
+  // locked - so every slot below must render as a read-only marker (or non-droppable ghost),
+  // same as a genuinely locked run, rather than falling through to a live, droppable "+" just
+  // because this exact day has no run row of its own yet (see isCellOpen, which gates
   // selectability the same way).
-  const locked = (cycle !== undefined && cycle.status !== "planned") || (cycle === undefined && carryOverLock !== undefined);
-  const filledCount = cycle ? cycle.stages.length : 0;
-  // lock_until's calendar date > this cell's own run_date - the run's lock bleeds into
+  const locked = (run !== undefined && run.status !== "planned") || (run === undefined && continuation !== undefined);
+  const filledCount = run ? allStages(run).length : 0;
+  // lock_until's calendar date > this run's own load_date - the run's lock bleeds into
   // (or past) subsequent days, worth calling out right where it started.
-  const lockExtendsPastToday = cycle !== undefined && cycle.lock_until.slice(0, 10) > runDate;
-  const slots = padStages(cycle);
+  const lockExtendsPastToday = run !== undefined && run.lock_until.slice(0, 10) > loadDate;
+  const slots = padStages(run);
+
+  // The earlier run's plate that acquires exactly on this continuation day (a reuse Plate 2
+  // the instrument runs itself), if that's why the day is occupied.
+  const continuationPlate =
+    run === undefined && continuation?.acquiresToday
+      ? continuation.run.plates.find((p) => p.acquire_date === loadDate)
+      : undefined;
 
   // A locked day can no longer accept placements, so every ghost renders purely
   // informationally there (SchedulerSlot never wraps a locked slot in a droppable, even
@@ -174,7 +186,7 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
   const cellClasses = [styles.cell];
   if (selectable) cellClasses.push(styles.selectable);
   if (selected) cellClasses.push(styles.selected);
-  if (!cycle) cellClasses.push(styles.emptyCell);
+  if (!run) cellClasses.push(styles.emptyCell);
 
   return (
     <td
@@ -187,22 +199,27 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
       data-row={rowIndex}
       data-col={colIndex}
     >
-      {/* Always rendered (even with nothing to show) so every cell's tray/placeholder
+      {/* Always rendered (even with nothing to show) so every cell's plate/placeholder
           area starts at the same vertical offset within the row, whether or not this
           particular cell has a badge above it. */}
       <div className={styles.head}>
-        {cycle && (
+        {run && (
           <>
+            {/* The run's single identity, surfaced once at the run level (not per plate) so
+                a two-plate reuse run reads as one run. Its name once set, else "#<run id>". */}
+            <span className={styles.runIdTag} title={`Run ${runLabel(run)}`}>
+              {runLabel(run)}
+            </span>
             {locked ? (
               <>
                 <span
                   className={styles.lockTag}
-                  title={cycle.run_name ? `Run name: ${cycle.run_name}` : undefined}
+                  title={run.run_name ? `Run name: ${run.run_name}` : undefined}
                 >
-                  {cycle.status === "running" ? "LOADED" : cycle.status.toUpperCase()}
-                  {lockExtendsPastToday && ` · locked until ${formatShortDateTimeUTC(cycle.lock_until)}`}
+                  {run.status === "running" ? "LOADED" : run.status.toUpperCase()}
+                  {lockExtendsPastToday && ` · locked until ${formatShortDateTimeUTC(run.lock_until)}`}
                 </span>
-                {cycle.status === "running" && (
+                {run.status === "running" && (
                   <button
                     type="button"
                     className={styles.ctrl}
@@ -220,7 +237,7 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
                   className={`${styles.ctrl} ${styles.confirm}`}
                   disabled={statusMutation.isPending}
                   onClick={() => {
-                    setRunName(cycle.run_name ?? "");
+                    setRunName(run.run_name ?? "");
                     setConfirmingLoad(true);
                   }}
                 >
@@ -231,8 +248,17 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
           </>
         )}
 
-        {!cycle && carryOverLock && (
-          <span className={styles.carryLockTag}>Locked until {formatShortDateTimeUTC(carryOverLock.lock_until)}</span>
+        {!run && continuation && (
+          continuationPlate ? (
+            <span
+              className={styles.carryLockTag}
+              title="No action here — the instrument runs this plate itself the day after loading (a reuse run's Plate 2). Manage it from its own run on its load day."
+            >
+              Plate {continuationPlate.plate_index} runs here
+            </span>
+          ) : (
+            <span className={styles.carryLockTag}>Locked until {formatShortDateTimeUTC(continuation.run.lock_until)}</span>
+          )
         )}
       </div>
 
@@ -273,14 +299,33 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
       )}
 
       <div className={styles.slots}>
-        {TRAY_INDICES.map((indices, trayIdx) => {
-          // Any filled slot in this tray carries the physical tray's id (see StageOut.tray_id) -
+        {PLATE_INDICES.map((indices, plateIdx) => {
+          const plate = run?.plates.find((p) => p.plate_index === plateIdx + 1);
+          // Any filled slot in this plate carries the physical tray's id (see StageOut.tray_id) -
           // used to target every sibling cell, not just the ones with a filled slot this cycle.
           const trayId = indices.map((i) => slots[i]).find((s) => s?.tray_id != null)?.tray_id ?? null;
           return (
-            <div key={trayIdx} className={styles.tray}>
+            <div key={plateIdx} className={styles.tray}>
               <div className={styles.trayHeader}>
-                <div className={styles.trayLabel}>{trayIdx === 0 ? "Tray 1" : "Tray 2"}</div>
+                <div className={styles.plateLabelWrap}>
+                  <span className={styles.trayLabel}>{plateIdx === 0 ? "Plate 1" : "Plate 2"}</span>
+                  {plate?.is_reuse && (
+                    <span
+                      className={styles.reuseTag}
+                      title="Reuse — this plate reruns Plate 1's cells on a later day (Use 2+); the instrument runs it itself, in one load session."
+                    >
+                      reuse
+                    </span>
+                  )}
+                  {plate && plate.acquire_date !== loadDate && (
+                    <span
+                      className={styles.acquireTag}
+                      title={`Plate ${plate.plate_index} acquires on ${shortWeekdayUTC(parseDateOnly(plate.acquire_date))} ${formatShortDateUTC(parseDateOnly(plate.acquire_date))}`}
+                    >
+                      → {shortWeekdayUTC(parseDateOnly(plate.acquire_date))} {formatShortDateUTC(parseDateOnly(plate.acquire_date))}
+                    </span>
+                  )}
+                </div>
                 {trayId != null && !locked && (
                   <button
                     type="button"
@@ -299,16 +344,16 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
                   stage={slots[i]}
                   slotIndex={i}
                   instrumentSerial={instrumentSerial}
-                  runDate={runDate}
+                  loadDate={loadDate}
                   locked={locked}
-                  placing={placingSlotKey === slotKey(instrumentSerial, runDate, i)}
+                  placing={placingSlotKey === slotKey(instrumentSerial, loadDate, i)}
                   selected={
                     !locked &&
                     slots[i] !== null &&
                     slots[i]!.cell_use_status !== "cancelled" &&
                     slotSelection.isSelected(slots[i]!.cell_use_id)
                   }
-                  onOpenDetail={(stage) => props.onOpenDetail(stage, cycle as CycleOut)}
+                  onOpenDetail={(stage) => props.onOpenDetail(stage, run as RunOut)}
                   onToggleSelect={(stage) => slotSelection.toggle(stage, { r: rowIndex, c: colIndex })}
                   onExtendSelect={(stage) => onExtendSelect(stage, { r: rowIndex, c: colIndex })}
                   onDragSelectStart={(stage) => onDragSelectStart(stage, { r: rowIndex, c: colIndex })}
@@ -345,9 +390,9 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
           onConfirm={() => statusMutation.mutate({ status: "running", run_name: runName })}
         >
           <p>
-            This locks the run (marks it running/LOADED) so it can no longer be edited by accident. Give it a name
-            (e.g. your lab&apos;s TRACTION run id) if you&apos;d like it shown instead of the run number everywhere
-            this run appears.
+            This locks the whole run — both plates — so it can no longer be edited by accident. Give it a name (e.g.
+            your lab&apos;s TRACTION run id) if you&apos;d like it shown instead of the run number everywhere this run
+            appears.
           </p>
         </ConfirmModal>
       )}

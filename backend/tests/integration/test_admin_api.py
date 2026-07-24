@@ -11,6 +11,13 @@ def _weekdays(n: int) -> list[str]:
     return out
 
 
+def _stages(run):
+    """All stages across a run's plates, flattened (plate 1 then plate 2). A single
+    placement into slot 0-3 yields one plate; a fresh parallel/second-tray or reuse
+    placement adds a second plate."""
+    return [s for p in run["plates"] for s in p["stages"]]
+
+
 def _sid(client, external_id: str) -> int:
     items = client.get("/api/samples", params={"page_size": 200}).json()["items"]
     return next(s["id"] for s in items if s["external_id"] == external_id)
@@ -22,7 +29,7 @@ def _place(client, sample_id, run_date, slot_index=0, instrument="84047", run_ti
         json={
             "sample_id": sample_id,
             "instrument_serial": instrument,
-            "run_date": run_date,
+            "load_date": run_date,
             "slot_index": slot_index,
             "cell_choice": {"mode": "new"},
             "run_time_hours": run_time_hours,
@@ -153,8 +160,8 @@ def test_deleting_a_single_cell_use_row_reverts_its_sample_to_backlog(client):
     (mon,) = _weekdays(1)
     r1 = _place(client, _sid(client, "A1"), mon, slot_index=0)
     assert r1.status_code == 201, r1.text
-    cell_use_id = r1.json()["stages"][0]["cell_use_id"]
-    cell_id = r1.json()["stages"][0]["cell_id"]
+    cell_use_id = _stages(r1.json())[0]["cell_use_id"]
+    cell_id = _stages(r1.json())[0]["cell_id"]
 
     resp = client.delete(f"/api/admin/tables/cell_uses/rows/{cell_use_id}")
     assert resp.status_code == 204
@@ -190,7 +197,7 @@ def test_deleting_a_cell_still_in_use_is_blocked_not_orphaned(client):
     (mon,) = _weekdays(1)
     r1 = _place(client, _sid(client, "A1"), mon, slot_index=0)
     assert r1.status_code == 201, r1.text
-    cell_id = r1.json()["stages"][0]["cell_id"]
+    cell_id = _stages(r1.json())[0]["cell_id"]
 
     # Without FK enforcement this would silently succeed and leave cell_uses.cell_id
     # dangling; with it, the DB itself refuses the delete.

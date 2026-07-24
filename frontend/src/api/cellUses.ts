@@ -1,9 +1,10 @@
 import { api } from "./client";
-import type { CycleOut, RunTimeHours } from "@/types/schedule";
+import type { RunOut, RunTimeHours } from "@/types/schedule";
 import type { MoveSampleRequest, PlaceSampleRequest } from "@/types/schedulerGrid";
 
 export interface CellUseOut {
   id: number;
+  /** The owning Cycle (plate) id - a cell use belongs to one plate/acquisition. */
   cycle_id: number;
   cell_id: number;
   cell_code: string | null;
@@ -33,28 +34,28 @@ export const cellUsesApi = {
    * stays editable after the run is confirmed. Blank clears it. */
   updateNotes: (id: number, notes: string) => api.patch<CellUseOut>(`/api/cell-uses/${id}/notes`, { notes }),
   /** Change one well's own movie / run time (12/24/30 h). Returns the owning run's refreshed
-   * CycleOut (its representative run time / planned end may change). 409 if the run is locked
+   * RunOut (its representative run time / planned end may change). 409 if the run is locked
    * or the placement isn't planned. */
   updateRunTime: (id: number, runTimeHours: RunTimeHours) =>
-    api.patch<CycleOut>(`/api/cell-uses/${id}/run-time`, { run_time_hours: runTimeHours }),
-  /** Place a backlog sample into a slot. 201 -> the updated CycleOut for that
-   * (instrument_serial, run_date). 400/409 on clash/lock. */
-  place: (req: PlaceSampleRequest) => api.post<CycleOut>("/api/cell-uses", req),
-  /** Remove a placement. 204 no body; 409 if the owning cycle isn't "planned". */
+    api.patch<RunOut>(`/api/cell-uses/${id}/run-time`, { run_time_hours: runTimeHours }),
+  /** Place a backlog sample into a slot. 201 -> the updated RunOut for that
+   * (instrument_serial, load_date). 400/409 on clash/lock. */
+  place: (req: PlaceSampleRequest) => api.post<RunOut>("/api/cell-uses", req),
+  /** Remove a placement. 204 no body; 409 if the owning run isn't "planned". */
   remove: (id: number) => api.del<void>(`/api/cell-uses/${id}`),
   /** Atomically move an existing placement to a different (instrument, day, slot). 200 ->
-   * the destination CycleOut. 409 on a cross-instrument move, lock, or slot clash. */
-  move: (id: number, req: MoveSampleRequest) => api.post<CycleOut>(`/api/cell-uses/${id}/move`, req),
+   * the destination RunOut. 409 on a cross-instrument move, lock, or slot clash. */
+  move: (id: number, req: MoveSampleRequest) => api.post<RunOut>(`/api/cell-uses/${id}/move`, req),
   /** Reverse a mistaken Failed/Aborted verdict (from Mark Failed, a Stop cell's
    * triggering use, or a whole-cycle abort), restoring the use (and its sample) to how
    * they looked beforehand. 409 if the sample has since moved on (requeued or
    * rescheduled elsewhere) - undo is no longer safe once that's happened. */
   undo: (id: number) => api.post<CellUseOut>(`/api/cell-uses/${id}/undo`),
   /** Exchange which sample sits on two already-placed cell uses; neither placement's
-   * day/well/cell changes. 200 -> the 1-2 touched CycleOuts. 409 on a lock, a
+   * day/well/cell changes. 200 -> the 1-2 touched RunOuts. 409 on a lock, a
    * cancelled/non-planned use, or a cross-cell barcode clash. */
   swap: (id: number, otherCellUseId: number) =>
-    api.post<CycleOut[]>(`/api/cell-uses/${id}/swap`, { other_cell_use_id: otherCellUseId }),
+    api.post<RunOut[]>(`/api/cell-uses/${id}/swap`, { other_cell_use_id: otherCellUseId }),
   /** Recover a cancelled ("Blocked") slot left behind by a cell discard: delete the dead
    * placement and return its sample to the backlog. 409 if the block came from a Stop cell
    * (a permanent QC marker) rather than a discard. */

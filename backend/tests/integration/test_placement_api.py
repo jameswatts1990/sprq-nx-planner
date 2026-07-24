@@ -27,6 +27,13 @@ def _next_saturday() -> str:
     return d.isoformat()
 
 
+def _stages(run):
+    """All stages across a run's plates, flattened (plate 1 then plate 2). A single
+    placement into slot 0-3 yields one plate; a fresh parallel/second-tray or reuse
+    placement adds a second plate."""
+    return [s for p in run["plates"] for s in p["stages"]]
+
+
 def _sid(client, external_id: str) -> int:
     items = client.get("/api/samples", params={"page_size": 200}).json()["items"]
     return next(s["id"] for s in items if s["external_id"] == external_id)
@@ -38,7 +45,7 @@ def _place(
     payload = {
         "sample_id": sample_id,
         "instrument_serial": instrument,
-        "run_date": run_date,
+        "load_date": run_date,
         "slot_index": slot_index,
         "cell_choice": cell_choice or {"mode": "new"},
         "run_time_hours": run_time_hours,
@@ -58,11 +65,11 @@ def test_place_sample_happy_path_creates_run_and_schedules_sample(client):
     assert resp.status_code == 201, resp.text
     cycle = resp.json()
     assert cycle["instrument_serial"] == "84047"
-    assert cycle["run_date"] == mon
-    assert cycle["movie_hours"] == 24
+    assert cycle["load_date"] == mon
+    assert cycle["plates"][0]["movie_hours"] == 24
     assert cycle["status"] == "planned"
-    assert len(cycle["stages"]) == 1
-    stage = cycle["stages"][0]
+    assert len(_stages(cycle)) == 1
+    stage = _stages(cycle)[0]
     assert stage["slot_index"] == 2
     assert stage["well"] == "C01"
     assert stage["sample_external_id"] == "A1"
@@ -75,7 +82,7 @@ def test_place_sample_happy_path_creates_run_and_schedules_sample(client):
     # cycle is now discoverable on the instrument calendar
     listed = client.get("/api/cycles", params={"instrument_serial": "84047"}).json()
     assert len(listed) == 1
-    assert listed[0]["cycle_id"] == cycle["cycle_id"]
+    assert listed[0]["run_id"] == cycle["run_id"]
 
 
 def test_place_sample_rejects_weekend(client):
@@ -89,7 +96,7 @@ def test_place_sample_rejects_barcode_conflict_on_existing_cell(client):
     client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1\nA2,bc1"})
     mon, tue = _weekdays(2)
     r1 = _place(client, _sid(client, "A1"), mon, 0)
-    cell_id = r1.json()["stages"][0]["cell_id"]
+    cell_id = _stages(r1.json())[0]["cell_id"]
 
     r2 = _place(client, _sid(client, "A2"), tue, 0, {"mode": "existing", "cell_id": cell_id})
     assert r2.status_code == 409
@@ -142,7 +149,7 @@ def test_place_sample_rejects_new_cell_when_its_tray_box_is_fully_populated_with
 
     r1 = _place(client, _sid(client, "A1"), mon, 0)
     assert r1.status_code == 201, r1.text
-    tray_id = client.get(f"/api/cells/{r1.json()['stages'][0]['cell_id']}").json()["tray_id"]
+    tray_id = client.get(f"/api/cells/{_stages(r1.json())[0]['cell_id']}").json()["tray_id"]
 
     def _sibling(well):
         items = client.get("/api/cells", params={"tray_id": tray_id}).json()["items"]
@@ -163,10 +170,10 @@ def test_place_sample_rejects_new_cell_when_its_tray_box_is_fully_populated_with
 
     # none of the 4 real placements were disturbed by the rejected attempt
     for cell_id, expected_well in [
-        (r1.json()["stages"][0]["cell_id"], "A01"),
-        (r2.json()["stages"][0]["cell_id"], "B01"),
-        (r3.json()["stages"][0]["cell_id"], "C01"),
-        (r4.json()["stages"][0]["cell_id"], "D01"),
+        (_stages(r1.json())[0]["cell_id"], "A01"),
+        (_stages(r2.json())[0]["cell_id"], "B01"),
+        (_stages(r3.json())[0]["cell_id"], "C01"),
+        (_stages(r4.json())[0]["cell_id"], "D01"),
     ]:
         cell = client.get(f"/api/cells/{cell_id}").json()
         assert cell["current_well"] == expected_well
@@ -174,25 +181,32 @@ def test_place_sample_rejects_new_cell_when_its_tray_box_is_fully_populated_with
 
 
 def test_place_sample_allows_mixed_run_times_per_cell(client):
-    """Run time is per-cell now: two wells of the same run can carry different movie times.
-    Each stage keeps its own run_time_hours, and the run's representative movie_hours (and
-    thus planned_end / lock) tracks the longest of them. Uses slots 0 (tray 1) and 4 (tray 2)
-    so both fresh-cell placements open their own tray box without a box collision."""
+    """Run time is per-cell now: two wells of the same plate can carry different movie times.
+    Each stage keeps its own run_time_hours, and the plate's representative movie_hours (and
+    thus planned_end) tracks the longest of them. Both wells sit on Plate 1: slot 0 opens the
+    tray, slot 1 reuses its already-open B01 sibling (a fresh mode='new' into slot 1 would
+    collide with open_new_tray()'s box guard)."""
     client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1\nA2,bc2"})
     (mon,) = _weekdays(1)
     r1 = _place(client, _sid(client, "A1"), mon, 0, run_time_hours=24)
     assert r1.status_code == 201, r1.text
-    # a second placement into the same run with a different movie length is now accepted
-    r2 = _place(client, _sid(client, "A2"), mon, 4, run_time_hours=30)
+    tray_id = client.get(f"/api/cells/{_stages(r1.json())[0]['cell_id']}").json()["tray_id"]
+    sibling = next(
+        c["id"]
+        for c in client.get("/api/cells", params={"tray_id": tray_id}).json()["items"]
+        if c["current_well"] == "B01"
+    )
+    # a second placement into the same plate with a different movie length is now accepted
+    r2 = _place(client, _sid(client, "A2"), mon, 1, {"mode": "existing", "cell_id": sibling}, run_time_hours=30)
     assert r2.status_code == 201, r2.text
 
-    cycle = r2.json()
-    by_slot = {s["slot_index"]: s for s in cycle["stages"]}
+    plate = r2.json()["plates"][0]
+    by_slot = {s["slot_index"]: s for s in plate["stages"]}
     assert by_slot[0]["run_time_hours"] == 24
-    assert by_slot[4]["run_time_hours"] == 30
-    # Run-level movie_hours + planned end follow the longest well (30h from noon = next day).
-    assert cycle["movie_hours"] == 30
-    assert cycle["planned_end_at"].startswith(_iso_date_plus(mon, 1))
+    assert by_slot[1]["run_time_hours"] == 30
+    # Plate-level movie_hours + planned end follow the longest well (30h from noon = next day).
+    assert plate["movie_hours"] == 30
+    assert plate["planned_end_at"].startswith(_iso_date_plus(mon, 1))
 
 
 def _iso_date_plus(iso_date: str, days: int) -> str:
@@ -203,26 +217,33 @@ def _iso_date_plus(iso_date: str, days: int) -> str:
 
 
 def test_edit_cell_use_run_time_updates_run_representative(client):
-    """Editing one cell's run time via the popover endpoint bumps the run's movie_hours when
-    that cell becomes the longest, and holds when a shorter cell is lowered further."""
+    """Editing one cell's run time via the popover endpoint bumps the plate's movie_hours when
+    that cell becomes the longest, and holds when a shorter cell is lowered further. Both wells
+    sit on Plate 1 (slot 0 opens the tray; slot 1 reuses its B01 sibling)."""
     client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1\nA2,bc2"})
     (mon,) = _weekdays(1)
     r1 = _place(client, _sid(client, "A1"), mon, 0, run_time_hours=24)
-    cu0 = r1.json()["stages"][0]["cell_use_id"]
-    r2 = _place(client, _sid(client, "A2"), mon, 4, run_time_hours=12)
-    cu4 = r2.json()["stages"][-1]["cell_use_id"]
-    assert r2.json()["movie_hours"] == 24  # longest is still A1's 24h
+    cu0 = _stages(r1.json())[0]["cell_use_id"]
+    tray_id = client.get(f"/api/cells/{_stages(r1.json())[0]['cell_id']}").json()["tray_id"]
+    sibling = next(
+        c["id"]
+        for c in client.get("/api/cells", params={"tray_id": tray_id}).json()["items"]
+        if c["current_well"] == "B01"
+    )
+    r2 = _place(client, _sid(client, "A2"), mon, 1, {"mode": "existing", "cell_id": sibling}, run_time_hours=12)
+    cu1 = _stages(r2.json())[-1]["cell_use_id"]
+    assert r2.json()["plates"][0]["movie_hours"] == 24  # longest is still A1's 24h
 
-    # Raise A2 to 30h -> it becomes the longest, run movie_hours follows.
-    up = client.patch(f"/api/cell-uses/{cu4}/run-time", json={"run_time_hours": 30})
+    # Raise A2 to 30h -> it becomes the longest, plate movie_hours follows.
+    up = client.patch(f"/api/cell-uses/{cu1}/run-time", json={"run_time_hours": 30})
     assert up.status_code == 200, up.text
-    assert up.json()["movie_hours"] == 30
+    assert up.json()["plates"][0]["movie_hours"] == 30
 
     # Lower A1 (the old longest) to 12h -> longest is now A2's 30h, unchanged.
     up2 = client.patch(f"/api/cell-uses/{cu0}/run-time", json={"run_time_hours": 12})
     assert up2.status_code == 200
-    assert up2.json()["movie_hours"] == 30
-    by_slot = {s["slot_index"]: s for s in up2.json()["stages"]}
+    assert up2.json()["plates"][0]["movie_hours"] == 30
+    by_slot = {s["slot_index"]: s for s in _stages(up2.json())}
     assert by_slot[0]["run_time_hours"] == 12
 
 
@@ -230,8 +251,8 @@ def test_edit_run_time_rejected_when_run_locked(client):
     client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1"})
     (mon,) = _weekdays(1)
     r1 = _place(client, _sid(client, "A1"), mon, 0, run_time_hours=24)
-    cycle_id = r1.json()["cycle_id"]
-    cu = r1.json()["stages"][0]["cell_use_id"]
+    cycle_id = r1.json()["run_id"]
+    cu = _stages(r1.json())[0]["cell_use_id"]
     lock = client.patch(f"/api/cycles/{cycle_id}", json={"status": "running"})
     assert lock.status_code == 200, lock.text
     resp = client.patch(f"/api/cell-uses/{cu}/run-time", json={"run_time_hours": 30})
@@ -243,9 +264,9 @@ def test_remove_sample_reverts_to_backlog_and_cleans_up_emptied_run(client):
     (mon,) = _weekdays(1)
     sid = _sid(client, "A1")
     r1 = _place(client, sid, mon, 0)
-    cycle_id = r1.json()["cycle_id"]
-    cell_use_id = r1.json()["stages"][0]["cell_use_id"]
-    cell_id = r1.json()["stages"][0]["cell_id"]
+    cycle_id = r1.json()["run_id"]
+    cell_use_id = _stages(r1.json())[0]["cell_use_id"]
+    cell_id = _stages(r1.json())[0]["cell_id"]
     tray_id = client.get(f"/api/cells/{cell_id}").json()["tray_id"]
 
     resp = client.delete(f"/api/cell-uses/{cell_use_id}")
@@ -271,7 +292,7 @@ def test_opening_a_tray_pins_every_sibling_to_a_well_in_the_same_box(client):
     (mon,) = _weekdays(1)
     r1 = _place(client, _sid(client, "A1"), mon, 2)
     assert r1.status_code == 201, r1.text
-    placed_cell_id = r1.json()["stages"][0]["cell_id"]
+    placed_cell_id = _stages(r1.json())[0]["cell_id"]
     tray_id = client.get(f"/api/cells/{placed_cell_id}").json()["tray_id"]
 
     cells = client.get("/api/cells", params={"tray_id": tray_id}).json()["items"]
@@ -290,7 +311,7 @@ def test_cannot_place_an_unused_tray_sibling_into_the_wrong_well(client):
     (mon,) = _weekdays(1)
     r1 = _place(client, _sid(client, "A1"), mon, 0)  # opens a tray in the A01-D01 box
     assert r1.status_code == 201, r1.text
-    tray_id = client.get(f"/api/cells/{r1.json()['stages'][0]['cell_id']}").json()["tray_id"]
+    tray_id = client.get(f"/api/cells/{_stages(r1.json())[0]['cell_id']}").json()["tray_id"]
     sibling_id = next(
         c["id"]
         for c in client.get("/api/cells", params={"tray_id": tray_id}).json()["items"]
@@ -313,12 +334,12 @@ def test_remove_sample_keeps_cell_when_it_still_has_other_uses(client):
     a1, a2 = _sid(client, "A1"), _sid(client, "A2")
 
     r1 = _place(client, a1, mon, 0)
-    cell_id = r1.json()["stages"][0]["cell_id"]
+    cell_id = _stages(r1.json())[0]["cell_id"]
     # start_hour is pinned explicitly here so this test's timing doesn't depend on whatever
     # the default loading start time happens to be.
     r2 = _place(client, a2, tue, 0, {"mode": "existing", "cell_id": cell_id}, start_hour=15)
     assert r2.status_code == 201, r2.text
-    cell_use_id_2 = r2.json()["stages"][0]["cell_use_id"]
+    cell_use_id_2 = _stages(r2.json())[0]["cell_use_id"]
 
     resp = client.delete(f"/api/cell-uses/{cell_use_id_2}")
     assert resp.status_code == 204
@@ -339,8 +360,8 @@ def test_remove_sample_keeps_whole_tray_when_a_sibling_still_has_a_use(client):
     a1, a2 = _sid(client, "A1"), _sid(client, "A2")
 
     r1 = _place(client, a1, mon, 0)
-    cell_use_id_1 = r1.json()["stages"][0]["cell_use_id"]
-    cell_id_1 = r1.json()["stages"][0]["cell_id"]
+    cell_use_id_1 = _stages(r1.json())[0]["cell_use_id"]
+    cell_id_1 = _stages(r1.json())[0]["cell_id"]
     tray_id = client.get(f"/api/cells/{cell_id_1}").json()["tray_id"]
 
     # cell_id_1's never-yet-used tray sibling reserved for well B01 - place a second,
@@ -369,12 +390,12 @@ def test_cell_last_use_run_date_tracks_most_recent_active_use(client):
     a1, a2 = _sid(client, "A1"), _sid(client, "A2")
 
     r1 = _place(client, a1, mon, 0)
-    cell_id = r1.json()["stages"][0]["cell_id"]
+    cell_id = _stages(r1.json())[0]["cell_id"]
     assert client.get(f"/api/cells/{cell_id}").json()["last_use_run_date"] == mon
 
     r2 = _place(client, a2, tue, 0, {"mode": "existing", "cell_id": cell_id}, start_hour=15)
     assert r2.status_code == 201, r2.text
-    cell_use_id_2 = r2.json()["stages"][0]["cell_use_id"]
+    cell_use_id_2 = _stages(r2.json())[0]["cell_use_id"]
     # a later reuse moves last_use_run_date forward to its own run_date
     assert client.get(f"/api/cells/{cell_id}").json()["last_use_run_date"] == tue
 
@@ -389,14 +410,14 @@ def test_patch_cycle_confirm_and_unlock_reverse_cascade(client):
     (mon,) = _weekdays(1)
     sid = _sid(client, "A1")
     r1 = _place(client, sid, mon, 0)
-    cycle_id = r1.json()["cycle_id"]
-    cell_id = r1.json()["stages"][0]["cell_id"]
+    cycle_id = r1.json()["run_id"]
+    cell_id = _stages(r1.json())[0]["cell_id"]
 
     # confirm-load: planned -> running
     run = client.patch(f"/api/cycles/{cycle_id}", json={"status": "running"})
     assert run.status_code == 200, run.text
     assert run.json()["status"] == "running"
-    assert run.json()["actual_start_at"] is not None
+    assert run.json()["plates"][0]["actual_start_at"] is not None
     assert client.get(f"/api/samples/{sid}").json()["status"] == "in_progress"
     assert client.get(f"/api/cells/{cell_id}").json()["first_use_started_at"] is not None
 
@@ -404,7 +425,7 @@ def test_patch_cycle_confirm_and_unlock_reverse_cascade(client):
     unlock = client.patch(f"/api/cycles/{cycle_id}", json={"status": "planned"})
     assert unlock.status_code == 200, unlock.text
     assert unlock.json()["status"] == "planned"
-    assert unlock.json()["actual_start_at"] is None
+    assert unlock.json()["plates"][0]["actual_start_at"] is None
     assert client.get(f"/api/samples/{sid}").json()["status"] == "scheduled"
     assert client.get(f"/api/cells/{cell_id}").json()["first_use_started_at"] is None
 
@@ -413,7 +434,7 @@ def test_patch_cycle_rejects_illegal_unlock_from_completed(client):
     client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1"})
     (mon,) = _weekdays(1)
     r1 = _place(client, _sid(client, "A1"), mon, 0)
-    cycle_id = r1.json()["cycle_id"]
+    cycle_id = r1.json()["run_id"]
 
     assert client.patch(f"/api/cycles/{cycle_id}", json={"status": "running"}).status_code == 200
     assert client.patch(f"/api/cycles/{cycle_id}", json={"status": "completed"}).status_code == 200
@@ -433,21 +454,23 @@ def test_patch_cycle_aborted_cascades_started_uses_to_aborted_and_samples_to_bac
     a1, a2 = _sid(client, "A1"), _sid(client, "A2")
 
     r1 = _place(client, a1, mon, 0)
-    cycle_id = r1.json()["cycle_id"]
-    cell_id_1 = r1.json()["stages"][0]["cell_id"]
+    cycle_id = r1.json()["run_id"]
+    cell_id_1 = _stages(r1.json())[0]["cell_id"]
     # slot 4 (well A02, tray box 2) rather than slot 1 (well B01) - slot 1 is already an
     # unused sibling of the tray slot 0 just opened, so a "new" placement there would now
     # collide with open_new_tray()'s box guard; slot 4 opens a genuinely separate tray.
     r2 = _place(client, a2, mon, 4)
-    cell_id_2 = r2.json()["stages"][0]["cell_id"]
+    # r2's response is the whole run (now Plate 1 + a fresh parallel Plate 2), so pick A2's
+    # own stage by sample rather than assuming a flat position.
+    cell_id_2 = next(s["cell_id"] for s in _stages(r2.json()) if s["sample_external_id"] == "A2")
 
     assert client.patch(f"/api/cycles/{cycle_id}", json={"status": "running"}).status_code == 200
 
     aborted = client.patch(f"/api/cycles/{cycle_id}", json={"status": "aborted"})
     assert aborted.status_code == 200, aborted.text
-    assert aborted.json()["actual_end_at"] is not None
+    assert aborted.json()["plates"][0]["actual_end_at"] is not None
 
-    stages = client.get(f"/api/cycles/{cycle_id}").json()["stages"]
+    stages = _stages(client.get(f"/api/cycles/{cycle_id}").json())
     assert {s["cell_use_status"] for s in stages} == {"aborted"}
 
     assert client.get(f"/api/samples/{a1}").json()["status"] == "backlog"
@@ -472,13 +495,13 @@ def test_cancel_run_reverts_all_samples_and_deletes_run(client):
     (mon,) = _weekdays(1)
     a1, a2 = _sid(client, "A1"), _sid(client, "A2")
     r1 = _place(client, a1, mon, 0)
-    cycle_id = r1.json()["cycle_id"]
-    cell_id_1 = r1.json()["stages"][0]["cell_id"]
+    cycle_id = r1.json()["run_id"]
+    cell_id_1 = _stages(r1.json())[0]["cell_id"]
     # slot 4 (well A02, tray box 2) rather than slot 1 (well B01) - slot 1 is already an
     # unused sibling of the tray slot 0 just opened, so a "new" placement there would now
     # collide with open_new_tray()'s box guard; slot 4 opens a genuinely separate tray.
     r2 = _place(client, a2, mon, 4)
-    cell_id_2 = r2.json()["stages"][0]["cell_id"]
+    cell_id_2 = next(s["cell_id"] for s in _stages(r2.json()) if s["sample_external_id"] == "A2")
 
     resp = client.post(f"/api/cycles/{cycle_id}/cancel")
     assert resp.status_code == 204
@@ -504,9 +527,9 @@ def test_cancel_run_preserves_a_cancelled_stopped_cell_marker(client):
     b1, b2 = _sid(client, "B1"), _sid(client, "B2")
 
     r1 = _place(client, b1, mon, 0)
-    cycle_id = r1.json()["cycle_id"]
-    cell_id_1 = r1.json()["stages"][0]["cell_id"]
-    cell_use_id_1 = r1.json()["stages"][0]["cell_use_id"]
+    cycle_id = r1.json()["run_id"]
+    cell_id_1 = _stages(r1.json())[0]["cell_id"]
+    cell_use_id_1 = _stages(r1.json())[0]["cell_use_id"]
     # slot 4 (well A02, tray box 2) rather than slot 1 (well B01) - slot 1 is already an
     # unused sibling of the tray slot 0 just opened, so a "new" placement there would now
     # collide with open_new_tray()'s box guard; slot 4 opens a genuinely separate tray.
@@ -514,7 +537,7 @@ def test_cancel_run_preserves_a_cancelled_stopped_cell_marker(client):
     # r2's response lists both stages on this shared cycle (sorted by well) - pick out B2's
     # own stage by sample rather than assuming position, since B1's stage (well A01) always
     # sorts first.
-    cell_id_2 = next(s["cell_id"] for s in r2.json()["stages"] if s["sample_external_id"] == "B2")
+    cell_id_2 = next(s["cell_id"] for s in _stages(r2.json()) if s["sample_external_id"] == "B2")
 
     stop = client.post(f"/api/cells/{cell_id_1}/stop", json={"reason": "damaged"})
     assert stop.status_code == 200, stop.text
@@ -525,7 +548,7 @@ def test_cancel_run_preserves_a_cancelled_stopped_cell_marker(client):
     # the cycle survives - a cancelled marker is still in it
     cycle = client.get(f"/api/cycles/{cycle_id}")
     assert cycle.status_code == 200, cycle.text
-    stages = cycle.json()["stages"]
+    stages = _stages(cycle.json())
     assert len(stages) == 1
     assert stages[0]["cell_use_id"] == cell_use_id_1
     assert stages[0]["cell_use_status"] == "cancelled"
@@ -546,7 +569,7 @@ def test_cancel_run_rejected_when_not_planned(client):
     client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1"})
     (mon,) = _weekdays(1)
     r1 = _place(client, _sid(client, "A1"), mon, 0)
-    cycle_id = r1.json()["cycle_id"]
+    cycle_id = r1.json()["run_id"]
     client.patch(f"/api/cycles/{cycle_id}", json={"status": "running"})
 
     resp = client.post(f"/api/cycles/{cycle_id}/cancel")

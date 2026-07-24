@@ -25,14 +25,14 @@ def test_run_name_set_on_lock_and_round_trips(client):
         json={
             "sample_id": _sid(client, "R1"),
             "instrument_serial": "84047",
-            "run_date": past,
+            "load_date": past,
             "slot_index": 0,
             "cell_choice": {"mode": "new"},
             "run_time_hours": 24,
         },
     )
     assert r1.status_code == 201, r1.text
-    cycle_id = r1.json()["cycle_id"]
+    cycle_id = r1.json()["run_id"]
     assert r1.json()["run_name"] is None
 
     lock = client.patch(f"/api/cycles/{cycle_id}", json={"status": "running", "run_name": "TRACTION-RUN-1234"})
@@ -52,14 +52,14 @@ def test_run_name_survives_unlock_and_blank_clears_it(client):
         json={
             "sample_id": _sid(client, "R2"),
             "instrument_serial": "84098",
-            "run_date": past,
+            "load_date": past,
             "slot_index": 0,
             "cell_choice": {"mode": "new"},
             "run_time_hours": 24,
         },
     )
     assert r1.status_code == 201, r1.text
-    cycle_id = r1.json()["cycle_id"]
+    cycle_id = r1.json()["run_id"]
 
     assert client.patch(
         f"/api/cycles/{cycle_id}", json={"status": "running", "run_name": "TRACTION-RUN-9999"}

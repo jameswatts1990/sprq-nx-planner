@@ -21,6 +21,13 @@ def _weekdays(n: int) -> list[str]:
     return out
 
 
+def _stages(run):
+    """All stages across a run's plates, flattened (plate 1 then plate 2). A single
+    placement into slot 0-3 yields one plate; a fresh parallel/second-tray or reuse
+    placement adds a second plate."""
+    return [s for p in run["plates"] for s in p["stages"]]
+
+
 def _sid(client, external_id: str) -> int:
     items = client.get("/api/samples", params={"page_size": 200}).json()["items"]
     return next(s["id"] for s in items if s["external_id"] == external_id)
@@ -30,7 +37,7 @@ def _place(client, sample_id, run_date, slot_index=0, cell_choice=None, instrume
     payload = {
         "sample_id": sample_id,
         "instrument_serial": instrument,
-        "run_date": run_date,
+        "load_date": run_date,
         "slot_index": slot_index,
         "cell_choice": cell_choice or {"mode": "new"},
         "run_time_hours": 24,
@@ -51,19 +58,19 @@ def test_insert_earlier_use_succeeds_and_renumbers_the_later_use(client):
     mon, tue, wed = _weekdays(3)
 
     r1 = _place(client, _sid(client, "A1"), mon, slot_index=0)
-    cell_id = r1.json()["stages"][0]["cell_id"]
+    cell_id = _stages(r1.json())[0]["cell_id"]
     r2 = _place(client, _sid(client, "A2"), wed, slot_index=0, cell_choice={"mode": "existing", "cell_id": cell_id}, start_hour=15)
     assert r2.status_code == 201, r2.text
-    wed_cycle_id = r2.json()["cycle_id"]
+    wed_cycle_id = r2.json()["run_id"]
 
     r3 = _place(client, _sid(client, "A3"), tue, slot_index=0, cell_choice={"mode": "existing", "cell_id": cell_id}, start_hour=15)
     assert r3.status_code == 201, r3.text
-    tue_stage = r3.json()["stages"][0]
+    tue_stage = _stages(r3.json())[0]
     assert tue_stage["sample_external_id"] == "A3"
     assert tue_stage["use_number"] == 2
 
     wed_cycle = client.get(f"/api/cycles/{wed_cycle_id}").json()
-    wed_stage = wed_cycle["stages"][0]
+    wed_stage = _stages(wed_cycle)[0]
     assert wed_stage["sample_external_id"] == "A2"
     assert wed_stage["use_number"] == 3  # bumped up, never removed
 
@@ -75,9 +82,9 @@ def test_insert_earlier_use_rejected_once_the_later_use_has_started(client):
     mon, tue, wed = _weekdays(3)
 
     r1 = _place(client, _sid(client, "A1"), mon, slot_index=0)
-    cell_id = r1.json()["stages"][0]["cell_id"]
+    cell_id = _stages(r1.json())[0]["cell_id"]
     r2 = _place(client, _sid(client, "A2"), wed, slot_index=0, cell_choice={"mode": "existing", "cell_id": cell_id}, start_hour=15)
-    _confirm(client, r2.json()["cycle_id"])  # Wednesday's use is now locked in - no longer pure planning
+    _confirm(client, r2.json()["run_id"])  # Wednesday's use is now locked in - no longer pure planning
 
     r3 = _place(client, _sid(client, "A3"), tue, slot_index=0, cell_choice={"mode": "existing", "cell_id": cell_id}, start_hour=15)
     assert r3.status_code == 409, r3.text
@@ -94,8 +101,8 @@ def test_insert_rejected_when_the_cells_only_use_so_far_has_already_started(clie
     mon, _tue, wed = _weekdays(3)
 
     r1 = _place(client, _sid(client, "A1"), wed, slot_index=0)
-    cell_id = r1.json()["stages"][0]["cell_id"]
-    _confirm(client, r1.json()["cycle_id"])
+    cell_id = _stages(r1.json())[0]["cell_id"]
+    _confirm(client, r1.json()["run_id"])
 
     r2 = _place(client, _sid(client, "A2"), mon, slot_index=0, cell_choice={"mode": "existing", "cell_id": cell_id})
     assert r2.status_code == 409, r2.text
@@ -111,7 +118,7 @@ def test_insert_still_rejected_on_a_fully_booked_cell_via_the_pre_existing_statu
     mon, tue, wed, thu = _weekdays(4)
 
     r1 = _place(client, _sid(client, "A1"), mon, slot_index=0)
-    cell_id = r1.json()["stages"][0]["cell_id"]
+    cell_id = _stages(r1.json())[0]["cell_id"]
     _place(client, _sid(client, "A2"), wed, slot_index=0, cell_choice={"mode": "existing", "cell_id": cell_id}, start_hour=15)
     _place(client, _sid(client, "A3"), thu, slot_index=0, cell_choice={"mode": "existing", "cell_id": cell_id}, start_hour=15)
     assert client.get(f"/api/cells/{cell_id}").json()["uses_remaining"] == 0

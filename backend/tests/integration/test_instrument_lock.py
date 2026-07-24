@@ -29,6 +29,13 @@ def _weekdays(n: int) -> list[str]:
     return out
 
 
+def _stages(run):
+    """All stages across a run's plates, flattened (plate 1 then plate 2). A single
+    placement into slot 0-3 yields one plate; a fresh parallel/second-tray or reuse
+    placement adds a second plate."""
+    return [s for p in run["plates"] for s in p["stages"]]
+
+
 def _sid(client, external_id: str) -> int:
     items = client.get("/api/samples", params={"page_size": 200}).json()["items"]
     return next(s["id"] for s in items if s["external_id"] == external_id)
@@ -38,7 +45,7 @@ def _place(client, sample_id, run_date, slot_index=0, instrument="84047", run_ti
     payload = {
         "sample_id": sample_id,
         "instrument_serial": instrument,
-        "run_date": run_date,
+        "load_date": run_date,
         "slot_index": slot_index,
         "cell_choice": cell_choice or {"mode": "new"},
         "run_time_hours": run_time_hours,
@@ -64,7 +71,7 @@ def test_single_tray_run_only_locks_for_the_short_setup_window(client):
     # so Tuesday's default noon start is well past it and succeeds.
     r1 = _place(client, _sid(client, "A1"), mon, slot_index=0, run_time_hours=24)
     assert r1.status_code == 201, r1.text
-    cell_id_1 = r1.json()["stages"][0]["cell_id"]
+    cell_id_1 = _stages(r1.json())[0]["cell_id"]
 
     # Reuses Monday's cell for its Use 2 (well A01 is already that cell's own tray - see
     # open_new_tray()'s box guard) rather than opening a second, unrelated tray.
@@ -84,7 +91,7 @@ def test_tray_2_only_run_also_only_locks_for_the_short_setup_window(client):
     # so Tuesday's default noon start is well past it and succeeds.
     r1 = _place(client, _sid(client, "A1"), mon, slot_index=4, run_time_hours=24)
     assert r1.status_code == 201, r1.text
-    cell_id_1 = r1.json()["stages"][0]["cell_id"]
+    cell_id_1 = _stages(r1.json())[0]["cell_id"]
 
     # Reuses Monday's cell for its Use 2 - stays pinned to well A02 (slot 4).
     r2 = _place(
@@ -116,7 +123,7 @@ def test_two_tray_run_start_at_or_after_prior_lock_succeeds(client):
 
     r1 = _place(client, _sid(client, "A1"), mon, slot_index=0, run_time_hours=24)
     assert r1.status_code == 201, r1.text
-    cell_id_1 = r1.json()["stages"][0]["cell_id"]
+    cell_id_1 = _stages(r1.json())[0]["cell_id"]
     r2 = _place(client, _sid(client, "A2"), mon, slot_index=4, run_time_hours=24)
     assert r2.status_code == 201, r2.text
 
@@ -136,7 +143,7 @@ def test_lock_lookback_finds_a_two_tray_run_from_two_days_earlier(client):
     # Monday 20:00 + 36h = Wed 08:00.
     r1 = _place(client, _sid(client, "A1"), mon, slot_index=0, run_time_hours=30, start_hour=20)
     assert r1.status_code == 201, r1.text
-    cell_id_1 = r1.json()["stages"][0]["cell_id"]
+    cell_id_1 = _stages(r1.json())[0]["cell_id"]
     r2 = _place(client, _sid(client, "A2"), mon, slot_index=4, run_time_hours=30, start_hour=20)
     assert r2.status_code == 201, r2.text
 
@@ -162,7 +169,7 @@ def test_loading_into_existing_run_never_blocked_by_its_own_lock(client):
     r1 = _place(client, _sid(client, "A1"), mon, slot_index=0, run_time_hours=24)
     assert r1.status_code == 201, r1.text
     assert r1.json()["is_locked"] is False  # run_date is in the future relative to "now"
-    tray_id = r1.json()["stages"][0]["tray_id"]
+    tray_id = _stages(r1.json())[0]["tray_id"]
 
     # A second sample into the SAME (instrument, day) run, a different well - never gated
     # by the lock check, since it's not creating a new run. Reuses the tray's own unused
@@ -172,7 +179,7 @@ def test_loading_into_existing_run_never_blocked_by_its_own_lock(client):
         client, _sid(client, "A2"), mon, slot_index=1, run_time_hours=24, cell_choice={"mode": "existing", "cell_id": sibling_id}
     )
     assert r2.status_code == 201, r2.text
-    assert r2.json()["cycle_id"] == r1.json()["cycle_id"]
+    assert r2.json()["run_id"] == r1.json()["run_id"]
 
 
 def test_cycle_out_exposes_lock_until_for_tray_1_only(client):
@@ -215,14 +222,15 @@ def test_instrument_out_reflects_a_currently_active_run(client, db_session):
     assert before["is_locked"] is False
     assert before["locked_until"] is None
 
-    # Directly backdate the cycle (and its run_date, which the lookback query filters on)
-    # so "now" falls inside its window - simulating a run that actually started, without
-    # needing to wait in real time.
+    # Directly backdate the run (its load_date) and the plate (its acquire_date, which the
+    # lookback query filters on, and planned_start_at) so "now" falls inside its window -
+    # simulating a run that actually started, without needing to wait in real time.
     run_batch = db_session.query(RunBatch).filter_by(instrument_id=before["id"]).one()
     cycle = db_session.query(Cycle).filter_by(run_batch_id=run_batch.id).one()
     from app.timeutil import utcnow
 
-    run_batch.run_date = utcnow().date()
+    run_batch.load_date = utcnow().date()
+    cycle.acquire_date = utcnow().date()
     cycle.planned_start_at = utcnow() - timedelta(hours=1)
     cycle.planned_end_at = cycle.planned_start_at + timedelta(hours=cycle.movie_hours)
     cycle.status = "running"
@@ -247,13 +255,15 @@ def test_latest_lock_until_ignores_a_completed_run_from_the_lookback_window(clie
     # test_lock_lookback_finds_a_two_tray_run_from_two_days_earlier).
     r1 = _place(client, _sid(client, "A1"), mon, slot_index=0, run_time_hours=30, start_hour=20)
     assert r1.status_code == 201, r1.text
-    cell_id_1 = r1.json()["stages"][0]["cell_id"]
+    cell_id_1 = _stages(r1.json())[0]["cell_id"]
     r2 = _place(client, _sid(client, "A2"), mon, slot_index=4, run_time_hours=30, start_hour=20)
     assert r2.status_code == 201, r2.text
-    cycle_id = r1.json()["cycle_id"]
+    run_id = r1.json()["run_id"]
 
-    cycle = db_session.get(Cycle, cycle_id)
-    cycle.status = "completed"
+    # Mark the whole run (both loaded plates) completed - a run's real-world outcome is
+    # recorded across all its plates together.
+    for cyc in db_session.query(Cycle).filter_by(run_batch_id=run_id).all():
+        cyc.status = "completed"
     db_session.commit()
 
     # Wednesday morning, still well within the old (now-irrelevant) projected lock window.
@@ -271,13 +281,14 @@ def test_latest_lock_until_ignores_an_aborted_run_from_the_lookback_window(clien
 
     r1 = _place(client, _sid(client, "A1"), mon, slot_index=0, run_time_hours=30, start_hour=20)
     assert r1.status_code == 201, r1.text
-    cell_id_1 = r1.json()["stages"][0]["cell_id"]
+    cell_id_1 = _stages(r1.json())[0]["cell_id"]
     r2 = _place(client, _sid(client, "A2"), mon, slot_index=4, run_time_hours=30, start_hour=20)
     assert r2.status_code == 201, r2.text
-    cycle_id = r1.json()["cycle_id"]
+    run_id = r1.json()["run_id"]
 
-    cycle = db_session.get(Cycle, cycle_id)
-    cycle.status = "aborted"
+    # Mark the whole run (both loaded plates) aborted.
+    for cyc in db_session.query(Cycle).filter_by(run_batch_id=run_id).all():
+        cyc.status = "aborted"
     db_session.commit()
 
     # Both tray boxes are already loaded from Monday, so reuse tray 1's own cell for its
@@ -298,7 +309,8 @@ def test_instrument_out_ignores_aborted_runs_for_lock_state(client, db_session):
     cycle = db_session.query(Cycle).filter_by(run_batch_id=run_batch.id).one()
     from app.timeutil import utcnow
 
-    run_batch.run_date = utcnow().date()
+    run_batch.load_date = utcnow().date()
+    cycle.acquire_date = utcnow().date()
     cycle.planned_start_at = utcnow() - timedelta(hours=1)
     cycle.planned_end_at = cycle.planned_start_at + timedelta(hours=cycle.movie_hours)
     cycle.status = "aborted"

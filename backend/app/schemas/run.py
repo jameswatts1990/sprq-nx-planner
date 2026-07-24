@@ -1,7 +1,9 @@
 """Response/request shapes for the interactive grid scheduler.
 
-Was schemas/schedule.py in the old preview/commit design; renamed now that the
-Schedule concept is gone and a "run" is simply one (instrument, run_date) grid cell.
+A "run" is now a SMRT Link run design: one physical load session on one instrument
+(RunOut, keyed by load_date), holding 1-2 plates (PlateOut, each an acquisition round with
+its own acquire_date). Was schemas/schedule.py, then the flat per-(instrument, day) CycleOut;
+the Run->Plate split nests plates under a run so a reuse run reads as one run.
 """
 from datetime import date, datetime
 from typing import Literal
@@ -12,15 +14,19 @@ from app.engine.constants import DAY_START_HOUR
 
 
 class StageOut(BaseModel):
-    slot_index: int  # WELLS.index(well); 0-7 (tray 1: 0-3, tray 2: 4-7)
+    # Grid POSITION within the run, 0-7: Plate 1 -> 0-3, Plate 2 -> 4-7. Deliberately NOT
+    # WELLS.index(well) any more: a reuse Plate 2 sits in the same physical wells (A01-D01)
+    # as Plate 1, so `well` repeats across the two plates - position is derived from the
+    # plate plus the well's letter, while `well` below stays the true SMRT Link label.
+    slot_index: int
     well: str
     cell_use_id: int
     cell_id: int
     cell_ref: str
     use_number: int  # 1-based position of this cell_use among its cell's loads - drives the Use 1/2/3 colour
     # This well's own movie / run time in hours (12/24/30). Per-cell: different wells of one
-    # run may differ, editable from the slot-detail popover. The run-level CycleOut.movie_hours
-    # is the longest of these (see CycleOut.movie_hours).
+    # run may differ, editable from the slot-detail popover. The plate-level PlateOut.movie_hours
+    # is the longest of these (see PlateOut.movie_hours).
     run_time_hours: int
     sample_id: int | None
     sample_external_id: str | None
@@ -53,25 +59,41 @@ class StageOut(BaseModel):
     notes: str | None = None
 
 
-class CycleOut(BaseModel):
-    """One grid run: one instrument on one calendar day, with 1-8 filled wells (two trays of 4)."""
+class PlateOut(BaseModel):
+    """One acquisition round within a run (a persisted Cycle). Up to 4 wells."""
 
-    cycle_id: int
-    instrument_serial: str
-    run_date: date
-    # The run's representative run time: the longest of its wells' per-cell run_time_hours
-    # (each well carries its own on StageOut.run_time_hours). Drives planned_end_at and the
-    # instrument lock - the instrument is busy until the longest well finishes.
+    plate_id: int  # the Cycle id
+    plate_index: int  # 1 or 2 - which sample plate / loading position
+    acquire_date: date  # the day THIS plate sequences (== run.load_date for Plate 1)
+    # True when this plate reuses an earlier plate's cells (same tray, a later acquire_date,
+    # after the on-board wash) - i.e. its wells show Use >= 2. False for Plate 1 and for a
+    # fresh parallel Plate 2 (a second tray acquiring the same day as Plate 1).
+    is_reuse: bool
+    # This plate's representative run time: the longest of its wells' per-cell run_time_hours.
     movie_hours: int
     status: str
-    run_name: str | None = None
     planned_start_at: datetime
     planned_end_at: datetime
     actual_start_at: datetime | None = None
     actual_end_at: datetime | None = None
-    lock_until: datetime  # planned_start_at + movie_hours + LOCK_BUFFER_HOURS
-    is_locked: bool  # "now" falls within [planned_start_at, lock_until) and status isn't aborted/completed
     stages: list[StageOut] = []
+
+
+class RunOut(BaseModel):
+    """One SMRT Link run design: one load session on one instrument, holding 1-2 plates
+    (up to 8 cells). Plate 1 acquires on load_date; Plate 2 acquires the same day (fresh
+    second tray, parallel) or a later day (reuse of Plate 1's cells)."""
+
+    run_id: int  # the RunBatch id
+    instrument_serial: str
+    load_date: date  # the day the whole run is physically loaded (one session)
+    run_name: str | None = None  # run-level Traction ID, set at Confirm loaded
+    # Derived run-level status (see run_serializer): "running"/"completed" once its plates
+    # are, else "planned". A run's plates are all loaded together, so this tracks the load.
+    status: str
+    lock_until: datetime  # the instrument is held until the last plate's acquisition finishes + buffer
+    is_locked: bool  # "now" falls within the run's load->last-acquisition window and it isn't aborted/completed
+    plates: list[PlateOut] = []
 
 
 class WindowFlagOut(BaseModel):
@@ -101,19 +123,21 @@ class CellChoice(BaseModel):
 class PlaceSampleRequest(BaseModel):
     sample_id: int
     instrument_serial: str
-    run_date: date
+    load_date: date  # the run's load day (the grid column the sample is dropped into)
+    # Grid position 0-7 within the run: 0-3 = Plate 1, 4-7 = Plate 2. For a reuse Plate 2
+    # drop (an existing cell already used in Plate 1), the backend derives a later acquire_date.
     slot_index: int = Field(ge=0, le=7)
     cell_choice: CellChoice
     run_time_hours: Literal[12, 24, 30]
-    # Only meaningful the first time a sample is placed into an empty (instrument, day)
+    # Only meaningful the first time a sample is placed into an empty (instrument, load_date)
     # grid cell - that's what actually creates the run and fixes its start time. Ignored
-    # (the run's existing start stands) when placing into an already-existing run.
+    # (the run's existing start stands) when placing into an already-existing run/plate.
     start_hour: int = Field(default=DAY_START_HOUR, ge=0, le=23)
     start_minute: int = Field(default=0, ge=0, le=59)
 
 
 class MoveSampleRequest(BaseModel):
-    """Move an existing placement to a different (instrument, day, slot) - see
+    """Move an existing placement to a different (instrument, load_date, slot). See
     placement_service.move_sample. If the destination well conflicts with the cell's own
     established pin (a different well than its other uses), OR a different physical cell
     is already resident in that exact destination well (e.g. an eagerly-opened tray
@@ -122,7 +146,7 @@ class MoveSampleRequest(BaseModel):
     genuine same-cell reschedule, where the destination well is still this cell's own."""
 
     instrument_serial: str
-    run_date: date
+    load_date: date
     slot_index: int = Field(ge=0, le=7)
     run_time_hours: Literal[12, 24, 30]
     start_hour: int = Field(default=DAY_START_HOUR, ge=0, le=23)
@@ -135,7 +159,7 @@ class MoveSampleRequest(BaseModel):
 
 class GridCellRef(BaseModel):
     instrument_serial: str
-    run_date: date
+    load_date: date
 
 
 class AutoFillRequest(BaseModel):
@@ -144,8 +168,12 @@ class AutoFillRequest(BaseModel):
     # subject only to how many distinct days are on offer); not a physical cap (always 3)
     run_time_hours: Literal[12, 24, 30] = 24
     objective: Literal["fewest", "balance", "fastest", "utilisation"] = "fewest"
-    # 4 = tray 1 only; 8 = both trays. Caps how many of a run's 8 wells auto-fill will use
-    # per instrument-day - see engine/slot_scheduling.py::fill_slots.
+    # 4 = one tray (Plate 1 only, up to 4 wells/day); 8 = both trays (up to 8 wells/day).
+    # Caps how many wells auto-fill uses per acquisition day - see slot_scheduling.fill_slots.
+    # A reuse run emerges from selecting consecutive days with cells_per_day=4 + max_uses>=2
+    # (use 1 then use 2 on the same tray); a same-day parallel 8-cell run from cells_per_day=8
+    # on one day. The persist layer groups those acquisitions into runs+plates. The frontend
+    # surfaces this as "Plates per run" (1 tray / 2 trays).
     cells_per_day: Literal[4, 8] = 8
     start_hour: int = Field(default=DAY_START_HOUR, ge=0, le=23)
     start_minute: int = Field(default=0, ge=0, le=59)
@@ -157,4 +185,4 @@ class AutoFillResponse(BaseModel):
     skipped_cells: list[GridCellRef]
     window_flags: list[WindowFlagOut]
     barcode_conflicts: list[BarcodeConflictOut]
-    runs: list[CycleOut]
+    runs: list[RunOut]

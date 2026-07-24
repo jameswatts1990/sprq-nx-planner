@@ -26,7 +26,7 @@ export default function App() {
         <Route path="/cells" element={<CellsPage />} />
         <Route path="/cells/:cellId" element={<CellDetailPage />} />
         <Route path="/history/runs" element={<HistoryRunsPage />} />
-        <Route path="/history/runs/:cycleId" element={<RunDetailPage />} />
+        <Route path="/history/runs/:runId" element={<RunDetailPage />} />
         <Route path="/history/samples" element={<HistorySamplesPage />} />
         <Route path="/stats" element={<StatsPage />} />
         <Route path="/admin" element={<AdminPage />} />

@@ -332,7 +332,9 @@ export function CellDetailPage() {
                   {cell.use_history.map((u) => (
                     <tr key={u.id}>
                       <td>
-                        <Link to={`/history/runs/${u.cycle_id}`}>{runLabel(u)}</Link>
+                        <Link to={`/history/runs/${u.run_batch_id}`}>
+                          {runLabel({ run_id: u.run_batch_id, run_name: u.run_name })}
+                        </Link>
                       </td>
                       <td className={styles.mono}>{u.well}</td>
                       <td>
@@ -590,7 +592,7 @@ function MarkFailedModal({ use, pending, error, onCancel, onConfirm }: MarkFaile
 
   return (
     <ConfirmModal
-      title={`Mark ${use.well} (run ${runLabel(use)}) Failed?`}
+      title={`Mark ${use.well} (run ${runLabel({ run_id: use.run_batch_id, run_name: use.run_name })}) Failed?`}
       confirmLabel="Mark Failed"
       pendingLabel="Saving…"
       pending={pending}
@@ -631,7 +633,7 @@ function UndoQcModal({ use, pending, error, onCancel, onConfirm }: UndoQcModalPr
 
   return (
     <ConfirmModal
-      title={`Undo ${use.well} (run ${runLabel(use)}) ${verdict}?`}
+      title={`Undo ${use.well} (run ${runLabel({ run_id: use.run_batch_id, run_name: use.run_name })}) ${verdict}?`}
       confirmLabel="Undo"
       pendingLabel="Undoing…"
       pending={pending}

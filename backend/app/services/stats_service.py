@@ -26,7 +26,7 @@ from datetime import date, timedelta
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
-from app.engine.constants import WELLS
+from app.engine.constants import CELLS_PER_TRAY
 from app.models.cell import Cell
 from app.models.importing import ImportBatch
 from app.models.instrument import Instrument
@@ -61,7 +61,7 @@ from app.services.cell_service import (
 )
 from app.timeutil import ensure_aware
 
-WELLS_PER_RUN = len(WELLS)  # capacity per (instrument, day) run
+WELLS_PER_PLATE = CELLS_PER_TRAY  # well capacity per plate (a cycle is one plate / one tray now)
 # CellUse statuses that represent a run that actually happened and got a verdict.
 VERDICT_STATUSES = ("completed", "failed", "aborted")
 TERMINAL_CELL_STATUSES = ("exhausted", "window_expired", "retired", "stopped")
@@ -135,9 +135,9 @@ def _throughput_and_failures(db, date_from, date_to, instrument_serial, instrume
         )
     )
     if date_from:
-        cyc_stmt = cyc_stmt.where(RunBatch.run_date >= date_from)
+        cyc_stmt = cyc_stmt.where(Cycle.acquire_date >= date_from)
     if date_to:
-        cyc_stmt = cyc_stmt.where(RunBatch.run_date <= date_to)
+        cyc_stmt = cyc_stmt.where(Cycle.acquire_date <= date_to)
     if instrument_serial:
         cyc_stmt = cyc_stmt.join(RunBatch.instrument).where(Instrument.serial_number == instrument_serial)
     cycles = list(db.scalars(cyc_stmt).unique().all())
@@ -154,14 +154,14 @@ def _throughput_and_failures(db, date_from, date_to, instrument_serial, instrume
     samples_completed = 0
 
     for cyc in cycles:
-        week = _monday(cyc.run_batch.run_date)
+        week = _monday(cyc.acquire_date)
         serial = cyc.run_batch.instrument.serial_number if cyc.run_batch.instrument else "?"
         active = [cu for cu in cyc.cell_uses if cu.status != "cancelled"]
 
         weekly_runs[week] += 1
         weekly_samples[week] += len(active)
         weekly_fill[week][0] += len(active)
-        weekly_fill[week][1] += WELLS_PER_RUN
+        weekly_fill[week][1] += WELLS_PER_PLATE
         movie_mix[cyc.movie_hours] += 1
         per_instr[serial][0] += 1
         per_instr[serial][1] += len(active)

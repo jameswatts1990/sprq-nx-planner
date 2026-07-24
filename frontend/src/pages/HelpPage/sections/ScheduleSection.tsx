@@ -75,22 +75,25 @@ export function ScheduleSection() {
 
       <p className={styles.subheading}>Print Batch Sheet</p>
       <p>
-        <b>Print Batch Sheet</b> opens a printable loading sheet for the Revios. Pick a day and tick which
+        <b>Print Batch Sheet</b> opens a printable loading sheet for the Revios. Pick the <b>load day</b> and tick which
         instruments to include — handy when different people load different machines, since each person can print
-        just their own. The sheet opens in a new tab with every well&apos;s cell code, use number and 108-hour
-        reuse deadline, the sample to load and its barcode(s), and the per-cell run settings (movie / run time,
-        adaptive loading, include base kinetics, full-resolution baseQ, Target OPLC, volume) — everything needed to
-        find the right samples, load them in the right wells, and set up the run. Because run time is now per-cell,
-        each well shows its own movie time and the instrument header shows the longest one. A final <b>Notes</b> column prints any note you&apos;ve added to a
-        sample on its cell (see <b>Sample notes</b> under QC actions below). Use the page&apos;s <b>Print / Save as PDF</b> button, which opens
-        your browser&apos;s normal print dialog (choose a physical printer, or &quot;Save as PDF&quot;).
+        just their own. You get <b>one section per run</b>, and within it a table split into a block per plate: <b>Plate
+        1</b>, then <b>Plate 2</b> if the run has one. Each plate block is headed with the day it sequences, e.g.{" "}
+        <i>&quot;Plate 2 · acquires Fri 25 Jul · reuse (Use 2)&quot;</i> — so a reuse run&apos;s second plate, which the
+        instrument runs the next day, is on the sheet too (both plates are loaded in the one session). Each well shows
+        its cell code, use number and 108-hour reuse deadline, the sample to load and its barcode(s), and the per-cell
+        run settings (movie / run time, adaptive loading, include base kinetics, full-resolution baseQ, Target OPLC,
+        volume). Because run time is per-cell, each well shows its own movie time. A final <b>Notes</b> column prints
+        any note you&apos;ve added to a sample on its cell (see <b>Sample notes</b> under QC actions below). Use the
+        page&apos;s <b>Print / Save as PDF</b> button, which opens your browser&apos;s normal print dialog (choose a
+        physical printer, or &quot;Save as PDF&quot;).
       </p>
       <p>
-        Below each instrument&apos;s table the sheet also prints two <b>fill-in worksheets</b> to record the bench
+        Below each run&apos;s table the sheet also prints two <b>fill-in worksheets per plate</b> to record the bench
         work as you go. The <b>7.3 · Final complex loading dilution</b> table has a row per well, pre-filled with the
         well, Traction ID and Target OPLC, and blank boxes to write in the complex, loading-buffer and control-dilution
         volumes, the final volume and the OPLC you actually achieved. The <b>7.4 · Plate loading</b> checklist (one per
-        plate/tray) has a space to note the plate&apos;s QR / serial number, tick boxes for the plate-prep steps
+        plate) has a space to note the plate&apos;s QR / serial number, tick boxes for the plate-prep steps
         (vortexed, spun down, foil pierced) and a per-well tick for &quot;23 µL loaded&quot; and &quot;sealed&quot;.
         These are for writing on the printout by hand — the values aren&apos;t stored back in the app.
       </p>
@@ -141,12 +144,15 @@ export function ScheduleSection() {
           whole instrument-day&apos;s wells (matching your Cells per day setting) before reusing any of them for a
           2nd/3rd use — fewer half-loaded runs, at the cost of using more cells.
         </dd>
-        <dt>Cells per day (4 / 8)</dt>
+        <dt>Plates per run (1 plate / 2 plates)</dt>
         <dd>
-          How many of a run&apos;s 8 wells auto-fill is allowed to use per instrument/day. <b>8</b> (default) can
-          fill both trays; <b>4</b> restricts auto-fill to tray 1 only, so it never proposes loading tray 2 that
-          day — useful if only one tray&apos;s worth of loading capacity is available. This only limits what
-          auto-fill proposes; dragging a sample onto tray 2 by hand is unaffected.
+          How many plates auto-fill loads into each run. <b>2 plates</b> (default, 8 wells) can fill both trays;{" "}
+          <b>1 plate</b> (4 wells) restricts auto-fill to Plate 1 only, so it never proposes a second plate that day
+          — useful if only one tray&apos;s worth of loading capacity is available. Note this is about a run&apos;s
+          loading positions, not a physical SMRT-cell tray. This only limits what auto-fill proposes; dragging a
+          sample onto Plate 2 by hand is unaffected. A <b>reuse run</b> (Plate 1 today, Plate 2 rerunning the same
+          cells the next weekday) comes from choosing 1 plate per run with Max uses ≥ 2 across consecutive days; a
+          <b> parallel 2-plate run</b> (two trays, both Use 1, acquiring the same day) comes from 2 plates per run.
         </dd>
       </dl>
       <RunDesignExample />
@@ -201,7 +207,7 @@ export function ScheduleSection() {
         choice together. When compatible cells are offered, they&apos;re grouped by which physical SPRQ-Nx SMRT Cell
         tray they came from, in cell-number order, so you can see a tray&apos;s other cells together. Picking{" "}
         <b>Use a new cell</b> opens a whole new physical tray of 4 at once — the other 3 appear immediately as open,
-        reusable cells (in the Cells page, future pickers, and the grid itself — see &quot;Slots and trays&quot;
+        reusable cells (in the Cells page, future pickers, and the grid itself — see &quot;Plates &amp; wells&quot;
         below), even though only one of them has a sample on it yet.
       </p>
       <p>
@@ -377,12 +383,14 @@ export function ScheduleSection() {
       <p className={styles.subheading}>Locking a run</p>
       <ul>
         <li>
-          <b>Confirm loaded</b> appears once a day has at least one sample; press it when the cells are physically
-          loaded on the instrument. This locks the run (marks it running/LOADED) so it can no longer be edited by
-          accident. A small dialog lets you give the run a name (e.g. your lab&apos;s own run id, such as
-          Sanger&apos;s <b>TRACTION-RUN-1234</b> format) — optional, and it overrides the plain run number
-          everywhere this run is shown afterward (Run detail, History, Cells use history). Leave it blank to keep
-          the plain number. <b>Unlock</b> never clears a name once it&apos;s set; re-confirming lets you change it.
+          <b>Confirm loaded</b> appears once a run has at least one sample; press it when the cells are physically
+          loaded on the instrument. There is <b>one Confirm loaded per run</b> — it locks the <i>whole</i> run,{" "}
+          <b>both plates</b> at once (a reuse run&apos;s Plate 2 is loaded in the same session, so it locks with
+          Plate 1), marking it running/LOADED so it can no longer be edited by accident. A small dialog lets you
+          give the run a name (e.g. your lab&apos;s own run id, such as Sanger&apos;s <b>TRACTION-RUN-1234</b>{" "}
+          format) — optional, and it overrides the plain run number everywhere this run is shown afterward (Run
+          detail, History, Cells use history). Leave it blank to keep the plain number. <b>Unlock</b> never clears a
+          name once it&apos;s set; re-confirming lets you change it.
         </li>
         <li>
           A <b>LOADED</b> tag marks a locked run; <b>Unlock</b> returns it to planned so you can edit it again.
@@ -414,24 +422,53 @@ export function ScheduleSection() {
         </li>
       </ul>
 
-      <p className={styles.subheading}>Slots and trays</p>
+      <p className={styles.subheading}>Runs, plates &amp; wells</p>
       <p>
-        Each day cell always shows both trays of four slots, each drawn as its own bordered card so a tray&apos;s
-        four cells read as one physical object — they always stay together, whether empty or loaded. An empty well
-        shows the plain <b>+</b> cross-hatched placeholder. The moment any one cell in a tray gets a sample, its
-        other cells switch from that plain placeholder to their own reserved <b>CELL-A00XXXX</b> ID — not just the
-        well(s) actually in use — and this keeps showing on every later day until each one is loaded or discarded
-        (see &quot;Waiting cells &amp; reuse ghosts&quot; below for what an unused one looks like). The Use 1 / Use 2
-        / Use 3 colours
-        (magenta / blue / teal) show which use of a cell each barcode chip belongs to — see the Colour &amp; Status
-        Legend section. A physical cell also always stays in the exact same tray/well position for every one of
-        its reuses, never just any open slot — so once a cell has a well of its own, the placement picker only
-        offers it for a drop into that same well, and its waiting-cell ghost only ever appears there. There is
-        deliberately no way to start a brand-new cell in a slot that already belongs to
-        another cell&apos;s reuse; a cell&apos;s first use can start in any open slot, but from then on it&apos;s
-        pinned. This grid layout&apos;s own &quot;Tray 1&quot;/&quot;Tray 2&quot; loading positions are a different
-        thing entirely from a physical SPRQ-Nx SMRT Cell tray of 4 cells (see the Cells tab&apos;s help) — a
-        cell&apos;s position within its own physical tray is shown on the Cells page and Cell Detail, not on this
+        A grid cell is a <b>run</b> — one physical load session on one instrument on that day. Each run shows{" "}
+        <b>Plate 1</b> and <b>Plate 2</b>, two loading positions of four wells each, drawn as their own bordered
+        cards. A run holds <b>1 or 2 plates</b>, and both plates are loaded in the one session:
+      </p>
+      <ul>
+        <li>
+          A <b>single-plate run</b> fills only Plate 1 (Plate 2 stays empty).
+        </li>
+        <li>
+          A <b>parallel two-plate run</b> loads a second, different tray into Plate 2 — both plates sequence the{" "}
+          <i>same</i> day (both Use 1, on different cells).
+        </li>
+        <li>
+          A <b>reuse run</b> reruns Plate 1&apos;s cells as Plate 2 on a <i>later</i> weekday (Use 2, after the
+          instrument&apos;s on-board wash). Plate 2&apos;s header shows the day it acquires and a small{" "}
+          <b>reuse</b> tag, and the whole thing is still one run you loaded once — you don&apos;t reload anything for
+          Plate 2.
+        </li>
+      </ul>
+      <p>
+        Because a reuse Plate 2 sequences on a <i>different</i> day from the load day, that later day&apos;s column
+        shows a lightweight <b>&quot;Plate 2 runs here&quot;</b> marker and is greyed out and non-droppable —{" "}
+        <b>there&apos;s no action to take there</b>; the instrument runs Plate 2 itself. Manage the run (edit it,
+        Confirm loaded, print its sheet) from its own load-day column, not the continuation day. A long movie whose
+        instrument stays reserved into a later day shows the same kind of marker as a <b>&quot;Locked until…&quot;</b>{" "}
+        note (see Locking a run below).
+      </p>
+      <p>
+        An empty well shows the plain <b>+</b> cross-hatched placeholder. The moment any one cell in a tray gets a
+        sample, its other cells switch from that plain placeholder to their own reserved <b>CELL-A00XXXX</b> ID — not
+        just the well(s) actually in use — and this keeps showing on every later day until each one is loaded or
+        discarded (see &quot;Waiting cells &amp; reuse ghosts&quot; below for what an unused one looks like). The Use
+        1 / Use 2 / Use 3 colours (magenta / blue / teal) show which use of a cell each barcode chip belongs to — see
+        the Colour &amp; Status Legend section. In a reuse run, Plate 1&apos;s wells read as Use 1 and Plate 2&apos;s
+        as Use 2 on the very same cells; in a parallel run both plates read as Use 1. A physical cell also always
+        stays in the exact same tray/well position for every one of its reuses, never just any open slot — so once a
+        cell has a well of its own, the placement picker only offers it for a drop into that same well, and its
+        waiting-cell ghost only ever appears there. There is deliberately no way to start a brand-new cell in a slot
+        that already belongs to another cell&apos;s reuse; a cell&apos;s first use can start in any open slot, but
+        from then on it&apos;s pinned.
+      </p>
+      <p>
+        The grid&apos;s <b>&quot;Plate 1&quot;/&quot;Plate 2&quot;</b> are <i>loading positions</i> within a run — a
+        different thing entirely from a physical SPRQ-Nx SMRT Cell tray of 4 cells (see the Cells tab&apos;s help).
+        A cell&apos;s position within its own physical tray is shown on the Cells page and Cell Detail, not on this
         grid.
       </p>
 

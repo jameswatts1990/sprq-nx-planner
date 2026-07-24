@@ -21,6 +21,13 @@ def _weekdays(n: int) -> list[str]:
     return out
 
 
+def _stages(run):
+    """All stages across a run's plates, flattened (plate 1 then plate 2). A single
+    placement into slot 0-3 yields one plate; a fresh parallel/second-tray or reuse
+    placement adds a second plate."""
+    return [s for p in run["plates"] for s in p["stages"]]
+
+
 def _sid(client, external_id: str) -> int:
     items = client.get("/api/samples", params={"page_size": 200}).json()["items"]
     return next(s["id"] for s in items if s["external_id"] == external_id)
@@ -37,7 +44,7 @@ def _place(client, sample_id, run_date, slot_index, cell_choice, instrument="840
         json={
             "sample_id": sample_id,
             "instrument_serial": instrument,
-            "run_date": run_date,
+            "load_date": run_date,
             "slot_index": slot_index,
             "cell_choice": cell_choice,
             "run_time_hours": 24,
@@ -51,7 +58,7 @@ def _confirm_loaded(client, cycle_id):
 
 
 def _stage(cycle_json, well="A01"):
-    return next(s for s in cycle_json["stages"] if s["well"] == well)
+    return next(s for s in _stages(cycle_json) if s["well"] == well)
 
 
 def test_rotate_moves_trigger_day_and_later_uses_to_a_fresh_tray_keeping_earlier_history(client):
@@ -65,15 +72,15 @@ def test_rotate_moves_trigger_day_and_later_uses_to_a_fresh_tray_keeping_earlier
     assert r_mon.status_code == 201, r_mon.text
     old_cell_id = _stage(r_mon.json())["cell_id"]
     tray_id = _stage(r_mon.json())["tray_id"]
-    mon_cycle_id = r_mon.json()["cycle_id"]
+    mon_cycle_id = r_mon.json()["run_id"]
 
     r_wed = _place(client, _sid(client, "A2"), wed, 0, {"mode": "existing", "cell_id": old_cell_id})
     assert r_wed.status_code == 201, r_wed.text
-    wed_cycle_id = r_wed.json()["cycle_id"]
+    wed_cycle_id = r_wed.json()["run_id"]
 
     r_fri = _place(client, _sid(client, "A3"), fri, 0, {"mode": "existing", "cell_id": old_cell_id})
     assert r_fri.status_code == 201, r_fri.text
-    fri_cycle_id = r_fri.json()["cycle_id"]
+    fri_cycle_id = r_fri.json()["run_id"]
 
     # Sanity: one physical cell, Use 1/2/3 across the three days.
     assert _stage(r_wed.json())["use_number"] == 2
@@ -131,7 +138,7 @@ def test_rotate_on_the_trays_first_day_deletes_the_emptied_old_tray(client):
     assert r.status_code == 201, r.text
     old_cell_id = _stage(r.json())["cell_id"]
     tray_id = _stage(r.json())["tray_id"]
-    mon_cycle_id = r.json()["cycle_id"]
+    mon_cycle_id = r.json()["run_id"]
 
     resp = client.post("/api/cells/rotate-tray", json={"tray_id": tray_id, "from_date": mon})
     assert resp.status_code == 200, resp.text
@@ -152,7 +159,7 @@ def test_rotate_rejected_when_a_use_on_or_after_the_day_is_confirmed_loaded(clie
     old_cell_id = _stage(r_mon.json())["cell_id"]
     tray_id = _stage(r_mon.json())["tray_id"]
     r_wed = _place(client, _sid(client, "C2"), wed, 0, {"mode": "existing", "cell_id": old_cell_id})
-    assert _confirm_loaded(client, r_wed.json()["cycle_id"]).status_code == 200
+    assert _confirm_loaded(client, r_wed.json()["run_id"]).status_code == 200
 
     resp = client.post("/api/cells/rotate-tray", json={"tray_id": tray_id, "from_date": wed})
     assert resp.status_code == 409
@@ -167,7 +174,7 @@ def test_rotate_rejected_when_a_cell_in_the_tray_is_stopped(client):
     cell_id = _stage(r.json())["cell_id"]
     tray_id = _stage(r.json())["tray_id"]
     use_id = _stage(r.json())["cell_use_id"]
-    assert _confirm_loaded(client, r.json()["cycle_id"]).status_code == 200
+    assert _confirm_loaded(client, r.json()["run_id"]).status_code == 200
     stop = client.post(f"/api/cells/{cell_id}/stop", json={"reason": "crack", "cell_use_id": use_id})
     assert stop.status_code == 200, stop.text
 
@@ -223,7 +230,7 @@ def test_return_to_backlog_rejects_a_stop_originated_block(client):
     r_mon = _place(client, _sid(client, "F1"), mon, 0, {"mode": "new"})
     cell_id = _stage(r_mon.json())["cell_id"]
     mon_use_id = _stage(r_mon.json())["cell_use_id"]
-    assert _confirm_loaded(client, r_mon.json()["cycle_id"]).status_code == 200
+    assert _confirm_loaded(client, r_mon.json()["run_id"]).status_code == 200
     r_wed = _place(client, _sid(client, "F2"), wed, 0, {"mode": "existing", "cell_id": cell_id})
     wed_use_id = _stage(r_wed.json())["cell_use_id"]
 

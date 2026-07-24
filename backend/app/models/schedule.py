@@ -12,47 +12,66 @@ CELL_USE_STATUSES = ("planned", "started", "completed", "failed", "aborted", "ca
 
 
 class RunBatch(Base):
-    """One grid "run": a single instrument on a single calendar day. Holds up to 8
-    wells across both tray-loading positions (via its one Cycle). Uniquely identified
-    by (instrument, run_date)."""
+    """A Run: one SMRT Link run design = one physical load session on one instrument on
+    one day. Holds 1-2 Plates (its ``cycles``) that together load up to 8 cells across up
+    to two sample plates. Uniquely identified by (instrument, load_date).
+
+    Maps onto the PacBio/SMRT Link "run design" (Plate 1 + Plate 2); see
+    docs/pacbio-sprq-nx-scheduling-reference.md. ``run_name`` (e.g. Sanger's
+    "TRACTION-RUN-1234") is the run-level Traction ID. Historically this was one
+    instrument-day with a single 1:1 Cycle; the Run->Plate split promoted RunBatch to the
+    run and Cycle to a plate."""
 
     __tablename__ = "run_batches"
-    __table_args__ = (UniqueConstraint("instrument_id", "run_date", name="uq_run_batch_instrument_date"),)
+    __table_args__ = (UniqueConstraint("instrument_id", "load_date", name="uq_run_batch_instrument_load_date"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     instrument_id: Mapped[int] = mapped_column(ForeignKey("instruments.id"), index=True)
-    run_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    # The day the whole run is physically loaded on the instrument (one session). Plate 1
+    # acquires on this day; a reuse Plate 2 acquires later but is still loaded now.
+    load_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    # Lab-assigned run label (Traction ID), run-level, set at Confirm loaded. Moved here
+    # from Cycle in the Run->Plate split - a run has one Traction ID across both plates.
+    run_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
 
     instrument: Mapped["Instrument"] = relationship(back_populates="run_batches")
     cycles: Mapped[list["Cycle"]] = relationship(
-        back_populates="run_batch", cascade="all, delete-orphan", order_by="Cycle.id"
+        back_populates="run_batch", cascade="all, delete-orphan", order_by="Cycle.plate_index"
     )
 
 
 class Cycle(Base):
-    """The status/timing holder for one RunBatch (1:1). Run time is stored per-cell on each
-    CellUse (CellUse.run_time_hours) - the Revio can run different movie times in different
-    wells of the same run (a deliberate divergence from the vendor's "one acquisition time
-    per plate" default; see docs/pacbio-sprq-nx-scheduling-reference.md). movie_hours here is
-    the *representative* run time for the whole run: the longest of its cell uses' run times,
-    kept in sync by placement_service.recompute_cycle_timing. It drives planned_end_at and
-    the instrument lock (the instrument stays busy until the longest well finishes). The
-    up-to-8 wells (both tray-loading positions) live on its cell_uses."""
+    """A Plate: one acquisition round within a Run (its parent RunBatch). A run has 1-2
+    plates (``plate_index`` 1 or 2). Plate 1 acquires on the run's load_date; Plate 2
+    acquires the same day when it is a second fresh tray (parallel - the single-use 8-cell
+    run) or a later day when it reuses Plate 1's cells (sequential, after the on-board wash).
+    Each plate holds up to 4 wells (its ``cell_uses``).
+
+    Run time is per-well (CellUse.run_time_hours) - a deliberate divergence from the vendor's
+    "one acquisition time per plate" default; see docs/pacbio-sprq-nx-scheduling-reference.md.
+    ``movie_hours`` here is this plate's *representative* (longest) run time, kept in sync by
+    placement_service.recompute_cycle_timing; it drives planned_end_at and the instrument lock.
+    (Historically this class was 1:1 with RunBatch and modelled the whole run; the Run->Plate
+    split promoted RunBatch to the run and this to a plate.)"""
 
     __tablename__ = "cycles"
+    __table_args__ = (UniqueConstraint("run_batch_id", "plate_index", name="uq_cycle_run_plate"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     run_batch_id: Mapped[int] = mapped_column(ForeignKey("run_batches.id", ondelete="CASCADE"), index=True)
-    # Representative (= longest) run time across this run's cell_uses; see class docstring.
+    # 1 or 2 - which sample plate / loading position this acquisition round is. server_default
+    # is for the migration's existing rows only; every code path sets it explicitly.
+    plate_index: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
+    # The day THIS plate sequences. == run.load_date for Plate 1 (and a same-day parallel
+    # Plate 2); a later date for a reuse Plate 2. The chronological anchor for Use 1/2/3.
+    acquire_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    # Representative (= longest) run time across this plate's cell_uses; see class docstring.
     movie_hours: Mapped[int] = mapped_column(Integer)
     planned_start_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     planned_end_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     actual_start_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     actual_end_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="planned", index=True)
-    # Lab-assigned label set optionally when the run is locked (e.g. Sanger's
-    # "TRACTION-RUN-1234"), overriding the plain cycle id everywhere a run is displayed.
-    run_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
 
     run_batch: Mapped["RunBatch"] = relationship(back_populates="cycles")
     cell_uses: Mapped[list["CellUse"]] = relationship(
@@ -61,7 +80,10 @@ class Cycle(Base):
 
 
 class CellUse(Base):
-    """One sample loaded on one cell in one well of a run - the "stage"."""
+    """One sample loaded on one cell in one well of a plate (its ``cycle``) - the "stage".
+    Since ``cycle`` is now a Plate, UniqueConstraint(cycle_id, well) is per-plate: a reused
+    cell legitimately appears in the same well (e.g. A01) on both plates of one run - those
+    are two different cycle_ids, so they never collide."""
 
     __tablename__ = "cell_uses"
     __table_args__ = (UniqueConstraint("cycle_id", "well", name="uq_cell_use_cycle_well"),)

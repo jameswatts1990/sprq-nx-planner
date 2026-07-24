@@ -26,7 +26,7 @@ const TERMINAL_STATUS_CLASS: Record<"exhausted" | "window_expired" | "retired", 
 export interface SchedulerSlotViewProps extends HTMLAttributes<HTMLDivElement> {
   /** The filled well, or null for an empty slot placeholder. */
   stage: StageOut | null;
-  /** 0-3; the physical well position within the day's run (unrelated to slot colour). */
+  /** Grid position 0-7 within the run: Plate 1 -> 0-3, Plate 2 -> 4-7 (unrelated to slot colour). */
   slotIndex: SlotIndex;
   /** Confirmed-run slot: no drag/remove affordance. */
   locked?: boolean;

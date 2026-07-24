@@ -19,6 +19,13 @@ def _weekdays(n: int) -> list[str]:
     return out
 
 
+def _stages(run):
+    """All stages across a run's plates, flattened (plate 1 then plate 2). A single
+    placement into slot 0-3 yields one plate; a fresh parallel/second-tray or reuse
+    placement adds a second plate."""
+    return [s for p in run["plates"] for s in p["stages"]]
+
+
 def _sid(client, external_id: str) -> int:
     items = client.get("/api/samples", params={"page_size": 200}).json()["items"]
     return next(s["id"] for s in items if s["external_id"] == external_id)
@@ -28,7 +35,7 @@ def _place(client, sample_id, run_date, slot_index=0, cell_choice=None, instrume
     payload = {
         "sample_id": sample_id,
         "instrument_serial": instrument,
-        "run_date": run_date,
+        "load_date": run_date,
         "slot_index": slot_index,
         "cell_choice": cell_choice or {"mode": "new"},
         "run_time_hours": 24,
@@ -48,16 +55,16 @@ def test_swap_cross_cell_cross_day_cross_instrument_exchanges_samples_only(clien
 
     r1 = _place(client, _sid(client, "A1"), mon, slot_index=0, instrument="84047")
     r2 = _place(client, _sid(client, "A2"), tue, slot_index=1, instrument="84098")
-    use_a = r1.json()["stages"][0]
-    use_b = r2.json()["stages"][0]
+    use_a = _stages(r1.json())[0]
+    use_b = _stages(r2.json())[0]
 
     resp = _swap(client, use_a["cell_use_id"], use_b["cell_use_id"])
     assert resp.status_code == 200, resp.text
     cycles = resp.json()
     assert len(cycles) == 2
 
-    stage_a = next(s for cyc in cycles for s in cyc["stages"] if s["cell_use_id"] == use_a["cell_use_id"])
-    stage_b = next(s for cyc in cycles for s in cyc["stages"] if s["cell_use_id"] == use_b["cell_use_id"])
+    stage_a = next(s for cyc in cycles for s in _stages(cyc) if s["cell_use_id"] == use_a["cell_use_id"])
+    stage_b = next(s for cyc in cycles for s in _stages(cyc) if s["cell_use_id"] == use_b["cell_use_id"])
 
     # samples exchanged...
     assert stage_a["sample_external_id"] == "A2"
@@ -80,17 +87,17 @@ def test_swap_within_the_same_physical_cell(client):
     mon, tue = _weekdays(2)
 
     r1 = _place(client, _sid(client, "A1"), mon, slot_index=0)
-    cell_id = r1.json()["stages"][0]["cell_id"]
-    use_1 = r1.json()["stages"][0]
+    cell_id = _stages(r1.json())[0]["cell_id"]
+    use_1 = _stages(r1.json())[0]
     r2 = _place(client, _sid(client, "A2"), tue, slot_index=0, cell_choice={"mode": "existing", "cell_id": cell_id}, start_hour=15)
-    use_2 = r2.json()["stages"][0]
+    use_2 = _stages(r2.json())[0]
 
     resp = _swap(client, use_1["cell_use_id"], use_2["cell_use_id"])
     assert resp.status_code == 200, resp.text
     cycle = resp.json()[0]
-    stage_1 = next(s for s in cycle["stages"] if s["cell_use_id"] == use_1["cell_use_id"])
+    stage_1 = next(s for s in _stages(cycle) if s["cell_use_id"] == use_1["cell_use_id"])
     assert stage_1["sample_external_id"] == "A2"
-    stage_2 = next(s for cyc in resp.json() for s in cyc["stages"] if s["cell_use_id"] == use_2["cell_use_id"])
+    stage_2 = next(s for cyc in resp.json() for s in _stages(cyc) if s["cell_use_id"] == use_2["cell_use_id"])
     assert stage_2["sample_external_id"] == "A1"
 
     assert client.get(f"/api/cells/{cell_id}").json()["uses_consumed"] == 2
@@ -105,7 +112,7 @@ def test_swap_rejects_cross_cell_barcode_clash(client):
     mon, tue = _weekdays(2)
 
     r1 = _place(client, _sid(client, "A1"), mon, slot_index=0, instrument="84047")
-    cell_a = r1.json()["stages"][0]["cell_id"]
+    cell_a = _stages(r1.json())[0]["cell_id"]
     r4 = _place(
         client, _sid(client, "A4"), tue, slot_index=0, instrument="84047",
         cell_choice={"mode": "existing", "cell_id": cell_a}, start_hour=15,
@@ -113,8 +120,8 @@ def test_swap_rejects_cross_cell_barcode_clash(client):
     assert r4.status_code == 201, r4.text
 
     r5 = _place(client, _sid(client, "A5"), mon, slot_index=1, instrument="84098")
-    use_1 = r1.json()["stages"][0]
-    use_5 = r5.json()["stages"][0]
+    use_1 = _stages(r1.json())[0]
+    use_5 = _stages(r5.json())[0]
 
     resp = _swap(client, use_1["cell_use_id"], use_5["cell_use_id"])
     assert resp.status_code == 409, resp.text
@@ -132,10 +139,10 @@ def test_swap_rejects_when_owning_cycle_is_locked(client):
     r1 = _place(client, _sid(client, "A1"), mon, slot_index=0)
     # slot_index 4 (well A02, tray box 2) opens a genuinely separate tray from A1's box.
     r2 = _place(client, _sid(client, "A2"), tue, slot_index=4)
-    use_1 = r1.json()["stages"][0]
-    use_2 = r2.json()["stages"][0]
+    use_1 = _stages(r1.json())[0]
+    use_2 = _stages(r2.json())[0]
 
-    locked = client.patch(f"/api/cycles/{r1.json()['cycle_id']}", json={"status": "running"})
+    locked = client.patch(f"/api/cycles/{r1.json()['run_id']}", json={"status": "running"})
     assert locked.status_code == 200, locked.text
 
     resp = _swap(client, use_1["cell_use_id"], use_2["cell_use_id"])
@@ -150,14 +157,14 @@ def test_swap_rejects_a_cancelled_placement(client):
     mon, tue = _weekdays(2)
 
     r1 = _place(client, _sid(client, "A1"), mon, slot_index=0)
-    cell_id = r1.json()["stages"][0]["cell_id"]
+    cell_id = _stages(r1.json())[0]["cell_id"]
     # slot_index 4 (well A02, tray box 2) opens a genuinely separate tray from A1's box.
     r2 = _place(client, _sid(client, "A2"), tue, slot_index=4)
-    use_2 = r2.json()["stages"][0]
+    use_2 = _stages(r2.json())[0]
 
     stopped = client.post(f"/api/cells/{cell_id}/stop", json={"reason": "QC issue"})
     assert stopped.status_code == 200, stopped.text
-    cu = client.get(f"/api/cell-uses/{r1.json()['stages'][0]['cell_use_id']}").json()
+    cu = client.get(f"/api/cell-uses/{_stages(r1.json())[0]['cell_use_id']}").json()
     assert cu["status"] == "cancelled"
 
     resp = _swap(client, cu["id"], use_2["cell_use_id"])
@@ -168,7 +175,7 @@ def test_swap_self_swap_rejected(client):
     client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1"})
     (mon,) = _weekdays(1)
     r1 = _place(client, _sid(client, "A1"), mon, slot_index=0)
-    use_1 = r1.json()["stages"][0]
+    use_1 = _stages(r1.json())[0]
 
     resp = _swap(client, use_1["cell_use_id"], use_1["cell_use_id"])
     assert resp.status_code == 400, resp.text

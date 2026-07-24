@@ -16,8 +16,8 @@ export function HistorySection() {
       </p>
       <p>
         <b>Columns:</b> Run (its name if one was given when it was locked via <b>Confirm loaded</b>, otherwise its
-        plain number; links to detail), Run date, Instrument, Status badge, Movie length in hours, number of Cells
-        in the run, and the planned start time.
+        plain number; links to detail), Load date, Instrument, Status badge, number of Plates (1 or 2), Movie length
+        in hours (its longest plate), number of Cells in the run, and the planned start time.
       </p>
       <div className={styles.legendGrid}>
         <div className={styles.legendRow}>
@@ -34,9 +34,10 @@ export function HistorySection() {
         </div>
       </div>
       <p>
-        <b>Run detail page</b> shows the run&apos;s instrument, date, status, whether it&apos;s <b>Active now</b>,
-        its movie length, and its planned start → end times. Its up-to-eight slots are drawn with the same
-        colour-coded view used on the schedule:
+        <b>Run detail page</b> shows the run&apos;s instrument, load date, status, and whether it&apos;s{" "}
+        <b>Active now</b>, then a block per plate (Plate 1, and Plate 2 if the run has one) with that plate&apos;s
+        acquisition date, movie length, and a <b>reuse</b> marker when it reruns Plate 1&apos;s cells. Each
+        plate&apos;s four wells are drawn with the same colour-coded view used on the schedule:
       </p>
       <div className={styles.ghostExampleSwatch}>
         <SchedulerSlotView stage={STAGE_EXAMPLE_SOURCE} slotIndex={0} locked />

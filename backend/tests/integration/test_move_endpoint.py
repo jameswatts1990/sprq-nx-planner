@@ -23,6 +23,13 @@ def _weekdays(n: int) -> list[str]:
     return out
 
 
+def _stages(run):
+    """All stages across a run's plates, flattened (plate 1 then plate 2). A single
+    placement into slot 0-3 yields one plate; a fresh parallel/second-tray or reuse
+    placement adds a second plate."""
+    return [s for p in run["plates"] for s in p["stages"]]
+
+
 def _sid(client, external_id: str) -> int:
     items = client.get("/api/samples", params={"page_size": 200}).json()["items"]
     return next(s["id"] for s in items if s["external_id"] == external_id)
@@ -32,7 +39,7 @@ def _place(client, sample_id, run_date, slot_index=0, cell_choice=None, instrume
     payload = {
         "sample_id": sample_id,
         "instrument_serial": instrument,
-        "run_date": run_date,
+        "load_date": run_date,
         "slot_index": slot_index,
         "cell_choice": cell_choice or {"mode": "new"},
         "run_time_hours": run_time_hours,
@@ -45,7 +52,7 @@ def _place(client, sample_id, run_date, slot_index=0, cell_choice=None, instrume
 def _move(client, cell_use_id, run_date, slot_index=0, instrument="84047", run_time_hours=24, start_hour=None, cell_choice=None):
     payload = {
         "instrument_serial": instrument,
-        "run_date": run_date,
+        "load_date": run_date,
         "slot_index": slot_index,
         "run_time_hours": run_time_hours,
     }
@@ -75,14 +82,14 @@ def test_move_preserves_the_cells_own_run_time(client):
     mon, tue = _weekdays(2)
 
     r1 = _place(client, _sid(client, "A1"), mon, slot_index=0, run_time_hours=30)
-    cell_use_id = r1.json()["stages"][0]["cell_use_id"]
-    assert r1.json()["movie_hours"] == 30
+    cell_use_id = _stages(r1.json())[0]["cell_use_id"]
+    assert r1.json()["plates"][0]["movie_hours"] == 30
 
     moved = _move(client, cell_use_id, tue, slot_index=0, run_time_hours=24)  # dial says 24
     assert moved.status_code == 200, moved.text
     body = moved.json()
-    assert body["stages"][0]["run_time_hours"] == 30  # preserved, not reset to 24
-    assert body["movie_hours"] == 30
+    assert _stages(body)[0]["run_time_hours"] == 30  # preserved, not reset to 24
+    assert body["plates"][0]["movie_hours"] == 30
 
 
 def test_move_within_same_instrument_to_a_different_day_same_slot(client):
@@ -92,17 +99,17 @@ def test_move_within_same_instrument_to_a_different_day_same_slot(client):
     mon, tue = _weekdays(2)
 
     r1 = _place(client, _sid(client, "A1"), mon, slot_index=0)
-    cell_use_id = r1.json()["stages"][0]["cell_use_id"]
-    cell_id = r1.json()["stages"][0]["cell_id"]
-    old_cycle_id = r1.json()["cycle_id"]
+    cell_use_id = _stages(r1.json())[0]["cell_use_id"]
+    cell_id = _stages(r1.json())[0]["cell_id"]
+    old_cycle_id = r1.json()["run_id"]
 
     moved = _move(client, cell_use_id, tue, slot_index=0, start_hour=15)
     assert moved.status_code == 200, moved.text
     body = moved.json()
-    assert body["run_date"] == tue
-    assert body["stages"][0]["slot_index"] == 0
-    assert body["stages"][0]["cell_id"] == cell_id
-    assert body["cycle_id"] != old_cycle_id
+    assert body["load_date"] == tue
+    assert _stages(body)[0]["slot_index"] == 0
+    assert _stages(body)[0]["cell_id"] == cell_id
+    assert body["run_id"] != old_cycle_id
 
     # the emptied Monday run is cleaned up, same as remove_sample would do
     assert client.get(f"/api/cycles/{old_cycle_id}").status_code == 404
@@ -116,8 +123,8 @@ def test_move_to_a_different_slot_same_day_requires_cell_choice_for_the_resident
     (mon,) = _weekdays(1)
 
     r1 = _place(client, _sid(client, "A1"), mon, slot_index=0)
-    cell_use_id = r1.json()["stages"][0]["cell_use_id"]
-    cell_id = r1.json()["stages"][0]["cell_id"]
+    cell_use_id = _stages(r1.json())[0]["cell_use_id"]
+    cell_id = _stages(r1.json())[0]["cell_id"]
     tray_id = client.get(f"/api/cells/{cell_id}").json()["tray_id"]
     sibling_id = next(
         c["id"]
@@ -133,7 +140,7 @@ def test_move_to_a_different_slot_same_day_requires_cell_choice_for_the_resident
     # supplying the destination's real resident (tray sibling) succeeds and lands there
     moved = _move(client, cell_use_id, mon, slot_index=3, cell_choice={"mode": "existing", "cell_id": sibling_id})
     assert moved.status_code == 200, moved.text
-    stage = moved.json()["stages"][0]
+    stage = _stages(moved.json())[0]
     assert stage["slot_index"] == 3
     assert stage["cell_id"] == sibling_id
     assert stage["sample_external_id"] == "A1"
@@ -157,8 +164,8 @@ def test_move_to_a_never_opened_tray_box_requires_cell_choice(client):
     (mon,) = _weekdays(1)
 
     r1 = _place(client, _sid(client, "A1"), mon, slot_index=0)
-    cell_use_id = r1.json()["stages"][0]["cell_use_id"]
-    cell_id = r1.json()["stages"][0]["cell_id"]
+    cell_use_id = _stages(r1.json())[0]["cell_use_id"]
+    cell_id = _stages(r1.json())[0]["cell_id"]
 
     # slot 4 (well A02, tray box 2) has never been opened - no resident cell sits there,
     # so without the home_well check this used to fall through to an in-place reschedule.
@@ -170,7 +177,7 @@ def test_move_to_a_never_opened_tray_box_requires_cell_choice(client):
     # own home_well/tray (box 1) is left untouched.
     moved = _move(client, cell_use_id, mon, slot_index=4, cell_choice={"mode": "new"})
     assert moved.status_code == 200, moved.text
-    stage = next(s for s in moved.json()["stages"] if s["sample_external_id"] == "A1")
+    stage = next(s for s in _stages(moved.json()) if s["sample_external_id"] == "A1")
     new_cell_id = stage["cell_id"]
     assert new_cell_id != cell_id
     assert stage["slot_index"] == 4
@@ -190,10 +197,10 @@ def test_move_across_instruments_reassigns_to_a_new_cell_when_cell_has_another_u
     mon, tue = _weekdays(2)
 
     r1 = _place(client, _sid(client, "A1"), mon, slot_index=0)
-    cell_id = r1.json()["stages"][0]["cell_id"]
+    cell_id = _stages(r1.json())[0]["cell_id"]
     r2 = _place(client, _sid(client, "A2"), tue, slot_index=0, cell_choice={"mode": "existing", "cell_id": cell_id}, start_hour=15)
     assert r2.status_code == 201, r2.text
-    cell_use_id_2 = r2.json()["stages"][0]["cell_use_id"]
+    cell_use_id_2 = _stages(r2.json())[0]["cell_use_id"]
 
     # Without a cell_choice, the move can't just carry the cell to 84098 - A1's use still
     # pins it to 84047.
@@ -207,7 +214,7 @@ def test_move_across_instruments_reassigns_to_a_new_cell_when_cell_has_another_u
         client, cell_use_id_2, tue, slot_index=1, instrument="84098", start_hour=15, cell_choice={"mode": "new"}
     )
     assert moved.status_code == 200, moved.text
-    stage = next(s for s in moved.json()["stages"] if s["sample_external_id"] == "A2")
+    stage = next(s for s in _stages(moved.json()) if s["sample_external_id"] == "A2")
     new_cell_id = stage["cell_id"]
     assert new_cell_id != cell_id
 
@@ -227,8 +234,8 @@ def test_move_across_instruments_reassigns_to_a_new_cell_even_as_the_cells_only_
     (mon,) = _weekdays(1)
 
     r1 = _place(client, _sid(client, "A1"), mon, slot_index=0)
-    cell_use_id = r1.json()["stages"][0]["cell_use_id"]
-    cell_id = r1.json()["stages"][0]["cell_id"]
+    cell_use_id = _stages(r1.json())[0]["cell_use_id"]
+    cell_id = _stages(r1.json())[0]["cell_id"]
 
     # Without a cell_choice, the move can't just carry this cell to a different instrument.
     moved = _move(client, cell_use_id, mon, slot_index=0, instrument="84098")
@@ -239,7 +246,7 @@ def test_move_across_instruments_reassigns_to_a_new_cell_even_as_the_cells_only_
     moved = _move(client, cell_use_id, mon, slot_index=0, instrument="84098", cell_choice={"mode": "new"})
     assert moved.status_code == 200, moved.text
     assert moved.json()["instrument_serial"] == "84098"
-    new_cell_id = moved.json()["stages"][0]["cell_id"]
+    new_cell_id = _stages(moved.json())[0]["cell_id"]
     assert new_cell_id != cell_id
 
     # The old cell had no other real use anywhere, so its whole (never-otherwise-touched)
@@ -252,13 +259,13 @@ def test_move_rejects_slot_already_occupied(client):
     (mon,) = _weekdays(1)
 
     r1 = _place(client, _sid(client, "A1"), mon, slot_index=0)
-    cell_use_id = r1.json()["stages"][0]["cell_use_id"]
+    cell_use_id = _stages(r1.json())[0]["cell_use_id"]
     # slot 4 (well A02, tray box 2), not slot 1 (well B01) - slot 1 is already an unused
     # sibling of the tray slot 0 just opened, so a "new" placement there would now collide
     # with open_new_tray()'s box guard; slot 4 opens a genuinely separate tray.
     r2 = _place(client, _sid(client, "A2"), mon, slot_index=4)
     assert r2.status_code == 201, r2.text
-    a2_cell_id = next(s["cell_id"] for s in r2.json()["stages"] if s["slot_index"] == 4)
+    a2_cell_id = next(s["cell_id"] for s in _stages(r2.json()) if s["slot_index"] == 4)
 
     # Without a cell_choice, well A02 already has its own real resident (A2's cell) - the
     # move can't just carry A1's cell there, so it's rejected before ever reaching the
@@ -279,11 +286,11 @@ def test_move_dropping_back_onto_its_own_slot_is_a_no_op(client):
     (mon,) = _weekdays(1)
 
     r1 = _place(client, _sid(client, "A1"), mon, slot_index=0)
-    cell_use_id = r1.json()["stages"][0]["cell_use_id"]
+    cell_use_id = _stages(r1.json())[0]["cell_use_id"]
 
     moved = _move(client, cell_use_id, mon, slot_index=0)
     assert moved.status_code == 200, moved.text
-    assert moved.json()["cycle_id"] == r1.json()["cycle_id"]
+    assert moved.json()["run_id"] == r1.json()["run_id"]
 
 
 def test_move_into_a_run_locked_by_a_prior_run_on_destination_instrument_is_rejected(client):
@@ -298,7 +305,7 @@ def test_move_into_a_run_locked_by_a_prior_run_on_destination_instrument_is_reje
     # A2 starts on 84047 Monday, then we try to move it onto 84098's Tuesday - still locked
     # by 84098's own Monday run at the default noon start.
     r2 = _place(client, _sid(client, "A2"), mon, slot_index=0, instrument="84047")
-    cell_use_id = r2.json()["stages"][0]["cell_use_id"]
+    cell_use_id = _stages(r2.json())[0]["cell_use_id"]
 
     # well A01 on 84098 already has its own real resident (A1's cell), so a cell_choice is
     # required to even attempt this move - but the destination run is locked regardless of
@@ -315,11 +322,11 @@ def _place_a_twice_used_cell(client):
     client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1\nA2,bc2"})
     mon, tue = _weekdays(2)
     r1 = _place(client, _sid(client, "A1"), mon, slot_index=0)
-    cell_id = r1.json()["stages"][0]["cell_id"]
+    cell_id = _stages(r1.json())[0]["cell_id"]
     tray_id = client.get(f"/api/cells/{cell_id}").json()["tray_id"]
     r2 = _place(client, _sid(client, "A2"), tue, slot_index=0, cell_choice={"mode": "existing", "cell_id": cell_id}, start_hour=15)
     assert r2.status_code == 201, r2.text
-    return r2.json()["stages"][0]["cell_use_id"], cell_id, tray_id
+    return _stages(r2.json())[0]["cell_use_id"], cell_id, tray_id
 
 
 def test_move_to_a_different_well_requires_cell_choice(client):
@@ -345,7 +352,7 @@ def test_move_to_a_different_well_reassigns_sample_to_a_new_cell(client):
     # slot_index 4 (well A02) opens a genuinely separate tray box from A01-D01.
     moved = _move(client, cell_use_id_2, wed, slot_index=4, cell_choice={"mode": "new"})
     assert moved.status_code == 200, moved.text
-    stage = moved.json()["stages"][0]
+    stage = _stages(moved.json())[0]
     assert stage["slot_index"] == 4
     assert stage["sample_external_id"] == "A2"
     new_cell_id = stage["cell_id"]
@@ -376,7 +383,7 @@ def test_move_to_a_different_well_reassigns_sample_to_an_existing_compatible_cel
 
     moved = _move(client, cell_use_id_2, wed, slot_index=1, cell_choice={"mode": "existing", "cell_id": sibling_id})
     assert moved.status_code == 200, moved.text
-    stage = moved.json()["stages"][0]
+    stage = _stages(moved.json())[0]
     assert stage["cell_id"] == sibling_id
     assert stage["sample_external_id"] == "A2"
 
@@ -417,7 +424,7 @@ def test_move_onto_a_well_whose_tray_has_since_turned_over(client):
     # never-used siblings are discarded individually so the whole physical tray box is
     # genuinely vacated (every cell in it non-open).
     r_old = _place(client, _sid(client, "OLD1"), mon, slot_index=0)
-    old_cell_id = r_old.json()["stages"][0]["cell_id"]
+    old_cell_id = _stages(r_old.json())[0]["cell_id"]
     tray_id = client.get(f"/api/cells/{old_cell_id}").json()["tray_id"]
     _place(client, _sid(client, "OLD2"), tue, slot_index=0, cell_choice={"mode": "existing", "cell_id": old_cell_id}, start_hour=15)
     _place(client, _sid(client, "OLD3"), wed, slot_index=0, cell_choice={"mode": "existing", "cell_id": old_cell_id}, start_hour=15)
@@ -434,7 +441,7 @@ def test_move_onto_a_well_whose_tray_has_since_turned_over(client):
     # A brand-new tray now loads into the same physical box, well A01, on Thursday - tray1
     # wells only, so it just holds the instrument for the short setup buffer.
     r_new = _place(client, _sid(client, "NEW1"), thu, slot_index=0, start_hour=15)
-    new_cell_id = r_new.json()["stages"][0]["cell_id"]
+    new_cell_id = _stages(r_new.json())[0]["cell_id"]
     assert new_cell_id != old_cell_id
 
     # X is scheduled on a completely different instrument, then dragged onto 84047's well
@@ -442,7 +449,7 @@ def test_move_onto_a_well_whose_tray_has_since_turned_over(client):
     # resolve to the new tray's cell, never silently carry its own prior cell there, and
     # never the old, now-terminal cell that used to sit in this exact well.
     r_x = _place(client, _sid(client, "X"), mon, slot_index=0, instrument="84098")
-    x_cell_use_id = r_x.json()["stages"][0]["cell_use_id"]
+    x_cell_use_id = _stages(r_x.json())[0]["cell_use_id"]
 
     moved = _move(client, x_cell_use_id, fri, slot_index=0, instrument="84047")
     assert moved.status_code == 400, moved.text
@@ -452,7 +459,7 @@ def test_move_onto_a_well_whose_tray_has_since_turned_over(client):
         client, x_cell_use_id, fri, slot_index=0, instrument="84047", cell_choice={"mode": "existing", "cell_id": new_cell_id}
     )
     assert moved.status_code == 200, moved.text
-    stage = next(s for s in moved.json()["stages"] if s["sample_external_id"] == "X")
+    stage = next(s for s in _stages(moved.json()) if s["sample_external_id"] == "X")
     assert stage["cell_id"] == new_cell_id
     assert stage["cell_id"] != old_cell_id
     assert client.get(f"/api/cells/{new_cell_id}").json()["uses_consumed"] == 2

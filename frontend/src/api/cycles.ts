@@ -1,6 +1,6 @@
 import { api, buildQuery } from "./client";
 import type { CycleStatus } from "@/types/common";
-import type { CycleOut } from "@/types/schedule";
+import type { RunOut } from "@/types/schedule";
 
 export interface CycleStatusUpdate {
   status: CycleStatus;
@@ -17,12 +17,16 @@ export interface ListCyclesParams {
   date_to?: string;
 }
 
+/** Path kept as /api/cycles for continuity, but each item is now a *run* (RunBatch): one
+ * load session holding 1-2 plates. The {id} path segment is a run id, and the range is a
+ * load-date range. */
 export const cyclesApi = {
-  list: (params: ListCyclesParams = {}) => api.get<CycleOut[]>(`/api/cycles${buildQuery(params)}`),
-  get: (id: number) => api.get<CycleOut>(`/api/cycles/${id}`),
-  /** PATCH /api/cycles/{id} {status} -> updated CycleOut. Used for the Confirm-loaded
-   * (status:"running") and Unlock (status:"planned") controls. */
-  updateStatus: (id: number, req: CycleStatusUpdate) => api.patch<CycleOut>(`/api/cycles/${id}`, req),
-  /** POST /api/cycles/{id}/cancel -> 204 no body. */
+  list: (params: ListCyclesParams = {}) => api.get<RunOut[]>(`/api/cycles${buildQuery(params)}`),
+  get: (id: number) => api.get<RunOut>(`/api/cycles/${id}`),
+  /** PATCH /api/cycles/{run_id} {status} -> updated RunOut. Operates on the whole run (one
+   * Confirm-loaded locks every plate). Used for Confirm-loaded (status:"running") and
+   * Unlock (status:"planned"). */
+  updateStatus: (id: number, req: CycleStatusUpdate) => api.patch<RunOut>(`/api/cycles/${id}`, req),
+  /** POST /api/cycles/{run_id}/cancel -> 204 no body. Cancels the whole run. */
   cancel: (id: number) => api.post<void>(`/api/cycles/${id}/cancel`),
 };

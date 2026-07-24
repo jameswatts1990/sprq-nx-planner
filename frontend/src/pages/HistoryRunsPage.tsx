@@ -9,9 +9,10 @@ import { Badge } from "@/components/ui/Badge";
 import type { BadgeTone } from "@/components/ui/Badge";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Note } from "@/components/ui/Note";
+import { allStages } from "@/components/scheduler/groupCyclesByInstrumentAndDay";
 import { CYCLE_STATUSES } from "@/types/common";
 import type { CycleStatus } from "@/types/common";
-import type { CycleOut } from "@/types/schedule";
+import type { RunOut } from "@/types/schedule";
 import { runLabel } from "@/utils/runLabel";
 import { useDebouncedValue } from "@/utils/useDebouncedValue";
 
@@ -24,16 +25,15 @@ const STATUS_TONE: Record<CycleStatus, BadgeTone> = {
   aborted: "danger",
 };
 
-function matchesQuery(cycle: CycleOut, q: string): boolean {
-  const haystack = [String(cycle.cycle_id), cycle.run_name ?? "", cycle.instrument_serial, cycle.status, cycle.run_date]
+function matchesQuery(run: RunOut, q: string): boolean {
+  const haystack = [String(run.run_id), run.run_name ?? "", run.instrument_serial, run.status, run.load_date]
     .join(" ")
     .toLowerCase();
   return haystack.includes(q.toLowerCase());
 }
 
-/** History of runs = Cycles (planned/running/completed/aborted), replacing the old
- * committed-Schedule list. The cycles endpoint returns a plain array for the filter, so
- * free-text `q` refines it client-side. */
+/** History of runs = SMRT Link run designs (planned/running/completed/aborted). The runs
+ * endpoint returns a plain array for the filter, so free-text `q` refines it client-side. */
 export function HistoryRunsPage() {
   const [status, setStatus] = useState("");
   const [instrumentSerial, setInstrumentSerial] = useState("");
@@ -113,30 +113,37 @@ export function HistoryRunsPage() {
               <thead>
                 <tr>
                   <th>Run</th>
-                  <th>Run date</th>
+                  <th>Load date</th>
                   <th>Instrument</th>
                   <th>Status</th>
+                  <th>Plates</th>
                   <th>Movie</th>
                   <th>Cells</th>
                   <th>Planned start</th>
                 </tr>
               </thead>
               <tbody>
-                {visible.map((c) => (
-                  <tr key={c.cycle_id}>
-                    <td className={styles.mono}>
-                      <Link to={`/history/runs/${c.cycle_id}`}>{runLabel(c)}</Link>
-                    </td>
-                    <td className={styles.mono}>{c.run_date}</td>
-                    <td className={styles.mono}>{c.instrument_serial}</td>
-                    <td>
-                      <Badge tone={STATUS_TONE[c.status]}>{c.status}</Badge>
-                    </td>
-                    <td>{c.movie_hours} h</td>
-                    <td>{c.stages.length}</td>
-                    <td>{new Date(c.planned_start_at).toLocaleString()}</td>
-                  </tr>
-                ))}
+                {visible.map((r) => {
+                  const wellCount = allStages(r).length;
+                  const longestMovie = r.plates.length > 0 ? Math.max(...r.plates.map((p) => p.movie_hours)) : 0;
+                  const plate1 = r.plates.find((p) => p.plate_index === 1) ?? r.plates[0];
+                  return (
+                    <tr key={r.run_id}>
+                      <td className={styles.mono}>
+                        <Link to={`/history/runs/${r.run_id}`}>{runLabel(r)}</Link>
+                      </td>
+                      <td className={styles.mono}>{r.load_date}</td>
+                      <td className={styles.mono}>{r.instrument_serial}</td>
+                      <td>
+                        <Badge tone={STATUS_TONE[r.status]}>{r.status}</Badge>
+                      </td>
+                      <td>{r.plates.length}</td>
+                      <td>{longestMovie} h</td>
+                      <td>{wellCount}</td>
+                      <td>{plate1 ? new Date(plate1.planned_start_at).toLocaleString() : "—"}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           )}

@@ -9,7 +9,8 @@ import { instrumentsApi } from "@/api/instruments";
 import { scheduleExportUrl } from "@/api/scheduleExport";
 import { CellChoicePicker } from "@/components/scheduler/CellChoicePicker";
 import {
-  findCarryOverLock,
+  allStages,
+  findContinuation,
   groupCyclesByInstrumentAndDay,
   isCellOpen,
   LOCK_LOOKBACK_DAYS,
@@ -33,7 +34,7 @@ import { WaitingCellPopover } from "@/components/scheduler/WaitingCellPopover";
 import { SectionHeading, UseLegend } from "@/components/shared/SectionHeading";
 import { Button } from "@/components/ui/Button";
 import { Note } from "@/components/ui/Note";
-import type { CycleOut, StageOut } from "@/types/schedule";
+import type { RunOut, StageOut } from "@/types/schedule";
 import type { GridCellRef, RunDesignState } from "@/types/schedulerGrid";
 import { addDaysUTC, formatShortDateUTC, isWeekendUTC, parseDateOnly, todayIsoUTC, toIsoDateUTC } from "@/utils/calendarDates";
 
@@ -54,7 +55,7 @@ const DEFAULT_RUN_DESIGN: RunDesignState = {
 
 interface DetailTarget {
   stage: StageOut;
-  cycle: CycleOut;
+  run: RunOut;
 }
 
 export function SchedulePage() {
@@ -75,9 +76,9 @@ export function SchedulePage() {
     queryFn: () => instrumentsApi.list(true),
   });
 
-  // Fetch a few days further back than the visible window so a long run that started
-  // just before it (still locking its instrument) is known about for the carry-over lock
-  // badge, even though its own day isn't rendered as a column.
+  // Fetch a few days further back than the visible window so a run loaded just before it
+  // (still occupying its instrument - a reuse Plate 2 acquiring, or a lock spanning) is
+  // known about for the continuation marker, even though its own load day isn't a column.
   const lookbackDateFrom = useMemo(
     () => toIsoDateUTC(addDaysUTC(parseDateOnly(win.dateFrom), -LOCK_LOOKBACK_DAYS)),
     [win.dateFrom],
@@ -121,8 +122,8 @@ export function SchedulePage() {
     () => (instrumentsQuery.data ?? []).map((i) => i.serial_number),
     [instrumentsQuery.data],
   );
-  const cycles = useMemo(() => cyclesQuery.data ?? [], [cyclesQuery.data]);
-  const grouped = useMemo(() => groupCyclesByInstrumentAndDay(cycles), [cycles]);
+  const runs = useMemo(() => cyclesQuery.data ?? [], [cyclesQuery.data]);
+  const grouped = useMemo(() => groupCyclesByInstrumentAndDay(runs), [runs]);
   // The full tray-linked cell universe (open + terminal + stopped) - several tray-level
   // derivations below need visibility into every status a tray-linked cell can be in, not
   // just the open+terminal cells the reuse ghosts are built from: a since-terminal or
@@ -177,10 +178,10 @@ export function SchedulePage() {
     () => computeTrayDisposalWarnings(allTrayCells, win.days, trayEvictionDates),
     [allTrayCells, win.days, trayEvictionDates],
   );
-  // `cycles` is fetched a few days wider than the visible window (see lookbackDateFrom
-  // above), purely so carry-over locks can see runs that started just before it. Anything
+  // `runs` is fetched a few days wider than the visible window (see lookbackDateFrom
+  // above), purely so continuation markers can see runs loaded just before it. Anything
   // deriving from the actually-visible week (bulk clear, etc.) must filter back down.
-  const visibleCycles = useMemo(() => cycles.filter((c) => win.days.includes(c.run_date)), [cycles, win.days]);
+  const visibleRuns = useMemo(() => runs.filter((r) => win.days.includes(r.load_date)), [runs, win.days]);
 
   // Intersect the selection with the currently selectable (empty, non-weekend) cells to
   // get the concrete auto-fill payload.
@@ -191,10 +192,10 @@ export function SchedulePage() {
         if (!selection.isSelected(r, c)) return;
         if (isWeekendUTC(parseDateOnly(date))) return;
         const byDate = grouped.get(serial);
-        const cycle = byDate?.get(date);
-        const carryOverLock = cycle || !byDate ? undefined : findCarryOverLock(byDate, date);
-        if (!isCellOpen(cycle, carryOverLock)) return;
-        out.push({ instrument_serial: serial, run_date: date });
+        const run = byDate?.get(date);
+        const continuation = run || !byDate ? undefined : findContinuation(byDate, date);
+        if (!isCellOpen(run, continuation)) return;
+        out.push({ instrument_serial: serial, load_date: date });
       });
     });
     return out;
@@ -202,18 +203,18 @@ export function SchedulePage() {
 
   // Every placed, unlocked (still "planned") sample anywhere in the currently-viewed
   // week, for the "Clear schedule" confirm-and-wipe action. Locked (confirmed-loaded)
-  // cycles are excluded since the backend rejects removing their stages. The stage-level
-  // filter matters too: a still-"planned" cycle can contain a cancelled marker (from a
+  // runs are excluded since the backend rejects removing their stages. The stage-level
+  // filter matters too: a still-"planned" run can contain a cancelled marker (from a
   // stopped cell - permanent, the backend refuses to remove it) or a failed/aborted/
   // completed/started stage (a real recorded QC outcome, predating any Confirm-loaded
   // click) - neither is a "planned sample" to clear.
   const weekPlannedStages = useMemo(
     () =>
-      visibleCycles
-        .filter((cycle) => cycle.status === "planned")
-        .flatMap((cycle) => cycle.stages)
+      visibleRuns
+        .filter((run) => run.status === "planned")
+        .flatMap((run) => allStages(run))
         .filter((stage) => stage.cell_use_status === "planned"),
-    [visibleCycles],
+    [visibleRuns],
   );
 
   // Every eligible (unlocked, non-cancelled) sample anywhere in the (instrument row, day
@@ -230,9 +231,9 @@ export function SchedulePage() {
         for (let c = c0; c <= c1; c++) {
           const date = win.days[c];
           if (!date) continue;
-          const cycle = byDate.get(date);
-          if (!cycle || cycle.status !== "planned") continue;
-          for (const s of cycle.stages) {
+          const run = byDate.get(date);
+          if (!run || run.status !== "planned") continue;
+          for (const s of allStages(run)) {
             if (s.cell_use_status !== "cancelled") stages.push(s);
           }
         }
@@ -358,8 +359,8 @@ export function SchedulePage() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [slotSelection.hasSelection, actions.removeSlots]);
 
-  const handleOpenDetail = useCallback((stage: StageOut, cycle: CycleOut) => {
-    setDetail({ stage, cycle });
+  const handleOpenDetail = useCallback((stage: StageOut, run: RunOut) => {
+    setDetail({ stage, run });
   }, []);
 
   const handleExportSchedule = useCallback(() => {
@@ -532,7 +533,7 @@ export function SchedulePage() {
         <CellChoicePicker
           pending={dnd.pendingPlacement}
           runDesign={runDesign}
-          existingRun={grouped.get(dnd.pendingPlacement.instrument_serial)?.get(dnd.pendingPlacement.run_date)}
+          existingRun={grouped.get(dnd.pendingPlacement.instrument_serial)?.get(dnd.pendingPlacement.load_date)}
           onClose={() => dnd.setPendingPlacement(null)}
           onPlaced={() => dnd.setPendingPlacement(null)}
           setPlacingSlotKey={dnd.setPlacingSlotKey}
@@ -556,7 +557,7 @@ export function SchedulePage() {
         <PrintBatchSheetModal instruments={instrumentsQuery.data ?? []} onClose={() => setPrintSheetOpen(false)} />
       )}
 
-      {detail && <SlotDetailPopover stage={detail.stage} cycle={detail.cycle} onClose={() => setDetail(null)} />}
+      {detail && <SlotDetailPopover stage={detail.stage} run={detail.run} onClose={() => setDetail(null)} />}
     </div>
   );
 }

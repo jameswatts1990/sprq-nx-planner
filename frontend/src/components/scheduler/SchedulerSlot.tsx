@@ -15,8 +15,8 @@ export interface SchedulerSlotProps {
   stage: StageOut | null;
   slotIndex: SlotIndex;
   instrumentSerial: string;
-  runDate: string;
-  /** The owning cycle is confirmed/locked (status !== "planned"). */
+  loadDate: string;
+  /** The owning run is confirmed/locked (status !== "planned"). */
   locked: boolean;
   /** This slot has an in-flight place/remove mutation. */
   placing: boolean;
@@ -108,7 +108,7 @@ export function SchedulerSlot(props: SchedulerSlotProps) {
 function DroppableSlot({
   slotIndex,
   instrumentSerial,
-  runDate,
+  loadDate,
   placing,
   ghost,
   onOpenGhost,
@@ -122,12 +122,12 @@ function DroppableSlot({
   const data: SlotDropData = {
     kind: "slot",
     instrument_serial: instrumentSerial,
-    run_date: runDate,
+    load_date: loadDate,
     slot_index: slotIndex,
     ghostCellId: reuseGhost?.cell.id,
   };
   const { setNodeRef, isOver } = useDroppable({
-    id: slotKey(instrumentSerial, runDate, slotIndex),
+    id: slotKey(instrumentSerial, loadDate, slotIndex),
     data,
   });
   return (
@@ -147,7 +147,7 @@ function DraggableSlot({
   stage,
   slotIndex,
   instrumentSerial,
-  runDate,
+  loadDate,
   placing,
   selected,
   onOpenDetail,
@@ -165,11 +165,11 @@ function DraggableSlot({
     cell_use_id: stage.cell_use_id,
     cell_id: stage.cell_id,
     instrument_serial: instrumentSerial,
-    run_date: runDate,
+    load_date: loadDate,
     slot_index: slotIndex,
   };
   const { setNodeRef: setDragRef, listeners, attributes, isDragging } = useDraggable({
-    id: slotKey(instrumentSerial, runDate, slotIndex),
+    id: slotKey(instrumentSerial, loadDate, slotIndex),
     data,
   });
   // Also droppable, so dropping a dragged sample back onto this exact slot (a no-op) or
@@ -177,7 +177,7 @@ function DraggableSlot({
   // any valid target" (which today evicts the dragged sample to the backlog).
   const dropData: OccupiedSlotDropData = { kind: "occupiedSlot", cell_use_id: stage.cell_use_id };
   const { setNodeRef: setDropRef, isOver: rawIsOver } = useDroppable({
-    id: slotKey(instrumentSerial, runDate, slotIndex),
+    id: slotKey(instrumentSerial, loadDate, slotIndex),
     data: dropData,
   });
   // A backlog sample dragged over an occupied slot is deliberately a no-op (nothing to

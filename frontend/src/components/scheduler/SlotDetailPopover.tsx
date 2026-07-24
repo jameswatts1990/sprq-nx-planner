@@ -12,7 +12,7 @@ import { Modal, ModalActions } from "@/components/ui/Modal";
 import { Note } from "@/components/ui/Note";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
-import type { CycleOut, RunTimeHours, StageOut } from "@/types/schedule";
+import type { RunOut, RunTimeHours, StageOut } from "@/types/schedule";
 import { canRecordQcOutcome, canUndoQcOutcome } from "@/utils/cellUseQc";
 import { runLabel } from "@/utils/runLabel";
 
@@ -27,7 +27,7 @@ const RUN_TIME_OPTIONS = [
 export interface SlotDetailPopoverProps {
   stage: StageOut;
   /** The run this slot belongs to - drives the Run ID row. */
-  cycle: CycleOut;
+  run: RunOut;
   onClose: () => void;
 }
 
@@ -46,7 +46,7 @@ type PopoverMode = "view" | "markFailed" | "stop" | "undoQc" | "undoStop";
  * since each takes something out of service, plus their neutral-toned Undo counterparts
  * for a mistaken verdict - so a problem spotted while browsing the grid doesn't require a
  * detour to that page. Built on Modal; folds in the old CellCard's cell-context display. */
-export function SlotDetailPopover({ stage, cycle, onClose }: SlotDetailPopoverProps) {
+export function SlotDetailPopover({ stage, run, onClose }: SlotDetailPopoverProps) {
   const queryClient = useQueryClient();
   const [mode, setMode] = useState<PopoverMode>("view");
   const [failNotes, setFailNotes] = useState("");
@@ -160,7 +160,7 @@ export function SlotDetailPopover({ stage, cycle, onClose }: SlotDetailPopoverPr
   // Run time is a planning dial: editable only while the run and this placement are both
   // still planned (mirrors the backend guard in update_cell_use_run_time). Once locked, the
   // movie time is what the instrument actually acquired, so it's shown read-only.
-  const canEditRunTime = cycle.status === "planned" && stage.cell_use_status === "planned";
+  const canEditRunTime = run.status === "planned" && stage.cell_use_status === "planned";
   // A "Blocked" slot that came from a discard (not a QC Stop) - recoverable back to the
   // Backlog. Told apart by the cell's discarded_at, which only a discard ever sets.
   const isDiscardBlocked = isCancelled && !!cell?.discarded_at;
@@ -226,7 +226,7 @@ export function SlotDetailPopover({ stage, cycle, onClose }: SlotDetailPopoverPr
         </div>
         <div className={styles.row}>
           <span className={styles.label}>Run</span>
-          <b className={styles.value}>{runLabel(cycle)}</b>
+          <b className={styles.value}>{runLabel(run)}</b>
         </div>
         {cell && (
           <div className={styles.row}>

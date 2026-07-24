@@ -163,7 +163,9 @@ function SampleRow({ sample, expanded, onToggle }: SampleRowProps) {
                     {detailQuery.data.cell_uses.map((u) => (
                       <tr key={u.id}>
                         <td>
-                          <Link to={`/history/runs/${u.cycle_id}`}>{runLabel(u)}</Link>
+                          <Link to={`/history/runs/${u.run_batch_id}`}>
+                            {runLabel({ run_id: u.run_batch_id, run_name: u.run_name })}
+                          </Link>
                         </td>
                         <td className={styles.mono}>{u.cell_code}</td>
                         <td className={styles.mono}>{u.well}</td>

@@ -1,9 +1,9 @@
 import { memo, type KeyboardEvent, type MouseEvent } from "react";
 
-import type { CycleOut, StageOut } from "@/types/schedule";
+import type { RunOut, StageOut } from "@/types/schedule";
 import { isWeekendUTC, parseDateOnly } from "@/utils/calendarDates";
 
-import { findCarryOverLock, isCellOpen } from "./groupCyclesByInstrumentAndDay";
+import { findContinuation, isCellOpen } from "./groupCyclesByInstrumentAndDay";
 import type { GridSelection } from "./useGridSelection";
 import type { SlotSelection } from "./useSlotSelection";
 import { SchedulerDayCell } from "./SchedulerDayCell";
@@ -20,10 +20,10 @@ export interface SchedulerGridRowProps {
   serial: string;
   rowIndex: number;
   days: string[];
-  cyclesByDate: Map<string, CycleOut>;
+  cyclesByDate: Map<string, RunOut>;
   selection: GridSelection;
   placingSlotKey: string | null;
-  onOpenDetail: (stage: StageOut, cycle: CycleOut) => void;
+  onOpenDetail: (stage: StageOut, run: RunOut) => void;
   slotSelection: SlotSelection;
   onExtendSelect: (stage: StageOut, coord: { r: number; c: number }) => void;
   onDragSelectStart: (stage: StageOut, coord: { r: number; c: number }) => void;
@@ -56,15 +56,15 @@ export const SchedulerGridRow = memo(function SchedulerGridRow({
   disposalByDate,
   onOpenGhost,
 }: SchedulerGridRowProps) {
-  // Everything each day-cell needs, derived once per day. carryOverLock is the only costly
+  // Everything each day-cell needs, derived once per day. continuation is the only costly
   // bit (it scans cyclesByDate) and used to be computed twice per day - here it's computed
-  // a single time, and skipped entirely for weekend/has-cycle days that never consult it.
+  // a single time, and skipped entirely for weekend/has-run days that never consult it.
   const dayInfos = days.map((date, colIndex) => {
     const weekend = isWeekendUTC(parseDateOnly(date));
-    const cycle = cyclesByDate.get(date);
-    const carryOverLock = weekend || cycle ? undefined : findCarryOverLock(cyclesByDate, date);
-    const selectable = !weekend && isCellOpen(cycle, carryOverLock);
-    return { date, colIndex, weekend, cycle, carryOverLock, selectable };
+    const run = cyclesByDate.get(date);
+    const continuation = weekend || run ? undefined : findContinuation(cyclesByDate, date);
+    const selectable = !weekend && isCellOpen(run, continuation);
+    return { date, colIndex, weekend, run, continuation, selectable };
   });
   const selectableCols = dayInfos.filter((d) => d.selectable).map((d) => d.colIndex);
 
@@ -104,18 +104,18 @@ export const SchedulerGridRow = memo(function SchedulerGridRow({
         <div className={styles.ml}>Revio</div>
         <div className={styles.mid}>{serial}</div>
       </th>
-      {dayInfos.map(({ date, colIndex, weekend, cycle, carryOverLock, selectable }) => {
+      {dayInfos.map(({ date, colIndex, weekend, run, continuation, selectable }) => {
         const selected = selectable && selection.isSelected(rowIndex, colIndex);
         return (
           <SchedulerDayCell
             key={date}
             instrumentSerial={serial}
-            runDate={date}
+            loadDate={date}
             rowIndex={rowIndex}
             colIndex={colIndex}
             weekend={weekend}
-            cycle={cycle}
-            carryOverLock={carryOverLock}
+            run={run}
+            continuation={continuation}
             selectable={selectable}
             selected={selected}
             placingSlotKey={placingSlotKey}

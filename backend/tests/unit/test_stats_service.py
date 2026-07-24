@@ -42,10 +42,18 @@ def _instr(session, serial: str) -> int:
 
 def _run(session, instrument_id, run_date, status, movie_hours, uses):
     """uses: list of (cell, use_status, well)."""
-    rb = RunBatch(instrument_id=instrument_id, run_date=run_date)
+    rb = RunBatch(instrument_id=instrument_id, load_date=run_date)
     session.add(rb)
     session.flush()
-    cyc = Cycle(run_batch_id=rb.id, movie_hours=movie_hours, planned_start_at=DT, planned_end_at=DT, status=status)
+    cyc = Cycle(
+        run_batch_id=rb.id,
+        plate_index=1,
+        acquire_date=run_date,
+        movie_hours=movie_hours,
+        planned_start_at=DT,
+        planned_end_at=DT,
+        status=status,
+    )
     session.add(cyc)
     session.flush()
     for cell, use_status, well in uses:
@@ -80,7 +88,8 @@ def test_headline_and_throughput(seeded):
     assert h.runs_completed == 2  # two completed cycles (third is planned)
     assert h.samples_completed == 5  # completed cell-uses
     assert h.failure_rate == pytest.approx(16.7, abs=0.1)  # 1 failed / 6 verdicts
-    assert h.well_fill_pct == pytest.approx(25.0)  # 6 filled / (3 runs * 8)
+    # A plate (Cycle) now holds one tray of 4 wells, not the old 8 - so 6 filled / (3 plates * 4).
+    assert h.well_fill_pct == pytest.approx(50.0)
     assert h.avg_uses_per_cell == pytest.approx(2.5)  # terminal cells C1(3), C3(2)
     assert h.pct_reaching_use3 == pytest.approx(50.0)
 
