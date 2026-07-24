@@ -113,7 +113,10 @@ def _row_values(cell_use: CellUse, cycle: Cycle, serial: str) -> dict[str, str]:
     sample = cell_use.sample
     return {
         K_DATE_RUN_STARTED: _fmt_date(cycle.run_batch.run_date if cycle.run_batch else None),
-        K_TRACTION_RUN_ID: cycle.run_name or "",
+        # The run's identifier, mirroring the app's runLabel: the lab-assigned run_name
+        # (e.g. "TRACTION-RUN-1234") when set, otherwise the "#<cycle id>" fallback the grid
+        # shows — so a scheduled run never exports a blank Traction Run ID.
+        K_TRACTION_RUN_ID: cycle.run_name or f"#{cycle.id}",
         K_INSTRUMENT: serial,
         # Plate ID and Loading Conc. columns are left blank: the app no longer stores a
         # separate plate id or actual-OPLC value (only the Target OPLC), so those sheet

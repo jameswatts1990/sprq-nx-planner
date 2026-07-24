@@ -47,6 +47,7 @@ function WellRow({ well }: { well: BatchSheetWellOut }) {
       </td>
       <td>{well.target_oplc ?? "—"}</td>
       <td>{well.volume ?? "—"}</td>
+      <td className={styles.notesCell}>{well.notes ? well.notes : "—"}</td>
     </tr>
   );
 }
@@ -188,12 +189,13 @@ function InstrumentSection({ instrument }: { instrument: BatchSheetInstrumentOut
             <th>Settings</th>
             <th>Target OPLC</th>
             <th>Volume</th>
+            <th>Notes</th>
           </tr>
         </thead>
         {tray1.length > 0 && (
           <tbody>
             <tr className={styles.trayHeader}>
-              <td colSpan={7}>Tray 1</td>
+              <td colSpan={8}>Tray 1</td>
             </tr>
             {tray1.map((w) => (
               <WellRow key={w.well} well={w} />
@@ -203,7 +205,7 @@ function InstrumentSection({ instrument }: { instrument: BatchSheetInstrumentOut
         {tray2.length > 0 && (
           <tbody>
             <tr className={styles.trayHeader}>
-              <td colSpan={7}>Tray 2</td>
+              <td colSpan={8}>Tray 2</td>
             </tr>
             {tray2.map((w) => (
               <WellRow key={w.well} well={w} />

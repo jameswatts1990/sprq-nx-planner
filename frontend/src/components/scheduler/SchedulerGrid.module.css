@@ -88,6 +88,23 @@
   width: 38px;
   padding: 10px 6px;
 }
+/* Day-header status colouring: grey = past, rose = today, white (the default .dayTh
+   card background) = future. Purely a visual cue - past days stay fully editable. */
+.pastTh {
+  background: var(--bg);
+}
+.pastTh .dn,
+.pastTh .dd {
+  color: var(--faint);
+}
+.todayTh {
+  background: var(--magenta-tint);
+  /* A magenta underline marks "you are here", echoing the heading loading-bar dot. */
+  border-bottom: 2px solid var(--magenta);
+}
+.todayTh .dn {
+  color: var(--magenta-deep);
+}
 .dn {
   font-size: 14px;
   font-weight: 800;

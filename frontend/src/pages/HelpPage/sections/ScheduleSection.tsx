@@ -65,6 +65,13 @@ export function ScheduleSection() {
         <b>Weekends aren&apos;t shown</b> — the grid only has Monday-Friday columns, because runs aren&apos;t
         started at weekends.
       </p>
+      <p>
+        <b>The day headers are colour-coded to today.</b> Days already past are shown greyed, the current day is
+        highlighted in rose pink with a magenta underline, and days still to come stay white — so you can see at a
+        glance where &quot;now&quot; sits in the week. Past days stay fully editable; it&apos;s only a visual cue. The
+        pink bar next to the <b>Weekly schedule</b> heading fills up like a progress bar, with the RunNx dot marking
+        how far through the displayed week today is.
+      </p>
 
       <p className={styles.subheading}>Print Batch Sheet</p>
       <p>
@@ -73,7 +80,8 @@ export function ScheduleSection() {
         just their own. The sheet opens in a new tab with every well&apos;s cell code, use number and 108-hour
         reuse deadline, the sample to load and its barcode(s), and the run settings (adaptive loading,
         include base kinetics, full-resolution baseQ, Target OPLC, volume) — everything needed to find the right samples, load them
-        in the right wells, and set up the run. Use the page&apos;s <b>Print / Save as PDF</b> button, which opens
+        in the right wells, and set up the run. A final <b>Notes</b> column prints any note you&apos;ve added to a
+        sample on its cell (see <b>Sample notes</b> under QC actions below). Use the page&apos;s <b>Print / Save as PDF</b> button, which opens
         your browser&apos;s normal print dialog (choose a physical printer, or &quot;Save as PDF&quot;).
       </p>
       <p>
@@ -90,8 +98,8 @@ export function ScheduleSection() {
       <p>
         <b>Export schedule</b> downloads the currently-visible week as a CSV in the exact column layout of the
         sequencing tracker Google Sheet, so you can paste the rows straight in. There is one row per scheduled well;
-        the columns the planner tracks (date, instrument, Traction ID, barcodes, Sanger ID, cell location, run time,
-        target OPLC, status and priority) are filled in, and every other column in the sheet is left
+        the columns the planner tracks (date, run ID, instrument, Traction ID, barcodes, Sanger ID, cell location, run
+        time, target OPLC, status and priority) are filled in, and every other column in the sheet is left
         blank for you to complete. Because the blanks would overwrite existing values, use this to <b>add new rows</b>{" "}
         to the sheet rather than to paste over rows that already have complexing or charging data.
       </p>
@@ -246,6 +254,14 @@ export function ScheduleSection() {
         that already ran on this cell before the stop are left completely untouched. Every cancelled use stays
         visible as a <b>Blocked</b> slot (see below) rather than disappearing, so a day&apos;s plan never silently
         loses a placement without a trace.
+      </p>
+      <p>
+        <b>Sample notes:</b> the same popover has a <b>Notes</b> box for a free-text note about this sample on this
+        cell — anything worth flagging to whoever loads it (a handling reminder, a query, a re-run reason). Type a
+        note and click <b>Save note</b>; it stays visible whenever you reopen that slot and remains editable at any
+        time, including after the run is locked (unlike the placement itself, which locks once loaded). The note also
+        prints in the <b>Notes</b> column of the Batch Sheet for that well. It is tied to this one placement, so a
+        sample reused on another cell starts with a blank note there. Clearing the box and saving removes the note.
       </p>
       <p>
         <b>Undoing a QC mistake:</b> flagged the wrong slot? An <b>Undo Failed</b> button replaces{" "}

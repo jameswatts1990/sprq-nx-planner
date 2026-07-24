@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import selectinload
 
 from app.api.deps import ActorDep, SessionDep
+from app.models.audit import AuditLog
 from app.models.schedule import CELL_USE_STATUSES, CellUse, Cycle
 from app.schemas.run import CycleOut, MoveSampleRequest, PlaceSampleRequest
 from app.services.placement_service import (
@@ -34,6 +35,11 @@ class SwapCellUsesRequest(BaseModel):
     other_cell_use_id: int
 
 
+class CellUseNotesUpdate(BaseModel):
+    # Empty/whitespace-only clears the note back to null; anything else is stored trimmed.
+    notes: str | None = None
+
+
 def _cell_use_dict(cu: CellUse) -> dict:
     return {
         "id": cu.id,
@@ -46,6 +52,7 @@ def _cell_use_dict(cu: CellUse) -> dict:
         "status": cu.status,
         "barcodes": cu.barcode_list,
         "outcome_notes": cu.outcome_notes,
+        "notes": cu.notes,
         "started_at": cu.started_at,
         "completed_at": cu.completed_at,
     }
@@ -122,6 +129,22 @@ def patch_cell_use(cell_use_id: int, req: CellUseStatusUpdate, db: SessionDep, a
         cu = update_cell_use_status(db, cu, req.status, req.at, req.notes, req.actor or actor)
     except ValueError as exc:
         raise HTTPException(409, str(exc)) from exc
+    return _cell_use_dict(cu)
+
+
+@router.patch("/{cell_use_id}/notes")
+def patch_cell_use_notes(cell_use_id: int, req: CellUseNotesUpdate, db: SessionDep, actor: ActorDep) -> dict:
+    """Set/clear the free-text note on a placement. Deliberately not gated by the owning
+    cycle's lock: a note stays editable after the run is confirmed/loaded, unlike the
+    placement itself. Blank input clears the note."""
+    cu = db.get(CellUse, cell_use_id, options=_OPTIONS)
+    if cu is None:
+        raise HTTPException(404, "Cell use not found")
+    trimmed = (req.notes or "").strip()
+    cu.notes = trimmed or None
+    db.add(AuditLog(actor=actor, action="update_cell_use_notes", entity_type="cell_use", entity_id=cu.id, details_json={}))
+    db.commit()
+    db.refresh(cu)
     return _cell_use_dict(cu)
 
 

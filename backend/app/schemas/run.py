@@ -44,6 +44,9 @@ class StageOut(BaseModel):
     # grid slot's expiry shading, per-cell (see docs/pacbio-sprq-nx-scheduling-reference.md
     # #2 - there is no shared tray-level clock, only this cell's own 108h deadline).
     window_hours_elapsed: float | None
+    # Free-text note the user attached to this sample-on-this-cell placement, shown (and
+    # editable) in the slot-detail popover. Distinct from the QC outcome_notes field.
+    notes: str | None = None
 
 
 class CycleOut(BaseModel):

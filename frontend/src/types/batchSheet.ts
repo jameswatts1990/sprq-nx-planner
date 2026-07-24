@@ -15,6 +15,7 @@ export interface BatchSheetWellOut {
   full_resolution_base_q: string | null;
   target_oplc: number | null;
   volume: number | null;
+  notes: string | null;
 }
 
 export interface BatchSheetInstrumentOut {

@@ -50,6 +50,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               </NavLink>
             ))}
           </nav>
+          <span className={styles.version}>v{__APP_VERSION__}</span>
         </div>
       </header>
       <div className="wrap">{children}</div>

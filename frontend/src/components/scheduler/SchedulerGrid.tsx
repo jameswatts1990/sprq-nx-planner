@@ -6,6 +6,7 @@ import {
   isWeekendUTC,
   parseDateOnly,
   shortWeekdayUTC,
+  todayIsoUTC,
 } from "@/utils/calendarDates";
 
 import { findCarryOverLock, isCellOpen } from "./groupCyclesByInstrumentAndDay";
@@ -51,11 +52,15 @@ function SchedulerDayHeader({
   date,
   colIndex,
   selectable,
+  dayStatus,
   onSelectColumn,
 }: {
   date: string;
   colIndex: number;
   selectable: boolean;
+  /** Where this day sits relative to today - drives the header background colour
+   * (grey = past, rose = today, white = future) so the week reads at a glance. */
+  dayStatus: "past" | "today" | "future";
   onSelectColumn: (colIndex: number, ctrl: boolean) => void;
 }) {
   const d = parseDateOnly(date);
@@ -71,15 +76,18 @@ function SchedulerDayHeader({
     }
   }
 
+  const statusClass =
+    dayStatus === "past" ? styles.pastTh : dayStatus === "today" ? styles.todayTh : undefined;
+
   return (
     <th
-      className={
-        weekend
-          ? `${styles.dayTh} ${styles.weekendTh}`
-          : selectable
-            ? `${styles.dayTh} ${styles.headerSelectable}`
-            : styles.dayTh
-      }
+      className={[
+        styles.dayTh,
+        weekend ? styles.weekendTh : statusClass,
+        selectable ? styles.headerSelectable : undefined,
+      ]
+        .filter(Boolean)
+        .join(" ")}
       onClick={selectable ? onClick : undefined}
       onKeyDown={selectable ? onKeyDown : undefined}
       role={selectable ? "button" : undefined}
@@ -149,6 +157,10 @@ export function SchedulerGrid({
     }
   }
 
+  // ISO date strings sort lexically, so a plain compare against today's date places each
+  // column in the past / today / future without any extra date arithmetic.
+  const today = todayIsoUTC();
+
   return (
     <div className={styles.gridScroll}>
       <table className={styles.grid}>
@@ -176,6 +188,7 @@ export function SchedulerGrid({
                 date={date}
                 colIndex={colIndex}
                 selectable={!isWeekendUTC(parseDateOnly(date))}
+                dayStatus={date < today ? "past" : date === today ? "today" : "future"}
                 onSelectColumn={onSelectColumn}
               />
             ))}

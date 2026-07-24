@@ -67,6 +67,11 @@ class CellUse(Base):
     well: Mapped[str] = mapped_column(String(8))
     status: Mapped[str] = mapped_column(String(20), default="planned", index=True)
     outcome_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Free-text note the lab user attaches to this sample-on-this-cell placement. Distinct
+    # from outcome_notes (which records a QC verdict via Mark Failed / Stop cell): this is a
+    # general annotation, editable at any time - including after the run is locked - and
+    # surfaced on the slot-detail popover and the printed batch sheet.
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 

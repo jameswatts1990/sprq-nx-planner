@@ -139,6 +139,30 @@ def test_export_keeps_a_mismatched_pool_collapsed_and_flags_it(client):
     assert row[15] == "Not split: 3 barcodes / 1 Sanger IDs"  # Sequencing Comments flag
 
 
+def test_export_falls_back_to_hash_id_when_run_unnamed(client):
+    # A scheduled but never-named run exports the "#<cycle id>" fallback the grid shows,
+    # not a blank Traction Run ID.
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nUNNAMED1,bc9100"})
+    past = _past_weekday()
+    placed = client.post(
+        "/api/cell-uses",
+        json={
+            "sample_id": _sid(client, "UNNAMED1"),
+            "instrument_serial": "84047",
+            "run_date": past,
+            "slot_index": 0,
+            "cell_choice": {"mode": "new"},
+            "run_time_hours": 24,
+        },
+    )
+    assert placed.status_code == 201, placed.text
+    cycle_id = placed.json()["cycle_id"]
+
+    rows = _rows(client.get("/api/schedule/export.csv", params={"date_from": past, "date_to": past}).text)
+    assert len(rows) == 2
+    assert rows[1][1] == f"#{cycle_id}"  # Traction Run ID falls back to #<cycle id>
+
+
 def test_export_window_excludes_out_of_range_runs(client):
     client.post("/api/imports", json={"raw_text": "sample,barcodes\nOUT1,bc9001"})
     past = _past_weekday()

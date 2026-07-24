@@ -44,6 +44,9 @@ export interface StageOut {
    * slot's expiry shading. Per-cell, not per-tray - see docs/pacbio-sprq-nx-scheduling-
    * reference.md #2 (no shared tray-level clock). */
   window_hours_elapsed: number | null;
+  /** Free-text note the user attached to this sample-on-this-cell placement, shown and
+   * editable in the slot-detail popover. Distinct from the QC outcome note. */
+  notes: string | null;
 }
 
 export interface CycleOut {

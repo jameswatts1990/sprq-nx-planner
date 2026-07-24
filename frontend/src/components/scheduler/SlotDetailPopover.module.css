@@ -54,6 +54,23 @@
   border-radius: var(--r-sm);
   padding: 8px 10px;
 }
+.notes {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 0 0;
+}
+.notesActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+.notesError {
+  flex: 1;
+  font-size: 12px;
+  color: var(--bad, #c0392b);
+}
 .hint {
   font-size: 12px;
   color: var(--grey);

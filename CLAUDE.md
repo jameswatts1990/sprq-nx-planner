@@ -12,6 +12,16 @@ RunNx exists to make PacBio Revio/SPRQ-Nx run scheduling and cell-reuse tracking
 - **Transparent**: current state, why something is blocked/locked, and what an action will do should be obvious at a glance — via status badges, tooltips, and Help text — never a silent state change or an error the user can't act on.
 - **UX/UI first**: for any user-facing change, reason about the interaction from the lab user's perspective before writing code, and verify visually in the running app (the `run`/`verify` skills, or a manual dev-server check) rather than relying on type-checks or test suites alone to call it done.
 
+## RunNx App Version
+
+The app version is shown in the navbar (top right, low-contrast grey — see `frontend/src/components/layout/AppShell.tsx`, sourced from `frontend/package.json`'s `version` via Vite's `define` as `__APP_VERSION__`). **Bump `frontend/package.json`'s `version` with every change you make, using semantic versioning (`vX.X.X` → `MAJOR.MINOR.PATCH`):**
+
+- **PATCH** (`0.2.0` → `0.2.1`): bug fixes, copy/style tweaks, refactors with no behaviour change.
+- **MINOR** (`0.2.0` → `0.3.0`): new user-facing features or capabilities, backwards-compatible.
+- **MAJOR** (`0.2.0` → `1.0.0`): breaking changes or a deliberate release milestone — only when explicitly intended.
+
+Do this as part of the same change, not a separate step, so the deployed build is always identifiable at a glance.
+
 ## RunNx Local Dev Environment
 
 This checkout lives on local disk (`c:\Users\jw24\dev\sprq-nx-planner`) — native dev is `npm run dev` (frontend, port 5173) + `uvicorn --reload` (backend, port 8000) against a local SQLite `backend/dev.db`. No Docker, no network-drive workarounds needed here.

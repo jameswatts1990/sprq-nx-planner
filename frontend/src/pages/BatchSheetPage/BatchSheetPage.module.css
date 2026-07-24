@@ -73,6 +73,11 @@
   color: var(--red);
   font-weight: 700;
 }
+.notesCell {
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-width: 220px;
+}
 
 /* --- SOP 7.3 / 7.4 data-entry worksheets ------------------------------- */
 .sectionSub {

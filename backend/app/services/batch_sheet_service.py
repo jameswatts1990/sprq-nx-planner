@@ -79,4 +79,5 @@ def _well_out(cell_use: CellUse) -> BatchSheetWellOut:
         full_resolution_base_q=sample.full_resolution_base_q if sample else None,
         target_oplc=sample.target_oplc if sample else None,
         volume=sample.volume if sample else None,
+        notes=cell_use.notes,
     )

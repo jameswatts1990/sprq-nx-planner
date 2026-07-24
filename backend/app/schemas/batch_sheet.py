@@ -21,6 +21,7 @@ class BatchSheetWellOut(BaseModel):
     full_resolution_base_q: str | None
     target_oplc: float | None
     volume: float | None
+    notes: str | None  # free-text placement note, printed alongside the well
 
 
 class BatchSheetInstrumentOut(BaseModel):

@@ -71,6 +71,7 @@ def cycle_out(db: Session, cycle: Cycle) -> CycleOut:
             tray_position=cu.cell.tray_position if cu.cell else None,
             tray_id=cu.cell.tray_id if cu.cell else None,
             window_hours_elapsed=window_hours_elapsed(cu.cell) if cu.cell else None,
+            notes=cu.notes,
         )
         for cu in sorted(cycle.cell_uses, key=lambda x: x.well)
     ]

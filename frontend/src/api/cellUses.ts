@@ -13,6 +13,7 @@ export interface CellUseOut {
   status: string;
   barcodes: string[];
   outcome_notes: string | null;
+  notes: string | null;
   started_at: string | null;
   completed_at: string | null;
 }
@@ -27,6 +28,9 @@ export interface CellUseStatusUpdate {
 export const cellUsesApi = {
   get: (id: number) => api.get<CellUseOut>(`/api/cell-uses/${id}`),
   updateStatus: (id: number, req: CellUseStatusUpdate) => api.patch<CellUseOut>(`/api/cell-uses/${id}`, req),
+  /** Set/clear the free-text note on a placement. Not gated by the run lock - a note
+   * stays editable after the run is confirmed. Blank clears it. */
+  updateNotes: (id: number, notes: string) => api.patch<CellUseOut>(`/api/cell-uses/${id}/notes`, { notes }),
   /** Place a backlog sample into a slot. 201 -> the updated CycleOut for that
    * (instrument_serial, run_date). 400/409 on clash/lock. */
   place: (req: PlaceSampleRequest) => api.post<CycleOut>("/api/cell-uses", req),

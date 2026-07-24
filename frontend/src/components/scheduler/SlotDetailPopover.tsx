@@ -44,6 +44,11 @@ export function SlotDetailPopover({ stage, cycle, onClose }: SlotDetailPopoverPr
   const [mode, setMode] = useState<PopoverMode>("view");
   const [failNotes, setFailNotes] = useState("");
   const [stopReason, setStopReason] = useState("");
+  // Editable placement note. `savedNotes` tracks the last persisted value so the Save
+  // button can tell dirty from clean - the `stage` prop is captured at click time and
+  // isn't refreshed in place after the mutation, so we can't compare against it.
+  const [notes, setNotes] = useState(stage.notes ?? "");
+  const [savedNotes, setSavedNotes] = useState(stage.notes ?? "");
 
   const cellQuery = useQuery({
     queryKey: ["cell", stage.cell_id],
@@ -75,6 +80,18 @@ export function SlotDetailPopover({ stage, cycle, onClose }: SlotDetailPopoverPr
       onClose();
     },
   });
+
+  // Not gated by the cycle lock - a note stays editable after the run is confirmed. Keep
+  // the popover open on save (unlike the QC actions) so the user can keep editing; just
+  // refresh the grid/batch sheet and update the saved baseline.
+  const saveNotesMutation = useMutation({
+    mutationFn: () => cellUsesApi.updateNotes(stage.cell_use_id, notes),
+    onSuccess: () => {
+      setSavedNotes(notes);
+      invalidateScheduleRelated(queryClient);
+    },
+  });
+  const notesDirty = notes !== savedNotes;
 
   const undoQcMutation = useMutation({
     mutationFn: () => cellUsesApi.undo(stage.cell_use_id),
@@ -203,6 +220,33 @@ export function SlotDetailPopover({ stage, cycle, onClose }: SlotDetailPopoverPr
         <div className={styles.barcodes}>
           <span className={styles.label}>Burned on cell</span>
           <BarcodeChips barcodes={cell.burned_barcodes} variant="u2" />
+        </div>
+      )}
+
+      {mode === "view" && (
+        <div className={styles.notes}>
+          <span className={styles.label}>Notes</span>
+          <textarea
+            className={styles.qcTextarea}
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Add a note for this sample on this cell…"
+          />
+          <div className={styles.notesActions}>
+            {saveNotesMutation.isError && (
+              <span className={styles.notesError}>
+                {saveNotesMutation.error instanceof ApiError ? saveNotesMutation.error.message : "Failed to save note."}
+              </span>
+            )}
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => saveNotesMutation.mutate()}
+              disabled={!notesDirty || saveNotesMutation.isPending}
+            >
+              {saveNotesMutation.isPending ? "Saving…" : notesDirty ? "Save note" : "Saved"}
+            </Button>
+          </div>
         </div>
       )}
 

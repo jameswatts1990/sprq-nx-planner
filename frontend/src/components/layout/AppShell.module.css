@@ -69,3 +69,14 @@
   color: var(--magenta);
   background: var(--magenta-tint);
 }
+/* Pushed to the far right of the nav strip; deliberately low-contrast so the
+   build version is available at a glance without competing with the nav. */
+.version {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--grey);
+  opacity: 0.6;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}

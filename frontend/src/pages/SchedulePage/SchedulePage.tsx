@@ -35,7 +35,7 @@ import { Button } from "@/components/ui/Button";
 import { Note } from "@/components/ui/Note";
 import type { CycleOut, StageOut } from "@/types/schedule";
 import type { GridCellRef, RunDesignState } from "@/types/schedulerGrid";
-import { addDaysUTC, formatShortDateUTC, isWeekendUTC, parseDateOnly, toIsoDateUTC } from "@/utils/calendarDates";
+import { addDaysUTC, formatShortDateUTC, isWeekendUTC, parseDateOnly, todayIsoUTC, toIsoDateUTC } from "@/utils/calendarDates";
 
 import { BacklogAccordion } from "./BacklogAccordion";
 import { ClearScheduleModal } from "./ClearScheduleModal";
@@ -375,6 +375,20 @@ export function SchedulePage() {
     parseDateOnly(win.dateTo),
   )}`;
 
+  // How far through the displayed week "today" is, for the Weekly-schedule heading's
+  // loading-bar rule. 0 when the whole week is still ahead, 1 when it's fully in the
+  // past, otherwise the current weekday's proportional position (its column's centre)
+  // so the brand dot lands on today. Weekend "today" (Sat/Sun) reads as a finished week.
+  const weekProgress = useMemo(() => {
+    const today = todayIsoUTC();
+    if (win.days.length === 0) return 0;
+    if (today < win.days[0]) return 0;
+    if (today > win.days[win.days.length - 1]) return 1;
+    const idx = win.days.indexOf(today);
+    if (idx === -1) return 1; // a weekday not shown falls past the visible columns
+    return (idx + 0.5) / win.days.length;
+  }, [win.days]);
+
   return (
     <div className={styles.page}>
       <DndContext
@@ -470,7 +484,7 @@ export function SchedulePage() {
           </div>
 
           <div className={styles.gridArea} ref={gridAreaRef}>
-            <SectionHeading title="Weekly schedule" legend={<UseLegend />} />
+            <SectionHeading title="Weekly schedule" legend={<UseLegend />} progress={weekProgress} />
 
             {instrumentsQuery.isLoading && <div className={styles.status}>Loading instruments…</div>}
             {instrumentsQuery.isError && (
