@@ -151,6 +151,7 @@ function SampleRow({ sample, expanded, onToggle }: SampleRowProps) {
                   <thead>
                     <tr>
                       <th>Run</th>
+                      <th>Plate</th>
                       <th>Cell</th>
                       <th>Well</th>
                       <th>Status</th>
@@ -167,6 +168,7 @@ function SampleRow({ sample, expanded, onToggle }: SampleRowProps) {
                             {runLabel({ run_id: u.run_batch_id, run_name: u.run_name })}
                           </Link>
                         </td>
+                        <td>{u.plate_number != null ? `Plate ${u.plate_number}` : "—"}</td>
                         <td className={styles.mono}>{u.cell_code}</td>
                         <td className={styles.mono}>{u.well}</td>
                         <td>{u.status}</td>

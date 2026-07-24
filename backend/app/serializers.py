@@ -35,6 +35,7 @@ def sample_detail_out(sample: Sample) -> SampleDetailOut:
                 cycle_id=cu.cycle_id,
                 run_name=run_batch.run_name if run_batch else None,
                 run_batch_id=run_batch.id if run_batch else -1,
+                plate_number=cu.cycle.plate_index if cu.cycle else None,
                 cell_id=cu.cell_id,
                 cell_code=cu.cell.code if cu.cell else "",
                 well=cu.well,

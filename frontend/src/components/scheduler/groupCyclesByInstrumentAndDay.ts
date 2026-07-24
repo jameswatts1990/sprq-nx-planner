@@ -91,12 +91,18 @@ export function padStages(run: RunOut | undefined): (StageOut | null)[] {
  */
 export function findContinuation(runsByDate: Map<string, RunOut>, day: string): Continuation | undefined {
   const dayStart = parseDateOnly(day).getTime();
+  // A bare lock (no plate acquiring here) only *closes* a day it spans in full. If the
+  // instrument frees up partway through this day (the lock ends before the day is out), the
+  // day is still loadable - a new run can be created that day, starting when the lock clears
+  // (see backend instrument_lock.resolve_new_run_start). So compare against the end of the
+  // day, not its start: a lock ending at 18:00 on this day no longer carries over onto it.
+  const dayEnd = dayStart + 24 * 60 * 60 * 1000;
   let best: { run: RunOut; acquiresToday: boolean; lockUntil: number } | undefined;
   for (const run of runsByDate.values()) {
     if (run.load_date >= day) continue; // only an earlier run can carry over
     const acquiresToday = run.plates.some((p) => p.acquire_date === day);
     const lockUntil = new Date(run.lock_until).getTime();
-    if (!acquiresToday && lockUntil <= dayStart) continue; // neither acquiring nor still locking here
+    if (!acquiresToday && lockUntil <= dayEnd) continue; // frees up by end of day, or not locking here
     if (!best) {
       best = { run, acquiresToday, lockUntil };
     } else if (acquiresToday && !best.acquiresToday) {

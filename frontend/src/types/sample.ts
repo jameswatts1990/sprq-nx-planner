@@ -41,6 +41,8 @@ export interface SampleCellUseOut {
   cycle_id: number;
   run_name: string | null;
   run_batch_id: number;
+  /** Which plate (1 or 2) of the run this use was scheduled on, inferred from the schedule. */
+  plate_number: number | null;
   cell_id: number;
   cell_code: string;
   well: string;

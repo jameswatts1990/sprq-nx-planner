@@ -71,6 +71,9 @@ class SampleCellUseOut(BaseModel):
     cycle_id: int
     run_name: str | None
     run_batch_id: int
+    # Which plate (1 or 2) of the run this use was scheduled on - the plate's positional
+    # index, inferred from the schedule, not a separate physical plate identifier.
+    plate_number: int | None
     cell_id: int
     cell_code: str
     well: str

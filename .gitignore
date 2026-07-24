@@ -16,3 +16,11 @@ dist/
 frontend/.env.local
 frontend/tsconfig.app.tsbuildinfo
 .playwright-mcp/
+
+# Playwright / MCP browser outputs (screenshots, traces, test artifacts)
+test-results/
+playwright-report/
+*.har
+trace.zip
+# stray verification screenshots dropped in repo root by the browser tools
+/sched-*.png

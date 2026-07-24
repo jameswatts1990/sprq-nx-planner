@@ -428,8 +428,11 @@ export function ScheduleSection() {
           <b>Confirm loaded</b> (unlock it first) — the cells are physically in the instrument by then.
         </li>
         <li>
-          <b>Locked until [date/time]</b> means the run&apos;s instrument stays reserved past this day (a long
-          movie), so later days show a &quot;Locked until…&quot; note even though no run starts on them.
+          <b>Locked until [date/time]</b> appears only on a day the instrument is reserved for its <i>whole</i>{" "}
+          length by an earlier run (a long movie spilling over). The day the reservation actually <i>ends</i> stays
+          open to load — the instrument frees up partway through it, so you can still schedule a run there and it
+          simply starts when the instrument is free (its start time shifts to the clear time). Only days the movie
+          covers end-to-end are closed.
         </li>
       </ul>
 

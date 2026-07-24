@@ -297,13 +297,15 @@ def test_move_into_a_run_locked_by_a_prior_run_on_destination_instrument_is_reje
     client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1\nA2,bc2\nA3,bc3"})
     mon, tue = _weekdays(2)
 
-    # Lock up 84098 with an unrelated run starting Monday - both trays loaded, so it's
-    # committed to the full movie (noon + 24h + 6h = Tue 18:00), not just the short setup window.
-    _place(client, _sid(client, "A1"), mon, slot_index=0, instrument="84098", run_time_hours=24)
-    _place(client, _sid(client, "A3"), mon, slot_index=4, instrument="84098", run_time_hours=24)
+    # Lock up 84098 with an unrelated run starting Monday - a 30h movie at 20:00 with both
+    # trays loaded commits it until Mon 20:00 + 30h + 6h = Wed 08:00, so all of Tuesday is
+    # inside the lock (a lock that merely cleared mid-Tuesday would leave Tuesday loadable -
+    # see test_new_run_on_the_lock_end_day_starts_when_the_instrument_frees).
+    _place(client, _sid(client, "A1"), mon, slot_index=0, instrument="84098", run_time_hours=30, start_hour=20)
+    _place(client, _sid(client, "A3"), mon, slot_index=4, instrument="84098", run_time_hours=30, start_hour=20)
 
-    # A2 starts on 84047 Monday, then we try to move it onto 84098's Tuesday - still locked
-    # by 84098's own Monday run at the default noon start.
+    # A2 starts on 84047 Monday, then we try to move it onto 84098's Tuesday - fully occupied
+    # by 84098's own Monday run.
     r2 = _place(client, _sid(client, "A2"), mon, slot_index=0, instrument="84047")
     cell_use_id = _stages(r2.json())[0]["cell_use_id"]
 

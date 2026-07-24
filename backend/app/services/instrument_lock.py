@@ -82,6 +82,33 @@ def latest_lock_until(db: Session, instrument_id: int, before_date: date) -> dat
     return max(run_lock_until(db, r) for r in runs)
 
 
+def resolve_new_run_start(
+    db: Session, instrument_id: int, load_date: date, requested_start: datetime
+) -> datetime | None:
+    """The start time a brand-new run loaded on `load_date` must actually use, given any
+    prior run's instrument lock, or None if the instrument is busy for the *whole* load day
+    (so the run genuinely can't be loaded then).
+
+    The lock is a planning tool - it says when the instrument next becomes free (see the
+    module docstring and docs/pacbio-sprq-nx-scheduling-reference.md's "Instrument load-lock
+    timing"). A day the lock ends *on* is still a valid load day: the instrument frees up
+    partway through it (e.g. a reuse run's Plate 2 movie ending at 12:00 + a 6h turnaround
+    buffer frees the instrument at 18:00), so a new run can be loaded that same day - it just
+    starts when the instrument is actually free, not at the earlier requested time. Only a
+    lock that runs past the end of the load day (the instrument busy every hour of it) blocks
+    the load outright. This is what lets a user load onto the lock-end day rather than losing
+    a whole calendar day to a lock that clears mid-afternoon."""
+    blocking = latest_lock_until(db, instrument_id, load_date)
+    if blocking is None or requested_start >= blocking:
+        return requested_start
+    # The lock ends after the requested start. If it clears on the load day itself, start the
+    # run when the instrument frees; if it runs into a later day, the instrument is busy all
+    # of load_date and the run can't be loaded here.
+    if ensure_aware(blocking).date() <= load_date:
+        return blocking
+    return None
+
+
 def currently_locked_run(db: Session, instrument_id: int, at: datetime | None = None) -> RunBatch | None:
     """The run (if any) whose [earliest plate start, lock_until) window contains `at` -
     _candidate_runs already excludes runs stopped early (aborted) or already completed."""

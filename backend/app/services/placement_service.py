@@ -164,12 +164,20 @@ def get_or_create_run(
     if run_batch is None:
         # Gate new-run creation against a prior run's lock. The new run's earliest start is
         # Plate 1 on the load day (start hour), regardless of which plate is being created now.
+        # A lock that clears *on* the load day doesn't block it - the instrument frees up that
+        # day, so the run just starts when it's free (bumping start_hour/minute to the lock's
+        # end); only a lock spanning the whole load day blocks it (see
+        # instrument_lock.resolve_new_run_start).
         gate_start, _ = planned_window(load_date, run_time_hours, start_hour, start_minute)
-        blocking = instrument_lock.latest_lock_until(db, instrument.id, load_date)
-        if blocking is not None and gate_start < blocking:
+        effective_start = instrument_lock.resolve_new_run_start(db, instrument.id, load_date, gate_start)
+        if effective_start is None:
+            blocking = instrument_lock.latest_lock_until(db, instrument.id, load_date)
             raise PlacementError(
-                409, f"Instrument {instrument.serial_number} is locked until {blocking.isoformat()} by a prior run."
+                409,
+                f"Instrument {instrument.serial_number} is locked until "
+                f"{blocking.isoformat() if blocking else '?'} by a prior run.",
             )
+        start_hour, start_minute = effective_start.hour, effective_start.minute
         run_batch = RunBatch(instrument_id=instrument.id, load_date=load_date)
         db.add(run_batch)
         try:

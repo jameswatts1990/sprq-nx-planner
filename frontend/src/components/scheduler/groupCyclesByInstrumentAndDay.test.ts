@@ -112,8 +112,18 @@ describe("findContinuation", () => {
     expect(findContinuation(byDate, "2026-07-21")).toBeUndefined();
   });
 
-  it("flags a lock carry-over from an earlier run whose lock spans the day", () => {
+  it("leaves a day open when an earlier run's lock only ends partway through it", () => {
+    // The instrument frees up at 18:00 on the 21st, so the 21st is still a valid load day
+    // (a new run just starts once the lock clears) - it must NOT read as a carry-over.
     const earlier = baseRun({ run_id: 1, load_date: "2026-07-20", lock_until: "2026-07-21T18:00:00Z" });
+    const byDate = new Map<string, RunOut>([["2026-07-20", earlier]]);
+    expect(findContinuation(byDate, "2026-07-21")).toBeUndefined();
+  });
+
+  it("flags a lock carry-over on a day the lock spans in full", () => {
+    // A longer movie whose lock runs into the *next* day keeps the instrument busy for the
+    // whole of the 21st, so the 21st is genuinely closed.
+    const earlier = baseRun({ run_id: 1, load_date: "2026-07-20", lock_until: "2026-07-22T06:00:00Z" });
     const byDate = new Map<string, RunOut>([["2026-07-20", earlier]]);
     const cont = findContinuation(byDate, "2026-07-21");
     expect(cont?.run.run_id).toBe(1);

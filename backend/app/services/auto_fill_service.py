@@ -100,11 +100,11 @@ def auto_fill(
             skipped.append((serial, run_date))
             continue
         proposed_start, _proposed_end = planned_window(run_date, run_time_hours, start_hour, start_minute)
-        blocking = instrument_lock.latest_lock_until(db, inst.id, run_date)
-        if blocking is not None and proposed_start < blocking:
-            # Same "new run's start time can't beat a prior lock" rule as place_sample -
-            # skip this slot rather than hard-failing the whole batch, matching the
-            # existing "already occupied" skip UX.
+        if instrument_lock.resolve_new_run_start(db, inst.id, run_date, proposed_start) is None:
+            # Same rule as place_sample: only a lock spanning the *whole* load day blocks it
+            # (a lock clearing on the day still leaves it loadable - get_or_create_run starts
+            # the run when the instrument frees). Skip this slot rather than hard-failing the
+            # whole batch, matching the existing "already occupied" skip UX.
             skipped.append((serial, run_date))
         else:
             empty_slots.append(SlotInput(instrument_serial=serial, run_date=run_date))

@@ -52,7 +52,8 @@ export function HistorySection() {
         <b>What it&apos;s for:</b> every sample that has finished, either <b>completed</b> (green) or <b>failed</b>{" "}
         (red). Search by container ID, barcode, or parent sample. Each row shows the sample&apos;s status, barcodes,
         parent sample, Target OPLC, volume, and last-updated time. Click a row to expand it and see that sample&apos;s
-        individual cell uses — which cell and well, the use status, start/complete times, and notes.
+        individual cell uses — the run, which plate (1 or 2) it ran on, the cell and well, the use status,
+        start/complete times, and notes.
       </p>
     </div>
   );
