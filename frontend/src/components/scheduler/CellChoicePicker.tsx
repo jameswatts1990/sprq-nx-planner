@@ -10,7 +10,14 @@ import { Note } from "@/components/ui/Note";
 import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
 import type { RunOut } from "@/types/schedule";
 import type { CellChoice, PendingPlacement, RunDesignState } from "@/types/schedulerGrid";
-import { formatShortDateUTC, parseDateOnly } from "@/utils/calendarDates";
+import {
+  addDaysUTC,
+  formatShortDateUTC,
+  isWeekendUTC,
+  parseDateOnly,
+  shortWeekdayUTC,
+  toIsoDateUTC,
+} from "@/utils/calendarDates";
 
 import { shouldAutoPlace, shouldShowCellChoiceModal } from "./cellChoiceGate";
 import { plateOfSlot, slotKey } from "./gridKeys";
@@ -19,6 +26,18 @@ import { WELL_ORDER } from "./waitingCells";
 import styles from "./CellChoicePicker.module.css";
 
 const DEFAULT_START_TIME = "12:00";
+
+/** slot_index 0-3 = Plate 1, 4-7 = Plate 2 (see gridKeys/SlotIndex). */
+const PLATE_1_SLOT_COUNT = 4;
+
+/** The next Mon-Fri strictly after an ISO date - where a reuse Plate 2 acquires (the
+ * instrument washes and re-runs the same cells the following working day). Mirrors the
+ * backend's placement_service._next_weekday so the picker can name the acquire day. */
+function nextWeekdayIso(isoDate: string): string {
+  let d = addDaysUTC(parseDateOnly(isoDate), 1);
+  while (isWeekendUTC(d)) d = addDaysUTC(d, 1);
+  return toIsoDateUTC(d);
+}
 
 export interface CellChoicePickerProps {
   pending: PendingPlacement;
@@ -128,6 +147,41 @@ export function CellChoicePicker({ pending, runDesign, existingRun, onClose, onP
     pending.preselectedCellId !== undefined &&
     (isMoveOntoOwnCell || compatible.some((c) => c.id === pending.preselectedCellId));
 
+  // --- Intra-run Plate 2 reuse ----------------------------------------------------------
+  // Dropping a backlog sample onto an empty Plate 2 slot (slot_index 4-7) that lines up with
+  // a filled Plate 1 cell should offer reusing that same physical cell as the run's
+  // sequential Use 2 (acquiring the next weekday) - the one-tray reuse run - rather than
+  // silently opening a fresh parallel tray. The backend already models this: place_sample ->
+  // _plate_target sees the cell is already loaded in this run and makes it Plate 2, next
+  // weekday; this just surfaces it as the default choice. Position-pinned - a cell keeps its
+  // A/B/C/D tray position for life - so slot 4 reuses Plate 1's A-slot cell, slot 5 the
+  // B-slot cell, etc. (see placement_service._within_tray_pos). The cell is looked up in the
+  // already-fetched open-cells list (it's excluded from `compatible` by the well filter,
+  // since its own well is A01, not the Plate 2 slot's nominal A02).
+  const alignedPlate1Cell =
+    !isMove && plateOfSlot(pending.slot_index) === 1 && existingRun
+      ? cellsQuery.data?.find(
+          (c) =>
+            c.id ===
+            existingRun.plates
+              .find((p) => p.plate_index === 1)
+              ?.stages.find((s) => s.slot_index === pending.slot_index - PLATE_1_SLOT_COUNT)?.cell_id,
+        )
+      : undefined;
+  // Only a genuinely reusable cell is offered: still open, capacity left, and no burned-
+  // barcode clash (the same barcode can't be read twice on one cell, so a clash makes reuse
+  // physically impossible and a fresh cell is then the correct outcome).
+  const reuseCell =
+    alignedPlate1Cell &&
+    alignedPlate1Cell.status === "open" &&
+    alignedPlate1Cell.uses_consumed < alignedPlate1Cell.max_uses &&
+    !alignedPlate1Cell.burned_barcodes.some((b) => pending.sample.barcodes.includes(b))
+      ? alignedPlate1Cell
+      : undefined;
+  // Feeds the choice gate as one more selectable cell, so the modal shows (rather than
+  // silently auto-placing a new tray) whenever this reuse option exists.
+  const compatibleCount = compatible.length + (reuseCell ? 1 : 0);
+
   const targetKey = slotKey(pending.instrument_serial, pending.load_date, pending.slot_index);
 
   const mutation = useMutation({
@@ -182,7 +236,7 @@ export function CellChoicePicker({ pending, runDesign, existingRun, onClose, onP
     isNewRun,
     cellsLoading: cellsQuery.isLoading,
     cellsError: cellsQuery.isError,
-    compatibleCount: compatible.length,
+    compatibleCount,
     preselectedValid,
     preselectedBarcodeClash,
   };
@@ -201,6 +255,18 @@ export function CellChoicePicker({ pending, runDesign, existingRun, onClose, onP
     if (preselectedBarcodeClash && selected === String(pending.preselectedCellId)) setSelected("new");
   }, [preselectedBarcodeClash, pending.preselectedCellId, selected]);
 
+  // Default the choice to the intra-run reuse cell (the common intent for a Plate 2 drop)
+  // once the open-cells list has loaded, unless a ghost already preselected a specific cell.
+  // Runs once, so it never fights a user who then deliberately picks "new".
+  const reuseDefaultedRef = useRef(false);
+  useEffect(() => {
+    if (reuseDefaultedRef.current) return;
+    if (reuseCell && pending.preselectedCellId === undefined) {
+      reuseDefaultedRef.current = true;
+      setSelected(String(reuseCell.id));
+    }
+  }, [reuseCell, pending.preselectedCellId]);
+
   const autoPlacedRef = useRef(false);
   useEffect(() => {
     if (!shouldAutoPlace(gateInput)) return;
@@ -216,13 +282,16 @@ export function CellChoicePicker({ pending, runDesign, existingRun, onClose, onP
       mutation.mutate({ cellChoice });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isNewRun, isMove, wellConflict, cellsQuery.isLoading, cellsQuery.isError, compatible.length, preselectedValid]);
+  }, [isNewRun, isMove, wellConflict, cellsQuery.isLoading, cellsQuery.isError, compatibleCount, preselectedValid]);
 
   if (!showModal) return null;
 
   const loadDate = formatShortDateUTC(parseDateOnly(pending.load_date));
   const plate = plateOfSlot(pending.slot_index) + 1;
   const well = WELL_ORDER[pending.slot_index];
+  const loadDateLabel = `${shortWeekdayUTC(parseDateOnly(pending.load_date))} ${loadDate}`;
+  const reuseAcquireIso = nextWeekdayIso(pending.load_date);
+  const reuseAcquireLabel = `${shortWeekdayUTC(parseDateOnly(reuseAcquireIso))} ${formatShortDateUTC(parseDateOnly(reuseAcquireIso))}`;
 
   return (
     <Modal onClose={onClose} title={isMove ? "Move sample" : `Place ${pending.sample.external_id || "sample"}`}>
@@ -261,9 +330,32 @@ export function CellChoicePicker({ pending, runDesign, existingRun, onClose, onP
       {(!isMove || wellConflict) && (
         <fieldset className={styles.choices}>
           <legend className={styles.legend}>Cell</legend>
+
+          {reuseCell && (
+            <label className={styles.choice}>
+              <input
+                type="radio"
+                name="cellChoice"
+                value={String(reuseCell.id)}
+                checked={selected === String(reuseCell.id)}
+                onChange={() => setSelected(String(reuseCell.id))}
+              />
+              <span className={styles.choiceMain}>
+                <span className={styles.code}>{reuseCell.code}</span>
+                <span className={styles.meta}>
+                  Reuse Plate 1 cell · Use {reuseCell.uses_consumed + 1} · acquires {reuseAcquireLabel}
+                </span>
+              </span>
+              <BarcodeChips barcodes={reuseCell.burned_barcodes} variant="u2" />
+            </label>
+          )}
+
           <label className={styles.choice}>
             <input type="radio" name="cellChoice" value="new" checked={selected === "new"} onChange={() => setSelected("new")} />
-            <span className={styles.choiceMain}>Use a new cell</span>
+            <span className={styles.choiceMain}>
+              <span>Use a new cell</span>
+              {reuseCell && <span className={styles.meta}>fresh tray · Use 1 · acquires {loadDateLabel}</span>}
+            </span>
           </label>
 
           {cellsQuery.isError && (
@@ -271,7 +363,7 @@ export function CellChoicePicker({ pending, runDesign, existingRun, onClose, onP
               {cellsQuery.error instanceof ApiError ? cellsQuery.error.message : "Failed to load open cells."}
             </Note>
           )}
-          {!cellsQuery.isLoading && !cellsQuery.isError && compatible.length === 0 && (
+          {!cellsQuery.isLoading && !cellsQuery.isError && compatible.length === 0 && !reuseCell && (
             <div className={styles.status}>
               No reusable cells in use on {pending.instrument_serial} - a new cell will be used.
             </div>

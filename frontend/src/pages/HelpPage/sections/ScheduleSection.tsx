@@ -211,6 +211,18 @@ export function ScheduleSection() {
         below), even though only one of them has a sample on it yet.
       </p>
       <p>
+        <b>Dropping onto a Plate 2 slot offers reuse.</b> When a run already has cells in <b>Plate 1</b> and you drop
+        a backlog sample onto the lined-up <b>Plate 2</b> slot below it (Plate 2&apos;s A-slot sits under Plate
+        1&apos;s A-cell, and so on), the picker offers <b>reusing that same cell</b> as its next use — the one-tray
+        reuse run, where Plate 2 reruns Plate 1&apos;s cells on the next weekday (Use 2, after the on-board wash).
+        That reuse is the <i>default</i>, and reads e.g. <i>&quot;Reuse C1042 · Use 2 · acquires Fri 25 Jul&quot;</i>.
+        If you&apos;d rather load a fresh, separate tray into Plate 2 that sequences the <i>same</i> day (a parallel
+        two-plate run), pick <b>Use a new cell</b> instead — it&apos;s one click away, labelled{" "}
+        <i>&quot;fresh tray · Use 1 · acquires &lt;today&gt;&quot;</i>. Reuse is only offered when Plate 1&apos;s
+        lined-up cell can still take another use (open, uses left, no barcode clash); otherwise Plate 2 simply takes a
+        new cell.
+      </p>
+      <p>
         If you drop directly onto a waiting-cell ghost whose burned barcodes clash with your sample&apos;s, the
         picker doesn&apos;t quietly substitute a new cell instead — it opens with a clear warning naming the exact
         barcode and cell involved, so you can see why that cell was rejected before choosing a different one.
