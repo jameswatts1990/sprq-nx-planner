@@ -17,7 +17,7 @@ import type { SampleOut } from "@/types/sample";
 import { useDebouncedValue } from "@/utils/useDebouncedValue";
 import { ABORTED_PRIORITY, priorityTone } from "@/utils/priority";
 
-import { AddSampleModal } from "./AddSampleModal";
+import { SampleModal } from "./SampleModal";
 import styles from "./BacklogPage.module.css";
 
 const DEFAULT_PAGE_SIZE = 50;
@@ -44,6 +44,7 @@ export function BacklogPage() {
   const [sortBy, setSortBy] = useState<SampleSortBy>("created_at");
   const [sortDir, setSortDir] = useState<SampleSortDir>("desc");
   const [addOpen, setAddOpen] = useState(false);
+  const [editSample, setEditSample] = useState<SampleOut | null>(null);
   const q = useDebouncedValue(qInput, 350);
   const queryClient = useQueryClient();
 
@@ -135,14 +136,19 @@ export function BacklogPage() {
       id: "actions",
       header: "",
       cell: (info) => (
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={() => cancelMutation.mutate(info.row.original.id)}
-          disabled={cancelMutation.isPending}
-        >
-          Cancel
-        </Button>
+        <div className={styles.rowActions}>
+          <Button size="sm" variant="ghost" onClick={() => setEditSample(info.row.original)}>
+            Edit
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => cancelMutation.mutate(info.row.original.id)}
+            disabled={cancelMutation.isPending}
+          >
+            Cancel
+          </Button>
+        </div>
       ),
     }),
   ];
@@ -251,7 +257,8 @@ export function BacklogPage() {
           )}
         </CardBody>
       </Card>
-      {addOpen && <AddSampleModal onClose={() => setAddOpen(false)} />}
+      {addOpen && <SampleModal onClose={() => setAddOpen(false)} />}
+      {editSample && <SampleModal sample={editSample} onClose={() => setEditSample(null)} />}
     </div>
   );
 }

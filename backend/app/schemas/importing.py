@@ -68,3 +68,20 @@ class ImportPreviewResult(BaseModel):
     sample_rows: list[list[str]]
     row_count: int
     unmatched_required: list[str]
+
+
+# --- scheduler-sheet conversion (pool rows -> standard import CSV) ------------------------
+
+
+class SchedulerConvertRequest(BaseModel):
+    # The scheduler sheet as CSV text (an .xlsx is converted to CSV in the browser first).
+    raw_text: str
+
+
+class SchedulerConvertResult(BaseModel):
+    # A standard import CSV (canonical headers) built by pooling the scheduler rows; the UI
+    # drops it straight into the normal preview/mapping wizard.
+    csv: str
+    source_row_count: int  # rows read from the sheet (header excluded)
+    pool_count: int  # completed SMRT-cell pools -> container rows emitted
+    warnings: list[str]

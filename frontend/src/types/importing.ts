@@ -60,6 +60,21 @@ export interface ImportPreviewResult {
   unmatched_required: string[];
 }
 
+/** Convert a scheduler sheet (as CSV text) into the standard import CSV by pooling rows. */
+export interface SchedulerConvertRequest {
+  raw_text: string;
+}
+
+export interface SchedulerConvertResult {
+  /** A standard import CSV (canonical headers) ready for the normal preview/mapping flow. */
+  csv: string;
+  /** Rows read from the sheet (header excluded). */
+  source_row_count: number;
+  /** Completed SMRT-cell pools turned into container rows. */
+  pool_count: number;
+  warnings: string[];
+}
+
 export interface ImportBatchOut {
   id: number;
   created_at: string;

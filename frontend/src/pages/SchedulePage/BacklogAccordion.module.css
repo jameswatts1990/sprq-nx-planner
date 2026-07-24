@@ -42,8 +42,11 @@
   gap: 10px;
   /* The backlog is pinned to the top of the Schedule page, so its card list scrolls
      internally rather than pushing the grid off-screen. The small padding keeps card
-     hover borders and drag shadows from being clipped by the scroll container's edge. */
-  max-height: 34vh;
+     hover borders and drag shadows from being clipped by the scroll container's edge.
+     The cap is sized so the whole pinned tray (accordion header + toolbar + this scroll
+     area + pagination, ~150px of chrome) stays within ~33vh of the viewport; the max()
+     floor keeps at least a couple of card rows visible on short screens. */
+  max-height: max(140px, calc(33vh - 150px));
   overflow-y: auto;
   padding: 4px;
 }

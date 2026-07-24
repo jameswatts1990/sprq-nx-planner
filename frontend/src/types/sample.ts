@@ -32,6 +32,10 @@ export interface SampleCreate {
   ccs_kinetics?: string | null;
 }
 
+/** Edit-a-backlog-sample payload: same editable fields as create, minus the Container ID
+ * (external_id), which identifies the sample and is fixed once created. */
+export type SampleUpdate = Omit<SampleCreate, "external_id">;
+
 export interface SampleCellUseOut {
   id: number;
   cycle_id: number;

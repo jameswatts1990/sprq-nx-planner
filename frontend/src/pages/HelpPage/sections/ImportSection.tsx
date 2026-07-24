@@ -19,8 +19,16 @@ export function ImportSection() {
       <dl className={styles.terms}>
         <dt>Upload CSV</dt>
         <dd>Pick a .csv, .tsv, or .txt file from your computer; its contents fill the box.</dd>
-        <dt>Load example data</dt>
-        <dd>Fills the box with a sample batch so you can see the expected shape.</dd>
+        <dt>Upload from scheduler (the ▾ arrow)</dt>
+        <dd>
+          Click the small arrow beside <b>Upload CSV</b> and choose <b>Upload from scheduler…</b> to load your
+          scheduling sheet directly, as either a <b>.csv</b> or an <b>.xlsx</b> Excel file — no need to rename or
+          rearrange columns first. The planner reads the sheet&apos;s <i>Portion of SMRT Cell</i> column and{" "}
+          <b>pools</b> the rows that share a cell into one container (Pool ID becomes the Container ID; barcodes and
+          Sanger IDs are combined). It then takes you straight to the mapping step with a note saying how many rows
+          became how many containers, plus a warning for any group that didn&apos;t add up to a whole cell (those
+          are left out). A Plate ID column, if present, is ignored — the planner doesn&apos;t track it.
+        </dd>
         <dt>Download template</dt>
         <dd>Saves a blank CSV with the right column headers and one example row — fill it in and upload it back.</dd>
         <dt>First row is a header</dt>

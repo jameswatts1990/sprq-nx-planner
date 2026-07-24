@@ -31,6 +31,64 @@ textarea::placeholder {
   font-size: 12px;
   color: var(--grey);
 }
+/* Split button: primary "Upload CSV" + a caret that opens more upload options. */
+.splitButton {
+  position: relative;
+  display: inline-flex;
+  align-items: stretch;
+}
+.splitButton .splitMain {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.splitButton .splitCaret {
+  display: inline-flex;
+  align-items: center;
+  margin-left: -1px; /* collapse the shared border into one seam */
+  padding-left: 9px;
+  padding-right: 9px;
+  font-size: 11px;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+.uploadMenu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 30;
+  min-width: 300px;
+  padding: 4px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.12);
+}
+.uploadMenuItem {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: 8px 10px;
+  text-align: left;
+  color: var(--ink);
+  background: transparent;
+  border: 0;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+.uploadMenuItem:hover,
+.uploadMenuItem:focus-visible {
+  background: var(--line-soft);
+}
+.uploadMenuItemTitle {
+  font-size: 13px;
+  font-weight: 600;
+}
+.uploadMenuItemHint {
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--grey);
+}
 .parseStatus {
   margin-top: 14px;
   padding: 11px 13px;

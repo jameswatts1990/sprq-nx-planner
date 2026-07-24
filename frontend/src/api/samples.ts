@@ -1,6 +1,6 @@
 import { api, buildQuery } from "./client";
 import type { Page } from "@/types/common";
-import type { SampleCreate, SampleDetailOut, SampleOut } from "@/types/sample";
+import type { SampleCreate, SampleDetailOut, SampleOut, SampleUpdate } from "@/types/sample";
 
 export type SampleSortBy = "created_at" | "external_id" | "barcode" | "priority";
 export type SampleSortDir = "asc" | "desc";
@@ -18,6 +18,7 @@ export interface ListSamplesParams {
 export const samplesApi = {
   list: (params: ListSamplesParams = {}) => api.get<Page<SampleOut>>(`/api/samples${buildQuery(params)}`),
   create: (body: SampleCreate) => api.post<SampleOut>("/api/samples", body),
+  update: (id: number, body: SampleUpdate) => api.patch<SampleOut>(`/api/samples/${id}`, body),
   listPriorities: () => api.get<string[]>("/api/samples/priorities"),
   get: (id: number) => api.get<SampleDetailOut>(`/api/samples/${id}`),
   cancel: (id: number) => api.post<SampleOut>(`/api/samples/${id}/cancel`),

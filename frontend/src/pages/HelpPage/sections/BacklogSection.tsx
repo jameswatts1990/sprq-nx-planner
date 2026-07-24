@@ -67,6 +67,12 @@ export function BacklogSection() {
         belongs to an active sample, the form says so and nothing is added.
       </p>
       <p>
+        <b>Edit</b> (on each row) opens the same form to correct a backlog sample&apos;s details — barcodes, Sanger
+        IDs, priority, Target OPLC, and the other settings. The <b>Container ID</b> is greyed out and can&apos;t be
+        changed: it identifies the sample and is fixed once created. Editing is only offered while a sample is still
+        in the backlog; once it&apos;s scheduled its details are locked.
+      </p>
+      <p>
         <b>Cancel</b> (on each row) removes a sample from the backlog when you never intend to sequence it. Use it
         to clear out mistakes or withdrawn samples; it does not delete sequencing history. If a cancel fails, a red
         note explains why.

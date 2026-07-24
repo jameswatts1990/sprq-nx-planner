@@ -60,3 +60,39 @@ def create_backlog_sample(
     for i, bc in enumerate(barcodes):
         db.add(SampleBarcode(sample_id=sample.id, barcode=bc, position=i))
     return sample
+
+
+def update_backlog_sample(
+    db: Session,
+    sample: Sample,
+    *,
+    barcodes: list[str],
+    sanger_ids: list[str] | None = None,
+    parent_sample: str | None = None,
+    target_oplc: float | None = None,
+    volume: float | None = None,
+    adaptive_loading: str | None = None,
+    full_resolution_base_q: str | None = None,
+    priority: str | None = None,
+    ccs_kinetics: str | None = None,
+) -> Sample:
+    """Overwrite an existing backlog Sample's editable fields and replace its barcode set.
+    The sample's identity (external_id / Container ID) is intentionally left untouched.
+    Does NOT commit — the caller owns the transaction."""
+    sample.parent_sample = parent_sample or None
+    sample.sanger_ids = sanger_ids or []
+    sample.target_oplc = target_oplc
+    sample.volume = volume
+    sample.adaptive_loading = adaptive_loading or None
+    sample.full_resolution_base_q = full_resolution_base_q or None
+    sample.priority = priority or None
+    sample.ccs_kinetics = ccs_kinetics or None
+
+    # Replace barcodes. Clear + flush deletes the old rows first, so re-adding an unchanged
+    # barcode doesn't collide with the uq_sample_barcode (sample_id, barcode) constraint
+    # (which it would if the insert were ordered before the delete in a single flush).
+    sample.barcodes.clear()
+    db.flush()
+    for i, bc in enumerate(barcodes):
+        sample.barcodes.append(SampleBarcode(barcode=bc, position=i))
+    return sample

@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, Response
 from sqlalchemy import select
 
 from app.api.deps import SessionDep
+from app.engine.scheduler_import import SchedulerFormatError
 from app.models.importing import ImportBatch
 from app.schemas.importing import (
     ImportFieldOut,
@@ -9,11 +10,14 @@ from app.schemas.importing import (
     ImportPreviewResult,
     ImportRequest,
     ImportResult,
+    SchedulerConvertRequest,
+    SchedulerConvertResult,
 )
 from app.services.import_service import (
     import_samples,
     importable_fields,
     preview_import,
+    scheduler_convert,
     template_csv,
 )
 
@@ -29,6 +33,19 @@ def create_import(req: ImportRequest, db: SessionDep) -> ImportResult:
 def preview(req: ImportPreviewRequest) -> ImportPreviewResult:
     """Parse a paste/upload without committing: columns + suggested mapping + sample rows."""
     return preview_import(req.raw_text, req.has_header)
+
+
+@router.post("/scheduler-convert", response_model=SchedulerConvertResult)
+def convert_scheduler(req: SchedulerConvertRequest) -> SchedulerConvertResult:
+    """Pool a scheduler-sheet CSV into a standard import CSV (non-committing).
+
+    The scheduler sheet lists one row per sample with a "Portion of SMRT Cell"; sequential
+    rows that sum to a whole cell are consolidated into one container. The returned CSV
+    flows through the normal preview/mapping/import path unchanged."""
+    try:
+        return scheduler_convert(req.raw_text)
+    except SchedulerFormatError as err:
+        raise HTTPException(400, str(err)) from err
 
 
 @router.get("/fields", response_model=list[ImportFieldOut])

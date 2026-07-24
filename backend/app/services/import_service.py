@@ -14,6 +14,7 @@ from app.engine.import_fields import (
     suggest_column_map,
 )
 from app.engine.normalize import normalize_samples, normalize_with_map
+from app.engine.scheduler_import import convert_scheduler_csv
 from app.engine.tracker_import import looks_like_tracker, normalize_tracker
 from app.models.importing import ImportBatch
 from app.schemas.importing import (
@@ -23,6 +24,7 @@ from app.schemas.importing import (
     ImportResult,
     PreviewColumn,
     RejectedRow,
+    SchedulerConvertResult,
     SkippedRowOut,
 )
 from app.serializers import sample_out
@@ -138,6 +140,20 @@ def preview_import(raw_text: str, has_header: bool = True) -> ImportPreviewResul
         sample_rows=data[:PREVIEW_ROW_LIMIT],
         row_count=len(data),
         unmatched_required=unmatched,
+    )
+
+
+def scheduler_convert(raw_text: str) -> SchedulerConvertResult:
+    """Pool a scheduler-sheet CSV into the app's standard import CSV (non-committing).
+
+    Raises SchedulerFormatError (from the engine) when a required column is missing; the
+    API layer turns that into a 400 the user can act on."""
+    conversion = convert_scheduler_csv(raw_text)
+    return SchedulerConvertResult(
+        csv=conversion.csv,
+        source_row_count=conversion.source_row_count,
+        pool_count=conversion.pool_count,
+        warnings=conversion.warnings,
     )
 
 
