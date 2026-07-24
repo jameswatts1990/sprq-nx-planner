@@ -92,6 +92,18 @@ export function SlotDetailPopover({ stage, cycle, onClose }: SlotDetailPopoverPr
     },
   });
 
+  // Recover a slot left "Blocked" by a tray/cell discard: delete the dead placement and
+  // return its sample to the Backlog. Only offered for a discard-origin block (see
+  // isDiscardBlocked); a Stop-origin block is a permanent QC marker and is reversed with
+  // Undo stop instead.
+  const returnToBacklogMutation = useMutation({
+    mutationFn: () => cellUsesApi.returnToBacklog(stage.cell_use_id),
+    onSuccess: () => {
+      invalidateAfterQcAction();
+      onClose();
+    },
+  });
+
   const cell = cellQuery.data;
   const currentUse = cell?.use_history.find((u) => u.id === stage.cell_use_id);
   // Drives both Mark Failed and Stop cell - they always appear/disappear together, once
@@ -102,6 +114,9 @@ export function SlotDetailPopover({ stage, cycle, onClose }: SlotDetailPopoverPr
   const canUndoQc = !!currentUse && canUndoQcOutcome(currentUse);
   const canUndoStop = !!cell && cell.status === "stopped";
   const isCancelled = stage.cell_use_status === "cancelled";
+  // A "Blocked" slot that came from a discard (not a QC Stop) - recoverable back to the
+  // Backlog. Told apart by the cell's discarded_at, which only a discard ever sets.
+  const isDiscardBlocked = isCancelled && !!cell?.discarded_at;
   const showWindowMeter =
     !!cell &&
     cell.status !== "exhausted" &&
@@ -139,7 +154,18 @@ export function SlotDetailPopover({ stage, cycle, onClose }: SlotDetailPopoverPr
     <Modal onClose={onClose} title={stage.cell_ref} titleExtra={qcActions || undefined}>
       {isCancelled && (
         <Note tone="warn" icon="!">
-          This placement was cancelled{cell?.stopped_reason ? ` when its cell was stopped: ${cell.stopped_reason}` : " when its cell was stopped"} before it could run. Its sample was returned to the Backlog and can be rescheduled elsewhere.
+          {isDiscardBlocked ? (
+            <>
+              This placement was cancelled when its tray was discarded, so it shows as <b>Blocked</b>. Its sample is
+              back in the Backlog — use <b>Return to backlog</b> below to clear this stuck slot from the schedule.
+            </>
+          ) : (
+            <>
+              This placement was cancelled
+              {cell?.stopped_reason ? ` when its cell was stopped: ${cell.stopped_reason}` : " when its cell was stopped"} before
+              it could run. Its sample was returned to the Backlog and can be rescheduled elsewhere.
+            </>
+          )}
         </Note>
       )}
       <div className={styles.details}>
@@ -255,6 +281,14 @@ export function SlotDetailPopover({ stage, cycle, onClose }: SlotDetailPopoverPr
         </Note>
       )}
 
+      {returnToBacklogMutation.isError && (
+        <Note tone="bad" icon="!">
+          {returnToBacklogMutation.error instanceof ApiError
+            ? returnToBacklogMutation.error.message
+            : "Failed to return to backlog."}
+        </Note>
+      )}
+
       <ModalActions>
         <Button
           variant="ghost"
@@ -263,7 +297,8 @@ export function SlotDetailPopover({ stage, cycle, onClose }: SlotDetailPopoverPr
             markFailedMutation.isPending ||
             stopMutation.isPending ||
             undoQcMutation.isPending ||
-            undoStopMutation.isPending
+            undoStopMutation.isPending ||
+            returnToBacklogMutation.isPending
           }
         >
           {mode === "view" ? "Close" : "Cancel"}
@@ -271,6 +306,15 @@ export function SlotDetailPopover({ stage, cycle, onClose }: SlotDetailPopoverPr
         <Link to={`/cells/${stage.cell_id}`} className={`btn primary sm ${styles.viewCellLink}`}>
           View cell →
         </Link>
+        {mode === "view" && isDiscardBlocked && (
+          <Button
+            variant="primary"
+            onClick={() => returnToBacklogMutation.mutate()}
+            disabled={returnToBacklogMutation.isPending}
+          >
+            {returnToBacklogMutation.isPending ? "Returning…" : "Return to backlog"}
+          </Button>
+        )}
         {mode === "markFailed" && (
           <Button variant="primary" onClick={() => markFailedMutation.mutate()} disabled={markFailedMutation.isPending}>
             {markFailedMutation.isPending ? "Saving…" : "Mark Failed"}

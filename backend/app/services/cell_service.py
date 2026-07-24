@@ -547,14 +547,34 @@ def stop_cell(
     return cell, bumped_sample_ids
 
 
+def mark_cell_discarded(cell: Cell, reason: str | None, at: datetime | None = None) -> None:
+    """Flip a cell to the sticky, terminal "discarded" state - status "exhausted", guarded
+    by discarded_at so recompute_status never reopens it - WITHOUT touching any of its uses.
+
+    discard_cell/discard_tray layer use-cancellation on top of this (a discard writes the
+    cell off, so its still-planned uses are lost). rotate_tray uses it bare: a rotate *moves*
+    the cell's future uses onto a fresh tray rather than cancelling them, and it must never
+    cancel the cell's *earlier* uses either - doing so is exactly the retroactive-blocking
+    bug that motivated the rotate action (an earlier, already-scheduled use turning into an
+    un-removable "Blocked" slot). Caller commits."""
+    cell.status = "exhausted"
+    cell.discarded_at = at or utcnow()
+    cell.discarded_reason = reason
+
+
 def _discard_cell_uncommitted(cell: Cell, reason: str | None, actor: str | None) -> list[int]:
     """Shared body of discard_cell/discard_tray - forces a cell to "exhausted" regardless
-    of its actual remaining use count (see "Discard Cells" in the weekly schedule grid's
-    per-tray header). Cancels planned uses exactly like stop_cell (sample goes back to
-    backlog, the CellUse row is kept as "cancelled" rather than deleted), but the resulting
-    status is "exhausted" - not "stopped" - since a discarded tray reads to the lab as
-    "used up", not "pulled for a QC problem". discarded_at is the sticky guard that keeps
-    recompute_status from ever reopening it. Caller commits."""
+    of its actual remaining use count (the single-cell "Discard remaining use(s)" and the
+    Cells page's per-tray "Discard all cells"). Cancels planned uses exactly like stop_cell
+    (sample goes back to backlog, the CellUse row is kept as "cancelled" rather than
+    deleted), but the resulting status is "exhausted" - not "stopped" - since a discarded
+    cell reads to the lab as "used up", not "pulled for a QC problem". discarded_at is the
+    sticky guard that keeps recompute_status from ever reopening it. Caller commits.
+
+    NOTE: this cancels *every* planned use regardless of date, so a discarded-blocked
+    ("Blocked") slot can be recovered via placement_service.return_cancelled_use_to_backlog.
+    The weekly-schedule grid no longer discards a whole tray this way - it rotates the tray
+    (rotate_tray) so future uses move to a fresh tray instead of being cancelled."""
     bumped_sample_ids: list[int] = []
     for cell_use in [cu for cu in cell.cell_uses if cu.status == "planned"]:
         if cell_use.sample is not None:
@@ -562,9 +582,7 @@ def _discard_cell_uncommitted(cell: Cell, reason: str | None, actor: str | None)
             bumped_sample_ids.append(cell_use.sample_id)
         cell_use.status = "cancelled"
 
-    cell.status = "exhausted"
-    cell.discarded_at = utcnow()
-    cell.discarded_reason = reason
+    mark_cell_discarded(cell, reason)
     return bumped_sample_ids
 
 
@@ -616,6 +634,125 @@ def discard_tray(db: Session, cells: list[Cell], reason: str | None, actor: str 
         db.refresh(cell)
         db.refresh(cell, attribute_names=["cell_uses"])
     return cells
+
+
+def rotate_tray(
+    db: Session, cells: list[Cell], from_date: date, reason: str | None, actor: str | None
+) -> tuple[list[Cell], int]:
+    """Replace a physical SMRT Cell tray with a fresh one, starting `from_date` - the weekly
+    schedule grid's per-tray "rotate" action (it superseded the old blanket "Discard Cells"
+    on the grid). Models what really happens in the lab when a tray is pulled and a new one
+    loaded into the same instrument bay:
+
+    - Every use of this tray's cells on/after `from_date` moves onto a brand-new tray minted
+      in the same physical box (same instrument, same 4 wells), keeping its day/well/sample/
+      barcodes. Use-numbering restarts from that day - it's derived live by run_date order
+      (run_serializer._use_number) - so a sample that was this cell's Use 3 becomes Use 1 on
+      the fresh cell, and later uses that also moved renumber behind it.
+    - Uses *before* `from_date` stay on the old cells, untouched, as real history. The old
+      cells are marked discarded (terminal, sticky - see mark_cell_discarded) but keep those
+      uses. This is the crucial difference from the old whole-tray discard, which cancelled
+      every planned use regardless of date and stranded already-scheduled earlier uses as
+      un-removable "Blocked" slots (the bug this action fixes).
+
+    Because the old cells go terminal and the fresh tray's earliest use is `from_date`, the
+    grid's existing tray-turnover rendering takes over with no special-casing: the old tray
+    reads as vacated (computeVacatedTrayIds) and the new one founds on `from_date`
+    (computeTrayFoundingDates) - see docs/pacbio-sprq-nx-scheduling-reference.md.
+
+    Raises ValueError (mapped to 409 by the endpoint) if the tray has a cell that's stopped/
+    retired/already-discarded (resolve that first - a mixed-QC tray isn't a clean rotate), or
+    if a use on/after `from_date` sits on a run that's already confirmed loaded (its cells are
+    physically in the instrument; unlock it first). Caller need not commit - this commits."""
+    if not cells:
+        raise ValueError("Tray has no cells.")
+    tray = cells[0].tray
+    if tray is None:
+        raise ValueError("These cells aren't part of a physical tray.")
+    tray_id = tray.id
+    instrument_id = tray.instrument_id
+    box_well = cells[0].home_well
+    if box_well is None:
+        raise ValueError("This tray's cells have no home well; it can't be rotated.")
+    old_cell_ids = [c.id for c in cells]
+
+    for cell in cells:
+        if cell.status in ("retired", "stopped") or cell.discarded_at is not None:
+            raise ValueError(f"Cell {cell.code} is {cell.status}; resolve it before rotating this tray.")
+
+    moving: list[CellUse] = []
+    for cell in cells:
+        for cu in cell.cell_uses:
+            if cu.status == "cancelled":
+                continue
+            used_on = use_run_date(cu)
+            if used_on is not None and used_on >= from_date:
+                moving.append(cu)
+    for cu in moving:
+        if cu.cycle is None or cu.cycle.status != "planned":
+            raise ValueError(
+                "A run on or after this day is already confirmed loaded; unlock it before rotating the tray."
+            )
+
+    now = utcnow()
+    # 1. Old cells go terminal (non-"open") so open_new_tray's box-collision check passes,
+    #    while keeping all their uses - the moving ones are re-pointed below; the earlier
+    #    ones stay as history. flush() so the collision query (a raw SELECT) sees the new
+    #    status: this session is autoflush=False (see db.py).
+    for cell in cells:
+        mark_cell_discarded(cell, reason, now)
+    db.flush()
+
+    # 2. Mint the fresh tray in the same box; index its 4 cells by their fixed home well.
+    new_cells = open_new_tray(db, instrument_id, box_well)
+    new_by_well = {c.home_well: c for c in new_cells}
+
+    # 3. Re-point each moving use onto the fresh cell in its well (same day/well/sample/
+    #    barcodes). Assign via the relationship, not the raw FK - Cell.cell_uses has no
+    #    delete-orphan cascade, so this is safe and keeps both back_populates sides in sync.
+    moved_sample_ids: list[int] = []
+    for cu in moving:
+        target = new_by_well.get(cu.well)
+        if target is None:  # a well outside this box - impossible for a tray-linked cell
+            raise ValueError(f"Cell use in well {cu.well} doesn't belong to this tray box.")
+        cu.cell = target
+        if cu.sample_id is not None:
+            moved_sample_ids.append(cu.sample_id)
+    db.flush()
+
+    # 4. New cells derive open + their moved-use count. Old cells were fully set by
+    #    mark_cell_discarded (recompute_status early-returns on discarded_at), so they need
+    #    no recompute here.
+    for cell in new_cells:
+        db.refresh(cell, attribute_names=["cell_uses"])
+        recompute_status(cell, now)
+
+    # 5. Rotating on the tray's very first scheduled day moves every use off it, leaving the
+    #    old tray with no history at all - delete it rather than leaving an empty discarded
+    #    tray in the box alongside the fresh one. No-op otherwise (some earlier use remains).
+    cleanup_tray_if_fully_unused(db, cells[0])
+
+    db.add(
+        AuditLog(
+            actor=actor or "unknown",
+            action="rotate_tray",
+            entity_type="cell_tray",
+            entity_id=tray_id,
+            details_json={
+                "from_date": from_date.isoformat(),
+                "reason": reason,
+                "old_cell_ids": old_cell_ids,
+                "new_cell_ids": [c.id for c in new_cells],
+                "moved_cell_use_ids": [cu.id for cu in moving],
+                "moved_sample_ids": moved_sample_ids,
+            },
+        )
+    )
+    db.commit()
+    for cell in new_cells:
+        db.refresh(cell)
+        db.refresh(cell, attribute_names=["cell_uses"])
+    return new_cells, len(moving)
 
 
 def undo_stop_cell(db: Session, cell: Cell, actor: str | None) -> tuple[Cell, list[int], list[int]]:

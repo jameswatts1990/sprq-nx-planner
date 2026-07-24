@@ -45,4 +45,8 @@ export const cellUsesApi = {
    * cancelled/non-planned use, or a cross-cell barcode clash. */
   swap: (id: number, otherCellUseId: number) =>
     api.post<CycleOut[]>(`/api/cell-uses/${id}/swap`, { other_cell_use_id: otherCellUseId }),
+  /** Recover a cancelled ("Blocked") slot left behind by a cell discard: delete the dead
+   * placement and return its sample to the backlog. 409 if the block came from a Stop cell
+   * (a permanent QC marker) rather than a discard. */
+  returnToBacklog: (id: number) => api.post<{ sample_id: number | null }>(`/api/cell-uses/${id}/return-to-backlog`),
 };

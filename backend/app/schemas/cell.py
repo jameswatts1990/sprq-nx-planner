@@ -120,3 +120,19 @@ class TrayDiscardRequest(BaseModel):
 
 class TrayDiscardOut(BaseModel):
     cells: list[CellOut]
+
+
+class TrayRotateRequest(BaseModel):
+    tray_id: int
+    # The grid day the rotate was triggered from: this day's uses and every later use of the
+    # tray move onto the fresh tray; earlier uses stay on the old (discarded) cells.
+    from_date: date
+    reason: str | None = None
+    actor: str | None = None
+
+
+class TrayRotateOut(BaseModel):
+    # The 4 cells of the freshly-minted tray.
+    new_cells: list[CellOut]
+    # How many uses were moved from the old tray onto the new one.
+    moved_count: int

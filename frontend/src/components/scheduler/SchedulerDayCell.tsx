@@ -98,17 +98,17 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
   const [confirmingLoad, setConfirmingLoad] = useState(false);
   const [runName, setRunName] = useState("");
 
-  const [discardTrayId, setDiscardTrayId] = useState<number | null>(null);
-  const discardMutation = useMutation({
-    mutationFn: (trayId: number) => cellsApi.discardTray({ tray_id: trayId }),
+  const [rotateTrayId, setRotateTrayId] = useState<number | null>(null);
+  const rotateMutation = useMutation({
+    mutationFn: (trayId: number) => cellsApi.rotateTray({ tray_id: trayId, from_date: runDate }),
     onSuccess: () => {
-      // Every cell in the tray just flipped to exhausted and its bumped samples returned
-      // to the backlog - without this, the grid's terminal/vacated-tray ghosts
-      // (waitingCells.ts, fed by SchedulePage's ["cells", ...] queries) and the Backlog
-      // page would keep reading pre-discard data until some unrelated mutation happened
-      // to invalidate them.
+      // The old tray's cells just went terminal and this day's (plus every later) use moved
+      // onto a freshly-minted tray - without this, the grid's real stages, waiting/terminal/
+      // vacated-tray ghosts (waitingCells.ts, fed by SchedulePage's ["cells", ...] queries)
+      // and the Backlog page would keep reading pre-rotate data until some unrelated
+      // mutation happened to invalidate them.
       invalidateScheduleRelated(queryClient);
-      setDiscardTrayId(null);
+      setRotateTrayId(null);
     },
   });
 
@@ -281,15 +281,15 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
             <div key={trayIdx} className={styles.tray}>
               <div className={styles.trayHeader}>
                 <div className={styles.trayLabel}>{trayIdx === 0 ? "Tray 1" : "Tray 2"}</div>
-                {trayId != null && (
+                {trayId != null && !locked && (
                   <button
                     type="button"
-                    className={styles.discardBtn}
-                    title="Discard all cells in this tray"
-                    aria-label="Discard all cells in this tray"
-                    onClick={() => setDiscardTrayId(trayId)}
+                    className={styles.rotateBtn}
+                    title="Rotate tray — load a fresh tray from this day (moves this day's samples and any later uses onto new cells)"
+                    aria-label="Rotate tray — load a fresh tray from this day"
+                    onClick={() => setRotateTrayId(trayId)}
                   >
-                    ✕
+                    ↻
                   </button>
                 )}
               </div>
@@ -352,26 +352,26 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
         </ConfirmModal>
       )}
 
-      {discardTrayId != null && (
+      {rotateTrayId != null && (
         <ConfirmModal
-          title="Discard all cells in this tray?"
-          confirmLabel="Discard cells"
-          pendingLabel="Discarding…"
-          pending={discardMutation.isPending}
+          title="Rotate this tray?"
+          confirmLabel="Rotate tray"
+          pendingLabel="Rotating…"
+          pending={rotateMutation.isPending}
           error={
-            discardMutation.isError
-              ? discardMutation.error instanceof ApiError
-                ? discardMutation.error.message
-                : "Failed to discard tray."
+            rotateMutation.isError
+              ? rotateMutation.error instanceof ApiError
+                ? rotateMutation.error.message
+                : "Failed to rotate tray."
               : null
           }
-          onCancel={() => setDiscardTrayId(null)}
-          onConfirm={() => discardMutation.mutate(discardTrayId)}
+          onCancel={() => setRotateTrayId(null)}
+          onConfirm={() => rotateMutation.mutate(rotateTrayId)}
         >
           <p>
-            This marks every cell physically in this tray as exhausted, regardless of how many uses it has left. Any
-            not-yet-run placements for these cells are cancelled and their samples return to the backlog. This cannot
-            be undone.
+            Loads a fresh tray into this position. This day&apos;s samples and any later uses of this tray move onto
+            the new cells, restarting at <b>Use 1</b>. Earlier uses stay on the old cells, which are discarded. This
+            cannot be undone.
           </p>
         </ConfirmModal>
       )}

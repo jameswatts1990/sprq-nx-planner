@@ -7,7 +7,14 @@ from sqlalchemy.orm import selectinload
 from app.api.deps import ActorDep, SessionDep
 from app.models.schedule import CELL_USE_STATUSES, CellUse, Cycle
 from app.schemas.run import CycleOut, MoveSampleRequest, PlaceSampleRequest
-from app.services.placement_service import PlacementError, move_sample, place_sample, remove_sample, swap_samples
+from app.services.placement_service import (
+    PlacementError,
+    move_sample,
+    place_sample,
+    remove_sample,
+    return_cancelled_use_to_backlog,
+    swap_samples,
+)
 from app.services.run_serializer import CYCLE_LOAD_OPTIONS, cycle_out
 from app.services.run_service import undo_cell_use_status, update_cell_use_status
 
@@ -137,3 +144,15 @@ def delete_cell_use(cell_use_id: int, db: SessionDep, actor: ActorDep) -> Respon
     except PlacementError as exc:
         raise HTTPException(exc.status_code, exc.detail) from exc
     return Response(status_code=204)
+
+
+@router.post("/{cell_use_id}/return-to-backlog")
+def return_to_backlog(cell_use_id: int, db: SessionDep, actor: ActorDep) -> dict:
+    """Recover a cancelled ("Blocked") slot left behind by a cell discard: delete the dead
+    placement and put its sample back in the backlog. 409 if the block came from a Stop cell
+    (a permanent QC marker - use Undo stop instead) rather than a discard."""
+    try:
+        sample_id = return_cancelled_use_to_backlog(db, cell_use_id, actor)
+    except PlacementError as exc:
+        raise HTTPException(exc.status_code, exc.detail) from exc
+    return {"sample_id": sample_id}

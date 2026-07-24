@@ -22,6 +22,24 @@ import { ABORTED_PRIORITY, priorityTone } from "@/utils/priority";
 import styles from "./BacklogAccordion.module.css";
 
 const DEFAULT_PAGE_SIZE = 25;
+/** Persist whether the pinned backlog tray is open, so a scheduler who works with it open
+ * doesn't have to re-expand it on every visit. Collapsed by default; guarded so a locked-
+ * down browser (localStorage throwing) simply falls back to that default. */
+const OPEN_STORAGE_KEY = "runnx.schedule.backlogOpen";
+function readOpenPref(): boolean {
+  try {
+    return localStorage.getItem(OPEN_STORAGE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+function writeOpenPref(open: boolean): void {
+  try {
+    localStorage.setItem(OPEN_STORAGE_KEY, open ? "1" : "0");
+  } catch {
+    /* ignore - persistence is a convenience, not a requirement */
+  }
+}
 const PAGE_SIZE_OPTIONS: SegmentedOption<number>[] = [25, 50, 100, 200].map((n) => ({
   value: n,
   label: String(n),
@@ -66,6 +84,7 @@ export function BacklogAccordion() {
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [sortBy, setSortBy] = useState<SampleSortBy>("created_at");
   const [sortDir, setSortDir] = useState<SampleSortDir>("desc");
+  const [open, setOpen] = useState<boolean>(readOpenPref);
   const q = useDebouncedValue(qInput, 350);
 
   const prioritiesQuery = useQuery({
@@ -102,6 +121,11 @@ export function BacklogAccordion() {
   return (
     <Accordion
       title="Backlog"
+      open={open}
+      onToggle={(next) => {
+        setOpen(next);
+        writeOpenPref(next);
+      }}
       badge={
         <span className={styles.badgeGroup}>
           {abortedCount > 0 && <Badge tone="danger">⚠ {abortedCount} aborted</Badge>}

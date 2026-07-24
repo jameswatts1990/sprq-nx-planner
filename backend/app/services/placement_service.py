@@ -399,6 +399,83 @@ def remove_sample(db: Session, cell_use_id: int, actor: str | None = None) -> No
     db.commit()
 
 
+def return_cancelled_use_to_backlog(db: Session, cell_use_id: int, actor: str | None = None) -> int | None:
+    """Recover a placement left stuck as a cancelled ("Blocked") slot by a cell *discard*:
+    delete the dead CellUse row so it stops rendering in the weekly grid, and make sure its
+    sample is back in the backlog. Returns the reverted sample id (None if the use carried
+    no sample).
+
+    Only discard-originated cancellations qualify. A cancellation from a QC Stop (see
+    cell_service.stop_cell) is a deliberate, permanent marker of a dead well - refused here
+    (409) so the QC trail stays intact; that one is reversed with Undo stop instead. The two
+    are told apart by cell.discarded_at, which only a discard ever sets. Cycle/run cleanup
+    mirrors remove_sample."""
+    cell_use = db.get(
+        CellUse,
+        cell_use_id,
+        options=[
+            selectinload(CellUse.cycle).selectinload(Cycle.run_batch),
+            selectinload(CellUse.cell),
+            selectinload(CellUse.sample),
+        ],
+    )
+    if cell_use is None:
+        raise PlacementError(404, f"Cell use {cell_use_id} not found.")
+    if cell_use.status != "cancelled":
+        raise PlacementError(409, "Only a cancelled (Blocked) placement can be returned to the backlog this way.")
+
+    cell = cell_use.cell
+    if cell is None or cell.discarded_at is None:
+        raise PlacementError(
+            409,
+            "This Blocked slot was created by a Stop cell action, not a discard, so it's kept as a "
+            "permanent record. Use Undo stop on the cell instead.",
+        )
+
+    cycle = cell_use.cycle
+    cycle_id = cycle.id if cycle is not None else None
+    run_batch = cycle.run_batch if cycle is not None else None
+    sample = cell_use.sample
+    sample_id = cell_use.sample_id
+
+    if cycle_id is not None:
+        # Serialize concurrent recoveries of sibling blocked stages on the same cycle, the
+        # same way remove_sample guards its own count - no-op on SQLite (dev).
+        db.execute(select(Cycle.id).where(Cycle.id == cycle_id).with_for_update())
+
+    db.delete(cell_use)  # cascades this use's own barcodes
+    db.flush()
+
+    # The discard already bounced the sample to the backlog, but it may have been
+    # rescheduled since - only force it back if it has no other live (non-cancelled)
+    # placement, so a sample that's legitimately scheduled elsewhere isn't clobbered.
+    if sample is not None:
+        active = db.scalar(
+            select(func.count())
+            .select_from(CellUse)
+            .where(CellUse.sample_id == sample.id, CellUse.status != "cancelled")
+        )
+        if active == 0 and sample.status != "backlog":
+            sample.status = "backlog"
+
+    if cycle_id is not None:
+        remaining = db.scalar(select(func.count()).select_from(CellUse).where(CellUse.cycle_id == cycle_id))
+        if remaining == 0 and run_batch is not None:
+            db.delete(run_batch)
+
+    db.add(
+        AuditLog(
+            actor=actor or "unknown",
+            action="return_cancelled_use_to_backlog",
+            entity_type="cell_use",
+            entity_id=cell_use_id,
+            details_json={"sample_id": sample_id, "cycle_id": cycle_id},
+        )
+    )
+    db.commit()
+    return sample_id
+
+
 def move_sample(
     db: Session,
     *,

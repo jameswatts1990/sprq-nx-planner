@@ -106,3 +106,18 @@ export interface TrayDiscardRequest {
 export interface TrayDiscardOut {
   cells: CellOut[];
 }
+
+export interface TrayRotateRequest {
+  tray_id: number;
+  /** The grid day the rotate was triggered from: this day's uses and every later use of
+   * the tray move onto the fresh tray; earlier uses stay on the old (discarded) cells. */
+  from_date: string;
+  reason?: string | null;
+}
+
+export interface TrayRotateOut {
+  /** The 4 cells of the freshly-minted tray. */
+  new_cells: CellOut[];
+  /** How many uses moved from the old tray onto the new one. */
+  moved_count: number;
+}

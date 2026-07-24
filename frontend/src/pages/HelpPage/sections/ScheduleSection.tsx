@@ -137,9 +137,13 @@ export function ScheduleSection() {
       </dl>
       <RunDesignExample />
       <p>
-        <b>The Backlog panel</b> (collapsible, above the grid) has the same search box, priority dropdown, sort
-        control, and rows-per-page control as the Backlog tab, so you can narrow down to the sample you want before
-        dragging it — see the Backlog tab&apos;s help for details on each control.
+        <b>The Backlog panel</b> is pinned to the top of the Schedule page, just under the date toolbar, so it stays
+        in view as you scroll down the instrument rows — drag a card straight onto any slot and the grid scrolls to
+        meet you, no scrolling back up to fetch the next sample. Click the <b>Backlog</b> header to open or collapse
+        the tray (your choice is remembered next time); when open, its card list scrolls on its own so it never hides
+        the grid beneath it. It has the same search box, priority dropdown, sort control, and rows-per-page control as
+        the Backlog tab, so you can narrow down to the sample you want before dragging it — see the Backlog tab&apos;s
+        help for details on each control.
       </p>
 
       <p className={styles.subheading}>Placing samples</p>
@@ -289,9 +293,9 @@ export function ScheduleSection() {
             <SchedulerSlotView stage={STAGE_EXAMPLE_CANCELLED} slotIndex={0} />
           </div>
           <span>
-            <b>Blocked</b> (red, cross-hatched) — a placement cancelled by a <b>Stop cell</b> action before it ever
-            ran; its sample is back in the Backlog flagged <b>Aborted</b>, ready to be rescued onto a different
-            cell. A permanent, read-only marker (no drag, no Remove).
+            <b>Blocked</b> (red, cross-hatched) — a placement cancelled before it ever ran; its sample is back in the
+            Backlog. From a <b>Stop cell</b> it&apos;s a permanent, read-only marker (no drag, no Remove); from a
+            <b> cell discard</b> you can clear it by opening the slot and clicking <b>Return to backlog</b>.
           </span>
         </div>
       </div>
@@ -364,12 +368,14 @@ export function ScheduleSection() {
           those cells before then, or accept the waste.
         </li>
         <li>
-          The <b>✕</b> button in a tray&apos;s top-right corner is <b>Discard Cells</b> — it force-marks every
-          physical cell in that tray as Exhausted, regardless of how many uses it actually has left. Use it once a
-          tray is done with in real life even though the system still thinks it has spare uses. Any not-yet-run
-          placements for those cells are cancelled and their samples return to the backlog. This cannot be undone.
-          Since it exhausts every cell in the tray at once, the whole tray disappears from the schedule immediately
-          afterwards and its wells open up for a brand-new one (see &quot;Used-up wells&quot; below).
+          The <b>↻</b> button in a tray&apos;s top-right corner is <b>Rotate tray</b> — use it when you physically
+          swap that tray for a fresh one (its cells are used up, expired, or you just want a clean tray from this day
+          on). It loads a brand-new tray into the same position and moves <b>this day&apos;s samples, plus any later
+          uses of the tray</b>, onto the new cells — each restarting at <b>Use 1</b> in the same well. Uses on{" "}
+          <i>earlier</i> days stay exactly where they are on the old cells, which are then discarded (Exhausted).
+          So a sample that was, say, this cell&apos;s Use 3 becomes Use 1 on the fresh tray, and the days before it
+          are untouched. It can&apos;t be undone, and isn&apos;t available on a run that&apos;s already{" "}
+          <b>Confirm loaded</b> (unlock it first) — the cells are physically in the instrument by then.
         </li>
         <li>
           <b>Locked until [date/time]</b> means the run&apos;s instrument stays reserved past this day (a long

@@ -129,12 +129,13 @@
   text-transform: uppercase;
   color: var(--faint);
 }
-/* "Discard Cells" - top-right of the tray header, only shown once the tray is
-   tray-linked (see SchedulerDayCell.tsx). Deliberately understated (no red until
-   hover) since it sits on every tray card and must not read as an error state. */
-.discardBtn {
+/* "Rotate tray" - top-right of the tray header, only shown on a not-yet-locked tray card
+   (see SchedulerDayCell.tsx). Deliberately understated since it sits on every tray card;
+   a neutral (not red) hover, because rotating is a routine forward action - load a fresh
+   tray - not an error/write-off. */
+.rotateBtn {
   font-family: var(--sans);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 800;
   line-height: 1;
   border: none;
@@ -144,11 +145,11 @@
   padding: 1px 3px;
   border-radius: 4px;
 }
-.discardBtn:hover:not(:disabled) {
-  color: var(--red);
-  background: var(--red-tint);
+.rotateBtn:hover:not(:disabled) {
+  color: var(--blue-deep);
+  background: var(--blue-tint);
 }
-.discardBtn:disabled {
+.rotateBtn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }

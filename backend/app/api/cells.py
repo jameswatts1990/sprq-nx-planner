@@ -17,6 +17,8 @@ from app.schemas.cell import (
     CellUndoStopOut,
     TrayDiscardOut,
     TrayDiscardRequest,
+    TrayRotateOut,
+    TrayRotateRequest,
 )
 from app.schemas.common import Page
 from app.services.cell_service import (
@@ -27,6 +29,7 @@ from app.services.cell_service import (
     receive_cell_credit,
     report_cell_to_pacbio,
     retire_cell,
+    rotate_tray,
     serialize_cell,
     serialize_cell_detail,
     stop_cell,
@@ -162,6 +165,18 @@ def discard_tray_endpoint(req: TrayDiscardRequest, db: SessionDep, actor: ActorD
         raise HTTPException(404, "Tray not found or has no cells")
     cells = discard_tray(db, cells, req.reason, req.actor or actor)
     return TrayDiscardOut(cells=[serialize_cell(c) for c in cells])
+
+
+@router.post("/rotate-tray", response_model=TrayRotateOut)
+def rotate_tray_endpoint(req: TrayRotateRequest, db: SessionDep, actor: ActorDep) -> TrayRotateOut:
+    cells = list(db.scalars(select(Cell).where(Cell.tray_id == req.tray_id).options(*_DETAIL_OPTIONS)).unique())
+    if not cells:
+        raise HTTPException(404, "Tray not found or has no cells")
+    try:
+        new_cells, moved_count = rotate_tray(db, cells, req.from_date, req.reason, req.actor or actor)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    return TrayRotateOut(new_cells=[serialize_cell(c) for c in new_cells], moved_count=moved_count)
 
 
 @router.post("/{cell_id}/undo-stop", response_model=CellUndoStopOut)

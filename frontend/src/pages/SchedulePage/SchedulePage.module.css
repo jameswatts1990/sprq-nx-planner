@@ -4,17 +4,27 @@
   flex-direction: column;
   gap: 6px;
 }
-.toolbar {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  flex-wrap: wrap;
-  margin-bottom: 6px;
+/* The date toolbar and the Backlog tray pin together as one unit directly beneath the
+   nav, so the backlog stays reachable for a drag no matter how far down the instrument
+   rows you've scrolled. Only this wrapper is sticky; its children lay out normally, and
+   the Backlog tray caps its own card list height (see BacklogAccordion .grid) so the
+   pinned region can't grow tall enough to hide the grid. The opaque background covers grid
+   rows scrolling underneath. */
+.stickyHead {
   position: sticky;
   top: var(--topbar-h, 69px);
   z-index: 20;
   background: var(--bg);
   padding: 10px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
 }
 .pager {
   display: flex;

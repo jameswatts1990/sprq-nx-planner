@@ -68,6 +68,7 @@ export function SchedulePage() {
   const [ghostDetail, setGhostDetail] = useState<CellGhost | null>(null);
   const gridAreaRef = useRef<HTMLDivElement>(null);
   const accordionsRef = useRef<HTMLDivElement>(null);
+  const stickyHeadRef = useRef<HTMLDivElement>(null);
 
   const instrumentsQuery = useQuery({
     queryKey: ["instruments", true],
@@ -321,7 +322,10 @@ export function SchedulePage() {
   // accordions (Run Design's Auto-Schedule button in particular) are excluded from
   // "outside" for the same reason: mousedown fires before click, so without this a
   // click on Auto-Schedule cleared the selection an instant before onAutoSchedule read
-  // it, making the click silently schedule zero cells.
+  // it, making the click silently schedule zero cells. The pinned sticky head (the date
+  // toolbar plus its own Clear/Remove buttons and the pinned Backlog tray) is excluded on
+  // the same grounds - those controls act on the current selection, so their mousedown
+  // must not wipe it out from under their own click.
   useEffect(() => {
     if (!selection.hasSelection && !slotSelection.hasSelection) return;
     if (detail || ghostDetail || printSheetOpen || actions.clearConfirmOpen || dnd.pendingPlacement) return;
@@ -329,6 +333,7 @@ export function SchedulePage() {
       const target = e.target as Node;
       if (gridAreaRef.current?.contains(target)) return;
       if (accordionsRef.current?.contains(target)) return;
+      if (stickyHeadRef.current?.contains(target)) return;
       selection.clear();
       slotSelection.clear();
     }
@@ -372,65 +377,6 @@ export function SchedulePage() {
 
   return (
     <div className={styles.page}>
-      <div className={styles.toolbar}>
-        <div className={styles.pager}>
-          <Button size="sm" variant="ghost" onClick={win.prev}>
-            ‹ Prev
-          </Button>
-          <span className={styles.range}>{rangeLabel}</span>
-          <Button size="sm" variant="ghost" onClick={win.next}>
-            Next ›
-          </Button>
-          <Button size="sm" variant="ghost" onClick={win.goToday}>
-            Today
-          </Button>
-          <input
-            className={styles.jumpDate}
-            type="date"
-            value={win.from}
-            onChange={(e) => e.target.value && win.goToDate(e.target.value)}
-            aria-label="Jump to date"
-            title="Jump to the week containing this date"
-          />
-          <Button size="sm" variant="ghost" onClick={() => setPrintSheetOpen(true)}>
-            Print Batch Sheet
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={handleExportSchedule}
-            title="Download the visible week as a sequencing-tracker CSV to paste into the Google Sheet"
-          >
-            Export schedule
-          </Button>
-        </div>
-        <div className={styles.spacer} />
-        {selectedCells.length > 0 && (
-          <div className={styles.selectionInfo}>
-            <span>{selectedCells.length} cell(s) selected</span>
-            <Button size="sm" variant="ghost" onClick={selection.clear}>
-              Clear
-            </Button>
-          </div>
-        )}
-        {slotSelection.hasSelection && (
-          <div className={styles.selectionInfo}>
-            <span>{slotSelection.selectedStages.length} sample(s) selected</span>
-            <Button size="sm" variant="ghost" onClick={slotSelection.clear} disabled={actions.removeSlots.isPending}>
-              Clear
-            </Button>
-            <Button size="sm" variant="primary" onClick={() => actions.removeSlots.mutate()} disabled={actions.removeSlots.isPending}>
-              {actions.removeSlots.isPending ? "Removing…" : "Remove from schedule (Del)"}
-            </Button>
-          </div>
-        )}
-      </div>
-      {actions.removeSlotsError && (
-        <Note tone="bad" icon="!">
-          {actions.removeSlotsError}
-        </Note>
-      )}
-
       <DndContext
         sensors={dnd.sensors}
         collisionDetection={dnd.collisionDetection}
@@ -438,6 +384,78 @@ export function SchedulePage() {
         onDragEnd={dnd.onDragEnd}
       >
         <CellLinkContext.Provider value={cellLink}>
+          {/* Pinned head: the date toolbar plus the Backlog tray stay stuck below the nav
+              so a backlog card can be dragged straight onto any slot without scrolling the
+              tray back into view first. The tray's own card list scrolls internally so the
+              pinned region never swallows the grid (see BacklogAccordion). */}
+          <div className={styles.stickyHead} ref={stickyHeadRef}>
+            <div className={styles.toolbar}>
+              <div className={styles.pager}>
+                <Button size="sm" variant="ghost" onClick={win.prev}>
+                  ‹ Prev
+                </Button>
+                <span className={styles.range}>{rangeLabel}</span>
+                <Button size="sm" variant="ghost" onClick={win.next}>
+                  Next ›
+                </Button>
+                <Button size="sm" variant="ghost" onClick={win.goToday}>
+                  Today
+                </Button>
+                <input
+                  className={styles.jumpDate}
+                  type="date"
+                  value={win.from}
+                  onChange={(e) => e.target.value && win.goToDate(e.target.value)}
+                  aria-label="Jump to date"
+                  title="Jump to the week containing this date"
+                />
+                <Button size="sm" variant="ghost" onClick={() => setPrintSheetOpen(true)}>
+                  Print Batch Sheet
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={handleExportSchedule}
+                  title="Download the visible week as a sequencing-tracker CSV to paste into the Google Sheet"
+                >
+                  Export schedule
+                </Button>
+              </div>
+              <div className={styles.spacer} />
+              {selectedCells.length > 0 && (
+                <div className={styles.selectionInfo}>
+                  <span>{selectedCells.length} cell(s) selected</span>
+                  <Button size="sm" variant="ghost" onClick={selection.clear}>
+                    Clear
+                  </Button>
+                </div>
+              )}
+              {slotSelection.hasSelection && (
+                <div className={styles.selectionInfo}>
+                  <span>{slotSelection.selectedStages.length} sample(s) selected</span>
+                  <Button size="sm" variant="ghost" onClick={slotSelection.clear} disabled={actions.removeSlots.isPending}>
+                    Clear
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    onClick={() => actions.removeSlots.mutate()}
+                    disabled={actions.removeSlots.isPending}
+                  >
+                    {actions.removeSlots.isPending ? "Removing…" : "Remove from schedule (Del)"}
+                  </Button>
+                </div>
+              )}
+            </div>
+            <BacklogAccordion />
+          </div>
+
+          {actions.removeSlotsError && (
+            <Note tone="bad" icon="!">
+              {actions.removeSlotsError}
+            </Note>
+          )}
+
           <div className={styles.accordions} ref={accordionsRef}>
             <RunDesignAccordion
               runDesign={runDesign}
@@ -449,7 +467,6 @@ export function SchedulePage() {
               onRequestClearSchedule={actions.onRequestClearSchedule}
               note={actions.runDesignNote}
             />
-            <BacklogAccordion />
           </div>
 
           <div className={styles.gridArea} ref={gridAreaRef}>

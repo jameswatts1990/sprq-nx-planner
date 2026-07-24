@@ -287,10 +287,10 @@ export function LegendSection() {
             <SchedulerSlotView stage={STAGE_EXAMPLE_CANCELLED} slotIndex={0} />
           </div>
           <span>
-            Blocked - this placement was cancelled by a Stop cell action before it ever ran; its sample is back in
-            the Backlog flagged Aborted, ready to be rescued onto a different cell. Shares Stopped&apos;s red
-            severity, with an added cross-hatch texture since it&apos;s the more actionable claim (a slot you might
-            otherwise expect to still happen).
+            Blocked - this placement was cancelled before it ever ran and its sample is back in the Backlog. From a
+            Stop cell it&apos;s a permanent marker; from a cell discard it can be cleared with Return to backlog (open
+            the slot). Shares Stopped&apos;s red severity, with an added cross-hatch texture since it&apos;s the more
+            actionable claim (a slot you might otherwise expect to still happen).
           </span>
         </div>
       </div>

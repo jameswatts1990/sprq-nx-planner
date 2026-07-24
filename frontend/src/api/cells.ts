@@ -9,6 +9,8 @@ import type {
   CellUndoStopOut,
   TrayDiscardOut,
   TrayDiscardRequest,
+  TrayRotateOut,
+  TrayRotateRequest,
 } from "@/types/cell";
 import type { Page } from "@/types/common";
 
@@ -60,4 +62,9 @@ export const cellsApi = {
   /** Force every physical cell in a tray to "exhausted" in one transaction - siblings
    * already retired/stopped/discarded are left untouched. */
   discardTray: (req: TrayDiscardRequest) => api.post<TrayDiscardOut>("/api/cells/discard-tray", req),
+  /** Rotate a tray: mint a fresh tray in the same physical position and move this day's
+   * uses (and every later use of the tray) onto it, restarting at Use 1; earlier uses stay
+   * on the old (discarded) cells. 409 if a later run is confirmed loaded or a cell is
+   * stopped/retired. */
+  rotateTray: (req: TrayRotateRequest) => api.post<TrayRotateOut>("/api/cells/rotate-tray", req),
 };
