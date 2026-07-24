@@ -8,6 +8,7 @@ import { cyclesApi } from "@/api/cycles";
 import { instrumentsApi } from "@/api/instruments";
 import { scheduleExportUrl } from "@/api/scheduleExport";
 import { CellChoicePicker } from "@/components/scheduler/CellChoicePicker";
+import { CellInfoPopover } from "@/components/scheduler/CellInfoPopover";
 import {
   allStages,
   findContinuation,
@@ -67,6 +68,8 @@ export function SchedulePage() {
   const [detail, setDetail] = useState<DetailTarget | null>(null);
   const [printSheetOpen, setPrintSheetOpen] = useState(false);
   const [ghostDetail, setGhostDetail] = useState<CellGhost | null>(null);
+  // The placement whose physical-cell info popover is open (the card's "ticket stub" click).
+  const [cellInfo, setCellInfo] = useState<DetailTarget | null>(null);
   const gridAreaRef = useRef<HTMLDivElement>(null);
   const accordionsRef = useRef<HTMLDivElement>(null);
   const stickyHeadRef = useRef<HTMLDivElement>(null);
@@ -309,6 +312,13 @@ export function SchedulePage() {
   const dnd = useSchedulerDnd(
     (cellUseId) => actions.dragRemove.mutate(cellUseId),
     (a, b) => actions.swap.mutate({ a, b }),
+    (sampleId, instrumentSerial, loadDate, slotIndex) =>
+      actions.autoPlace.mutate({
+        sample_id: sampleId,
+        instrument_serial: instrumentSerial,
+        load_date: loadDate,
+        slot_index: slotIndex,
+      }),
   );
   // Suppressed during any drag (backlog-sample or filled-slot move) so the hover/pin
   // highlight never fights the drag/drop visuals - see useCellLinkHighlight.tsx.
@@ -329,7 +339,7 @@ export function SchedulePage() {
   // must not wipe it out from under their own click.
   useEffect(() => {
     if (!selection.hasSelection && !slotSelection.hasSelection) return;
-    if (detail || ghostDetail || printSheetOpen || actions.clearConfirmOpen || dnd.pendingPlacement) return;
+    if (detail || ghostDetail || cellInfo || printSheetOpen || actions.clearConfirmOpen || dnd.pendingPlacement) return;
     function onMouseDown(e: MouseEvent) {
       const target = e.target as Node;
       if (gridAreaRef.current?.contains(target)) return;
@@ -342,7 +352,7 @@ export function SchedulePage() {
     return () => window.removeEventListener("mousedown", onMouseDown);
     // selection/slotSelection are stable (memoized in their hooks), so depending on the
     // whole objects re-subscribes only on a real selection change, same as before.
-  }, [selection, slotSelection, detail, ghostDetail, printSheetOpen, actions.clearConfirmOpen, dnd.pendingPlacement]);
+  }, [selection, slotSelection, detail, ghostDetail, cellInfo, printSheetOpen, actions.clearConfirmOpen, dnd.pendingPlacement]);
 
   // Delete/Backspace removes the selected samples from the schedule, as long as focus
   // isn't in a text field (so it doesn't hijack editing elsewhere on the page).
@@ -362,6 +372,8 @@ export function SchedulePage() {
   const handleOpenDetail = useCallback((stage: StageOut, run: RunOut) => {
     setDetail({ stage, run });
   }, []);
+
+  const handleOpenCell = useCallback((stage: StageOut, run: RunOut) => setCellInfo({ stage, run }), []);
 
   const handleExportSchedule = useCallback(() => {
     const a = document.createElement("a");
@@ -512,6 +524,7 @@ export function SchedulePage() {
                 selection={selection}
                 placingSlotKey={dnd.placingSlotKey}
                 onOpenDetail={handleOpenDetail}
+                onOpenCell={handleOpenCell}
                 slotSelection={slotSelection}
                 onExtendSelect={onExtendSlotSelect}
                 onDragSelectStart={onDragSelectStart}
@@ -558,6 +571,7 @@ export function SchedulePage() {
       )}
 
       {detail && <SlotDetailPopover stage={detail.stage} run={detail.run} onClose={() => setDetail(null)} />}
+      {cellInfo && <CellInfoPopover stage={cellInfo.stage} run={cellInfo.run} onClose={() => setCellInfo(null)} />}
     </div>
   );
 }

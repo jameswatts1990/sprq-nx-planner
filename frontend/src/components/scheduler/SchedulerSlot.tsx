@@ -23,6 +23,9 @@ export interface SchedulerSlotProps {
   /** Selected via ctrl/cmd-click, for the bulk-delete affordance. Always false when locked. */
   selected: boolean;
   onOpenDetail: (stage: StageOut) => void;
+  /** Opens the in-grid cell-info popover for a filled slot's physical cell - the card's
+   * right-edge "ticket stub" click (distinct from the card-body onOpenDetail). */
+  onOpenCell?: (stage: StageOut) => void;
   /** Ctrl/cmd-click on a filled, unlocked slot toggles selection instead of opening detail. */
   onToggleSelect: (stage: StageOut) => void;
   /** Ctrl/cmd+shift-click extends the selection to every eligible slot between the last
@@ -151,6 +154,7 @@ function DraggableSlot({
   placing,
   selected,
   onOpenDetail,
+  onOpenCell,
   onToggleSelect,
   onExtendSelect,
   onDragSelectStart,
@@ -244,6 +248,7 @@ function DraggableSlot({
       linkSource={isSource}
       dimmed={isDimmed}
       onClick={onClick}
+      onOpenCell={onOpenCell ? () => onOpenCell(stage) : undefined}
       onMouseEnter={() => link.setHover(linkTarget)}
       onMouseLeave={link.clearHover}
       {...listeners}
@@ -261,6 +266,7 @@ function ClickableSlot({
   placing,
   selected,
   onOpenDetail,
+  onOpenCell,
   onToggleSelect,
   onExtendSelect,
   onDragSelectStart,
@@ -318,6 +324,7 @@ function ClickableSlot({
       role="button"
       tabIndex={0}
       onClick={onClick}
+      onOpenCell={onOpenCell ? () => onOpenCell(stage) : undefined}
       onKeyDown={onKeyDown}
       onPointerDown={onPointerDown}
       onMouseEnter={() => link.setHover(linkTarget)}

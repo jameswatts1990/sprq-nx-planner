@@ -14,7 +14,10 @@ export interface PlaceSampleRequest {
   load_date: string; // YYYY-MM-DD - the run's load day (the grid column dropped into)
   /** Grid position 0-7: 0-3 = Plate 1, 4-7 = Plate 2. */
   slot_index: SlotIndex;
-  cell_choice: CellChoice;
+  /** Omit to let the backend DERIVE the cell (reuse-before-new, the same rule auto-fill uses) -
+   * what a plain drag-drop sends. An explicit choice overrides it (the cell-stub's "use a
+   * different cell" path). */
+  cell_choice?: CellChoice;
   run_time_hours: RunTimeHours; // current Run Design dial
   /** Only meaningful when this placement creates a brand-new run (the first sample into
    * an empty instrument+day cell) - ignored otherwise, since an existing run's start is

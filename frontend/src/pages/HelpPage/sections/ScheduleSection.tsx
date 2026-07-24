@@ -193,39 +193,37 @@ export function ScheduleSection() {
         backlog longest go first, and only after all of that does it consider what packs most efficiently.
       </p>
       <p>
-        <b>The placement picker</b> appears after a drop only when there&apos;s an actual decision to make. When you
-        drop a backlog sample onto an empty slot with more than one compatible open cell on that instrument, it
-        offers <b>Use a new cell</b> (default) or any of those compatible cells. A cell is offered only if it still
-        has a use left <i>and</i> none of its already-used (&quot;burned&quot;) barcodes clash with your
-        sample&apos;s barcodes — running the same barcode twice on one cell isn&apos;t allowed, and there is no way
-        to override this. If there&apos;s no real choice — you dropped directly onto a waiting-cell ghost, or there
-        are no reusable cells at all on that instrument — the picker skips itself entirely and proceeds
-        automatically with a default <b>12:00 loading start time</b>, even if this is the first placement on that
-        instrument/day. The picker only still stops to ask when your drop <i>would</i> start a brand-new run{" "}
-        <i>and</i> there&apos;s a genuine cell choice to make (more than one compatible cell, with no ghost telling
-        it which one you meant) — in that case it shows both the <b>Loading start time</b> field and the cell
-        choice together. When compatible cells are offered, they&apos;re grouped by which physical SPRQ-Nx SMRT Cell
-        tray they came from, in cell-number order, so you can see a tray&apos;s other cells together. Picking{" "}
-        <b>Use a new cell</b> opens a whole new physical tray of 4 at once — the other 3 appear immediately as open,
-        reusable cells (in the Cells page, future pickers, and the grid itself — see &quot;Plates &amp; wells&quot;
-        below), even though only one of them has a sample on it yet.
+        <b>The cell is chosen for you.</b> When you drag a backlog sample onto an empty slot, RunNx picks which
+        physical SMRT cell it runs on automatically — the same rule the auto-fill planner uses: <b>reuse an
+        already-open cell before opening a new one</b>. If an eligible cell already sits in that slot&apos;s position —
+        one with a use left, no burned-barcode clash, and still inside its 108-hour window — the sample reuses it (its
+        next Use); otherwise a fresh cell is opened (a whole new tray of 4, whose other 3 cells become reusable
+        siblings — see &quot;Plates &amp; wells&quot; below). No picker interrupts the drop; the first placement into an
+        empty day just uses a default <b>12:00</b> loading start time.
       </p>
       <p>
-        <b>Dropping onto a Plate 2 slot offers reuse.</b> When a run already has cells in <b>Plate 1</b> and you drop
-        a backlog sample onto the lined-up <b>Plate 2</b> slot below it (Plate 2&apos;s A-slot sits under Plate
-        1&apos;s A-cell, and so on), the picker offers <b>reusing that same cell</b> as its next use — the one-tray
-        reuse run, where Plate 2 reruns Plate 1&apos;s cells on the next weekday (Use 2, after the on-board wash).
-        That reuse is the <i>default</i>, and reads e.g. <i>&quot;Reuse C1042 · Use 2 · acquires Fri 25 Jul&quot;</i>.
-        If you&apos;d rather load a fresh, separate tray into Plate 2 that sequences the <i>same</i> day (a parallel
-        two-plate run), pick <b>Use a new cell</b> instead — it&apos;s one click away, labelled{" "}
-        <i>&quot;fresh tray · Use 1 · acquires &lt;today&gt;&quot;</i>. Reuse is only offered when Plate 1&apos;s
-        lined-up cell can still take another use (open, uses left, no barcode clash); otherwise Plate 2 simply takes a
-        new cell.
+        <b>The cell &quot;stub&quot;.</b> Every placed card shows a small coloured tab on its right edge — the cell it
+        landed on, written as its well column and use number (e.g. <i>A1</i>, <i>B2</i>), tinted magenta / blue / teal
+        for Use 1 / 2 / 3 (the same Use colours as the legend). It&apos;s the quickest read of &quot;which cell, which
+        use&quot;: a one-tray reuse run shows <i>A1</i> on Plate 1 and <i>A2</i> on Plate 2 — the same physical cell,
+        its first then second use. <b>Click the stub</b> for that cell&apos;s details — uses so far, 108-hour window,
+        tray position and burned barcodes, with a link through to its full cell page. (Clicking the card&apos;s{" "}
+        <i>body</i> still opens the sample/slot detail, as before — the stub is specifically the cell.)
       </p>
       <p>
-        If you drop directly onto a waiting-cell ghost whose burned barcodes clash with your sample&apos;s, the
-        picker doesn&apos;t quietly substitute a new cell instead — it opens with a clear warning naming the exact
-        barcode and cell involved, so you can see why that cell was rejected before choosing a different one.
+        <b>Turning a reuse into a fresh tray.</b> When a placement reuses an earlier plate&apos;s cell (a <b>Plate 2</b>
+        reuse — Use 2+, acquiring the next weekday), its cell popover offers <b>Use a new cell instead</b>: that
+        re-points the well to a fresh, separate tray running the <i>same</i> day (a parallel two-plate run) rather than
+        reusing. It&apos;s the one manual override to the automatic choice. There&apos;s deliberately no in-place
+        &quot;swap to a different existing cell&quot; — a cell <i>is</i> the physical thing in its well, so to reuse a
+        <i>different</i> cell you drag the sample onto that cell&apos;s own slot instead.
+      </p>
+      <p>
+        For the rare case where you want to load a specific reusable cell by hand, drop the sample <b>directly onto its
+        waiting-cell ghost</b> (the tinted placeholder in its own well). That still opens the placement picker, so an
+        explicit reuse target is honoured — and if that cell&apos;s burned barcodes clash with your sample&apos;s, the
+        picker opens with a clear warning naming the exact barcode and cell, rather than quietly substituting a new
+        cell.
       </p>
       <p>
         <b>Dragging an already-placed sample to a new slot moves it</b> — to any open slot on any instrument and
@@ -236,8 +234,9 @@ export function ScheduleSection() {
         onto the exact well the cell already occupies keeps it there (a plain reschedule to a different day), while
         dropping onto any other well or a different instrument entirely — even one on the very same tray, even the
         same day — hands the sample to whichever cell actually lives there instead (a new one, or another
-        compatible reusable cell), using the exact same placement picker and auto-resolve rules described above. The
-        cell it came from is untouched by this — it keeps its own other uses, if it has any, right where they are.
+        compatible reusable cell), resolving the cell via the placement picker (silently when there&apos;s only one
+        sensible choice). The cell it came from is untouched by this — it keeps its own other uses, if it has any,
+        right where they are.
         A move that starts a brand-new run and has no cell decision to make always shows the picker anyway, since
         that&apos;s the one case it has no other way to collect a loading start time. Dropping a sample back onto
         the exact slot it came from does nothing. Dropping it onto a slot that already has a <i>different</i>

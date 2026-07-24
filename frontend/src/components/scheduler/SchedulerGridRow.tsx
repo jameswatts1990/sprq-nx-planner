@@ -24,6 +24,7 @@ export interface SchedulerGridRowProps {
   selection: GridSelection;
   placingSlotKey: string | null;
   onOpenDetail: (stage: StageOut, run: RunOut) => void;
+  onOpenCell: (stage: StageOut, run: RunOut) => void;
   slotSelection: SlotSelection;
   onExtendSelect: (stage: StageOut, coord: { r: number; c: number }) => void;
   onDragSelectStart: (stage: StageOut, coord: { r: number; c: number }) => void;
@@ -48,6 +49,7 @@ export const SchedulerGridRow = memo(function SchedulerGridRow({
   selection,
   placingSlotKey,
   onOpenDetail,
+  onOpenCell,
   slotSelection,
   onExtendSelect,
   onDragSelectStart,
@@ -121,6 +123,7 @@ export const SchedulerGridRow = memo(function SchedulerGridRow({
             placingSlotKey={placingSlotKey}
             onSelect={selection.handleCellClick}
             onOpenDetail={onOpenDetail}
+            onOpenCell={onOpenCell}
             slotSelection={slotSelection}
             onExtendSelect={onExtendSelect}
             onDragSelectStart={onDragSelectStart}

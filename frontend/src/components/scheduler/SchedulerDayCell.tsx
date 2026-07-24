@@ -35,6 +35,10 @@ export interface SchedulerDayCellProps {
   placingSlotKey: string | null;
   onSelect: (r: number, c: number, shift: boolean, ctrl: boolean) => void;
   onOpenDetail: (stage: StageOut, run: RunOut) => void;
+  /** Opens the in-grid cell-info popover for a placement's physical cell (the card's
+   * right-edge "ticket stub" click). Carries the owning run (like onOpenDetail) so the
+   * popover has the instrument/load-day context its "use a different cell" override needs. */
+  onOpenCell?: (stage: StageOut, run: RunOut) => void;
   slotSelection: SlotSelection;
   /** Ctrl/cmd+shift-click on a filled slot - extends slotSelection to a rectangle
    * between the last-toggled slot and this one (see SchedulePage.onExtendSlotSelect). */
@@ -354,6 +358,7 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
                     slotSelection.isSelected(slots[i]!.cell_use_id)
                   }
                   onOpenDetail={(stage) => props.onOpenDetail(stage, run as RunOut)}
+                  onOpenCell={props.onOpenCell ? (stage) => props.onOpenCell!(stage, run as RunOut) : undefined}
                   onToggleSelect={(stage) => slotSelection.toggle(stage, { r: rowIndex, c: colIndex })}
                   onExtendSelect={(stage) => onExtendSelect(stage, { r: rowIndex, c: colIndex })}
                   onDragSelectStart={(stage) => onDragSelectStart(stage, { r: rowIndex, c: colIndex })}

@@ -57,6 +57,11 @@ export interface SchedulerSlotViewProps extends HTMLAttributes<HTMLDivElement> {
    * of the plain "+", since placing a new cell here isn't possible. Ignored when `stage`
    * or `ghost` is set. */
   blocked?: boolean;
+  /** Opens the in-grid cell-info popover for this placement's physical cell. When set (and
+   * a stage is shown), the card renders a clickable "ticket stub" on its right edge - the
+   * physical cell + its use number. Distinct from the card-body click, which opens the
+   * sample/slot detail. Wired from SchedulerSlot with the stage's own cell bound. */
+  onOpenCell?: () => void;
 }
 
 /**
@@ -80,6 +85,7 @@ export const SchedulerSlotView = memo(
       linked,
       dimmed,
       blocked,
+      onOpenCell,
       className,
       style,
       ...rest
@@ -128,6 +134,18 @@ export const SchedulerSlotView = memo(
   // position - so a cell reused across two wells in the same run shares one colour. A
   // ghost slot (no stage yet) colours by the use number it's waiting to become.
   const useClass = classForUseIndex(showStage ? stage!.use_number : renderGhost ? renderGhost.useNumber : slotIndex + 1);
+  // The right-edge cell "ticket stub": physical column (well letter) + use number, e.g. "A2",
+  // colour-coded by use (solid Use 1/2/3 palette, like the legend swatches). Only rendered on
+  // a filled card that has an onOpenCell handler.
+  const showStub = showStage && !!onOpenCell;
+  const stubLabel = showStage ? `${stage!.well.charAt(0)}${stage!.use_number}` : "";
+  const stubClass = !showStage
+    ? ""
+    : stage!.use_number >= 3
+      ? styles.stubU3
+      : stage!.use_number === 2
+        ? styles.stubU2
+        : styles.stubU1;
   const classes = [styles.slot];
   if (showStage) {
     classes.push(styles.filled, styles[useClass]);
@@ -176,6 +194,7 @@ export const SchedulerSlotView = memo(
   }
   if (locked) classes.push(styles.locked);
   if (placing) classes.push(styles.placing);
+  if (showStub) classes.push(styles.hasStub);
   if (over) {
     if (dragging) {
       // Hovering back over the exact slot a drag started from - dropping here changes
@@ -281,6 +300,24 @@ export const SchedulerSlotView = memo(
             </div>
           )}
           <BarcodeChips barcodes={stage!.barcodes} variant={useClass} />
+          {showStub && (
+            // stopPropagation on pointer-down AND click so tapping the stub opens cell info
+            // without also starting a dnd-kit drag or firing the card's open-slot-detail click.
+            <button
+              type="button"
+              className={`${styles.stub} ${stubClass}`}
+              title={`Cell ${stage!.cell_ref} · Use ${stage!.use_number} of 3 — click for cell details`}
+              aria-label={`Cell ${stage!.cell_ref}, use ${stage!.use_number}. Open cell details.`}
+              onPointerDown={(e) => e.stopPropagation()}
+              onKeyDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenCell!();
+              }}
+            >
+              {stubLabel}
+            </button>
+          )}
           {(linkSource || linked) && (
             <span
               className={linkSource ? styles.linkBadgeSource : styles.linkBadgePeer}

@@ -75,7 +75,7 @@ def create_cell_use(req: PlaceSampleRequest, db: SessionDep, actor: ActorDep) ->
             instrument_serial=req.instrument_serial,
             load_date=req.load_date,
             slot_index=req.slot_index,
-            cell_choice=req.cell_choice.model_dump(),
+            cell_choice=req.cell_choice.model_dump() if req.cell_choice is not None else None,
             run_time_hours=req.run_time_hours,
             start_hour=req.start_hour,
             start_minute=req.start_minute,

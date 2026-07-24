@@ -8,7 +8,7 @@ import type { NoteTone } from "@/components/ui/Note";
 import type { GridSelection } from "@/components/scheduler/useGridSelection";
 import type { SlotSelection } from "@/components/scheduler/useSlotSelection";
 import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
-import type { StageOut } from "@/types/schedule";
+import type { SlotIndex, StageOut } from "@/types/schedule";
 import type { GridCellRef, RunDesignState } from "@/types/schedulerGrid";
 
 export interface AccordionNote {
@@ -136,6 +136,31 @@ export function useScheduleActions({
     },
   });
 
+  // A plain drag-drop of a backlog sample onto an empty slot: place it and let the BACKEND
+  // derive the cell (reuse-before-new - see placement_service.derive_best_cell). No cell_choice
+  // is sent, so there's no drop-time picker; the derived cell shows as the card's cell stub, and
+  // the "use a different cell" override is reached from there. (A drop directly onto a reuse
+  // ghost still goes through the CellChoicePicker instead - see useSchedulerDnd - so an explicit
+  // ghost target, and any barcode clash on it, is honoured/surfaced rather than silently
+  // re-derived.)
+  const autoPlace = useMutation({
+    mutationFn: (v: { sample_id: number; instrument_serial: string; load_date: string; slot_index: SlotIndex }) =>
+      cellUsesApi.place({
+        sample_id: v.sample_id,
+        instrument_serial: v.instrument_serial,
+        load_date: v.load_date,
+        slot_index: v.slot_index,
+        run_time_hours: runDesign.run_time_hours,
+      }),
+    onSuccess: () => {
+      invalidateScheduleRelated(queryClient);
+      setRemoveSlotsError(null);
+    },
+    onError: (err) => {
+      setRemoveSlotsError(err instanceof ApiError ? err.message : "Failed to place sample.");
+    },
+  });
+
   const autoFill = useMutation({
     mutationFn: () =>
       schedulerApi.autoFill({
@@ -196,6 +221,7 @@ export function useScheduleActions({
     removeSlots,
     dragRemove,
     swap,
+    autoPlace,
     clearSchedule,
     autoFill,
     onRequestClearSchedule,

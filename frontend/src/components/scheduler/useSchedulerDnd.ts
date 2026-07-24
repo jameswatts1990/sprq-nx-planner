@@ -80,10 +80,13 @@ export interface SchedulerDnd {
  * entirely) - the drag-and-drop equivalent of the "Remove from schedule" action.
  * @param onSwap Called with the dragged and target cell_use_ids when a placed sample is
  * dropped onto a *different* already-occupied slot - the two samples exchange places.
+ * @param onAutoPlace Called when a backlog sample is dropped onto a plain empty slot (not a
+ * reuse ghost) - the backend derives the cell (reuse-before-new), so no picker is shown.
  */
 export function useSchedulerDnd(
   onRemoveOutside: (cellUseId: number) => void,
   onSwap: (draggedCellUseId: number, targetCellUseId: number) => void,
+  onAutoPlace: (sampleId: number, instrumentSerial: string, loadDate: string, slotIndex: SlotIndex) => void,
 ): SchedulerDnd {
   const [activeSample, setActiveSample] = useState<DragSampleRef | null>(null);
   const [pendingPlacement, setPendingPlacement] = useState<PendingPlacement | null>(null);
@@ -129,13 +132,21 @@ export function useSchedulerDnd(
       }
 
       if (activeData.kind === "sample") {
-        setPendingPlacement({
-          sample: activeData.sample,
-          instrument_serial: overData.instrument_serial,
-          load_date: overData.load_date,
-          slot_index: overData.slot_index,
-          preselectedCellId: overData.ghostCellId,
-        });
+        if (overData.ghostCellId !== undefined) {
+          // Dropped directly onto a reuse ghost - honour that exact cell (and surface a
+          // barcode clash on it) via the CellChoicePicker, rather than silently re-deriving.
+          setPendingPlacement({
+            sample: activeData.sample,
+            instrument_serial: overData.instrument_serial,
+            load_date: overData.load_date,
+            slot_index: overData.slot_index,
+            preselectedCellId: overData.ghostCellId,
+          });
+        } else {
+          // Plain drop onto an empty slot: place it and let the backend derive the cell
+          // (reuse-before-new) - no drop-time picker. The chosen cell shows as the card's stub.
+          onAutoPlace(activeData.sample.id, overData.instrument_serial, overData.load_date, overData.slot_index);
+        }
         return;
       }
 

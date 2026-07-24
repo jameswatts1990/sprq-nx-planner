@@ -66,6 +66,56 @@
   background: var(--teal-tint);
   border-color: #bfe8e8;
 }
+
+/* Cell "ticket stub": the physical cell's column + use number (e.g. "A2"), an inset strip on
+   the card's right edge, colour-coded by use like the Use 1/2/3 legend swatches. Clickable to
+   open the in-grid cell-info popover - a distinct entry point from the card body (which opens
+   the sample/slot detail). See SchedulerSlotView / CellInfoPopover. */
+.hasStub {
+  /* Reserve the right strip so the card's text/barcodes never underlap the stub. */
+  padding-right: 26px;
+}
+.stub {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-top-right-radius: 8px;
+  border-bottom-right-radius: 8px;
+  font-family: var(--mono);
+  font-weight: 800;
+  font-size: 12px;
+  letter-spacing: -0.02em;
+  color: #fff;
+  cursor: pointer;
+}
+.stub:hover {
+  filter: brightness(0.94);
+}
+.stub:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: -2px;
+}
+.stubU1 {
+  background: var(--magenta);
+}
+.stubU2 {
+  background: var(--blue);
+}
+.stubU3 {
+  background: var(--teal);
+}
+/* The cross-time cell-link dot sits top-right; nudge it clear of the stub when one is shown. */
+.hasStub .linkBadgeSource,
+.hasStub .linkBadgePeer {
+  right: 26px;
+}
 /* Waiting/reusable-cell ghost: a tinted placeholder in the same slot a real placement
    would occupy, colour-coded by the use number it's waiting to become. --ghost-opacity is
    set inline per-day by waitingCells.ts's fade calculation (1 = just eligible/full colour,

@@ -18,7 +18,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
-from app.engine.constants import DAY_START_HOUR, WELLS
+from app.engine.constants import CELL_LIFETIME_H, DAY_START_HOUR, WELLS
 from app.models.audit import AuditLog
 from app.models.cell import Cell
 from app.models.cell_tray import CellTray
@@ -30,11 +30,13 @@ from app.services.cell_service import (
     cleanup_tray_if_fully_unused,
     current_location,
     derive_cell_state,
+    first_use_planned_start_at,
     open_new_tray,
     recompute_status,
     run_has_started,
     use_run_date,
 )
+from app.services.engine_bridge import load_prior_cells
 from app.timeutil import ensure_aware, utcnow
 
 # A run's two loading positions (deck trays). slot_index 0-3 = Plate 1, 4-7 = Plate 2.
@@ -363,6 +365,153 @@ def _existing_cell_well(db: Session, cell_id: int, instrument_id: int) -> str | 
     return current_well or cell.home_well
 
 
+def _reuse_window_open(
+    cell: Cell, acquire_date: date, run_time_hours: float, start_hour: int, start_minute: int
+) -> bool:
+    """Whether `cell`'s 108h reuse window is still open for a use acquiring on `acquire_date`.
+    load_prior_cells / the batch engine deliberately DON'T window-filter (there the window is
+    advisory, flagged after the fact), so the auto-deriver must check it itself or it would
+    silently auto-create an out-of-window reuse. Anchored on the real first-use start once
+    confirmed (`first_use_started_at`), else the planned first-use start - mirrors the
+    frontend's reuseWindow (waitingCells.ts)."""
+    anchor = cell.first_use_started_at or first_use_planned_start_at(cell)
+    if anchor is None:
+        return True  # never used yet - no 108h clock running (not a reuse candidate in practice)
+    deadline = ensure_aware(anchor) + timedelta(hours=CELL_LIFETIME_H)
+    reuse_start, _ = planned_window(acquire_date, run_time_hours, start_hour, start_minute)
+    return reuse_start <= deadline
+
+
+def _reuse_eligible(
+    db: Session,
+    cell: Cell,
+    *,
+    instrument_serial: str,
+    acquire_date: date,
+    sample_barcodes: list[str],
+    run_time_hours: float,
+    start_hour: int,
+    start_minute: int,
+) -> bool:
+    """Bool predicate for the auto-deriver, mirroring _resolve_cell_choice's "existing cell"
+    guards (open, capacity left, barcode-disjoint, same instrument, not inserting ahead of an
+    already-started later use) PLUS the 108h window check. Well/position pinning is enforced by
+    how candidates are gathered in derive_best_cell, so it isn't re-checked here."""
+    if cell.status != "open":
+        return False
+    _consumed, remaining, burned = derive_cell_state(cell)
+    if remaining <= 0:
+        return False
+    if any(bc in set(burned) for bc in sample_barcodes):
+        return False
+    serial, _well = current_location(cell)
+    if serial is not None and serial != instrument_serial:
+        return False
+    for other in cell.cell_uses:
+        if other.status == "cancelled":
+            continue
+        other_date = use_run_date(other)
+        if other_date is None or other_date <= acquire_date:
+            continue
+        if run_has_started(other):
+            return False
+    return _reuse_window_open(cell, acquire_date, run_time_hours, start_hour, start_minute)
+
+
+def derive_best_cell(
+    db: Session,
+    *,
+    instrument: Instrument,
+    load_date: date,
+    slot_index: int,
+    sample_barcodes: list[str],
+    run_time_hours: float,
+    start_hour: int = DAY_START_HOUR,
+    start_minute: int = 0,
+) -> dict:
+    """Pick the physical cell a manually-dropped sample should use, applying the same
+    reuse-before-new rule the batch engine (pack_cells) uses: reuse an eligible open cell if
+    one is available at this slot's position, else open a new tray. Returns a cell_choice dict
+    (``{"mode":"existing","cell_id":N}`` or ``{"mode":"new"}``) understood by place_sample /
+    move_sample - so an auto placement flows through the exact same persistence path as an
+    explicit choice, just with the cell decided server-side.
+
+    Two reuse shapes are considered, mirroring the two the frontend already surfaces (my
+    Plate-2 picker default and the waiting-cell ghosts):
+      1. **Intra-run Plate-2 reuse** - a cell already loaded in THIS run's Plate 1 at the
+         aligned within-tray position (a drop onto a Plate-2 slot) -> its sequential Use 2,
+         acquiring the next weekday (via _plate_target). This is the one-tray reuse run and
+         the low-throughput case.
+      2. **Cross-run reuse** - an idle open cell pinned to this slot's *exact* well on this
+         instrument (the cell whose reuse ghost sits on this slot) -> a new run's plate,
+         acquiring the load day.
+    The first *eligible* of (1) then (2) wins; otherwise a brand-new cell. Eligibility
+    (see _reuse_eligible) includes the 108h window, so an out-of-window cell is never
+    auto-reused - it falls through to a new cell instead."""
+    target_well = WELLS[slot_index]
+
+    # (1) Intra-run Plate-2 reuse: the cell in this run's Plate 1 at the aligned position.
+    if slot_index >= PLATE_SIZE:
+        run_batch = db.scalar(
+            select(RunBatch)
+            .where(RunBatch.instrument_id == instrument.id, RunBatch.load_date == load_date)
+            .options(selectinload(RunBatch.cycles).selectinload(Cycle.cell_uses).selectinload(CellUse.cell))
+        )
+        if run_batch is not None:
+            plate1 = next((c for c in run_batch.cycles if c.plate_index == 1), None)
+            if plate1 is not None:
+                position = slot_index % PLATE_SIZE
+                aligned = next(
+                    (
+                        cu
+                        for cu in plate1.cell_uses
+                        if cu.status != "cancelled" and cu.cell is not None and _within_tray_pos(cu.well) == position
+                    ),
+                    None,
+                )
+                if aligned is not None:
+                    _plate, acquire = _plate_target(
+                        db, cell=aligned.cell, instrument_id=instrument.id, load_date=load_date, slot_index=slot_index
+                    )
+                    if _reuse_eligible(
+                        db,
+                        aligned.cell,
+                        instrument_serial=instrument.serial_number,
+                        acquire_date=acquire,
+                        sample_barcodes=sample_barcodes,
+                        run_time_hours=run_time_hours,
+                        start_hour=start_hour,
+                        start_minute=start_minute,
+                    ):
+                        return {"mode": "existing", "cell_id": aligned.cell.id}
+
+    # (2) Cross-run reuse: an idle open cell pinned to this exact well on this instrument.
+    prior, by_id = load_prior_cells(db, [])
+    for pc in prior:
+        if pc.pinned_instrument_serial != instrument.serial_number or pc.pinned_well != target_well:
+            continue
+        cell = by_id[pc.cell_id]
+        if _cell_used_in_run(cell, instrument.id, load_date):
+            continue  # already covered by the intra-run branch above
+        _plate, acquire = _plate_target(
+            db, cell=cell, instrument_id=instrument.id, load_date=load_date, slot_index=slot_index
+        )
+        if _reuse_eligible(
+            db,
+            cell,
+            instrument_serial=instrument.serial_number,
+            acquire_date=acquire,
+            sample_barcodes=sample_barcodes,
+            run_time_hours=run_time_hours,
+            start_hour=start_hour,
+            start_minute=start_minute,
+        ):
+            return {"mode": "existing", "cell_id": cell.id}
+
+    # (3) No eligible reuse anywhere on this slot - open a new cell.
+    return {"mode": "new"}
+
+
 def place_sample(
     db: Session,
     *,
@@ -370,7 +519,7 @@ def place_sample(
     instrument_serial: str,
     load_date: date,
     slot_index: int,
-    cell_choice: dict,
+    cell_choice: dict | None = None,
     run_time_hours: float,
     start_hour: int = DAY_START_HOUR,
     start_minute: int = 0,
@@ -394,6 +543,22 @@ def place_sample(
         raise PlacementError(400, f"Unknown instrument serial '{instrument_serial}'.")
 
     sample_barcodes = sample.barcode_list
+
+    # No explicit cell choice (or an explicit "auto") -> the engine derives the cell, applying
+    # the same reuse-before-new rule as auto-fill (see derive_best_cell). This is the default
+    # for a plain drag-drop; an explicit {"new"|"existing"} still overrides it (the stub's
+    # "use a different cell" path).
+    if cell_choice is None or cell_choice.get("mode") == "auto":
+        cell_choice = derive_best_cell(
+            db,
+            instrument=instrument,
+            load_date=load_date,
+            slot_index=slot_index,
+            sample_barcodes=sample_barcodes,
+            run_time_hours=run_time_hours,
+            start_hour=start_hour,
+            start_minute=start_minute,
+        )
     mode = cell_choice.get("mode")
 
     # Resolve the target well, plate and acquire day. A new/fresh cell takes the slot's own

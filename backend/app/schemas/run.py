@@ -127,7 +127,10 @@ class PlaceSampleRequest(BaseModel):
     # Grid position 0-7 within the run: 0-3 = Plate 1, 4-7 = Plate 2. For a reuse Plate 2
     # drop (an existing cell already used in Plate 1), the backend derives a later acquire_date.
     slot_index: int = Field(ge=0, le=7)
-    cell_choice: CellChoice
+    # Omit (null) to let the engine DERIVE the cell (reuse-before-new, same rule as auto-fill -
+    # see placement_service.derive_best_cell); this is what a plain drag-drop sends. An explicit
+    # {"new"|"existing"} overrides that (the cell-stub's "use a different cell" path).
+    cell_choice: CellChoice | None = None
     run_time_hours: Literal[12, 24, 30]
     # Only meaningful the first time a sample is placed into an empty (instrument, load_date)
     # grid cell - that's what actually creates the run and fixes its start time. Ignored
