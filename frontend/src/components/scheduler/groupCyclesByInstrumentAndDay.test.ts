@@ -21,6 +21,7 @@ function baseStage(overrides: Partial<StageOut> = {}): StageOut {
     tray_position: 1,
     tray_id: null,
     window_hours_elapsed: null,
+    notes: null,
     ...overrides,
   };
 }
