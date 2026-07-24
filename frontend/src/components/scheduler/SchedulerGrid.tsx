@@ -9,7 +9,7 @@ import {
   todayIsoUTC,
 } from "@/utils/calendarDates";
 
-import { findContinuation, isCellOpen } from "./groupCyclesByInstrumentAndDay";
+import { resolveCell } from "./groupCyclesByInstrumentAndDay";
 import { SchedulerGridRow } from "./SchedulerGridRow";
 import styles from "./SchedulerGrid.module.css";
 import type { Coord, GridSelection } from "./useGridSelection";
@@ -119,12 +119,10 @@ export function SchedulerGrid({
   disposalGrouped,
   onOpenGhost,
 }: SchedulerGridProps) {
-  // Mirrors SchedulerGridRow's own selectable computation - a day with no run of its
-  // own is still closed if an earlier run's continuation still occupies it.
+  // Same open-cell computation SchedulerGridRow uses (via the shared resolveCell) - a day
+  // with no run of its own is still closed if an earlier run's continuation still occupies it.
   function isDateOpen(serial: string, date: string): boolean {
-    const byDate = grouped.get(serial);
-    const run = byDate?.get(date);
-    return isCellOpen(run, run || !byDate ? undefined : findContinuation(byDate, date));
+    return resolveCell(grouped.get(serial), date).open;
   }
 
   // Select every open (non-weekend, run-free) cell in a day's column, across all

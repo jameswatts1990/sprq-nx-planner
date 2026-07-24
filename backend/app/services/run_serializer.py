@@ -7,15 +7,14 @@ and nest its plates.
 """
 from __future__ import annotations
 
-from datetime import date, datetime
 
 from sqlalchemy.orm import Session, selectinload
 
-from app.engine.constants import CELLS_PER_TRAY, WELLS
+from app.engine.constants import CELLS_PER_TRAY, within_tray_pos
 from app.models.cell import Cell
 from app.models.schedule import CellUse, Cycle, RunBatch
 from app.schemas.run import PlateOut, RunOut, StageOut
-from app.services.cell_service import has_failed_use, use_run_date, window_hours_elapsed
+from app.services.cell_service import has_failed_use, use_sort_key, window_hours_elapsed
 from app.services.instrument_lock import run_lock_until
 from app.timeutil import ensure_aware, utcnow
 
@@ -46,7 +45,7 @@ def _use_number(cell_use: CellUse) -> int:
     cell = cell_use.cell
     if cell is None:
         return 1
-    ordered = sorted(cell.cell_uses, key=lambda cu: (use_run_date(cu) or date.min, cu.id))
+    ordered = sorted(cell.cell_uses, key=use_sort_key)
     return ordered.index(cell_use) + 1
 
 
@@ -55,8 +54,7 @@ def _slot_index(plate_index: int, well: str) -> int:
     (A/B/C/D -> 0-3). Derived from the plate rather than WELLS.index(well) so a reuse Plate 2
     - whose wells are the same A01-D01 as Plate 1 - lands in the Plate 2 block (4-7), not on
     top of Plate 1."""
-    within = WELLS.index(well) % CELLS_PER_TRAY if well in WELLS else 0
-    return (plate_index - 1) * CELLS_PER_TRAY + within
+    return (plate_index - 1) * CELLS_PER_TRAY + within_tray_pos(well)
 
 
 def _stage_out(cell_use: CellUse, plate_index: int) -> StageOut:

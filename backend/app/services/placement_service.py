@@ -18,7 +18,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
-from app.engine.constants import CELL_LIFETIME_H, DAY_START_HOUR, WELLS
+from app.engine.constants import CELL_LIFETIME_H, DAY_START_HOUR, WELLS, within_tray_pos
 from app.models.audit import AuditLog
 from app.models.cell import Cell
 from app.models.cell_tray import CellTray
@@ -35,6 +35,7 @@ from app.services.cell_service import (
     recompute_status,
     run_has_started,
     use_run_date,
+    use_sort_key,
 )
 from app.services.engine_bridge import load_prior_cells
 from app.timeutil import ensure_aware, utcnow
@@ -44,10 +45,11 @@ PLATE_SIZE = len(WELLS) // 2  # 4
 
 
 def _within_tray_pos(well: str) -> int:
-    """The A/B/C/D position (0-3) of a well within its tray box. A cell keeps this fixed
-    position for life, so a reuse into Plate 2 legitimately lands the same letter (e.g. A01
-    on a nominal-A02 grid slot) - both share within-tray position 0."""
-    return WELLS.index(well) % PLATE_SIZE if well in WELLS else 0
+    """The A/B/C/D position (0-3) of a well within its tray box (see constants.within_tray_pos,
+    the single source shared with run_serializer._slot_index). A cell keeps this fixed position
+    for life, so a reuse into Plate 2 legitimately lands the same letter (e.g. A01 on a
+    nominal-A02 grid slot) - both share within-tray position 0."""
+    return within_tray_pos(well)
 
 
 class PlacementError(Exception):
@@ -873,7 +875,7 @@ def move_sample(
     # "where this physical cell currently is": its other real uses if it has any, or - for a
     # cell with no other uses yet - this very use's own (old) run batch.
     if other_uses:
-        last_other = max(other_uses, key=lambda cu: (use_run_date(cu) or date.min, cu.id))
+        last_other = max(other_uses, key=use_sort_key)
         pinned_run_batch = last_other.cycle.run_batch if last_other.cycle else None
     else:
         pinned_run_batch = old_cycle.run_batch
@@ -1297,13 +1299,7 @@ def cancel_run(db: Session, run_id: int, actor: str | None = None) -> None:
 
     now = utcnow()
     for cell in touched_cells:
-        db.refresh(cell, attribute_names=["cell_uses"])
-        if cell.cell_uses:
-            recompute_status(cell, now)
-        elif cell.tray_id is None:
-            db.delete(cell)
-        else:
-            cleanup_tray_if_fully_unused(db, cell)
+        _release_cell(db, cell, now)
 
     db.add(
         AuditLog(

@@ -54,10 +54,15 @@ def pack_cells(
     available_days: int | None = None,
     cells_per_day: int | None = None,
 ) -> PackResult:
-    """`max_uses` is this batch's target packing depth for newly-created cells (how many
-    uses to plan onto a fresh cell before opening another one) - the user's explicit
-    choice, always honored in full. It is not a per-cell physical cap - every cell's real
-    capacity is always CELL_MAX_USES.
+    """`max_uses` is this batch's target packing depth: how many TOTAL uses to plan onto a
+    cell before moving on - the user's explicit choice, always honored in full. It bounds
+    both newly-created cells (fresh cells get up to `max_uses` uses before another is
+    opened) and *prior* reuse cells (a prior cell is planned up to `max_uses - uses_consumed`
+    further uses this batch - see `_prior_allowance` below - so the dial applies to reuse
+    candidates too, not only to fresh cells). It is not a per-cell physical cap - every
+    cell's real capacity is always CELL_MAX_USES; a run with `max_uses < CELL_MAX_USES`
+    simply leaves physical capacity unused (auto_fill then disposes such cells once they
+    reach the dial - see auto_fill_service).
 
     `available_days`, when given, additionally caps that depth to the number of distinct
     calendar dates actually on offer in this batch: a cell can only be reused once per
@@ -148,16 +153,24 @@ def pack_cells(
 
     utilisation_width = cells_per_day or len(WELLS)
 
+    def _prior_allowance(c: PackedCell) -> int:
+        # How many NEW uses this batch may add to a prior (reuse) cell. Bounded by the
+        # dial (`max_uses`) exactly like a fresh cell, not just by the cell's physical
+        # remaining capacity: with e.g. a 1x dial a leftover open sibling (remaining 3)
+        # must be reused at most once this batch, never stacked to 3 - otherwise the
+        # "Max uses per cell" dial silently wouldn't apply to reuse candidates at all,
+        # and auto_fill's post-run disposal (which closes a cell out once it reaches the
+        # dial) would have nothing coherent to cap against. Also capped by available_days
+        # for the same reason fresh cells are (a cell runs at most once per calendar day).
+        allowance = min(c.remaining, max(0, max_uses - c.uses_consumed))
+        return allowance if available_days is None else min(allowance, available_days)
+
     unplaced: list[ParsedSample] = []
     for s in ordered:
         cands = [
             c
             for c in cells
-            if (
-                len(c.uses) < (c.remaining if available_days is None else min(c.remaining, available_days))
-                if c.prior
-                else len(c.uses) < cap
-            )
+            if (len(c.uses) < _prior_allowance(c) if c.prior else len(c.uses) < cap)
             and disjoint(c.barcodes, s.barcodes)
         ]
         if objective == "utilisation" and sum(1 for c in cells if not c.prior) < utilisation_width:

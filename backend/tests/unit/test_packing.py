@@ -159,6 +159,31 @@ def test_pack_available_days_caps_depth_below_max_uses():
     assert result.unplaced == []
 
 
+def test_pack_caps_prior_cell_reuse_at_the_dial():
+    # The Max-uses dial is a per-cell TOTAL-use cap for prior cells too, not just fresh
+    # ones. A never-used open sibling (uses_consumed=0, remaining=3) offered under a 1x
+    # dial must take at most ONE sample this batch, not be stacked toward its physical 3 -
+    # otherwise the dial silently wouldn't apply to reuse candidates.
+    prior = [PriorCellInput(barcodes_text="", uses_consumed=0, cell_id=42)]  # remaining=3
+    result = pack_cells(_disjoint_samples(3), max_uses=1, objective="fewest", prior_cells=prior)
+
+    prior_cell = next(c for c in result.all_cells if c.prior)
+    assert prior_cell.remaining == 3  # physical capacity untouched...
+    assert len(prior_cell.uses) == 1  # ...but this batch only planned it to the 1x dial
+    # remaining 2 samples each open their own fresh 1-use cell, none reuse the prior again
+    assert sorted(len(c.uses) for c in result.cells if not c.prior) == [1, 1]
+
+
+def test_pack_caps_prior_cell_reuse_at_dial_headroom_above_consumed():
+    # A prior cell already used once (uses_consumed=1) under a 2x dial has exactly 1 use
+    # of dial headroom left (2 - 1), even though it physically has 2 uses remaining.
+    prior = [PriorCellInput(barcodes_text="", uses_consumed=1, cell_id=42)]  # remaining=2
+    result = pack_cells(_disjoint_samples(3), max_uses=2, objective="fewest", prior_cells=prior)
+
+    prior_cell = next(c for c in result.all_cells if c.prior)
+    assert len(prior_cell.uses) == 1  # capped at max_uses - uses_consumed = 1, not remaining = 2
+
+
 def test_priority_rank_extracts_trailing_parenthesized_number():
     assert priority_rank("High (1)") == 1
     assert priority_rank("Standard (3)") == 3

@@ -512,6 +512,78 @@ def test_auto_fill_rejects_weekend_cell(client):
     assert "weekend" in resp.json()["detail"].lower()
 
 
+def test_auto_fill_disposes_a_tray_once_all_its_cells_reach_the_dial(client, db_session):
+    """A SMRT-cell tray of 4 is one physical object: disposal is whole-tray, never per
+    cell. 8 disjoint samples across a full week with max_uses=2 / cells_per_day=4 (one
+    tray) pack onto 4 fresh cells at 2 uses each (Use 1 Mon, reuse Use 2 Tue - both plates
+    of the Monday load session). Every cell in the single opened tray reaches the 2x dial,
+    so the whole tray is binned as a unit: all 4 cells marked Exhausted together (sticky
+    via discarded_at), each keeping its 2 scheduled uses intact, none offered for reuse
+    again."""
+    client.post(
+        "/api/imports",
+        json={"raw_text": "sample,barcodes\n" + "\n".join(f"D{i},bcd{i}" for i in range(1, 9))},
+    )
+
+    resp = _auto_fill(
+        client,
+        [{"instrument_serial": "84047", "load_date": d} for d in _next_working_week()],
+        objective="fewest",
+        max_uses=2,
+        cells_per_day=4,
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+
+    assert len(body["placed_sample_ids"]) == 8
+    assert len(body["unplaced_sample_ids"]) == 0
+    assert len(body["disposed_cell_ids"]) == 4
+
+    cells = db_session.query(Cell).all()
+    assert len(cells) == 4
+    # Every one of the tray's cells is disposed together - never a subset.
+    for cell in cells:
+        active = [cu for cu in cell.cell_uses if cu.status != "cancelled"]
+        assert len(active) == 2, f"{cell.code} should keep its 2 scheduled uses"
+        assert cell.status == "exhausted"
+        assert cell.discarded_at is not None
+        assert cell.id in body["disposed_cell_ids"]
+
+
+def test_auto_fill_leaves_a_partly_used_tray_open(client, db_session):
+    """The whole-tray rule's other side: a tray is disposed ONLY once every one of its
+    cells has reached the dial. With just 3 samples, max_uses=2, cells_per_day=4 (one
+    tray): the packer deepens one cell to the 2x dial (Use 1 Mon + Use 2 Tue) and gives a
+    second a single use, leaving two never-used siblings. The tray is NOT fully spent, so
+    nothing is disposed - all 4 cells (including the one that hit the dial) stay open,
+    physically still in the tray on the instrument, for a later run to finish and then bin
+    as a unit. Disposing a strict subset of a tray is physically impossible and must never
+    happen."""
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nE1,bce1\nE2,bce2\nE3,bce3"})
+
+    resp = _auto_fill(
+        client,
+        [{"instrument_serial": "84047", "load_date": d} for d in _next_working_week()],
+        objective="fewest",
+        max_uses=2,
+        cells_per_day=4,
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+
+    assert len(body["placed_sample_ids"]) == 3
+    assert body["disposed_cell_ids"] == []  # tray not fully spent -> nothing binned
+
+    # one physical tray of 4 cells: 1 cell at the dial (2 uses) + 1 at 1 use + 2 unused,
+    # and every one of them stays open (no half-binned tray).
+    cells = db_session.query(Cell).all()
+    assert len(cells) == 4
+    for cell in cells:
+        assert cell.status == "open", f"{cell.code} must stay open until its whole tray is spent"
+        assert cell.discarded_at is None
+    assert sorted(len([cu for cu in c.cell_uses if cu.status != "cancelled"]) for c in cells) == [0, 0, 1, 2]
+
+
 def test_auto_fill_surfaces_barcode_conflicts_between_backlog_samples(client):
     """Two backlog samples sharing a barcode are kept off the same cell (see
     engine/packing.py's disjoint() check), but the conflict itself must be visible

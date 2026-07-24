@@ -1,13 +1,8 @@
 import type { CellOut } from "@/types/cell";
 import type { CellStatus } from "@/types/common";
 import type { SlotIndex, StageOut } from "@/types/schedule";
-import { addDaysUTC, isWeekendUTC, parseDateOnly, toIsoDateUTC } from "@/utils/calendarDates";
+import { DAY_START_HOUR, isWeekendUTC, nextWeekdayIsoUTC, parseDateOnly, prevWeekdayIsoUTC } from "@/utils/calendarDates";
 import { CELL_LIFETIME_H, expiryFadeOpacity } from "@/utils/windowFade";
-
-/** Mirrors the default loading start hour used elsewhere (DAY_START_HOUR on the backend,
- * CellChoicePicker's DEFAULT_START_TIME) - used only as a representative "day start" for
- * comparing a calendar day against a cell's 108h deadline. */
-const DAY_START_HOUR = 12;
 
 export interface CellGhost {
   cell: CellOut;
@@ -100,18 +95,6 @@ export function computeTrayFoundingDates(cells: CellOut[]): Map<number, string> 
   return dates;
 }
 
-function nextWeekdayAfter(isoDate: string): string {
-  let d = addDaysUTC(parseDateOnly(isoDate), 1);
-  while (isWeekendUTC(d)) d = addDaysUTC(d, 1);
-  return toIsoDateUTC(d);
-}
-
-function prevWeekdayBefore(isoDate: string): string {
-  let d = addDaysUTC(parseDateOnly(isoDate), -1);
-  while (isWeekendUTC(d)) d = addDaysUTC(d, -1);
-  return toIsoDateUTC(d);
-}
-
 function dayStart(isoDate: string): Date {
   const d = parseDateOnly(isoDate);
   d.setUTCHours(DAY_START_HOUR, 0, 0, 0);
@@ -124,8 +107,8 @@ function dayStart(isoDate: string): Date {
  * terminalBoundaryDate (the window_expired boundary). */
 function lastWeekdayWithin(earliestDate: string, deadlineAtMs: number): string {
   let cutoffDate = earliestDate;
-  while (dayStart(nextWeekdayAfter(cutoffDate)).getTime() <= deadlineAtMs) {
-    cutoffDate = nextWeekdayAfter(cutoffDate);
+  while (dayStart(nextWeekdayIsoUTC(cutoffDate)).getTime() <= deadlineAtMs) {
+    cutoffDate = nextWeekdayIsoUTC(cutoffDate);
   }
   return cutoffDate;
 }
@@ -179,7 +162,7 @@ function reuseWindow(
     // that day's start - clamp the deadline down to it if the 108h clock would run longer.
     deadlineAtMs = Math.min(deadlineAtMs, dayStart(evictionDate).getTime() - 1);
   }
-  const earliestDate = nextWeekdayAfter(cell.last_use_run_date);
+  const earliestDate = nextWeekdayIsoUTC(cell.last_use_run_date);
   if (dayStart(earliestDate).getTime() > deadlineAtMs) return null; // window shuts before any reuse day
   const cutoffDate = lastWeekdayWithin(earliestDate, deadlineAtMs);
   return { earliestDate, cutoffDate, deadlineAtMs };
@@ -375,13 +358,13 @@ export function computeTerminalGhost(
  */
 function terminalBoundaryDate(cell: CellOut): string | null {
   if (!cell.last_use_run_date) return null;
-  const earliestDate = nextWeekdayAfter(cell.last_use_run_date);
+  const earliestDate = nextWeekdayIsoUTC(cell.last_use_run_date);
   if (cell.status !== "window_expired") return earliestDate;
 
   const anchor = cell.first_use_started_at ?? cell.first_use_planned_start_at;
   if (!anchor) return earliestDate;
   const deadlineAtMs = new Date(anchor).getTime() + CELL_LIFETIME_H * 3_600_000;
-  return nextWeekdayAfter(lastWeekdayWithin(earliestDate, deadlineAtMs));
+  return nextWeekdayIsoUTC(lastWeekdayWithin(earliestDate, deadlineAtMs));
 }
 
 /**
@@ -710,7 +693,7 @@ export function computeTrayDisposalWarnings(
     // The day a successor tray takes this carousel position, if any - the tray is physically
     // gone from then on, so the last day it's still present is the weekday before.
     const evictionDate = trayEvictionDates.get(trayId);
-    const evictionFloor = evictionDate ? prevWeekdayBefore(evictionDate) : null;
+    const evictionFloor = evictionDate ? prevWeekdayIsoUTC(evictionDate) : null;
 
     // Push the warning out to the last day this tray's capacity is still salvageable.
     let warnDay = lastUseDay;

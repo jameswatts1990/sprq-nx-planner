@@ -99,7 +99,12 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
       return cyclesApi.updateStatus(run.run_id, req);
     },
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["cycles"] });
+      // Confirming a run "running" anchors each cell's 108h clock (first_use_started_at),
+      // and Unlock recomputes it - both change the ["cells"]-fed waiting/terminal ghost
+      // markers (deadline dates, tray founding, window shading), not just the run itself.
+      // So invalidate the whole schedule-related set, not only ["cycles"], the same way the
+      // rotate mutation below does.
+      invalidateScheduleRelated(queryClient);
       setConfirmingLoad(false);
     },
   });

@@ -171,7 +171,9 @@ export function useSchedulerDnd(
         preselectedCellId: overData.ghostCellId,
       });
     },
-    [onRemoveOutside, onSwap],
+    // All three handlers are used by this callback; list them all (they're stable .mutate
+    // wrappers today, but listing 2 of 3 was a latent trap if one ever closed over state).
+    [onRemoveOutside, onSwap, onAutoPlace],
   );
 
   return {

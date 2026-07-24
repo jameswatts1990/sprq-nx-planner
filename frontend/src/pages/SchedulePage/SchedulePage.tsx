@@ -11,11 +11,11 @@ import { CellChoicePicker } from "@/components/scheduler/CellChoicePicker";
 import { CellInfoPopover } from "@/components/scheduler/CellInfoPopover";
 import {
   allStages,
-  findContinuation,
   groupCyclesByInstrumentAndDay,
-  isCellOpen,
   LOCK_LOOKBACK_DAYS,
+  resolveCell,
 } from "@/components/scheduler/groupCyclesByInstrumentAndDay";
+import { slotKey } from "@/components/scheduler/gridKeys";
 import { SchedulerGrid } from "@/components/scheduler/SchedulerGrid";
 import { SlotDetailPopover } from "@/components/scheduler/SlotDetailPopover";
 import { CellLinkContext, useCellLinkHighlight } from "@/components/scheduler/useCellLinkHighlight";
@@ -194,10 +194,7 @@ export function SchedulePage() {
       win.days.forEach((date, c) => {
         if (!selection.isSelected(r, c)) return;
         if (isWeekendUTC(parseDateOnly(date))) return;
-        const byDate = grouped.get(serial);
-        const run = byDate?.get(date);
-        const continuation = run || !byDate ? undefined : findContinuation(byDate, date);
-        if (!isCellOpen(run, continuation)) return;
+        if (!resolveCell(grouped.get(serial), date).open) return;
         out.push({ instrument_serial: serial, load_date: date });
       });
     });
@@ -312,13 +309,21 @@ export function SchedulePage() {
   const dnd = useSchedulerDnd(
     (cellUseId) => actions.dragRemove.mutate(cellUseId),
     (a, b) => actions.swap.mutate({ a, b }),
-    (sampleId, instrumentSerial, loadDate, slotIndex) =>
-      actions.autoPlace.mutate({
-        sample_id: sampleId,
-        instrument_serial: instrumentSerial,
-        load_date: loadDate,
-        slot_index: slotIndex,
-      }),
+    (sampleId, instrumentSerial, loadDate, slotIndex) => {
+      // A plain auto-place has no picker to show, so drive the "placing…" shimmer directly
+      // (the CellChoicePicker path does the same via setPlacingSlotKey) - otherwise the
+      // dropped slot sits blank until the backend derives the cell and the grid refetches.
+      dnd.setPlacingSlotKey(slotKey(instrumentSerial, loadDate, slotIndex));
+      actions.autoPlace.mutate(
+        {
+          sample_id: sampleId,
+          instrument_serial: instrumentSerial,
+          load_date: loadDate,
+          slot_index: slotIndex,
+        },
+        { onSettled: () => dnd.setPlacingSlotKey(null) },
+      );
+    },
   );
   // Suppressed during any drag (backlog-sample or filled-slot move) so the hover/pin
   // highlight never fights the drag/drop visuals - see useCellLinkHighlight.tsx.

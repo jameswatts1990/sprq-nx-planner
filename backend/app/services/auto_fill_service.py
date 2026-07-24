@@ -21,7 +21,7 @@ from app.models.instrument import Instrument
 from app.models.sample import Sample
 from app.models.schedule import CellUse, CellUseBarcode, Cycle, RunBatch
 from app.services import instrument_lock
-from app.services.cell_service import open_new_tray, recompute_status
+from app.services.cell_service import mark_cell_discarded, open_new_tray, recompute_status
 from app.services.engine_bridge import load_backlog_samples, load_prior_cells, to_parsed_samples
 from app.services.placement_service import PlacementError, get_or_create_run, planned_window
 from app.timeutil import ensure_aware, utcnow
@@ -35,6 +35,7 @@ class AutoFillResult:
     window_flags: list[tuple[str, float]] = field(default_factory=list)
     barcode_conflicts: list[ConflictPair] = field(default_factory=list)
     run_ids: list[int] = field(default_factory=list)  # RunBatch (run) ids the batch created/touched
+    disposed_cell_ids: list[int] = field(default_factory=list)  # cells auto-disposed after the run (dial cap / unused sibling)
 
 
 def auto_fill(
@@ -351,6 +352,47 @@ def auto_fill(
         db.refresh(db_cell, attribute_names=["cell_uses"])
         recompute_status(db_cell, now)
 
+    # --- auto-dispose: the "Max uses per cell" dial enforces a per-cell TOTAL-use cap, but
+    #     a SMRT-cell tray of 4 is one physical object - it loads into, and is removed from,
+    #     a single instrument carousel position as a unit, and disposal is all-or-nothing
+    #     across the whole tray, never per cell (see docs/pacbio-sprq-nx-scheduling-
+    #     reference.md's "Tray-of-4" invariant). So disposal is tray-scoped: a tray is binned
+    #     - every one of its cells marked terminal together, via mark_cell_discarded (the
+    #     *bare* variant, which sets the sticky exhausted/discarded state WITHOUT cancelling
+    #     the uses this batch just scheduled) - only once EVERY cell in it has been used to
+    #     the dial (the tray is fully spent to the chosen depth). A tray still holding an
+    #     unused or below-dial cell stays on the instrument, all cells "open", for a later
+    #     run to finish and then dispose as a unit - never a half-binned tray.
+    candidate_tray_ids: set[int] = {c.tray_id for c in touched_cells if c.tray_id is not None}
+    for box_cells in opened_boxes.values():
+        candidate_tray_ids.update(c.tray_id for c in box_cells.values() if c.tray_id is not None)
+
+    def _active_uses(cell: Cell) -> int:
+        return len([cu for cu in cell.cell_uses if cu.status != "cancelled"])
+
+    disposed_cell_ids: list[int] = []
+    for tray_id in candidate_tray_ids:
+        tray_cells = db.scalars(select(Cell).where(Cell.tray_id == tray_id)).all()
+        for cell in tray_cells:
+            db.refresh(cell, attribute_names=["cell_uses"])
+        # A stopped/retired cell means the tray needs manual attention - never auto-bin it.
+        if any(cell.status in ("retired", "stopped") for cell in tray_cells):
+            continue
+        # Not fully spent yet (some cell hasn't reached the dial) - leave the whole tray open.
+        if not all(_active_uses(cell) >= max_uses for cell in tray_cells):
+            continue
+        # Every cell reached the dial: bin the tray as one unit. Cells already terminal by
+        # natural exhaustion (dial == 3) carry no leftover capacity and need no flag or count;
+        # only cells still "open" (used to the dial with physical capacity to spare, dial < 3)
+        # are the ones actually being disposed early, so those are what we mark and report.
+        for cell in tray_cells:
+            if cell.status != "open" or cell.discarded_at is not None:
+                continue
+            mark_cell_discarded(cell, f"Auto schedule: tray fully used to max {max_uses}", now)
+            disposed_cell_ids.append(cell.id)
+    if disposed_cell_ids:
+        db.flush()
+
     # --- window flags: planned-only spans from the engine, plus a real-anchor check for
     #     prior cells whose true elapsed lifetime (from first_use_started_at) is at risk ---
     flag_span: dict[str, float] = {}
@@ -378,8 +420,11 @@ def auto_fill(
         started = db_cell.first_use_started_at
         if started is None:
             continue
-        planned_end = planned_window(last_date_by_ref[pc.id], run_time_hours, start_hour, start_minute)[1]
-        span_h = (planned_end - ensure_aware(started)).total_seconds() / 3600
+        # Measure to the last use's *start*, not its end: the 108h window is defined on when
+        # the later use starts (see docs/pacbio-sprq-nx-scheduling-reference.md #2 and
+        # _reuse_window_open), so planned_window()[0] (start), not [1] (end).
+        planned_start = planned_window(last_date_by_ref[pc.id], run_time_hours, start_hour, start_minute)[0]
+        span_h = (planned_start - ensure_aware(started)).total_seconds() / 3600
         if span_h > CELL_LIFETIME_H:
             _bump(db_cell.code, span_h)
 
@@ -397,6 +442,7 @@ def auto_fill(
                 "unplaced": len(unplaced_sample_ids),
                 "skipped": len(skipped),
                 "runs": len(run_ids),
+                "disposed": len(disposed_cell_ids),
             },
         )
     )
@@ -409,4 +455,5 @@ def auto_fill(
         window_flags=[(code, span) for code, span in flag_span.items()],
         barcode_conflicts=pack.conflict_pairs,
         run_ids=list(run_ids),
+        disposed_cell_ids=disposed_cell_ids,
     )

@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 
 import { ApiError } from "@/api/client";
@@ -58,9 +59,15 @@ export function CellInfoPopover({ stage, run, onClose }: CellInfoPopoverProps) {
   // reuse first deletes that Plate 2 cycle, so the fresh placement builds a correct new Plate 2
   // acquiring the load day (a same-day parallel tray). The sample is planned (not yet loaded),
   // so this re-plan is safe; place into the already-existing run is never lock-gated.
+  // Not a single transaction: the remove and the re-place are two calls. If the re-place
+  // fails after the remove succeeded, the sample has genuinely left the schedule (it's back
+  // in the backlog) - so surface that plainly rather than implying nothing changed, and
+  // invalidate either way so the grid reflects reality.
+  const [removed, setRemoved] = useState(false);
   const useNewCell = useMutation({
     mutationFn: async () => {
       await cellUsesApi.remove(stage.cell_use_id);
+      setRemoved(true);
       return cellUsesApi.place({
         sample_id: stage.sample_id as number,
         instrument_serial: run.instrument_serial,
@@ -73,6 +80,11 @@ export function CellInfoPopover({ stage, run, onClose }: CellInfoPopoverProps) {
     onSuccess: () => {
       invalidateScheduleRelated(queryClient);
       onClose();
+    },
+    onError: () => {
+      // Refresh regardless: if the remove landed but the place didn't, the grid must stop
+      // showing the old reuse placement (the sample is now in the backlog).
+      invalidateScheduleRelated(queryClient);
     },
   });
 
@@ -141,7 +153,17 @@ export function CellInfoPopover({ stage, run, onClose }: CellInfoPopoverProps) {
 
       {useNewCell.isError && (
         <Note tone="bad" icon="!">
-          {useNewCell.error instanceof ApiError ? useNewCell.error.message : "Couldn't switch to a new cell."}
+          {removed ? (
+            <>
+              This reuse was dropped, but placing a fresh cell failed
+              {useNewCell.error instanceof ApiError ? ` (${useNewCell.error.message})` : ""} — the sample is now back in
+              the Backlog. Re-place it from there.
+            </>
+          ) : useNewCell.error instanceof ApiError ? (
+            useNewCell.error.message
+          ) : (
+            "Couldn't switch to a new cell."
+          )}
         </Note>
       )}
 

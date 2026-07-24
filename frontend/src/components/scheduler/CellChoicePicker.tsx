@@ -10,14 +10,7 @@ import { Note } from "@/components/ui/Note";
 import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
 import type { RunOut } from "@/types/schedule";
 import type { CellChoice, PendingPlacement, RunDesignState } from "@/types/schedulerGrid";
-import {
-  addDaysUTC,
-  formatShortDateUTC,
-  isWeekendUTC,
-  parseDateOnly,
-  shortWeekdayUTC,
-  toIsoDateUTC,
-} from "@/utils/calendarDates";
+import { DAY_START_HOUR, formatShortDateUTC, nextWeekdayIsoUTC, parseDateOnly, shortWeekdayUTC } from "@/utils/calendarDates";
 
 import { shouldAutoPlace, shouldShowCellChoiceModal } from "./cellChoiceGate";
 import { plateOfSlot, slotKey } from "./gridKeys";
@@ -25,19 +18,12 @@ import { useCompatibleCells } from "./useCompatibleCells";
 import { WELL_ORDER } from "./waitingCells";
 import styles from "./CellChoicePicker.module.css";
 
-const DEFAULT_START_TIME = "12:00";
+/** The default loading start time, derived from the shared DAY_START_HOUR so it can't drift
+ * from the reuse-window "day start" the ghosts use. */
+const DEFAULT_START_TIME = `${String(DAY_START_HOUR).padStart(2, "0")}:00`;
 
 /** slot_index 0-3 = Plate 1, 4-7 = Plate 2 (see gridKeys/SlotIndex). */
 const PLATE_1_SLOT_COUNT = 4;
-
-/** The next Mon-Fri strictly after an ISO date - where a reuse Plate 2 acquires (the
- * instrument washes and re-runs the same cells the following working day). Mirrors the
- * backend's placement_service._next_weekday so the picker can name the acquire day. */
-function nextWeekdayIso(isoDate: string): string {
-  let d = addDaysUTC(parseDateOnly(isoDate), 1);
-  while (isWeekendUTC(d)) d = addDaysUTC(d, 1);
-  return toIsoDateUTC(d);
-}
 
 export interface CellChoicePickerProps {
   pending: PendingPlacement;
@@ -290,7 +276,7 @@ export function CellChoicePicker({ pending, runDesign, existingRun, onClose, onP
   const plate = plateOfSlot(pending.slot_index) + 1;
   const well = WELL_ORDER[pending.slot_index];
   const loadDateLabel = `${shortWeekdayUTC(parseDateOnly(pending.load_date))} ${loadDate}`;
-  const reuseAcquireIso = nextWeekdayIso(pending.load_date);
+  const reuseAcquireIso = nextWeekdayIsoUTC(pending.load_date);
   const reuseAcquireLabel = `${shortWeekdayUTC(parseDateOnly(reuseAcquireIso))} ${formatShortDateUTC(parseDateOnly(reuseAcquireIso))}`;
 
   return (

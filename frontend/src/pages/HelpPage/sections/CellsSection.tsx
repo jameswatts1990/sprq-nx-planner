@@ -49,6 +49,14 @@ export function CellsSection() {
         tray is being pulled from the instrument for good and its remaining capacity won&apos;t be used. This cannot
         be undone.
       </p>
+      <p>
+        <b>Auto Schedule disposes whole trays too:</b> a tray of 4 is one physical object — it&apos;s thrown away as
+        a unit, never one cell at a time. So when you auto-schedule, a tray is disposed automatically only once{" "}
+        <b>every</b> cell in it has been used to your <b>Max uses per cell</b> setting; all 4 cells then show as{" "}
+        <b>Exhausted</b> together, exactly like a manual discard, and are never offered for reuse again. A tray still
+        holding an unused or below-target cell is left alone (every cell stays open) until a later run finishes it.
+        Disposed cells keep their already-scheduled runs; only the spare capacity is closed off.
+      </p>
 
       <p className={styles.subheading}>Cell cards &amp; the 108-hour window</p>
       <p>

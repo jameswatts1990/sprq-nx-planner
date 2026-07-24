@@ -67,6 +67,24 @@ export function isCellOpen(run: RunOut | undefined, continuation: Continuation |
 }
 
 /**
+ * The (run, continuation, open) triple for one (instrument, day) given that instrument's
+ * pre-grouped runs - the single place the "is this grid cell open, and what occupies it"
+ * question is answered, so the grid header, each row, and the auto-fill selection can't
+ * derive it three subtly-different ways. `continuation` is the costly part (it scans
+ * `byDate`), so it's only computed when the day has no run of its own - findContinuation is
+ * never consulted otherwise. Callers that know the day is a weekend should skip this entirely
+ * (a weekend cell is never open and never needs a continuation).
+ */
+export function resolveCell(
+  byDate: Map<string, RunOut> | undefined,
+  day: string,
+): { run: RunOut | undefined; continuation: Continuation | undefined; open: boolean } {
+  const run = byDate?.get(day);
+  const continuation = run || !byDate ? undefined : findContinuation(byDate, day);
+  return { run, continuation, open: isCellOpen(run, continuation) };
+}
+
+/**
  * Expands a run's sparse plate stages (only filled wells, across both plates) into a fixed
  * length-8 array indexed by slot_index (Plate 1 -> 0-3, Plate 2 -> 4-7), with `null` for empty
  * slots - the shape the two-plate grid cell renders from.

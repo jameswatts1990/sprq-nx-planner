@@ -1,5 +1,10 @@
 const DAY_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
+/** The default loading start hour (UTC), mirroring the backend's DAY_START_HOUR. Single
+ * frontend source for both the reuse-window "day start" comparison (waitingCells) and the
+ * CellChoicePicker's default loading time, so they can't drift apart. */
+export const DAY_START_HOUR = 12;
+
 /**
  * Parses a `YYYY-MM-DD` string as a UTC date-only value. All day-offset arithmetic in
  * the calendar must go through UTC-based helpers so that adding `day_idx` days never
@@ -21,6 +26,22 @@ export function addDaysUTC(date: Date, days: number): Date {
 export function isWeekendUTC(date: Date): boolean {
   const wd = date.getUTCDay();
   return wd === 0 || wd === 6;
+}
+
+/** The next Mon-Fri strictly after an ISO date (skips weekends) - where a reuse Plate 2
+ * acquires, and the earliest a cell's next use can start. Mirrors the backend's
+ * placement_service._next_weekday. */
+export function nextWeekdayIsoUTC(isoDate: string): string {
+  let d = addDaysUTC(parseDateOnly(isoDate), 1);
+  while (isWeekendUTC(d)) d = addDaysUTC(d, 1);
+  return toIsoDateUTC(d);
+}
+
+/** The nearest Mon-Fri strictly before an ISO date (skips weekends). */
+export function prevWeekdayIsoUTC(isoDate: string): string {
+  let d = addDaysUTC(parseDateOnly(isoDate), -1);
+  while (isWeekendUTC(d)) d = addDaysUTC(d, -1);
+  return toIsoDateUTC(d);
 }
 
 /** Serializes a UTC date-only value back to `YYYY-MM-DD` (inverse of parseDateOnly). */

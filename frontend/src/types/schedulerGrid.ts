@@ -80,6 +80,7 @@ export interface AutoFillResponse {
   window_flags: AutoFillWindowFlag[];
   barcode_conflicts: AutoFillBarcodeConflict[];
   runs: RunOut[]; // every run touched
+  disposed_cell_ids: number[]; // cells of trays auto-disposed after the run (whole tray, once every cell hit the dial)
 }
 
 /** The Run Design dials, held in page state and threaded into place/auto-fill. */

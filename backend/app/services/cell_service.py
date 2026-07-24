@@ -44,12 +44,12 @@ def recompute_status(cell: Cell, at: datetime | None = None) -> None:
 
 
 def derive_cell_state(cell: Cell) -> tuple[int, int, list[str]]:
-    active_uses = [cu for cu in cell.cell_uses if cu.status != "cancelled"]
-    uses_consumed = len(active_uses)
+    uses = active_uses(cell)
+    uses_consumed = len(uses)
     remaining = max(0, cell.max_uses - uses_consumed)
     burned: list[str] = []
     seen: set[str] = set()
-    for cu in active_uses:
+    for cu in uses:
         for b in cu.barcode_list:
             if b not in seen:
                 seen.add(b)
@@ -71,9 +71,26 @@ def use_run_date(cell_use: CellUse) -> date | None:
     return cell_use.cycle.acquire_date if cell_use.cycle else None
 
 
+def active_uses(cell: Cell) -> list[CellUse]:
+    """A cell's non-cancelled uses - the ones that count toward capacity and ordering. A
+    cancelled use is a permanent Stop-cell marker, never real consumed capacity, so every
+    consumed/remaining/burned/first/last derivation ignores it. Single definition so those
+    derivations can't each re-inline the filter and drift."""
+    return [cu for cu in cell.cell_uses if cu.status != "cancelled"]
+
+
+def use_sort_key(cell_use: CellUse) -> tuple[date, int]:
+    """Chronological ordering key for a cell's uses - acquire date (see use_run_date), then
+    insertion id as a stable tie-break. A use with no scheduled date sorts as the distant past
+    (so it ranks lowest for a max()-style "most recent use" pick). The single key used wherever
+    a cell's uses are ranked by when they ran (current_location, last_use_run_date,
+    serialize_cell_detail, stop_cell, run_serializer._use_number, move_sample)."""
+    return (use_run_date(cell_use) or date.min, cell_use.id)
+
+
 def current_location(cell: Cell) -> tuple[str | None, str | None]:
-    active_uses = [cu for cu in cell.cell_uses if cu.status != "cancelled"]
-    if not active_uses:
+    uses = active_uses(cell)
+    if not uses:
         # No use yet - but a tray-linked cell is still a real physical object already
         # sitting on whichever instrument its tray was loaded onto (see open_new_tray()),
         # pinned to the well its tray reserved for it (home_well) even before its own
@@ -81,7 +98,7 @@ def current_location(cell: Cell) -> tuple[str | None, str | None]:
         if cell.tray is not None:
             return cell.tray.instrument.serial_number, cell.home_well
         return None, None
-    last = max(active_uses, key=lambda cu: (use_run_date(cu) or date.min, cu.id))
+    last = max(uses, key=use_sort_key)
     run_batch = last.cycle.run_batch if last.cycle else None
     instrument = run_batch.instrument if run_batch else None
     return (instrument.serial_number if instrument else None), last.well
@@ -205,10 +222,10 @@ def last_use_run_date(cell: Cell) -> date | None:
     """The run_date of the cell's most recent active use - the earliest calendar day its
     *next* use could legally start is the following weekday (reuse is always a strictly
     later date, never same-day - see docs/pacbio-sprq-nx-scheduling-reference.md #4)."""
-    active_uses = [cu for cu in cell.cell_uses if cu.status != "cancelled"]
-    if not active_uses:
+    uses = active_uses(cell)
+    if not uses:
         return None
-    last = max(active_uses, key=lambda cu: (use_run_date(cu) or date.min, cu.id))
+    last = max(uses, key=use_sort_key)
     return use_run_date(last)
 
 
@@ -218,10 +235,12 @@ def first_use_planned_start_at(cell: Cell) -> datetime | None:
     which stays null until that use is actually confirmed loaded - see run_service.py)
     so forward-looking UI can still show a concrete estimated deadline instead of treating
     an unconfirmed cell as available indefinitely."""
-    active_uses = [cu for cu in cell.cell_uses if cu.status != "cancelled"]
-    if not active_uses:
+    uses = active_uses(cell)
+    if not uses:
         return None
-    first = min(active_uses, key=lambda cu: (use_run_date(cu) or date.max, cu.id))
+    # Earliest use: nulls sort *last* here (date.max), the opposite of use_sort_key's
+    # most-recent bias - a use with no scheduled date must not be picked as the "first".
+    first = min(uses, key=lambda cu: (use_run_date(cu) or date.max, cu.id))
     return first.cycle.planned_start_at if first.cycle else None
 
 
@@ -314,7 +333,7 @@ def serialize_cell(cell: Cell) -> CellOut:
 def serialize_cell_detail(cell: Cell) -> CellDetailOut:
     base = serialize_cell(cell)
     history: list[CellUseHistoryOut] = []
-    for cu in sorted(cell.cell_uses, key=lambda x: (use_run_date(x) or date.min, x.id)):
+    for cu in sorted(cell.cell_uses, key=use_sort_key):
         run_batch = cu.cycle.run_batch if cu.cycle else None
         history.append(
             CellUseHistoryOut(
@@ -482,7 +501,7 @@ def stop_cell(
         if not run_has_started(origin_use):
             raise ValueError("Cannot stop from a use before its run is locked in.")
 
-    ordered = sorted(cell.cell_uses, key=lambda cu: (use_run_date(cu) or date.min, cu.id))
+    ordered = sorted(cell.cell_uses, key=use_sort_key)
     origin_index = ordered.index(origin_use) if origin_use is not None else None
 
     bumped_sample_ids: list[int] = []

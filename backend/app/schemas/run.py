@@ -189,3 +189,4 @@ class AutoFillResponse(BaseModel):
     window_flags: list[WindowFlagOut]
     barcode_conflicts: list[BarcodeConflictOut]
     runs: list[RunOut]
+    disposed_cell_ids: list[int] = []

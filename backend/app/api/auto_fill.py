@@ -43,4 +43,5 @@ def auto_fill_endpoint(req: AutoFillRequest, db: SessionDep, actor: ActorDep) ->
             for c in result.barcode_conflicts
         ],
         runs=runs,
+        disposed_cell_ids=result.disposed_cell_ids,
     )

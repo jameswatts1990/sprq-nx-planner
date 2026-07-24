@@ -191,7 +191,12 @@ def fill_slots(
         first = first_placed_date[cell.id]
         last = last_placed_date[cell.id]
         if first is not None and last is not None:
-            span = (last - first).days * 24 + run_time_hours
+            # The 108h window is defined on when the later use *starts* (see
+            # docs/pacbio-sprq-nx-scheduling-reference.md #2 and _reuse_window_open), so the
+            # span is start-to-start - do NOT add run_time_hours (the last movie's length),
+            # which would measure to the run's end and over-flag a use that legally starts
+            # in-window but finishes after it.
+            span = (last - first).days * 24
             if span > CELL_LIFETIME_H:
                 window_flags.append(WindowFlag(cell=cell.id, span=span))
 

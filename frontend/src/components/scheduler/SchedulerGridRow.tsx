@@ -3,7 +3,7 @@ import { memo, type KeyboardEvent, type MouseEvent } from "react";
 import type { RunOut, StageOut } from "@/types/schedule";
 import { isWeekendUTC, parseDateOnly } from "@/utils/calendarDates";
 
-import { findContinuation, isCellOpen } from "./groupCyclesByInstrumentAndDay";
+import { resolveCell } from "./groupCyclesByInstrumentAndDay";
 import type { GridSelection } from "./useGridSelection";
 import type { SlotSelection } from "./useSlotSelection";
 import { SchedulerDayCell } from "./SchedulerDayCell";
@@ -63,10 +63,12 @@ export const SchedulerGridRow = memo(function SchedulerGridRow({
   // a single time, and skipped entirely for weekend/has-run days that never consult it.
   const dayInfos = days.map((date, colIndex) => {
     const weekend = isWeekendUTC(parseDateOnly(date));
-    const run = cyclesByDate.get(date);
-    const continuation = weekend || run ? undefined : findContinuation(cyclesByDate, date);
-    const selectable = !weekend && isCellOpen(run, continuation);
-    return { date, colIndex, weekend, run, continuation, selectable };
+    // Weekends are never open and never consult a continuation, so skip the costly scan.
+    if (weekend) {
+      return { date, colIndex, weekend, run: cyclesByDate.get(date), continuation: undefined, selectable: false };
+    }
+    const { run, continuation, open } = resolveCell(cyclesByDate, date);
+    return { date, colIndex, weekend, run, continuation, selectable: open };
   });
   const selectableCols = dayInfos.filter((d) => d.selectable).map((d) => d.colIndex);
 

@@ -178,6 +178,9 @@ export function useScheduleActions({
       if (res.skipped_cells.length > 0) parts.push(`${res.skipped_cells.length} cell(s) skipped`);
       if (res.window_flags.length > 0) parts.push(`${res.window_flags.length} window flag(s)`);
       if (res.barcode_conflicts.length > 0) parts.push(`${res.barcode_conflicts.length} barcode conflict(s)`);
+      // Auto-disposal is the expected outcome of the Max-uses cap, not a problem - report
+      // it for transparency but don't let it flip the note to a warning tone.
+      if (res.disposed_cell_ids.length > 0) parts.push(`${res.disposed_cell_ids.length} cell(s) disposed`);
       const clean =
         res.unplaced_sample_ids.length === 0 && res.window_flags.length === 0 && res.barcode_conflicts.length === 0;
       setRunDesignNote({

@@ -124,10 +124,15 @@ export function ScheduleSection() {
       <dl className={styles.terms}>
         <dt>Max uses per cell (1× / 2× / 3×)</dt>
         <dd>
-          How many times auto-fill will try to reuse each SMRT cell before opening a new one. This is always
-          honored in full — it&apos;s only reduced automatically if you select fewer days than the chosen use
-          count, since a cell can&apos;t be reused twice on the same day. A cell physically supports up to 3
-          acquisitions.
+          The <b>total</b> number of times each SMRT cell may be used — first run plus reuses (so 2× means one
+          initial run and one reuse). A cell physically supports up to 3 acquisitions. This is always honored in
+          full — it&apos;s only reduced automatically if you select fewer days than the chosen use count, since a
+          cell can&apos;t be reused twice on the same day. When auto-scheduling, this acts as a lifetime cap on the
+          whole physical tray: a tray of 4 loads and is thrown away as one unit, so once <b>every</b> cell in a tray
+          has been used the chosen number of times, the whole tray is <b>disposed</b> together (all 4 cells marked
+          Exhausted, never offered for reuse again). A tray still holding an unused or below-target cell stays on the
+          instrument — all its cells kept open — for a later run to finish and then dispose as a unit; a tray is
+          never part-binned.
         </dd>
         <dt>Movie / run time (12 h / 24 h / 30 h)</dt>
         <dd>
@@ -244,7 +249,9 @@ export function ScheduleSection() {
       </p>
       <p>
         <b>Auto-schedule result</b> summarises the outcome, e.g. &quot;12 placed · 3 unplaced · 1 cell(s) skipped ·
-        2 window flag(s) · 1 barcode conflict(s)&quot;:
+        2 window flag(s) · 1 barcode conflict(s) · 4 cell(s) disposed&quot;. &quot;Cell(s) disposed&quot; is the
+        expected result of the Max-uses cap — the cells of any tray whose every cell reached the use limit, binned
+        together as one physical tray — reported for transparency, not a warning:
       </p>
       <div className={styles.noteExamples}>
         <Note tone="good" icon="✓">
