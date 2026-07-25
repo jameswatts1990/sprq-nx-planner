@@ -80,7 +80,7 @@
   top: 0;
   right: 0;
   bottom: 0;
-  width: 22px;
+  width: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -94,9 +94,11 @@
   letter-spacing: -0.02em;
   color: #fff;
   cursor: pointer;
+  overflow: hidden;
+  isolation: isolate; /* contain the sheen's blend mode to the stub */
 }
 .stub:hover {
-  filter: brightness(0.94);
+  filter: brightness(0.96);
 }
 .stub:focus-visible {
   outline: 2px solid var(--ink);
@@ -110,6 +112,86 @@
 }
 .stubU3 {
   background: var(--teal);
+}
+
+/* ── Holographic security-seal identity ─────────────────────────────────────────
+   The seal's job is to make one physical cell instantly distinguishable from another
+   even when they share the same well+use label. It layers, back-to-front:
+     1. the solid Use 1/2/3 base colour (.stubU1/2/3 above),
+     2. .stubSheen — an iridescent diagonal foil, hue-rotated per cell (--seal-hue),
+     3. .stubMicro — the cell's own id as vertical repeating microprint,
+     4. .stubLabel — the readable "A2" on top.
+   All decorative layers are aria-hidden; the button keeps its full aria-label/title. */
+.stubSheen {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  /* A tight rainbow foil, angled like light catching a hologram. Per-cell hue-rotate
+     shifts the whole foil so no two cells' seals catch the light the same way. */
+  background: repeating-linear-gradient(
+    115deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.42) 8%,
+    rgba(255, 80, 200, 0.34) 16%,
+    rgba(90, 200, 255, 0.34) 24%,
+    rgba(120, 255, 170, 0.34) 32%,
+    rgba(255, 255, 255, 0) 40%
+  );
+  background-size: 180% 180%;
+  background-position: 0% 0%;
+  filter: hue-rotate(var(--seal-hue, 0deg));
+  mix-blend-mode: screen;
+  opacity: 0.9;
+  pointer-events: none;
+  animation: sealShift 6s linear infinite;
+}
+/* Vertical microprint of the cell id — the "you can't fake this" texture of a real seal. */
+.stubMicro {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  font-family: var(--mono);
+  font-size: 6px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.55);
+  mix-blend-mode: overlay;
+  white-space: nowrap;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+}
+.stubLabel {
+  position: relative;
+  z-index: 2;
+  text-shadow: 0 1px 1.5px rgba(0, 0, 0, 0.4); /* keep "A2" legible over the foil */
+}
+/* Slow drift makes the foil "live" like a tilted hologram. */
+@keyframes sealShift {
+  0% {
+    background-position: 0% 0%;
+  }
+  100% {
+    background-position: 180% 180%;
+  }
+}
+/* On hover, catch the light harder — a quick, deliberate glint. */
+.stub:hover .stubSheen {
+  opacity: 1;
+  animation-duration: 2.2s;
+}
+@media (prefers-reduced-motion: reduce) {
+  .stubSheen {
+    animation: none;
+    /* Still uniquely hue-rotated per cell, just static — identity without motion. */
+    background-position: 40% 40%;
+  }
 }
 /* The cross-time cell-link dot sits top-right; nudge it clear of the stub when one is shown. */
 .hasStub .linkBadgeSource,

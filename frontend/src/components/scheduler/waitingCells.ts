@@ -25,32 +25,16 @@ export interface CellGhost {
    * only starts once a cell is actually removed from the tray - see
    * docs/pacbio-sprq-nx-scheduling-reference.md #2). */
   deadlineIsEstimated: boolean;
-  /** True for a tray sibling that has never been used at all - it's shown so its physical
-   * tray reads as fully populated, but has no 108h clock running yet (see
-   * computeUnusedTraySiblingGhost), so isHardCutoff/fadeOpacity/cutoffDate/deadlineAt carry
-   * no real meaning and should be ignored by anything rendering this ghost. */
-  unused?: boolean;
   /** Set for a cell that has gone terminal by ordinary attrition - fully used up
    * (exhausted), timed out with capacity still unused (window_expired), or manually
-   * written off (retired) - still shown in its old well as an informational marker
-   * (see computeTerminalGhost). Distinct from a *stopped* cell (see SchedulerSlot's
-   * `blocked` prop): stop_cell is a QC action that permanently locks its well against any
-   * new placement, whereas these three are routine turnover, so the well underneath stays
-   * a fully valid drop target for a brand-new tray. Mutually exclusive with `unused`;
-   * isHardCutoff/fadeOpacity/deadlineAt/deadlineIsEstimated carry no meaning here. */
+   * written off (retired) - rendered as a minimal non-droppable "spent well" marker while
+   * its physical tray is still loaded (see computeTerminalGhost / SchedulerSlotView).
+   * Distinct from a *stopped* cell (see SchedulerSlot's `blocked` prop): stop_cell is a QC
+   * action that permanently locks its well, whereas these three are routine turnover, so the
+   * well underneath becomes a fully valid drop target for a brand-new tray once every sibling
+   * has also gone terminal. When set, the reuse-offer fields (useNumber/isHardCutoff/
+   * fadeOpacity/cutoffDate/deadlineAt/deadlineIsEstimated) carry no meaning. */
   terminalStatus?: Exclude<CellStatus, "open" | "stopped">;
-  /** True when `day` falls before this ghost's own physical tray's founding placement (the
-   * earliest planned first-use date across any cell sharing its tray_id) - see
-   * computeTrayFoundingDates. The tray hasn't actually landed on the instrument as of this
-   * day, even though eager population (see "Tray-of-4 eager population" above) already
-   * created every sibling's Cell row up front. The ghost still carries its real data (still
-   * droppable/clickable, same as any other day, and still targets this exact cell for reuse)
-   * so reuse/insert-earlier-use behaviour is unchanged and the schedule stays fully flexible
-   * before anything is locked in - only the rendered label/tint is suppressed in favour of a
-   * plain "+", since showing "Scheduled"/"Not yet used" this early reads as if the tray were
-   * already physically present, and could be misread as "this well can't take a new/earlier
-   * placement" when it actually still can. */
-  beforeTrayFounding?: boolean;
 }
 
 /**
@@ -223,49 +207,6 @@ export function computeGhost(
 }
 
 /**
- * Whether `cell` is a never-yet-used sibling of an already-live physical tray, waiting to
- * be shown (and eventually loaded) in its own reserved well on `day`. Distinct from
- * computeGhost (mutually exclusive via uses_consumed): there's no 108h clock running yet
- * (see docs/pacbio-sprq-nx-scheduling-reference.md's "Tray-of-4 eager population" section),
- * so this has no fade/cutoff - it just persists on every weekday, with no start-date gate,
- * until it's actually used (or retired). Deliberately NOT gated on cell.created_at (the row's
- * real insert time): a sample can legitimately be scheduled onto any weekday in the visible
- * week regardless of when "now" actually is, e.g. placing onto Monday's slot on a Thursday -
- * gating on created_at hid the siblings on every day before that real-world insert moment,
- * even within the same week as their own founding placement.
- */
-export function computeUnusedTraySiblingGhost(
-  cell: CellOut,
-  day: string,
-  trayFoundingDates: Map<number, string> = new Map(),
-  trayEvictionDates: Map<number, string> = new Map(),
-): CellGhost | null {
-  if (cell.status !== "open" || cell.uses_consumed > 0) return null;
-  if (!cell.current_instrument_serial || !cell.current_well) return null;
-  if (isWeekendUTC(parseDateOnly(day))) return null;
-
-  // A successor tray has taken this carousel position from `evictionDate` on, so this
-  // never-used sibling's physical tray has left the instrument - stop showing its reserved
-  // well (a genuinely idle "+" belongs there now, ready for the successor's own cells).
-  const evictionDate = cell.tray_id !== null ? trayEvictionDates.get(cell.tray_id) : undefined;
-  if (evictionDate !== undefined && day >= evictionDate) return null;
-
-  const foundingDate = cell.tray_id !== null ? trayFoundingDates.get(cell.tray_id) : undefined;
-
-  return {
-    cell,
-    useNumber: 1,
-    isHardCutoff: false,
-    fadeOpacity: 1,
-    cutoffDate: day,
-    deadlineAt: "",
-    deadlineIsEstimated: false,
-    unused: true,
-    beforeTrayFounding: foundingDate !== undefined && day < foundingDate,
-  };
-}
-
-/**
  * Whether `cell` has gone terminal by ordinary attrition - exhausted (used up its lawful
  * uses), window_expired (108h deadline closed with capacity still unused), or retired
  * (manually written off, e.g. via a never-yet-used sibling's "Discard remaining use(s)")
@@ -351,23 +292,13 @@ function wellSortKey(well: string | null): number {
 }
 
 /**
- * Pins each waiting-cell ghost to the physical slot (0-7) matching the well its cell last
- * occupied (WELL_ORDER) - cells keep the same physical tray/well position for every reuse,
- * never just "the next open slot", so a ghost only shows if that exact slot is still free
- * (its `slots` entry is null; a real placed stage always wins).
- *
- * Two *different* physical trays occupy the same carousel position - and therefore reuse the
- * same well letters (A01-D01 / A02-D02) - at different times over a week; the well on any
- * given day belongs to whichever tray is actually loaded then. So when two eligible ghosts
- * both map to the same still-free slot, a cell whose physical tray has NOT been founded yet
- * as of this day (beforeTrayFounding - see computeGhost / CellGhost.beforeTrayFounding) must
- * never win the slot over a cell whose tray IS physically present today. Without this, a
- * later tray's not-yet-existent sibling (rendered as a bare "+", since beforeTrayFounding
- * suppresses its label/tint) silently hid the real reuse/expiry ghost of the cell physically
- * sitting in that well, and clicking the "+" opened a cell that can't legally be there - a
- * future tray's cell that would have to teleport out of its own tray into today's. Among
- * ghosts of equal founding-standing, the first in `ghosts` order keeps the slot (see the
- * same-well note in groupWaitingCellsByInstrumentAndDay's callers).
+ * Pins each ghost to the physical slot (0-7) matching the well its cell last occupied
+ * (WELL_ORDER) - cells keep the same physical tray/well position for life, so a ghost only
+ * shows if that exact slot is still free (its `slots` entry is null; a real placed stage
+ * always wins). Only one live tray occupies a given carousel position on any given day (a
+ * successor tray can't be founded until the prior one is evicted - see computeTrayEviction-
+ * Dates), so at most one ghost maps to a slot per day; on the rare tie the first in `ghosts`
+ * order keeps it.
  */
 export function pinGhostsToSlots(
   ghosts: CellGhost[],
@@ -379,14 +310,7 @@ export function pinGhostsToSlots(
     if (idx < 0 || idx >= slots.length) continue;
     const slot = idx as SlotIndex;
     if (slots[slot] !== null) continue;
-    const existing = bySlot.get(slot);
-    if (!existing) {
-      bySlot.set(slot, ghost);
-    } else if (existing.beforeTrayFounding && !ghost.beforeTrayFounding) {
-      // A cell whose tray is physically present today displaces one that only provisionally
-      // claimed the slot before its own tray was founded.
-      bySlot.set(slot, ghost);
-    }
+    if (!bySlot.has(slot)) bySlot.set(slot, ghost);
   }
   return bySlot;
 }
@@ -705,10 +629,17 @@ export function groupWaitingCellsByInstrumentAndDay(
   for (const cell of orderedCells) {
     if (!cell.current_instrument_serial) continue;
     for (const day of days) {
-      const ghost =
-        computeGhost(cell, day, trayFoundingDates, trayEvictionDates) ??
-        computeUnusedTraySiblingGhost(cell, day, trayFoundingDates, trayEvictionDates) ??
-        computeTerminalGhost(cell, day, vacatedTrayIds);
+      // A grid slot is a physical WELL that gets a cell assigned when a sample is loaded onto
+      // it - so the grid shows only two forward-looking things about an un-loaded well: a reuse
+      // OFFER (a used cell physically resident in the well, on its 108h clock, ready to take its
+      // next use here - computeGhost), and a spent-well MARKER (a terminal cell still occupying
+      // the well because its tray hasn't left the instrument yet - computeTerminalGhost, rendered
+      // as a minimal non-droppable marker, not a sample-like card). A never-yet-used tray sibling
+      // is NOT surfaced any more: its well simply reads as a plain droppable "+", and dropping a
+      // sample there assigns that resident sibling automatically (backend derive_best_cell's
+      // reuse-before-new). This keeps the grid a picture of wells-and-loads, not of every cell the
+      // trays happen to hold - see the CLAUDE.md "wells assigned a cell on a tray" model.
+      const ghost = computeGhost(cell, day, trayFoundingDates, trayEvictionDates) ?? computeTerminalGhost(cell, day, vacatedTrayIds);
       if (!ghost) continue;
 
       let byDate = byInstrument.get(cell.current_instrument_serial);

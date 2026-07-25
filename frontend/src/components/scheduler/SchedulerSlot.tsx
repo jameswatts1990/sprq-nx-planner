@@ -36,10 +36,10 @@ export interface SchedulerSlotProps {
    * selection instead of (dnd-kit) moving the sample - see SchedulePage's
    * onDragSelectStart. */
   onDragSelectStart: (stage: StageOut) => void;
-  /** A waiting, reusable cell eligible to load into this empty slot today. */
+  /** A spent-well marker (terminal cell still occupying its well) to render non-droppably;
+   * or a reuse ghost whose only job now is to carry its resident cell's id to the drop (see
+   * DroppableSlot / SchedulerSlotView - reuse offers are no longer drawn as cards). */
   ghost?: CellGhost;
-  /** Opens the waiting-cell detail/discard popover; only meaningful when `ghost` is set. */
-  onOpenGhost?: (ghost: CellGhost) => void;
   /** This well is permanently blocked by a stopped cell (see waitingCells.
    * groupBlockedWellsByInstrument) - read-only, never a drop target. */
   blocked?: boolean;
@@ -63,16 +63,17 @@ export function SchedulerSlot(props: SchedulerSlotProps) {
       return <SchedulerSlotView stage={null} slotIndex={props.slotIndex} blocked />;
     }
     if (locked) {
-      // Any ghost type can reach here once its day is locked (SchedulerDayCell no longer
-      // excludes plain reuse ghosts) - always purely informational, no droppable wrapper,
-      // regardless of which ghost it is.
+      // A grid slot is a physical well; an un-loaded well shows nothing but its own "+" (or, on
+      // a locked run, a plain locked placeholder). The only forward-looking marker still drawn is
+      // a spent-well one (a terminal cell still physically occupying the well) - a reuse offer is
+      // no longer surfaced as its own card, so only a terminal ghost is passed through to render.
       return (
         <SchedulerSlotView
           stage={null}
           slotIndex={props.slotIndex}
           locked
           placing={props.placing}
-          ghost={props.ghost}
+          ghost={props.ghost?.terminalStatus ? props.ghost : undefined}
         />
       );
     }
@@ -110,36 +111,26 @@ function DroppableSlot({
   loadDate,
   placing,
   ghost,
-  onOpenGhost,
 }: SchedulerSlotProps) {
-  // A terminal ghost (exhausted/window_expired/retired) never reaches this droppable
-  // branch: computeTerminalGhost stops returning one at all once its whole physical tray
-  // has been vacated, and SchedulerSlot already filters out the still-loaded case above -
-  // so `ghost` here is always either undefined or a still-open, reuse-eligible/unused-
-  // sibling ghost, safe to treat as an exact-match reuse target.
-  const reuseGhost = ghost;
+  // A terminal ghost never reaches this droppable branch (SchedulerSlot renders it as a
+  // non-droppable spent-well marker above), so `ghost` here is always undefined or a reuse
+  // offer - a used cell resident in this well, ready for its next use. The well itself renders
+  // as a plain droppable "+" (a slot is a physical well; we don't paint a reuse card in it any
+  // more), but the resident cell's id still rides along as `ghostCellId` so a drop resolves
+  // straight onto it (its sequential next use) rather than opening a fresh tray - the backend's
+  // reuse-before-new default made visible only once a sample is actually loaded, via its seal.
   const data: SlotDropData = {
     kind: "slot",
     instrument_serial: instrumentSerial,
     load_date: loadDate,
     slot_index: slotIndex,
-    ghostCellId: reuseGhost?.cell.id,
+    ghostCellId: ghost?.cell.id,
   };
   const { setNodeRef, isOver } = useDroppable({
     id: slotKey(instrumentSerial, loadDate, slotIndex),
     data,
   });
-  return (
-    <SchedulerSlotView
-      ref={setNodeRef}
-      stage={null}
-      slotIndex={slotIndex}
-      over={isOver}
-      placing={placing}
-      ghost={ghost}
-      onClick={reuseGhost && onOpenGhost ? () => onOpenGhost(reuseGhost) : undefined}
-    />
-  );
+  return <SchedulerSlotView ref={setNodeRef} stage={null} slotIndex={slotIndex} over={isOver} placing={placing} />;
 }
 
 function DraggableSlot({

@@ -33,7 +33,6 @@ export interface SchedulerGridRowProps {
   blockedWellsByDate: Map<string, Set<string>>;
   /** Tray-disposal warnings on this instrument, keyed by the tray's last scheduled-use day. */
   disposalByDate: Map<string, TrayDisposalWarning[]>;
-  onOpenGhost: (ghost: CellGhost) => void;
 }
 
 /** One instrument row: sticky-left <th> serial, then one SchedulerDayCell per day.
@@ -56,7 +55,6 @@ export const SchedulerGridRow = memo(function SchedulerGridRow({
   waitingCellsByDate,
   blockedWellsByDate,
   disposalByDate,
-  onOpenGhost,
 }: SchedulerGridRowProps) {
   // Everything each day-cell needs, derived once per day. continuation is the only costly
   // bit (it scans cyclesByDate) and used to be computed twice per day - here it's computed
@@ -132,7 +130,6 @@ export const SchedulerGridRow = memo(function SchedulerGridRow({
             waitingCells={waitingCellsByDate.get(date) ?? EMPTY_GHOSTS}
             blockedWells={blockedWellsByDate.get(date) ?? EMPTY_BLOCKED_WELLS}
             disposalWarnings={disposalByDate.get(date) ?? EMPTY_DISPOSAL}
-            onOpenGhost={onOpenGhost}
           />
         );
       })}

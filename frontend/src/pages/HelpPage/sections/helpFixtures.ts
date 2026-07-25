@@ -73,29 +73,17 @@ export const EXAMPLE_TRAY_SIBLINGS: CellOut[] = [
   },
 ];
 
-export const GHOST_EXAMPLE_FADING: CellGhost = {
-  cell: EXAMPLE_CELL,
-  useNumber: 2,
-  isHardCutoff: false,
-  fadeOpacity: 0.65,
-  cutoffDate: "2026-07-17",
-  deadlineAt: "2026-07-18T00:00:00Z",
-  deadlineIsEstimated: false,
-};
-export const GHOST_EXAMPLE_CUTOFF: CellGhost = { ...GHOST_EXAMPLE_FADING, isHardCutoff: true };
-export const GHOST_EXAMPLE_UNUSED: CellGhost = {
-  cell: { ...EXAMPLE_CELL, code: "CELL-000043", uses_consumed: 0, uses_remaining: 3, current_well: "B01" },
-  useNumber: 1,
+// A spent-well marker: a terminal (here, exhausted) cell still physically occupying its
+// well because its tray hasn't left the instrument yet. This is the only ghost the grid
+// still paints - reuse offers and never-yet-used siblings are no longer shown as cards.
+export const GHOST_EXAMPLE_EXHAUSTED: CellGhost = {
+  cell: EXAMPLE_CELL_EXHAUSTED,
+  useNumber: EXAMPLE_CELL_EXHAUSTED.uses_consumed,
   isHardCutoff: false,
   fadeOpacity: 1,
-  cutoffDate: "2026-07-13",
+  cutoffDate: "2026-07-17",
   deadlineAt: "",
   deadlineIsEstimated: false,
-  unused: true,
-};
-export const GHOST_EXAMPLE_EXHAUSTED: CellGhost = {
-  ...GHOST_EXAMPLE_FADING,
-  cell: EXAMPLE_CELL_EXHAUSTED,
   terminalStatus: "exhausted",
 };
 export const STAGE_EXAMPLE_SOURCE: StageOut = {

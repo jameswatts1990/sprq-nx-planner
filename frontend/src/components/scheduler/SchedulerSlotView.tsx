@@ -3,25 +3,12 @@ import type { CSSProperties, HTMLAttributes } from "react";
 
 import { BarcodeChips } from "@/components/shared/BarcodeChips";
 import type { SlotIndex, StageOut } from "@/types/schedule";
-import { formatShortDateUTC, parseDateOnly } from "@/utils/calendarDates";
-import { CELL_STATUS_LABEL } from "@/utils/cellStatus";
 import { classForUseIndex } from "@/utils/useIndexClass";
 import { CELL_LIFETIME_H, expiryFadeOpacity } from "@/utils/windowFade";
 
 import styles from "./SchedulerSlotView.module.css";
 import { CELL_LINK_SLOT_ATTR } from "./useCellLinkHighlight";
 import type { CellGhost } from "./waitingCells";
-
-// Severity-coded per terminalStatus reason (see CellGhost.terminalStatus/CELL_STATUS_TONE):
-// exhausted and window_expired share the same red severity (same as a QC problem
-// elsewhere on the grid) - both mean this physical cell's lawful capacity is gone, whether
-// spent in full or left on the table when its 108h window shut. retired is a deliberate
-// manual write-off (amber), a step milder since nothing was "lost" unexpectedly.
-const TERMINAL_STATUS_CLASS: Record<"exhausted" | "window_expired" | "retired", string> = {
-  exhausted: styles.terminalExhausted,
-  window_expired: styles.terminalExpired,
-  retired: styles.terminalRetired,
-};
 
 export interface SchedulerSlotViewProps extends HTMLAttributes<HTMLDivElement> {
   /** The filled well, or null for an empty slot placeholder. */
@@ -97,14 +84,12 @@ export const SchedulerSlotView = memo(
   // outside a valid drop target (see useSchedulerDnd's onDragEnd).
   const showStage = !!stage && !dragging;
 
-  // Before this ghost's own physical tray has had its first real placement, it renders
-  // exactly like an ordinary empty "+" slot below - no "Scheduled"/"Not yet used" label or
-  // tint, since the schedule isn't locked in yet and showing that this early reads as if
-  // the tray were already physically present (see CellGhost.beforeTrayFounding). The real
-  // `ghost` prop still flows through untouched to SchedulerSlot's droppable wiring, so
-  // dropping here still targets this exact cell for reuse - only this component's own
-  // rendering treats it as if there were no ghost at all.
-  const renderGhost = ghost?.beforeTrayFounding ? undefined : ghost;
+  // The only ghost this view ever renders now is a SPENT-well marker (a terminal cell still
+  // physically occupying its well - see SchedulerSlot, which only forwards a terminalStatus
+  // ghost here). Reuse offers are no longer painted as cards: a well with a reusable resident
+  // cell reads as a plain droppable "+", and the resident's id rides along as the drop's
+  // ghostCellId so a drop lands on its sequential next use (see SchedulerSlot.DroppableSlot).
+  const renderGhost = ghost;
 
   // Surfaces a QC problem directly on the grid, independent of the Use 1/2/3 tint. A
   // use's own recorded outcome (cancelled/failed/aborted) always wins over the whole-cell
@@ -131,9 +116,8 @@ export const SchedulerSlotView = memo(
             : null;
 
   // Colour groups by which physical cell is loaded (stage.use_number), not by well
-  // position - so a cell reused across two wells in the same run shares one colour. A
-  // ghost slot (no stage yet) colours by the use number it's waiting to become.
-  const useClass = classForUseIndex(showStage ? stage!.use_number : renderGhost ? renderGhost.useNumber : slotIndex + 1);
+  // position - so a cell reused across two wells in the same run shares one colour.
+  const useClass = classForUseIndex(showStage ? stage!.use_number : slotIndex + 1);
   // The right-edge cell "ticket stub": physical column (well letter) + use number, e.g. "A2",
   // colour-coded by use (solid Use 1/2/3 palette, like the legend swatches). Only rendered on
   // a filled card that has an onOpenCell handler.
@@ -146,6 +130,20 @@ export const SchedulerSlotView = memo(
       : stage!.use_number === 2
         ? styles.stubU2
         : styles.stubU1;
+  // Holographic "security seal" identity: every physical cell gets its own look, so the same
+  // well+use label (e.g. "A1") on two different days reads as two DIFFERENT physical cells at a
+  // glance. Two independent, deterministic signals both keyed off the cell:
+  //   - a per-cell hue rotation of the iridescent sheen (golden-angle spread so adjacent cell
+  //     ids land far apart on the wheel), and
+  //   - the cell's own short id printed as repeating microtext down the seal (like the
+  //     micro-lettering on a real holographic security sticker).
+  // The Use 1/2/3 base colour is untouched underneath, so the use number still reads normally.
+  const sealNum = showStage
+    ? (stage!.cell_ref?.match(/(\d+)\s*$/)?.[1]?.replace(/^0+/, "") ?? "") || String(stage!.cell_id)
+    : "";
+  const sealHue = showStage ? Math.round((stage!.cell_id * 137.508) % 360) : 0;
+  // Repeated enough to fill the seal's height; overflow-hidden clips the tail.
+  const sealMicrotext = sealNum ? `${sealNum} · `.repeat(8).trim() : "";
   const classes = [styles.slot];
   if (showStage) {
     classes.push(styles.filled, styles[useClass]);
@@ -164,22 +162,12 @@ export const SchedulerSlotView = memo(
     // [cell's] expiry" (see docs/pacbio-sprq-nx-scheduling-reference.md #2: this is always
     // per-cell, never a shared tray-level clock).
     if (stage!.window_hours_elapsed !== null) classes.push(styles.windowShaded);
-  } else if (renderGhost) {
-    classes.push(styles.ghost);
-    if (renderGhost.terminalStatus) {
-      // Neutral/severity-coded by *why* it went terminal, never tinted by use number -
-      // this cell is done, so it must never read as a live Use 1/2/3 chip.
-      classes.push(styles.ghostTerminal, TERMINAL_STATUS_CLASS[renderGhost.terminalStatus]);
-    } else if (renderGhost.unused) {
-      // Muted grey, not tinted by use number - it hasn't been used yet, so colouring it
-      // like a real Use 1 (which .u1.ghost's higher-specificity two-class selector would
-      // otherwise win over this single class regardless of declaration order) reads as
-      // "this is already Use 1" and clashes with the real Use 1 tint elsewhere on the grid.
-      classes.push(styles.ghostUnused);
-    } else {
-      classes.push(styles[useClass]);
-      if (renderGhost.isHardCutoff) classes.push(styles.ghostCutoff);
-    }
+  } else if (renderGhost?.terminalStatus) {
+    // A well physically holding a spent cell (its tray hasn't left the instrument yet) can't
+    // take a placement - rendered as the SAME minimal, non-droppable "spent well" marker as a
+    // stopped well (styles.blocked), never a sample-like card. It just isn't a loadable well
+    // right now; the specific reason lives in the tooltip.
+    classes.push(styles.blocked);
   } else if (blocked) {
     classes.push(styles.blocked);
   } else {
@@ -200,11 +188,8 @@ export const SchedulerSlotView = memo(
       // it, so the sample about to be displaced stays visible underneath.
       classes.push(styles.swapOver);
     } else {
-      // Hovering directly over a ghost previews an exact-match reuse of that specific
-      // cell - a distinct highlight from the generic "valid drop target" look, which is
-      // reserved for drops that still need the cell-choice popup (e.g. the plain "+"
-      // placeholder).
-      classes.push(renderGhost ? styles.ghostOver : styles.over);
+      // Hovering a valid drop target - a plain "+" well ready to take this sample.
+      classes.push(styles.over);
     }
   }
   if (dragging) classes.push(styles.dragging);
@@ -214,10 +199,7 @@ export const SchedulerSlotView = memo(
   if (dimmed) classes.push(styles.dimmed);
   if (className) classes.push(className);
 
-  // Fade intensity only applies to the calm (non-cutoff) ghost look - the cutoff variant
-  // is a fixed, fully-opaque "act now" style regardless of how the fade would otherwise sit.
-  let mergedStyle: CSSProperties | undefined =
-    renderGhost && !renderGhost.isHardCutoff ? { ...style, ["--ghost-opacity" as string]: renderGhost.fadeOpacity } : style;
+  let mergedStyle: CSSProperties | undefined = style;
   if (showStage && stage!.window_hours_elapsed !== null) {
     const hoursRemaining = CELL_LIFETIME_H - stage!.window_hours_elapsed;
     mergedStyle = { ...mergedStyle, ["--window-opacity" as string]: expiryFadeOpacity(hoursRemaining) };
@@ -283,6 +265,7 @@ export const SchedulerSlotView = memo(
             <button
               type="button"
               className={`${styles.stub} ${stubClass}`}
+              style={{ [("--seal-hue") as string]: `${sealHue}deg` }}
               title={`Cell ${stage!.cell_ref} · Use ${stage!.use_number} of 3 — click for cell details`}
               aria-label={`Cell ${stage!.cell_ref}, use ${stage!.use_number}. Open cell details.`}
               onPointerDown={(e) => e.stopPropagation()}
@@ -292,7 +275,11 @@ export const SchedulerSlotView = memo(
                 onOpenCell!();
               }}
             >
-              {stubLabel}
+              <span className={styles.stubSheen} aria-hidden="true" />
+              <span className={styles.stubMicro} aria-hidden="true">
+                {sealMicrotext}
+              </span>
+              <span className={styles.stubLabel}>{stubLabel}</span>
             </button>
           )}
           {(linkSource || linked) && (
@@ -302,21 +289,10 @@ export const SchedulerSlotView = memo(
             />
           )}
         </>
-      ) : renderGhost ? (
-        <>
-          <div className={styles.ghostCode} title={renderGhost.cell.code}>
-            {renderGhost.cell.code}
-          </div>
-          <div className={styles.ghostLabel} title={terminalGhostTitle}>
-            {renderGhost.terminalStatus
-              ? CELL_STATUS_LABEL[renderGhost.terminalStatus]
-              : renderGhost.unused
-                ? "Not yet used"
-                : renderGhost.isHardCutoff
-                  ? `Use ${renderGhost.useNumber} · expires today`
-                  : `Use ${renderGhost.useNumber} · by ${formatShortDateUTC(parseDateOnly(renderGhost.cutoffDate))}`}
-          </div>
-        </>
+      ) : renderGhost?.terminalStatus ? (
+        <span className={styles.blockedIcon} title={terminalGhostTitle} aria-hidden="true">
+          ✕
+        </span>
       ) : blocked ? (
         <span
           className={styles.blockedIcon}

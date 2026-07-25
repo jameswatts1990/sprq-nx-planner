@@ -30,9 +30,7 @@ import {
   computeTrayFoundingDates,
   computeVacatedTrayIds,
   groupWaitingCellsByInstrumentAndDay,
-  type CellGhost,
 } from "@/components/scheduler/waitingCells";
-import { WaitingCellPopover } from "@/components/scheduler/WaitingCellPopover";
 import { SectionHeading, UseLegend } from "@/components/shared/SectionHeading";
 import { Button } from "@/components/ui/Button";
 import { Note } from "@/components/ui/Note";
@@ -69,7 +67,6 @@ export function SchedulePage() {
   const [runDesign, setRunDesign] = useState<RunDesignState>(DEFAULT_RUN_DESIGN);
   const [detail, setDetail] = useState<DetailTarget | null>(null);
   const [printSheetOpen, setPrintSheetOpen] = useState(false);
-  const [ghostDetail, setGhostDetail] = useState<CellGhost | null>(null);
   // The placement whose physical-cell info popover is open (the card's "ticket stub" click).
   const [cellInfo, setCellInfo] = useState<DetailTarget | null>(null);
   // A drop that would create a brand-new run, held while the load-time wheel is shown so the
@@ -362,7 +359,7 @@ export function SchedulePage() {
   // must not wipe it out from under their own click.
   useEffect(() => {
     if (!selection.hasSelection && !slotSelection.hasSelection) return;
-    if (detail || ghostDetail || cellInfo || printSheetOpen || actions.clearConfirmOpen || dnd.pendingPlacement) return;
+    if (detail || cellInfo || printSheetOpen || actions.clearConfirmOpen || dnd.pendingPlacement) return;
     function onMouseDown(e: MouseEvent) {
       const target = e.target as Node;
       if (gridAreaRef.current?.contains(target)) return;
@@ -375,7 +372,7 @@ export function SchedulePage() {
     return () => window.removeEventListener("mousedown", onMouseDown);
     // selection/slotSelection are stable (memoized in their hooks), so depending on the
     // whole objects re-subscribes only on a real selection change, same as before.
-  }, [selection, slotSelection, detail, ghostDetail, cellInfo, printSheetOpen, actions.clearConfirmOpen, dnd.pendingPlacement]);
+  }, [selection, slotSelection, detail, cellInfo, printSheetOpen, actions.clearConfirmOpen, dnd.pendingPlacement]);
 
   // Delete/Backspace removes the selected samples from the schedule, as long as focus
   // isn't in a text field (so it doesn't hijack editing elsewhere on the page).
@@ -554,7 +551,6 @@ export function SchedulePage() {
                 waitingGrouped={waitingGrouped}
                 blockedGrouped={blockedGrouped}
                 disposalGrouped={disposalGrouped}
-                onOpenGhost={setGhostDetail}
               />
             )}
           </div>
@@ -611,8 +607,6 @@ export function SchedulePage() {
           onConfirm={() => actions.clearSchedule.mutate()}
         />
       )}
-
-      {ghostDetail && <WaitingCellPopover ghost={ghostDetail} onClose={() => setGhostDetail(null)} />}
 
       {printSheetOpen && (
         <PrintBatchSheetModal instruments={instrumentsQuery.data ?? []} onClose={() => setPrintSheetOpen(false)} />

@@ -11,7 +11,6 @@ import {
   computeTrayDisposalWarnings,
   computeTrayEvictionDates,
   computeTrayFoundingDates,
-  computeUnusedTraySiblingGhost,
   computeVacatedTrayIds,
   groupWaitingCellsByInstrumentAndDay,
   pinGhostsToSlots,
@@ -159,61 +158,6 @@ function baseUnusedTraySibling(overrides: Partial<CellOut> = {}): CellOut {
   });
 }
 
-describe("computeUnusedTraySiblingGhost", () => {
-  it("returns null for a cell that already has a use (that's computeGhost's job)", () => {
-    expect(computeUnusedTraySiblingGhost(baseUnusedTraySibling({ uses_consumed: 1 }), "2026-07-14")).toBeNull();
-  });
-
-  it("returns null once the cell is no longer open, or has no known well/instrument yet", () => {
-    expect(computeUnusedTraySiblingGhost(baseUnusedTraySibling({ status: "retired" }), "2026-07-14")).toBeNull();
-    expect(computeUnusedTraySiblingGhost(baseUnusedTraySibling({ current_well: null }), "2026-07-14")).toBeNull();
-    expect(
-      computeUnusedTraySiblingGhost(baseUnusedTraySibling({ current_instrument_serial: null }), "2026-07-14"),
-    ).toBeNull();
-  });
-
-  it("returns null on weekends only - no start-date gate", () => {
-    expect(computeUnusedTraySiblingGhost(baseUnusedTraySibling(), "2026-07-11")).toBeNull(); // Saturday
-    // A sample can legitimately be scheduled onto a weekday earlier in the visible week
-    // than the tray's own real-world created_at (e.g. placing onto Monday's slot from a
-    // Thursday) - this must NOT hide the sibling on those earlier days.
-    expect(computeUnusedTraySiblingGhost(baseUnusedTraySibling(), "2026-07-10")).not.toBeNull();
-  });
-
-  it("shows on every weekday, with no fade, cutoff, or expiry", () => {
-    const cell = baseUnusedTraySibling();
-    const earlier = computeUnusedTraySiblingGhost(cell, "2026-07-06");
-    const later = computeUnusedTraySiblingGhost(cell, "2026-08-03");
-
-    expect(earlier?.unused).toBe(true);
-    expect(earlier?.isHardCutoff).toBe(false);
-    expect(earlier?.fadeOpacity).toBe(1);
-    // Unlike a reuse ghost, there's no clock running yet - it never expires.
-    expect(later?.unused).toBe(true);
-  });
-
-  it("flags an unused sibling's ghost before its tray's founding day", () => {
-    // The founding cell's first use is scheduled for Friday - its still-unused siblings
-    // (this one included) must not read as "Not yet used" on the Monday-Thursday columns,
-    // even though eager population already created their Cell rows up front.
-    const founding = baseCell({
-      id: 1,
-      tray_id: 5,
-      last_use_run_date: "2026-07-17", // Friday
-      first_use_planned_start_at: "2026-07-17T12:00:00Z",
-    });
-    const trayFoundingDates = computeTrayFoundingDates([founding]);
-    const sibling = baseUnusedTraySibling({ id: 2, tray_id: 5 });
-
-    const mon = computeUnusedTraySiblingGhost(sibling, "2026-07-13", trayFoundingDates);
-    expect(mon?.unused).toBe(true);
-    expect(mon?.beforeTrayFounding).toBe(true);
-
-    const fri = computeUnusedTraySiblingGhost(sibling, "2026-07-17", trayFoundingDates);
-    expect(fri?.beforeTrayFounding).toBe(false);
-  });
-});
-
 describe("groupWaitingCellsByInstrumentAndDay", () => {
   it("buckets ghosts by the cell's current instrument and each eligible day", () => {
     const cellA = baseCell({ id: 1, current_instrument_serial: "84047", last_use_run_date: "2026-07-13" });
@@ -251,24 +195,28 @@ describe("groupWaitingCellsByInstrumentAndDay", () => {
     expect(grouped.get("84047")?.get("2026-07-14")?.map((g) => g.cell.id)).toEqual([1, 2, 3]);
   });
 
-  it("surfaces an unused tray sibling's reserved ghost alongside a real reuse ghost, same instrument/day", () => {
+  it("surfaces a real reuse offer but NOT never-used tray siblings (a grid slot is a well; an unused sibling is just a plain '+')", () => {
+    // A grid slot is a physical well that gets a cell assigned when a sample is loaded onto it
+    // (see CLAUDE.md's "wells assigned a cell on a tray" model). A never-yet-used tray sibling
+    // is therefore NOT surfaced as its own phantom card any more - its well reads as a plain
+    // droppable "+", and dropping there assigns that sibling automatically (backend
+    // derive_best_cell). Only a used cell resident in its well, on its 108h clock, is offered.
     const reused = baseCell({ id: 1, current_instrument_serial: "84047", current_well: "A01", last_use_run_date: "2026-07-13" });
     const sibling = baseUnusedTraySibling({ id: 2, current_instrument_serial: "84047", current_well: "B01" });
 
     const grouped = groupWaitingCellsByInstrumentAndDay([reused, sibling], ["2026-07-14"]);
     const ghosts = grouped.get("84047")?.get("2026-07-14") ?? [];
 
-    expect(ghosts.map((g) => g.cell.id).sort()).toEqual([1, 2]);
-    expect(ghosts.find((g) => g.cell.id === 2)?.unused).toBe(true);
-    expect(ghosts.find((g) => g.cell.id === 1)?.unused).toBeUndefined();
+    // Only the reuse offer (cell 1). The unused sibling (cell 2) contributes no ghost at all.
+    expect(ghosts.map((g) => g.cell.id)).toEqual([1]);
   });
 
-  it("shows only the unused siblings (flagged) before the tray's founding day, end to end", () => {
+  it("never surfaces a tray's never-used siblings, whether before or on the founding day", () => {
     // A tray's founding cell scheduled for its first-ever use on Friday, with 3 never-used
-    // siblings already registered by eager population. Before that Friday use the founding
-    // cell itself contributes no ghost (a day before a cell's own next use is now just a plain
-    // "+", not a "Scheduled" marker); only its 3 never-used siblings show, each flagged
-    // beforeTrayFounding since the tray isn't physically on the instrument yet.
+    // siblings already registered by eager population. Neither the founding cell (a day before
+    // its own use is a plain "+") nor its never-used siblings (their wells are plain "+") show
+    // any ghost - the grid only ever surfaces real placements, reuse offers, and spent-well
+    // markers, never a phantom card for capacity that hasn't been loaded.
     const founding = baseCell({
       id: 1,
       tray_id: 7,
@@ -284,22 +232,18 @@ describe("groupWaitingCellsByInstrumentAndDay", () => {
     const cells = [founding, siblingB, siblingC, siblingD];
     const trayFoundingDates = computeTrayFoundingDates(cells);
 
-    const monGhosts = groupWaitingCellsByInstrumentAndDay(cells, ["2026-07-13"], new Set(), trayFoundingDates).get(
-      "84047",
-    )?.get("2026-07-13");
-    // Only the 3 unused siblings - the founding cell's own use is Friday, so no ghost for it
-    // on Monday (that earlier day is a plain "+").
-    expect(monGhosts?.length).toBe(3);
-    expect(monGhosts?.map((g) => g.cell.id).sort()).toEqual([2, 3, 4]);
-    expect(monGhosts?.every((g) => g.beforeTrayFounding && g.unused)).toBe(true);
+    // Monday (before the Friday founding use): no ghosts at all.
+    const monGhosts = groupWaitingCellsByInstrumentAndDay(cells, ["2026-07-13"], new Set(), trayFoundingDates)
+      .get("84047")
+      ?.get("2026-07-13");
+    expect(monGhosts).toBeUndefined();
 
-    const friGhosts = groupWaitingCellsByInstrumentAndDay(cells, ["2026-07-17"], new Set(), trayFoundingDates).get(
-      "84047",
-    )?.get("2026-07-17");
-    // The founding cell's own real placement isn't a ghost on its own use day (the real
-    // stage covers it) - only its 3 still-unused siblings show, and no longer flagged.
-    expect(friGhosts?.length).toBe(3);
-    expect(friGhosts?.every((g) => !g.beforeTrayFounding)).toBe(true);
+    // Friday (the founding cell's own use day): the real placement covers the founding cell,
+    // and the 3 unused siblings are just plain "+" - still no ghosts.
+    const friGhosts = groupWaitingCellsByInstrumentAndDay(cells, ["2026-07-17"], new Set(), trayFoundingDates)
+      .get("84047")
+      ?.get("2026-07-17");
+    expect(friGhosts).toBeUndefined();
   });
 });
 
@@ -435,63 +379,31 @@ describe("computeTerminalGhost's day-gating", () => {
 describe("pinGhostsToSlots", () => {
   const EMPTY_SLOTS: (StageOut | null)[] = [null, null, null, null, null, null, null, null];
 
-  // The reported bug: two physical trays reuse the same D01 well at different times. Tray A
-  // (699) is founded Monday and physically present all week; tray B (703) is a fresh tray
-  // auto-scheduled to found on Thursday. On Tuesday, tray A's cell D is still idle and waiting
-  // to be reused, so its reuse/expiry ghost must own the D01 slot - not tray B's not-yet-
-  // founded sibling, which can't legally be in that well until Thursday.
-  function tuesdayGhosts() {
-    // Tray A: cell D used once on Monday, now idle and reusable.
-    const cellA = baseCell({
-      id: 699,
-      code: "CELL-D000699",
-      tray_id: 1,
-      current_well: "D01",
-      uses_consumed: 1,
-      uses_remaining: 2,
-      last_use_run_date: "2026-07-20",
-      first_use_planned_start_at: "2026-07-20T12:00:00Z",
-    });
-    // Tray B: sibling cell D, never used yet, its tray founded Thursday.
-    const cellB = baseCell({
-      id: 703,
-      code: "CELL-D000703",
-      tray_id: 2,
-      current_well: "D01",
-      uses_consumed: 0,
-      uses_remaining: 3,
-      last_use_run_date: null,
-      first_use_planned_start_at: "2026-07-23T12:00:00Z",
-    });
-    const founding = computeTrayFoundingDates([cellA, cellB]);
-    const presentGhost = computeGhost(cellA, "2026-07-21", founding);
-    const futureGhost = computeUnusedTraySiblingGhost(cellB, "2026-07-21", founding);
-    expect(presentGhost?.beforeTrayFounding).toBeFalsy();
-    expect(futureGhost?.beforeTrayFounding).toBe(true);
-    return { presentGhost: presentGhost!, futureGhost: futureGhost! };
-  }
+  // A cell reusable in its own well D01 (index 3), used once Monday.
+  const ghostD01 = () =>
+    computeGhost(
+      baseCell({
+        id: 699,
+        code: "CELL-D000699",
+        tray_id: 1,
+        current_well: "D01",
+        uses_consumed: 1,
+        uses_remaining: 2,
+        last_use_run_date: "2026-07-20",
+        first_use_planned_start_at: "2026-07-20T12:00:00Z",
+      }),
+      "2026-07-21",
+    )!;
 
-  it("gives the D01 well to the tray physically present today, not a not-yet-founded tray's sibling", () => {
-    const { presentGhost, futureGhost } = tuesdayGhosts();
-    // Regardless of input order (the cells API is newest-first, so the future tray's cell
-    // often comes first), the present tray's cell must win the slot.
-    for (const order of [[futureGhost, presentGhost], [presentGhost, futureGhost]]) {
-      const bySlot = pinGhostsToSlots(order, EMPTY_SLOTS);
-      expect(bySlot.get(3)?.cell.id).toBe(699);
-    }
-  });
-
-  it("still pins a lone not-yet-founded ghost when no present tray competes for the well", () => {
-    const { futureGhost } = tuesdayGhosts();
-    const bySlot = pinGhostsToSlots([futureGhost], EMPTY_SLOTS);
-    expect(bySlot.get(3)?.cell.id).toBe(703);
+  it("pins a ghost to the slot index matching its cell's own well (D01 -> slot 3)", () => {
+    const bySlot = pinGhostsToSlots([ghostD01()], EMPTY_SLOTS);
+    expect(bySlot.get(3)?.cell.id).toBe(699);
   });
 
   it("never pins a ghost onto a slot already holding a real placement", () => {
-    const { presentGhost } = tuesdayGhosts();
     const slots = [...EMPTY_SLOTS];
     slots[3] = { slot_index: 3 } as StageOut;
-    const bySlot = pinGhostsToSlots([presentGhost], slots);
+    const bySlot = pinGhostsToSlots([ghostD01()], slots);
     expect(bySlot.has(3)).toBe(false);
   });
 });
@@ -760,26 +672,6 @@ describe("computeTrayEvictionDates + reuse suppression", () => {
     expect(computeGhost(cell, "2026-07-23", founding, eviction)).toBeNull(); // Thu - tray gone
   });
 
-  it("hides a never-used sibling of an evicted tray", () => {
-    const unusedSibling = baseCell({
-      id: 698,
-      code: "CELL-C000698",
-      tray_id: 76,
-      current_well: "C01",
-      current_instrument_serial: "84047",
-      status: "open",
-      uses_consumed: 0,
-      uses_remaining: 3,
-      last_use_run_date: null,
-      first_use_started_at: null,
-      first_use_planned_start_at: "2026-07-20T12:00:00Z", // Monday founding
-    });
-    const cells = [unusedSibling, successorCell];
-    const eviction = computeTrayEvictionDates(cells, computeTrayFoundingDates(cells));
-    const founding = computeTrayFoundingDates(cells);
-    expect(computeUnusedTraySiblingGhost(unusedSibling, "2026-07-22", founding, eviction)).not.toBeNull(); // Wed
-    expect(computeUnusedTraySiblingGhost(unusedSibling, "2026-07-23", founding, eviction)).toBeNull(); // Thu - gone
-  });
 });
 
 describe("computeBlockedWellsByInstrumentAndDay", () => {

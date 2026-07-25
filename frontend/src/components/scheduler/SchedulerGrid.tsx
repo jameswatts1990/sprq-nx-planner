@@ -46,7 +46,6 @@ export interface SchedulerGridProps {
    * tray's last-chance day - later of last scheduled run and 108h reuse cutoff (see
    * waitingCells.computeTrayDisposalWarnings). */
   disposalGrouped: Map<string, Map<string, TrayDisposalWarning[]>>;
-  onOpenGhost: (ghost: CellGhost) => void;
 }
 
 function SchedulerDayHeader({
@@ -117,7 +116,6 @@ export function SchedulerGrid({
   waitingGrouped,
   blockedGrouped,
   disposalGrouped,
-  onOpenGhost,
 }: SchedulerGridProps) {
   // Same open-cell computation SchedulerGridRow uses (via the shared resolveCell) - a day
   // with no run of its own is still closed if an earlier run's continuation still occupies it.
@@ -212,7 +210,6 @@ export function SchedulerGrid({
               waitingCellsByDate={waitingGrouped.get(serial) ?? EMPTY_WAITING_BY_DATE}
               blockedWellsByDate={blockedGrouped.get(serial) ?? EMPTY_BLOCKED_BY_DATE}
               disposalByDate={disposalGrouped.get(serial) ?? EMPTY_DISPOSAL_BY_DATE}
-              onOpenGhost={onOpenGhost}
             />
           ))}
         </tbody>

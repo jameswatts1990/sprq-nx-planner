@@ -7,10 +7,7 @@ import type { RunDesignState } from "@/types/schedulerGrid";
 
 import styles from "../HelpPage.module.css";
 import {
-  GHOST_EXAMPLE_CUTOFF,
   GHOST_EXAMPLE_EXHAUSTED,
-  GHOST_EXAMPLE_FADING,
-  GHOST_EXAMPLE_UNUSED,
   STAGE_EXAMPLE_ABORTED,
   STAGE_EXAMPLE_CANCELLED,
   STAGE_EXAMPLE_FAILED,
@@ -218,15 +215,41 @@ export function ScheduleSection() {
         siblings — see &quot;Plates &amp; wells&quot; below). No picker interrupts the drop; the first placement into an
         empty day just uses a default <b>12:00</b> loading start time.
       </p>
+      <p className={styles.subheading}>The holographic cell seal</p>
       <p>
-        <b>The cell &quot;stub&quot;.</b> Every placed card shows a small coloured tab on its right edge — the cell it
-        landed on, written as its well column and use number (e.g. <i>A1</i>, <i>B2</i>), tinted magenta / blue / teal
-        for Use 1 / 2 / 3 (the same Use colours as the legend). It&apos;s the quickest read of &quot;which cell, which
-        use&quot;: a one-tray reuse run shows <i>A1</i> on Plate 1 and <i>A2</i> on Plate 2 — the same physical cell,
-        its first then second use. <b>Click the stub</b> for that cell&apos;s details — uses so far, 108-hour window,
-        tray position and burned barcodes, with a link through to its full cell page. (Clicking the card&apos;s{" "}
-        <i>body</i> still opens the sample/slot detail, as before — the stub is specifically the cell.)
+        Each loaded well shows a small <b>seal</b> on its right edge. Its label is the well letter + use number (e.g.{" "}
+        <i>A2</i> = well A, Use 2) and its base colour is the Use 1 / 2 / 3 palette (magenta / blue / teal, the same Use
+        colours as the legend). The shimmering foil pattern and the tiny repeating number down the seal are <b>unique to
+        that one physical SMRT cell</b> — so if you see the <i>same</i> seal on two different days, it&apos;s literally
+        the same cell being reused; a <i>different</i> seal means a different cell, even when two seals share a well+use
+        label like <i>A1</i>. That&apos;s the quickest read of whether Monday&apos;s <i>A1</i> and Tuesday&apos;s{" "}
+        <i>A1</i> are the same physical cell. A reused cell keeps one identity across all its uses: a one-tray reuse run
+        shows the same seal as <i>A1</i> on Plate 1 and <i>A2</i> on Plate 2 — its first then second use. <b>Click the
+        seal</b> to open that cell&apos;s details — uses so far, 108-hour window, tray position and burned barcodes, with
+        a link through to its full cell page. (Clicking the card&apos;s <i>body</i> still opens the sample/slot detail —
+        the seal is specifically the cell.)
       </p>
+      <div className={styles.legendGrid}>
+        <div className={styles.legendRow}>
+          <div className={styles.ghostExampleSwatch}>
+            <SchedulerSlotView stage={STAGE_EXAMPLE_SOURCE} slotIndex={0} onOpenCell={() => {}} />
+          </div>
+          <span>
+            <b>Same physical cell, two uses.</b> Plate 1&apos;s <i>A1</i> (Use 1) and Plate 2&apos;s <i>A2</i> (Use 2)
+            below carry the <i>same</i> foil hue and repeating id — one cell, reused. Click either seal for its cell
+            details.
+          </span>
+        </div>
+        <div className={styles.legendRow}>
+          <div className={styles.ghostExampleSwatch}>
+            <SchedulerSlotView stage={STAGE_EXAMPLE_PEER} slotIndex={4} onOpenCell={() => {}} />
+          </div>
+          <span>
+            <b>A different cell.</b> Even if another well elsewhere also reads <i>A1</i>/<i>A2</i>, a different foil hue
+            and id tell you at a glance it&apos;s a different physical cell.
+          </span>
+        </div>
+      </div>
       <p>
         <b>Turning a reuse into a fresh tray.</b> When a placement reuses an earlier plate&apos;s cell (a <b>Plate 2</b>
         reuse — Use 2+, acquiring the next weekday), its cell popover offers <b>Use a new cell instead</b>: that
@@ -234,13 +257,6 @@ export function ScheduleSection() {
         reusing. It&apos;s the one manual override to the automatic choice. There&apos;s deliberately no in-place
         &quot;swap to a different existing cell&quot; — a cell <i>is</i> the physical thing in its well, so to reuse a
         <i>different</i> cell you drag the sample onto that cell&apos;s own slot instead.
-      </p>
-      <p>
-        For the rare case where you want to load a specific reusable cell by hand, drop the sample <b>directly onto its
-        waiting-cell ghost</b> (the tinted placeholder in its own well). That still opens the placement picker, so an
-        explicit reuse target is honoured — and if that cell&apos;s burned barcodes clash with your sample&apos;s, the
-        picker opens with a clear warning naming the exact barcode and cell, rather than quietly substituting a new
-        cell.
       </p>
       <p>
         <b>Dragging an already-placed sample to a new slot moves it</b> — to any open slot on any instrument and
@@ -485,18 +501,17 @@ export function ScheduleSection() {
         note (see Locking a run below).
       </p>
       <p>
-        An empty well shows the plain <b>+</b> cross-hatched placeholder. The moment any one cell in a tray gets a
-        sample, its other cells switch from that plain placeholder to their own reserved <b>CELL-A00XXXX</b> ID — not
-        just the well(s) actually in use — and this keeps showing on every later day until each one is loaded or
-        discarded (see &quot;Waiting cells &amp; reuse ghosts&quot; below for what an unused one looks like). The Use
-        1 / Use 2 / Use 3 colours (magenta / blue / teal) show which use of a cell each barcode chip belongs to — see
-        the Colour &amp; Status Legend section. In a reuse run, Plate 1&apos;s wells read as Use 1 and Plate 2&apos;s
-        as Use 2 on the very same cells; in a parallel run both plates read as Use 1. A physical cell also always
-        stays in the exact same tray/well position for every one of its reuses, never just any open slot — so once a
-        cell has a well of its own, the placement picker only offers it for a drop into that same well, and its
-        waiting-cell ghost only ever appears there. There is deliberately no way to start a brand-new cell in a slot
-        that already belongs to another cell&apos;s reuse; a cell&apos;s first use can start in any open slot, but
-        from then on it&apos;s pinned.
+        <b>Each grid slot is a physical well</b>, and a well gets a cell assigned to it the moment a sample is loaded
+        onto it. An empty well shows the plain <b>+</b> cross-hatched placeholder. <b>Dropping a sample onto a +
+        assigns a cell for you</b> — reusing whichever tray already sits in that position for its next sequential use
+        (Use 1 → Use 2 → Use 3), unless you <b>Rotate</b> the tray (the <b>↻</b> button, see Locking a run below) to
+        load a fresh one instead. You see which cell you got — and its use number — from the holographic seal on the
+        loaded card afterward (see &quot;The holographic cell seal&quot; above). The Use 1 / Use 2 / Use 3 colours
+        (magenta / blue / teal) show which use of a cell each barcode chip belongs to — see the Colour &amp; Status
+        Legend section. In a reuse run, Plate 1&apos;s wells read as Use 1 and Plate 2&apos;s as Use 2 on the very same
+        cells; in a parallel run both plates read as Use 1. A physical cell always stays in the exact same tray/well
+        position for every one of its reuses, never just any open slot — so a cell&apos;s first use can start in any
+        open slot, but from then on it&apos;s pinned to that well.
       </p>
       <p>
         The grid&apos;s <b>&quot;Plate 1&quot;/&quot;Plate 2&quot;</b> are <i>loading positions</i> within a run — a
@@ -505,52 +520,20 @@ export function ScheduleSection() {
         grid.
       </p>
 
-      <p className={styles.subheading}>Waiting cells &amp; reuse ghosts</p>
+      <p className={styles.subheading}>Reusing a resident cell</p>
       <p>
-        Once a multi-use cell&apos;s last placed use passes, an empty slot on the <i>earliest day it could next be
-        loaded</i> — on the same instrument, one weekday after that last use — shows a tinted placeholder instead
-        of the plain <b>+</b>, coloured the same as a real Use 2/3 chip and labelled with the exact day its
-        108-hour window closes:
+        A tray that&apos;s still loaded but idle — its cells used once or twice, with uses left — <b>doesn&apos;t
+        advertise itself with a tinted &quot;reuse offer&quot; card any more</b>. Its wells simply read as plain{" "}
+        <b>+</b> placeholders, like any other empty well. Dropping a sample onto one still lands on that resident
+        cell&apos;s next sequential use automatically (Use 2, then Use 3) — RunNx picks the cell for you (reuse before
+        opening a new tray), and you confirm which cell you got from its seal once it&apos;s loaded. To load a{" "}
+        <i>brand-new</i> tray into that position instead of reusing, use the tray <b>Rotate</b> (<b>↻</b>) button.
       </p>
-      <div className={styles.legendGrid}>
-        <div className={styles.legendRow}>
-          <div className={styles.ghostExampleSwatch}>
-            <SchedulerSlotView stage={null} slotIndex={0} ghost={GHOST_EXAMPLE_FADING} />
-          </div>
-          <span>
-            Waiting to be reused — fades from full colour toward a paler tint as the expiry date nears. If Use 1
-            hasn&apos;t been confirmed loaded yet, the expiry shown is an estimate from its planned loading time
-            rather than the real 108-hour clock, which only starts once the cell is actually removed from the tray.
-          </span>
-        </div>
-        <div className={styles.legendRow}>
-          <div className={styles.ghostExampleSwatch}>
-            <SchedulerSlotView stage={null} slotIndex={0} ghost={GHOST_EXAMPLE_CUTOFF} />
-          </div>
-          <span>
-            Last day this cell can still start its next use — a fixed amber &quot;expires today&quot; look instead
-            of continuing to fade, so the final opportunity never reads as &quot;about to vanish&quot;.
-          </span>
-        </div>
-        <div className={styles.legendRow}>
-          <div className={styles.ghostExampleSwatch}>
-            <SchedulerSlotView stage={null} slotIndex={0} ghost={GHOST_EXAMPLE_UNUSED} />
-          </div>
-          <span>
-            <b>Never-yet-used tray cell</b> — a physical tray&apos;s cell that hasn&apos;t been loaded at all yet:
-            muted grey, static, dotted-border, &quot;Not yet used&quot; label, no expiry countdown since its
-            108-hour clock hasn&apos;t started (deliberately not coloured by use number, so it never looks like an
-            already-loaded Use 1).
-          </span>
-        </div>
-      </div>
       <p>
-        It always shows up in the exact well the cell was last used in, not just any open slot. Dragging a backlog
-        sample onto a ghost places it onto exactly that cell, proceeding immediately without the placement picker;
-        clicking it instead opens a small popover with the cell&apos;s remaining uses, its exact expiry time, and a{" "}
-        <b>Discard remaining use(s)</b> button for writing the cell off rather than reusing it — cells whose most
-        recent use hasn&apos;t been confirmed loaded yet can&apos;t be discarded, mirroring the same rule on the
-        Cell detail page.
+        You don&apos;t have to hunt for the reuse deadline: the <b>tray-disposal warning banner</b> (the amber{" "}
+        <b>&quot;⚠ Tray N · #… — … will be disposed unused&quot;</b> note next to <b>Confirm loaded</b>, described
+        under Locking a run below) still tells you the last day a tray&apos;s spare capacity can be salvaged before
+        it&apos;s thrown away, and each cell&apos;s own detail page shows its exact 108-hour reuse window.
       </p>
 
       <p className={styles.subheading}>Slot shading &amp; cell-link highlight</p>
@@ -561,8 +544,7 @@ export function ScheduleSection() {
           </div>
           <span>
             <b>Slot shading:</b> a filled slot fades from full colour toward a paler tint the closer that cell gets
-            to its own 108-hour deadline — the same fade used for waiting-cell ghosts above, just applied to a cell
-            that&apos;s already loaded. Always that one cell&apos;s own clock; cells sharing a physical tray
+            to its own 108-hour deadline. Always that one cell&apos;s own clock; cells sharing a physical tray
             don&apos;t share a deadline, so two slots from the same tray can shade differently.
           </span>
         </div>
@@ -596,15 +578,15 @@ export function ScheduleSection() {
         across the grid doesn&apos;t flash highlights, and the highlight is suspended while dragging a sample.
       </p>
 
-      <p className={styles.subheading}>Blocked &amp; used-up wells</p>
+      <p className={styles.subheading}>Blocked &amp; spent wells</p>
       <div className={styles.legendGrid}>
         <div className={styles.legendRow}>
           <div className={styles.ghostExampleSwatch}>
             <SchedulerSlotView stage={null} slotIndex={0} blocked />
           </div>
           <span>
-            <b>Blocked:</b> once a physical cell is stopped, its well is retired for the rest of that tray&apos;s time
-            on the instrument — no waiting-cell ghost appears there and no new cell can be loaded into that exact
+            <b>Blocked:</b> once a physical cell is stopped (a QC action), its well is retired for the rest of that
+            tray&apos;s time on the instrument — a greyed <b>✕</b>, and no new cell can be loaded into that exact
             slot. The block lifts only once that physical tray leaves and a brand-new tray is loaded into the same
             bay on a later day, since that later tray&apos;s cell is a different physical object.
           </span>
@@ -614,11 +596,11 @@ export function ScheduleSection() {
             <SchedulerSlotView stage={null} slotIndex={0} ghost={GHOST_EXAMPLE_EXHAUSTED} />
           </div>
           <span>
-            <b>Used-up:</b> a cell that reaches a terminal state on its own — Exhausted (every lawful use spent),
-            Window expired (the 108-hour window closed with capacity unused), or manually Retired — still shows a
-            small status card rather than permanently blocking the well. Whether the well accepts a new cell
-            depends on its three tray siblings: while any still has real capacity, the well stays read-only; only
-            once every sibling has gone terminal does it behave like a plain <b>+</b> again.
+            <b>Spent well:</b> the cell here is used up (Exhausted), timed out (its 108-hour window closed with
+            capacity unused = Window expired), or manually Retired — and its physical tray is still loaded because a
+            sibling cell in the same tray still has capacity. It&apos;s a subtle greyed <b>✕</b> (hover for the
+            reason), not a sample-like card: nothing can be loaded into this well until the whole tray is replaced.
+            Once every cell in that tray is also spent, the tray leaves and the well becomes a normal <b>+</b> again.
           </span>
         </div>
       </div>

@@ -58,7 +58,6 @@ export interface SchedulerDayCellProps {
    * their last chance to be reused (later of last scheduled run and 108h reuse cutoff; see
    * waitingCells.computeTrayDisposalWarnings). Surfaced next to Confirm loaded. */
   disposalWarnings: TrayDisposalWarning[];
-  onOpenGhost: (ghost: CellGhost) => void;
 }
 
 /**
@@ -89,7 +88,6 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
     waitingCells,
     blockedWells,
     disposalWarnings,
-    onOpenGhost,
   } = props;
   const queryClient = useQueryClient();
 
@@ -386,7 +384,6 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
                   onDragSelectStart={(stage) => onDragSelectStart(stage, { r: rowIndex, c: colIndex })}
                   ghost={ghostBySlot.get(i)}
                   blocked={blockedSlotSet.has(i)}
-                  onOpenGhost={onOpenGhost}
                 />
               ))}
             </div>

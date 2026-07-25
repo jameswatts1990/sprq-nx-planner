@@ -18,9 +18,7 @@ import styles from "../HelpPage.module.css";
 import {
   EXAMPLE_CELL_UNREPORTED,
   EXAMPLE_TRAY_SIBLINGS,
-  GHOST_EXAMPLE_CUTOFF,
-  GHOST_EXAMPLE_FADING,
-  GHOST_EXAMPLE_UNUSED,
+  GHOST_EXAMPLE_EXHAUSTED,
   STAGE_EXAMPLE_ABORTED,
   STAGE_EXAMPLE_CANCELLED,
   STAGE_EXAMPLE_FAILED,
@@ -178,36 +176,16 @@ export function LegendSection() {
         <span>Which acquisition of a cell a barcode belongs to.</span>
       </div>
 
-      <p className={styles.subheading}>Waiting-cell ghosts (Weekly schedule)</p>
+      <p className={styles.subheading}>Spent well (Weekly schedule)</p>
       <div className={styles.legendGrid}>
         <div className={styles.legendRow}>
           <div className={styles.ghostExampleSwatch}>
-            <SchedulerSlotView stage={null} slotIndex={0} ghost={GHOST_EXAMPLE_FADING} />
+            <SchedulerSlotView stage={null} slotIndex={0} ghost={GHOST_EXAMPLE_EXHAUSTED} />
           </div>
           <span>
-            A cell with unused capacity could be loaded here today - tinted like the use it&apos;s waiting to
-            become and labelled with the exact day its window closes, fading from full colour toward a paler tint
-            as that date nears.
-          </span>
-        </div>
-        <div className={styles.legendRow}>
-          <div className={styles.ghostExampleSwatch}>
-            <SchedulerSlotView stage={null} slotIndex={0} ghost={GHOST_EXAMPLE_CUTOFF} />
-          </div>
-          <span>
-            Last day this cell can still start its next use - a fixed amber &quot;expires today&quot; look instead
-            of continuing to fade.
-          </span>
-        </div>
-        <div className={styles.legendRow}>
-          <div className={styles.ghostExampleSwatch}>
-            <SchedulerSlotView stage={null} slotIndex={0} ghost={GHOST_EXAMPLE_UNUSED} />
-          </div>
-          <span>
-            A physical tray&apos;s cell that has never been used at all - a muted grey, static dotted look with no
-            countdown (deliberately not tinted by use number, so it never reads as an already-loaded Use 1), since
-            its 108-hour clock hasn&apos;t started yet. Shows up the moment its tray opens and stays until it&apos;s
-            loaded or discarded.
+            Spent well — the cell here is used up, expired, or retired and its tray is still loaded, so nothing can be
+            loaded into this well until the tray is replaced. A subtle greyed ✕ (hover for the reason), not a
+            sample-like card.
           </span>
         </div>
       </div>
@@ -219,10 +197,9 @@ export function LegendSection() {
             <SchedulerSlotView stage={STAGE_EXAMPLE_WINDOW_NEAR_DEADLINE} slotIndex={0} />
           </div>
           <span>
-            A loaded cell fades the same way a waiting-cell ghost does, but for time already elapsed on its own
-            108-hour clock rather than time left to wait - the closer this specific cell is to its own deadline, the
-            paler it reads. Cells sharing a physical tray don&apos;t share a clock, so two slots from the same tray
-            can shade differently.
+            A loaded cell gradually pales as time elapses on its own 108-hour clock - the closer this specific cell is
+            to its deadline, the paler it reads. Cells sharing a physical tray don&apos;t share a clock, so two slots
+            from the same tray can shade differently.
           </span>
         </div>
       </div>
