@@ -82,16 +82,12 @@ export function SchedulerSlot(props: SchedulerSlotProps) {
     // moment every sibling has also gone terminal (waitingCells.computeVacatedTrayIds), so
     // reaching this branch always means the tray hasn't actually left the instrument yet,
     // and this well must stay a read-only marker, same non-droppable treatment as a
-    // `blocked` well above, never registered with dnd-kit at all. A pending-terminal ghost
-    // (waitingCells.computePendingTerminalGhost) is never droppable either, unconditionally
-    // - every one of its remaining uses is already scheduled, so there's no spare capacity
-    // left to insert into (would blow the 3-use cap). A pending-reuse ghost
-    // (waitingCells.computeGhost's pendingReuseStatus branch) IS droppable, below: the cell
-    // still has real spare capacity, just already claimed on this well by its own
-    // not-yet-run next use - dropping a sample here inserts an earlier use, moving that
-    // later use to a higher Use N (see _resolve_cell_choice's chronological-order guard,
-    // which rejects this once the later use has actually started).
-    if (props.ghost?.terminalStatus || props.ghost?.pendingTerminalStatus) {
+    // `blocked` well above, never registered with dnd-kit at all. Every other empty slot is
+    // droppable: placement is now blocked only by the instrument lock (handled above), never
+    // by a future use merely being scheduled here (the old "Scheduled" pending ghosts were
+    // removed - such a well is just a plain "+" now, and the drop resolves through
+    // derive_best_cell like any other).
+    if (props.ghost?.terminalStatus) {
       return <SchedulerSlotView stage={null} slotIndex={props.slotIndex} ghost={props.ghost} />;
     }
     return <DroppableSlot {...props} />;

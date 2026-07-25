@@ -7,7 +7,6 @@ import type { StageOut } from "@/types/schedule";
 import {
   computeBlockedWellsByInstrumentAndDay,
   computeGhost,
-  computePendingTerminalGhost,
   computeTerminalGhost,
   computeTrayDisposalWarnings,
   computeTrayEvictionDates,
@@ -128,60 +127,20 @@ describe("computeGhost", () => {
     expect(tue!.fadeOpacity).toBeLessThanOrEqual(1);
   });
 
-  it("marks a day before this cell's own (not-yet-run) next use as pending-reuse, not a free well", () => {
-    // Only 1 of 3 uses consumed - still genuinely "open", not fully booked/terminal - but
-    // its one real use is booked for Thursday. Monday, viewed in the same visible week,
-    // must not read as an ordinary free "+": this well is already claimed by that Thursday
-    // use, even though it hasn't happened yet and the cell still has 2 uses of spare
-    // capacity. Regression test for a bug where dropping a different sample onto Monday's
-    // slot here silently sent "open a new cell" and the server rejected it as a well
-    // collision - the frontend never showed the well was actually taken.
+  it("returns no ghost for a day before this cell's own (not-yet-run) next use - a plain + now", () => {
+    // Only 1 of 3 uses consumed, its one real use booked for Thursday. Monday used to paint a
+    // muted "Scheduled" marker on this well; now those pending markers are gone - a slot is
+    // blocked only by the instrument lock, so an earlier unlocked day is just a plain,
+    // droppable "+" (the drop resolves through the server's derive_best_cell like any other).
     const cell = baseCell({ uses_consumed: 1, uses_remaining: 2, last_use_run_date: "2026-07-16" }); // Thursday
 
-    const mon = computeGhost(cell, "2026-07-13");
-    expect(mon?.pendingReuseStatus).toBe(true);
-    expect(mon?.unused).toBeUndefined();
-    expect(mon?.terminalStatus).toBeUndefined();
-    expect(mon?.pendingTerminalStatus).toBeUndefined();
-
-    // The last-use day itself (Thursday) still renders null here - the real stage covers
-    // that day, not a ghost - and Friday onward resumes the ordinary reuse-eligible ghost.
+    expect(computeGhost(cell, "2026-07-13")).toBeNull(); // Monday, before the Thursday use
+    // The last-use day itself (Thursday) also renders null - the real stage covers it - and
+    // Friday onward resumes the ordinary reuse-eligible ghost.
     expect(computeGhost(cell, "2026-07-16")).toBeNull();
     const fri = computeGhost(cell, "2026-07-17");
-    expect(fri?.pendingReuseStatus).toBeUndefined();
     expect(fri?.useNumber).toBe(2);
-  });
-
-  it("flags pending-reuse ghosts before the tray's own founding day, but keeps them non-null", () => {
-    // This tray's actual founding placement was Monday (a sibling cell, not this one) -
-    // this cell's own first-ever use (not yet run) is booked for Friday. Tuesday-Thursday
-    // must still return the well-reserved ghost (so the well never reads as an ordinary
-    // free "+" - same collision-prevention regression as above), but flagged as
-    // beforeTrayFounding only for days before the tray's real Monday founding, not this
-    // cell's own later Friday use.
-    const cell = baseCell({
-      tray_id: 9,
-      uses_consumed: 1,
-      uses_remaining: 2,
-      last_use_run_date: "2026-07-17", // Friday
-      first_use_started_at: null,
-      first_use_planned_start_at: "2026-07-17T12:00:00Z",
-    });
-    const foundingSibling = baseCell({ id: 99, tray_id: 9, first_use_planned_start_at: "2026-07-13T09:00:00Z" }); // Monday
-    const trayFoundingDates = computeTrayFoundingDates([cell, foundingSibling]);
-
-    // Before the tray's real (Monday) founding day - flagged.
-    expect(computeGhost(cell, "2026-07-10", trayFoundingDates)?.beforeTrayFounding).toBe(true);
-
-    // On/after the tray's founding day but still before this cell's own Friday use -
-    // pending-reuse still applies, but no longer flagged.
-    const tue = computeGhost(cell, "2026-07-14", trayFoundingDates);
-    expect(tue?.pendingReuseStatus).toBe(true);
-    expect(tue?.beforeTrayFounding).toBe(false);
-
-    // With no founding-date data at all (e.g. caller didn't pass the map), behaves exactly
-    // as before - never flagged.
-    expect(computeGhost(cell, "2026-07-10")?.beforeTrayFounding).toBe(false);
+    expect(fri?.terminalStatus).toBeUndefined();
   });
 });
 
@@ -304,10 +263,12 @@ describe("groupWaitingCellsByInstrumentAndDay", () => {
     expect(ghosts.find((g) => g.cell.id === 1)?.unused).toBeUndefined();
   });
 
-  it("flags both a founding cell's own ghost and its unused siblings before the tray's founding day, end to end", () => {
+  it("shows only the unused siblings (flagged) before the tray's founding day, end to end", () => {
     // A tray's founding cell scheduled for its first-ever use on Friday, with 3 never-used
-    // siblings already registered by eager population. Monday-Thursday must flag every one
-    // of the tray's ghosts as beforeTrayFounding.
+    // siblings already registered by eager population. Before that Friday use the founding
+    // cell itself contributes no ghost (a day before a cell's own next use is now just a plain
+    // "+", not a "Scheduled" marker); only its 3 never-used siblings show, each flagged
+    // beforeTrayFounding since the tray isn't physically on the instrument yet.
     const founding = baseCell({
       id: 1,
       tray_id: 7,
@@ -326,8 +287,11 @@ describe("groupWaitingCellsByInstrumentAndDay", () => {
     const monGhosts = groupWaitingCellsByInstrumentAndDay(cells, ["2026-07-13"], new Set(), trayFoundingDates).get(
       "84047",
     )?.get("2026-07-13");
-    expect(monGhosts?.length).toBe(4);
-    expect(monGhosts?.every((g) => g.beforeTrayFounding)).toBe(true);
+    // Only the 3 unused siblings - the founding cell's own use is Friday, so no ghost for it
+    // on Monday (that earlier day is a plain "+").
+    expect(monGhosts?.length).toBe(3);
+    expect(monGhosts?.map((g) => g.cell.id).sort()).toEqual([2, 3, 4]);
+    expect(monGhosts?.every((g) => g.beforeTrayFounding && g.unused)).toBe(true);
 
     const friGhosts = groupWaitingCellsByInstrumentAndDay(cells, ["2026-07-17"], new Set(), trayFoundingDates).get(
       "84047",
@@ -413,8 +377,8 @@ describe("computeTerminalGhost's vacated-tray gating", () => {
   });
 });
 
-describe("computePendingTerminalGhost / computeTerminalGhost's day-gating", () => {
-  it("shows pending (not terminal) between an exhausted cell's own real placements, terminal only after the last one", () => {
+describe("computeTerminalGhost's day-gating", () => {
+  it("stays silent between an exhausted cell's own real placements, terminal only after the last one", () => {
     // Every use already scheduled up front for Mon 07-13 / Wed 07-15 / Fri 07-17 - the
     // aggregate status has already flipped to exhausted since there's no capacity left to
     // schedule, even though only the Monday use has actually happened yet. tray_id is set
@@ -429,18 +393,13 @@ describe("computePendingTerminalGhost / computeTerminalGhost's day-gating", () =
       tray_id: 20,
     });
 
-    // Tuesday - the locked day between Monday's and Wednesday's real placements.
+    // Tuesday / Thursday - the gap days between real placements. No pending "Scheduled" card
+    // any more: the well shows a plain "+" (blocked only by the lock), and the terminal card
+    // stays hidden until the cell has actually finished its last scheduled use.
     expect(computeTerminalGhost(cell, "2026-07-14")).toBeNull();
-    const tue = computePendingTerminalGhost(cell, "2026-07-14");
-    expect(tue?.pendingTerminalStatus).toBe("exhausted");
-    expect(tue?.useNumber).toBe(3);
-
-    // Thursday - between Wednesday's and Friday's real placements, still not yet terminal.
     expect(computeTerminalGhost(cell, "2026-07-16")).toBeNull();
-    expect(computePendingTerminalGhost(cell, "2026-07-16")).not.toBeNull();
 
     // The following Monday, after the actual last use (Friday) - now genuinely terminal.
-    expect(computePendingTerminalGhost(cell, "2026-07-20")).toBeNull();
     expect(computeTerminalGhost(cell, "2026-07-20")?.terminalStatus).toBe("exhausted");
   });
 
@@ -458,12 +417,11 @@ describe("computePendingTerminalGhost / computeTerminalGhost's day-gating", () =
       tray_id: 21,
     });
 
-    // Wednesday - after last_use_run_date, but well before the 108h deadline actually closes.
+    // Wednesday - after last_use_run_date, but well before the 108h deadline actually closes:
+    // no marker yet (plain "+").
     expect(computeTerminalGhost(cell, "2026-07-15")).toBeNull();
-    expect(computePendingTerminalGhost(cell, "2026-07-15")?.pendingTerminalStatus).toBe("window_expired");
 
-    // The following Monday - well after the deadline closed.
-    expect(computePendingTerminalGhost(cell, "2026-07-20")).toBeNull();
+    // The following Monday - well after the deadline closed: the terminal marker shows.
     expect(computeTerminalGhost(cell, "2026-07-20")?.terminalStatus).toBe("window_expired");
   });
 
@@ -471,33 +429,6 @@ describe("computePendingTerminalGhost / computeTerminalGhost's day-gating", () =
     // tray_id set for the same isolation-from-vacated-gating reason as the tests above.
     const cell = baseCell({ status: "retired", last_use_run_date: "2026-07-17", tray_id: 22 });
     expect(computeTerminalGhost(cell, "2026-07-14")?.terminalStatus).toBe("retired");
-    expect(computePendingTerminalGhost(cell, "2026-07-14")).toBeNull();
-  });
-
-  it("does not paint a fully-booked cell 'Scheduled' before its own tray is founded", () => {
-    // A tray booked up front for Thu 07-23 / Fri 07-24 / Mon 07-27: uses_consumed counts
-    // *scheduled* uses, so the cell already reads exhausted even though its very first use
-    // (the tray's founding) is still Thursday. On any weekday before that founding the tray
-    // isn't on the instrument yet, so the well must stay a plain "+", not a "Scheduled" card.
-    const cell = baseCell({
-      status: "exhausted",
-      uses_consumed: 3,
-      uses_remaining: 0,
-      last_use_run_date: "2026-07-27",
-      first_use_planned_start_at: "2026-07-23T12:00:00Z", // Thursday - the tray's founding
-      tray_id: 30,
-    });
-    const founding = computeTrayFoundingDates([cell]);
-    expect(founding.get(30)).toBe("2026-07-23");
-
-    // Before founding (Wed 07-22): suppressed to a plain droppable "+" (null ghost).
-    expect(computePendingTerminalGhost(cell, "2026-07-22", founding)).toBeNull();
-    // On the founding day itself, and after, it's a real pending-terminal "Scheduled" card.
-    expect(computePendingTerminalGhost(cell, "2026-07-23", founding)?.pendingTerminalStatus).toBe("exhausted");
-    expect(computePendingTerminalGhost(cell, "2026-07-24", founding)?.pendingTerminalStatus).toBe("exhausted");
-    // Without any founding-date info it can't tell - falls back to the old always-show behaviour
-    // (a legacy/tray-less cell has no founding to gate on).
-    expect(computePendingTerminalGhost(cell, "2026-07-22")?.pendingTerminalStatus).toBe("exhausted");
   });
 });
 

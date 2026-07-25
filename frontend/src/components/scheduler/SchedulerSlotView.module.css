@@ -200,26 +200,6 @@
   color: var(--faint);
 }
 
-/* A cell whose aggregate status has already flipped to exhausted/window_expired because
-   every remaining use is fully scheduled, but this column's day is still before the date it
-   actually reaches that state (see waitingCells.computePendingTerminalGhost) - deliberately
-   NOT the red .terminalExhausted/.terminalExpired treatment (this cell hasn't really used up
-   its capacity as of this day) and NOT tinted by use number like the actionable .u1/.u2/.u3
-   ghost (this well isn't a live drop target either). A plain solid-border card with a known,
-   ink-coloured cell code - reads as "this identified cell is committed here, informational
-   only" rather than either "dead" or "not yet used at all" (.ghostUnused). */
-.ghostPending {
-  border-style: solid;
-  border-color: var(--tray-card-border);
-  background: var(--card);
-  opacity: 0.85;
-  cursor: default;
-}
-.ghostPending .ghostLabel {
-  color: var(--grey);
-  font-weight: 700;
-}
-
 /* A cell that's gone terminal by ordinary attrition (exhausted/window_expired/retired -
    see CellGhost.terminalStatus) - still shown in its old well as an informational marker,
    for as long as some sibling in its physical tray still holds real capacity (see
@@ -311,20 +291,6 @@
   border-width: 2px;
   border-color: var(--link);
   box-shadow: 0 0 0 3px var(--link-glow);
-}
-
-/* Hovering a drag over a "Scheduled" (pendingReuseStatus) ghost previews inserting a new,
-   earlier use of this cell - its already-scheduled later use moves to a higher Use N, it
-   is never removed. Same "keep the tint, just add a solid border + glow" treatment as
-   .ghostOver, but amber (this app's existing "needs attention/commits to something"
-   accent - see .ghostCutoff/.terminalRetired) so it doesn't read as an ordinary exact-
-   match reuse (.ghostOver) or a brand-new placement (.over). */
-.ghostInsertOver {
-  opacity: 1;
-  border-style: solid;
-  border-width: 2px;
-  border-color: var(--amber);
-  box-shadow: 0 0 0 3px rgba(199, 119, 0, 0.25);
 }
 
 .ext {

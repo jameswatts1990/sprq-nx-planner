@@ -5,6 +5,7 @@ reuse, cross-run reuse, position pinning, the barcode-clash and 108h-window fall
 cell, and that an explicit cell_choice still overrides derivation."""
 from datetime import date, datetime, timedelta, timezone
 
+import pytest
 from sqlalchemy import select
 
 from app.models.instrument import Instrument
@@ -94,6 +95,25 @@ def test_auto_place_on_plate2_reuses_plate1_cell_as_use2(client):
     assert a2_stage["cell_id"] == cell_x  # same physical cell - one tray
     assert a2_stage["use_number"] == 2
     assert a2_stage["well"] == "A01"  # keeps the cell's own well, not the slot's nominal A02
+
+
+@pytest.mark.parametrize("run_time_hours", [24, 30])
+def test_reuse_plate2_acquire_day_reflects_movie_length(client, run_time_hours):
+    """A reuse Plate 2 acquires once Plate 1's movie finishes + the on-board wash, chained off
+    Plate 1's real timing rather than floated to an arbitrary slot day. For every allowed movie
+    length (12/24/30h) loaded at the default noon start that lands the reuse the next weekday -
+    Tuesday for a Monday load - never Wednesday. Regression for the reported 'Plate 2 shows Wed
+    when it should be Tue'. (The pure day arithmetic, incl. long movies and weekend rolls, is
+    covered by tests/unit/test_reuse_plate_window.py.)"""
+    mon, tue = _weekdays(2)
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1\nA2,bc2"})
+    _place(client, _sid(client, "A1"), mon, 0, {"mode": "new"}, run_time_hours=run_time_hours)
+
+    r2 = _auto_place(client, _sid(client, "A2"), mon, 4, run_time_hours=run_time_hours)
+    assert r2.status_code == 201, r2.text
+    plate2 = next(p for p in r2.json()["plates"] if p["plate_index"] == 2)
+    assert plate2["is_reuse"] is True
+    assert plate2["acquire_date"] == tue
 
 
 def test_auto_place_cross_run_reuses_idle_cell(client):

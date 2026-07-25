@@ -261,7 +261,7 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
           continuationPlate ? (
             <span
               className={styles.carryLockTag}
-              title="No action here — the instrument runs this plate itself the day after loading (a reuse run's Plate 2). Manage it from its own run on its load day."
+              title="No action here — the instrument runs this plate itself once Plate 1's movie finishes and the cells are washed (a reuse run's Plate 2 — the next working day for a normal-length movie, later for a very long one). Manage it from its own run on its load day."
             >
               Plate {continuationPlate.plate_index} runs here
             </span>

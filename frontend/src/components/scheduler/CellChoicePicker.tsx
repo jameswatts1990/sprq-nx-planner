@@ -96,7 +96,7 @@ export function CellChoicePicker({ pending, runDesign, existingRun, onClose, onP
   const preselectedCell =
     pending.preselectedCellId !== undefined ? cellsQuery.data?.find((c) => c.id === pending.preselectedCellId) : undefined;
   // A move whose preselected (ghost) cell IS the cell the dragged sample is already on -
-  // e.g. dropping onto that same cell's own earlier "Scheduled" ghost - can never be a real
+  // e.g. dropping onto that same cell's own reuse ghost - can never be a real
   // clash: the cell's burned_barcodes aggregate includes this sample's own not-yet-moved
   // use, so it always "clashes" with itself here. No other use on the same cell could ever
   // already carry this exact barcode (placement/move already reject that for every use but
@@ -126,8 +126,8 @@ export function CellChoicePicker({ pending, runDesign, existingRun, onClose, onP
   // could have changed since the ghost was computed) - otherwise fall back to the normal
   // choice-among-compatible-cells flow below. `compatible` deliberately excludes the
   // dragged cell itself (useCompatibleCells' excludeCellId) - it's the current placement,
-  // not an alternative to offer - so a ghost-drop onto that same cell's own earlier
-  // "Scheduled" slot (isMoveOntoOwnCell) has to be recognized as valid here directly,
+  // not an alternative to offer - so a ghost-drop onto that same cell's own reuse
+  // ghost (isMoveOntoOwnCell) has to be recognized as valid here directly,
   // rather than via that list, or it would wrongly fall back to "use a new cell".
   const preselectedValid =
     pending.preselectedCellId !== undefined &&

@@ -98,11 +98,6 @@ export const GHOST_EXAMPLE_EXHAUSTED: CellGhost = {
   cell: EXAMPLE_CELL_EXHAUSTED,
   terminalStatus: "exhausted",
 };
-export const GHOST_EXAMPLE_SCHEDULED: CellGhost = {
-  ...GHOST_EXAMPLE_FADING,
-  pendingTerminalStatus: "exhausted",
-};
-
 export const STAGE_EXAMPLE_SOURCE: StageOut = {
   slot_index: 0,
   well: "A01",

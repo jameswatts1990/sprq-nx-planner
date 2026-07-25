@@ -170,13 +170,6 @@ export const SchedulerSlotView = memo(
       // Neutral/severity-coded by *why* it went terminal, never tinted by use number -
       // this cell is done, so it must never read as a live Use 1/2/3 chip.
       classes.push(styles.ghostTerminal, TERMINAL_STATUS_CLASS[renderGhost.terminalStatus]);
-    } else if (renderGhost.pendingTerminalStatus || renderGhost.pendingReuseStatus) {
-      // Already fully booked (every remaining use scheduled) but not yet actually at that
-      // state as of this column's day, or still open with spare capacity but already
-      // claimed by its own not-yet-run next use - either way, a calmer, informational look,
-      // distinct from both the red terminal severity above and the actionable Use-N tint
-      // below, since this well is neither dead nor a live drop target.
-      classes.push(styles.ghostPending);
     } else if (renderGhost.unused) {
       // Muted grey, not tinted by use number - it hasn't been used yet, so colouring it
       // like a real Use 1 (which .u1.ghost's higher-specificity two-class selector would
@@ -206,10 +199,6 @@ export const SchedulerSlotView = memo(
       // previews a swap - layered on top of the target's own Use-N tint, not replacing
       // it, so the sample about to be displaced stays visible underneath.
       classes.push(styles.swapOver);
-    } else if (renderGhost?.pendingReuseStatus) {
-      // Hovering a "Scheduled" ghost previews inserting a new, earlier use of this cell -
-      // distinct from an exact-match reuse of an already-eligible ghost (.ghostOver).
-      classes.push(styles.ghostInsertOver);
     } else {
       // Hovering directly over a ghost previews an exact-match reuse of that specific
       // cell - a distinct highlight from the generic "valid drop target" look, which is
@@ -248,18 +237,6 @@ export const SchedulerSlotView = memo(
             : "This cell was manually retired."
       } This well stays locked until every cell in its physical tray is also used up, expired, or retired - the tray is still loaded on the instrument.`
     : undefined;
-
-  // pendingTerminalStatus: every remaining use of this cell is already scheduled, so this
-  // well can't take a new placement at all - but it hasn't actually reached the end of its
-  // own lifecycle as of this column's day (that happens on a later, already-scheduled day).
-  // pendingReuseStatus: this cell still has real spare capacity - dropping a sample here
-  // inserts an earlier use, moving its already-planned later use to a higher Use N (never
-  // removing it), as long as that later use hasn't actually started in the lab yet.
-  const pendingGhostTitle = renderGhost?.pendingTerminalStatus
-    ? "This cell's next use is already scheduled for a later day - not available for a new placement here, but it hasn't reached the end of its own lifecycle yet."
-    : renderGhost?.pendingReuseStatus
-      ? "This cell's next use is already scheduled for a later day. Drop a sample here to schedule an earlier use instead - the later use moves to the next Use number, unless it's already been confirmed loaded."
-      : undefined;
 
   return (
     <div
@@ -330,16 +307,14 @@ export const SchedulerSlotView = memo(
           <div className={styles.ghostCode} title={renderGhost.cell.code}>
             {renderGhost.cell.code}
           </div>
-          <div className={styles.ghostLabel} title={terminalGhostTitle ?? pendingGhostTitle}>
+          <div className={styles.ghostLabel} title={terminalGhostTitle}>
             {renderGhost.terminalStatus
               ? CELL_STATUS_LABEL[renderGhost.terminalStatus]
-              : renderGhost.pendingTerminalStatus || renderGhost.pendingReuseStatus
-                ? "Scheduled"
-                : renderGhost.unused
-                  ? "Not yet used"
-                  : renderGhost.isHardCutoff
-                    ? `Use ${renderGhost.useNumber} · expires today`
-                    : `Use ${renderGhost.useNumber} · by ${formatShortDateUTC(parseDateOnly(renderGhost.cutoffDate))}`}
+              : renderGhost.unused
+                ? "Not yet used"
+                : renderGhost.isHardCutoff
+                  ? `Use ${renderGhost.useNumber} · expires today`
+                  : `Use ${renderGhost.useNumber} · by ${formatShortDateUTC(parseDateOnly(renderGhost.cutoffDate))}`}
           </div>
         </>
       ) : blocked ? (

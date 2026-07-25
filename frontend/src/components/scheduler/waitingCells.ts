@@ -39,23 +39,6 @@ export interface CellGhost {
    * a fully valid drop target for a brand-new tray. Mutually exclusive with `unused`;
    * isHardCutoff/fadeOpacity/deadlineAt/deadlineIsEstimated carry no meaning here. */
   terminalStatus?: Exclude<CellStatus, "open" | "stopped">;
-  /** Set for a cell whose aggregate status has already flipped to exhausted/window_expired
-   * because every one of its uses is fully *scheduled*, but `day` falls before the calendar
-   * date it actually reaches that state (see computePendingTerminalGhost) - e.g. the cell's
-   * three uses are booked for Mon/Wed/Fri and `day` is the locked Tue/Thu column in between.
-   * Mutually exclusive with terminalStatus: exactly one of the two is set once the cell has
-   * gone terminal, depending on whether `day` is before or on/after that boundary date. */
-  pendingTerminalStatus?: Exclude<CellStatus, "open" | "stopped" | "retired">;
-  /** Set when this still-open, not-fully-booked cell already has its *next* use scheduled
-   * for a later day, and `day` falls before that day - e.g. a cell with 1 of 3 uses
-   * consumed, next use booked for Thursday, viewed on Monday's column. Distinct from
-   * pendingTerminalStatus (which only applies once every remaining use is booked and the
-   * cell's aggregate status has flipped to exhausted/window_expired): this cell may still
-   * have real spare capacity, just not eligible for a *new* reuse offer until its already-
-   * scheduled next use has passed - so this well isn't a droppable "+" on `day` either, even
-   * though it isn't fully booked yet. Without this, a well already claimed by a future,
-   * not-yet-run use silently looked identical to a genuinely free slot on any earlier day. */
-  pendingReuseStatus?: true;
   /** True when `day` falls before this ghost's own physical tray's founding placement (the
    * earliest planned first-use date across any cell sharing its tray_id) - see
    * computeTrayFoundingDates. The tray hasn't actually landed on the instrument as of this
@@ -198,31 +181,16 @@ export function computeGhost(
   if (cell.uses_consumed <= 0 || !cell.last_use_run_date || !cell.current_instrument_serial) return null;
   if (isWeekendUTC(parseDateOnly(day))) return null;
 
-  const foundingDate = cell.tray_id !== null ? trayFoundingDates.get(cell.tray_id) : undefined;
   const evictionDate = cell.tray_id !== null ? trayEvictionDates.get(cell.tray_id) : undefined;
   // A successor tray has taken this carousel position, so this cell's whole physical tray has
   // left the instrument - it can't be reused (or even shown as a reuse offer) any more.
   if (evictionDate !== undefined && day >= evictionDate) return null;
 
-  if (day < cell.last_use_run_date) {
-    // A day strictly before this cell's own last (possibly not-yet-run) use - that use
-    // already claims this exact well, so it's not a droppable "+" here either, even though
-    // the cell still has real spare capacity and isn't terminal (see
-    // CellGhost.pendingReuseStatus). The last-use day itself, and any weekend between it and
-    // the next eligible weekday, fall through to the plain `day < earliestDate` null below -
-    // the real stage already renders on the last-use day itself.
-    return {
-      cell,
-      useNumber: cell.uses_consumed + 1,
-      isHardCutoff: false,
-      fadeOpacity: 1,
-      cutoffDate: day,
-      deadlineAt: "",
-      deadlineIsEstimated: false,
-      pendingReuseStatus: true,
-      beforeTrayFounding: foundingDate !== undefined && day < foundingDate,
-    };
-  }
+  // A day strictly before this cell's own last (possibly not-yet-run) use no longer paints a
+  // "Scheduled" marker - only the instrument lock blocks a slot now. Such a well simply falls
+  // through to a plain droppable "+" (the drop resolves through derive_best_cell like any
+  // other), and the real stage still renders on the last-use day itself.
+  if (day < cell.last_use_run_date) return null;
 
   // The 108h clock's real anchor is when Use 1 is actually confirmed loaded
   // (first_use_started_at); until then, reuseWindow falls back to its *planned* loading time
@@ -324,9 +292,11 @@ export function computeTerminalGhost(
   if (isWeekendUTC(parseDateOnly(day))) return null;
   if (cell.tray_id === null || vacatedTrayIds.has(cell.tray_id)) return null;
   // exhausted/window_expired can be reached purely by *scheduling* every remaining use up
-  // front, before any of them have actually run - see computePendingTerminalGhost, which
-  // covers `day` values before this boundary. retired has no such boundary (a one-off manual
-  // write-off, not a byproduct of pre-scheduling), so it stays gated only on status/weekday.
+  // front, before any of them have actually run. On `day` values before this boundary the
+  // well isn't dead yet (its scheduled uses render as real stages, or the gap days show a
+  // plain "+"), so the terminal marker only appears once the cell has genuinely finished.
+  // retired has no such boundary (a one-off manual write-off, not a byproduct of
+  // pre-scheduling), so it stays gated only on status/weekday.
   if (cell.status !== "retired") {
     const boundary = terminalBoundaryDate(cell);
     if (boundary && day < boundary) return null;
@@ -346,7 +316,8 @@ export function computeTerminalGhost(
 
 /**
  * The first day `cell`'s well is genuinely idle after it actually reaches its terminal
- * status - the boundary computeTerminalGhost and computePendingTerminalGhost split on.
+ * status - the boundary before which computeTerminalGhost stays silent (the well's scheduled
+ * uses still render as real stages, gap days as a plain "+").
  * For "exhausted", that's simply the weekday after its last *scheduled* use
  * (last_use_run_date) - mirrors computeGhost's own earliestDate, since the stage-based
  * renderer already covers last_use_run_date itself via the cell's real placement that day.
@@ -365,54 +336,6 @@ function terminalBoundaryDate(cell: CellOut): string | null {
   if (!anchor) return earliestDate;
   const deadlineAtMs = new Date(anchor).getTime() + CELL_LIFETIME_H * 3_600_000;
   return nextWeekdayIsoUTC(lastWeekdayWithin(earliestDate, deadlineAtMs));
-}
-
-/**
- * Whether `cell` has already gone terminal in its aggregate record (exhausted/window_expired)
- * purely because every remaining use is fully *scheduled*, while `day` still falls before the
- * calendar date it actually reaches that state - e.g. three uses booked for Mon/Wed/Fri, with
- * `day` the locked Tue or Thu column in between. Shown as a muted, informational "Scheduled"
- * marker rather than computeTerminalGhost's red terminal badge, since the cell
- * hasn't really used up its capacity as of `day` - it's just fully committed. Excludes
- * "retired" (see computeTerminalGhost's boundary gate) since that status has no such window.
- *
- * A cell's aggregate status flips to exhausted/window_expired the moment every use is merely
- * *scheduled* (uses_consumed counts non-cancelled uses, run or not - see cell_service.
- * derive_cell_state), so a tray fully booked up front reads as terminal on weeks that precede
- * its own first use. On any `day` before this cell's physical tray is founded (its earliest
- * planned first-use date - see computeTrayFoundingDates) the tray isn't on the instrument yet
- * and the well is genuinely empty, so we must NOT paint a "Scheduled" marker there: return
- * null and let the slot fall through to a plain, droppable "+". This is the fully-booked
- * analogue of computeGhost's beforeTrayFounding handling; it returns null rather than setting
- * that flag because SchedulerSlot renders every pendingTerminal ghost non-droppable, so a
- * suppressed-to-"+" flag would leave a dead, non-interactive placeholder instead of a real
- * empty slot. Needs `trayFoundingDates` built from the wider cell universe (see caller).
- */
-export function computePendingTerminalGhost(
-  cell: CellOut,
-  day: string,
-  trayFoundingDates: Map<number, string> = new Map(),
-): CellGhost | null {
-  if (cell.status !== "exhausted" && cell.status !== "window_expired") return null;
-  if (!cell.current_instrument_serial || !cell.current_well) return null;
-  if (isWeekendUTC(parseDateOnly(day))) return null;
-
-  const foundingDate = cell.tray_id !== null ? trayFoundingDates.get(cell.tray_id) : undefined;
-  if (foundingDate !== undefined && day < foundingDate) return null;
-
-  const boundary = terminalBoundaryDate(cell);
-  if (!boundary || day >= boundary) return null;
-
-  return {
-    cell,
-    useNumber: cell.uses_consumed,
-    isHardCutoff: false,
-    fadeOpacity: 1,
-    cutoffDate: day,
-    deadlineAt: "",
-    deadlineIsEstimated: false,
-    pendingTerminalStatus: cell.status,
-  };
 }
 
 /** Mirrors backend/app/engine/constants.py's WELLS - tray 1 is indices 0-3, tray 2 is
@@ -758,10 +681,9 @@ export function computeVacatedTrayIds(cells: CellOut[]): Set<number> {
  * window - mirrors groupCyclesByInstrumentAndDay's shape so the grid can look ghosts up
  * the same way it looks up real cycles. `cells` is expected to be the union of open cells
  * (computeGhost/computeUnusedTraySiblingGhost) and terminal-by-attrition cells
- * (computeTerminalGhost/computePendingTerminalGhost) - the four compute functions are
- * mutually exclusive (by status, and for the terminal pair, by which side of
- * terminalBoundaryDate `day` falls on), so no cell ever produces more than one ghost for a
- * given day. `vacatedTrayIds` (see computeVacatedTrayIds), `trayFoundingDates` (see
+ * (computeTerminalGhost) - the three compute functions are mutually exclusive by status, so
+ * no cell ever produces more than one ghost for a given day. `vacatedTrayIds` (see
+ * computeVacatedTrayIds), `trayFoundingDates` (see
  * computeTrayFoundingDates) and `trayEvictionDates` (see computeTrayEvictionDates) should all
  * be computed from the wider cell universe that also includes stopped cells, so pass them in
  * separately rather than deriving them from `cells`.
@@ -786,7 +708,6 @@ export function groupWaitingCellsByInstrumentAndDay(
       const ghost =
         computeGhost(cell, day, trayFoundingDates, trayEvictionDates) ??
         computeUnusedTraySiblingGhost(cell, day, trayFoundingDates, trayEvictionDates) ??
-        computePendingTerminalGhost(cell, day, trayFoundingDates) ??
         computeTerminalGhost(cell, day, vacatedTrayIds);
       if (!ghost) continue;
 

@@ -539,6 +539,16 @@ def test_auto_fill_disposes_a_tray_once_all_its_cells_reach_the_dial(client, db_
     assert len(body["unplaced_sample_ids"]) == 0
     assert len(body["disposed_cell_ids"]) == 4
 
+    # The reuse Plate 2 of the Monday load session acquires the day after loading (Tue for a
+    # 24h movie) - derived from Plate 1's real end + wash via get_or_create_run/reuse_plate_
+    # window, never floated to a later slot day. Guards the auto-fill side of the reuse-timing
+    # fix (the manual side is covered in test_auto_derive_cell).
+    week = _next_working_week()
+    mon_run = next(r for r in body["runs"] if r["load_date"] == week[0])
+    reuse_plate = next(p for p in mon_run["plates"] if p["plate_index"] == 2)
+    assert reuse_plate["is_reuse"] is True
+    assert reuse_plate["acquire_date"] == week[1]  # Tuesday
+
     cells = db_session.query(Cell).all()
     assert len(cells) == 4
     # Every one of the tray's cells is disposed together - never a subset.

@@ -18,7 +18,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
-from app.engine.constants import CELL_LIFETIME_H, DAY_START_HOUR, WELLS, within_tray_pos
+from app.engine.constants import CELL_LIFETIME_H, DAY_START_HOUR, REUSE_PREP_H, WELLS, within_tray_pos
 from app.models.audit import AuditLog
 from app.models.cell import Cell
 from app.models.cell_tray import CellTray
@@ -75,6 +75,28 @@ def planned_window(
     return start, start + timedelta(hours=run_time_hours)
 
 
+def reuse_plate_window(
+    plate1_start: datetime, plate1_movie_hours: float, reuse_movie_hours: float
+) -> tuple[date, datetime, datetime]:
+    """Timing for a reuse Plate 2, chained from Plate 1's real window - so the reuse's day
+    reflects the movie length, not a fixed 'next day'.
+
+    The instrument runs Plate 1's movie, does the on-board reuse wash (REUSE_PREP_H), then
+    starts Plate 2. A 24-30h movie loaded midday lands the reuse the following weekday; only a
+    very long movie (>~36h) pushes it a further day. If the reuse would start on a weekend it
+    rolls forward to the next weekday's start hour - runs are weekday-only, and the operator
+    isn't there to load it over the weekend. Returns (acquire_date, planned_start, planned_end).
+    See docs/pacbio-sprq-nx-scheduling-reference.md's "Instrument load-lock timing" section."""
+    plate1_end = ensure_aware(plate1_start) + timedelta(hours=plate1_movie_hours)
+    start = plate1_end + timedelta(hours=REUSE_PREP_H)
+    if start.weekday() >= 5:
+        rolled = start.date()
+        while rolled.weekday() >= 5:
+            rolled += timedelta(days=1)
+        start = datetime.combine(rolled, time(hour=DAY_START_HOUR), tzinfo=timezone.utc)
+    return start.date(), start, start + timedelta(hours=reuse_movie_hours)
+
+
 def recompute_cycle_timing(db: Session, cycle: Cycle) -> None:
     """Re-derive a plate's representative run time from its wells after any placement change.
 
@@ -120,7 +142,9 @@ def _plate_target(
     """Work out (plate_index, acquire_date) for a placement/move into a given grid slot.
 
     - A cell already loaded in this run (intra-run reuse) is the run's sequential second
-      plate: Plate 2, acquiring the next weekday after the load day.
+      plate: Plate 2, acquiring a later day. The date returned here (the next weekday) is only
+      an advisory floor: get_or_create_run recomputes the real reuse day from Plate 1's movie
+      length + on-board wash (see reuse_plate_window), so a long movie can push it out further.
     - Otherwise the plate comes from the slot block (0-3 -> Plate 1, 4-7 -> Plate 2) and it
       acquires on the load day - Plate 1, or a fresh parallel Plate 2 (a second tray), or a
       cross-run reuse of a cell whose last use was in an earlier run."""
@@ -194,7 +218,17 @@ def get_or_create_run(
     if existing is not None:
         return existing
 
-    start, end = planned_window(acquire_date, run_time_hours, start_hour, start_minute)
+    # A reuse Plate 2 (a later-day plate, acquire_date > load_date) is chained off Plate 1's
+    # real timing: the instrument finishes Plate 1's movie, washes, then re-runs the same
+    # cells - so its day reflects the movie length rather than the caller's advisory date (a
+    # flat "next weekday" from _plate_target, or the day auto-fill's packer happened to float
+    # the reuse onto). A same-day parallel Plate 2 (a second fresh tray, acquire_date ==
+    # load_date) keeps the load-day timing. See reuse_plate_window.
+    plate1 = next((c for c in run_batch.cycles if c.plate_index == 1), None)
+    if plate_index == 2 and acquire_date > load_date and plate1 is not None:
+        acquire_date, start, end = reuse_plate_window(plate1.planned_start_at, plate1.movie_hours, run_time_hours)
+    else:
+        start, end = planned_window(acquire_date, run_time_hours, start_hour, start_minute)
     cycle = Cycle(
         run_batch_id=run_batch.id,
         plate_index=plate_index,
@@ -663,7 +697,10 @@ def place_sample(
                 "well": well,
                 "instrument_serial": instrument_serial,
                 "load_date": load_date.isoformat(),
-                "acquire_date": acquire_date.isoformat(),
+                # cycle.acquire_date, not the caller-local acquire_date: get_or_create_run
+                # recomputes a reuse Plate 2's day from Plate 1's real timing (see
+                # reuse_plate_window), so the local is stale for a reuse.
+                "acquire_date": cycle.acquire_date.isoformat(),
             },
         )
     )

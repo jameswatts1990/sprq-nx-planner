@@ -10,7 +10,6 @@ import {
   GHOST_EXAMPLE_CUTOFF,
   GHOST_EXAMPLE_EXHAUSTED,
   GHOST_EXAMPLE_FADING,
-  GHOST_EXAMPLE_SCHEDULED,
   GHOST_EXAMPLE_UNUSED,
   STAGE_EXAMPLE_ABORTED,
   STAGE_EXAMPLE_CANCELLED,
@@ -607,19 +606,6 @@ export function ScheduleSection() {
             small status card rather than permanently blocking the well. Whether the well accepts a new cell
             depends on its three tray siblings: while any still has real capacity, the well stays read-only; only
             once every sibling has gone terminal does it behave like a plain <b>+</b> again.
-          </span>
-        </div>
-        <div className={styles.legendRow}>
-          <div className={styles.ghostExampleSwatch}>
-            <SchedulerSlotView stage={null} slotIndex={0} ghost={GHOST_EXAMPLE_SCHEDULED} />
-          </div>
-          <span>
-            <b>Scheduled:</b> a cell whose remaining uses are already fully booked for later days — e.g. its next
-            use is Wednesday while today&apos;s locked column falls in between — shows this plain card instead of
-            jumping straight to Exhausted/Window expired, since it hasn&apos;t actually reached the end of its own
-            lifecycle yet. It switches to the real terminal card once the calendar reaches that day. It only appears
-            from the tray&apos;s first use onward — on any week before the tray is loaded, that well is just a plain
-            empty <b>+</b>. Informational only, same as Used-up — never a drop target, no click-to-open popover.
           </span>
         </div>
       </div>
