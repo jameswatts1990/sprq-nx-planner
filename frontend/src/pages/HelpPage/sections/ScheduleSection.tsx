@@ -30,6 +30,7 @@ function RunDesignExample() {
     run_time_hours: 24,
     objective: "fewest",
     cells_per_day: 8,
+    load_hour: 12,
   });
   return (
     <RunDesignAccordion

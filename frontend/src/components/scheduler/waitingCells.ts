@@ -174,7 +174,7 @@ function cellReuseCutoffDate(cell: CellOut, evictionDate?: string | null): strin
 export function computeGhost(
   cell: CellOut,
   day: string,
-  trayFoundingDates: Map<number, string> = new Map(),
+  _trayFoundingDates: Map<number, string> = new Map(),
   trayEvictionDates: Map<number, string> = new Map(),
 ): CellGhost | null {
   if (cell.status !== "open" || cell.uses_remaining <= 0) return null;
