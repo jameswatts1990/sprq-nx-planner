@@ -144,13 +144,24 @@ export function useScheduleActions({
   // ghost target, and any barcode clash on it, is honoured/surfaced rather than silently
   // re-derived.)
   const autoPlace = useMutation({
-    mutationFn: (v: { sample_id: number; instrument_serial: string; load_date: string; slot_index: SlotIndex }) =>
+    mutationFn: (v: {
+      sample_id: number;
+      instrument_serial: string;
+      load_date: string;
+      slot_index: SlotIndex;
+      // Only meaningful when this drop creates a brand-new run (the first sample onto an
+      // empty instrument+day) - sets that run's load/start hour. Ignored otherwise.
+      start_hour?: number;
+      start_minute?: number;
+    }) =>
       cellUsesApi.place({
         sample_id: v.sample_id,
         instrument_serial: v.instrument_serial,
         load_date: v.load_date,
         slot_index: v.slot_index,
         run_time_hours: runDesign.run_time_hours,
+        start_hour: v.start_hour,
+        start_minute: v.start_minute,
       }),
     onSuccess: () => {
       invalidateScheduleRelated(queryClient);
@@ -169,6 +180,8 @@ export function useScheduleActions({
         run_time_hours: runDesign.run_time_hours,
         objective: runDesign.objective,
         cells_per_day: runDesign.cells_per_day,
+        // Every run this batch creates loads/starts at the Run design load hour.
+        start_hour: runDesign.load_hour,
       }),
     onSuccess: (res) => {
       invalidateScheduleRelated(queryClient);

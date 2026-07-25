@@ -83,3 +83,9 @@ export function formatShortDateTimeUTC(isoDateTime: string): string {
   const mm = String(d.getUTCMinutes()).padStart(2, "0");
   return `${hh}:${mm}, ${formatShortDateUTC(d)}`;
 }
+
+/** Formats an ISO datetime as just "HH:MM" (UTC) - used for a run's load/start time. */
+export function formatTimeUTC(isoDateTime: string): string {
+  const d = new Date(isoDateTime);
+  return `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
+}

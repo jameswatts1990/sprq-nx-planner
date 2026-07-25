@@ -7,7 +7,7 @@ import { cyclesApi } from "@/api/cycles";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
 import type { SlotIndex, RunOut, StageOut } from "@/types/schedule";
-import { formatShortDateTimeUTC, formatShortDateUTC, parseDateOnly, shortWeekdayUTC } from "@/utils/calendarDates";
+import { formatShortDateTimeUTC, formatShortDateUTC, formatTimeUTC, parseDateOnly, shortWeekdayUTC } from "@/utils/calendarDates";
 import { runLabel } from "@/utils/runLabel";
 
 import { PLATE_INDICES, slotKey } from "./gridKeys";
@@ -219,6 +219,19 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
             <span className={styles.runIdTag} title={`Run ${runLabel(run)}`}>
               {runLabel(run)}
             </span>
+            {(() => {
+              // The run's load/start time, from Plate 1's planned start - since there are no
+              // pre-loaded runs, this is when it loads AND starts sequencing.
+              const plate1 = run.plates.find((p) => p.plate_index === 1);
+              return plate1 ? (
+                <span
+                  className={styles.loadTimeTag}
+                  title={`Loads and starts sequencing at ${formatTimeUTC(plate1.planned_start_at)}`}
+                >
+                  ⏱ {formatTimeUTC(plate1.planned_start_at)}
+                </span>
+              ) : null;
+            })()}
             {locked ? (
               <>
                 <span
@@ -329,7 +342,11 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
                   {plate && plate.acquire_date !== loadDate && (
                     <span
                       className={styles.acquireTag}
-                      title={`Plate ${plate.plate_index} acquires on ${shortWeekdayUTC(parseDateOnly(plate.acquire_date))} ${formatShortDateUTC(parseDateOnly(plate.acquire_date))}`}
+                      title={
+                        plate.is_reuse
+                          ? `Runs after Plate 1's movie finishes and the cells are washed — starts ${formatShortDateTimeUTC(plate.planned_start_at)} (the reuse day reflects the movie length, so a longer movie pushes it later).`
+                          : `Plate ${plate.plate_index} acquires on ${shortWeekdayUTC(parseDateOnly(plate.acquire_date))} ${formatShortDateUTC(parseDateOnly(plate.acquire_date))}`
+                      }
                     >
                       → {shortWeekdayUTC(parseDateOnly(plate.acquire_date))} {formatShortDateUTC(parseDateOnly(plate.acquire_date))}
                     </span>

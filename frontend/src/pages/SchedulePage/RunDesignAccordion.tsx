@@ -1,3 +1,6 @@
+import { useState } from "react";
+
+import { LoadTimePicker } from "@/components/scheduler/LoadTimePicker";
 import { Accordion } from "@/components/ui/Accordion";
 import { Button } from "@/components/ui/Button";
 import { Note } from "@/components/ui/Note";
@@ -7,6 +10,10 @@ import type { CellsPerDay, MaxUses, Objective, RunTimeHours } from "@/types/sche
 import type { RunDesignState } from "@/types/schedulerGrid";
 
 import styles from "./RunDesignAccordion.module.css";
+
+function fmtLoadHour(h: number): string {
+  return `${String(h).padStart(2, "0")}:00`;
+}
 
 export interface RunDesignAccordionProps {
   runDesign: RunDesignState;
@@ -56,12 +63,13 @@ export function RunDesignAccordion({
   onRequestClearSchedule,
   note,
 }: RunDesignAccordionProps) {
+  const [pickingLoadTime, setPickingLoadTime] = useState(false);
   return (
     <Accordion
       title="Run design"
-      badge={`${runDesign.max_uses}× · ${runDesign.run_time_hours} h · ${runDesign.objective} · ${
-        runDesign.cells_per_day === 8 ? "2 plates" : "1 plate"
-      }`}
+      badge={`${runDesign.max_uses}× · ${runDesign.run_time_hours} h · loads ${fmtLoadHour(runDesign.load_hour)} · ${
+        runDesign.objective
+      } · ${runDesign.cells_per_day === 8 ? "2 plates" : "1 plate"}`}
     >
       <div className={styles.field}>
         <div className={styles.fieldLabel}>
@@ -83,6 +91,15 @@ export function RunDesignAccordion({
           value={runDesign.run_time_hours}
           onChange={(v) => onChange({ ...runDesign, run_time_hours: v })}
         />
+      </div>
+
+      <div className={styles.field}>
+        <div className={styles.fieldLabel}>
+          Load time <span className={styles.hint}>when a new run loads &amp; starts sequencing</span>
+        </div>
+        <Button onClick={() => setPickingLoadTime(true)} aria-label={`Load time: ${fmtLoadHour(runDesign.load_hour)} — change`}>
+          Loads {fmtLoadHour(runDesign.load_hour)}
+        </Button>
       </div>
 
       <div className={styles.field}>
@@ -125,6 +142,18 @@ export function RunDesignAccordion({
             {note.text}
           </Note>
         </div>
+      )}
+
+      {pickingLoadTime && (
+        <LoadTimePicker
+          value={runDesign.load_hour}
+          subtitle="The load time Auto Schedule uses, and the default for a manual drop."
+          onCancel={() => setPickingLoadTime(false)}
+          onPick={(hour) => {
+            onChange({ ...runDesign, load_hour: hour });
+            setPickingLoadTime(false);
+          }}
+        />
       )}
     </Accordion>
   );

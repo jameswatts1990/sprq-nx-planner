@@ -114,6 +114,30 @@ def test_reuse_plate2_acquire_day_reflects_movie_length(client, run_time_hours):
     plate2 = next(p for p in r2.json()["plates"] if p["plate_index"] == 2)
     assert plate2["is_reuse"] is True
     assert plate2["acquire_date"] == tue
+    # Timestamps serialize UTC-aware (trailing Z / +00:00), not naive - so the frontend reads
+    # them as UTC, not the viewer's local time (regression: dev SQLite drops tzinfo).
+    assert plate2["planned_start_at"].endswith("Z") or plate2["planned_start_at"].endswith("+00:00")
+
+
+def test_reuse_plate2_rolls_to_monday_when_it_would_land_on_the_weekend(client):
+    """A Friday-loaded reuse whose Plate 1 movie ends on the weekend can't run then - runs are
+    weekday-only and the operator isn't in - so the reuse rolls forward to the following
+    Monday's start hour rather than acquiring on a Saturday/Sunday."""
+    d = date.today()
+    while d.weekday() != 4:  # next Friday
+        d += timedelta(days=1)
+    fri, following_mon = d.isoformat(), (d + timedelta(days=3)).isoformat()
+
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1\nA2,bc2"})
+    # 30h movie from Fri noon ends Sat 18:00; + wash -> Sat 18:45, a weekend -> rolls to Mon.
+    _place(client, _sid(client, "A1"), fri, 0, {"mode": "new"}, run_time_hours=30)
+
+    r2 = _auto_place(client, _sid(client, "A2"), fri, 4, run_time_hours=30)
+    assert r2.status_code == 201, r2.text
+    plate2 = next(p for p in r2.json()["plates"] if p["plate_index"] == 2)
+    assert plate2["is_reuse"] is True
+    assert plate2["acquire_date"] == following_mon
+    assert plate2["planned_start_at"].startswith(following_mon)
 
 
 def test_auto_place_cross_run_reuses_idle_cell(client):

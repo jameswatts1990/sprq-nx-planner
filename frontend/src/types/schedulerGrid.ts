@@ -89,6 +89,9 @@ export interface RunDesignState {
   run_time_hours: RunTimeHours;
   objective: Objective;
   cells_per_day: CellsPerDay;
+  /** The hour (8-20) a newly-created run loads and starts sequencing. Auto Schedule uses it
+   * for every run it creates; a manual first-drop pre-selects the load-time wheel to it. */
+  load_hour: number;
 }
 
 /** A minimal sample reference carried by a drag operation - covers both a backlog

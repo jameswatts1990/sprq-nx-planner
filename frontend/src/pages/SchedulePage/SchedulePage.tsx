@@ -9,6 +9,7 @@ import { instrumentsApi } from "@/api/instruments";
 import { scheduleExportUrl } from "@/api/scheduleExport";
 import { CellChoicePicker } from "@/components/scheduler/CellChoicePicker";
 import { CellInfoPopover } from "@/components/scheduler/CellInfoPopover";
+import { LoadTimePicker } from "@/components/scheduler/LoadTimePicker";
 import {
   allStages,
   groupCyclesByInstrumentAndDay,
@@ -35,7 +36,7 @@ import { WaitingCellPopover } from "@/components/scheduler/WaitingCellPopover";
 import { SectionHeading, UseLegend } from "@/components/shared/SectionHeading";
 import { Button } from "@/components/ui/Button";
 import { Note } from "@/components/ui/Note";
-import type { RunOut, StageOut } from "@/types/schedule";
+import type { RunOut, SlotIndex, StageOut } from "@/types/schedule";
 import type { GridCellRef, RunDesignState } from "@/types/schedulerGrid";
 import { addDaysUTC, formatShortDateUTC, isWeekendUTC, parseDateOnly, todayIsoUTC, toIsoDateUTC } from "@/utils/calendarDates";
 
@@ -52,6 +53,7 @@ const DEFAULT_RUN_DESIGN: RunDesignState = {
   run_time_hours: 24,
   objective: "fewest",
   cells_per_day: 8,
+  load_hour: 12,
 };
 
 interface DetailTarget {
@@ -70,6 +72,14 @@ export function SchedulePage() {
   const [ghostDetail, setGhostDetail] = useState<CellGhost | null>(null);
   // The placement whose physical-cell info popover is open (the card's "ticket stub" click).
   const [cellInfo, setCellInfo] = useState<DetailTarget | null>(null);
+  // A drop that would create a brand-new run, held while the load-time wheel is shown so the
+  // user sets when that run loads/starts before it's committed (see LoadTimePicker).
+  const [pendingLoadTime, setPendingLoadTime] = useState<{
+    sample_id: number;
+    instrument_serial: string;
+    load_date: string;
+    slot_index: SlotIndex;
+  } | null>(null);
   const gridAreaRef = useRef<HTMLDivElement>(null);
   const accordionsRef = useRef<HTMLDivElement>(null);
   const stickyHeadRef = useRef<HTMLDivElement>(null);
@@ -310,6 +320,14 @@ export function SchedulePage() {
     (cellUseId) => actions.dragRemove.mutate(cellUseId),
     (a, b) => actions.swap.mutate({ a, b }),
     (sampleId, instrumentSerial, loadDate, slotIndex) => {
+      // Dropping the first sample onto an empty instrument+day creates a brand-new run - ask
+      // for its load time (the wheel) before committing, so the user sets when it loads and
+      // starts sequencing. A drop onto a day that already has a run places straight away at
+      // that run's already-fixed time.
+      if (!grouped.get(instrumentSerial)?.get(loadDate)) {
+        setPendingLoadTime({ sample_id: sampleId, instrument_serial: instrumentSerial, load_date: loadDate, slot_index: slotIndex });
+        return;
+      }
       // A plain auto-place has no picker to show, so drive the "placing…" shimmer directly
       // (the CellChoicePicker path does the same via setPlacingSlotKey) - otherwise the
       // dropped slot sits blank until the backend derives the cell and the grid refetches.
@@ -555,6 +573,31 @@ export function SchedulePage() {
           onClose={() => dnd.setPendingPlacement(null)}
           onPlaced={() => dnd.setPendingPlacement(null)}
           setPlacingSlotKey={dnd.setPlacingSlotKey}
+        />
+      )}
+
+      {pendingLoadTime && (
+        <LoadTimePicker
+          value={runDesign.load_hour}
+          subtitle={`New run — pick when it loads on ${formatShortDateUTC(parseDateOnly(pendingLoadTime.load_date))} and starts sequencing.`}
+          onCancel={() => setPendingLoadTime(null)}
+          onPick={(hour) => {
+            const p = pendingLoadTime;
+            setPendingLoadTime(null);
+            setRunDesign((rd) => ({ ...rd, load_hour: hour })); // remember for the next drop / auto-fill
+            dnd.setPlacingSlotKey(slotKey(p.instrument_serial, p.load_date, p.slot_index));
+            actions.autoPlace.mutate(
+              {
+                sample_id: p.sample_id,
+                instrument_serial: p.instrument_serial,
+                load_date: p.load_date,
+                slot_index: p.slot_index,
+                start_hour: hour,
+                start_minute: 0,
+              },
+              { onSettled: () => dnd.setPlacingSlotKey(null) },
+            );
+          }}
         />
       )}
 

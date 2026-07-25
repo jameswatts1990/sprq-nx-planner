@@ -1,0 +1,77 @@
+.hint {
+  margin: 0 0 14px;
+  color: var(--grey);
+  font-size: 13px;
+  text-align: center;
+}
+
+/* The circular ring the hour sectors sit on. Square box; sectors are absolutely
+   positioned around the centre. */
+.ring {
+  position: relative;
+  width: 256px;
+  height: 256px;
+  margin: 4px auto 8px;
+  border-radius: 50%;
+  background: var(--tray-card-bg);
+  border: 1px solid var(--line);
+  outline: none;
+}
+.ring:focus-visible {
+  box-shadow: 0 0 0 3px var(--link-glow);
+}
+
+/* Each hour button, pushed out along its own angle then counter-rotated so the number
+   stays upright. Hour 8 sits at the top (angle 0), the rest run clockwise. */
+.sector {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 44px;
+  height: 44px;
+  margin: -22px;
+  border-radius: 50%;
+  border: 1px solid var(--tray-card-border);
+  background: var(--card);
+  color: var(--grey);
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transform: rotate(var(--angle)) translateY(-100px) rotate(calc(-1 * var(--angle)));
+  transition: background 0.08s, color 0.08s, box-shadow 0.08s, border-color 0.08s;
+}
+.sector:hover {
+  border-color: var(--link);
+}
+.active {
+  background: var(--link);
+  border-color: var(--link);
+  color: #fff;
+  box-shadow: 0 0 0 4px var(--link-glow);
+}
+
+/* Centre read-out of the highlighted time. */
+.center {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  pointer-events: none;
+}
+.centerTime {
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.5px;
+}
+.centerSub {
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--faint);
+}

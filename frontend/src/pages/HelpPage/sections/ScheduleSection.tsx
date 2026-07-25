@@ -140,6 +140,14 @@ export function ScheduleSection() {
           later by clicking its slot (see <b>Run time</b> under QC actions below). The run&apos;s overall duration —
           and how long its instrument stays reserved — follows its longest cell.
         </dd>
+        <dt>Load time</dt>
+        <dd>
+          When a newly-created run loads and starts sequencing (there are no pre-loaded runs, so loading and
+          sequencing begin together). Click <b>Loads HH:00</b> to open a quick radial dial and pick any hour from{" "}
+          <b>08:00 to 20:00</b>. Auto Schedule gives every run it creates this time, and it&apos;s the starting point
+          the dial shows when you drag a sample by hand (see below). A reuse Plate 2 follows automatically — it runs
+          once Plate 1&apos;s movie finishes and the cells are washed — so a later load time pushes the reuse out too.
+        </dd>
         <dt>Optimise for</dt>
         <dd>
           <b>Fewest cells</b> and <b>Balance</b> both reuse cells as deep as your Max uses setting allows;{" "}
@@ -173,7 +181,11 @@ export function ScheduleSection() {
       <p className={styles.subheading}>Placing samples</p>
       <ol>
         <li>
-          <b>Drag</b> a card from the <b>Backlog</b> panel onto an empty slot.
+          <b>Drag</b> a card from the <b>Backlog</b> panel onto an empty slot. If that slot starts a{" "}
+          <b>brand-new run</b> (the first sample on that instrument and day), a radial <b>load-time dial</b> pops up so
+          you can set when the run loads and starts sequencing (08:00–20:00) — it opens on your Run design load time;
+          click an hour, or press <b>Esc</b> to cancel without scheduling. Dropping onto a day that already has a run
+          places straight away at that run&apos;s time.
         </li>
         <li>
           <b>Auto-fill:</b> click empty day cells to select them (Shift-click to select a rectangle, Ctrl/Cmd-click

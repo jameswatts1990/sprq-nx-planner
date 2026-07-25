@@ -89,10 +89,14 @@ def _plate_out(run_batch: RunBatch, cycle: Cycle) -> PlateOut:
         is_reuse=cycle.acquire_date > run_batch.load_date,
         movie_hours=cycle.movie_hours,
         status=cycle.status,
-        planned_start_at=cycle.planned_start_at,
-        planned_end_at=cycle.planned_end_at,
-        actual_start_at=cycle.actual_start_at,
-        actual_end_at=cycle.actual_end_at,
+        # Coerce to UTC-aware so these serialize with a 'Z' (like lock_until), consistent
+        # regardless of backend: SQLite drops tzinfo on round-trip, which would otherwise
+        # emit a naive ISO string the frontend reads as *local* time (off by the viewer's
+        # UTC offset). Every value written here is UTC (see planned_window / reuse_plate_window).
+        planned_start_at=ensure_aware(cycle.planned_start_at),
+        planned_end_at=ensure_aware(cycle.planned_end_at),
+        actual_start_at=ensure_aware(cycle.actual_start_at) if cycle.actual_start_at else None,
+        actual_end_at=ensure_aware(cycle.actual_end_at) if cycle.actual_end_at else None,
         stages=[_stage_out(cu, cycle.plate_index) for cu in sorted(cycle.cell_uses, key=lambda x: x.well)],
     )
 

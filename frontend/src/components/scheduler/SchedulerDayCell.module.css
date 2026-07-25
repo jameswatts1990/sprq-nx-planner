@@ -44,6 +44,15 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* The run's load/start time - a quiet mono label next to the run id, so "when does this run
+   start" reads at a glance without opening anything. */
+.loadTimeTag {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--grey);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
 .lockTag {
   font-size: 9px;
   font-weight: 800;
