@@ -16,6 +16,7 @@ import {
   resolveCell,
 } from "@/components/scheduler/groupCyclesByInstrumentAndDay";
 import { slotKey } from "@/components/scheduler/gridKeys";
+import { computeInstrumentTrayMaps } from "@/components/scheduler/instrumentTrayMaps";
 import { SchedulerGrid } from "@/components/scheduler/SchedulerGrid";
 import { SlotDetailPopover } from "@/components/scheduler/SlotDetailPopover";
 import { CellLinkContext, useCellLinkHighlight } from "@/components/scheduler/useCellLinkHighlight";
@@ -24,7 +25,7 @@ import { useSchedulerDnd } from "@/components/scheduler/useSchedulerDnd";
 import { useSlotSelection } from "@/components/scheduler/useSlotSelection";
 import {
   computeBlockedWellsByInstrumentAndDay,
-  computeTrayDisposalWarnings,
+  computeCellExpiryWarnings,
   computeTrayEvictionDates,
   computeTrayFoundingDates,
   computeVacatedTrayIds,
@@ -177,15 +178,22 @@ export function SchedulePage() {
     () => computeBlockedWellsByInstrumentAndDay(allTrayCells, win.days, trayFoundingDates),
     [allTrayCells, win.days, trayFoundingDates],
   );
-  // Physical trays whose disposal will strand still-unused cell capacity, keyed to the
-  // tray's last-chance day - the last day it's still present and still has salvageable
-  // capacity (bounded by its cells' 108h reuse cutoffs and by a successor tray evicting it) -
-  // so the warning sits by the Confirm loaded control on the day the user can still act, not
-  // on a freshly-loaded run days before the cells actually expire (see
-  // computeTrayDisposalWarnings).
-  const disposalGrouped = useMemo(
-    () => computeTrayDisposalWarnings(allTrayCells, win.days, trayEvictionDates),
+  // Used cells whose 108h reuse window will close with capacity still unspent, keyed to each
+  // cell's own last-chance (reuse cutoff) day - so the warning sits by the Confirm loaded
+  // control on the day the user can still reuse the cell, not on a freshly-loaded run days
+  // before it actually expires. Per-cell, not per-tray: a never-used sibling has no 108h clock
+  // and is never flagged - a tray doesn't expire as a unit, only its used cells do (see
+  // computeCellExpiryWarnings).
+  const expiryGrouped = useMemo(
+    () => computeCellExpiryWarnings(allTrayCells, win.days, trayEvictionDates),
     [allTrayCells, win.days, trayEvictionDates],
+  );
+  // The projected physical-tray map for each instrument's left-column header, as of the
+  // latest scheduled day this week. Reuses the same tray founding/eviction/vacated maps the
+  // grid ghosts do, so tray residency agrees exactly (see instrumentTrayMap.ts).
+  const trayMaps = useMemo(
+    () => computeInstrumentTrayMaps(allTrayCells, grouped, win.days, trayFoundingDates, trayEvictionDates, vacatedTrayIds),
+    [allTrayCells, grouped, win.days, trayFoundingDates, trayEvictionDates, vacatedTrayIds],
   );
   // `runs` is fetched a few days wider than the visible window (see lookbackDateFrom
   // above), purely so continuation markers can see runs loaded just before it. Anything
@@ -557,7 +565,8 @@ export function SchedulePage() {
                 onDragSelectStart={onDragSelectStart}
                 waitingGrouped={waitingGrouped}
                 blockedGrouped={blockedGrouped}
-                disposalGrouped={disposalGrouped}
+                expiryGrouped={expiryGrouped}
+                trayMaps={trayMaps}
               />
             )}
           </div>

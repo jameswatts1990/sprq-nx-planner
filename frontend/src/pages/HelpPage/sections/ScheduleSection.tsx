@@ -69,6 +69,40 @@ export function ScheduleSection() {
         how far through the displayed week today is.
       </p>
 
+      <p className={styles.subheading}>Instrument cell map</p>
+      <p>
+        Beneath each instrument&apos;s <b>REVIO</b> number, the left column shows a small <b>map of the SMRT cells
+        currently on that machine</b>, so you can see each instrument&apos;s cell stock at a glance without opening the
+        Cells tab. It mirrors the deck: up to two tray boxes side by side — the left box is the <b>Plate 1</b> tray
+        position, the right is <b>Plate 2</b> — each listing its four cell positions <b>A, B, C, D</b> top to bottom.
+      </p>
+      <ul>
+        <li>
+          The big number on each position is that cell&apos;s <b>uses remaining</b> (of 3), and beneath it <b>exp
+          DD/MM</b> is the cell&apos;s <b>108-hour reuse deadline</b>. A <b>~</b> in front (shown italic) means the
+          deadline is an estimate from the cell&apos;s <i>planned</i> first load — it firms up once the run is
+          confirmed loaded. A never-used cell shows <b>—</b> (its clock hasn&apos;t started).
+        </li>
+        <li>
+          Colours flag urgency: <b>amber</b> = an open cell whose 108-hour window closes within about a day, so use it
+          soon or lose the spare capacity; <b>red</b> = timed out or QC-stopped (unusable); <b>grey</b> = used up or
+          retired. Cells with plenty of window left are plain.
+        </li>
+        <li>
+          A dashed <b>&quot;load tray&quot;</b> box means that carousel position has <b>no tray loaded</b> — it&apos;s
+          free for a fresh tray.
+        </li>
+        <li>
+          The map reflects the projected state <b>as of the latest day scheduled that week</b> — the small caption
+          (e.g. <i>&quot;as of Fri 24 Jul&quot;</i>, or <i>&quot;current&quot;</i> when nothing is scheduled) tells you
+          which day the snapshot is for. Schedule further into the week and the map updates to match.
+        </li>
+        <li>
+          Click a <b>TRAY #</b> heading to open the <b>Cells &amp; Instruments</b> tab filtered to that instrument, to
+          see the full cell details.
+        </li>
+      </ul>
+
       <p className={styles.subheading}>Print Batch Sheet</p>
       <p>
         <b>Print Batch Sheet</b> opens a printable loading sheet for the Revios. Pick the <b>load day</b> and tick which
@@ -82,11 +116,15 @@ export function ScheduleSection() {
         volume). Because run time is per-cell, each well shows its own movie time. A final <b>Notes</b> column prints
         any note you&apos;ve added to a sample on its cell (see <b>Sample notes</b> under QC actions below). Use the
         page&apos;s <b>Print / Save as PDF</b> button, which opens your browser&apos;s normal print dialog (choose a
-        physical printer, or &quot;Save as PDF&quot;).
+        physical printer, or &quot;Save as PDF&quot;). The sheet prints <b>landscape, one run per page</b>, so each
+        Revio&apos;s run is a self-contained page you can hand to whoever loads it. When you save to PDF the filename is
+        pre-filled as <i>&quot;YYYY.MM.DD - Revio &lt;serial&gt;&quot;</i> (the load day and the instrument), so
+        printing one Revio at a time gives a tidily named file per machine.
       </p>
       <p>
         Below each run&apos;s table the sheet also prints two <b>fill-in worksheets per plate</b> to record the bench
-        work as you go. The <b>7.3 · Final complex loading dilution</b> table has a row per well, pre-filled with the
+        work as you go; for a two-plate run the two plates&apos; worksheets sit <b>side by side</b> to make the most of
+        the landscape page. The <b>7.3 · Final complex loading dilution</b> table has a row per well, pre-filled with the
         well, Traction ID and Target OPLC, and blank boxes to write in the complex, loading-buffer and control-dilution
         volumes, the final volume and the OPLC you actually achieved. The <b>7.4 · Plate loading</b> checklist (one per
         plate) has a space to note the plate&apos;s QR / serial number, tick boxes for the plate-prep steps
@@ -440,15 +478,13 @@ export function ScheduleSection() {
           A <b>LOADED</b> tag marks a locked run; <b>Unlock</b> returns it to planned so you can edit it again.
         </li>
         <li>
-          An amber <b>&quot;⚠ Tray N · #… — … will be disposed unused&quot;</b> note next to Confirm loaded means
-          this day is the <b>last chance to reuse</b> a physical tray that still has cells with uses left over.
-          That last-chance day is the last day the tray is still on the instrument with usable capacity, set by
-          whichever comes first: the day its cells reach their reuse deadline (&quot;expires today&quot;), or the day
-          before a <b>new tray</b> needs that carousel position — in which case the note adds{" "}
-          <b>&quot;(new tray loads next)&quot;</b> to flag that you must dispose the old tray to make room. Once
-          that day passes the tray is disposed and any spare capacity is lost. It names the tray (its position and
-          id) and the specific cells being wasted (hover for the full list) — so you can decide whether to reuse
-          those cells before then, or accept the waste.
+          An amber <b>&quot;⚠ &lt;cell&gt; — N unused uses expiring after &lt;date&gt;&quot;</b> note next to Confirm
+          loaded means this day is the <b>last chance to reuse a specific cell</b> before its <b>108-hour window</b>
+          closes with uses still left on it. It&apos;s per <b>cell</b>, not per tray: a tray doesn&apos;t expire as a
+          whole — only a cell that has already been used starts a 108-hour clock, so only those cells are flagged. A
+          never-yet-used cell has no clock and is never shown here (it stays good until it&apos;s first loaded). The
+          note names the cell and well and how many uses it will strand (hover for the exact deadline) — so you can
+          decide whether to load it again before then, or let that capacity lapse.
         </li>
         <li>
           The <b>↻</b> button in a tray&apos;s top-right corner is <b>Rotate tray</b> — use it when you physically
@@ -525,10 +561,11 @@ export function ScheduleSection() {
         button.
       </p>
       <p>
-        You don&apos;t have to hunt for the reuse deadline: the <b>tray-disposal warning banner</b> (the amber{" "}
-        <b>&quot;⚠ Tray N · #… — … will be disposed unused&quot;</b> note next to <b>Confirm loaded</b>, described
-        under Locking a run below) still tells you the last day a tray&apos;s spare capacity can be salvaged before
-        it&apos;s thrown away, and each cell&apos;s own detail page shows its exact 108-hour reuse window.
+        You don&apos;t have to hunt for the reuse deadline: the <b>cell-expiry warning</b> (the amber{" "}
+        <b>&quot;⚠ &lt;cell&gt; — N unused uses expiring after &lt;date&gt;&quot;</b> note next to <b>Confirm
+        loaded</b>, described under Locking a run below) tells you the last day a used cell&apos;s spare capacity can
+        be reused before its 108-hour window closes, and each cell&apos;s own detail page shows its exact 108-hour
+        reuse window.
       </p>
 
       <p className={styles.subheading}>Slot shading &amp; cell-link highlight</p>
@@ -591,8 +628,8 @@ export function ScheduleSection() {
             A <b>used-up cell no longer blocks its slot</b>. A grid slot is a plate <em>loading position</em>, not a
             cell: when a cell is exhausted, expired, or retired, its slot stays a normal droppable <b>+</b>. Loading a
             sample there lands it on the next usable cell in that tray automatically — the card&apos;s stub shows which
-            cell it actually ran on. Watch the tray-disposal warning (⚠, next to Confirm loaded) for when a tray with
-            unused capacity is about to leave the instrument.
+            cell it actually ran on. Watch the cell-expiry warning (⚠, next to Confirm loaded) for when a used cell&apos;s
+            108-hour window is about to close with uses still left on it.
           </span>
         </div>
       </div>

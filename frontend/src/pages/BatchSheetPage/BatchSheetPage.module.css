@@ -1,5 +1,6 @@
 .page {
-  max-width: 960px;
+  /* Wider than a normal page so the on-screen preview roughly matches the landscape print. */
+  max-width: 1180px;
   margin: 0 auto;
   padding: 22px 22px 64px;
 }
@@ -78,6 +79,11 @@
   word-break: break-word;
   max-width: 220px;
 }
+/* Run settings flow inline (middot-separated) instead of one line each, to keep well rows short. */
+.settingsCell span:not(:last-child)::after {
+  content: " · ";
+  color: var(--grey);
+}
 
 /* --- SOP 7.3 / 7.4 data-entry worksheets ------------------------------- */
 .sectionSub {
@@ -120,6 +126,19 @@
   vertical-align: -2px;
   margin-right: 6px;
 }
+/* Lay a run's two plates' worksheets side-by-side to use the landscape page width. A
+   single-plate run leaves one full-width column. */
+.worksheetRow {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+.worksheetRow > * {
+  flex: 1 1 0;
+  min-width: 0;
+}
 .plateBlock {
   margin-top: 12px;
   break-inside: avoid;
@@ -146,6 +165,13 @@
   /* placeholder class, hidden below in @media print */
 }
 
+/* Force landscape and maximise the printable area so a run's table + both worksheets can
+   share one page. */
+@page {
+  size: A4 landscape;
+  margin: 10mm 12mm;
+}
+
 @media print {
   .page {
     max-width: none;
@@ -154,9 +180,70 @@
   .noPrint {
     display: none;
   }
+
+  /* One run per page: keep a run whole, and start every run after the first on a fresh page. */
   .instrumentSection {
+    break-inside: avoid;
     page-break-inside: avoid;
   }
+  .instrumentSection + .instrumentSection {
+    break-before: page;
+    page-break-before: always;
+  }
+
+  /* Tighten everything so a full 8-well run fits the landscape page. */
+  .title {
+    font-size: 13px;
+    margin-bottom: 8px;
+  }
+  .instrumentTitle {
+    font-size: 14px;
+    margin-bottom: 2px;
+  }
+  .instrumentMeta {
+    font-size: 11px;
+    gap: 12px;
+    margin-bottom: 6px;
+  }
+  .wellTable {
+    font-size: 10px;
+  }
+  .wellTable th,
+  .wellTable td {
+    padding: 3px 5px;
+  }
+  .wellTable th {
+    font-size: 9px;
+  }
+  .sectionSub {
+    font-size: 10.5px;
+    margin: 8px 0 4px;
+  }
+  .worksheetTable {
+    font-size: 9px;
+  }
+  .worksheetTable th,
+  .worksheetTable td {
+    padding: 2px 4px;
+  }
+  .worksheetTable th {
+    font-size: 8.5px;
+  }
+  .entryCell {
+    height: 18px;
+  }
+  .plateBlock {
+    margin-top: 0;
+  }
+  .prepChecks {
+    gap: 12px;
+    font-size: 10px;
+    margin: 4px 0 6px;
+  }
+  .qrLine {
+    font-size: 10px;
+  }
+
   /* Keep the light header shading and checkbox borders when printing. */
   .wellTable th,
   .worksheetTable th,

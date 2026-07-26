@@ -7,14 +7,16 @@ import { resolveCell } from "./groupCyclesByInstrumentAndDay";
 import type { GridSelection } from "./useGridSelection";
 import type { SlotSelection } from "./useSlotSelection";
 import { SchedulerDayCell } from "./SchedulerDayCell";
+import { InstrumentTrayMap } from "./InstrumentTrayMap";
+import type { InstrumentTrayMap as InstrumentTrayMapData } from "./instrumentTrayMaps";
 import styles from "./SchedulerGrid.module.css";
-import type { CellGhost, TrayDisposalWarning } from "./waitingCells";
+import type { CellGhost, CellExpiryWarning } from "./waitingCells";
 
 // Stable empty references so a day with nothing to show doesn't hand SchedulerDayCell a new
 // object identity on every render.
 const EMPTY_GHOSTS: CellGhost[] = [];
 const EMPTY_BLOCKED_WELLS: Set<string> = new Set();
-const EMPTY_DISPOSAL: TrayDisposalWarning[] = [];
+const EMPTY_EXPIRY: CellExpiryWarning[] = [];
 
 export interface SchedulerGridRowProps {
   serial: string;
@@ -31,8 +33,11 @@ export interface SchedulerGridRowProps {
   waitingCellsByDate: Map<string, CellGhost[]>;
   /** Wells on this instrument permanently blocked by a stopped cell, per day. */
   blockedWellsByDate: Map<string, Set<string>>;
-  /** Tray-disposal warnings on this instrument, keyed by the tray's last scheduled-use day. */
-  disposalByDate: Map<string, TrayDisposalWarning[]>;
+  /** Cell-expiry warnings on this instrument, keyed by each cell's 108h reuse cutoff day. */
+  expiryByDate: Map<string, CellExpiryWarning[]>;
+  /** Projected on-instrument tray map (as of the latest scheduled day this week), shown
+   * beneath the serial. Undefined when the instrument has no tray-linked cells at all. */
+  trayMap: InstrumentTrayMapData | undefined;
 }
 
 /** One instrument row: sticky-left <th> serial, then one SchedulerDayCell per day.
@@ -54,7 +59,8 @@ export const SchedulerGridRow = memo(function SchedulerGridRow({
   onDragSelectStart,
   waitingCellsByDate,
   blockedWellsByDate,
-  disposalByDate,
+  expiryByDate,
+  trayMap,
 }: SchedulerGridRowProps) {
   // Everything each day-cell needs, derived once per day. continuation is the only costly
   // bit (it scans cyclesByDate) and used to be computed twice per day - here it's computed
@@ -105,6 +111,7 @@ export const SchedulerGridRow = memo(function SchedulerGridRow({
       >
         <div className={styles.ml}>Revio</div>
         <div className={styles.mid}>{serial}</div>
+        <InstrumentTrayMap serial={serial} map={trayMap} />
       </th>
       {dayInfos.map(({ date, colIndex, weekend, run, continuation, selectable }) => {
         const selected = selectable && selection.isSelected(rowIndex, colIndex);
@@ -129,7 +136,7 @@ export const SchedulerGridRow = memo(function SchedulerGridRow({
             onDragSelectStart={onDragSelectStart}
             waitingCells={waitingCellsByDate.get(date) ?? EMPTY_GHOSTS}
             blockedWells={blockedWellsByDate.get(date) ?? EMPTY_BLOCKED_WELLS}
-            disposalWarnings={disposalByDate.get(date) ?? EMPTY_DISPOSAL}
+            expiryWarnings={expiryByDate.get(date) ?? EMPTY_EXPIRY}
           />
         );
       })}

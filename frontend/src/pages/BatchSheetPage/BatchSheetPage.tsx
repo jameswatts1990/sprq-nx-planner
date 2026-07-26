@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
 import { ApiError } from "@/api/client";
@@ -47,21 +48,23 @@ function WellRow({ well }: { well: BatchSheetWellOut }) {
       <td>{well.well}</td>
       <td>
         <div className={styles.cellCode}>{well.cell_ref}</div>
-        <div className={styles.meta}>Use {well.use_number} of 3</div>
+        <div className={styles.meta}>
+          Use {well.use_number} of 3
+          {!well.window_breached &&
+            well.cell_window_deadline &&
+            ` · reuse by ${formatShortDateTimeUTC(well.cell_window_deadline)}`}
+        </div>
         {well.window_breached && <div className={styles.warn}>⚠ 108h window expired</div>}
-        {!well.window_breached && well.cell_window_deadline && (
-          <div className={styles.meta}>Reuse by {formatShortDateTimeUTC(well.cell_window_deadline)}</div>
-        )}
       </td>
       <td>
         <div>{well.sample_external_id ?? "—"}</div>
       </td>
       <td>{well.barcodes.length > 0 ? well.barcodes.join(", ") : "—"}</td>
-      <td>
-        <div>Movie time: {well.run_time_hours}h</div>
-        <div>Adaptive loading: {well.adaptive_loading ?? "—"}</div>
-        <div>Include base kinetics: {well.ccs_kinetics ?? "—"}</div>
-        <div>Full-res baseQ: {well.full_resolution_base_q ?? "—"}</div>
+      <td className={styles.settingsCell}>
+        <span>Movie {well.run_time_hours}h</span>
+        <span>Adaptive {well.adaptive_loading ?? "—"}</span>
+        <span>Kinetics {well.ccs_kinetics ?? "—"}</span>
+        <span>baseQ {well.full_resolution_base_q ?? "—"}</span>
       </td>
       <td>{well.target_oplc ?? "—"}</td>
       <td>{well.volume ?? "—"}</td>
@@ -76,7 +79,7 @@ function WellRow({ well }: { well: BatchSheetWellOut }) {
  * data. */
 function DilutionWorksheet({ plate }: { plate: BatchSheetPlateOut }) {
   return (
-    <>
+    <div className={styles.worksheetCol}>
       <div className={styles.sectionSub}>7.3 · Final complex loading dilution — {plateHeading(plate)}</div>
       <table className={styles.worksheetTable}>
         <thead>
@@ -120,7 +123,7 @@ function DilutionWorksheet({ plate }: { plate: BatchSheetPlateOut }) {
           ))}
         </tbody>
       </table>
-    </>
+    </div>
   );
 }
 
@@ -228,12 +231,16 @@ function RunSection({ run }: { run: BatchSheetRunOut }) {
         ))}
       </table>
 
-      {run.plates.map((plate) => (
-        <DilutionWorksheet key={plate.plate_number} plate={plate} />
-      ))}
-      {run.plates.map((plate) => (
-        <PlateLoadingChecklist key={plate.plate_number} plate={plate} />
-      ))}
+      <div className={styles.worksheetRow}>
+        {run.plates.map((plate) => (
+          <DilutionWorksheet key={plate.plate_number} plate={plate} />
+        ))}
+      </div>
+      <div className={styles.worksheetRow}>
+        {run.plates.map((plate) => (
+          <PlateLoadingChecklist key={plate.plate_number} plate={plate} />
+        ))}
+      </div>
     </section>
   );
 }
@@ -253,6 +260,23 @@ export function BatchSheetPage() {
     queryFn: () => batchSheetApi.get(date, instrumentSerials),
     enabled: date.length > 0,
   });
+
+  // Name the tab — and so the browser's Save-as-PDF default filename — "YYYY.MM.DD - Revio <serial>".
+  // A sheet covering several Revios joins their serials; falls back to the picked date before data loads.
+  useEffect(() => {
+    const data = query.data;
+    const isoDate = data?.load_date ?? date;
+    const dotDate = isoDate ? isoDate.replace(/-/g, ".") : "";
+    const serials = data
+      ? Array.from(new Set(data.runs.map((r) => r.instrument_serial)))
+      : instrumentsParam.split(",").filter(Boolean);
+    const revioPart = serials.length > 0 ? ` - Revio ${serials.join(", ")}` : "";
+    const previousTitle = document.title;
+    document.title = dotDate ? `${dotDate}${revioPart}` : "Batch Sheet";
+    return () => {
+      document.title = previousTitle;
+    };
+  }, [query.data, date, instrumentsParam]);
 
   return (
     <div className={styles.page}>

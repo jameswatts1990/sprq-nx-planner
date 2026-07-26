@@ -15,7 +15,7 @@ import { allStages, padStages, type Continuation } from "./groupCyclesByInstrume
 import { SchedulerSlot } from "./SchedulerSlot";
 import styles from "./SchedulerDayCell.module.css";
 import type { SlotSelection } from "./useSlotSelection";
-import { pinGhostsToSlots, WELL_ORDER, type CellGhost, type TrayDisposalWarning } from "./waitingCells";
+import { pinGhostsToSlots, WELL_ORDER, type CellGhost, type CellExpiryWarning } from "./waitingCells";
 
 export interface SchedulerDayCellProps {
   instrumentSerial: string;
@@ -54,10 +54,11 @@ export interface SchedulerDayCellProps {
    * "blocked" placeholder instead of the plain "+" so this well never reads as an ordinary
    * free slot. */
   blockedWells: Set<string>;
-  /** Physical trays whose disposal will strand still-unused cell capacity - this day is
-   * their last chance to be reused (later of last scheduled run and 108h reuse cutoff; see
-   * waitingCells.computeTrayDisposalWarnings). Surfaced next to Confirm loaded. */
-  disposalWarnings: TrayDisposalWarning[];
+  /** Physical cells resident here whose 108h reuse window closes on this day with uses still
+   * unspent - this day is the last chance to reuse them before that capacity is lost (see
+   * waitingCells.computeCellExpiryWarnings). Surfaced next to Confirm loaded. Per-cell: a tray
+   * as a whole doesn't expire, only its individual used cells do. */
+  expiryWarnings: CellExpiryWarning[];
 }
 
 /**
@@ -87,7 +88,7 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
     onDragSelectStart,
     waitingCells,
     blockedWells,
-    disposalWarnings,
+    expiryWarnings,
   } = props;
   const queryClient = useQueryClient();
 
@@ -282,32 +283,22 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
         )}
       </div>
 
-      {/* This day is the last chance to reuse one or more physical trays that still hold
-          unused cell capacity - the later of their last scheduled run and their cells' 108h
-          reuse cutoff. Once the tray leaves after this, that capacity is lost. Shown right
-          under the Confirm-loaded control so the waste is obvious before the run is locked
-          in. */}
-      {disposalWarnings.map((w) => {
-        const detail = w.wastedCells
-          .map((c) => `${c.code}: ${c.usesRemaining} unused use${c.usesRemaining === 1 ? "" : "s"}`)
-          .join(", ");
-        const summary =
-          w.wastedCells.length === 1
-            ? `${w.wastedCells[0].code} (${w.wastedCells[0].usesRemaining} unused)`
-            : `${w.wastedCells.length} cells (${w.wastedUses} unused uses)`;
-        // The deadline is either the cells' own 108h expiry or a new tray needing this
-        // carousel position - spell out which so the user knows why today is the last chance.
-        const reason = w.evictedBySuccessor
-          ? "a new tray is loaded into this position next, so it must be disposed to make room"
-          : "it can't be reused after this day";
+      {/* Cells physically resident here whose 108h reuse window closes on this day with uses
+          still unspent - the last chance to reuse them before that capacity expires. Per-cell,
+          driven only by each cell's own 108h clock: a tray doesn't expire as a unit, and a
+          never-used sibling (no clock) is never flagged. Shown right under the Confirm-loaded
+          control so the waste is obvious before the run is locked in. */}
+      {expiryWarnings.map((w) => {
+        const uses = `${w.usesRemaining} unused use${w.usesRemaining === 1 ? "" : "s"}`;
+        const by = formatShortDateUTC(parseDateOnly(w.cutoffDate));
         return (
           <div
-            key={w.trayId}
+            key={w.cellId}
             className={styles.disposalWarn}
-            title={`${w.positionLabel} (tray #${w.trayId}) will be physically disposed with unused capacity — ${reason}: ${detail}. Reuse these cells by today, or accept the waste.`}
+            title={`Cell ${w.cellCode}${w.well ? ` (well ${w.well})` : ""} has ${uses} left, but its 108h reuse window closes after ${by}. Reuse it by then, or that capacity is lost.`}
           >
-            ⚠ {w.positionLabel} · #{w.trayId} — {summary} will be disposed unused
-            {w.evictedBySuccessor ? " (new tray loads next)" : ""}
+            ⚠ {w.cellCode}
+            {w.well ? ` · ${w.well}` : ""} — {uses} expiring after {by}
           </div>
         );
       })}

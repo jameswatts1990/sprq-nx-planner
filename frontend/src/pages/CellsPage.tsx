@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { FormEvent } from "react";
 import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 
 import { ApiError } from "@/api/client";
 import { cellsApi } from "@/api/cells";
@@ -33,13 +34,25 @@ function isQcFilter(value: StatusFilter): value is QcFilter {
   return value === "unreported" || value === "awaiting_credit";
 }
 
+const VALID_STATUS_FILTERS = new Set<string>(STATUS_FILTERS.map((f) => f.value));
+
+/** A status filter from the URL (?status=...), if it's a recognised one - lets the schedule
+ * grid's tray-map link land here pre-filtered (e.g. ?instrument=84047&status=all). */
+function statusFromParam(raw: string | null): StatusFilter | null {
+  return raw && VALID_STATUS_FILTERS.has(raw) ? (raw as StatusFilter) : null;
+}
+
 function splitBarcodes(text: string): string[] {
   return [...new Set(text.split(/[,;/\s]+/).map((s) => s.trim()).filter(Boolean))];
 }
 
 export function CellsPage() {
-  const [status, setStatus] = useState<StatusFilter>("open");
-  const [instrumentSerial, setInstrumentSerial] = useState("");
+  // Seed the filters from the URL once on mount, so a link like
+  // /cells?instrument=84047&status=all (the schedule grid's tray-map header) lands here
+  // already filtered to that instrument. Left as plain local state thereafter.
+  const [searchParams] = useSearchParams();
+  const [status, setStatus] = useState<StatusFilter>(() => statusFromParam(searchParams.get("status")) ?? "open");
+  const [instrumentSerial, setInstrumentSerial] = useState(() => searchParams.get("instrument") ?? "");
   const [qInput, setQInput] = useState("");
   const q = useDebouncedValue(qInput, 350);
   const [modalOpen, setModalOpen] = useState(false);

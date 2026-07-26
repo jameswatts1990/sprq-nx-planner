@@ -17,8 +17,10 @@
      column - see .dayCol/.weekendCol and SchedulerDayCell's tray layout). */
   table-layout: fixed;
 }
+/* Wide enough for the two side-by-side tray strips of the InstrumentTrayMap beneath each
+   serial (was 104px, before the map existed). */
 .cornerCol {
-  width: 104px;
+  width: 168px;
 }
 .dayCol {
   width: 268px;
@@ -27,8 +29,8 @@
   width: 38px;
 }
 .corner {
-  width: 104px;
-  min-width: 104px;
+  width: 168px;
+  min-width: 168px;
   background: var(--card) !important;
   border-right: 1px solid var(--line);
   border-bottom: 1px solid var(--line-soft);
@@ -60,8 +62,8 @@
   z-index: 4;
   border-right: 1px solid var(--line);
   border-bottom: 1px solid var(--line-soft);
-  width: 104px;
-  min-width: 104px;
+  width: 168px;
+  min-width: 168px;
 }
 .mid {
   font-size: 17px;

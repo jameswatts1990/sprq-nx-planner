@@ -6,9 +6,9 @@ import type { StageOut } from "@/types/schedule";
 
 import {
   computeBlockedWellsByInstrumentAndDay,
+  computeCellExpiryWarnings,
   computeGhost,
   computeTerminalGhost,
-  computeTrayDisposalWarnings,
   computeTrayEvictionDates,
   computeTrayFoundingDates,
   computeVacatedTrayIds,
@@ -408,12 +408,11 @@ describe("pinGhostsToSlots", () => {
   });
 });
 
-describe("computeTrayDisposalWarnings", () => {
+describe("computeCellExpiryWarnings", () => {
   // Tray 1 (A-D) founded Monday. Cells A/B/C were reused Mon-Wed (3 uses, exhausted); cell D
-  // was used Monday only and then its Tue/Wed uses were moved off, so it's still open with 2
-  // uses left and nothing more scheduled. Its last *scheduled* use is Wednesday, but D's own
-  // 108h window (first used Monday noon) keeps it reusable through Friday - so the tray's real
-  // last chance, and the day its capacity is genuinely stranded, is Friday, not Wednesday.
+  // was used Monday only, so it's still open with 2 uses left. Only D has a running 108h clock
+  // with capacity to strand - A/B/C are spent. D's window (first used Monday noon) keeps it
+  // reusable through Friday, so Friday is its last-chance day.
   function trayOneCells(): CellOut[] {
     const consumed = (well: string, id: number, code: string) =>
       baseCell({
@@ -445,23 +444,28 @@ describe("computeTrayDisposalWarnings", () => {
     ];
   }
 
-  it("flags the tray's reuse cutoff, not its last scheduled use, with the cell disposed unused", () => {
-    const warnings = computeTrayDisposalWarnings(trayOneCells(), WEEK);
+  it("flags a used cell on its own 108h reuse cutoff day, with the uses it will strand", () => {
+    const warnings = computeCellExpiryWarnings(trayOneCells(), WEEK);
     // D's 108h window (first used Monday noon) closes Saturday, so Friday is the last weekday
-    // it can still be reused - later than the tray's Wednesday final scheduled run.
+    // it can still be reused.
     const fri = warnings.get("84047")?.get("2026-07-24");
     expect(fri).toHaveLength(1);
-    expect(fri![0]).toMatchObject({ trayId: 1, positionLabel: "Tray 1", wastedUses: 2 });
-    expect(fri![0].wastedCells).toEqual([{ code: "CELL-D000699", well: "D01", usesRemaining: 2 }]);
-    // Nothing on the last-scheduled-use day (Wed) or any other day - only the last-chance day.
+    expect(fri![0]).toMatchObject({
+      cellId: 699,
+      cellCode: "CELL-D000699",
+      well: "D01",
+      usesRemaining: 2,
+      cutoffDate: "2026-07-24",
+    });
+    // Nothing on the exhausted cells' last-use day or any other day.
     expect(warnings.get("84047")?.get("2026-07-22")).toBeUndefined();
     expect(warnings.get("84047")?.get("2026-07-20")).toBeUndefined();
   });
 
-  it("shows on the cells' expiry day, not the loading day, for a freshly-loaded tray", () => {
-    // The screenshot scenario: tray founded Monday, cell A used once (Use 1) Monday and good
-    // for reuse all week, B/C/D never used. The only scheduled use is Monday, but nothing is
-    // wasted until A's window closes - so warn on Friday (A's cutoff), not Monday.
+  it("never flags a never-used tray sibling (no 108h clock — a tray doesn't expire as a unit)", () => {
+    // A tray founded Monday: cell A used once (Use 1) Monday and good for reuse all week, B/C/D
+    // never used. Only A has a running clock - the never-used siblings must produce NO warning,
+    // even though the old tray-level warning counted their capacity as "wasted".
     const cellA = baseCell({
       id: 704,
       code: "CELL-A000704",
@@ -471,7 +475,7 @@ describe("computeTrayDisposalWarnings", () => {
       status: "open",
       uses_consumed: 1,
       uses_remaining: 2,
-      last_use_run_date: "2026-07-20", // Monday - its only scheduled use so far
+      last_use_run_date: "2026-07-20", // Monday
       first_use_started_at: "2026-07-20T12:00:00Z", // Use 1 confirmed loaded Monday noon
     });
     const sibling = (well: string, id: number, code: string) =>
@@ -490,38 +494,34 @@ describe("computeTrayDisposalWarnings", () => {
       });
     const cells = [cellA, sibling("B01", 705, "CELL-B000705"), sibling("C01", 706, "CELL-C000706"), sibling("D01", 707, "CELL-D000707")];
 
-    const warnings = computeTrayDisposalWarnings(cells, WEEK);
-    // Nothing on Monday (the loading / only-scheduled-run day) - there's a whole week left.
-    expect(warnings.get("84047")?.get("2026-07-20")).toBeUndefined();
+    const warnings = computeCellExpiryWarnings(cells, WEEK);
+    // Only cell A is flagged, on its own 108h cutoff (Friday).
     const fri = warnings.get("84047")?.get("2026-07-24");
     expect(fri).toHaveLength(1);
-    // All four still-open cells count as wasted: A (2) + B/C/D (3 each) = 11 unused uses.
-    expect(fri![0]).toMatchObject({ trayId: 78, positionLabel: "Tray 1", wastedUses: 11 });
-    expect(fri![0].wastedCells.map((c) => c.code)).toEqual([
-      "CELL-A000704",
-      "CELL-B000705",
-      "CELL-C000706",
-      "CELL-D000707",
-    ]);
+    expect(fri![0]).toMatchObject({ cellId: 704, usesRemaining: 2 });
+    // No day anywhere carries a warning for the never-used siblings B/C/D.
+    const allWarned = [...(warnings.get("84047")?.values() ?? [])].flat();
+    expect(allWarned.map((w) => w.cellId)).toEqual([704]);
   });
 
-  it("produces nothing for a fully-consumed tray (no capacity stranded)", () => {
+  it("produces nothing for a fully-consumed tray (no capacity to strand)", () => {
     const cells = trayOneCells().map((c) => ({ ...c, status: "exhausted" as const, uses_remaining: 0 }));
-    expect(computeTrayDisposalWarnings(cells, WEEK).size).toBe(0);
+    expect(computeCellExpiryWarnings(cells, WEEK).size).toBe(0);
   });
 
-  it("produces nothing when the tray's last use falls outside the visible window", () => {
+  it("produces nothing when the used cell's cutoff falls outside the visible window", () => {
     const cells = trayOneCells().map((c) =>
-      c.last_use_run_date === "2026-07-22" ? { ...c, last_use_run_date: "2026-07-29" } : c,
+      c.id === 699
+        ? { ...c, last_use_run_date: "2026-07-29", first_use_planned_start_at: "2026-07-29T12:00:00Z" }
+        : c,
     );
-    expect(computeTrayDisposalWarnings(cells, WEEK).size).toBe(0);
+    expect(computeCellExpiryWarnings(cells, WEEK).size).toBe(0);
   });
 
-  it("warns on the day before a successor tray evicts it, not the cells' later 108h expiry", () => {
-    // The reported scenario: tray 76 (A-D) used Mon-Wed, cell A still has capacity and its own
-    // 108h window runs to Friday - but a *successor* tray 77 is founded Thursday in the same
-    // carousel position, so tray 76 must physically leave by Wednesday to make room. The
-    // warning belongs on Wednesday (the disposal deadline), not Friday (A's 108h expiry).
+  it("clamps a used cell's cutoff earlier when a successor tray will evict it first", () => {
+    // Cell A used once Monday; its own 108h window runs to Friday - but a successor tray is
+    // founded Thursday in the same carousel position, so (while trays are disposed on removal)
+    // A can't be reused past Wednesday. The warning lands on Wednesday, not Friday.
     const cellA = baseCell({
       id: 696,
       code: "CELL-A000696",
@@ -550,23 +550,21 @@ describe("computeTrayDisposalWarnings", () => {
     });
     const cells = [cellA, successor];
     const eviction = computeTrayEvictionDates(cells, computeTrayFoundingDates(cells));
-    const warnings = computeTrayDisposalWarnings(cells, WEEK, eviction);
+    const warnings = computeCellExpiryWarnings(cells, WEEK, eviction);
 
     // On A's unconstrained 108h expiry (Friday) there is now nothing - eviction moved it back.
     expect(warnings.get("84047")?.get("2026-07-24")).toBeUndefined();
     const wed = warnings.get("84047")?.get("2026-07-22");
     expect(wed).toHaveLength(1);
-    expect(wed![0]).toMatchObject({ trayId: 76, wastedUses: 2, evictedBySuccessor: true });
-    // Tray 77 is the one loaded (no successor of its own) - not itself flagged for disposal.
-    expect(wed!.some((w) => w.trayId === 77)).toBe(false);
+    expect(wed![0]).toMatchObject({ cellId: 696, usesRemaining: 2, cutoffDate: "2026-07-22" });
+    // The never-used successor cell is not itself flagged (no clock of its own).
+    expect(wed!.some((w) => w.cellId === 700)).toBe(false);
   });
 
-  it("surfaces the warning on the reuse deadline's own week, not clamped onto the last-use week", () => {
-    // The reported scenario: a tray founded Thursday, its cells used Thu (Use 1) + Fri (Use 2)
-    // with one use left each. Their 108h window (first used Thursday noon) keeps them reusable
-    // until Monday *next* week, so the tray's genuine last-chance day is that Monday. It must
-    // NOT be clamped onto this week's Friday (which read as "disposed Friday" while the cells
-    // are still good) - this week shows nothing, and next week's Monday column carries it.
+  it("surfaces the warning on the cutoff's own week, not clamped onto the last-use week", () => {
+    // Cells used Thu (Use 1) + Fri (Use 2), one use left each. Their 108h window (first used
+    // Thursday noon) keeps them reusable until Monday *next* week - so the warning lands next
+    // Monday, not this week's Friday.
     const NEXT_WEEK = ["2026-07-27", "2026-07-28", "2026-07-29", "2026-07-30", "2026-07-31"];
     const cell = (well: string, id: number, code: string) =>
       baseCell({
@@ -588,18 +586,14 @@ describe("computeTrayDisposalWarnings", () => {
       cell("D01", 719, "CELL-D000719"),
     ];
 
-    // The last-use week (Fri 07-24 falls here): nothing - the deadline is next Monday, and the
-    // old clamp-onto-Friday behaviour is gone.
-    const thisWeek = computeTrayDisposalWarnings(cells, WEEK);
-    expect(thisWeek.size).toBe(0);
+    // This week (Fri 07-24 falls here): nothing - the cutoff is next Monday.
+    expect(computeCellExpiryWarnings(cells, WEEK).size).toBe(0);
 
-    // The deadline's own week: the warning lands on Monday 07-27, the cells' real reuse cutoff -
-    // even though the tray's last scheduled run (Fri 07-24) isn't on a rendered column here.
-    const nextWeek = computeTrayDisposalWarnings(cells, NEXT_WEEK);
+    // Next week: all four used cells warn on Monday 07-27, their real reuse cutoff.
+    const nextWeek = computeCellExpiryWarnings(cells, NEXT_WEEK);
     const mon = nextWeek.get("84047")?.get("2026-07-27");
-    expect(mon).toHaveLength(1);
-    expect(mon![0]).toMatchObject({ trayId: 82, positionLabel: "Tray 1", wastedUses: 4 });
-    expect(nextWeek.get("84047")?.get("2026-07-28")).toBeUndefined();
+    expect(mon).toHaveLength(4);
+    expect(mon!.map((w) => w.cellId).sort()).toEqual([716, 717, 718, 719]);
     expect(nextWeek.get("84047")?.get("2026-07-31")).toBeUndefined();
   });
 });

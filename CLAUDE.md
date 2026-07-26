@@ -16,8 +16,8 @@ RunNx exists to make PacBio Revio/SPRQ-Nx run scheduling and cell-reuse tracking
 
 The app version is shown in the navbar (top right, low-contrast grey — see `frontend/src/components/layout/AppShell.tsx`, sourced from `frontend/package.json`'s `version` via Vite's `define` as `__APP_VERSION__`). **Bump `frontend/package.json`'s `version` with every change you make, using semantic versioning (`vX.X.X` → `MAJOR.MINOR.PATCH`):**
 
-- **PATCH** (`0.2.0` → `0.2.1`): bug fixes, copy/style tweaks, refactors with no behaviour change.
-- **MINOR** (`0.2.0` → `0.3.0`): new user-facing features or capabilities, backwards-compatible.
+- **PATCH** (`0.2.0` → `0.2.1`): bug fixes, copy/style tweaks, refactors with no behaviour change, **and small incremental upgrades to an already-existing feature** — refining, tuning, or extending something that already ships (e.g. reworking how an existing screen prints, adding an option to an existing control). This is the default for most day-to-day changes.
+- **MINOR** (`0.2.0` → `0.3.0`): a genuinely **new** user-facing feature or capability that didn't exist before, backwards-compatible — not an enhancement to an existing one.
 - **MAJOR** (`0.2.0` → `1.0.0`): breaking changes or a deliberate release milestone — only when explicitly intended.
 
 Do this as part of the same change, not a separate step, so the deployed build is always identifiable at a glance.
