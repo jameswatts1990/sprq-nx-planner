@@ -1,8 +1,9 @@
 import { useState } from "react";
 
 import { SchedulerSlotView } from "@/components/scheduler/SchedulerSlotView";
+import { Card, CardBody } from "@/components/ui/Card";
 import { Note } from "@/components/ui/Note";
-import { RunDesignAccordion } from "@/pages/SchedulePage/RunDesignAccordion";
+import { RunDesignFields } from "@/pages/SchedulePage/RunDesignFields";
 import type { RunDesignState } from "@/types/schedulerGrid";
 
 import styles from "../HelpPage.module.css";
@@ -17,9 +18,10 @@ import {
   STAGE_EXAMPLE_WINDOW_NEAR_DEADLINE,
 } from "./helpFixtures";
 
-/** A real, live RunDesignAccordion - same component the Schedule page itself renders -
- * wired to local state instead of the actual auto-fill/clear mutations, purely for
- * illustration (see CLAUDE.md's Help Tab Maintenance section). */
+/** The real, live Autoschedule controls - the same RunDesignFields the Schedule page's
+ * Autoschedule drawer renders - wired to local state instead of the actual auto-fill/clear
+ * mutations, purely for illustration (see CLAUDE.md's Help Tab Maintenance section). Shown
+ * in a plain Card here rather than the drawer, which needs the Schedule page to open it. */
 function RunDesignExample() {
   const [runDesign, setRunDesign] = useState<RunDesignState>({
     max_uses: 3,
@@ -29,16 +31,20 @@ function RunDesignExample() {
     load_hour: 12,
   });
   return (
-    <RunDesignAccordion
-      runDesign={runDesign}
-      onChange={setRunDesign}
-      selectedCount={3}
-      onAutoSchedule={() => {}}
-      autoFilling={false}
-      weekPlannedCount={5}
-      onRequestClearSchedule={() => {}}
-      note={null}
-    />
+    <Card>
+      <CardBody>
+        <RunDesignFields
+          runDesign={runDesign}
+          onChange={setRunDesign}
+          selectedCount={3}
+          onAutoSchedule={() => {}}
+          autoFilling={false}
+          weekPlannedCount={5}
+          onRequestClearSchedule={() => {}}
+          note={null}
+        />
+      </CardBody>
+    </Card>
   );
 }
 
@@ -150,10 +156,12 @@ export function ScheduleSection() {
         1 Sanger IDs&quot;) so you can correct the sample and export again.
       </p>
 
-      <p className={styles.subheading}>Run design &amp; auto-fill</p>
+      <p className={styles.subheading}>Autoschedule (run design &amp; auto-fill)</p>
       <p>
-        <b>Run design</b> (collapsible panel, shown live below) sets the parameters used for both single placements
-        and auto-fill:
+        The big pink <b>✨ Autoschedule</b> button (to the left of the Backlog tray) opens the <b>Autoschedule</b>{" "}
+        panel — a pop-out from the left edge — which sets the parameters used for both single placements and auto-fill.
+        Close it with the <b>✕</b>, the <b>Esc</b> key, or by clicking outside it; your grid selection stays put while
+        it&apos;s open. The same controls are shown live below:
       </p>
       <dl className={styles.terms}>
         <dt>Max uses per cell (1× / 2× / 3×)</dt>
@@ -185,11 +193,12 @@ export function ScheduleSection() {
         </dd>
         <dt>Optimise for</dt>
         <dd>
-          <b>Fewest cells</b> and <b>Balance</b> both reuse cells as deep as your Max uses setting allows;{" "}
-          <b>Fastest</b> instead spreads new samples across more cells so more of them can start sooner, at the
-          cost of using more cells. <b>Utilisation</b> goes further still: it opens enough distinct cells to fill a
-          whole instrument-day&apos;s wells (matching your Cells per day setting) before reusing any of them for a
-          2nd/3rd use — fewer half-loaded runs, at the cost of using more cells.
+          Two strategies. <b>Fastest</b> spreads samples across as many fresh cells as it takes to fill a whole
+          tray, so every sample can start as soon as possible — but each of those cells then has its 108-hour expiry
+          clock running. Example: 4 samples over 4 days go onto one tray, one per well (A, B, C, D). <b>Efficient</b>{" "}
+          instead reuses one cell up to your <b>Max uses</b> depth before opening the next, keeping fewer cells&apos;
+          expiry clocks running at once. Same example: cell A runs on Mon, Tue and Wed (its Use 1/2/3), then cell B
+          starts on Thu — so only one cell is &quot;live&quot; at a time.
         </dd>
         <dt>Plates per run (1 plate / 2 plates)</dt>
         <dd>
@@ -478,15 +487,6 @@ export function ScheduleSection() {
           A <b>LOADED</b> tag marks a locked run; <b>Unlock</b> returns it to planned so you can edit it again.
         </li>
         <li>
-          An amber <b>&quot;⚠ &lt;cell&gt; — N unused uses expiring after &lt;date&gt;&quot;</b> note next to Confirm
-          loaded means this day is the <b>last chance to reuse a specific cell</b> before its <b>108-hour window</b>
-          closes with uses still left on it. It&apos;s per <b>cell</b>, not per tray: a tray doesn&apos;t expire as a
-          whole — only a cell that has already been used starts a 108-hour clock, so only those cells are flagged. A
-          never-yet-used cell has no clock and is never shown here (it stays good until it&apos;s first loaded). The
-          note names the cell and well and how many uses it will strand (hover for the exact deadline) — so you can
-          decide whether to load it again before then, or let that capacity lapse.
-        </li>
-        <li>
           The <b>↻</b> button in a tray&apos;s top-right corner is <b>Rotate tray</b> — use it when you physically
           swap that tray for a fresh one (its cells are used up, expired, or you just want a clean tray from this day
           on). It loads a brand-new tray into the same position and moves <b>this day&apos;s samples, plus any later
@@ -561,11 +561,10 @@ export function ScheduleSection() {
         button.
       </p>
       <p>
-        You don&apos;t have to hunt for the reuse deadline: the <b>cell-expiry warning</b> (the amber{" "}
-        <b>&quot;⚠ &lt;cell&gt; — N unused uses expiring after &lt;date&gt;&quot;</b> note next to <b>Confirm
-        loaded</b>, described under Locking a run below) tells you the last day a used cell&apos;s spare capacity can
-        be reused before its 108-hour window closes, and each cell&apos;s own detail page shows its exact 108-hour
-        reuse window.
+        You don&apos;t have to hunt for the reuse deadline: the <b>tray overview</b> beneath each instrument&apos;s
+        number (left column) shows each used cell&apos;s <b>exp DD/MM</b> 108-hour deadline and turns <b>amber</b> when
+        that window is about to close with uses still left — so the cells worth reusing soon stand out at a glance. Each
+        cell&apos;s own detail page shows its exact 108-hour reuse window.
       </p>
 
       <p className={styles.subheading}>Slot shading &amp; cell-link highlight</p>
@@ -628,8 +627,8 @@ export function ScheduleSection() {
             A <b>used-up cell no longer blocks its slot</b>. A grid slot is a plate <em>loading position</em>, not a
             cell: when a cell is exhausted, expired, or retired, its slot stays a normal droppable <b>+</b>. Loading a
             sample there lands it on the next usable cell in that tray automatically — the card&apos;s stub shows which
-            cell it actually ran on. Watch the cell-expiry warning (⚠, next to Confirm loaded) for when a used cell&apos;s
-            108-hour window is about to close with uses still left on it.
+            cell it actually ran on. Watch the tray overview (left column) for when a used cell&apos;s 108-hour window
+            is about to close with uses still left on it — its <b>exp</b> date turns amber.
           </span>
         </div>
       </div>

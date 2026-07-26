@@ -10,7 +10,15 @@ import type { CycleStatus } from "./common";
 
 export type MaxUses = 1 | 2 | 3;
 export type RunTimeHours = 12 | 24 | 30;
-export type Objective = "fewest" | "balance" | "fastest" | "utilisation";
+/** The two auto-schedule strategies the UI surfaces, stored as the engine's own mode
+ * names so they pass straight through to /api/auto-fill (which still accepts the wider
+ * legacy set - see backend/app/schemas/run.py). The UI labels them "Fastest" and
+ * "Efficient" respectively (see RunDesignFields.OBJECTIVE_OPTIONS):
+ *   - "utilisation" ("Fastest"): open enough distinct fresh cells to fill the tray so
+ *     every sample starts as soon as possible - each cell then carries an expiry timer.
+ *   - "fewest" ("Efficient"): reuse a cell to its Max-uses depth before opening the next,
+ *     so fewer cells have a running 108h window at once. */
+export type Objective = "fewest" | "utilisation";
 /** How many of a run's 8 wells auto-fill is allowed to use per acquisition day: 4 = Plate 1
  * only (1 tray), 8 = both plates (2 trays). Surfaced in the UI as "Plates per run". */
 export type CellsPerDay = 4 | 8;

@@ -25,7 +25,7 @@ import styles from "./OpenTraysAccordion.module.css";
  * still open, one never used - see docs/pacbio-sprq-nx-scheduling-reference.md's
  * "Tray-of-4 eager population").
  *
- * Collapsed by default, matching BacklogAccordion/RunDesignAccordion - the header badge
+ * Collapsed by default, matching BacklogAccordion - the header badge
  * already surfaces the open tray count at a glance, so an open cell/instrument list isn't
  * needed until the user actually wants to act on one. The outer query still runs
  * regardless of collapsed state (same BacklogAccordion convention) so the header count

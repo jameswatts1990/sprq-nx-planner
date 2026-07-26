@@ -15,14 +15,13 @@ import type { InstrumentTrayMap } from "./instrumentTrayMaps";
 import styles from "./SchedulerGrid.module.css";
 import type { Coord, GridSelection } from "./useGridSelection";
 import type { SlotSelection } from "./useSlotSelection";
-import type { CellGhost, CellExpiryWarning } from "./waitingCells";
+import type { CellGhost } from "./waitingCells";
 
 // Stable empty references for instruments with nothing to show, so the memoized
 // SchedulerGridRow doesn't see a new object identity on every render.
 const EMPTY_CYCLES_BY_DATE: Map<string, RunOut> = new Map();
 const EMPTY_WAITING_BY_DATE: Map<string, CellGhost[]> = new Map();
 const EMPTY_BLOCKED_BY_DATE: Map<string, Set<string>> = new Map();
-const EMPTY_EXPIRY_BY_DATE: Map<string, CellExpiryWarning[]> = new Map();
 
 export interface SchedulerGridProps {
   instrumentSerials: string[];
@@ -43,10 +42,6 @@ export interface SchedulerGridProps {
    * waitingCells.computeBlockedWellsByInstrumentAndDay - day-aware because a later tray
    * reuses the same well once the stopped cell's tray leaves). */
   blockedGrouped: Map<string, Map<string, Set<string>>>;
-  /** Used cells whose 108h reuse window will close with capacity unused, keyed by instrument
-   * then each cell's own last-chance (reuse cutoff) day (see
-   * waitingCells.computeCellExpiryWarnings). */
-  expiryGrouped: Map<string, Map<string, CellExpiryWarning[]>>;
   /** Projected on-instrument tray map per instrument serial (see
    * instrumentTrayMap.computeInstrumentTrayMaps), shown beneath each serial. */
   trayMaps: Map<string, InstrumentTrayMap>;
@@ -119,7 +114,6 @@ export function SchedulerGrid({
   onDragSelectStart,
   waitingGrouped,
   blockedGrouped,
-  expiryGrouped,
   trayMaps,
 }: SchedulerGridProps) {
   // Same open-cell computation SchedulerGridRow uses (via the shared resolveCell) - a day
@@ -214,7 +208,6 @@ export function SchedulerGrid({
               onDragSelectStart={onDragSelectStart}
               waitingCellsByDate={waitingGrouped.get(serial) ?? EMPTY_WAITING_BY_DATE}
               blockedWellsByDate={blockedGrouped.get(serial) ?? EMPTY_BLOCKED_BY_DATE}
-              expiryByDate={expiryGrouped.get(serial) ?? EMPTY_EXPIRY_BY_DATE}
               trayMap={trayMaps.get(serial)}
             />
           ))}

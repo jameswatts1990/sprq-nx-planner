@@ -1,7 +1,6 @@
 import { useState } from "react";
 
 import { LoadTimePicker } from "@/components/scheduler/LoadTimePicker";
-import { Accordion } from "@/components/ui/Accordion";
 import { Button } from "@/components/ui/Button";
 import { Note } from "@/components/ui/Note";
 import type { NoteTone } from "@/components/ui/Note";
@@ -9,13 +8,13 @@ import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import type { CellsPerDay, MaxUses, Objective, RunTimeHours } from "@/types/schedule";
 import type { RunDesignState } from "@/types/schedulerGrid";
 
-import styles from "./RunDesignAccordion.module.css";
+import styles from "./RunDesignFields.module.css";
 
 function fmtLoadHour(h: number): string {
   return `${String(h).padStart(2, "0")}:00`;
 }
 
-export interface RunDesignAccordionProps {
+export interface RunDesignFieldsProps {
   runDesign: RunDesignState;
   onChange: (next: RunDesignState) => void;
   /** Number of empty cells currently range-selected in the grid. */
@@ -39,21 +38,37 @@ const RUN_TIME_OPTIONS = [
   { value: 24 as RunTimeHours, label: "24 h" },
   { value: 30 as RunTimeHours, label: "30 h" },
 ];
+/** Two strategies only. The stored `value` is the engine mode name (see Objective in
+ * types/schedule.ts); the `label` is what the lab user reads. "Fastest" fills a whole
+ * tray so every sample starts sooner (each cell then has a running expiry timer);
+ * "Efficient" reuses a cell to depth before opening the next, so fewer cells expire. */
 const OBJECTIVE_OPTIONS = [
-  { value: "fewest" as Objective, label: "Fewest cells", hint: "lowest cost" },
-  { value: "balance" as Objective, label: "Balance", hint: "cost + speed" },
-  { value: "fastest" as Objective, label: "Fastest", hint: "fewest days" },
-  { value: "utilisation" as Objective, label: "Utilisation", hint: "full trays" },
+  { value: "utilisation" as Objective, label: "Fastest", hint: "fill trays, start sooner" },
+  { value: "fewest" as Objective, label: "Efficient", hint: "reuse cells, limit expiry" },
 ];
 const PLATES_PER_RUN_OPTIONS = [
   { value: 4 as CellsPerDay, label: "1 plate", hint: "1 tray · 4 wells" },
   { value: 8 as CellsPerDay, label: "2 plates", hint: "2 trays · 8 wells" },
 ];
 
-/** Run Design dials that feed both single placements (place mutation) and batch
- * auto-fill. Instrument + start-date selection now happens spatially in the grid, so
- * those old fields are gone; auto-fill acts on the current grid range-selection. */
-export function RunDesignAccordion({
+/** Human label for a stored objective value - shared so summaries elsewhere never print
+ * the raw engine mode name. */
+export function objectiveLabel(objective: Objective): string {
+  return OBJECTIVE_OPTIONS.find((o) => o.value === objective)?.label ?? objective;
+}
+
+/** Short one-line summary of the current dials, e.g. for the Autoschedule drawer subtitle. */
+export function runDesignSummary(runDesign: RunDesignState): string {
+  return `${runDesign.max_uses}× · ${runDesign.run_time_hours} h · loads ${fmtLoadHour(runDesign.load_hour)} · ${objectiveLabel(
+    runDesign.objective,
+  )} · ${runDesign.cells_per_day === 8 ? "2 plates" : "1 plate"}`;
+}
+
+/** The Autoschedule dials that feed both single placements (place mutation) and batch
+ * auto-fill. Instrument + start-date selection happens spatially in the grid, so auto-fill
+ * acts on the current grid range-selection. Rendered inside the Schedule page's
+ * Autoschedule drawer (AutoscheduleDrawer) and, statically, on the Help tab. */
+export function RunDesignFields({
   runDesign,
   onChange,
   selectedCount,
@@ -62,15 +77,10 @@ export function RunDesignAccordion({
   weekPlannedCount,
   onRequestClearSchedule,
   note,
-}: RunDesignAccordionProps) {
+}: RunDesignFieldsProps) {
   const [pickingLoadTime, setPickingLoadTime] = useState(false);
   return (
-    <Accordion
-      title="Run design"
-      badge={`${runDesign.max_uses}× · ${runDesign.run_time_hours} h · loads ${fmtLoadHour(runDesign.load_hour)} · ${
-        runDesign.objective
-      } · ${runDesign.cells_per_day === 8 ? "2 plates" : "1 plate"}`}
-    >
+    <>
       <div className={styles.field}>
         <div className={styles.fieldLabel}>
           Max uses per cell <span className={styles.hint}>auto-fill target depth</span>
@@ -132,7 +142,8 @@ export function RunDesignAccordion({
           {`Clear schedule (${weekPlannedCount} planned)`}
         </Button>
         <span className={styles.autoHint}>
-          Select empty cells, then auto-fill from the backlog. Clear schedule wipes this week&apos;s planned runs.
+          Select empty cells in the grid, then auto-fill from the backlog. Clear schedule wipes this week&apos;s planned
+          runs.
         </span>
       </div>
 
@@ -155,6 +166,6 @@ export function RunDesignAccordion({
           }}
         />
       )}
-    </Accordion>
+    </>
   );
 }

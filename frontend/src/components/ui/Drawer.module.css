@@ -1,0 +1,89 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  /* Lighter than Modal's scrim: the drawer's controls act on the grid selection behind
+     it, so the grid stays legible while the panel is open. */
+  background: rgba(20, 20, 30, 0.25);
+  z-index: 100;
+  display: flex;
+}
+.panel {
+  background: var(--card);
+  box-shadow: var(--shadow);
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: drawer-in 0.16s ease-out;
+}
+.left {
+  margin-right: auto;
+  border-right: 1px solid var(--line);
+  animation-name: drawer-in-left;
+}
+.right {
+  margin-left: auto;
+  border-left: 1px solid var(--line);
+  animation-name: drawer-in-right;
+}
+@keyframes drawer-in-left {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+@keyframes drawer-in-right {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.titleBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.title {
+  font-size: 17px;
+  margin: 0;
+}
+.subtitle {
+  font-size: 12px;
+  color: var(--grey);
+  font-weight: 600;
+}
+.close {
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1;
+  color: var(--grey);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 6px 9px;
+  cursor: pointer;
+  transition: 0.14s;
+}
+.close:hover {
+  color: var(--ink);
+  border-color: #cfd2d8;
+  box-shadow: var(--shadow-sm);
+}
+.body {
+  padding: 18px 20px 24px;
+  overflow-y: auto;
+  flex: 1;
+}

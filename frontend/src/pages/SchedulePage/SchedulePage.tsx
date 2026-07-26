@@ -25,7 +25,6 @@ import { useSchedulerDnd } from "@/components/scheduler/useSchedulerDnd";
 import { useSlotSelection } from "@/components/scheduler/useSlotSelection";
 import {
   computeBlockedWellsByInstrumentAndDay,
-  computeCellExpiryWarnings,
   computeTrayEvictionDates,
   computeTrayFoundingDates,
   computeVacatedTrayIds,
@@ -38,10 +37,10 @@ import type { RunOut, SlotIndex, StageOut } from "@/types/schedule";
 import type { GridCellRef, RunDesignState } from "@/types/schedulerGrid";
 import { addDaysUTC, formatShortDateUTC, isWeekendUTC, parseDateOnly, todayIsoUTC, toIsoDateUTC } from "@/utils/calendarDates";
 
+import { AutoscheduleDrawer } from "./AutoscheduleDrawer";
 import { BacklogAccordion } from "./BacklogAccordion";
 import { ClearScheduleModal } from "./ClearScheduleModal";
 import { PrintBatchSheetModal } from "./PrintBatchSheetModal";
-import { RunDesignAccordion } from "./RunDesignAccordion";
 import styles from "./SchedulePage.module.css";
 import { useScheduleActions } from "./useScheduleActions";
 import { useSchedulerWindow } from "./useSchedulerWindow";
@@ -65,6 +64,7 @@ export function SchedulePage() {
   const slotSelection = useSlotSelection();
 
   const [runDesign, setRunDesign] = useState<RunDesignState>(DEFAULT_RUN_DESIGN);
+  const [autoscheduleOpen, setAutoscheduleOpen] = useState(false);
   const [detail, setDetail] = useState<DetailTarget | null>(null);
   const [printSheetOpen, setPrintSheetOpen] = useState(false);
   // The placement whose physical-cell info popover is open (the card's "ticket stub" click).
@@ -78,7 +78,6 @@ export function SchedulePage() {
     slot_index: SlotIndex;
   } | null>(null);
   const gridAreaRef = useRef<HTMLDivElement>(null);
-  const accordionsRef = useRef<HTMLDivElement>(null);
   const stickyHeadRef = useRef<HTMLDivElement>(null);
 
   const instrumentsQuery = useQuery({
@@ -177,16 +176,6 @@ export function SchedulePage() {
   const blockedGrouped = useMemo(
     () => computeBlockedWellsByInstrumentAndDay(allTrayCells, win.days, trayFoundingDates),
     [allTrayCells, win.days, trayFoundingDates],
-  );
-  // Used cells whose 108h reuse window will close with capacity still unspent, keyed to each
-  // cell's own last-chance (reuse cutoff) day - so the warning sits by the Confirm loaded
-  // control on the day the user can still reuse the cell, not on a freshly-loaded run days
-  // before it actually expires. Per-cell, not per-tray: a never-used sibling has no 108h clock
-  // and is never flagged - a tray doesn't expire as a unit, only its used cells do (see
-  // computeCellExpiryWarnings).
-  const expiryGrouped = useMemo(
-    () => computeCellExpiryWarnings(allTrayCells, win.days, trayEvictionDates),
-    [allTrayCells, win.days, trayEvictionDates],
   );
   // The projected physical-tray map for each instrument's left-column header, as of the
   // latest scheduled day this week. Reuses the same tray founding/eviction/vacated maps the
@@ -364,21 +353,20 @@ export function SchedulePage() {
   // "Clear" button. Skipped while a modal/popover is open: those render as siblings of
   // the grid (not inside gridAreaRef), so their own clicks would otherwise count as
   // "outside" and clear the selection out from under an in-progress action inside it
-  // (e.g. a QC action in SlotDetailPopover). The
-  // accordions (Run Design's Auto-Schedule button in particular) are excluded from
-  // "outside" for the same reason: mousedown fires before click, so without this a
-  // click on Auto-Schedule cleared the selection an instant before onAutoSchedule read
-  // it, making the click silently schedule zero cells. The pinned sticky head (the date
-  // toolbar plus its own Clear/Remove buttons and the pinned Backlog tray) is excluded on
-  // the same grounds - those controls act on the current selection, so their mousedown
-  // must not wipe it out from under their own click.
+  // (e.g. a QC action in SlotDetailPopover). The Autoschedule drawer (whose Auto-Schedule
+  // button acts on the current selection) is excluded for the same reason: mousedown fires
+  // before click, so without this a click on Auto-Schedule cleared the selection an instant
+  // before onAutoSchedule read it, making the click silently schedule zero cells - so the
+  // whole effect is skipped while the drawer is open. The pinned sticky head (the date
+  // toolbar plus its own Clear/Remove buttons, the ✨ Autoschedule button and the pinned
+  // Backlog tray) is excluded on the same grounds - those controls act on the current
+  // selection, so their mousedown must not wipe it out from under their own click.
   useEffect(() => {
     if (!selection.hasSelection && !slotSelection.hasSelection) return;
-    if (detail || cellInfo || printSheetOpen || actions.clearConfirmOpen || dnd.pendingPlacement) return;
+    if (detail || cellInfo || printSheetOpen || actions.clearConfirmOpen || dnd.pendingPlacement || autoscheduleOpen) return;
     function onMouseDown(e: MouseEvent) {
       const target = e.target as Node;
       if (gridAreaRef.current?.contains(target)) return;
-      if (accordionsRef.current?.contains(target)) return;
       if (stickyHeadRef.current?.contains(target)) return;
       selection.clear();
       slotSelection.clear();
@@ -387,7 +375,7 @@ export function SchedulePage() {
     return () => window.removeEventListener("mousedown", onMouseDown);
     // selection/slotSelection are stable (memoized in their hooks), so depending on the
     // whole objects re-subscribes only on a real selection change, same as before.
-  }, [selection, slotSelection, detail, cellInfo, printSheetOpen, actions.clearConfirmOpen, dnd.pendingPlacement]);
+  }, [selection, slotSelection, detail, cellInfo, printSheetOpen, actions.clearConfirmOpen, dnd.pendingPlacement, autoscheduleOpen]);
 
   // Delete/Backspace removes the selected samples from the schedule, as long as focus
   // isn't in a text field (so it doesn't hijack editing elsewhere on the page).
@@ -509,7 +497,23 @@ export function SchedulePage() {
                 </div>
               )}
             </div>
-            <BacklogAccordion />
+            <div className={styles.backlogRow}>
+              <button
+                type="button"
+                className={styles.sparkleBtn}
+                onClick={() => setAutoscheduleOpen(true)}
+                aria-label="Open Autoschedule"
+                title="Autoschedule — set the run design and auto-fill selected cells from the backlog"
+              >
+                <span className={styles.sparkleIcon} aria-hidden="true">
+                  ✨
+                </span>
+                Autoschedule
+              </button>
+              <div className={styles.backlogRowMain}>
+                <BacklogAccordion />
+              </div>
+            </div>
           </div>
 
           {actions.removeSlotsError && (
@@ -517,19 +521,6 @@ export function SchedulePage() {
               {actions.removeSlotsError}
             </Note>
           )}
-
-          <div className={styles.accordions} ref={accordionsRef}>
-            <RunDesignAccordion
-              runDesign={runDesign}
-              onChange={setRunDesign}
-              selectedCount={selectedCells.length}
-              onAutoSchedule={actions.onAutoSchedule}
-              autoFilling={actions.autoFill.isPending}
-              weekPlannedCount={weekPlannedStages.length}
-              onRequestClearSchedule={actions.onRequestClearSchedule}
-              note={actions.runDesignNote}
-            />
-          </div>
 
           <div className={styles.gridArea} ref={gridAreaRef}>
             <SectionHeading title="Weekly schedule" legend={<UseLegend />} progress={weekProgress} />
@@ -565,7 +556,6 @@ export function SchedulePage() {
                 onDragSelectStart={onDragSelectStart}
                 waitingGrouped={waitingGrouped}
                 blockedGrouped={blockedGrouped}
-                expiryGrouped={expiryGrouped}
                 trayMaps={trayMaps}
               />
             )}
@@ -615,6 +605,20 @@ export function SchedulePage() {
 
       {printSheetOpen && (
         <PrintBatchSheetModal instruments={instrumentsQuery.data ?? []} onClose={() => setPrintSheetOpen(false)} />
+      )}
+
+      {autoscheduleOpen && (
+        <AutoscheduleDrawer
+          runDesign={runDesign}
+          onChange={setRunDesign}
+          selectedCount={selectedCells.length}
+          onAutoSchedule={actions.onAutoSchedule}
+          autoFilling={actions.autoFill.isPending}
+          weekPlannedCount={weekPlannedStages.length}
+          onRequestClearSchedule={actions.onRequestClearSchedule}
+          note={actions.runDesignNote}
+          onClose={() => setAutoscheduleOpen(false)}
+        />
       )}
 
       {detail && <SlotDetailPopover stage={detail.stage} run={detail.run} onClose={() => setDetail(null)} />}

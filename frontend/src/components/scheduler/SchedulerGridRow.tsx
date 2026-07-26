@@ -10,13 +10,12 @@ import { SchedulerDayCell } from "./SchedulerDayCell";
 import { InstrumentTrayMap } from "./InstrumentTrayMap";
 import type { InstrumentTrayMap as InstrumentTrayMapData } from "./instrumentTrayMaps";
 import styles from "./SchedulerGrid.module.css";
-import type { CellGhost, CellExpiryWarning } from "./waitingCells";
+import type { CellGhost } from "./waitingCells";
 
 // Stable empty references so a day with nothing to show doesn't hand SchedulerDayCell a new
 // object identity on every render.
 const EMPTY_GHOSTS: CellGhost[] = [];
 const EMPTY_BLOCKED_WELLS: Set<string> = new Set();
-const EMPTY_EXPIRY: CellExpiryWarning[] = [];
 
 export interface SchedulerGridRowProps {
   serial: string;
@@ -33,8 +32,6 @@ export interface SchedulerGridRowProps {
   waitingCellsByDate: Map<string, CellGhost[]>;
   /** Wells on this instrument permanently blocked by a stopped cell, per day. */
   blockedWellsByDate: Map<string, Set<string>>;
-  /** Cell-expiry warnings on this instrument, keyed by each cell's 108h reuse cutoff day. */
-  expiryByDate: Map<string, CellExpiryWarning[]>;
   /** Projected on-instrument tray map (as of the latest scheduled day this week), shown
    * beneath the serial. Undefined when the instrument has no tray-linked cells at all. */
   trayMap: InstrumentTrayMapData | undefined;
@@ -59,7 +56,6 @@ export const SchedulerGridRow = memo(function SchedulerGridRow({
   onDragSelectStart,
   waitingCellsByDate,
   blockedWellsByDate,
-  expiryByDate,
   trayMap,
 }: SchedulerGridRowProps) {
   // Everything each day-cell needs, derived once per day. continuation is the only costly
@@ -136,7 +132,6 @@ export const SchedulerGridRow = memo(function SchedulerGridRow({
             onDragSelectStart={onDragSelectStart}
             waitingCells={waitingCellsByDate.get(date) ?? EMPTY_GHOSTS}
             blockedWells={blockedWellsByDate.get(date) ?? EMPTY_BLOCKED_WELLS}
-            expiryWarnings={expiryByDate.get(date) ?? EMPTY_EXPIRY}
           />
         );
       })}
