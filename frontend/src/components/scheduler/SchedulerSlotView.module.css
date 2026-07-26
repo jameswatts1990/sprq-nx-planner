@@ -205,8 +205,9 @@
     rgba(255, 255, 255, 0.6) 92px,
     rgba(255, 255, 255, 0) 110px
   );
-  background-size: 320px 320px;
-  background-position: 0px 0px;
+  background-repeat: no-repeat;
+  background-size: 600px 600px;
+  background-position: -300px -300px;
   mix-blend-mode: screen;
   opacity: 0.3;
   animation: sealGlint 5s linear infinite;
@@ -280,26 +281,26 @@
      sealGlint     — 110px @ 115deg → (99.7, 46.5) */
 @keyframes sealShift {
   0% {
-    background-position: 0px 0px;
+    background-position: -300px -300px;
   }
   100% {
-    background-position: 23.6px 11px;
+    background-position: -276.4px -289px;
   }
 }
 @keyframes sealShiftFine {
   0% {
-    background-position: 0px 0px;
+    background-position: -300px -300px;
   }
   100% {
-    background-position: -10.2px -8px;
+    background-position: -310.2px -308px;
   }
 }
 @keyframes sealGlint {
   0% {
-    background-position: 0px 0px;
+    background-position: -300px -300px;
   }
   100% {
-    background-position: 99.7px 46.5px;
+    background-position: -200.3px -253.5px;
   }
 }
 /* Hover = tilt the seal into the light. Rather than jolting the drift speed, ramp the
@@ -318,15 +319,16 @@
   .stubSheen::after {
     animation: none;
   }
-  /* Still a layered, uniquely hue-rotated foil — identity and depth without motion. */
+  /* Still a layered, uniquely hue-rotated foil — identity and depth without motion.
+     Frozen mid-drift, but the -300px origin keeps the stub in the image interior. */
   .stubSheen {
-    background-position: 11.8px 5.5px;
+    background-position: -288.2px -294.5px;
   }
   .stubSheen::before {
-    background-position: -5.1px -4px;
+    background-position: -305.1px -304px;
   }
   .stubSheen::after {
-    background-position: 49.8px 23.2px;
+    background-position: -250.2px -276.8px;
   }
 }
 /* The cross-time cell-link dot sits top-right; nudge it clear of the stub when one is shown. */
