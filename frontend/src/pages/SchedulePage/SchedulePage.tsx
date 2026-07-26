@@ -7,7 +7,6 @@ import { cellsApi } from "@/api/cells";
 import { cyclesApi } from "@/api/cycles";
 import { instrumentsApi } from "@/api/instruments";
 import { scheduleExportUrl } from "@/api/scheduleExport";
-import { CellChoicePicker } from "@/components/scheduler/CellChoicePicker";
 import { CellInfoPopover } from "@/components/scheduler/CellInfoPopover";
 import { LoadTimePicker } from "@/components/scheduler/LoadTimePicker";
 import {
@@ -339,6 +338,14 @@ export function SchedulePage() {
         { onSettled: () => dnd.setPlacingSlotKey(null) },
       );
     },
+    (cellUseId, instrumentSerial, loadDate, slotIndex) => {
+      // A drag-move re-plans a placement: no picker, the backend keeps or derives the cell.
+      dnd.setPlacingSlotKey(slotKey(instrumentSerial, loadDate, slotIndex));
+      actions.move.mutate(
+        { cell_use_id: cellUseId, instrument_serial: instrumentSerial, load_date: loadDate, slot_index: slotIndex },
+        { onSettled: () => dnd.setPlacingSlotKey(null) },
+      );
+    },
   );
   // Suppressed during any drag (backlog-sample or filled-slot move) so the hover/pin
   // highlight never fights the drag/drop visuals - see useCellLinkHighlight.tsx.
@@ -560,17 +567,6 @@ export function SchedulePage() {
           </DragOverlay>
         </CellLinkContext.Provider>
       </DndContext>
-
-      {dnd.pendingPlacement && (
-        <CellChoicePicker
-          pending={dnd.pendingPlacement}
-          runDesign={runDesign}
-          existingRun={grouped.get(dnd.pendingPlacement.instrument_serial)?.get(dnd.pendingPlacement.load_date)}
-          onClose={() => dnd.setPendingPlacement(null)}
-          onPlaced={() => dnd.setPendingPlacement(null)}
-          setPlacingSlotKey={dnd.setPlacingSlotKey}
-        />
-      )}
 
       {pendingLoadTime && (
         <LoadTimePicker

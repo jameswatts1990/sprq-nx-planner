@@ -8,7 +8,6 @@ import { CELL_LIFETIME_H, expiryFadeOpacity } from "@/utils/windowFade";
 
 import styles from "./SchedulerSlotView.module.css";
 import { CELL_LINK_SLOT_ATTR } from "./useCellLinkHighlight";
-import type { CellGhost } from "./waitingCells";
 
 export interface SchedulerSlotViewProps extends HTMLAttributes<HTMLDivElement> {
   /** The filled well, or null for an empty slot placeholder. */
@@ -24,15 +23,11 @@ export interface SchedulerSlotViewProps extends HTMLAttributes<HTMLDivElement> {
    * from a dropped-elsewhere eviction (see .noopOver). */
   over?: boolean;
   /** This filled slot is the active drag source - rendered as if unplaced (dashed
-   * placeholder, or its ghost if one applies), matching what dropping it outside the
-   * grid would actually do (unless also `over` - see above). */
+   * placeholder), matching what dropping it outside the grid would actually do (unless also
+   * `over` - see above). */
   dragging?: boolean;
   /** Selected via ctrl/cmd-click, for the bulk-delete affordance. */
   selected?: boolean;
-  /** An empty slot that a waiting, reusable cell could be loaded into today - renders a
-   * Use-N tinted placeholder instead of the plain "+" (see waitingCells.ts). Ignored when
-   * `stage` is set. */
-  ghost?: CellGhost;
   /** This is the exact slot currently hovered/pinned for the cross-time same-cell link
    * highlight (see useCellLinkHighlight.tsx). */
   linkSource?: boolean;
@@ -67,7 +62,6 @@ export const SchedulerSlotView = memo(
       over,
       dragging,
       selected,
-      ghost,
       linkSource,
       linked,
       dimmed,
@@ -83,13 +77,6 @@ export const SchedulerSlotView = memo(
   // it reads as an empty/ghost placeholder, same as it will actually be if the drag ends
   // outside a valid drop target (see useSchedulerDnd's onDragEnd).
   const showStage = !!stage && !dragging;
-
-  // The only ghost this view ever renders now is a SPENT-well marker (a terminal cell still
-  // physically occupying its well - see SchedulerSlot, which only forwards a terminalStatus
-  // ghost here). Reuse offers are no longer painted as cards: a well with a reusable resident
-  // cell reads as a plain droppable "+", and the resident's id rides along as the drop's
-  // ghostCellId so a drop lands on its sequential next use (see SchedulerSlot.DroppableSlot).
-  const renderGhost = ghost;
 
   // Surfaces a QC problem directly on the grid, independent of the Use 1/2/3 tint. A
   // use's own recorded outcome (cancelled/failed/aborted) always wins over the whole-cell
@@ -122,7 +109,10 @@ export const SchedulerSlotView = memo(
   // colour-coded by use (solid Use 1/2/3 palette, like the legend swatches). Only rendered on
   // a filled card that has an onOpenCell handler.
   const showStub = showStage && !!onOpenCell;
-  const stubLabel = showStage ? `${stage!.well.charAt(0)}${stage!.use_number}` : "";
+  // The stub names the physical CELL, not the loading slot: its own tray identity letter
+  // (cell_home_well, e.g. B01 -> "B") + use number, so a sample loaded in slot A01 but running
+  // on cell B reads "B1". Falls back to the loading well for a legacy cell with no tray.
+  const stubLabel = showStage ? `${(stage!.cell_home_well ?? stage!.well).charAt(0)}${stage!.use_number}` : "";
   const stubClass = !showStage
     ? ""
     : stage!.use_number >= 3
@@ -162,12 +152,6 @@ export const SchedulerSlotView = memo(
     // [cell's] expiry" (see docs/pacbio-sprq-nx-scheduling-reference.md #2: this is always
     // per-cell, never a shared tray-level clock).
     if (stage!.window_hours_elapsed !== null) classes.push(styles.windowShaded);
-  } else if (renderGhost?.terminalStatus) {
-    // A well physically holding a spent cell (its tray hasn't left the instrument yet) can't
-    // take a placement - rendered as the SAME minimal, non-droppable "spent well" marker as a
-    // stopped well (styles.blocked), never a sample-like card. It just isn't a loadable well
-    // right now; the specific reason lives in the tooltip.
-    classes.push(styles.blocked);
   } else if (blocked) {
     classes.push(styles.blocked);
   } else {
@@ -204,21 +188,6 @@ export const SchedulerSlotView = memo(
     const hoursRemaining = CELL_LIFETIME_H - stage!.window_hours_elapsed;
     mergedStyle = { ...mergedStyle, ["--window-opacity" as string]: expiryFadeOpacity(hoursRemaining) };
   }
-
-  // Why this well is dead. A terminal ghost only ever renders while at least one sibling in
-  // the same physical tray still holds real capacity (waitingCells.computeTerminalGhost
-  // stops returning one at all, in favour of a plain droppable "+", the moment every sibling
-  // has also gone terminal - see computeVacatedTrayIds), so this well always stays locked
-  // for as long as this marker is visible.
-  const terminalGhostTitle = renderGhost?.terminalStatus
-    ? `${
-        renderGhost.terminalStatus === "exhausted"
-          ? "This cell has used up all its lawful uses."
-          : renderGhost.terminalStatus === "window_expired"
-            ? "This cell's 108-hour window closed before its remaining capacity could be used."
-            : "This cell was manually retired."
-      } This well stays locked until every cell in its physical tray is also used up, expired, or retired - the tray is still loaded on the instrument.`
-    : undefined;
 
   return (
     <div
@@ -289,10 +258,6 @@ export const SchedulerSlotView = memo(
             />
           )}
         </>
-      ) : renderGhost?.terminalStatus ? (
-        <span className={styles.blockedIcon} title={terminalGhostTitle} aria-hidden="true">
-          ✕
-        </span>
       ) : blocked ? (
         <span
           className={styles.blockedIcon}

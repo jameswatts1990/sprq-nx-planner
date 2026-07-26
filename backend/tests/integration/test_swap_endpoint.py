@@ -162,6 +162,12 @@ def test_swap_rejects_a_cancelled_placement(client):
     r2 = _place(client, _sid(client, "A2"), tue, slot_index=4)
     use_2 = _stages(r2.json())[0]
 
+    # Discard A1's tray siblings so the stop has nowhere to re-home A1's use - it overflows to
+    # a permanent cancelled marker (rather than shifting onto a sibling).
+    tray_id = client.get(f"/api/cells/{cell_id}").json()["tray_id"]
+    for sib in [c["id"] for c in client.get("/api/cells", params={"tray_id": tray_id}).json()["items"] if c["id"] != cell_id]:
+        client.post(f"/api/cells/{sib}/discard", json={"reason": "test"})
+
     stopped = client.post(f"/api/cells/{cell_id}/stop", json={"reason": "QC issue"})
     assert stopped.status_code == 200, stopped.text
     cu = client.get(f"/api/cell-uses/{_stages(r1.json())[0]['cell_use_id']}").json()

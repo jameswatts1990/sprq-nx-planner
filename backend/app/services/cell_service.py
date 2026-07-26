@@ -89,19 +89,28 @@ def use_sort_key(cell_use: CellUse) -> tuple[date, int]:
 
 
 def current_location(cell: Cell) -> tuple[str | None, str | None]:
+    """(instrument_serial, well) a cell physically occupies. The instrument is where its most
+    recent use runs (a cell never crosses instruments once used), falling back to its tray's
+    instrument for a not-yet-used sibling. The well is the cell's fixed tray IDENTITY
+    (home_well) - the A/B/C/D position it keeps for life - NOT wherever a sample happened to be
+    loaded: CellUse.well is a plate LOADING position now, which can differ from the cell's own
+    well. Only a legacy/bootstrap cell with no tray falls back to its last use's loading well."""
     uses = active_uses(cell)
-    if not uses:
-        # No use yet - but a tray-linked cell is still a real physical object already
-        # sitting on whichever instrument its tray was loaded onto (see open_new_tray()),
-        # pinned to the well its tray reserved for it (home_well) even before its own
-        # first use.
-        if cell.tray is not None:
-            return cell.tray.instrument.serial_number, cell.home_well
-        return None, None
-    last = max(uses, key=use_sort_key)
-    run_batch = last.cycle.run_batch if last.cycle else None
-    instrument = run_batch.instrument if run_batch else None
-    return (instrument.serial_number if instrument else None), last.well
+    instrument_serial: str | None = None
+    if uses:
+        last = max(uses, key=use_sort_key)
+        run_batch = last.cycle.run_batch if last.cycle else None
+        instrument = run_batch.instrument if run_batch else None
+        instrument_serial = instrument.serial_number if instrument else None
+    if instrument_serial is None and cell.tray is not None:
+        instrument_serial = cell.tray.instrument.serial_number
+    if cell.home_well is not None:
+        well = cell.home_well
+    elif uses:
+        well = max(uses, key=use_sort_key).well
+    else:
+        well = None
+    return instrument_serial, well
 
 
 def open_new_tray(db: Session, instrument_id: int, well: str) -> list[Cell]:
@@ -455,9 +464,66 @@ def retire_cell(db: Session, cell: Cell, actor: str | None) -> Cell:
     return cell
 
 
+def _reallocate_bumped_uses(stopped_cell: Cell, bumped_uses: list[CellUse]) -> tuple[list[tuple[CellUse, Cell]], list[CellUse]]:
+    """Re-home each bumped later-use of a just-stopped cell onto the next-usable sibling in its
+    own physical tray - the ICS "the tray's other cells absorb the load" behaviour. Each use
+    keeps its day and plate slot; only which physical cell backs it changes (a grid slot is a
+    loading position, not a cell). Same-tray only: a cell never crosses to another tray or
+    instrument, so a bumped sample can only be rescued by a sibling in the very tray that's
+    still loaded. Returns (rehomed, overflow): the (use, new_cell) reassignments made, and the
+    uses that no longer fit anywhere in the tray - their samples can't run and must be alerted.
+
+    Reuse-before-new, most-used sibling first (its 108h clock is nearest expiry, so it's
+    finished before a fresher one), then tray order. Accounts, as it goes, for every
+    reassignment already made this pass: capacity (max_uses), one-use-per-day, the 108h window
+    (~4.5 days from a cell's first use), and burned-barcode clashes."""
+    tray = stopped_cell.tray
+    if tray is None:
+        return [], list(bumped_uses)
+    state = [
+        {
+            "cell": sib,
+            "days": [d for u in active_uses(sib) if (d := use_run_date(u)) is not None],
+            "barcodes": {b for u in active_uses(sib) for b in u.barcode_list},
+        }
+        for sib in tray.cells
+        if sib.id != stopped_cell.id and sib.status == "open"
+    ]
+
+    rehomed: list[tuple[CellUse, Cell]] = []
+    overflow: list[CellUse] = []
+    # Rescue earliest-day uses first, so the tray's remaining capacity fills front-to-back and
+    # any overflow lands on the latest days (the tail), matching how the run would actually play out.
+    for use in sorted(bumped_uses, key=use_sort_key):
+        acquire = use_run_date(use)
+        sample_bcs = set(use.barcode_list)
+        chosen: dict | None = None
+        for s in sorted(state, key=lambda s: (-len(s["days"]), s["cell"].tray_position if s["cell"].tray_position is not None else 99)):
+            if len(s["days"]) >= s["cell"].max_uses:
+                continue  # no capacity left
+            if acquire is not None and acquire in s["days"]:
+                continue  # a cell can't run twice on one day
+            if sample_bcs & s["barcodes"]:
+                continue  # burned-barcode clash
+            if acquire is not None and s["days"]:
+                span = (max(s["days"] + [acquire]) - min(s["days"] + [acquire])).days
+                if span > 4:  # 108h ~= 4.5 days from the cell's first use
+                    continue
+            chosen = s
+            break
+        if chosen is None:
+            overflow.append(use)
+        else:
+            if acquire is not None:
+                chosen["days"].append(acquire)
+            chosen["barcodes"] |= sample_bcs
+            rehomed.append((use, chosen["cell"]))
+    return rehomed, overflow
+
+
 def stop_cell(
     db: Session, cell: Cell, reason: str | None, actor: str | None, cell_use_id: int | None = None
-) -> tuple[Cell, list[int]]:
+) -> tuple[Cell, list[int], list[int]]:
     """QC: take a physical cell permanently out of service. Two things happen, anchored
     on `cell_use_id` - the specific use that triggered the stop (e.g. the one the lab
     user was viewing in the Scheduler grid's slot popover when the cell died mid-run):
@@ -466,28 +532,26 @@ def stop_cell(
        usable data was produced, so its sample is lost (sample.status "failed", driving
        the PacBio credit workflow via has_failed_use/needs_qc_report) rather than being
        requeued.
-    2. Every *later* (chronologically, via use_run_date - not just "planned" cell-wide)
-       use of this cell is cancelled: sample back to the backlog, tagged with
-       ABORTED_PRIORITY so a scheduler can rescue it onto a different cell ahead of
-       everything else in the queue. Uses *before* the trigger are left completely
-       untouched, regardless of their current status - this is what makes an
-       already-run-but-not-yet-marked-completed earlier use immune to a later stop
-       (previously this cascade cancelled every cell-wide "planned" use with no
-       ordering awareness, silently sweeping up earlier uses too).
+    2. Every *later* (chronologically, via use_run_date) not-yet-run use of this cell is
+       RE-ALLOCATED onto the tray's remaining cells - the ICS reshuffle-on-failure behaviour:
+       the instrument reruns the tray's other cells, so each bumped sample shifts onto the
+       next-usable sibling for its own day (reuse-before-new; see _reallocate_bumped_uses).
+       Whatever no longer fits anywhere in the tray - because the stopped cell's lost capacity
+       shortened the queue - can no longer run: those samples go back to the backlog (tagged
+       ABORTED_PRIORITY) and are reported as unrunnable so the user is alerted. Uses *before*
+       the trigger are left completely untouched, regardless of status - an already-run
+       earlier use is immune to a later stop.
 
-    `cell_use_id` is optional for backward compatibility with a whole-cell Stop that
-    isn't anchored to any one use (e.g. CellDetailPage's generic Stop when 0 or 2+ uses
-    are still in progress) - in that case every still-"planned" use cell-wide is
-    cancelled exactly as before, and no use is marked Failed.
+    `cell_use_id` is optional for a whole-cell Stop not anchored to any one use (e.g. the
+    Cell Detail page's generic Stop) - in that case no use is marked Failed and every
+    still-"planned" use cell-wide is reshuffled/overflowed the same way.
 
-    The CellUse rows swept by the cascade are kept (not deleted), so the grid still
-    shows a visible record of the placement that will now never happen instead of the
-    slot silently vanishing. derive_cell_state() excludes "cancelled" uses from a cell's
-    active counts, so this doesn't affect uses_consumed/uses_remaining/current_location.
-    The well stays occupied (blocking any new placement into that exact slot) as a
-    permanent marker. Because engine_bridge.load_prior_cells only ever offers
-    Cell.status == "open" for reuse, a stopped cell is automatically excluded from all
-    future scheduling with no engine changes."""
+    A reassigned use keeps its day and plate slot; only which physical cell backs it changes
+    (a grid slot is a loading position, not a cell) - the card follows on its stub. An overflow
+    use is kept as a "cancelled" marker (not deleted) so the grid still shows what will now
+    never run. Because engine_bridge.load_prior_cells only offers Cell.status == "open", a
+    stopped cell is excluded from all future scheduling with no engine changes. Returns the
+    cell plus (rehomed_sample_ids, unrunnable_sample_ids)."""
     if cell.status in ("retired", "stopped"):
         raise ValueError(f"Cell is already {cell.status}.")
 
@@ -504,12 +568,12 @@ def stop_cell(
     ordered = sorted(cell.cell_uses, key=use_sort_key)
     origin_index = ordered.index(origin_use) if origin_use is not None else None
 
-    bumped_sample_ids: list[int] = []
-    # Per-cell_use snapshot of what's about to change, so a mistaken Stop cell (wrong
-    # physical cell/use selected) can be undone later (see undo_stop_cell) - keyed by
-    # cell_use id, tagged with which kind of change it was so undo knows how to revert it.
+    # Per-cell_use snapshot of what's about to change, so a mistaken Stop cell can be undone
+    # later (see undo_stop_cell) - keyed by cell_use id, tagged with which kind of change it
+    # was so undo knows how to revert it.
     cancelled: dict[str, dict] = {}
     at = utcnow()
+    bumped_uses: list[CellUse] = []
     for i, cell_use in enumerate(ordered):
         if origin_use is not None and cell_use.id == origin_use.id:
             prior_sample_status = cell_use.sample.status if cell_use.sample is not None else None
@@ -535,18 +599,34 @@ def stop_cell(
         if origin_index is not None and i <= origin_index:
             # Before (or, degenerately, at) the trigger point - untouched history/queue.
             continue
+        bumped_uses.append(cell_use)
 
-        prior_sample_status = cell_use.sample.status if cell_use.sample is not None else None
-        prior_priority = cell_use.sample.priority if cell_use.sample is not None else None
-        if cell_use.sample is not None:
-            cell_use.sample.status = "backlog"
-            cell_use.sample.priority = ABORTED_PRIORITY
-            bumped_sample_ids.append(cell_use.sample_id)
-        cell_use.status = "cancelled"
-        # JSON object keys are always strings on the round trip through the DB - store
-        # with str() up front so undo_stop_cell's lookup is correct however this dict is
-        # read back (freshly queried, or still resident in the same session).
-        cancelled[str(cell_use.id)] = {
+    # Reshuffle the bumped uses onto the tray's remaining cells; whatever doesn't fit overflows.
+    rehomed, overflow = _reallocate_bumped_uses(cell, bumped_uses)
+
+    rehomed_sample_ids: list[int] = []
+    for use, sibling in rehomed:
+        # JSON object keys round-trip through the DB as strings - store with str() up front so
+        # undo_stop_cell's lookup is correct however the audit row is read back.
+        cancelled[str(use.id)] = {
+            "outcome": "reassigned",
+            "prior_cell_id": use.cell_id,
+            "sample_status": use.sample.status if use.sample is not None else None,
+        }
+        use.cell = sibling  # keep both sides of the relationship in sync (no delete-orphan on Cell.cell_uses)
+        if use.sample_id is not None:
+            rehomed_sample_ids.append(use.sample_id)
+
+    unrunnable_sample_ids: list[int] = []
+    for use in overflow:
+        prior_sample_status = use.sample.status if use.sample is not None else None
+        prior_priority = use.sample.priority if use.sample is not None else None
+        if use.sample is not None:
+            use.sample.status = "backlog"
+            use.sample.priority = ABORTED_PRIORITY
+            unrunnable_sample_ids.append(use.sample_id)
+        use.status = "cancelled"
+        cancelled[str(use.id)] = {
             "outcome": "cancelled",
             "sample_status": prior_sample_status,
             "sample_priority": prior_priority,
@@ -557,19 +637,29 @@ def stop_cell(
     cell.stopped_reason = reason
     db.flush()
 
+    # A sibling that absorbed reassigned uses may now be exhausted/window_expired - recompute.
+    for sibling in {s.id: s for _u, s in rehomed}.values():
+        db.refresh(sibling, attribute_names=["cell_uses"])
+        recompute_status(sibling, at)
+
     db.add(
         AuditLog(
             actor=actor or "unknown",
             action="stop_cell",
             entity_type="cell",
             entity_id=cell.id,
-            details_json={"reason": reason, "bumped_sample_ids": bumped_sample_ids, "cancelled": cancelled},
+            details_json={
+                "reason": reason,
+                "rehomed_sample_ids": rehomed_sample_ids,
+                "unrunnable_sample_ids": unrunnable_sample_ids,
+                "cancelled": cancelled,
+            },
         )
     )
     db.commit()
     db.refresh(cell)
     db.refresh(cell, attribute_names=["cell_uses"])
-    return cell, bumped_sample_ids
+    return cell, rehomed_sample_ids, unrunnable_sample_ids
 
 
 def mark_cell_discarded(cell: Cell, reason: str | None, at: datetime | None = None) -> None:
@@ -784,13 +874,13 @@ def undo_stop_cell(db: Session, cell: Cell, actor: str | None) -> tuple[Cell, li
     """Reverse a mistaken Stop cell (wrong physical cell/use selected) - reopens the cell
     and restores every use it touched back to its pre-stop state, so the schedule looks
     exactly like it did before the stop. Each touched use was snapshotted as one of two
-    kinds (see stop_cell): the triggering use (kind "failed", its sample lost) or a later
-    cascaded use (kind "cancelled", its sample bumped to the backlog with
-    ABORTED_PRIORITY). A use is only revived if its sample is still sitting untouched in
-    the expected post-stop state - one already requeued/rescheduled elsewhere is left as
-    is rather than revived into a second, conflicting use for a sample that's now
-    committed elsewhere (mirrors undo_cell_use_status's same drift guard). Returns the
-    cell plus (reverted, drifted) cell_use ids for the caller to report."""
+    kinds (see stop_cell): the triggering use (kind "failed", its sample lost), a later use
+    re-homed onto a tray sibling (kind "reassigned"), or an overflow use bumped to the backlog
+    (kind "cancelled", tagged ABORTED_PRIORITY). A use is only reverted if it's still sitting in
+    its expected post-stop state - one already requeued/rescheduled/moved elsewhere is left as
+    is rather than reverted into a conflicting state for a sample now committed elsewhere
+    (mirrors undo_cell_use_status's drift guard). Returns the cell plus (reverted, drifted)
+    cell_use ids for the caller to report."""
     if cell.status != "stopped":
         raise ValueError("Cell is not stopped.")
 
@@ -804,9 +894,14 @@ def undo_stop_cell(db: Session, cell: Cell, actor: str | None) -> tuple[Cell, li
         raise ValueError("No recorded Stop cell action found to undo.")
 
     cancelled = last_action.details_json["cancelled"]
+    # A "reassigned" use now lives on a sibling cell, not this one, so load every touched use by
+    # id rather than iterating only this cell's own uses.
+    snapshot_ids = [int(k) for k in cancelled]
+    uses = list(db.scalars(select(CellUse).where(CellUse.id.in_(snapshot_ids)))) if snapshot_ids else []
     reverted_ids: list[int] = []
     drifted_ids: list[int] = []
-    for cell_use in cell.cell_uses:
+    touched_cell_ids: set[int] = set()  # siblings that lose a reverted reassignment -> recompute
+    for cell_use in uses:
         snapshot = cancelled.get(str(cell_use.id))
         if snapshot is None:
             continue
@@ -832,6 +927,20 @@ def undo_stop_cell(db: Session, cell: Cell, actor: str | None) -> tuple[Cell, li
                 cell_use.sample.status = prior_sample_status
             continue
 
+        if outcome == "reassigned":
+            # Was moved onto a sibling (sample stayed scheduled). Move it back onto the
+            # now-reopened cell, unless it's since drifted (moved again / no longer planned).
+            prior_cell_id = snapshot.get("prior_cell_id")
+            if prior_cell_id is None or cell_use.cell_id == prior_cell_id:
+                continue
+            if cell_use.status != "planned":
+                drifted_ids.append(cell_use.id)
+                continue
+            touched_cell_ids.add(cell_use.cell_id)  # the sibling it currently sits on
+            cell_use.cell_id = prior_cell_id
+            reverted_ids.append(cell_use.id)
+            continue
+
         if cell_use.status != "cancelled":
             continue
         if cell_use.sample is not None and prior_sample_status is not None and cell_use.sample.status != "backlog":
@@ -849,6 +958,14 @@ def undo_stop_cell(db: Session, cell: Cell, actor: str | None) -> tuple[Cell, li
     cell.status = "open"
     cell.stopped_at = None
     cell.stopped_reason = None
+    db.flush()
+    # A sibling that gave a reassigned use back may drop below its cap - recompute it too.
+    for cid in touched_cell_ids:
+        sib = db.get(Cell, cid)
+        if sib is not None:
+            db.refresh(sib, attribute_names=["cell_uses"])
+            recompute_status(sib, utcnow())
+    db.refresh(cell, attribute_names=["cell_uses"])
     recompute_status(cell, utcnow())
 
     db.add(

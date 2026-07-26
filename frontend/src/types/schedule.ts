@@ -22,12 +22,18 @@ export type SlotIndex = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
 export interface StageOut {
   /** Grid position 0-7: Plate 1 -> 0-3, Plate 2 -> 4-7 (see SlotIndex). */
   slot_index: SlotIndex;
-  /** The true SMRT Link well label. For a reuse Plate 2 this repeats A01-D01 (same physical
-   * wells as Plate 1), even though slot_index is 4-7. */
+  /** The plate LOADING position this sample was dropped onto (drives slot_index). A grid slot
+   * is a loading position, not a cell - which physical cell runs here is separate (cell_id /
+   * cell_home_well). For a reuse Plate 2 this can repeat A01-D01 even though slot_index is 4-7. */
   well: string;
   cell_use_id: number;
   cell_id: number;
   cell_ref: string; // Cell.code
+  /** The physical cell's own tray identity well (A01-D01 / A02-D02) - its fixed A/B/C/D tray
+   * position, distinct from `well` (the loading slot). Drives the ticket-stub letter (e.g.
+   * "B1" = tray position B, Use 1) so the stub names the real cell even when the sample sits in
+   * a different plate slot. Null for a legacy/bootstrap cell with no tray. */
+  cell_home_well: string | null;
   /** 1-based position of this cell_use among its cell's loads - drives the Use 1/2/3 colour. */
   use_number: number;
   /** This well's own movie / run time (h). Per-cell: set from the Run Design dial on

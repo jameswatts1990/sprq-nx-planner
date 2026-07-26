@@ -94,7 +94,8 @@ def test_auto_place_on_plate2_reuses_plate1_cell_as_use2(client):
     a2_stage = next(s for s in _stages(run) if s["sample_external_id"] == "A2")
     assert a2_stage["cell_id"] == cell_x  # same physical cell - one tray
     assert a2_stage["use_number"] == 2
-    assert a2_stage["well"] == "A01"  # keeps the cell's own well, not the slot's nominal A02
+    assert a2_stage["well"] == "A02"  # the plate slot it was dropped onto (a loading position)
+    assert a2_stage["cell_home_well"] == "A01"  # the cell's own identity, drives the "A2" stub
 
 
 @pytest.mark.parametrize("run_time_hours", [24, 30])
@@ -155,9 +156,11 @@ def test_auto_place_cross_run_reuses_idle_cell(client):
     assert a2_stage["use_number"] == 2
 
 
-def test_auto_place_reuse_is_position_pinned(client):
-    """The reuse target lines up by within-tray position: a drop on the Plate-2 B slot reuses
-    Plate 1's B cell, not its A cell."""
+def test_auto_place_reuse_picks_the_next_in_order_cell_not_the_slot_position(client):
+    """A grid slot is a plate loading position, not a cell: a drop onto any Plate-2 slot reuses
+    the run's *next-in-order* Plate-1 cell (most-used first, then tray order) - not the cell
+    whose tray letter happens to match the slot. Both A and B have one use here, so the tie
+    breaks to tray position A; the sample lands in the slot it was dropped onto (B02)."""
     client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1\nB1,bc2\nC1,bc3"})
     (mon,) = _weekdays(1)
     ra = _place(client, _sid(client, "A1"), mon, 0, {"mode": "new"})  # opens the A01-D01 tray
@@ -171,8 +174,10 @@ def test_auto_place_reuse_is_position_pinned(client):
     r = _auto_place(client, _sid(client, "C1"), mon, 5)  # Plate-2 B slot, no cell_choice
     assert r.status_code == 201, r.text
     c_stage = next(s for s in _stages(r.json()) if s["sample_external_id"] == "C1")
-    assert c_stage["cell_id"] == b_cell  # the B cell, not cell_a
-    assert c_stage["well"] == "B01"
+    assert c_stage["cell_id"] == cell_a  # next-in-order (tie -> tray position A), not the B cell
+    assert c_stage["well"] == "B02"  # the plate slot it was dropped onto
+    assert c_stage["cell_home_well"] == "A01"  # cell A's identity, stub shows "A2"
+    assert c_stage["use_number"] == 2
 
 
 def test_auto_place_falls_back_to_new_cell_on_barcode_clash(client):

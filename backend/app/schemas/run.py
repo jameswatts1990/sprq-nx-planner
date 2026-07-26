@@ -19,10 +19,15 @@ class StageOut(BaseModel):
     # as Plate 1, so `well` repeats across the two plates - position is derived from the
     # plate plus the well's letter, while `well` below stays the true SMRT Link label.
     slot_index: int
-    well: str
+    well: str  # the plate LOADING position this sample was dropped onto (drives slot_index)
     cell_use_id: int
     cell_id: int
     cell_ref: str
+    # The physical cell's own tray identity well (A01-D01 / A02-D02) - its fixed A/B/C/D tray
+    # position, distinct from `well` (the loading slot). Drives the card's ticket-stub letter
+    # (e.g. "B1" = tray position B, Use 1) so the stub names the real cell even when the sample
+    # sits in a different plate slot. Null for a legacy/bootstrap cell with no tray.
+    cell_home_well: str | None
     use_number: int  # 1-based position of this cell_use among its cell's loads - drives the Use 1/2/3 colour
     # This well's own movie / run time in hours (12/24/30). Per-cell: different wells of one
     # run may differ, editable from the slot-detail popover. The plate-level PlateOut.movie_hours

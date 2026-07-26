@@ -3,7 +3,6 @@
  * WindowMeter, TraySiblingList) instead of being hand-described in prose - see CLAUDE.md's
  * "Help Tab Maintenance" section. Centralized here (rather than duplicated per-section)
  * so the same example cell/stage shows up consistently everywhere it's referenced. */
-import type { CellGhost } from "@/components/scheduler/waitingCells";
 import type { CellOut } from "@/types/cell";
 import type { StageOut } from "@/types/schedule";
 
@@ -73,25 +72,13 @@ export const EXAMPLE_TRAY_SIBLINGS: CellOut[] = [
   },
 ];
 
-// A spent-well marker: a terminal (here, exhausted) cell still physically occupying its
-// well because its tray hasn't left the instrument yet. This is the only ghost the grid
-// still paints - reuse offers and never-yet-used siblings are no longer shown as cards.
-export const GHOST_EXAMPLE_EXHAUSTED: CellGhost = {
-  cell: EXAMPLE_CELL_EXHAUSTED,
-  useNumber: EXAMPLE_CELL_EXHAUSTED.uses_consumed,
-  isHardCutoff: false,
-  fadeOpacity: 1,
-  cutoffDate: "2026-07-17",
-  deadlineAt: "",
-  deadlineIsEstimated: false,
-  terminalStatus: "exhausted",
-};
 export const STAGE_EXAMPLE_SOURCE: StageOut = {
   slot_index: 0,
   well: "A01",
   cell_use_id: 1,
   cell_id: 42,
   cell_ref: "CELL-000042",
+  cell_home_well: "A01",
   use_number: 1,
   run_time_hours: 24,
   sample_id: 1,

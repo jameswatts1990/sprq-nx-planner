@@ -92,7 +92,11 @@ class CellStopRequest(BaseModel):
 
 class CellStopOut(BaseModel):
     cell: CellOut
-    bumped_sample_ids: list[int] = []
+    # Samples whose not-yet-run later use was re-homed onto another cell in the same tray
+    # (the reshuffle-on-stop), and samples that no longer fit anywhere in the tray and can't
+    # run - back in the backlog, surfaced as an alert. See cell_service.stop_cell.
+    rehomed_sample_ids: list[int] = []
+    unrunnable_sample_ids: list[int] = []
 
 
 class CellUndoStopOut(BaseModel):

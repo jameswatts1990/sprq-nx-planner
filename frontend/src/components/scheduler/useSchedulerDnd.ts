@@ -80,13 +80,17 @@ export interface SchedulerDnd {
  * entirely) - the drag-and-drop equivalent of the "Remove from schedule" action.
  * @param onSwap Called with the dragged and target cell_use_ids when a placed sample is
  * dropped onto a *different* already-occupied slot - the two samples exchange places.
- * @param onAutoPlace Called when a backlog sample is dropped onto a plain empty slot (not a
- * reuse ghost) - the backend derives the cell (reuse-before-new), so no picker is shown.
+ * @param onAutoPlace Called when a backlog sample is dropped onto an empty slot - the backend
+ * derives the cell (reuse-before-new), so no picker is shown.
+ * @param onMove Called when an already-placed sample is dragged to a different (instrument,
+ * day, slot) - the backend keeps its cell for a same-carousel-position reschedule or
+ * auto-derives one otherwise (see move_sample), so no picker is shown here either.
  */
 export function useSchedulerDnd(
   onRemoveOutside: (cellUseId: number) => void,
   onSwap: (draggedCellUseId: number, targetCellUseId: number) => void,
   onAutoPlace: (sampleId: number, instrumentSerial: string, loadDate: string, slotIndex: SlotIndex) => void,
+  onMove: (cellUseId: number, instrumentSerial: string, loadDate: string, slotIndex: SlotIndex) => void,
 ): SchedulerDnd {
   const [activeSample, setActiveSample] = useState<DragSampleRef | null>(null);
   const [pendingPlacement, setPendingPlacement] = useState<PendingPlacement | null>(null);
@@ -132,48 +136,26 @@ export function useSchedulerDnd(
       }
 
       if (activeData.kind === "sample") {
-        if (overData.ghostCellId !== undefined) {
-          // Dropped directly onto a reuse ghost - honour that exact cell (and surface a
-          // barcode clash on it) via the CellChoicePicker, rather than silently re-deriving.
-          setPendingPlacement({
-            sample: activeData.sample,
-            instrument_serial: overData.instrument_serial,
-            load_date: overData.load_date,
-            slot_index: overData.slot_index,
-            preselectedCellId: overData.ghostCellId,
-          });
-        } else {
-          // Plain drop onto an empty slot: place it and let the backend derive the cell
-          // (reuse-before-new) - no drop-time picker. The chosen cell shows as the card's stub.
-          onAutoPlace(activeData.sample.id, overData.instrument_serial, overData.load_date, overData.slot_index);
-        }
+        // A grid slot is a plate loading position, not a cell: a drop never targets a specific
+        // cell. Place it and let the backend derive the cell (reuse-before-new) - no drop-time
+        // picker. The chosen cell shows as the card's stub.
+        onAutoPlace(activeData.sample.id, overData.instrument_serial, overData.load_date, overData.slot_index);
         return;
       }
 
-      // filledSlot -> ignore a no-op drop back onto itself, otherwise treat as a move. A
-      // sample isn't physically loaded onto anything until its run executes, so moving it
-      // to a different instrument is just re-planning - CellChoicePicker resolves which
-      // (possibly new) cell backs it there, same as a same-instrument well conflict.
+      // filledSlot -> a move. Ignore a no-op drop back onto itself; otherwise re-plan it. A
+      // sample isn't physically loaded onto anything until its run executes, so a move just
+      // re-plans it: the backend keeps its own cell for a same-carousel-position reschedule, or
+      // auto-derives the next-usable cell when it crosses instruments/positions - no picker.
       const sameSlot =
         activeData.instrument_serial === overData.instrument_serial &&
         activeData.load_date === overData.load_date &&
         activeData.slot_index === overData.slot_index;
       if (sameSlot) return;
 
-      setPendingPlacement({
-        sample: activeData.sample,
-        instrument_serial: overData.instrument_serial,
-        load_date: overData.load_date,
-        slot_index: overData.slot_index,
-        moveFromCellUseId: activeData.cell_use_id,
-        moveFromCellId: activeData.cell_id,
-        fromInstrumentSerial: activeData.instrument_serial,
-        preselectedCellId: overData.ghostCellId,
-      });
+      onMove(activeData.cell_use_id, overData.instrument_serial, overData.load_date, overData.slot_index);
     },
-    // All three handlers are used by this callback; list them all (they're stable .mutate
-    // wrappers today, but listing 2 of 3 was a latent trap if one ever closed over state).
-    [onRemoveOutside, onSwap, onAutoPlace],
+    [onRemoveOutside, onSwap, onAutoPlace, onMove],
   );
 
   return {

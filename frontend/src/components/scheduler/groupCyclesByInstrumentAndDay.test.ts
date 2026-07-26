@@ -11,6 +11,7 @@ function baseStage(overrides: Partial<StageOut> = {}): StageOut {
     cell_use_id: 10,
     cell_id: 100,
     cell_ref: "CELL-000100",
+    cell_home_well: "A01",
     use_number: 1,
     run_time_hours: 24,
     sample_id: 1,

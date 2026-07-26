@@ -83,7 +83,7 @@ def test_mark_cell_use_failed_keeps_cell_open_and_sample_can_be_requeued(client)
     assert requeued.json()["status"] == "backlog"
 
 
-def test_stop_cell_cascades_planned_future_use_back_to_backlog_and_excludes_from_reuse(client):
+def test_stop_cell_rehomes_a_later_use_onto_a_tray_sibling_and_excludes_the_stopped_cell(client):
     client.post("/api/imports", json={"raw_text": "sample,barcodes\nG1,bcg1\nG2,bcg2\nG3,bcg3"})
     mon, _tue, wed = _weekdays(3)
 
@@ -96,8 +96,7 @@ def test_stop_cell_cascades_planned_future_use_back_to_backlog_and_excludes_from
     assert client.patch(f"/api/cycles/{cycle1_id}", json={"status": "running"}).status_code == 200
     assert client.patch(f"/api/cycles/{cycle1_id}", json={"status": "completed"}).status_code == 200
 
-    # G2 reuses the same physical cell (same well - cells stay pinned to it) for a
-    # still-planned Use 2 on Wednesday
+    # G2 reuses the same physical cell for a still-planned Use 2 on Wednesday
     r2 = _place(client, _sid(client, "G2"), wed, 0, {"mode": "existing", "cell_id": cell_id})
     assert r2.status_code == 201, r2.text
     cycle2_id = r2.json()["run_id"]
@@ -107,25 +106,25 @@ def test_stop_cell_cascades_planned_future_use_back_to_backlog_and_excludes_from
     stop = client.post(f"/api/cells/{cell_id}/stop", json={"reason": "visible crack on tray"})
     assert stop.status_code == 200, stop.text
     body = stop.json()
-    assert body["bumped_sample_ids"] == [g2_id]
+    # G2's later use re-homes onto one of the tray's remaining cells (the ICS reshuffle) -
+    # nothing overflows to the backlog, because a sibling still has capacity that day.
+    assert body["rehomed_sample_ids"] == [g2_id]
+    assert body["unrunnable_sample_ids"] == []
     assert body["cell"]["status"] == "stopped"
     assert body["cell"]["stopped_reason"] == "visible crack on tray"
 
-    # G2 is back in backlog for rescheduling, flagged with the highest-ranked priority so
-    # a scheduler sees it ahead of everything else in the queue
+    # G2 stays scheduled (on its original day/slot), just on a different physical cell now.
     g2 = _sample(client, g2_id)
-    assert g2["status"] == "backlog"
-    assert g2["priority"] == "Aborted (0)"
-
-    # Wednesday's cycle/stage stay visible as a cancelled, blocked record - not deleted -
-    # so the grid never silently loses a placement without a trace
+    assert g2["status"] == "scheduled"
     wed_cycle = client.get(f"/api/cycles/{cycle2_id}").json()
     wed_stage = next(s for s in _stages(wed_cycle) if s["cell_use_id"] == g2_use_id)
-    assert wed_stage["cell_use_status"] == "cancelled"
-    assert wed_stage["cell_status"] == "stopped"
+    assert wed_stage["cell_use_status"] == "planned"  # still a live placement, re-homed
+    assert wed_stage["cell_id"] != cell_id  # a sibling cell now backs it
+    assert wed_stage["cell_status"] == "open"
+    assert wed_stage["well"] == "A01"  # the plate loading position is unchanged
     assert wed_stage["sample_external_id"] == "G2"
 
-    # ...and that well can never be filled by anything else again
+    # the slot is still occupied by G2 (now on a sibling), so a fresh drop there is rejected
     reblock_attempt = _place(client, _sid(client, "G3"), wed, 0, {"mode": "new"})
     assert reblock_attempt.status_code == 409
     assert "already occupied" in reblock_attempt.json()["detail"].lower()
@@ -139,6 +138,41 @@ def test_stop_cell_cascades_planned_future_use_back_to_backlog_and_excludes_from
     reuse_attempt = _place(client, _sid(client, "G3"), wed, 1, {"mode": "existing", "cell_id": cell_id})
     assert reuse_attempt.status_code == 409
     assert "not open" in reuse_attempt.json()["detail"].lower()
+
+
+def test_stop_cell_overflows_to_backlog_when_the_tray_cannot_absorb_a_bumped_use(client):
+    """The reported scenario's tail: when the stopped cell's lost capacity leaves nothing in
+    the tray to re-home a bumped later use onto, that sample can no longer run - it goes back
+    to the backlog (ABORTED_PRIORITY) and is reported as unrunnable so the user is alerted."""
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nW1,bcw1\nW2,bcw2"})
+    mon, _tue, wed = _weekdays(3)
+
+    r1 = _place(client, _sid(client, "W1"), mon, 0, {"mode": "new"})
+    assert r1.status_code == 201, r1.text
+    cell_id = _stages(r1.json())[0]["cell_id"]
+    tray_id = client.get(f"/api/cells/{cell_id}").json()["tray_id"]
+    assert client.patch(f"/api/cycles/{r1.json()['run_id']}", json={"status": "running"}).status_code == 200
+
+    r2 = _place(client, _sid(client, "W2"), wed, 0, {"mode": "existing", "cell_id": cell_id})
+    assert r2.status_code == 201, r2.text
+    w2_use_id = _stages(r2.json())[0]["cell_use_id"]
+    w2_id = _sid(client, "W2")
+
+    # Discard the tray's three never-used siblings - now nothing in the tray can absorb W2.
+    siblings = [c["id"] for c in client.get("/api/cells", params={"tray_id": tray_id}).json()["items"] if c["id"] != cell_id]
+    for sib in siblings:
+        assert client.post(f"/api/cells/{sib}/discard", json={"reason": "test"}).status_code == 200
+
+    stop = client.post(f"/api/cells/{cell_id}/stop", json={"reason": "cell died"})
+    assert stop.status_code == 200, stop.text
+    assert stop.json()["rehomed_sample_ids"] == []
+    assert stop.json()["unrunnable_sample_ids"] == [w2_id]
+
+    # W2's use is a cancelled marker; its sample is back in the backlog, top-priority, alerted.
+    assert client.get(f"/api/cell-uses/{w2_use_id}").json()["status"] == "cancelled"
+    w2 = _sample(client, w2_id)
+    assert w2["status"] == "backlog"
+    assert w2["priority"] == "Aborted (0)"
 
 
 def test_stop_cell_from_a_specific_use_does_not_touch_an_earlier_still_started_use(client):
@@ -220,13 +254,14 @@ def test_stage_flags_cell_has_failed_use_so_an_untouched_earlier_use_is_not_repa
     assert wed_stage["cell_has_failed_use"] is True
 
 
-def test_stop_cell_cancels_only_later_planned_uses_and_flags_them_aborted_priority(client):
+def test_stop_cell_rehomes_only_uses_later_than_the_trigger(client):
     client.post("/api/imports", json={"raw_text": "sample,barcodes\nR3,bcr3\nR4,bcr4\nR5,bcr5"})
     mon, _tue, wed, thu = _weekdays(4)
 
     r1 = _place(client, _sid(client, "R3"), mon, 0, {"mode": "new"})
     assert r1.status_code == 201, r1.text
     cell_id = _stages(r1.json())[0]["cell_id"]
+    use1_id = _stages(r1.json())[0]["cell_use_id"]
     assert client.patch(f"/api/cycles/{r1.json()['run_id']}", json={"status": "running"}).status_code == 200
 
     r2 = _place(client, _sid(client, "R4"), wed, 0, {"mode": "existing", "cell_id": cell_id})
@@ -240,18 +275,23 @@ def test_stop_cell_cancels_only_later_planned_uses_and_flags_them_aborted_priori
     r5_id = _sid(client, "R5")
     # Use 3 stays "planned" - never confirmed loaded
 
+    # Stop anchored on Use 2 (the trigger): Use 1 (earlier) is untouched, Use 3 (later) re-homes.
     stop = client.post(f"/api/cells/{cell_id}/stop", json={"reason": "cell died on Use 2", "cell_use_id": use2_id})
     assert stop.status_code == 200, stop.text
-    assert stop.json()["bumped_sample_ids"] == [r5_id]
+    assert stop.json()["rehomed_sample_ids"] == [r5_id]
+    assert stop.json()["unrunnable_sample_ids"] == []
 
+    # Use 1 (before the trigger) is untouched; Use 2 (trigger) failed; Use 3 re-homed to a sibling.
+    assert client.get(f"/api/cell-uses/{use1_id}").json()["status"] == "started"
+    assert client.get(f"/api/cell-uses/{use2_id}").json()["status"] == "failed"
     use3 = client.get(f"/api/cell-uses/{use3_id}").json()
-    assert use3["status"] == "cancelled"
+    assert use3["status"] == "planned"
+    assert use3["cell_id"] != cell_id  # now on a sibling
     r5 = _sample(client, r5_id)
-    assert r5["status"] == "backlog"
-    assert r5["priority"] == "Aborted (0)"
+    assert r5["status"] == "scheduled"
 
 
-def test_undo_stop_cell_restores_both_failed_origin_and_cancelled_later_use(client):
+def test_undo_stop_cell_restores_the_failed_origin_and_the_rehomed_later_use(client):
     client.post("/api/imports", json={"raw_text": "sample,barcodes\nR6,bcr6\nR7,bcr7"})
     mon, _tue, wed = _weekdays(3)
 
@@ -271,12 +311,13 @@ def test_undo_stop_cell_restores_both_failed_origin_and_cancelled_later_use(clie
     stop = client.post(f"/api/cells/{cell_id}/stop", json={"reason": "wrong cell selected", "cell_use_id": use1_id})
     assert stop.status_code == 200, stop.text
 
+    # The trigger use failed (sample lost); Use 2 re-homed onto a sibling (sample still scheduled).
     assert client.get(f"/api/cell-uses/{use1_id}").json()["status"] == "failed"
     assert _sample(client, r6_id)["status"] == "failed"
-    assert client.get(f"/api/cell-uses/{use2_id}").json()["status"] == "cancelled"
-    r7 = _sample(client, r7_id)
-    assert r7["status"] == "backlog"
-    assert r7["priority"] == "Aborted (0)"
+    use2_stopped = client.get(f"/api/cell-uses/{use2_id}").json()
+    assert use2_stopped["status"] == "planned"
+    assert use2_stopped["cell_id"] != cell_id
+    assert _sample(client, r7_id)["status"] == "scheduled"
 
     undo = client.post(f"/api/cells/{cell_id}/undo-stop")
     assert undo.status_code == 200, undo.text
@@ -288,11 +329,11 @@ def test_undo_stop_cell_restores_both_failed_origin_and_cancelled_later_use(clie
     assert use1_after["status"] == "started"
     assert _sample(client, r6_id)["status"] == "in_progress"
 
+    # Use 2 moves back onto the reopened cell, still scheduled the whole time.
     use2_after = client.get(f"/api/cell-uses/{use2_id}").json()
     assert use2_after["status"] == "planned"
-    r7_after = _sample(client, r7_id)
-    assert r7_after["status"] == "scheduled"
-    assert r7_after["priority"] is None
+    assert use2_after["cell_id"] == cell_id
+    assert _sample(client, r7_id)["status"] == "scheduled"
 
 
 def test_stop_cell_rejects_cell_use_id_that_is_already_terminal(client):
@@ -708,7 +749,9 @@ def test_undo_stop_cell_reopens_cell_and_restores_planned_use(client):
 
     stop = client.post(f"/api/cells/{cell_id}/stop", json={"reason": "wrong cell selected"})
     assert stop.status_code == 200, stop.text
-    assert _sample(client, u6_id)["status"] == "backlog"
+    # U6's later use re-homes onto a sibling - the sample stays scheduled, not backlogged.
+    assert _sample(client, u6_id)["status"] == "scheduled"
+    assert client.get(f"/api/cell-uses/{u6_use_id}").json()["cell_id"] != cell_id
 
     undo = client.post(f"/api/cells/{cell_id}/undo-stop")
     assert undo.status_code == 200, undo.text
@@ -717,7 +760,9 @@ def test_undo_stop_cell_reopens_cell_and_restores_planned_use(client):
     assert undo.json()["reverted_cell_use_ids"] == [u6_use_id]
     assert undo.json()["drifted_cell_use_ids"] == []
 
-    assert client.get(f"/api/cell-uses/{u6_use_id}").json()["status"] == "planned"
+    u6_after = client.get(f"/api/cell-uses/{u6_use_id}").json()
+    assert u6_after["status"] == "planned"
+    assert u6_after["cell_id"] == cell_id  # moved back onto the reopened cell
     assert _sample(client, u6_id)["status"] == "scheduled"
 
     # Monday's completed use is untouched history throughout
@@ -734,11 +779,11 @@ def test_undo_stop_cell_rejects_when_not_stopped(client):
     assert "not stopped" in undo.json()["detail"].lower()
 
 
-def test_undo_stop_cell_leaves_drifted_use_cancelled_but_restores_the_rest(client):
-    """Stop cell can cancel several planned uses at once. If one of those samples gets
-    requeued and rescheduled elsewhere before Undo is clicked, only that one use must stay
-    cancelled (reviving it would double-book its sample) - the other, untouched use still
-    comes back."""
+def test_undo_stop_cell_leaves_a_drifted_rehomed_use_but_restores_the_rest(client):
+    """Stop cell can re-home several later uses onto tray siblings at once. If one of those
+    re-homed uses then starts running on its new cell before Undo is clicked, only that one
+    must stay put (moving a started use back would rewrite live history) - the other, still-
+    planned re-homed use is moved back onto the reopened cell as normal."""
     client.post("/api/imports", json={"raw_text": "sample,barcodes\nU7,bcu7\nU8,bcu8\nU9,bcu9"})
     mon, tue, wed = _weekdays(3)
 
@@ -748,13 +793,14 @@ def test_undo_stop_cell_leaves_drifted_use_cancelled_but_restores_the_rest(clien
     cycle1_id = r1.json()["run_id"]
 
     # confirm+complete U7's run so its own use is real history, not itself a "planned" use
-    # that Stop cell would also cancel - isolates the drift scenario to U8 vs U9 below.
+    # that Stop cell would also touch - isolates the drift scenario to U8 vs U9 below.
     assert client.patch(f"/api/cycles/{cycle1_id}", json={"status": "running"}).status_code == 200
     assert client.patch(f"/api/cycles/{cycle1_id}", json={"status": "completed"}).status_code == 200
 
     r2 = _place(client, _sid(client, "U8"), tue, 0, {"mode": "existing", "cell_id": cell_id})
     assert r2.status_code == 201, r2.text
     u8_use_id = _stages(r2.json())[0]["cell_use_id"]
+    tue_cycle_id = r2.json()["run_id"]
     u8_id = _sid(client, "U8")
 
     r3 = _place(client, _sid(client, "U9"), wed, 0, {"mode": "existing", "cell_id": cell_id})
@@ -764,12 +810,14 @@ def test_undo_stop_cell_leaves_drifted_use_cancelled_but_restores_the_rest(clien
 
     stop = client.post(f"/api/cells/{cell_id}/stop", json={"reason": "damaged"})
     assert stop.status_code == 200, stop.text
+    # Both later uses re-homed onto siblings (still planned, on a different cell now).
+    assert set(stop.json()["rehomed_sample_ids"]) == {u8_id, u9_id}
+    assert client.get(f"/api/cell-uses/{u8_use_id}").json()["cell_id"] != cell_id
 
-    # U8's sample moves on before anyone undoes the stop (already "backlog" from the stop
-    # cascade, so it can be rescheduled directly - no separate requeue step); U9's sample
-    # sits untouched.
-    reschedule = _place(client, u8_id, _weekdays(5)[-1], 0, {"mode": "new"}, instrument="84098")
-    assert reschedule.status_code == 201, reschedule.text
+    # U8's re-homed use starts running on its new cell before anyone undoes the stop; U9's
+    # re-homed use stays planned.
+    assert client.patch(f"/api/cycles/{tue_cycle_id}", json={"status": "running"}).status_code == 200
+    assert client.get(f"/api/cell-uses/{u8_use_id}").json()["status"] == "started"
 
     undo = client.post(f"/api/cells/{cell_id}/undo-stop")
     assert undo.status_code == 200, undo.text
@@ -778,11 +826,15 @@ def test_undo_stop_cell_leaves_drifted_use_cancelled_but_restores_the_rest(clien
     assert body["reverted_cell_use_ids"] == [u9_use_id]
     assert body["drifted_cell_use_ids"] == [u8_use_id]
 
-    # U9 is fully restored; U8's old use stays cancelled and its sample keeps its new placement
-    assert client.get(f"/api/cell-uses/{u9_use_id}").json()["status"] == "planned"
+    # U9 moves back onto the reopened cell; U8's now-running use is left on its sibling.
+    u9_after = client.get(f"/api/cell-uses/{u9_use_id}").json()
+    assert u9_after["status"] == "planned"
+    assert u9_after["cell_id"] == cell_id
     assert _sample(client, u9_id)["status"] == "scheduled"
-    assert client.get(f"/api/cell-uses/{u8_use_id}").json()["status"] == "cancelled"
-    assert _sample(client, u8_id)["status"] == "scheduled"
+    u8_after = client.get(f"/api/cell-uses/{u8_use_id}").json()
+    assert u8_after["status"] == "started"
+    assert u8_after["cell_id"] != cell_id
+    assert _sample(client, u8_id)["status"] == "in_progress"  # its run started, so it's live now
 
 
 def test_bulk_clear_style_removal_skips_cancelled_marker_and_removes_the_rest(client):

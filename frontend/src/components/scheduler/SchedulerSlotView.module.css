@@ -141,11 +141,14 @@
   background-position: 0% 0%;
   filter: hue-rotate(var(--seal-hue, 0deg));
   mix-blend-mode: screen;
-  opacity: 0.9;
+  opacity: 0.7;
   pointer-events: none;
   animation: sealShift 6s linear infinite;
 }
-/* Vertical microprint of the cell id — the "you can't fake this" texture of a real seal. */
+/* Vertical microprint of the cell id — the "you can't fake this" texture of a real seal, but
+   still readable: solid white with a dark halo so the digits hold contrast over any point of
+   the foil (bright highlight or saturated colour), sitting ABOVE the sheen with a normal blend
+   rather than an overlay that the foil would wash out. */
 .stubMicro {
   position: absolute;
   inset: 0;
@@ -156,12 +159,14 @@
   writing-mode: vertical-rl;
   text-orientation: mixed;
   font-family: var(--mono);
-  font-size: 6px;
-  font-weight: 700;
-  letter-spacing: 0.14em;
+  font-size: 7.5px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
   line-height: 1;
-  color: rgba(255, 255, 255, 0.55);
-  mix-blend-mode: overlay;
+  color: #fff;
+  text-shadow:
+    0 0 1px rgba(0, 0, 0, 0.85),
+    0 0 2px rgba(0, 0, 0, 0.55);
   white-space: nowrap;
   overflow: hidden;
   pointer-events: none;

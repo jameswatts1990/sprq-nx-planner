@@ -303,10 +303,11 @@ def test_opening_a_tray_pins_every_sibling_to_a_well_in_the_same_box(client):
     assert by_well["A01"] == by_well["B01"] == by_well["D01"] == 0  # unused siblings
 
 
-def test_cannot_place_an_unused_tray_sibling_into_the_wrong_well(client):
-    """An unused sibling is pinned to its own well the moment its tray opens (home_well) -
-    the same "must stay in its own well" guard that applies to a cell reused after a real
-    use should already reject placing it anywhere else."""
+def test_a_tray_cell_can_be_loaded_into_any_plate_slot_in_its_carousel_position(client):
+    """A grid slot is a plate LOADING position, not a cell: a tray's cell can be loaded into
+    any of its carousel position's slots, not only its own tray letter. Dropping onto slot 3
+    (well D01) but choosing the B01 sibling lands the sample in slot D01 while the card's stub
+    still names the real cell (its home_well B01 -> "B1")."""
     client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1\nA2,bc2"})
     (mon,) = _weekdays(1)
     r1 = _place(client, _sid(client, "A1"), mon, 0)  # opens a tray in the A01-D01 box
@@ -318,14 +319,15 @@ def test_cannot_place_an_unused_tray_sibling_into_the_wrong_well(client):
         if c["current_well"] == "B01"
     )
 
-    # slot_index 3 is well D01 - wrong well for a cell pinned to B01.
-    wrong_well = _place(client, _sid(client, "A2"), mon, 3, {"mode": "existing", "cell_id": sibling_id})
-    assert wrong_well.status_code == 409
-    assert "must stay in well" in wrong_well.json()["detail"]
-
-    # slot_index 1 is B01, its actual pinned well - should succeed.
-    right_well = _place(client, _sid(client, "A2"), mon, 1, {"mode": "existing", "cell_id": sibling_id})
-    assert right_well.status_code == 201, right_well.text
+    # slot_index 3 is well D01 - the B01 sibling loads there fine; the sample sits in D01, the
+    # cell keeps its own identity (home_well B01) for the stub.
+    placed = _place(client, _sid(client, "A2"), mon, 3, {"mode": "existing", "cell_id": sibling_id})
+    assert placed.status_code == 201, placed.text
+    stage = next(s for s in _stages(placed.json()) if s["sample_external_id"] == "A2")
+    assert stage["cell_id"] == sibling_id
+    assert stage["well"] == "D01"  # the plate loading position it was dropped onto
+    assert stage["cell_home_well"] == "B01"  # the cell's own identity, drives the "B1" stub
+    assert stage["slot_index"] == 3
 
 
 def test_remove_sample_keeps_cell_when_it_still_has_other_uses(client):
@@ -538,6 +540,12 @@ def test_cancel_run_preserves_a_cancelled_stopped_cell_marker(client):
     # own stage by sample rather than assuming position, since B1's stage (well A01) always
     # sorts first.
     cell_id_2 = next(s["cell_id"] for s in _stages(r2.json()) if s["sample_external_id"] == "B2")
+
+    # Discard B1's tray siblings so the stop has nowhere to re-home B1's use onto - it overflows
+    # to a permanent cancelled marker (the marker this test checks cancel_run preserves).
+    tray_id = client.get(f"/api/cells/{cell_id_1}").json()["tray_id"]
+    for sib in [c["id"] for c in client.get("/api/cells", params={"tray_id": tray_id}).json()["items"] if c["id"] != cell_id_1]:
+        client.post(f"/api/cells/{sib}/discard", json={"reason": "test"})
 
     stop = client.post(f"/api/cells/{cell_id_1}/stop", json={"reason": "damaged"})
     assert stop.status_code == 200, stop.text

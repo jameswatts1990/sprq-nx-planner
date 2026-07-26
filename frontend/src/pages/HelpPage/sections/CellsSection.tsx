@@ -118,18 +118,20 @@ export function CellsSection() {
           <b>Stop cell</b> is the QC action for a cell that has failed physically (e.g. visibly damaged) and can
           never be used again. Unlike Retire, it doesn&apos;t require you to clear planned uses first. If exactly
           one use is currently in progress, that use&apos;s sample counts as Failed too (no usable data — you&apos;ll
-          need to raise a PacBio credit case for it); confirming also cancels every later, not-yet-run use of that
-          cell and returns those samples to the Backlog flagged <b>Aborted</b> so a scheduler can rescue them onto a
-          different cell (a note reports how many). Uses that already ran before the stop are kept untouched as
-          history. Once stopped, the cell will never be offered again for reuse, including by Auto Schedule.
+          need to raise a PacBio credit case for it). Confirming then <b>reshuffles</b> the cell&apos;s later,
+          not-yet-run uses onto the tray&apos;s other cells automatically — each sample keeps its day and slot, just
+          on a different cell now (a note reports how many were re-homed). If the tray runs out of capacity, whatever
+          no longer fits <b>can no longer run</b> and goes back to the Backlog flagged <b>Aborted</b>, with a clear
+          alert so you can reschedule it elsewhere. Uses that already ran before the stop are kept untouched as
+          history. Once stopped, the cell is never offered again for reuse, including by Auto Schedule.
         </li>
         <li>
           <b>Undo stop</b> appears once a cell is stopped, in place of Stop cell. Confirming it reopens the cell
           and restores every use it touched back to how it looked beforehand — the Failed use (if any) back to its
-          prior state, and every cancelled use back to Planned with its sample&apos;s original priority restored. If
-          a sample from one of those uses has since been requeued or rescheduled onto a fresh placement elsewhere,
-          that one use is deliberately left as is instead of being revived — reviving it would double-book that
-          sample against wherever it landed.
+          prior state, each re-homed use moved back onto this cell, and any overflow use back to Planned with its
+          sample&apos;s original priority. If one of those uses has since started running or its sample was
+          rescheduled elsewhere, that one is deliberately left as is instead — reverting it would double-book the
+          sample or rewrite live history.
         </li>
         <li>
           <b>Use history</b> lists every run the cell has been in: run name if one was set, otherwise its number

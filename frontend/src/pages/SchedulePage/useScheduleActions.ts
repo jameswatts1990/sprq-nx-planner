@@ -172,6 +172,30 @@ export function useScheduleActions({
     },
   });
 
+  // A drag-move of an already-placed sample. No cell_choice and no drop-time picker: the
+  // backend keeps the sample's own physical cell for a same-carousel-position reschedule, or
+  // auto-derives the next-usable cell (reuse-before-new) when the move crosses instruments or
+  // carousel positions (see placement_service.move_sample). A grid slot is a loading position,
+  // not a cell, so which cell backs the moved sample is decided server-side and shown on the
+  // card's stub. run_time_hours is required by the request but ignored for a move (the moved
+  // placement keeps its own).
+  const move = useMutation({
+    mutationFn: (v: { cell_use_id: number; instrument_serial: string; load_date: string; slot_index: SlotIndex }) =>
+      cellUsesApi.move(v.cell_use_id, {
+        instrument_serial: v.instrument_serial,
+        load_date: v.load_date,
+        slot_index: v.slot_index,
+        run_time_hours: runDesign.run_time_hours,
+      }),
+    onSuccess: () => {
+      invalidateScheduleRelated(queryClient);
+      setRemoveSlotsError(null);
+    },
+    onError: (err) => {
+      setRemoveSlotsError(err instanceof ApiError ? err.message : "Failed to move sample.");
+    },
+  });
+
   const autoFill = useMutation({
     mutationFn: () =>
       schedulerApi.autoFill({
@@ -238,6 +262,7 @@ export function useScheduleActions({
     dragRemove,
     swap,
     autoPlace,
+    move,
     clearSchedule,
     autoFill,
     onRequestClearSchedule,

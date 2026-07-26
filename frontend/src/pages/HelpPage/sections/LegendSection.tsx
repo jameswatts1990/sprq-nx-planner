@@ -18,7 +18,6 @@ import styles from "../HelpPage.module.css";
 import {
   EXAMPLE_CELL_UNREPORTED,
   EXAMPLE_TRAY_SIBLINGS,
-  GHOST_EXAMPLE_EXHAUSTED,
   STAGE_EXAMPLE_ABORTED,
   STAGE_EXAMPLE_CANCELLED,
   STAGE_EXAMPLE_FAILED,
@@ -174,20 +173,6 @@ export function LegendSection() {
       <div className={styles.legendRow}>
         <UseLegend />
         <span>Which acquisition of a cell a barcode belongs to.</span>
-      </div>
-
-      <p className={styles.subheading}>Spent well (Weekly schedule)</p>
-      <div className={styles.legendGrid}>
-        <div className={styles.legendRow}>
-          <div className={styles.ghostExampleSwatch}>
-            <SchedulerSlotView stage={null} slotIndex={0} ghost={GHOST_EXAMPLE_EXHAUSTED} />
-          </div>
-          <span>
-            Spent well — the cell here is used up, expired, or retired and its tray is still loaded, so nothing can be
-            loaded into this well until the tray is replaced. A subtle greyed ✕ (hover for the reason), not a
-            sample-like card.
-          </span>
-        </div>
       </div>
 
       <p className={styles.subheading}>Slot shading (Weekly schedule)</p>

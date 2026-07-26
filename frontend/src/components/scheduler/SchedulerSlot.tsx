@@ -63,34 +63,17 @@ export function SchedulerSlot(props: SchedulerSlotProps) {
       return <SchedulerSlotView stage={null} slotIndex={props.slotIndex} blocked />;
     }
     if (locked) {
-      // A grid slot is a physical well; an un-loaded well shows nothing but its own "+" (or, on
-      // a locked run, a plain locked placeholder). The only forward-looking marker still drawn is
-      // a spent-well one (a terminal cell still physically occupying the well) - a reuse offer is
-      // no longer surfaced as its own card, so only a terminal ghost is passed through to render.
-      return (
-        <SchedulerSlotView
-          stage={null}
-          slotIndex={props.slotIndex}
-          locked
-          placing={props.placing}
-          ghost={props.ghost?.terminalStatus ? props.ghost : undefined}
-        />
-      );
+      // A grid slot is a plate LOADING position, not a cell: an un-loaded slot on a locked run
+      // is just a plain locked placeholder. Cell state (a spent/exhausted resident) never blocks
+      // a slot any more - which physical cell a drop lands on is derived at drop time
+      // (derive_best_cell), so there's nothing cell-shaped to paint here.
+      return <SchedulerSlotView stage={null} slotIndex={props.slotIndex} locked placing={props.placing} />;
     }
-    // A terminal ghost's well (exhausted/window_expired/retired - see waitingCells.
-    // computeTerminalGhost) only exists at all while some sibling in that same physical
-    // tray still holds real capacity - computeTerminalGhost itself stops returning one the
-    // moment every sibling has also gone terminal (waitingCells.computeVacatedTrayIds), so
-    // reaching this branch always means the tray hasn't actually left the instrument yet,
-    // and this well must stay a read-only marker, same non-droppable treatment as a
-    // `blocked` well above, never registered with dnd-kit at all. Every other empty slot is
-    // droppable: placement is now blocked only by the instrument lock (handled above), never
-    // by a future use merely being scheduled here (the old "Scheduled" pending ghosts were
-    // removed - such a well is just a plain "+" now, and the drop resolves through
-    // derive_best_cell like any other).
-    if (props.ghost?.terminalStatus) {
-      return <SchedulerSlotView stage={null} slotIndex={props.slotIndex} ghost={props.ghost} />;
-    }
+    // Every empty, unlocked slot is a plain droppable "+": a slot is a loading position, so it
+    // never carries cell state. A spent/exhausted/terminal resident cell no longer blocks it -
+    // the drop resolves to the next-usable cell in that tray (reuse-before-new) via the backend
+    // derive_best_cell, made visible only afterwards by the loaded card's stub. The only thing
+    // that still blocks a slot is the instrument lock (handled above) or a stopped-cell well.
     return <DroppableSlot {...props} />;
   }
 
@@ -110,21 +93,16 @@ function DroppableSlot({
   instrumentSerial,
   loadDate,
   placing,
-  ghost,
 }: SchedulerSlotProps) {
-  // A terminal ghost never reaches this droppable branch (SchedulerSlot renders it as a
-  // non-droppable spent-well marker above), so `ghost` here is always undefined or a reuse
-  // offer - a used cell resident in this well, ready for its next use. The well itself renders
-  // as a plain droppable "+" (a slot is a physical well; we don't paint a reuse card in it any
-  // more), but the resident cell's id still rides along as `ghostCellId` so a drop resolves
-  // straight onto it (its sequential next use) rather than opening a fresh tray - the backend's
-  // reuse-before-new default made visible only once a sample is actually loaded, via its seal.
+  // A slot is a plate LOADING position, not a cell: a drop never targets a specific resident
+  // cell. Which physical cell it lands on is derived server-side (reuse-before-new, the
+  // next-usable cell in this tray - see derive_best_cell), made visible only afterwards by the
+  // loaded card's stub. So no cell id is threaded onto the drop.
   const data: SlotDropData = {
     kind: "slot",
     instrument_serial: instrumentSerial,
     load_date: loadDate,
     slot_index: slotIndex,
-    ghostCellId: ghost?.cell.id,
   };
   const { setNodeRef, isOver } = useDroppable({
     id: slotKey(instrumentSerial, loadDate, slotIndex),

@@ -83,7 +83,10 @@ export interface CellStopRequest {
 
 export interface CellStopOut {
   cell: CellOut;
-  bumped_sample_ids: number[];
+  /** Samples whose not-yet-run later use was re-homed onto another cell in the same tray. */
+  rehomed_sample_ids: number[];
+  /** Samples that no longer fit anywhere in the tray and can't run - back in the backlog. */
+  unrunnable_sample_ids: number[];
 }
 
 export interface CellUndoStopOut {

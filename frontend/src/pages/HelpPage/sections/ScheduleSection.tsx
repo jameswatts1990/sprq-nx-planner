@@ -7,7 +7,6 @@ import type { RunDesignState } from "@/types/schedulerGrid";
 
 import styles from "../HelpPage.module.css";
 import {
-  GHOST_EXAMPLE_EXHAUSTED,
   STAGE_EXAMPLE_ABORTED,
   STAGE_EXAMPLE_CANCELLED,
   STAGE_EXAMPLE_FAILED,
@@ -207,22 +206,25 @@ export function ScheduleSection() {
         backlog longest go first, and only after all of that does it consider what packs most efficiently.
       </p>
       <p>
-        <b>The cell is chosen for you.</b> When you drag a backlog sample onto an empty slot, RunNx picks which
-        physical SMRT cell it runs on automatically — the same rule the auto-fill planner uses: <b>reuse an
-        already-open cell before opening a new one</b>. If an eligible cell already sits in that slot&apos;s position —
-        one with a use left, no burned-barcode clash, and still inside its 108-hour window — the sample reuses it (its
-        next Use); otherwise a fresh cell is opened (a whole new tray of 4, whose other 3 cells become reusable
-        siblings — see &quot;Plates &amp; wells&quot; below). No picker interrupts the drop; the first placement into an
-        empty day just uses a default <b>12:00</b> loading start time.
+        <b>The slot is a loading position; the cell is chosen for you.</b> A grid slot is where you drop a sample — it
+        never &quot;runs out&quot;; only a cell does. When you drag a backlog sample onto a slot, RunNx picks which
+        physical SMRT cell it runs on automatically — the same rule the instrument uses: <b>reuse an already-open cell
+        before opening a new one</b>, taking the cell nearest its 108-hour deadline first. It looks across the whole
+        tray in that position (all four of A/B/C/D), not just the well you dropped on: if a used-up cell sits in that
+        slot, the drop simply routes to the next usable cell in the tray. Only when no cell in the tray has capacity
+        left does a fresh tray of 4 open. The card stays in the slot you dropped on; its <b>stub</b> tells you which
+        cell it actually landed on (e.g. <i>B1</i>). No picker interrupts the drop; the first placement into an empty
+        day just uses a default <b>12:00</b> loading start time.
       </p>
       <p className={styles.subheading}>The holographic cell seal</p>
       <p>
-        Each loaded well shows a small <b>seal</b> on its right edge. Its label is the well letter + use number (e.g.{" "}
-        <i>A2</i> = well A, Use 2) and its base colour is the Use 1 / 2 / 3 palette (magenta / blue / teal, the same Use
+        Each loaded slot shows a small <b>seal</b> on its right edge. Its label is the <b>cell&apos;s</b> own tray
+        position + use number (e.g. <i>B2</i> = cell B, Use 2) — the cell it&apos;s running on, which can differ from
+        the slot it sits in — and its base colour is the Use 1 / 2 / 3 palette (magenta / blue / teal, the same Use
         colours as the legend). The shimmering foil pattern and the tiny repeating number down the seal are <b>unique to
         that one physical SMRT cell</b> — so if you see the <i>same</i> seal on two different days, it&apos;s literally
-        the same cell being reused; a <i>different</i> seal means a different cell, even when two seals share a well+use
-        label like <i>A1</i>. That&apos;s the quickest read of whether Monday&apos;s <i>A1</i> and Tuesday&apos;s{" "}
+        the same cell being reused; a <i>different</i> seal means a different cell, even when two seals share a label
+        like <i>A1</i>. That&apos;s the quickest read of whether Monday&apos;s <i>A1</i> and Tuesday&apos;s{" "}
         <i>A1</i> are the same physical cell. A reused cell keeps one identity across all its uses: a one-tray reuse run
         shows the same seal as <i>A1</i> on Plate 1 and <i>A2</i> on Plate 2 — its first then second use. <b>Click the
         seal</b> to open that cell&apos;s details — uses so far, 108-hour window, tray position and burned barcodes, with
@@ -251,29 +253,25 @@ export function ScheduleSection() {
         </div>
       </div>
       <p>
-        <b>Turning a reuse into a fresh tray.</b> When a placement reuses an earlier plate&apos;s cell (a <b>Plate 2</b>
-        reuse — Use 2+, acquiring the next weekday), its cell popover offers <b>Use a new cell instead</b>: that
-        re-points the well to a fresh, separate tray running the <i>same</i> day (a parallel two-plate run) rather than
-        reusing. It&apos;s the one manual override to the automatic choice. There&apos;s deliberately no in-place
-        &quot;swap to a different existing cell&quot; — a cell <i>is</i> the physical thing in its well, so to reuse a
-        <i>different</i> cell you drag the sample onto that cell&apos;s own slot instead.
+        <b>Loading a fresh tray into an in-use position.</b> RunNx always prefers to reuse the cells already in a tray
+        position before opening a new tray, so you don&apos;t normally choose the cell yourself. When you <i>do</i> want
+        to retire a tray early and load a brand-new one into the same position — even though its cells still have
+        capacity — use the tray <b>Rotate</b> (<b>↻</b>) button (see Locking a run below). It moves that day&apos;s
+        samples and any later uses onto fresh cells, restarting at <b>Use 1</b>. There&apos;s no per-drop cell picker:
+        the slot is a loading position, and the instrument decides the cell.
       </p>
       <p>
         <b>Dragging an already-placed sample to a new slot moves it</b> — to any open slot on any instrument and
         any day, not just the one it&apos;s already on. A sample doesn&apos;t get physically loaded onto anything
-        until its run is actually confirmed loaded; until then it&apos;s just a plan, so moving it anywhere valid
-        never needs a confirmation step. A physical cell can never change wells or instruments, though, so the{" "}
-        <i>destination</i> decides which cell the sample lands on, not the sample&apos;s own prior cell: dropping
-        onto the exact well the cell already occupies keeps it there (a plain reschedule to a different day), while
-        dropping onto any other well or a different instrument entirely — even one on the very same tray, even the
-        same day — hands the sample to whichever cell actually lives there instead (a new one, or another
-        compatible reusable cell), resolving the cell via the placement picker (silently when there&apos;s only one
-        sensible choice). The cell it came from is untouched by this — it keeps its own other uses, if it has any,
-        right where they are.
-        A move that starts a brand-new run and has no cell decision to make always shows the picker anyway, since
-        that&apos;s the one case it has no other way to collect a loading start time. Dropping a sample back onto
-        the exact slot it came from does nothing. Dropping it onto a slot that already has a <i>different</i>
-        sample in it is rejected — it never swaps the two samples or overwrites what&apos;s there.
+        until its run is confirmed loaded; until then it&apos;s just a plan, so moving it anywhere valid never needs
+        a confirmation step or a picker. Because a grid slot is a loading <i>position</i> and not a cell, a move
+        within the <i>same</i> tray position (Plate 1 stays Plate 1, same instrument) just repositions the sample
+        and <b>keeps its own physical cell</b> — the card follows, its stub still naming the same cell. Only when the
+        cell genuinely can&apos;t reach the destination — a different instrument (a cell never crosses instruments),
+        or the other tray position — is the sample handed to a cell there instead, picked automatically
+        (reuse-before-new), again with no picker. Dropping a sample back onto the exact slot it came from does
+        nothing. Dropping it onto a slot that already has a <i>different</i> sample in it is rejected — it never
+        swaps or overwrites what&apos;s there.
       </p>
       <p>
         <b>Auto-schedule result</b> summarises the outcome, e.g. &quot;12 placed · 3 unplaced · 1 cell(s) skipped ·
@@ -501,33 +499,30 @@ export function ScheduleSection() {
         note (see Locking a run below).
       </p>
       <p>
-        <b>Each grid slot is a physical well</b>, and a well gets a cell assigned to it the moment a sample is loaded
-        onto it. An empty well shows the plain <b>+</b> cross-hatched placeholder. <b>Dropping a sample onto a +
-        assigns a cell for you</b> — reusing whichever tray already sits in that position for its next sequential use
-        (Use 1 → Use 2 → Use 3), unless you <b>Rotate</b> the tray (the <b>↻</b> button, see Locking a run below) to
-        load a fresh one instead. You see which cell you got — and its use number — from the holographic seal on the
-        loaded card afterward (see &quot;The holographic cell seal&quot; above). The Use 1 / Use 2 / Use 3 colours
-        (magenta / blue / teal) show which use of a cell each barcode chip belongs to — see the Colour &amp; Status
-        Legend section. In a reuse run, Plate 1&apos;s wells read as Use 1 and Plate 2&apos;s as Use 2 on the very same
-        cells; in a parallel run both plates read as Use 1. A physical cell always stays in the exact same tray/well
-        position for every one of its reuses, never just any open slot — so a cell&apos;s first use can start in any
-        open slot, but from then on it&apos;s pinned to that well.
+        <b>Each grid slot is a plate loading position</b> — where you drop a sample, not a fixed cell. An empty slot
+        shows the plain <b>+</b> cross-hatched placeholder, and <b>a slot never &quot;runs out&quot;</b>: even when the
+        cell that last ran there is used up, the slot stays a droppable <b>+</b>. <b>Dropping a sample onto a +
+        assigns a cell for you</b> — reusing whichever cell in that tray position is next in line (the one nearest its
+        108-hour deadline), across all four of the tray&apos;s cells, and only opening a fresh tray of 4 once none has
+        capacity left. You see which cell you got — and its use number — from the holographic seal on the loaded card
+        afterward (see &quot;The holographic cell seal&quot; above). The Use 1 / Use 2 / Use 3 colours (magenta / blue /
+        teal) show which use of a cell each barcode chip belongs to — see the Colour &amp; Status Legend section.
       </p>
       <p>
         The grid&apos;s <b>&quot;Plate 1&quot;/&quot;Plate 2&quot;</b> are <i>loading positions</i> within a run — a
         different thing entirely from a physical SPRQ-Nx SMRT Cell tray of 4 cells (see the Cells tab&apos;s help).
-        A cell&apos;s position within its own physical tray is shown on the Cells page and Cell Detail, not on this
-        grid.
+        A cell&apos;s position within its own physical tray is shown on its seal, the Cells page and Cell Detail.
       </p>
 
       <p className={styles.subheading}>Reusing a resident cell</p>
       <p>
-        A tray that&apos;s still loaded but idle — its cells used once or twice, with uses left — <b>doesn&apos;t
-        advertise itself with a tinted &quot;reuse offer&quot; card any more</b>. Its wells simply read as plain{" "}
-        <b>+</b> placeholders, like any other empty well. Dropping a sample onto one still lands on that resident
-        cell&apos;s next sequential use automatically (Use 2, then Use 3) — RunNx picks the cell for you (reuse before
-        opening a new tray), and you confirm which cell you got from its seal once it&apos;s loaded. To load a{" "}
-        <i>brand-new</i> tray into that position instead of reusing, use the tray <b>Rotate</b> (<b>↻</b>) button.
+        A tray that&apos;s still loaded but idle — its cells used once or twice, with uses left — simply reads as plain{" "}
+        <b>+</b> placeholders, like any other empty slot. Dropping a sample onto one lands on the next-in-line cell in
+        that tray automatically (its next Use) — RunNx reuses before opening a new tray, and you confirm which cell you
+        got from its seal once it&apos;s loaded. Because the slot is a loading position, dropping onto the slot where a
+        <i>used-up</i> cell sat just routes to a sibling that still has capacity — so a spent cell never blocks you. To
+        load a <i>brand-new</i> tray into that position instead of reusing, use the tray <b>Rotate</b> (<b>↻</b>)
+        button.
       </p>
       <p>
         You don&apos;t have to hunt for the reuse deadline: the <b>tray-disposal warning banner</b> (the amber{" "}
@@ -578,7 +573,7 @@ export function ScheduleSection() {
         across the grid doesn&apos;t flash highlights, and the highlight is suspended while dragging a sample.
       </p>
 
-      <p className={styles.subheading}>Blocked &amp; spent wells</p>
+      <p className={styles.subheading}>Blocked wells</p>
       <div className={styles.legendGrid}>
         <div className={styles.legendRow}>
           <div className={styles.ghostExampleSwatch}>
@@ -592,15 +587,12 @@ export function ScheduleSection() {
           </span>
         </div>
         <div className={styles.legendRow}>
-          <div className={styles.ghostExampleSwatch}>
-            <SchedulerSlotView stage={null} slotIndex={0} ghost={GHOST_EXAMPLE_EXHAUSTED} />
-          </div>
           <span>
-            <b>Spent well:</b> the cell here is used up (Exhausted), timed out (its 108-hour window closed with
-            capacity unused = Window expired), or manually Retired — and its physical tray is still loaded because a
-            sibling cell in the same tray still has capacity. It&apos;s a subtle greyed <b>✕</b> (hover for the
-            reason), not a sample-like card: nothing can be loaded into this well until the whole tray is replaced.
-            Once every cell in that tray is also spent, the tray leaves and the well becomes a normal <b>+</b> again.
+            A <b>used-up cell no longer blocks its slot</b>. A grid slot is a plate <em>loading position</em>, not a
+            cell: when a cell is exhausted, expired, or retired, its slot stays a normal droppable <b>+</b>. Loading a
+            sample there lands it on the next usable cell in that tray automatically — the card&apos;s stub shows which
+            cell it actually ran on. Watch the tray-disposal warning (⚠, next to Confirm loaded) for when a tray with
+            unused capacity is about to leave the instrument.
           </span>
         </div>
       </div>

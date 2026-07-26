@@ -234,7 +234,13 @@ def test_return_to_backlog_rejects_a_stop_originated_block(client):
     r_wed = _place(client, _sid(client, "F2"), wed, 0, {"mode": "existing", "cell_id": cell_id})
     wed_use_id = _stage(r_wed.json())["cell_use_id"]
 
-    # Stop from Monday's (running) use cascades Wednesday's later use to cancelled.
+    # Discard the tray siblings so the stop has nowhere to re-home Wednesday's use onto - it
+    # overflows to a permanent cancelled marker (the case this test is about).
+    tray_id = client.get(f"/api/cells/{cell_id}").json()["tray_id"]
+    for sib in [c["id"] for c in client.get("/api/cells", params={"tray_id": tray_id}).json()["items"] if c["id"] != cell_id]:
+        client.post(f"/api/cells/{sib}/discard", json={"reason": "test"})
+
+    # Stop from Monday's (running) use overflows Wednesday's later use to cancelled.
     stop = client.post(f"/api/cells/{cell_id}/stop", json={"reason": "crack", "cell_use_id": mon_use_id})
     assert stop.status_code == 200, stop.text
     assert client.get(f"/api/cell-uses/{wed_use_id}").json()["status"] == "cancelled"

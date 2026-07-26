@@ -140,10 +140,16 @@ def stop_cell_endpoint(cell_id: int, req: CellStopRequest, db: SessionDep, actor
     if cell is None:
         raise HTTPException(404, "Cell not found")
     try:
-        cell, bumped_sample_ids = stop_cell(db, cell, req.reason, req.actor or actor, cell_use_id=req.cell_use_id)
+        cell, rehomed_sample_ids, unrunnable_sample_ids = stop_cell(
+            db, cell, req.reason, req.actor or actor, cell_use_id=req.cell_use_id
+        )
     except ValueError as exc:
         raise HTTPException(409, str(exc)) from exc
-    return CellStopOut(cell=serialize_cell(cell), bumped_sample_ids=bumped_sample_ids)
+    return CellStopOut(
+        cell=serialize_cell(cell),
+        rehomed_sample_ids=rehomed_sample_ids,
+        unrunnable_sample_ids=unrunnable_sample_ids,
+    )
 
 
 @router.post("/{cell_id}/discard", response_model=CellOut)

@@ -47,7 +47,7 @@ export function CellDetailPage() {
 
   const [stopModalOpen, setStopModalOpen] = useState(false);
   const [undoStopModalOpen, setUndoStopModalOpen] = useState(false);
-  const [bumpedCount, setBumpedCount] = useState<number | null>(null);
+  const [stopFeedback, setStopFeedback] = useState<{ rehomed: number; unrunnable: number } | null>(null);
   const [failTarget, setFailTarget] = useState<CellUseHistoryOut | null>(null);
   const [undoTarget, setUndoTarget] = useState<CellUseHistoryOut | null>(null);
   const [caseNumber, setCaseNumber] = useState("");
@@ -65,9 +65,9 @@ export function CellDetailPage() {
     mutationFn: (reason: string) => {
       // Anchor the stop to this cell's single in-progress use, if there's exactly one -
       // its own sample is then treated like a Fail (lost, needs a PacBio credit case) and
-      // only *later* planned uses cascade back to the backlog. With 0 or 2+ candidates
-      // there's no unambiguous single use to anchor to, so fall back to the original
-      // whole-cell behavior (every planned use cascades, nothing is marked Failed).
+      // only *later* planned uses are re-homed onto the tray's other cells. With 0 or 2+
+      // candidates there's no unambiguous single use to anchor to, so fall back to the
+      // whole-cell behavior (every planned use is reshuffled, nothing is marked Failed).
       const inProgress = query.data?.use_history.filter((u) => u.status === "planned" || u.status === "started") ?? [];
       const cell_use_id = inProgress.length === 1 ? inProgress[0].id : undefined;
       return cellsApi.stop(id, { reason: reason || null, cell_use_id });
@@ -75,7 +75,7 @@ export function CellDetailPage() {
     onSuccess: (data) => {
       invalidateCell();
       setStopModalOpen(false);
-      setBumpedCount(data.bumped_sample_ids.length);
+      setStopFeedback({ rehomed: data.rehomed_sample_ids.length, unrunnable: data.unrunnable_sample_ids.length });
     },
   });
 
@@ -271,9 +271,17 @@ export function CellDetailPage() {
               {undoStopMutation.error instanceof ApiError ? undoStopMutation.error.message : "Failed to undo stop."}
             </Note>
           )}
-          {bumpedCount !== null && bumpedCount > 0 && (
-            <Note tone="warn" icon="!">
-              {bumpedCount} sample{bumpedCount === 1 ? "" : "s"} returned to backlog for rescheduling.
+          {stopFeedback !== null && stopFeedback.rehomed > 0 && (
+            <Note tone="info" icon="↻">
+              {stopFeedback.rehomed} later sample{stopFeedback.rehomed === 1 ? "" : "s"} re-homed onto other cells in this
+              tray.
+            </Note>
+          )}
+          {stopFeedback !== null && stopFeedback.unrunnable > 0 && (
+            <Note tone="bad" icon="!">
+              {stopFeedback.unrunnable} sample{stopFeedback.unrunnable === 1 ? "" : "s"} can no longer run (the tray ran
+              out of capacity) and {stopFeedback.unrunnable === 1 ? "is" : "are"} back in the backlog — reschedule
+              {stopFeedback.unrunnable === 1 ? " it" : " them"} elsewhere.
             </Note>
           )}
         </CardBody>
