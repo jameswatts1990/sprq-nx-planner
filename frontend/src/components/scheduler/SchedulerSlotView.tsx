@@ -127,7 +127,7 @@ export const SchedulerSlotView = memo(
   // at a glance. Two independent, deterministic signals both keyed off the cell:
   //   - a per-cell hue rotation of the iridescent sheen (golden-angle spread so adjacent cell
   //     ids land far apart on the wheel), and
-  //   - the cell's tray id printed as repeating microtext down the seal (like the
+  //   - the cell's tray id printed as microtext along the bottom of the seal (like the
   //     micro-lettering on a real holographic security sticker) - so cells from the same tray
   //     share a family number while the per-cell hue still keeps them individually distinct.
   // The Use 1/2/3 base colour is untouched underneath, so the use number still reads normally.
@@ -137,8 +137,9 @@ export const SchedulerSlotView = memo(
         : (stage!.cell_ref?.match(/(\d+)\s*$/)?.[1]?.replace(/^0+/, "") ?? "") || String(stage!.cell_id))
     : "";
   const sealHue = showStage ? Math.round((stage!.cell_id * 137.508) % 360) : 0;
-  // Repeated enough to fill the seal's height; overflow-hidden clips the tail.
-  const sealMicrotext = sealNum ? `${sealNum} · `.repeat(8).trim() : "";
+  // The tray id, printed horizontally along the bottom edge of the seal (overflow-hidden clips
+  // any tail if the id is unusually long).
+  const sealMicrotext = sealNum;
   const classes = [styles.slot];
   if (showStage) {
     classes.push(styles.filled, styles[useClass]);

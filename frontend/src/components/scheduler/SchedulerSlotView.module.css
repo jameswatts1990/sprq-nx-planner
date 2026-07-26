@@ -124,7 +124,7 @@
    even when they share the same cell+use label. It layers, back-to-front:
      1. the solid Use 1/2/3 base colour (.stubU1/2/3 above),
      2. .stubSheen — an iridescent diagonal foil, hue-rotated per cell (--seal-hue),
-     3. .stubMicro — the cell's tray id as vertical repeating microprint,
+     3. .stubMicro — the cell's tray id as horizontal microprint along the bottom edge,
      4. .stubLabel — the readable "C1" + boxed use on top.
    All decorative layers are aria-hidden; the button keeps its full aria-label/title. */
 .stubSheen {
@@ -150,12 +150,11 @@
   pointer-events: none;
   animation: sealShift 6s linear infinite;
 }
-/* Vertical microprint of the tray id — the "you can't fake this" texture of a real seal, but
-   still readable: solid white with a dark halo so the digits hold contrast over any point of
-   the foil (bright highlight or saturated colour), sitting ABOVE the sheen with a normal blend
-   rather than an overlay that the foil would wash out. Runs UP from the bottom of the stub and
-   stops short of the top, leaving the readable "C1" + boxed use their own clear band so the
-   microprint never sits directly behind them. */
+/* Microprint of the tray id — the "you can't fake this" texture of a real seal, but still
+   readable: solid white with a dark halo so the digits hold contrast over any point of the
+   foil (bright highlight or saturated colour), sitting ABOVE the sheen with a normal blend
+   rather than an overlay that the foil would wash out. Runs HORIZONTALLY along the bottom edge
+   of the stub, clear of the readable "C1" + boxed use in their own band up top. */
 .stubMicro {
   position: absolute;
   inset: 0;
@@ -164,10 +163,6 @@
   align-items: flex-end;
   justify-content: center;
   padding-bottom: 3px;
-  /* Reserve the top band for .stubLabel (cell number + boxed use) so they never overlap. */
-  padding-top: 34px;
-  writing-mode: vertical-rl;
-  text-orientation: mixed;
   font-family: var(--mono);
   font-size: 9px;
   font-weight: 800;

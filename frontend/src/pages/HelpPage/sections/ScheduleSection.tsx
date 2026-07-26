@@ -269,7 +269,7 @@ export function ScheduleSection() {
         (<i>C1</i>–<i>C4</i>, PacBio&apos;s cell 1–4) with the use number in its own small square next to it (e.g.{" "}
         <i>C2</i> with a boxed <i>2</i> = cell 2, Use 2) — the cell it&apos;s running on, which can differ from
         the slot it sits in — and its base colour is the Use 1 / 2 / 3 palette (magenta / blue / teal, the same Use
-        colours as the legend). The tiny repeating number down the seal is the cell&apos;s <b>tray id</b> — shared by
+        colours as the legend). The small number along the bottom of the seal is the cell&apos;s <b>tray id</b> — shared by
         every cell in the same physical tray — while the shimmering foil pattern is <b>unique to that one physical SMRT
         cell</b> — so if you see the <i>same</i> foil on two different days, it&apos;s literally
         the same cell being reused; a <i>different</i> foil means a different cell, even when two seals share a label
