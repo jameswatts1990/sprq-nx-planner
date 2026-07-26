@@ -7,6 +7,10 @@ class CellUseHistoryOut(BaseModel):
     id: int
     run_batch_id: int
     cycle_id: int
+    # Which plate (1 or 2) this use loaded on - the authoritative source for the plate-
+    # qualified well label (P1_A01), since the stored `well` alone can't tell (a reuse Plate 2
+    # stores A01-D01, the same letters as Plate 1).
+    plate_index: int | None
     run_name: str | None
     well: str
     status: str

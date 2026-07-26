@@ -1,9 +1,10 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { memo, useState, type KeyboardEvent, type MouseEvent } from "react";
 
 import { cellsApi } from "@/api/cells";
 import { ApiError } from "@/api/client";
 import { cyclesApi } from "@/api/cycles";
+import { TraySiblingList } from "@/components/cells/TraySiblingList";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
 import type { SlotIndex, RunOut, StageOut } from "@/types/schedule";
@@ -117,6 +118,16 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
       invalidateScheduleRelated(queryClient);
       setRotateTrayId(null);
     },
+  });
+
+  // The physical cells in the tray about to be discarded, fetched only while the confirm
+  // modal is open, so the user can see each cell's own usage (e.g. "C01 2/3 uses") and
+  // jump to its detail page before committing. Same ["cells", { tray_id }] key shape as
+  // CellDetailPage / OpenTraysAccordion, so it shares React Query's cache with them.
+  const trayCellsQuery = useQuery({
+    queryKey: ["cells", { tray_id: rotateTrayId }],
+    queryFn: () => cellsApi.list({ tray_id: rotateTrayId as number, page_size: 10 }),
+    enabled: rotateTrayId !== null,
   });
 
   if (weekend) {
@@ -319,8 +330,8 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
                   <button
                     type="button"
                     className={styles.rotateBtn}
-                    title="Rotate tray — load a fresh tray from this day (moves this day's samples and any later uses onto new cells)"
-                    aria-label="Rotate tray — load a fresh tray from this day"
+                    title="Discard current tray — this will discard the current tray in this machine after this plate is loaded"
+                    aria-label="Discard current tray — this will discard the current tray in this machine after this plate is loaded"
                     onClick={() => setRotateTrayId(trayId)}
                   >
                     ↻
@@ -388,25 +399,30 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
 
       {rotateTrayId != null && (
         <ConfirmModal
-          title="Rotate this tray?"
-          confirmLabel="Rotate tray"
-          pendingLabel="Rotating…"
+          title={`Discard this Tray ${rotateTrayId}?`}
+          confirmLabel="Discard tray"
+          pendingLabel="Discarding…"
           pending={rotateMutation.isPending}
           error={
             rotateMutation.isError
               ? rotateMutation.error instanceof ApiError
                 ? rotateMutation.error.message
-                : "Failed to rotate tray."
+                : "Failed to discard tray."
               : null
           }
           onCancel={() => setRotateTrayId(null)}
           onConfirm={() => rotateMutation.mutate(rotateTrayId)}
         >
           <p>
-            Loads a fresh tray into this position. This day&apos;s samples and any later uses of this tray move onto
-            the new cells, restarting at <b>Use 1</b>. Earlier uses stay on the old cells, which are discarded. This
-            cannot be undone.
+            This will discard the cell tray in this Revio after this plate has been loaded. The next samples loaded
+            onto this machine will use a new tray. Earlier uses stay on the current cells. This cannot be undone.
           </p>
+          {trayCellsQuery.data && trayCellsQuery.data.items.length > 0 && (
+            <>
+              <p className={styles.trayCellsLabel}>Cells in this tray</p>
+              <TraySiblingList cells={trayCellsQuery.data.items} />
+            </>
+          )}
         </ConfirmModal>
       )}
     </td>

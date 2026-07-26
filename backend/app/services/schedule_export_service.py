@@ -107,11 +107,14 @@ def _fmt_portion(n: int) -> str:
     return f"{text}%"
 
 
-def _cell_location(cell_use: CellUse) -> str:
-    """"A01 use 2" — the well plus this cell's 1-based use number (the Use 1/2/3 the grid shows)."""
+def _cell_location(cell_use: CellUse, plate_index: int) -> str:
+    """"P1_A01 use 2" — the plate-qualified loading position (plates are lettered, samples
+    always in column 01) plus this cell's 1-based use number (the Use 1/2/3 the grid shows).
+    The plate comes from the cycle's plate_index, NOT the stored well's suffix: a reuse Plate 2
+    stores A01-D01 (the same letters as Plate 1), so only plate_index reliably gives the plate."""
     if not cell_use.well:
         return ""
-    return f"{cell_use.well} use {_use_number(cell_use)}"
+    return f"P{plate_index}_{cell_use.well[0]}01 use {_use_number(cell_use)}"
 
 
 def _effective_barcodes(cell_use: CellUse) -> list[str]:
@@ -138,7 +141,7 @@ def _row_values(cell_use: CellUse, cycle: Cycle, serial: str) -> dict[str, str]:
         # columns fall under the present-but-blank P1 scope like the other unstored fields.
         K_TRACTION_ID: (sample.external_id or "") if sample else "",
         K_SANGER: _fmt_sanger(sample.sanger_ids if sample else None),
-        K_CELL_LOCATION: _cell_location(cell_use),
+        K_CELL_LOCATION: _cell_location(cell_use, cycle.plate_index),
         # Per-cell run time: each exported well row carries its own movie time, which can
         # differ from other wells in the same run (see CellUse.run_time_hours).
         K_RUN_TIME: _fmt_number(cell_use.run_time_hours),

@@ -18,11 +18,15 @@
   justify-content: center;
   color: var(--faint);
 }
+/* Empty slot affordance: "+ A01" - the "+" invites a drop, the plate-well position (A01-D01,
+   column 1 of the 96-well plate) tells the operator which loading position this is. The plate
+   (1 or 2) comes from the "Plate 1/2" column header above, so it stays unqualified here. */
 .placeholder {
-  font-size: 15px;
+  font-size: 12.5px;
   font-weight: 700;
   color: var(--faint);
   opacity: 0.7;
+  white-space: nowrap;
 }
 
 /* A well permanently blocked by a stopped cell (see waitingCells.
@@ -67,20 +71,21 @@
   border-color: #bfe8e8;
 }
 
-/* Cell "ticket stub": the physical cell's column + use number (e.g. "A2"), an inset strip on
-   the card's right edge, colour-coded by use like the Use 1/2/3 legend swatches. Clickable to
-   open the in-grid cell-info popover - a distinct entry point from the card body (which opens
-   the sample/slot detail). See SchedulerSlotView / CellInfoPopover. */
+/* Cell "ticket stub": the physical cell's position (numbered "C1"-"C4") + its use number in
+   its own boxed square (e.g. "C1 [1]"), an inset strip on the card's right edge, colour-coded
+   by use like the Use 1/2/3 legend swatches. Clickable to open the in-grid cell-info popover -
+   a distinct entry point from the card body (which opens the sample/slot detail). See
+   SchedulerSlotView / CellInfoPopover. */
 .hasStub {
   /* Reserve the right strip so the card's text/barcodes never underlap the stub. */
-  padding-right: 26px;
+  padding-right: 30px;
 }
 .stub {
   position: absolute;
   top: 0;
   right: 0;
   bottom: 0;
-  width: 24px;
+  width: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -90,7 +95,7 @@
   border-bottom-right-radius: 8px;
   font-family: var(--mono);
   font-weight: 800;
-  font-size: 12px;
+  font-size: 11px;
   letter-spacing: -0.02em;
   color: #fff;
   cursor: pointer;
@@ -116,11 +121,11 @@
 
 /* ── Holographic security-seal identity ─────────────────────────────────────────
    The seal's job is to make one physical cell instantly distinguishable from another
-   even when they share the same well+use label. It layers, back-to-front:
+   even when they share the same cell+use label. It layers, back-to-front:
      1. the solid Use 1/2/3 base colour (.stubU1/2/3 above),
      2. .stubSheen — an iridescent diagonal foil, hue-rotated per cell (--seal-hue),
-     3. .stubMicro — the cell's own id as vertical repeating microprint,
-     4. .stubLabel — the readable "A2" on top.
+     3. .stubMicro — the cell's tray id as vertical repeating microprint,
+     4. .stubLabel — the readable "C1" + boxed use on top.
    All decorative layers are aria-hidden; the button keeps its full aria-label/title. */
 .stubSheen {
   position: absolute;
@@ -145,23 +150,28 @@
   pointer-events: none;
   animation: sealShift 6s linear infinite;
 }
-/* Vertical microprint of the cell id — the "you can't fake this" texture of a real seal, but
+/* Vertical microprint of the tray id — the "you can't fake this" texture of a real seal, but
    still readable: solid white with a dark halo so the digits hold contrast over any point of
    the foil (bright highlight or saturated colour), sitting ABOVE the sheen with a normal blend
-   rather than an overlay that the foil would wash out. */
+   rather than an overlay that the foil would wash out. Runs UP from the bottom of the stub and
+   stops short of the top, leaving the readable "C1" + boxed use their own clear band so the
+   microprint never sits directly behind them. */
 .stubMicro {
   position: absolute;
   inset: 0;
   z-index: 1;
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: center;
+  padding-bottom: 3px;
+  /* Reserve the top band for .stubLabel (cell number + boxed use) so they never overlap. */
+  padding-top: 34px;
   writing-mode: vertical-rl;
   text-orientation: mixed;
   font-family: var(--mono);
-  font-size: 7.5px;
+  font-size: 9px;
   font-weight: 800;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.08em;
   line-height: 1;
   color: #fff;
   text-shadow:
@@ -172,10 +182,38 @@
   pointer-events: none;
   user-select: none;
 }
+/* The readable label: the cell number "C1" stacked over the use number in its own boxed
+   square, both in the top band above the microprint. */
 .stubLabel {
-  position: relative;
+  position: absolute;
+  top: 3px;
+  left: 0;
+  right: 0;
   z-index: 2;
-  text-shadow: 0 1px 1.5px rgba(0, 0, 0, 0.4); /* keep "A2" legible over the foil */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  text-shadow: 0 1px 1.5px rgba(0, 0, 0, 0.4); /* keep the label legible over the foil */
+}
+.stubCell {
+  font-size: 11px;
+  line-height: 1;
+}
+/* The use number in "its own square": a small bordered box over the use-tinted strip, so the
+   use reads both as a number and (via the strip colour) as the Use 1/2/3 palette. */
+.stubUseBox {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 13px;
+  height: 13px;
+  padding: 0 2px;
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.22);
+  font-size: 9px;
+  line-height: 1;
 }
 /* Slow drift makes the foil "live" like a tilted hologram. */
 @keyframes sealShift {
@@ -201,7 +239,7 @@
 /* The cross-time cell-link dot sits top-right; nudge it clear of the stub when one is shown. */
 .hasStub .linkBadgeSource,
 .hasStub .linkBadgePeer {
-  right: 26px;
+  right: 30px;
 }
 /* Waiting/reusable-cell ghost: a tinted placeholder in the same slot a real placement
    would occupy, colour-coded by the use number it's waiting to become. --ghost-opacity is

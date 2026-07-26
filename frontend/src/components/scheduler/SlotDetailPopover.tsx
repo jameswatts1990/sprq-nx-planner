@@ -14,6 +14,7 @@ import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
 import type { RunOut, RunTimeHours, StageOut } from "@/types/schedule";
 import { canRecordQcOutcome, canUndoQcOutcome } from "@/utils/cellUseQc";
+import { plateWellFromSlot } from "@/utils/plateWell";
 import { runLabel } from "@/utils/runLabel";
 
 import styles from "./SlotDetailPopover.module.css";
@@ -222,7 +223,7 @@ export function SlotDetailPopover({ stage, run, onClose }: SlotDetailPopoverProp
         </div>
         <div className={styles.row}>
           <span className={styles.label}>Well</span>
-          <b className={styles.value}>{stage.well}</b>
+          <b className={styles.value}>{plateWellFromSlot(stage.slot_index, { full: true })}</b>
         </div>
         <div className={styles.row}>
           <span className={styles.label}>Run</span>

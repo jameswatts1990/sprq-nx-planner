@@ -114,7 +114,7 @@ describe("computeInstrumentTrayMaps", () => {
     expect(map.carousel[1]).toBeNull(); // nothing in Plate 2 position
     const tray = map.carousel[0]!;
     expect(tray.trayId).toBe(1);
-    expect(tray.positions.map((p) => p.letter)).toEqual(["A", "B", "C", "D"]);
+    expect(tray.positions.map((p) => p.cellNumber)).toEqual([1, 2, 3, 4]);
     expect(tray.positions[0]).toMatchObject({ usesRemaining: 1, status: "open" });
     expect(tray.positions[1]).toMatchObject({ usesRemaining: 2 });
     // A + 108h from 2026-07-20T12:00Z = 2026-07-25T00:00Z

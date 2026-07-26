@@ -20,6 +20,11 @@
   color: var(--faint);
   font-size: 11.5px;
 }
+/* Full-width, centered so it lines up with the full-width segmented controls above. */
+.loadBtn {
+  width: 100%;
+  justify-content: center;
+}
 .autoBar {
   display: flex;
   flex-direction: column;
@@ -27,6 +32,12 @@
   gap: 10px;
   padding-top: 14px;
   border-top: 1px solid var(--line-soft);
+}
+/* The Auto schedule / Clear schedule buttons stretch full width (align-items: stretch
+   above); centre their labels so the panel reads as one justified column. */
+.autoBar button {
+  justify-content: center;
+  text-align: center;
 }
 .autoHint {
   font-size: 12px;

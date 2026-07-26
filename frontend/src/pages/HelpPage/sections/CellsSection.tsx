@@ -60,10 +60,11 @@ export function CellsSection() {
 
       <p className={styles.subheading}>Cell cards &amp; the 108-hour window</p>
       <p>
-        <b>Each cell card shows:</b> the cell code (e.g. <b>CELL-A004821</b> — the letter is the cell&apos;s fixed
-        position within its physical tray, A–D, not a status or location code), a status badge, uses spent, which
-        instrument and well it&apos;s currently in, its burned barcodes, and a 108-hour window meter. Click a card
-        to open its full detail.
+        <b>Each cell card shows:</b> the cell code (e.g. <b>C02-T123</b> — cells are <i>numbered</i> 1–4 by their fixed
+        position in the physical tray, and <b>T123</b> is that tray&apos;s id, so a tray&apos;s four cells read{" "}
+        <b>C01-T123</b> … <b>C04-T123</b>), a status badge, uses spent, which instrument and well it&apos;s currently
+        in, its burned barcodes, and a 108-hour window meter. You can search by code — e.g. <b>T123</b> finds all four
+        siblings. Click a card to open its full detail.
       </p>
       <div className={styles.legendGrid}>
         <div className={styles.legendRow}>
@@ -105,8 +106,10 @@ export function CellsSection() {
           <b>Cell tray</b> card: SPRQ-Nx SMRT Cells ship in a physical tray of 4. The moment any one cell in a tray
           gets a sample, all 4 are registered together, in cell-number order - this card lists the tray&apos;s other
           cells (with a link, status, and uses, shown live above) so you can see at a glance which are still
-          available, even before their own first use. Not shown for cells created before this feature, or via
-          Register in-progress cell, since those have no known tray.
+          available, even before their own first use. Its heading links to the <b>tray page</b> — the whole tray and
+          its four cells on one screen, each linking back here — and the same tray is reachable from a cell&apos;s seal
+          popover, the grid&apos;s instrument cell map, and the Open trays list. Not shown for cells created before this
+          feature, or via Register in-progress cell, since those have no known tray.
         </li>
         <li>
           <b>Retire cell</b> takes a cell permanently out of service. It&apos;s disabled — with a hover explanation

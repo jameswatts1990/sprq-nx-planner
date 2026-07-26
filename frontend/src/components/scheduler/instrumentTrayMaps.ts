@@ -20,10 +20,11 @@ export type ExpiryUrgency = "none" | "soon" | "expired";
  * scheduled state. */
 export interface TrayPositionView {
   cellId: number;
-  /** The cell's code (e.g. CELL-A000920), for the position's tooltip. */
+  /** The cell's code (e.g. C01-T123), for the position's tooltip. */
   code: string;
-  /** The cell's fixed A/B/C/D tray position letter. */
-  letter: string;
+  /** The cell's fixed tray position as a NUMBER 1-4 (PacBio "cell 1-4" - cells are numbered,
+   * plates are lettered, so the two never read alike). */
+  cellNumber: number;
   /** Usable uses still available here (of 3) - the cell's remaining uses while it's still
    * open, and 0 for any terminal/stopped cell (its physical remainder can no longer be run). */
   usesRemaining: number;
@@ -65,13 +66,13 @@ function carouselOf(well: string | null): 0 | 1 | -1 {
   return idx < 4 ? 0 : 1;
 }
 
-/** The A/B/C/D letter for a 1-based tray position (1 -> A). Falls back to the cell's own well
- * letter if the position is missing. */
-function positionLetter(cell: CellOut): string {
-  if (cell.tray_position != null && cell.tray_position >= 1 && cell.tray_position <= 26) {
-    return String.fromCharCode("A".charCodeAt(0) + cell.tray_position - 1);
+/** The cell's 1-based tray position as a number (1-4). Falls back to mapping its own home-well
+ * letter A-D -> 1-4 when tray_position is missing (a legacy tray-less cell). */
+function cellNumberOf(cell: CellOut): number {
+  if (cell.tray_position != null && cell.tray_position >= 1 && cell.tray_position <= 4) {
+    return cell.tray_position;
   }
-  return cell.current_well ? cell.current_well.charAt(0) : "?";
+  return cell.current_well ? cell.current_well.charCodeAt(0) - 64 : 0; // "A" (65) -> 1 .. "D" -> 4
 }
 
 function expiryUrgency(cell: CellOut): ExpiryUrgency {
@@ -89,7 +90,7 @@ function positionView(cell: CellOut): TrayPositionView {
   return {
     cellId: cell.id,
     code: cell.code,
-    letter: positionLetter(cell),
+    cellNumber: cellNumberOf(cell),
     // A terminal/stopped cell offers no usable uses even if it physically has capacity left
     // (e.g. a tray disposed early at the max-uses dial) - show what can still be run: 0.
     usesRemaining: cell.status === "open" ? cell.uses_remaining : 0,

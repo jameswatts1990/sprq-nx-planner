@@ -15,6 +15,11 @@ export interface AccordionProps {
    * Omit both for the normal uncontrolled behavior. */
   open?: boolean;
   onToggle?: (open: boolean) => void;
+  /** Optional content pinned immediately after the title (before the right-aligned badge),
+   * e.g. a header action button. Rendered outside the toggle so it isn't a nested button
+   * and its own clicks don't toggle the accordion; the toggle shrinks to its title width
+   * when present so this sits right beside the title rather than at the far edge. */
+  titleAfter?: ReactNode;
   /** Keep children mounted (hidden via the native `hidden` attribute) even while
    * collapsed, instead of unmounting them - e.g. so a parent can read their rendered
    * text for search. Default false (unchanged unmount-on-collapse behavior). */
@@ -31,6 +36,7 @@ export function Accordion({
   open: controlledOpen,
   onToggle,
   alwaysMounted = false,
+  titleAfter,
   children,
 }: AccordionProps) {
   const [internalOpen, setInternalOpen] = useState(defaultOpen);
@@ -44,10 +50,16 @@ export function Accordion({
   return (
     <Card>
       <CardHeader badge={badge}>
-        <button type="button" className={styles.toggle} aria-expanded={expanded} onClick={toggle}>
+        <button
+          type="button"
+          className={titleAfter ? `${styles.toggle} ${styles.toggleFit}` : styles.toggle}
+          aria-expanded={expanded}
+          onClick={toggle}
+        >
           <span className={styles.caret}>{expanded ? "▼" : "▶"}</span>
           {title}
         </button>
+        {titleAfter}
       </CardHeader>
       {alwaysMounted ? <CardBody hidden={!expanded}>{children}</CardBody> : expanded && <CardBody>{children}</CardBody>}
     </Card>

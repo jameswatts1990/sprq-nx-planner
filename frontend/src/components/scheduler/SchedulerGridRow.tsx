@@ -107,7 +107,7 @@ export const SchedulerGridRow = memo(function SchedulerGridRow({
       >
         <div className={styles.ml}>Revio</div>
         <div className={styles.mid}>{serial}</div>
-        <InstrumentTrayMap serial={serial} map={trayMap} />
+        <InstrumentTrayMap map={trayMap} />
       </th>
       {dayInfos.map(({ date, colIndex, weekend, run, continuation, selectable }) => {
         const selected = selectable && selection.isSelected(rowIndex, colIndex);

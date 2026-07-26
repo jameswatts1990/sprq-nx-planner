@@ -77,7 +77,13 @@ function DraggableSampleCard({ sample }: { sample: SampleOut }) {
 
 /** Collapsible backlog: a lightweight card list (cards are drag sources), same query
  * BacklogPage uses. Query runs even while collapsed so the header count stays live. */
-export function BacklogAccordion() {
+export interface BacklogAccordionProps {
+  /** Opens the Schedule page's Autoschedule drawer - rendered as the ✨ button pinned in
+   * the Backlog header, right after the title. Omit to hide the button. */
+  onOpenAutoschedule?: () => void;
+}
+
+export function BacklogAccordion({ onOpenAutoschedule }: BacklogAccordionProps = {}) {
   const [qInput, setQInput] = useState("");
   const [priority, setPriority] = useState("");
   const [page, setPage] = useState(1);
@@ -126,6 +132,22 @@ export function BacklogAccordion() {
         setOpen(next);
         writeOpenPref(next);
       }}
+      titleAfter={
+        onOpenAutoschedule && (
+          <button
+            type="button"
+            className={styles.sparkleBtn}
+            onClick={onOpenAutoschedule}
+            aria-label="Open Autoschedule"
+            title="Autoschedule — set the run design and auto-fill selected cells from the backlog"
+          >
+            <span className={styles.sparkleIcon} aria-hidden="true">
+              ✦
+            </span>
+            Autoschedule
+          </button>
+        )
+      }
       badge={
         <span className={styles.badgeGroup}>
           {abortedCount > 0 && <Badge tone="danger">⚠ {abortedCount} aborted</Badge>}

@@ -1,5 +1,6 @@
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { Link } from "react-router-dom";
 
 import { ApiError } from "@/api/client";
 import { cellsApi } from "@/api/cells";
@@ -88,7 +89,9 @@ export function OpenTraysAccordion() {
             return (
               <div key={trayId} className={styles.trayBlock}>
                 <div className={styles.trayHeader}>
-                  <span className={styles.trayId}>Tray {trayId}</span>
+                  <Link to={`/trays/${trayId}`} className={styles.trayId}>
+                    Tray {trayId}
+                  </Link>
                   {soonestExpiry !== null && (
                     <span className={urgent ? styles.trayExpiryUrgent : styles.trayExpiry}>
                       {urgent ? "Expires soon — " : "Next expiry: "}

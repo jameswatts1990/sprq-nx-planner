@@ -17,6 +17,7 @@ import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
 import type { CellUseHistoryOut } from "@/types/cell";
 import { CELL_STATUS_LABEL, CELL_STATUS_TONE } from "@/utils/cellStatus";
 import { canRecordQcOutcome, canUndoQcOutcome } from "@/utils/cellUseQc";
+import { plateWellFromPlate, plateWellFromWell } from "@/utils/plateWell";
 import { runLabel } from "@/utils/runLabel";
 import { USE_STATUS_TONE } from "@/utils/useStatusTone";
 
@@ -215,10 +216,18 @@ export function CellDetailPage() {
               <span className={styles.label}>Current location</span>
               <span className={styles.value}>
                 {cell.current_instrument_serial
-                  ? `${cell.current_instrument_serial}${cell.current_well ? ` · ${cell.current_well}` : ""}`
+                  ? `${cell.current_instrument_serial}${cell.current_well ? ` · ${plateWellFromWell(cell.current_well, { qualified: true })}` : ""}`
                   : "—"}
               </span>
             </div>
+            {trayId !== null && (
+              <div>
+                <span className={styles.label}>Tray</span>
+                <Link to={`/trays/${trayId}`} className={styles.value}>
+                  Tray {trayId}
+                </Link>
+              </div>
+            )}
             <div>
               <span className={styles.label}>First use started</span>
               <span className={styles.value}>{formatDateTime(cell.first_use_started_at)}</span>
@@ -290,7 +299,9 @@ export function CellDetailPage() {
       {trayId !== null && (
         <Card>
           <CardHeader>
-            <h2>Cell tray</h2>
+            <h2>
+              <Link to={`/trays/${trayId}`}>Cell tray — Tray {trayId} →</Link>
+            </h2>
           </CardHeader>
           <CardBody>
             <p className={styles.helper}>
@@ -344,7 +355,7 @@ export function CellDetailPage() {
                           {runLabel({ run_id: u.run_batch_id, run_name: u.run_name })}
                         </Link>
                       </td>
-                      <td className={styles.mono}>{u.well}</td>
+                      <td className={styles.mono}>{plateWellFromPlate(u.plate_index, u.well, { qualified: true })}</td>
                       <td>
                         <Badge tone={USE_STATUS_TONE[u.status] ?? "default"}>{u.status}</Badge>
                       </td>
@@ -600,7 +611,7 @@ function MarkFailedModal({ use, pending, error, onCancel, onConfirm }: MarkFaile
 
   return (
     <ConfirmModal
-      title={`Mark ${use.well} (run ${runLabel({ run_id: use.run_batch_id, run_name: use.run_name })}) Failed?`}
+      title={`Mark ${plateWellFromPlate(use.plate_index, use.well, { qualified: true })} (run ${runLabel({ run_id: use.run_batch_id, run_name: use.run_name })}) Failed?`}
       confirmLabel="Mark Failed"
       pendingLabel="Saving…"
       pending={pending}
@@ -641,7 +652,7 @@ function UndoQcModal({ use, pending, error, onCancel, onConfirm }: UndoQcModalPr
 
   return (
     <ConfirmModal
-      title={`Undo ${use.well} (run ${runLabel({ run_id: use.run_batch_id, run_name: use.run_name })}) ${verdict}?`}
+      title={`Undo ${plateWellFromPlate(use.plate_index, use.well, { qualified: true })} (run ${runLabel({ run_id: use.run_batch_id, run_name: use.run_name })}) ${verdict}?`}
       confirmLabel="Undo"
       pendingLabel="Undoing…"
       pending={pending}

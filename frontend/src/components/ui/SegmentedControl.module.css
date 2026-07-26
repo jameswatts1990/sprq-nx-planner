@@ -6,6 +6,17 @@
   gap: 3px;
   flex-wrap: wrap;
 }
+/* Stretch edge-to-edge with equal-width options - used for a justified layout inside the
+   Autoschedule drawer. */
+.segFull {
+  display: flex;
+  width: 100%;
+  flex-wrap: nowrap;
+}
+.segFull .segOpt {
+  flex: 1;
+  text-align: center;
+}
 .segOpt {
   border: none;
   background: transparent;

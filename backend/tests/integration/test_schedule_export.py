@@ -67,7 +67,7 @@ def test_export_fills_p1_columns_for_a_loaded_run(client):
     assert row[2] == "84047"  # Instrument
     assert row[5] == "TRAC-2-9001"  # Traction ID
     assert row[6] == "DTOL1"  # Sanger Sample ID
-    assert row[10] == "A01 use 1"  # cell location
+    assert row[10] == "P1_A01 use 1"  # cell location (plate-qualified)
     assert row[11] == "24"  # Run Time (hr)
     assert row[16] == "300"  # Target Loading Concentration
     assert row[17] == "bc2044, bc2052"  # Complex Batch ID (barcodes)

@@ -3,6 +3,39 @@
   align-items: center;
   gap: 8px;
 }
+/* The ✨ Autoschedule entry point, pinned in the Backlog header right after the title.
+   Magenta pill with a white monochrome sparkle glyph. */
+.sparkleBtn {
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 800;
+  color: #fff;
+  background: var(--magenta);
+  border: 1px solid var(--magenta);
+  border-radius: var(--r-sm);
+  padding: 7px 14px;
+  cursor: pointer;
+  transition: 0.14s;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+  box-shadow: var(--shadow-sm);
+}
+.sparkleBtn:hover {
+  background: var(--magenta-deep);
+  border-color: var(--magenta-deep);
+  box-shadow: var(--shadow);
+}
+.sparkleBtn:focus-visible {
+  outline: 2px solid var(--magenta-deep);
+  outline-offset: 2px;
+}
+.sparkleIcon {
+  font-size: 15px;
+  line-height: 1;
+  color: #fff;
+}
 .toolbar {
   display: flex;
   gap: 10px;

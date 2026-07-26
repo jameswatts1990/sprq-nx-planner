@@ -497,23 +497,7 @@ export function SchedulePage() {
                 </div>
               )}
             </div>
-            <div className={styles.backlogRow}>
-              <button
-                type="button"
-                className={styles.sparkleBtn}
-                onClick={() => setAutoscheduleOpen(true)}
-                aria-label="Open Autoschedule"
-                title="Autoschedule — set the run design and auto-fill selected cells from the backlog"
-              >
-                <span className={styles.sparkleIcon} aria-hidden="true">
-                  ✨
-                </span>
-                Autoschedule
-              </button>
-              <div className={styles.backlogRowMain}>
-                <BacklogAccordion />
-              </div>
-            </div>
+            <BacklogAccordion onOpenAutoschedule={() => setAutoscheduleOpen(true)} />
           </div>
 
           {actions.removeSlotsError && (

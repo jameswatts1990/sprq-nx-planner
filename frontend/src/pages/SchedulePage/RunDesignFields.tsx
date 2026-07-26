@@ -90,6 +90,7 @@ export function RunDesignFields({
           options={MAX_USES_OPTIONS}
           value={runDesign.max_uses}
           onChange={(v) => onChange({ ...runDesign, max_uses: v })}
+          fullWidth
         />
       </div>
 
@@ -100,6 +101,7 @@ export function RunDesignFields({
           options={RUN_TIME_OPTIONS}
           value={runDesign.run_time_hours}
           onChange={(v) => onChange({ ...runDesign, run_time_hours: v })}
+          fullWidth
         />
       </div>
 
@@ -107,7 +109,11 @@ export function RunDesignFields({
         <div className={styles.fieldLabel}>
           Load time <span className={styles.hint}>when a new run loads &amp; starts sequencing</span>
         </div>
-        <Button onClick={() => setPickingLoadTime(true)} aria-label={`Load time: ${fmtLoadHour(runDesign.load_hour)} — change`}>
+        <Button
+          className={styles.loadBtn}
+          onClick={() => setPickingLoadTime(true)}
+          aria-label={`Load time: ${fmtLoadHour(runDesign.load_hour)} — change`}
+        >
           Loads {fmtLoadHour(runDesign.load_hour)}
         </Button>
       </div>
@@ -119,6 +125,7 @@ export function RunDesignFields({
           options={OBJECTIVE_OPTIONS}
           value={runDesign.objective}
           onChange={(v) => onChange({ ...runDesign, objective: v })}
+          fullWidth
         />
       </div>
 
@@ -131,6 +138,7 @@ export function RunDesignFields({
           options={PLATES_PER_RUN_OPTIONS}
           value={runDesign.cells_per_day}
           onChange={(v) => onChange({ ...runDesign, cells_per_day: v })}
+          fullWidth
         />
       </div>
 

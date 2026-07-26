@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { Note } from "@/components/ui/Note";
 import type { BatchSheetPlateOut, BatchSheetRunOut, BatchSheetWellOut } from "@/types/batchSheet";
 import { formatShortDateTimeUTC, parseDateOnly } from "@/utils/calendarDates";
+import { plateWellFromSlot } from "@/utils/plateWell";
 import { runLabel } from "@/utils/runLabel";
 
 import styles from "./BatchSheetPage.module.css";
@@ -45,7 +46,7 @@ function plateHeading(plate: BatchSheetPlateOut): string {
 function WellRow({ well }: { well: BatchSheetWellOut }) {
   return (
     <tr>
-      <td>{well.well}</td>
+      <td>{plateWellFromSlot(well.slot_index, { qualified: true })}</td>
       <td>
         <div className={styles.cellCode}>{well.cell_ref}</div>
         <div className={styles.meta}>
@@ -110,7 +111,7 @@ function DilutionWorksheet({ plate }: { plate: BatchSheetPlateOut }) {
         <tbody>
           {plate.wells.map((w) => (
             <tr key={w.slot_index}>
-              <td>{w.well}</td>
+              <td>{plateWellFromSlot(w.slot_index, { qualified: true })}</td>
               <td>{w.sample_external_id ?? "—"}</td>
               <td>{w.target_oplc ?? ""}</td>
               <td className={styles.entryCell} />
@@ -149,7 +150,7 @@ function PlateLoadingChecklist({ plate }: { plate: BatchSheetPlateOut }) {
         </span>
         <span>
           <span className={styles.check} />
-          Foil pierced (A1–D1)
+          Foil pierced (A01–D01)
         </span>
       </div>
       <table className={styles.worksheetTable}>
@@ -167,7 +168,7 @@ function PlateLoadingChecklist({ plate }: { plate: BatchSheetPlateOut }) {
         <tbody>
           {plate.wells.map((w) => (
             <tr key={w.slot_index}>
-              <td>{w.well}</td>
+              <td>{plateWellFromSlot(w.slot_index, { qualified: true })}</td>
               <td>{w.sample_external_id ?? "—"}</td>
               <td>
                 <span className={styles.check} />

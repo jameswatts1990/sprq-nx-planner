@@ -83,8 +83,9 @@ export interface SchedulerDnd {
  * @param onAutoPlace Called when a backlog sample is dropped onto an empty slot - the backend
  * derives the cell (reuse-before-new), so no picker is shown.
  * @param onMove Called when an already-placed sample is dragged to a different (instrument,
- * day, slot) - the backend keeps its cell for a same-carousel-position reschedule or
- * auto-derives one otherwise (see move_sample), so no picker is shown here either.
+ * day, slot) - the backend keeps its cell only for a same-well reschedule (same slot, another
+ * day) and auto-derives the destination slot's own cell otherwise (see move_sample), so no
+ * picker is shown here either.
  */
 export function useSchedulerDnd(
   onRemoveOutside: (cellUseId: number) => void,
@@ -145,8 +146,9 @@ export function useSchedulerDnd(
 
       // filledSlot -> a move. Ignore a no-op drop back onto itself; otherwise re-plan it. A
       // sample isn't physically loaded onto anything until its run executes, so a move just
-      // re-plans it: the backend keeps its own cell for a same-carousel-position reschedule, or
-      // auto-derives the next-usable cell when it crosses instruments/positions - no picker.
+      // re-plans it: the backend keeps its own cell only for a same-well reschedule (same slot,
+      // another day), and auto-derives the destination slot's own cell for any different-well
+      // move (different slot, instrument, or tray position) - no picker.
       const sameSlot =
         activeData.instrument_serial === overData.instrument_serial &&
         activeData.load_date === overData.load_date &&

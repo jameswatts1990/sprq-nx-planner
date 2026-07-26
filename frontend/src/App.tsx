@@ -13,6 +13,7 @@ import { ImportPage } from "@/pages/ImportPage";
 import { RunDetailPage } from "@/pages/RunDetailPage";
 import { SchedulePage } from "@/pages/SchedulePage/SchedulePage";
 import { StatsPage } from "@/pages/StatsPage/StatsPage";
+import { TrayDetailPage } from "@/pages/TrayDetailPage";
 
 export default function App() {
   return (
@@ -25,6 +26,7 @@ export default function App() {
         <Route path="/print/batch-sheet" element={<BatchSheetPage />} />
         <Route path="/cells" element={<CellsPage />} />
         <Route path="/cells/:cellId" element={<CellDetailPage />} />
+        <Route path="/trays/:trayId" element={<TrayDetailPage />} />
         <Route path="/history/runs" element={<HistoryRunsPage />} />
         <Route path="/history/runs/:runId" element={<RunDetailPage />} />
         <Route path="/history/samples" element={<HistorySamplesPage />} />

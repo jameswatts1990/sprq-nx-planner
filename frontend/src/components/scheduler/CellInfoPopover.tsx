@@ -14,6 +14,7 @@ import { Note } from "@/components/ui/Note";
 import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
 import type { RunOut, StageOut } from "@/types/schedule";
 import { CELL_STATUS_LABEL, CELL_STATUS_TONE } from "@/utils/cellStatus";
+import { plateWellFromSlot, plateWellFromWell } from "@/utils/plateWell";
 
 import styles from "./SlotDetailPopover.module.css";
 
@@ -116,12 +117,23 @@ export function CellInfoPopover({ stage, run, onClose }: CellInfoPopoverProps) {
             <div className={styles.row}>
               <span className={styles.label}>Location</span>
               <b className={styles.value}>
-                {cell.current_instrument_serial ?? "—"} · well {cell.current_well ?? stage.well}
-                {cell.tray_id !== null && cell.tray_position !== null
-                  ? ` · tray pos ${cell.tray_position}/${cell.tray_size}`
-                  : ""}
+                {cell.current_instrument_serial ?? "—"} ·{" "}
+                {cell.current_well
+                  ? plateWellFromWell(cell.current_well, { qualified: true })
+                  : plateWellFromSlot(stage.slot_index, { qualified: true })}
               </b>
             </div>
+            {cell.tray_id !== null && (
+              <div className={styles.row}>
+                <span className={styles.label}>Tray</span>
+                <b className={styles.value}>
+                  <Link to={`/trays/${cell.tray_id}`}>
+                    Tray {cell.tray_id}
+                    {cell.tray_position !== null ? ` · cell ${cell.tray_position}/${cell.tray_size}` : ""}
+                  </Link>
+                </b>
+              </div>
+            )}
           </>
         )}
       </div>

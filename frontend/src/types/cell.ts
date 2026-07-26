@@ -4,6 +4,9 @@ export interface CellUseHistoryOut {
   id: number;
   run_batch_id: number;
   cycle_id: number;
+  // Which plate (1 or 2) this use loaded on - drives the plate-qualified well label (P1_A01),
+  // since the stored `well` alone can't disambiguate the plate (a reuse Plate 2 stores A01-D01).
+  plate_index: number | null;
   run_name: string | null;
   well: string;
   status: string;

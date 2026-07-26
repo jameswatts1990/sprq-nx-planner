@@ -17,7 +17,7 @@ function formatDayMonthUTC(iso: string): string {
 
 function positionTitle(p: TrayPositionView): string {
   const parts = [
-    `Position ${p.letter} · ${p.code}`,
+    `Cell ${p.cellNumber} · ${p.code}`,
     CELL_STATUS_LABEL[p.status],
     `${p.usesRemaining} use${p.usesRemaining === 1 ? "" : "s"} left`,
   ];
@@ -40,7 +40,7 @@ function positionTone(p: TrayPositionView): string | undefined {
 function TrayPositionCell({ p }: { p: TrayPositionView }) {
   return (
     <div className={[styles.cell, positionTone(p)].filter(Boolean).join(" ")} title={positionTitle(p)}>
-      <span className={styles.letter}>{p.letter}</span>
+      <span className={styles.letter}>C{p.cellNumber}</span>
       <span className={styles.uses}>{p.usesRemaining}</span>
       {p.expiryAt ? (
         <span className={p.expiryEstimated ? `${styles.exp} ${styles.expEstimated}` : styles.exp}>
@@ -54,13 +54,13 @@ function TrayPositionCell({ p }: { p: TrayPositionView }) {
   );
 }
 
-function TrayStrip({ tray, serial }: { tray: TrayView; serial: string }) {
+function TrayStrip({ tray }: { tray: TrayView }) {
   return (
     <div className={styles.strip}>
       <Link
         className={styles.trayHeader}
-        to={`/cells?instrument=${encodeURIComponent(serial)}&status=all`}
-        title={`Tray ${tray.trayId} - view its cells on the Cells & Instruments page`}
+        to={`/trays/${tray.trayId}`}
+        title={`Tray ${tray.trayId} - view this tray's 4 cells`}
       >
         TRAY #{tray.trayId}
       </Link>
@@ -82,15 +82,14 @@ function EmptyCarousel() {
 }
 
 export interface InstrumentTrayMapProps {
-  serial: string;
   map: TrayMap | undefined;
 }
 
 /** The at-a-glance map of physical SMRT-cell trays currently on one instrument, projected to
  * the latest scheduled state, rendered beneath the instrument serial in the schedule grid's
  * left column. Mirrors the two-plate deck: carousel[0] = Plate 1 tray, carousel[1] = Plate 2.
- * Read-only; each tray header links to that instrument's cells. */
-export const InstrumentTrayMap = memo(function InstrumentTrayMap({ serial, map }: InstrumentTrayMapProps) {
+ * Read-only; each tray header links to that tray's own page. */
+export const InstrumentTrayMap = memo(function InstrumentTrayMap({ map }: InstrumentTrayMapProps) {
   if (!map || (map.carousel[0] === null && map.carousel[1] === null)) return null;
 
   const caption = map.asOfDate
@@ -109,8 +108,8 @@ export const InstrumentTrayMap = memo(function InstrumentTrayMap({ serial, map }
         {caption}
       </div>
       <div className={styles.carousels}>
-        {map.carousel[0] ? <TrayStrip tray={map.carousel[0]} serial={serial} /> : <EmptyCarousel />}
-        {map.carousel[1] ? <TrayStrip tray={map.carousel[1]} serial={serial} /> : <EmptyCarousel />}
+        {map.carousel[0] ? <TrayStrip tray={map.carousel[0]} /> : <EmptyCarousel />}
+        {map.carousel[1] ? <TrayStrip tray={map.carousel[1]} /> : <EmptyCarousel />}
       </div>
     </div>
   );

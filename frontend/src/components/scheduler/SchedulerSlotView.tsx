@@ -4,6 +4,7 @@ import type { CSSProperties, HTMLAttributes } from "react";
 import { BarcodeChips } from "@/components/shared/BarcodeChips";
 import type { SlotIndex, StageOut } from "@/types/schedule";
 import { classForUseIndex } from "@/utils/useIndexClass";
+import { cellPositionLabel, plateWellFromSlot } from "@/utils/plateWell";
 import { CELL_LIFETIME_H, expiryFadeOpacity } from "@/utils/windowFade";
 
 import styles from "./SchedulerSlotView.module.css";
@@ -105,14 +106,15 @@ export const SchedulerSlotView = memo(
   // Colour groups by which physical cell is loaded (stage.use_number), not by well
   // position - so a cell reused across two wells in the same run shares one colour.
   const useClass = classForUseIndex(showStage ? stage!.use_number : slotIndex + 1);
-  // The right-edge cell "ticket stub": physical column (well letter) + use number, e.g. "A2",
-  // colour-coded by use (solid Use 1/2/3 palette, like the legend swatches). Only rendered on
-  // a filled card that has an onOpenCell handler.
+  // The right-edge cell "ticket stub": the physical CELL's position (PacBio "cell 1-4" -
+  // NUMBERED, since plates are lettered) plus the use number in its own colour-coded square,
+  // e.g. "C1 [1]" = cell 1, Use 1. Only rendered on a filled card with an onOpenCell handler.
   const showStub = showStage && !!onOpenCell;
-  // The stub names the physical CELL, not the loading slot: its own tray identity letter
-  // (cell_home_well, e.g. B01 -> "B") + use number, so a sample loaded in slot A01 but running
-  // on cell B reads "B1". Falls back to the loading well for a legacy cell with no tray.
-  const stubLabel = showStage ? `${(stage!.cell_home_well ?? stage!.well).charAt(0)}${stage!.use_number}` : "";
+  // The stub names the physical CELL, not the loading slot: its tray position (1-4, falling
+  // back to the home-well letter A-D -> 1-4 for a legacy tray-less cell), so a sample loaded
+  // in slot A01 but running on cell 2 reads "C2".
+  const stubCell = showStage ? cellPositionLabel(stage!.tray_position, stage!.cell_home_well ?? stage!.well) : "";
+  const stubUse = showStage ? stage!.use_number : 0;
   const stubClass = !showStage
     ? ""
     : stage!.use_number >= 3
@@ -121,15 +123,18 @@ export const SchedulerSlotView = memo(
         ? styles.stubU2
         : styles.stubU1;
   // Holographic "security seal" identity: every physical cell gets its own look, so the same
-  // well+use label (e.g. "A1") on two different days reads as two DIFFERENT physical cells at a
-  // glance. Two independent, deterministic signals both keyed off the cell:
+  // cell+use label (e.g. "C1 [1]") on two different days reads as two DIFFERENT physical cells
+  // at a glance. Two independent, deterministic signals both keyed off the cell:
   //   - a per-cell hue rotation of the iridescent sheen (golden-angle spread so adjacent cell
   //     ids land far apart on the wheel), and
-  //   - the cell's own short id printed as repeating microtext down the seal (like the
-  //     micro-lettering on a real holographic security sticker).
+  //   - the cell's tray id printed as repeating microtext down the seal (like the
+  //     micro-lettering on a real holographic security sticker) - so cells from the same tray
+  //     share a family number while the per-cell hue still keeps them individually distinct.
   // The Use 1/2/3 base colour is untouched underneath, so the use number still reads normally.
   const sealNum = showStage
-    ? (stage!.cell_ref?.match(/(\d+)\s*$/)?.[1]?.replace(/^0+/, "") ?? "") || String(stage!.cell_id)
+    ? (stage!.tray_id != null
+        ? String(stage!.tray_id)
+        : (stage!.cell_ref?.match(/(\d+)\s*$/)?.[1]?.replace(/^0+/, "") ?? "") || String(stage!.cell_id))
     : "";
   const sealHue = showStage ? Math.round((stage!.cell_id * 137.508) % 360) : 0;
   // Repeated enough to fill the seal's height; overflow-hidden clips the tail.
@@ -248,7 +253,10 @@ export const SchedulerSlotView = memo(
               <span className={styles.stubMicro} aria-hidden="true">
                 {sealMicrotext}
               </span>
-              <span className={styles.stubLabel}>{stubLabel}</span>
+              <span className={styles.stubLabel}>
+                <span className={styles.stubCell}>{stubCell}</span>
+                <span className={styles.stubUseBox}>{stubUse}</span>
+              </span>
             </button>
           )}
           {(linkSource || linked) && (
@@ -271,7 +279,7 @@ export const SchedulerSlotView = memo(
           className={styles.placeholder}
           title={locked && !placing ? "This run is locked - it can't accept new placements or moves." : undefined}
         >
-          {placing ? "placing…" : dragging ? (over ? "stays here" : "") : "+"}
+          {placing ? "placing…" : dragging ? (over ? "stays here" : "") : `+ ${plateWellFromSlot(slotIndex)}`}
         </span>
       )}
       {showStage && placing && <div className={styles.shimmer}>placing…</div>}

@@ -14,6 +14,11 @@
   align-items: center;
   gap: 10px;
 }
+/* When a titleAfter action is present, the toggle shrinks to its own content so the
+   action sits immediately beside the title instead of being pushed to the far edge. */
+.toggleFit {
+  width: auto;
+}
 .caret {
   color: var(--grey);
   font-size: 11px;

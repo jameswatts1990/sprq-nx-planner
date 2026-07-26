@@ -496,6 +496,7 @@ def derive_best_cell(
     run_time_hours: float,
     start_hour: int = DAY_START_HOUR,
     start_minute: int = 0,
+    exclude_cell_id: int | None = None,
 ) -> dict:
     """Pick the physical cell a manually-dropped sample should use, mirroring the instrument's
     own allocation: a grid slot is a plate LOADING position, not a cell, so a drop reaches for
@@ -515,7 +516,14 @@ def derive_best_cell(
       2. **Cross-run reuse** - the next-in-order open cell physically resident in this slot's
          carousel position on this instrument (any of its 4 tray positions).
     Otherwise a brand-new tray. Eligibility (_reuse_eligible) includes the 108h window, so an
-    out-of-window cell is never auto-reused - it falls through to a fresh tray instead."""
+    out-of-window cell is never auto-reused - it falls through to a fresh tray instead.
+
+    `exclude_cell_id`, when given, drops that cell from the reuse candidates. Used by
+    move_sample: a sample dragged to a *different* loading well is handed to a different cell
+    at the destination, never allowed to re-adopt its own cell into a foreign well - which,
+    for a reused (most-used) cell, would otherwise be re-picked here and stored at the new
+    well, reintroducing exactly the loading-well ≠ home-well divergence this is meant to
+    prevent (see the "Plate vs cell" refinement in docs/pacbio-sprq-nx-scheduling-reference.md)."""
     box = _plate_box(slot_index)
 
     # (1) Intra-run Plate-2 reuse: rerun THIS run's Plate-1 cells as a sequential Plate 2.
@@ -531,7 +539,10 @@ def derive_best_cell(
                 cands = [
                     cu.cell
                     for cu in plate1.cell_uses
-                    if cu.status != "cancelled" and cu.cell is not None and cu.cell.status == "open"
+                    if cu.status != "cancelled"
+                    and cu.cell is not None
+                    and cu.cell.status == "open"
+                    and cu.cell.id != exclude_cell_id
                 ]
                 best = _pick_next_reuse_cell(
                     db, cands, instrument=instrument, load_date=load_date, slot_index=slot_index,
@@ -548,6 +559,8 @@ def derive_best_cell(
         if pc.pinned_instrument_serial != instrument.serial_number:
             continue
         cell = by_id[pc.cell_id]
+        if cell.id == exclude_cell_id:
+            continue  # move_sample: don't re-adopt the moved cell into a foreign well
         cbox = _cell_box(cell)
         if cbox is not None and cbox != box:
             continue
@@ -857,22 +870,22 @@ def move_sample(
 ) -> RunBatch:
     """Move an existing placement to a different (instrument, load_date, slot).
 
-    If the destination well is genuinely still "owned" by this same physical cell (either
-    because another of its own uses already sits there, or - for a cell with only this one
-    use so far - because nothing else has ever claimed that exact well on that instrument),
-    this is an in-place update of the CellUse's plate/well - the same physical cell just
-    repositions, never a delete+recreate. That avoids two real problems a client-side
-    remove-then-place has: a rejected re-place leaving the sample stranded in backlog with
-    the old slot already gone, and the old cell being deleted (as an emptied placeholder)
-    out from under a move that intended to reuse it.
+    A grid slot is a plate LOADING position, not a cell. Moving a sample to the *same* loading
+    well on a different day is a plain reschedule: the same physical cell keeps its slot, an
+    in-place update of the CellUse's cycle/well - never a delete+recreate. That avoids two
+    problems a client-side remove-then-place has: a rejected re-place leaving the sample
+    stranded in backlog with the old slot already gone, and the old cell being deleted (as an
+    emptied placeholder) out from under a move meant to keep it.
 
-    If the destination well conflicts with the cell's own established pin, OR a different
-    physical cell is already resident in that exact well (e.g. an eagerly-opened tray
-    sibling, or an earlier tray that hasn't yet been superseded), the cell itself can't go
-    there (cells stay in the same physical tray/well position for every reuse - see
-    docs/pacbio-sprq-nx-scheduling-reference.md) - moving the *sample* there instead means
-    handing it to a different cell, resolved via `cell_choice` exactly like a fresh
-    placement. See _move_sample_to_new_cell for that path's own atomicity guarantees."""
+    Moving to a *different* loading well - a different slot in the same tray, a different
+    carousel position, or a different instrument - hands the sample to the cell the instrument
+    would reach for at the destination (reuse-before-new, resolved via `cell_choice` /
+    derive_best_cell), exactly like a fresh placement. A physical cell is fixed to its own
+    tray/well position for life, so a moved sample can never drag its current cell into a
+    foreign well; and because a fresh cell is always the earliest in tray order, slot A01 keeps
+    showing cell A while cell A has capacity, never a later cell (see the "Plate vs cell"
+    refinement in docs/pacbio-sprq-nx-scheduling-reference.md). See _move_sample_to_new_cell
+    for that path's own atomicity guarantees."""
     # --- read-only validation (before any writes) ---
     if load_date.weekday() >= 5:
         raise PlacementError(400, f"{load_date.isoformat()} is a weekend - runs are weekdays only.")
@@ -925,15 +938,21 @@ def move_sample(
         pinned_run_batch = old_cycle.run_batch
     pinned_serial = pinned_run_batch.instrument.serial_number if pinned_run_batch and pinned_run_batch.instrument else None
 
-    # A grid slot is a plate LOADING position, not a cell: a same-instrument, same-tray move
-    # just repositions the sample and keeps its physical cell (an in-place reschedule below).
-    # The sample is handed to a *different* cell only when the cell it's on genuinely can't
-    # reach the destination - a different instrument (a cell never crosses instruments), or a
-    # different carousel position (a Plate-1-tray cell can't load into a Plate-2-tray slot) -
-    # or when the caller explicitly picks a different cell (the "use a different cell" override).
+    # A grid slot is a plate LOADING position, not a cell, but a physical cell is fixed to its
+    # own tray/well position for life - so a cell renders in whichever loading slot it currently
+    # occupies, and moving a sample to a *different* loading well hands it to the cell the
+    # instrument would reach for at that slot (reuse-before-new, via derive_best_cell / the
+    # cell_choice path below) rather than dragging the sample's current physical cell into a
+    # foreign well. Without this, a within-box drag rewrites CellUse.well while keeping the cell,
+    # letting two fresh cells swap slots: a still-has-capacity cell A gets displaced out of slot
+    # A01 and a fresh drop back into A01 then resolves to cell B - the reported "slot A01 = cell
+    # B Use 1 while cell A still has capacity" transposition (see the "Plate vs cell" refinement
+    # in docs/pacbio-sprq-nx-scheduling-reference.md; a fresh cell must always be the earliest in
+    # tray order). A *same-well* move (a plain reschedule to another day, same slot) keeps the
+    # cell in place. A cross-instrument or cross-carousel-box move necessarily changes the well
+    # too, so this single check subsumes both of those older triggers.
     reassign_to_new_cell = pinned_serial is not None and pinned_serial != instrument_serial
-    cbox = _cell_box(cell)
-    if not reassign_to_new_cell and cbox is not None and cbox != _plate_box(slot_index):
+    if not reassign_to_new_cell and dest_well != cell_use.well:
         reassign_to_new_cell = True
     if not reassign_to_new_cell and cell_choice is not None:
         # An explicit override to a fresh tray, or to a *different* existing cell, is honoured
@@ -945,6 +964,8 @@ def move_sample(
     if reassign_to_new_cell and cell_choice is None:
         # No explicit target cell - derive the next-in-order cell at the destination, same as a
         # fresh drop (reuse-before-new, see derive_best_cell), so a plain drag "just works".
+        # Exclude the moved cell itself: the sample must land on a *different* cell at the
+        # destination well, never re-adopt its own cell into a foreign well.
         cell_choice = derive_best_cell(
             db,
             instrument=instrument,
@@ -954,6 +975,7 @@ def move_sample(
             run_time_hours=run_time_hours,
             start_hour=start_hour,
             start_minute=start_minute,
+            exclude_cell_id=cell.id,
         )
 
     if reassign_to_new_cell:

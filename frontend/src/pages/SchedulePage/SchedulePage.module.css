@@ -60,48 +60,6 @@
   font-weight: 700;
   color: var(--magenta-deep);
 }
-/* The ✨ Autoschedule button sits to the left of the pinned Backlog tray; the tray grows
-   to fill the rest of the row. align-items: flex-start so the button keeps its own height
-   rather than stretching to the (expandable) Backlog card. */
-.backlogRow {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-}
-.backlogRowMain {
-  flex: 1;
-  min-width: 0;
-}
-.sparkleBtn {
-  font-family: var(--sans);
-  font-size: 14px;
-  font-weight: 800;
-  color: #fff;
-  background: var(--magenta);
-  border: 1px solid var(--magenta);
-  border-radius: var(--r-sm);
-  padding: 12px 18px;
-  cursor: pointer;
-  transition: 0.14s;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  white-space: nowrap;
-  box-shadow: var(--shadow-sm);
-}
-.sparkleBtn:hover {
-  background: var(--magenta-deep);
-  border-color: var(--magenta-deep);
-  box-shadow: var(--shadow);
-}
-.sparkleBtn:focus-visible {
-  outline: 2px solid var(--magenta-deep);
-  outline-offset: 2px;
-}
-.sparkleIcon {
-  font-size: 17px;
-  line-height: 1;
-}
 .status {
   color: var(--grey);
   font-size: 13.5px;

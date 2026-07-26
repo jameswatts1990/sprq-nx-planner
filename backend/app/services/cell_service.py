@@ -185,8 +185,11 @@ def open_new_tray(db: Session, instrument_id: int, well: str) -> list[Cell]:
         )
         db.add(cell)
         db.flush()
-        tray_letter = chr(ord("A") + position - 1)
-        cell.code = f"CELL-{tray_letter}{cell.id:06d}"
+        # Cells are numbered (PacBio "cell 1-4"), plates are lettered - the code ties each
+        # cell to its physical tray: C01-T123 .. C04-T123 are the 4 cells of tray 123. The
+        # position (1-4) and tray.id are both known here, so the code no longer needs the
+        # cell's own PK. See docs/pacbio-sprq-nx-scheduling-reference.md's vocabulary map.
+        cell.code = f"C{position:02d}-T{tray.id}"
         if home_well == well:
             placed = cell
         else:
@@ -349,6 +352,7 @@ def serialize_cell_detail(cell: Cell) -> CellDetailOut:
                 id=cu.id,
                 run_batch_id=run_batch.id if run_batch else -1,
                 cycle_id=cu.cycle_id,
+                plate_index=cu.cycle.plate_index if cu.cycle else None,
                 run_name=run_batch.run_name if run_batch else None,
                 well=cu.well,
                 status=cu.status,

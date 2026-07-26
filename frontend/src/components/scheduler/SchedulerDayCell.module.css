@@ -189,3 +189,11 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* Small caption above the tray's cell list in the discard-tray confirm modal. */
+.trayCellsLabel {
+  margin: 12px 0 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--faint);
+}
