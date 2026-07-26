@@ -88,7 +88,7 @@
   flex-direction: column;
   gap: 3px;
 }
-/* One cell's fixed A/B/C/D position: letter + uses-remaining on top, expiry beneath. */
+/* One cell's fixed numbered position (▣1-▣4): position + uses-remaining on top, expiry beneath. */
 .cell {
   display: grid;
   grid-template-columns: auto 1fr;
@@ -240,14 +240,14 @@
   text-align: center;
 }
 
-/* "Loaded later this week" group: successor trays a mid-week turnover brings on after a
-   current tray ages out. Flagged red (border + tint) so an upcoming tray swap is obvious;
+/* "Loaded later this week" group: a genuine mid-week turnover - a successor tray that replaces
+   a tray already resident this week once it ages out. Muted grey (informational, not alarming);
    shown by id only, since these trays aren't physically on the deck yet. */
 .future {
   margin-top: 7px;
-  border: 1px solid var(--red);
+  border: 1px solid var(--line);
   border-radius: var(--r-sm);
-  background: var(--red-tint);
+  background: var(--line-soft);
   padding: 4px 5px 5px;
 }
 .futureLabel {
@@ -255,7 +255,7 @@
   font-weight: 800;
   letter-spacing: 0.02em;
   text-transform: uppercase;
-  color: var(--red);
+  color: var(--grey);
   margin-bottom: 4px;
 }
 .futureList {
@@ -268,20 +268,20 @@
   flex-direction: column;
   gap: 1px;
   text-decoration: none;
-  border: 1px solid var(--red);
+  border: 1px solid var(--line);
   border-radius: 6px;
   background: var(--card);
   padding: 2px 5px 3px;
 }
 .futureTray:hover {
-  background: var(--red-tint);
+  background: var(--link-tint);
 }
 .futureTrayId {
   font-size: 9px;
   font-weight: 800;
   letter-spacing: 0.02em;
   font-family: var(--mono);
-  color: var(--red);
+  color: var(--link);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

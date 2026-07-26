@@ -132,28 +132,85 @@
   position: absolute;
   inset: 0;
   z-index: 0;
-  /* A tight rainbow foil, angled like light catching a hologram. Per-cell hue-rotate
-     shifts the whole foil so no two cells' seals catch the light the same way.
-     Stops are in fixed px (26px period) so the pattern has a known repeat length,
-     independent of the stub's box size — see sealShift for why that matters. */
+  /* Base spectral plane — a full-spectrum rainbow foil angled like light catching a
+     hologram. Per-cell hue-rotate shifts the whole foil so no two cells' seals catch
+     the light the same way. Stops are in fixed px (26px period) so the pattern has a
+     known repeat length, independent of the stub's box size — see sealShift for why. */
   background: repeating-linear-gradient(
     115deg,
     rgba(255, 255, 255, 0) 0px,
-    rgba(255, 255, 255, 0.42) 5.2px,
-    rgba(255, 80, 200, 0.34) 10.4px,
-    rgba(90, 200, 255, 0.34) 15.6px,
-    rgba(120, 255, 170, 0.34) 20.8px,
+    rgba(255, 255, 255, 0.5) 3.5px,
+    rgba(255, 70, 200, 0.36) 7px,
+    rgba(255, 190, 90, 0.32) 11px,
+    rgba(120, 255, 150, 0.34) 15px,
+    rgba(90, 200, 255, 0.36) 19px,
+    rgba(190, 120, 255, 0.34) 22.5px,
     rgba(255, 255, 255, 0) 26px
   );
   /* Generous, box-independent tile so the image never tiles within the stub — the
      window we see is always interior foil, never an image edge. */
-  background-size: 200px 200px;
-  background-position: 0px 0px;
-  filter: hue-rotate(var(--seal-hue, 0deg));
+  /* ONE oversized, non-repeating image. A repeating-linear-gradient is internally
+     seamless everywhere; the only discontinuity is the join between tiled copies — so
+     we never tile it. The 600px image is far larger than the ~28px stub, positioned so
+     the stub always sits deep in the interior (image edge never enters view at any drift
+     phase). px stops mean the visual period is unchanged by the larger size. */
+  background-repeat: no-repeat;
+  background-size: 600px 600px;
+  background-position: -300px -300px;
+  /* hue-rotate keeps per-cell identity; saturate/brightness are the "tilt into light"
+     dial that the hover state ramps up. Kept in the base so the transition has a
+     from-value to animate from. */
+  filter: hue-rotate(var(--seal-hue, 0deg)) saturate(1) brightness(1) contrast(1);
   mix-blend-mode: screen;
   opacity: 0.7;
   pointer-events: none;
   animation: sealShift 6s linear infinite;
+  transition: opacity 260ms ease, filter 260ms ease;
+}
+/* Interference plane — a finer spectrum at a different angle, period and speed. Beating
+   it against the base plane is what gives holographic film its live, shifting moiré
+   shimmer rather than one flat scrolling rainbow. Drifts the opposite way (negative
+   offset) at a different duration so the two never re-sync into a static pattern. */
+.stubSheen::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    128deg,
+    rgba(255, 255, 255, 0) 0px,
+    rgba(255, 255, 255, 0.32) 2px,
+    rgba(120, 220, 255, 0.3) 4.5px,
+    rgba(190, 120, 255, 0.3) 7px,
+    rgba(160, 255, 200, 0.3) 9.5px,
+    rgba(255, 255, 255, 0) 13px
+  );
+  background-repeat: no-repeat;
+  background-size: 600px 600px;
+  background-position: -300px -300px;
+  mix-blend-mode: screen;
+  opacity: 0.55;
+  animation: sealShiftFine 4.4s linear infinite;
+}
+/* Specular glint — one soft bright band per long period that sweeps across, the bright
+   reflection skating over the foil. Sparse (110px period, only ~one band visible) so it
+   reads as a discrete highlight, not a stripe pattern. Subtle at rest, boosted on hover. */
+.stubSheen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    115deg,
+    rgba(255, 255, 255, 0) 0px,
+    rgba(255, 255, 255, 0) 74px,
+    rgba(255, 255, 255, 0.6) 92px,
+    rgba(255, 255, 255, 0) 110px
+  );
+  background-size: 320px 320px;
+  background-position: 0px 0px;
+  mix-blend-mode: screen;
+  opacity: 0.3;
+  animation: sealGlint 5s linear infinite;
+  transition: opacity 260ms ease;
 }
 /* Microprint of the tray id — the "you can't fake this" texture of a real seal, but still
    readable: solid white with a dark halo so the digits hold contrast over any point of the
@@ -215,11 +272,12 @@
   font-size: 9px;
   line-height: 1;
 }
-/* Slow drift makes the foil "live" like a tilted hologram. The end frame shifts the
-   foil by EXACTLY one gradient period (26px) along its own 115deg axis — direction
-   (sin115°, -cos115°) ≈ (0.906, 0.423), so 26px × that = (23.6px, 11px). Because a
-   repeating gradient is pixel-identical after a whole-period translation, the loop
-   restart is invisible: no mid-cycle seam. */
+/* Each plane drifts by EXACTLY one of its own gradient periods along its own axis, so
+   the loop restart is pixel-identical — no mid-cycle seam. Vector = period × (sin θ,
+   -cos θ) for gradient angle θ:
+     sealShift     — base, 26px @ 115deg → (23.6, 11)
+     sealShiftFine — 13px @ 128deg → (10.2, 8) drifting the OTHER way (negated)
+     sealGlint     — 110px @ 115deg → (99.7, 46.5) */
 @keyframes sealShift {
   0% {
     background-position: 0px 0px;
@@ -228,16 +286,47 @@
     background-position: 23.6px 11px;
   }
 }
-/* On hover, catch the light harder — a quick, deliberate glint. */
+@keyframes sealShiftFine {
+  0% {
+    background-position: 0px 0px;
+  }
+  100% {
+    background-position: -10.2px -8px;
+  }
+}
+@keyframes sealGlint {
+  0% {
+    background-position: 0px 0px;
+  }
+  100% {
+    background-position: 99.7px 46.5px;
+  }
+}
+/* Hover = tilt the seal into the light. Rather than jolting the drift speed, ramp the
+   luminosity/saturation of the whole stack and bring the specular glint forward over a
+   smooth 260ms transition — the foil brightens and "catches" without any phase jump. */
 .stub:hover .stubSheen {
-  opacity: 1;
-  animation-duration: 2.2s;
+  opacity: 0.95;
+  filter: hue-rotate(var(--seal-hue, 0deg)) saturate(1.55) brightness(1.28) contrast(1.12);
+}
+.stub:hover .stubSheen::after {
+  opacity: 0.7;
 }
 @media (prefers-reduced-motion: reduce) {
-  .stubSheen {
+  .stubSheen,
+  .stubSheen::before,
+  .stubSheen::after {
     animation: none;
-    /* Still uniquely hue-rotated per cell, just static — identity without motion. */
+  }
+  /* Still a layered, uniquely hue-rotated foil — identity and depth without motion. */
+  .stubSheen {
     background-position: 11.8px 5.5px;
+  }
+  .stubSheen::before {
+    background-position: -5.1px -4px;
+  }
+  .stubSheen::after {
+    background-position: 49.8px 23.2px;
   }
 }
 /* The cross-time cell-link dot sits top-right; nudge it clear of the stub when one is shown. */

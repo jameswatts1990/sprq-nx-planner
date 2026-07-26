@@ -157,8 +157,10 @@ describe("computeInstrumentTrayMaps", () => {
     expect(map.futureTrays).toEqual([{ trayId: 2, carousel: 0, foundingDate: "2026-07-23" }]);
   });
 
-  it("reads a fully-spent predecessor position as empty, its successor still listed later", () => {
-    // Every cell of tray 1 exhausted -> vacated (physically gone); tray 2 founded Wed.
+  it("promotes a mid-week tray into the slot when nothing usable is resident at the week's start", () => {
+    // Every cell of tray 1 is exhausted -> vacated (physically gone), so nothing is shown in the
+    // slot at the week's start; tray 2, founded Wed, is then this position's only usable tray, so
+    // it fills the slot rather than being relegated to the "loaded later" turnover group.
     const oldTray = trayCells(1, "01", [0, 1, 2, 3].map(() => ({
       uses_consumed: 3,
       uses_remaining: 0,
@@ -171,8 +173,20 @@ describe("computeInstrumentTrayMaps", () => {
     ]);
     const map = build([...oldTray, ...newTray]).get(SERIAL)!;
 
-    expect(map.carousel[0]).toBeNull();
-    expect(map.futureTrays).toEqual([{ trayId: 2, carousel: 0, foundingDate: "2026-07-23" }]);
+    expect(map.carousel[0]!.trayId).toBe(2);
+    expect(map.futureTrays).toEqual([]);
+  });
+
+  it("shows a tray first loaded mid-week in its slot, not 'loaded later', when it's the position's only tray", () => {
+    // A brand-new run scheduled on Wed with no earlier tray in that position: the tray belongs in
+    // the carousel slot, not the "loaded later" group (which is only for a genuine turnover of a
+    // tray already resident this week).
+    const cells = trayCells(3, "01", [
+      { uses_consumed: 1, uses_remaining: 2, last_use_run_date: "2026-07-22", first_use_started_at: "2026-07-22T12:00:00Z" },
+    ]);
+    const map = build(cells).get(SERIAL)!;
+    expect(map.carousel[0]!.trayId).toBe(3);
+    expect(map.futureTrays).toEqual([]);
   });
 
   it("treats a fully-vacated tray with no successor as an empty carousel position", () => {

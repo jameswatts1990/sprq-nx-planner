@@ -154,7 +154,9 @@ function TrayPositionCell({ p, refMs, live }: { p: TrayPositionView; refMs: numb
     .join(" ");
   return (
     <div className={className} title={positionTitle(p, state, refMs, live)}>
-      <span className={styles.letter}>C{p.cellNumber}</span>
+      {/* Cell position prefix is U+25A3 (▣), not "C" - a numbered cell position must never be
+          misread as a plate well's column-C (see cellPositionLabel in utils/plateWell.ts). */}
+      <span className={styles.letter}>▣{p.cellNumber}</span>
       <span className={styles.uses}>{p.usesRemaining}</span>
       <span className={styles.exp}>
         <span className={styles.expIcon}>

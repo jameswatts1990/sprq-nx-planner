@@ -204,10 +204,15 @@ export function computeInstrumentTrayMaps(
 
   for (const [serial, byTray] of byInstrument) {
     const carousel: [TrayView | null, TrayView | null] = [null, null];
-    // Per carousel position, remember the resident tray with the latest founding so a
-    // same-position turnover picks the successor once it has taken over.
-    const bestFounding: [string | null, string | null] = [null, null];
     const futureTrays: FutureTrayView[] = [];
+
+    // Per carousel position, gather the tray resident at the week's START (keeping the latest-
+    // founded on the rare tie) apart from any trays FOUNDED mid-week, so we can tell a genuine
+    // turnover (a mid-week tray replacing a start-resident) from a tray that's simply this
+    // position's only tray this week (which belongs in the slot, not "loaded later").
+    type TrayCand = { trayId: number; founding: string | null; siblings: CellOut[] };
+    const startResident: [TrayCand | null, TrayCand | null] = [null, null];
+    const midWeek: [TrayCand[], TrayCand[]] = [[], []];
 
     for (const [trayId, siblings] of byTray) {
       // A fully-vacated tray (every sibling terminal/stopped) with no successor is gone - the
@@ -223,10 +228,11 @@ export function computeInstrumentTrayMaps(
       const founding = trayFoundingDates.get(trayId) ?? null;
       const eviction = trayEvictionDates.get(trayId);
 
-      // Founded later this week (after the anchor day, on or before the last visible day): a
-      // turnover successor scheduled to load mid-week. List it by id, don't show its state.
+      // Founded strictly after the anchor day, on or before the last visible day: a candidate to
+      // load mid-week. Whether it's a "loaded later" successor or simply this position's own tray
+      // is decided below, once we know whether anything is resident at the week's start.
       if (founding !== null && founding > asOf && founding <= lastDay) {
-        futureTrays.push({ trayId, carousel: pos, foundingDate: founding });
+        midWeek[pos].push({ trayId, founding, siblings });
         continue;
       }
 
@@ -239,14 +245,34 @@ export function computeInstrumentTrayMaps(
 
       // On the rare tie (shouldn't happen - one tray per position at a time), keep the
       // latest-founded so a successor beats its predecessor.
-      const current = bestFounding[pos];
-      if (current !== null && (founding ?? "") <= current) continue;
-      bestFounding[pos] = founding ?? "";
+      const current = startResident[pos];
+      if (current !== null && (founding ?? "") <= (current.founding ?? "")) continue;
+      startResident[pos] = { trayId, founding, siblings };
+    }
 
-      const positions = [...siblings]
-        .sort((a, b) => (a.tray_position ?? 0) - (b.tray_position ?? 0))
-        .map((c) => positionView(c, pos));
-      carousel[pos] = { trayId, carousel: pos, positions };
+    // Resolve each position. If a tray is resident at the week's start, it fills the slot and
+    // every mid-week tray is a genuine turnover successor ("loaded later"). If the position is
+    // empty at the start, the earliest mid-week tray IS this position's tray - show it in the
+    // slot, not "loaded later" - and only any later ones are successors.
+    for (const pos of [0, 1] as const) {
+      const ordered = [...midWeek[pos]].sort((a, b) =>
+        (a.founding ?? "") < (b.founding ?? "") ? -1 : (a.founding ?? "") > (b.founding ?? "") ? 1 : a.trayId - b.trayId,
+      );
+      let resident = startResident[pos];
+      let successors = ordered;
+      if (!resident && ordered.length > 0) {
+        resident = ordered[0];
+        successors = ordered.slice(1);
+      }
+      if (resident) {
+        const positions = [...resident.siblings]
+          .sort((a, b) => (a.tray_position ?? 0) - (b.tray_position ?? 0))
+          .map((c) => positionView(c, pos));
+        carousel[pos] = { trayId: resident.trayId, carousel: pos, positions };
+      }
+      for (const s of successors) {
+        futureTrays.push({ trayId: s.trayId, carousel: pos, foundingDate: s.founding as string });
+      }
     }
 
     futureTrays.sort((a, b) =>
