@@ -80,32 +80,49 @@ export function ScheduleSection() {
         Beneath each instrument&apos;s <b>REVIO</b> number, the left column shows a small <b>map of the SMRT cells
         currently on that machine</b>, so you can see each instrument&apos;s cell stock at a glance without opening the
         Cells tab. It mirrors the deck: up to two tray boxes side by side — the left box is the <b>Plate 1</b> tray
-        position, the right is <b>Plate 2</b> — each listing its four cells <b>C1, C2, C3, C4</b> top to bottom.
+        position, the right is <b>Plate 2</b> — each listing its four cells <b>▣1, ▣2, ▣3, ▣4</b> top to bottom (the{" "}
+        <b>▣</b> mark distinguishes a numbered cell position from a lettered plate well).
       </p>
       <ul>
         <li>
-          The big number on each position is that cell&apos;s <b>uses remaining</b> (of 3), and beneath it <b>exp
-          DD/MM</b> is the cell&apos;s <b>108-hour reuse deadline</b>. A <b>~</b> in front (shown italic) means the
-          deadline is an estimate from the cell&apos;s <i>planned</i> first load — it firms up once the run is
-          confirmed loaded. A never-used cell shows <b>—</b> (its clock hasn&apos;t started).
+          The big number on each position is that cell&apos;s <b>uses remaining</b> (of 3), and beneath it a coloured
+          status icon + <b>DD/MM</b> gives the cell&apos;s <b>108-hour reuse deadline</b> with a short countdown (e.g.{" "}
+          <i>2d left</i>). A never-used cell reads <b>unused</b> (its clock hasn&apos;t started); a planned, not-yet-
+          confirmed load shows its date with a <b>dotted underline</b> (it firms up once the run is confirmed loaded).
         </li>
         <li>
-          Colours flag urgency: <b>amber</b> = an open cell whose 108-hour window closes within about a day, so use it
-          soon or lose the spare capacity; <b>red</b> = timed out or QC-stopped (unusable); <b>grey</b> = used up or
-          retired. Cells with plenty of window left are plain.
+          <b>Each cell has its own deadline, not one shared date.</b> The instrument breaks a tray&apos;s four cells out
+          about <b>2 hours apart</b> (and a second tray about <b>a day</b> after the first), and a cell&apos;s 108-hour
+          clock starts at <i>its own</i> breakout — so the four cells expire on a staggered ladder, cell 1 first.
+        </li>
+        <li>
+          Colour and icon show each cell&apos;s state at a glance: <b>green</b> = comfortably in window; <b>amber</b> =
+          closing within about a day, so reuse it soon or lose the spare capacity; <b>red</b> = past its deadline or
+          QC-stopped (unusable); <b>blue</b> = not broken out yet (its clock hasn&apos;t started); <b>grey</b> = used up
+          or retired.
         </li>
         <li>
           A dashed <b>&quot;load tray&quot;</b> box means that carousel position has <b>no tray loaded</b> — it&apos;s
           free for a fresh tray.
         </li>
         <li>
-          The map reflects the projected state <b>as of the latest day scheduled that week</b> — the small caption
-          (e.g. <i>&quot;as of Fri 24 Jul&quot;</i>, or <i>&quot;current&quot;</i> when nothing is scheduled) tells you
-          which day the snapshot is for. Schedule further into the week and the map updates to match.
+          By default each cell is shown <b>as it will stand at the end of the week</b> you&apos;re viewing — the pill
+          above the trays reads e.g. <i>&quot;by Fri 24 Jul&quot;</i> — so you can see which cells will have expired by
+          then. <b>Hover the map</b> to flip every cell to its status <b>right now</b>; a green <b>NOW</b> pill (with a
+          spinning icon) marks the live view. The trays shown are still those on the instrument at the start of the week,
+          not a not-yet-loaded successor.
         </li>
         <li>
-          Click a <b>TRAY #</b> heading to open the <b>Cells &amp; Instruments</b> tab filtered to that instrument, to
-          see the full cell details.
+          <b>Loaded later.</b> When a tray ages out of its 108-hour window part-way through the week and
+          the schedule loads a <b>fresh replacement</b> into the same position, that successor is listed by{" "}
+          <b>TRAY #</b> only in a muted <b>&quot;loaded later&quot;</b> group beneath the maps, with the day it loads and
+          which plate. This is how RunNx tells you a tray swap is coming: you don&apos;t confirm anything — dropping a
+          sample onto a day the current tray has expired loads a fresh tray automatically (see <i>Dropping a sample
+          onto an empty slot</i>), and the new tray simply shows up here and as a new <b>Use 1</b> on the grid.
+        </li>
+        <li>
+          Click a <b>TRAY #</b> heading (top maps or the &quot;loaded later&quot; group) to open the <b>Cells &amp; Instruments</b> tab
+          filtered to that instrument, to see the full cell details.
         </li>
       </ul>
 
@@ -217,9 +234,11 @@ export function ScheduleSection() {
         in view as you scroll down the instrument rows — drag a card straight onto any slot and the grid scrolls to
         meet you, no scrolling back up to fetch the next sample. Click the <b>Backlog</b> header to open or collapse
         the tray (your choice is remembered next time); when open, its card list scrolls on its own so it never hides
-        the grid beneath it. It has the same search box, priority dropdown, sort control, and rows-per-page control as
-        the Backlog tab, so you can narrow down to the sample you want before dragging it — see the Backlog tab&apos;s
-        help for details on each control.
+        the grid beneath it. To keep the tray as short as possible over the grid, its <b>search box, priority filter,
+        sort control, and page controls sit in the Backlog header bar</b> (to the right of <b>✦ Autoschedule</b>) rather
+        than above the cards, leaving the body as just the sample list. They work exactly like the same controls on the
+        Backlog tab, so you can narrow down to the sample you want before dragging it — see the Backlog tab&apos;s help
+        for details on each control.
       </p>
 
       <p className={styles.subheading}>Placing samples</p>
@@ -257,25 +276,35 @@ export function ScheduleSection() {
         never &quot;runs out&quot;; only a cell does. When you drag a backlog sample onto a slot, RunNx picks which
         physical SMRT cell it runs on automatically — the same rule the instrument uses: <b>reuse an already-open cell
         before opening a new one</b>, taking the cell nearest its 108-hour deadline first. It looks across the whole
-        tray in that position (all four cells, <b>C1–C4</b>), not just the well you dropped on: if a used-up cell sits
+        tray in that position (all four cells, <b>▣1–▣4</b>), not just the well you dropped on: if a used-up cell sits
         in that slot, the drop simply routes to the next usable cell in the tray. Only when no cell in the tray has
         capacity left does a fresh tray of 4 open. The card stays in the slot you dropped on; its <b>stub</b> tells you
-        which cell it actually landed on (e.g. <i>C2</i>). No picker interrupts the drop; the first placement into an empty
+        which cell it actually landed on (e.g. <i>▣2</i>). No picker interrupts the drop; the first placement into an empty
         day just uses a default <b>12:00</b> loading start time.
+      </p>
+      <p>
+        <b>Dropping onto a day the tray has already expired loads a fresh one — automatically.</b> A cell can only be
+        reused within its <b>108-hour window</b>. If you drop a sample onto a day that&apos;s past the window of every
+        cell in that tray position — so no cell there could still run — RunNx loads a <b>brand-new tray</b> in its
+        place, just as the operator would physically swap the aged-out tray for a fresh one. It happens seamlessly,
+        with no prompt: the sample lands as <b>Use 1</b> on the new tray, and the incoming tray appears in the{" "}
+        <b>&quot;loaded later&quot;</b> group of the instrument cell map (see above) so the swap is visible. The expired
+        tray&apos;s earlier runs that week are untouched.
       </p>
       <p className={styles.subheading}>The holographic cell seal</p>
       <p>
         Each loaded slot shows a small <b>seal</b> on its right edge. Its label is the <b>cell&apos;s</b> own number
-        (<i>C1</i>–<i>C4</i>, PacBio&apos;s cell 1–4) with the use number in its own small square next to it (e.g.{" "}
-        <i>C2</i> with a boxed <i>2</i> = cell 2, Use 2) — the cell it&apos;s running on, which can differ from
+        (<i>▣1</i>–<i>▣4</i>, PacBio&apos;s cell 1–4; the <b>▣</b> mark rather than a &quot;C&quot; keeps a cell
+        position from being misread as a lettered plate well) with the use number in its own small square next to it (e.g.{" "}
+        <i>▣2</i> with a boxed <i>2</i> = cell 2, Use 2) — the cell it&apos;s running on, which can differ from
         the slot it sits in — and its base colour is the Use 1 / 2 / 3 palette (magenta / blue / teal, the same Use
         colours as the legend). The small number along the bottom of the seal is the cell&apos;s <b>tray id</b> — shared by
         every cell in the same physical tray — while the shimmering foil pattern is <b>unique to that one physical SMRT
         cell</b> — so if you see the <i>same</i> foil on two different days, it&apos;s literally
         the same cell being reused; a <i>different</i> foil means a different cell, even when two seals share a label
-        like <i>C2</i>. That&apos;s the quickest read of whether Monday&apos;s <i>C2</i> and Tuesday&apos;s{" "}
-        <i>C2</i> are the same physical cell. A reused cell keeps one identity across all its uses: a one-tray reuse run
-        shows the same cell — <i>C2</i> — reading <i>Use 1</i> on Plate 1 and <i>Use 2</i> on Plate 2. <b>Click the
+        like <i>▣2</i>. That&apos;s the quickest read of whether Monday&apos;s <i>▣2</i> and Tuesday&apos;s{" "}
+        <i>▣2</i> are the same physical cell. A reused cell keeps one identity across all its uses: a one-tray reuse run
+        shows the same cell — <i>▣2</i> — reading <i>Use 1</i> on Plate 1 and <i>Use 2</i> on Plate 2. <b>Click the
         seal</b> to open that cell&apos;s details — uses so far, 108-hour window, tray position and burned barcodes, with
         links through to its full cell page and to its <b>tray</b> (all four cells of the physical tray, each linking
         back). (Clicking the card&apos;s <i>body</i> still opens the sample/slot detail —
@@ -287,7 +316,7 @@ export function ScheduleSection() {
             <SchedulerSlotView stage={STAGE_EXAMPLE_SOURCE} slotIndex={0} onOpenCell={() => {}} />
           </div>
           <span>
-            <b>Same physical cell, two uses.</b> Plate 1&apos;s <i>C2</i> (Use 1) and Plate 2&apos;s <i>C2</i> (Use 2)
+            <b>Same physical cell, two uses.</b> Plate 1&apos;s <i>▣2</i> (Use 1) and Plate 2&apos;s <i>▣2</i> (Use 2)
             below carry the <i>same</i> foil hue and tray id — one cell, reused. Click either seal for its cell
             details.
           </span>
@@ -297,7 +326,7 @@ export function ScheduleSection() {
             <SchedulerSlotView stage={STAGE_EXAMPLE_PEER} slotIndex={4} onOpenCell={() => {}} />
           </div>
           <span>
-            <b>A different cell.</b> Even if another well elsewhere also reads <i>C2</i>, a different foil hue
+            <b>A different cell.</b> Even if another well elsewhere also reads <i>▣2</i>, a different foil hue
             and id tell you at a glance it&apos;s a different physical cell.
           </span>
         </div>
@@ -569,9 +598,10 @@ export function ScheduleSection() {
       </p>
       <p>
         You don&apos;t have to hunt for the reuse deadline: the <b>tray overview</b> beneath each instrument&apos;s
-        number (left column) shows each used cell&apos;s <b>exp DD/MM</b> 108-hour deadline and turns <b>amber</b> when
-        that window is about to close with uses still left — so the cells worth reusing soon stand out at a glance. Each
-        cell&apos;s own detail page shows its exact 108-hour reuse window.
+        number (left column) shows each cell&apos;s own <b>108-hour deadline</b> — colour-coded green/amber/red with a
+        countdown, projected to the end of the week (hover for the status right now) — so the cells worth reusing soon
+        (amber) and those already gone (red) stand out at a glance. Each cell&apos;s own detail page shows its exact
+        108-hour reuse window.
       </p>
 
       <p className={styles.subheading}>Slot shading &amp; cell-link highlight</p>

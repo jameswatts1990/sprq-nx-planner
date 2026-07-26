@@ -108,11 +108,13 @@ export const SchedulerSlotView = memo(
   const useClass = classForUseIndex(showStage ? stage!.use_number : slotIndex + 1);
   // The right-edge cell "ticket stub": the physical CELL's position (PacBio "cell 1-4" -
   // NUMBERED, since plates are lettered) plus the use number in its own colour-coded square,
-  // e.g. "C1 [1]" = cell 1, Use 1. Only rendered on a filled card with an onOpenCell handler.
+  // e.g. "▣1 [1]" = cell 1, Use 1. The position prefix is U+25A3 (▣), not the letter "C", so it
+  // never gets misread as a plate well's column-C. Only rendered on a filled card with an
+  // onOpenCell handler.
   const showStub = showStage && !!onOpenCell;
   // The stub names the physical CELL, not the loading slot: its tray position (1-4, falling
   // back to the home-well letter A-D -> 1-4 for a legacy tray-less cell), so a sample loaded
-  // in slot A01 but running on cell 2 reads "C2".
+  // in slot A01 but running on cell 2 reads "▣2".
   const stubCell = showStage ? cellPositionLabel(stage!.tray_position, stage!.cell_home_well ?? stage!.well) : "";
   const stubUse = showStage ? stage!.use_number : 0;
   const stubClass = !showStage
@@ -123,7 +125,7 @@ export const SchedulerSlotView = memo(
         ? styles.stubU2
         : styles.stubU1;
   // Holographic "security seal" identity: every physical cell gets its own look, so the same
-  // cell+use label (e.g. "C1 [1]") on two different days reads as two DIFFERENT physical cells
+  // cell+use label (e.g. "▣1 [1]") on two different days reads as two DIFFERENT physical cells
   // at a glance. Two independent, deterministic signals both keyed off the cell:
   //   - a per-cell hue rotation of the iridescent sheen (golden-angle spread so adjacent cell
   //     ids land far apart on the wheel), and

@@ -6,12 +6,12 @@ what replaces the prototype's free-text "in-progress cells" panel.
 """
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
-from app.engine.constants import CELL_LIFETIME_H, CELL_MAX_USES, CELLS_PER_TRAY, WELLS
+from app.engine.constants import CELL_LIFETIME_H, CELL_MAX_USES, CELLS_PER_TRAY, DAY_START_HOUR, WELLS
 from app.engine.packing import ABORTED_PRIORITY
 from app.models.audit import AuditLog
 from app.models.cell import Cell
@@ -113,7 +113,29 @@ def current_location(cell: Cell) -> tuple[str | None, str | None]:
     return instrument_serial, well
 
 
-def open_new_tray(db: Session, instrument_id: int, well: str) -> list[Cell]:
+def _cell_resident_on(cell: Cell, on_date: date) -> bool:
+    """Whether an open `cell` is still physically occupying its tray box as of `on_date` -
+    i.e. its 108h reuse window hasn't closed by then. A never-used sibling (no first-use
+    anchor, no clock running) is always resident; a previously-used cell is resident only
+    while its window is still open on that day.
+
+    Mirrors placement_service._reuse_window_open so the "can this box take a fresh tray"
+    turnover decision agrees exactly with the "can this cell still be reused" one: an expired
+    tray is treated as physically removed - its carousel position free to reload - at precisely
+    the point it stops being reusable, not left blocking the box until its unconfirmed status
+    happens to flip to window_expired against real "now" (which never happens for a cell whose
+    first use was never confirmed loaded - see recompute_status). Uses the default run start
+    hour (DAY_START_HOUR) as the day's reference instant, matching the reuse window's own
+    default anchor."""
+    anchor = cell.first_use_started_at or first_use_planned_start_at(cell)
+    if anchor is None:
+        return True
+    deadline = ensure_aware(anchor) + timedelta(hours=CELL_LIFETIME_H)
+    day_start = datetime.combine(on_date, time(hour=DAY_START_HOUR), tzinfo=timezone.utc)
+    return day_start <= deadline
+
+
+def open_new_tray(db: Session, instrument_id: int, well: str, *, founding_date: date | None = None) -> list[Cell]:
     """Open a brand-new physical SMRT Cell tray: creates one CellTray row plus all
     CELLS_PER_TRAY Cell rows at once (position 1..4, status "open", 0 uses), not just the
     one about to be used. The other 3 are real, reusable cells from this point on - they
@@ -143,6 +165,21 @@ def open_new_tray(db: Session, instrument_id: int, well: str) -> list[Cell]:
     tray has genuinely left the instrument, mirroring the frontend's own
     waitingCells.computeVacatedTrayIds - so a brand-new tray can be loaded into it again.
 
+    **Tray turnover on expiry (`founding_date`).** When `founding_date` is given (the acquire
+    day of the placement this tray is being opened for), an open cell whose 108h reuse window
+    has already closed *by that day* is treated as already gone (see _cell_resident_on) and is
+    NOT a collision either. This is the "an expired tray is physically removed and a fresh one
+    loaded in its place" turnover: a used cell's status only flips to window_expired against
+    real "now" once its first use was confirmed loaded, so a never-confirmed tray whose
+    estimated window has passed would otherwise stay `status == "open"` forever and wrongly
+    block reloading its carousel position for a future run (the reported bug - dragging a
+    sample onto a date the resident tray has expired silently 409'd here). The successor tray
+    minted here coexists with the predecessor in the DB; the predecessor's earlier-week uses
+    stay valid history, and the frontend's tray eviction logic (computeTrayEvictionDates)
+    renders the predecessor as evicted from the successor's founding day on. With no
+    `founding_date` (internal callers that pre-terminate the old cells themselves - stop-cell
+    tray rotation, auto-fill's mid-batch reload), any open cell is still a collision.
+
     This collision check has no exclusion/override of any kind - it used to accept an
     `exclude_tray_id` for change_cell()'s "swap to a brand-new cell in this same well"
     path, which deliberately opened a fresh tray right on top of the one it was about to
@@ -158,12 +195,21 @@ def open_new_tray(db: Session, instrument_id: int, well: str) -> list[Cell]:
     box_start = (WELLS.index(well) // CELLS_PER_TRAY) * CELLS_PER_TRAY
     box_wells = WELLS[box_start : box_start + CELLS_PER_TRAY]
 
-    collision = db.scalar(
-        select(Cell.id).join(Cell.tray).where(
-            CellTray.instrument_id == instrument_id, Cell.home_well.in_(box_wells), Cell.status == "open"
+    open_cells = (
+        db.scalars(
+            select(Cell)
+            .join(Cell.tray)
+            .where(CellTray.instrument_id == instrument_id, Cell.home_well.in_(box_wells), Cell.status == "open")
+            .options(selectinload(Cell.cell_uses).selectinload(CellUse.cycle))
         )
+        .unique()
+        .all()
     )
-    if collision is not None:
+    # A still-open cell blocks reloading the box only while it's genuinely resident: with a
+    # founding_date, one whose 108h window has closed by then counts as physically removed
+    # (turnover - see the docstring and _cell_resident_on); without one, every open cell blocks.
+    blocked = any(founding_date is None or _cell_resident_on(c, founding_date) for c in open_cells)
+    if blocked:
         raise ValueError(
             f"well {well} is already occupied by an existing physical tray (wells {box_wells}) on this instrument."
         )

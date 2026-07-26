@@ -45,18 +45,18 @@ describe("plateWellFromPlate (authoritative plate index + loading well)", () => 
   });
 });
 
-describe("cellPositionLabel (cells are numbered C1-C4, unlike lettered plates)", () => {
+describe("cellPositionLabel (cells are numbered ▣1-▣4 with a U+25A3 prefix, unlike lettered plates)", () => {
   it("uses the tray position", () => {
-    expect(cellPositionLabel(1)).toBe("C1");
-    expect(cellPositionLabel(4)).toBe("C4");
+    expect(cellPositionLabel(1)).toBe("▣1");
+    expect(cellPositionLabel(4)).toBe("▣4");
   });
 
   it("falls back to a legacy cell's home-well letter A-D -> 1-4", () => {
-    expect(cellPositionLabel(null, "A01")).toBe("C1");
-    expect(cellPositionLabel(null, "C02")).toBe("C3");
+    expect(cellPositionLabel(null, "A01")).toBe("▣1");
+    expect(cellPositionLabel(null, "C02")).toBe("▣3");
   });
 
-  it("returns C? when the position is genuinely unknown", () => {
-    expect(cellPositionLabel(null, null)).toBe("C?");
+  it("returns ▣? when the position is genuinely unknown", () => {
+    expect(cellPositionLabel(null, null)).toBe("▣?");
   });
 });

@@ -379,7 +379,10 @@ def _resolve_cell_choice(
         return cell
     elif mode == "new":
         try:
-            return open_new_tray(db, instrument_id, well)[0]
+            # founding_date lets open_new_tray treat an expired resident tray as physically
+            # removed, so a reassignment onto a date the old tray has aged out mints a fresh
+            # successor rather than 409ing (see open_new_tray / _cell_resident_on).
+            return open_new_tray(db, instrument_id, well, founding_date=acquire_date)[0]
         except ValueError as exc:
             raise PlacementError(409, str(exc)) from exc
     else:
@@ -675,7 +678,10 @@ def place_sample(
 
     if mode == "new":
         try:
-            cell = open_new_tray(db, instrument.id, well)[0]
+            # acquire_date lets an expired resident tray be treated as physically removed, so a
+            # plain drop onto a date it has aged out mints a fresh successor tray in its
+            # carousel position instead of 409ing (see open_new_tray / _cell_resident_on).
+            cell = open_new_tray(db, instrument.id, well, founding_date=acquire_date)[0]
         except ValueError as exc:
             raise PlacementError(409, str(exc)) from exc
     else:

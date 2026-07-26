@@ -71,8 +71,9 @@
   border-color: #bfe8e8;
 }
 
-/* Cell "ticket stub": the physical cell's position (numbered "C1"-"C4") + its use number in
-   its own boxed square (e.g. "C1 [1]"), an inset strip on the card's right edge, colour-coded
+/* Cell "ticket stub": the physical cell's position (numbered "▣1"-"▣4", a U+25A3 prefix rather
+   than "C" so it never reads as plate column-C) + its use number in
+   its own boxed square (e.g. "▣1 [1]"), an inset strip on the card's right edge, colour-coded
    by use like the Use 1/2/3 legend swatches. Clickable to open the in-grid cell-info popover -
    a distinct entry point from the card body (which opens the sample/slot detail). See
    SchedulerSlotView / CellInfoPopover. */
@@ -125,25 +126,29 @@
      1. the solid Use 1/2/3 base colour (.stubU1/2/3 above),
      2. .stubSheen — an iridescent diagonal foil, hue-rotated per cell (--seal-hue),
      3. .stubMicro — the cell's tray id as horizontal microprint along the bottom edge,
-     4. .stubLabel — the readable "C1" + boxed use on top.
+     4. .stubLabel — the readable "▣1" + boxed use on top.
    All decorative layers are aria-hidden; the button keeps its full aria-label/title. */
 .stubSheen {
   position: absolute;
   inset: 0;
   z-index: 0;
   /* A tight rainbow foil, angled like light catching a hologram. Per-cell hue-rotate
-     shifts the whole foil so no two cells' seals catch the light the same way. */
+     shifts the whole foil so no two cells' seals catch the light the same way.
+     Stops are in fixed px (26px period) so the pattern has a known repeat length,
+     independent of the stub's box size — see sealShift for why that matters. */
   background: repeating-linear-gradient(
     115deg,
-    rgba(255, 255, 255, 0) 0%,
-    rgba(255, 255, 255, 0.42) 8%,
-    rgba(255, 80, 200, 0.34) 16%,
-    rgba(90, 200, 255, 0.34) 24%,
-    rgba(120, 255, 170, 0.34) 32%,
-    rgba(255, 255, 255, 0) 40%
+    rgba(255, 255, 255, 0) 0px,
+    rgba(255, 255, 255, 0.42) 5.2px,
+    rgba(255, 80, 200, 0.34) 10.4px,
+    rgba(90, 200, 255, 0.34) 15.6px,
+    rgba(120, 255, 170, 0.34) 20.8px,
+    rgba(255, 255, 255, 0) 26px
   );
-  background-size: 180% 180%;
-  background-position: 0% 0%;
+  /* Generous, box-independent tile so the image never tiles within the stub — the
+     window we see is always interior foil, never an image edge. */
+  background-size: 200px 200px;
+  background-position: 0px 0px;
   filter: hue-rotate(var(--seal-hue, 0deg));
   mix-blend-mode: screen;
   opacity: 0.7;
@@ -154,7 +159,7 @@
    readable: solid white with a dark halo so the digits hold contrast over any point of the
    foil (bright highlight or saturated colour), sitting ABOVE the sheen with a normal blend
    rather than an overlay that the foil would wash out. Runs HORIZONTALLY along the bottom edge
-   of the stub, clear of the readable "C1" + boxed use in their own band up top. */
+   of the stub, clear of the readable "▣1" + boxed use in their own band up top. */
 .stubMicro {
   position: absolute;
   inset: 0;
@@ -177,7 +182,7 @@
   pointer-events: none;
   user-select: none;
 }
-/* The readable label: the cell number "C1" stacked over the use number in its own boxed
+/* The readable label: the cell number "▣1" stacked over the use number in its own boxed
    square, both in the top band above the microprint. */
 .stubLabel {
   position: absolute;
@@ -210,13 +215,17 @@
   font-size: 9px;
   line-height: 1;
 }
-/* Slow drift makes the foil "live" like a tilted hologram. */
+/* Slow drift makes the foil "live" like a tilted hologram. The end frame shifts the
+   foil by EXACTLY one gradient period (26px) along its own 115deg axis — direction
+   (sin115°, -cos115°) ≈ (0.906, 0.423), so 26px × that = (23.6px, 11px). Because a
+   repeating gradient is pixel-identical after a whole-period translation, the loop
+   restart is invisible: no mid-cycle seam. */
 @keyframes sealShift {
   0% {
-    background-position: 0% 0%;
+    background-position: 0px 0px;
   }
   100% {
-    background-position: 180% 180%;
+    background-position: 23.6px 11px;
   }
 }
 /* On hover, catch the light harder — a quick, deliberate glint. */
@@ -228,7 +237,7 @@
   .stubSheen {
     animation: none;
     /* Still uniquely hue-rotated per cell, just static — identity without motion. */
-    background-position: 40% 40%;
+    background-position: 11.8px 5.5px;
   }
 }
 /* The cross-time cell-link dot sits top-right; nudge it clear of the stub when one is shown. */

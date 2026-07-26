@@ -8,23 +8,29 @@
    nav, so the backlog stays reachable for a drag no matter how far down the instrument
    rows you've scrolled. Only this wrapper is sticky; its children lay out normally, and
    the Backlog tray caps its own card list height (see BacklogAccordion .grid) so the
-   pinned region can't grow tall enough to hide the grid. The opaque background covers grid
-   rows scrolling underneath. */
+   pinned region can't grow tall enough to hide the grid. The wrapper itself paints no
+   background - the toolbar and the Backlog card each carry their own opaque background so
+   grid rows still stay covered where a control actually sits, while the empty gap below the
+   tray stays transparent (a hard grey block there read as jarring where it overlapped the
+   grid scrolling underneath). */
 .stickyHead {
   position: sticky;
   top: var(--topbar-h, 69px);
   z-index: 20;
-  background: var(--bg);
+  background: transparent;
   padding: 10px 0;
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
+/* Its own opaque background so the toolbar controls stay legible over any grid rows that
+   scroll up beneath the pinned head (the wrapper no longer paints one). */
 .toolbar {
   display: flex;
   align-items: center;
   gap: 14px;
   flex-wrap: wrap;
+  background: var(--bg);
 }
 .pager {
   display: flex;

@@ -6,15 +6,12 @@ import { ApiError } from "@/api/client";
 import type { SampleSortBy, SampleSortDir } from "@/api/samples";
 import { samplesApi } from "@/api/samples";
 import { BarcodeChips } from "@/components/shared/BarcodeChips";
-import { Pagination } from "@/components/shared/Pagination";
 import { sampleDragId } from "@/components/scheduler/gridKeys";
 import type { SampleDragData } from "@/components/scheduler/useSchedulerDnd";
 import { Accordion } from "@/components/ui/Accordion";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Note } from "@/components/ui/Note";
-import { SegmentedControl } from "@/components/ui/SegmentedControl";
-import type { SegmentedOption } from "@/components/ui/SegmentedControl";
 import type { SampleOut } from "@/types/sample";
 import { useDebouncedValue } from "@/utils/useDebouncedValue";
 import { ABORTED_PRIORITY, priorityTone } from "@/utils/priority";
@@ -40,11 +37,8 @@ function writeOpenPref(open: boolean): void {
     /* ignore - persistence is a convenience, not a requirement */
   }
 }
-const PAGE_SIZE_OPTIONS: SegmentedOption<number>[] = [25, 50, 100, 200].map((n) => ({
-  value: n,
-  label: String(n),
-}));
-const SORT_OPTIONS: SegmentedOption<SampleSortBy>[] = [
+const PAGE_SIZE_OPTIONS = [25, 50, 100, 200];
+const SORT_OPTIONS: { value: SampleSortBy; label: string }[] = [
   { value: "created_at", label: "Created" },
   { value: "external_id", label: "Container ID" },
   { value: "barcode", label: "Barcode" },
@@ -133,20 +127,127 @@ export function BacklogAccordion({ onOpenAutoschedule }: BacklogAccordionProps =
         writeOpenPref(next);
       }}
       titleAfter={
-        onOpenAutoschedule && (
-          <button
-            type="button"
-            className={styles.sparkleBtn}
-            onClick={onOpenAutoschedule}
-            aria-label="Open Autoschedule"
-            title="Autoschedule — set the run design and auto-fill selected cells from the backlog"
-          >
-            <span className={styles.sparkleIcon} aria-hidden="true">
-              ✦
-            </span>
-            Autoschedule
-          </button>
-        )
+        <>
+          {onOpenAutoschedule && (
+            <button
+              type="button"
+              className={styles.sparkleBtn}
+              onClick={onOpenAutoschedule}
+              aria-label="Open Autoschedule"
+              title="Autoschedule — set the run design and auto-fill selected cells from the backlog"
+            >
+              <span className={styles.sparkleIcon} aria-hidden="true">
+                ✦
+              </span>
+              Autoschedule
+            </button>
+          )}
+          {/* Search / filter / sort / pagination live in the header so the tray body is
+              nothing but the scrollable card list — keeping the pinned backlog as short as
+              possible over the grid. Only rendered while open (a collapsed tray has no list
+              to search or page). */}
+          {open && (
+            <div className={styles.headControls}>
+              <input
+                type="search"
+                className={styles.search}
+                placeholder="Search…"
+                aria-label="Search backlog by external ID, barcode, or parent sample"
+                title="Search by external ID, barcode, or parent sample"
+                value={qInput}
+                onChange={(e) => {
+                  setQInput(e.target.value);
+                  setPage(1);
+                }}
+              />
+              <select
+                className={styles.select}
+                aria-label="Filter by priority"
+                title="Filter by priority"
+                value={priority}
+                onChange={(e) => {
+                  setPriority(e.target.value);
+                  setPage(1);
+                }}
+              >
+                <option value="">All priorities</option>
+                {(prioritiesQuery.data ?? []).map((p) => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                ))}
+              </select>
+              <div className={styles.sortGroup}>
+                <select
+                  className={styles.select}
+                  aria-label="Sort by"
+                  title="Sort by"
+                  value={sortBy}
+                  onChange={(e) => {
+                    setSortBy(e.target.value as SampleSortBy);
+                    setPage(1);
+                  }}
+                >
+                  {SORT_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  aria-label={sortDir === "asc" ? "Sort ascending" : "Sort descending"}
+                  title={sortDir === "asc" ? "Sort ascending" : "Sort descending"}
+                  onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))}
+                >
+                  {sortDir === "asc" ? "▲" : "▼"}
+                </Button>
+              </div>
+              <select
+                className={styles.select}
+                aria-label="Rows per page"
+                title="Rows per page"
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setPage(1);
+                }}
+              >
+                {PAGE_SIZE_OPTIONS.map((n) => (
+                  <option key={n} value={n}>
+                    {n} / page
+                  </option>
+                ))}
+              </select>
+              <div className={styles.pager}>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  aria-label="Previous page"
+                  title="Previous page"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page <= 1}
+                >
+                  ‹
+                </Button>
+                <span className={styles.pageInfo}>
+                  {page} / {totalPages}
+                </span>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  aria-label="Next page"
+                  title="Next page"
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={page >= totalPages}
+                >
+                  ›
+                </Button>
+              </div>
+            </div>
+          )}
+        </>
       }
       badge={
         <span className={styles.badgeGroup}>
@@ -155,68 +256,6 @@ export function BacklogAccordion({ onOpenAutoschedule }: BacklogAccordionProps =
         </span>
       }
     >
-      <div className={styles.toolbar}>
-        <input
-          type="search"
-          className={styles.search}
-          placeholder="Search by external ID, barcode, or parent sample…"
-          value={qInput}
-          onChange={(e) => {
-            setQInput(e.target.value);
-            setPage(1);
-          }}
-        />
-        <select
-          className={styles.select}
-          value={priority}
-          onChange={(e) => {
-            setPriority(e.target.value);
-            setPage(1);
-          }}
-        >
-          <option value="">All priorities</option>
-          {(prioritiesQuery.data ?? []).map((p) => (
-            <option key={p} value={p}>
-              {p}
-            </option>
-          ))}
-        </select>
-        <div className={styles.sortGroup}>
-          <select
-            className={styles.select}
-            aria-label="Sort by"
-            value={sortBy}
-            onChange={(e) => {
-              setSortBy(e.target.value as SampleSortBy);
-              setPage(1);
-            }}
-          >
-            {SORT_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-          <Button
-            size="sm"
-            variant="ghost"
-            aria-label={sortDir === "asc" ? "Sort ascending" : "Sort descending"}
-            onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))}
-          >
-            {sortDir === "asc" ? "▲" : "▼"}
-          </Button>
-        </div>
-        <SegmentedControl
-          ariaLabel="Rows per page"
-          options={PAGE_SIZE_OPTIONS}
-          value={pageSize}
-          onChange={(v) => {
-            setPageSize(v);
-            setPage(1);
-          }}
-        />
-      </div>
-
       {query.isLoading && <div className={styles.status}>Loading backlog…</div>}
       {query.isError && (
         <Note tone="bad" icon="!">
@@ -228,15 +267,11 @@ export function BacklogAccordion({ onOpenAutoschedule }: BacklogAccordionProps =
       )}
 
       {items.length > 0 && (
-        <>
-          <div className={styles.grid}>
-            {items.map((sample) => (
-              <DraggableSampleCard key={sample.id} sample={sample} />
-            ))}
-          </div>
-
-          <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
-        </>
+        <div className={styles.grid}>
+          {items.map((sample) => (
+            <DraggableSampleCard key={sample.id} sample={sample} />
+          ))}
+        </div>
       )}
     </Accordion>
   );

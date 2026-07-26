@@ -1,11 +1,18 @@
-import { memo, type KeyboardEvent, type MouseEvent } from "react";
+import { memo, useEffect, useState, type KeyboardEvent, type MouseEvent } from "react";
 import { Link } from "react-router-dom";
 
 import { CELL_STATUS_LABEL } from "@/utils/cellStatus";
 import { formatShortDateUTC, parseDateOnly, shortWeekdayUTC } from "@/utils/calendarDates";
 
 import styles from "./InstrumentTrayMap.module.css";
-import type { InstrumentTrayMap as TrayMap, TrayPositionView, TrayView } from "./instrumentTrayMaps";
+import {
+  cellExpiryState,
+  type CellExpiryState,
+  type FutureTrayView,
+  type InstrumentTrayMap as TrayMap,
+  type TrayPositionView,
+  type TrayView,
+} from "./instrumentTrayMaps";
 
 /** Formats an ISO datetime as "DD/MM" (UTC) - the compact expiry label the lab uses. */
 function formatDayMonthUTC(iso: string): string {
@@ -15,46 +22,158 @@ function formatDayMonthUTC(iso: string): string {
   return `${day}/${month}`;
 }
 
-function positionTitle(p: TrayPositionView): string {
+/** A terse relative span for a millisecond magnitude: "3d" / "18h" / "45m". */
+function relSpan(ms: number): string {
+  const hours = Math.abs(ms) / 3_600_000;
+  if (hours >= 48) return `${Math.round(hours / 24)}d`;
+  if (hours >= 1) return `${Math.round(hours)}h`;
+  return `${Math.max(1, Math.round(Math.abs(ms) / 60_000))}m`;
+}
+
+/** Plain-language name for each expiry state, for tooltips / the no-date fallback line. */
+const STATE_LABEL: Record<CellExpiryState, string> = {
+  ok: "in window",
+  soon: "expiring soon",
+  expired: "expired",
+  scheduled: "not broken out yet",
+  spent: "used up",
+  fresh: "unused",
+};
+
+/** The full countdown for the tooltip: it shifts with the reference instant (end-of-week vs
+ * now), so the same cell reads "2d left" today and "expired 1d ago" projected to Fri. */
+function verboseDetail(p: TrayPositionView, state: CellExpiryState, refMs: number): string | null {
+  const expiryMs = p.expiryAt ? Date.parse(p.expiryAt) : null;
+  const breakoutMs = p.breakoutAt ? Date.parse(p.breakoutAt) : null;
+  if ((state === "ok" || state === "soon") && expiryMs !== null) return `${relSpan(expiryMs - refMs)} left`;
+  if (state === "scheduled" && breakoutMs !== null) return `breaks out in ${relSpan(breakoutMs - refMs)}`;
+  if (state === "expired" && p.status === "open" && expiryMs !== null) return `expired ${relSpan(expiryMs - refMs)} ago`;
+  return null;
+}
+
+/** A terse countdown that fits the narrow cell (colour + icon already signal past vs future):
+ * just the magnitude for a still-open window, nothing for the states the icon fully conveys. */
+function inlineDetail(p: TrayPositionView, state: CellExpiryState, refMs: number): string | null {
+  const expiryMs = p.expiryAt ? Date.parse(p.expiryAt) : null;
+  if ((state === "ok" || state === "soon") && expiryMs !== null) return relSpan(expiryMs - refMs);
+  return null;
+}
+
+const SVG_BASE = {
+  width: "1em",
+  height: "1em",
+  viewBox: "0 0 24 24",
+  fill: "none",
+  stroke: "currentColor",
+  strokeWidth: 2.4,
+  strokeLinecap: "round" as const,
+  strokeLinejoin: "round" as const,
+  "aria-hidden": true,
+};
+
+/** Inline status icon (this project ships no icon library). Uses currentColor so the CSS state
+ * tone colours it: a clock for a running/scheduled window, a warning triangle when it's closing
+ * soon, a crossed circle once expired, a tick when spent, a dot when unused. */
+function StateIcon({ state }: { state: CellExpiryState }) {
+  switch (state) {
+    case "soon":
+      return (
+        <svg {...SVG_BASE}>
+          <path d="M12 4 21 19.5H3Z" />
+          <line x1="12" y1="10" x2="12" y2="13.5" />
+          <circle cx="12" cy="16.6" r="1.05" fill="currentColor" stroke="none" />
+        </svg>
+      );
+    case "expired":
+      return (
+        <svg {...SVG_BASE}>
+          <circle cx="12" cy="12" r="9" />
+          <line x1="8.6" y1="8.6" x2="15.4" y2="15.4" />
+          <line x1="15.4" y1="8.6" x2="8.6" y2="15.4" />
+        </svg>
+      );
+    case "spent":
+      return (
+        <svg {...SVG_BASE}>
+          <circle cx="12" cy="12" r="9" />
+          <path d="M8 12.5 11 15.5 16.2 9" />
+        </svg>
+      );
+    case "fresh":
+      return (
+        <svg {...SVG_BASE}>
+          <circle cx="12" cy="12" r="3.4" fill="currentColor" stroke="none" />
+        </svg>
+      );
+    case "scheduled":
+    case "ok":
+    default:
+      return (
+        <svg {...SVG_BASE}>
+          <circle cx="12" cy="12" r="9" />
+          <path d="M12 7.4V12l3 2" />
+        </svg>
+      );
+  }
+}
+
+/** A small spinner (270° arc) for the live "now" pill; CSS spins it, reduced-motion stops it. */
+function NowSpinner() {
+  return (
+    <svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" aria-hidden>
+      <path d="M12 3a9 9 0 1 1-7.5 4" />
+    </svg>
+  );
+}
+
+function positionTitle(p: TrayPositionView, state: CellExpiryState, refMs: number, live: boolean): string {
   const parts = [
     `Cell ${p.cellNumber} · ${p.code}`,
     CELL_STATUS_LABEL[p.status],
     `${p.usesRemaining} use${p.usesRemaining === 1 ? "" : "s"} left`,
   ];
   if (p.expiryAt) {
-    parts.push(`expires ${formatDayMonthUTC(p.expiryAt)}${p.expiryEstimated ? " (estimated)" : ""}`);
+    parts.push(`${STATE_LABEL[state]} · 108h window closes ${formatDayMonthUTC(p.expiryAt)}`);
+    const detail = verboseDetail(p, state, refMs);
+    if (detail) parts.push(detail);
   }
+  parts.push(live ? "status as of now" : "projected to the end of this week");
+  if (p.provisional) parts.push("planned load — not yet confirmed, so the date may shift");
   return parts.join(" · ");
 }
 
-/** Which visual tone a position cell carries. `soon` (amber) = the actionable "use it before
- * its window closes" highlight; `spent` (grey) = benignly used up or written off; `danger`
- * (red) = timed out / QC-stopped, i.e. capacity lost or unusable; else neutral. */
-function positionTone(p: TrayPositionView): string | undefined {
-  if (p.urgency === "soon") return styles.soon;
-  if (p.status === "exhausted" || p.status === "retired") return styles.spent;
-  if (p.urgency === "expired") return styles.danger;
-  return undefined;
-}
-
-function TrayPositionCell({ p }: { p: TrayPositionView }) {
+/** Which visual tone a position cell carries: its expiry state at the current reference instant.
+ * ok (green) = comfortable window; soon (amber) = closing within a day; expired (red) = past its
+ * deadline or QC-stopped; scheduled (blue) = clock not started yet; spent (grey) = used up; fresh
+ * = open but never on a clock. */
+function TrayPositionCell({ p, refMs, live }: { p: TrayPositionView; refMs: number; live: boolean }) {
+  const state = cellExpiryState(p, refMs);
+  const detail = inlineDetail(p, state, refMs);
+  const className = [styles.cell, styles[`s_${state}`], p.provisional ? styles.provisional : null]
+    .filter(Boolean)
+    .join(" ");
   return (
-    <div className={[styles.cell, positionTone(p)].filter(Boolean).join(" ")} title={positionTitle(p)}>
+    <div className={className} title={positionTitle(p, state, refMs, live)}>
       <span className={styles.letter}>C{p.cellNumber}</span>
       <span className={styles.uses}>{p.usesRemaining}</span>
-      {p.expiryAt ? (
-        <span className={p.expiryEstimated ? `${styles.exp} ${styles.expEstimated}` : styles.exp}>
-          {p.expiryEstimated ? "~" : ""}
-          {formatDayMonthUTC(p.expiryAt)}
+      <span className={styles.exp}>
+        <span className={styles.expIcon}>
+          <StateIcon state={state} />
         </span>
-      ) : (
-        <span className={styles.expNone}>—</span>
-      )}
+        {p.expiryAt ? (
+          <>
+            <span className={styles.expDate}>{formatDayMonthUTC(p.expiryAt)}</span>
+            {detail && <span className={styles.expCount}>{detail}</span>}
+          </>
+        ) : (
+          <span className={styles.expRel}>{STATE_LABEL[state]}</span>
+        )}
+      </span>
     </div>
   );
 }
 
-function TrayStrip({ tray }: { tray: TrayView }) {
+function TrayStrip({ tray, refMs, live }: { tray: TrayView; refMs: number; live: boolean }) {
   return (
     <div className={styles.strip}>
       <Link
@@ -66,7 +185,7 @@ function TrayStrip({ tray }: { tray: TrayView }) {
       </Link>
       <div className={styles.cells}>
         {tray.positions.map((p) => (
-          <TrayPositionCell key={p.cellId} p={p} />
+          <TrayPositionCell key={p.cellId} p={p} refMs={refMs} live={live} />
         ))}
       </div>
     </div>
@@ -81,20 +200,72 @@ function EmptyCarousel() {
   );
 }
 
+/** The "loaded later this week" group: successor trays the schedule will bring onto this
+ * instrument after the current ones age out - shown by id only (they aren't on the deck yet),
+ * flagged red so a mid-week tray turnover is obvious at a glance. */
+function FutureTrays({ trays }: { trays: FutureTrayView[] }) {
+  return (
+    <div className={styles.future}>
+      <div className={styles.futureLabel} title="Fresh trays the schedule loads later this week (a current tray ages out of its 108h window and is replaced)">
+        loaded later
+      </div>
+      <div className={styles.futureList}>
+        {trays.map((t) => {
+          const when = `${shortWeekdayUTC(parseDateOnly(t.foundingDate))} ${formatShortDateUTC(parseDateOnly(t.foundingDate))}`;
+          return (
+            <Link
+              key={t.trayId}
+              className={styles.futureTray}
+              to={`/trays/${t.trayId}`}
+              title={`Tray ${t.trayId} - loads into Plate ${t.carousel + 1} on ${when}`}
+            >
+              <span className={styles.futureTrayId}>TRAY #{t.trayId}</span>
+              <span className={styles.futureTrayWhen}>
+                P{t.carousel + 1} · {when}
+              </span>
+            </Link>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export interface InstrumentTrayMapProps {
   map: TrayMap | undefined;
 }
 
-/** The at-a-glance map of physical SMRT-cell trays currently on one instrument, projected to
- * the latest scheduled state, rendered beneath the instrument serial in the schedule grid's
- * left column. Mirrors the two-plate deck: carousel[0] = Plate 1 tray, carousel[1] = Plate 2.
- * Read-only; each tray header links to that tray's own page. */
+/** The at-a-glance map of physical SMRT-cell trays currently on one instrument, rendered beneath
+ * the instrument serial in the schedule grid's left column. Mirrors the two-plate deck:
+ * carousel[0] = Plate 1 tray, carousel[1] = Plate 2. Each cell is shaded by its own precise 108h
+ * expiry (each of a tray's 4 cells breaks out ~2h apart, so they expire on a staggered ladder).
+ * By default every cell's state is projected to the END of the viewed week; hovering the panel
+ * flips it to a live "now" reading, flagged by a green "NOW" pill. Read-only; each tray header
+ * links to that tray's own page. */
 export const InstrumentTrayMap = memo(function InstrumentTrayMap({ map }: InstrumentTrayMapProps) {
-  if (!map || (map.carousel[0] === null && map.carousel[1] === null)) return null;
+  const [hovering, setHovering] = useState(false);
+  const [nowMs, setNowMs] = useState(() => Date.now());
 
-  const caption = map.asOfDate
-    ? `as of ${shortWeekdayUTC(parseDateOnly(map.asOfDate))} ${formatShortDateUTC(parseDateOnly(map.asOfDate))}`
-    : "current";
+  // Keep the live reading fresh only while hovering - refresh immediately on enter, then a slow
+  // tick (the spinning pill already signals "live"; the hours/days figure only needs the minute).
+  useEffect(() => {
+    if (!hovering) return;
+    setNowMs(Date.now());
+    const id = setInterval(() => setNowMs(Date.now()), 30_000);
+    return () => clearInterval(id);
+  }, [hovering]);
+
+  if (!map || (map.carousel[0] === null && map.carousel[1] === null && map.futureTrays.length === 0)) return null;
+
+  // End-of-week reference = the end of the last visible weekday, so a cell whose 108h window
+  // closes any time that day reads as expired "by end of week". Hover swaps in the real now.
+  const weekEndMs = map.weekEndDate
+    ? parseDateOnly(map.weekEndDate).getTime() + (24 * 3600 - 1) * 1000
+    : nowMs;
+  const refMs = hovering ? nowMs : weekEndMs;
+  const weekEndLabel = map.weekEndDate
+    ? `${shortWeekdayUTC(parseDateOnly(map.weekEndDate))} ${formatShortDateUTC(parseDateOnly(map.weekEndDate))}`
+    : null;
 
   // Clicks/keys inside the map are informational and must not trigger the row header's
   // "select this instrument's open days" behaviour on the enclosing <th>.
@@ -103,14 +274,38 @@ export const InstrumentTrayMap = memo(function InstrumentTrayMap({ map }: Instru
   }
 
   return (
-    <div className={styles.map} onClick={stop} onKeyDown={stop} role="presentation">
-      <div className={styles.caption} title="Projected cell state as of the latest scheduled day this week">
-        {caption}
+    <div
+      className={styles.map}
+      onClick={stop}
+      onKeyDown={stop}
+      onMouseEnter={() => setHovering(true)}
+      onMouseLeave={() => setHovering(false)}
+      onFocus={() => setHovering(true)}
+      onBlur={() => setHovering(false)}
+      role="presentation"
+    >
+      <div className={styles.captionRow}>
+        {hovering ? (
+          <span className={`${styles.pill} ${styles.nowPill}`} title="Live cell status as of right now">
+            <span className={styles.nowSpinner}>
+              <NowSpinner />
+            </span>
+            now
+          </span>
+        ) : (
+          <span
+            className={styles.pill}
+            title="Each cell's expiry state projected to the end of this week — hover the map to see it as of right now"
+          >
+            by {weekEndLabel ?? "week end"}
+          </span>
+        )}
       </div>
       <div className={styles.carousels}>
-        {map.carousel[0] ? <TrayStrip tray={map.carousel[0]} /> : <EmptyCarousel />}
-        {map.carousel[1] ? <TrayStrip tray={map.carousel[1]} /> : <EmptyCarousel />}
+        {map.carousel[0] ? <TrayStrip tray={map.carousel[0]} refMs={refMs} live={hovering} /> : <EmptyCarousel />}
+        {map.carousel[1] ? <TrayStrip tray={map.carousel[1]} refMs={refMs} live={hovering} /> : <EmptyCarousel />}
       </div>
+      {map.futureTrays.length > 0 && <FutureTrays trays={map.futureTrays} />}
     </div>
   );
 });

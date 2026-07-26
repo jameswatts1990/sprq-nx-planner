@@ -180,6 +180,71 @@ def test_place_sample_rejects_new_cell_when_its_tray_box_is_fully_populated_with
         assert cell["uses_consumed"] == 1
 
 
+def test_place_onto_a_date_the_resident_tray_has_expired_mints_a_successor_tray(client):
+    """Reported bug: dragging a sample onto a slot on a date the carousel position's current
+    tray has already aged out of its 108h reuse window did nothing (a silent 409). The whole
+    tray's cells stay status=="open" - their window only flips to window_expired against real
+    "now" once confirmed loaded, which a forward-planned tray never is - so open_new_tray's
+    box guard wrongly treated the box as still occupied and refused to load a fresh tray.
+
+    Now a plain auto drop onto such a date mints a successor tray in the same carousel
+    position (turnover), leaving the expired predecessor's earlier uses intact as history.
+
+    Setup: fill all 4 cells of tray 1 with a Use 1 on week-1 Monday, so every cell is on its
+    own 108h clock (closing that Saturday). A drop the *following* Monday is past every cell's
+    window, so no reuse is eligible and the box must reload with a brand-new tray."""
+    client.post(
+        "/api/imports",
+        json={"raw_text": "sample,barcodes\nA1,bc1\nA2,bc2\nA3,bc3\nA4,bc4\nA5,bc5"},
+    )
+    days = _weekdays(6)  # week-1 Mon..Fri, then week-2 Mon
+    w1_mon, w2_mon = days[0], days[5]
+
+    def _auto_place(sample_id, run_date, slot_index):
+        # A plain drag-drop sends no cell_choice (null) - the backend derives the cell
+        # (reuse-before-new); "auto" isn't an accepted wire value, omitting it is.
+        return client.post(
+            "/api/cell-uses",
+            json={
+                "sample_id": sample_id,
+                "instrument_serial": "84047",
+                "load_date": run_date,
+                "slot_index": slot_index,
+                "run_time_hours": 24,
+                "max_uses": 3,
+            },
+        )
+
+    # Fill the whole A01-D01 box on week-1 Monday (slot 0 opens the tray; 1-3 auto-reuse its
+    # fresh siblings), so all 4 cells get a Use 1 and start their own 108h clock that day.
+    first_ids = []
+    for slot in range(4):
+        r = _auto_place(_sid(client, f"A{slot + 1}"), w1_mon, slot)
+        assert r.status_code == 201, r.text
+        first_ids.append(_stages(r.json())[0]["cell_id"])
+    old_tray_id = client.get(f"/api/cells/{first_ids[0]}").json()["tray_id"]
+    assert len({client.get(f"/api/cells/{c}").json()["tray_id"] for c in first_ids}) == 1  # one physical tray
+
+    # A plain auto drop onto week-2 Monday, slot 0 (well A01): the whole tray has aged out, so
+    # the backend loads a fresh successor tray instead of silently rejecting the drop.
+    r5 = _auto_place(_sid(client, "A5"), w2_mon, 0)
+    assert r5.status_code == 201, r5.text
+    new_stage = _stages(r5.json())[0]
+    new_cell = client.get(f"/api/cells/{new_stage['cell_id']}").json()
+    assert new_stage["well"] == "A01"
+    assert new_cell["current_well"] == "A01"
+    assert new_cell["tray_id"] != old_tray_id  # a genuinely new physical tray, not the expired one
+    assert new_cell["uses_consumed"] == 1
+
+    # The expired predecessor's cells are untouched - their week-1 history stands, and both
+    # trays now coexist in the same carousel position (the frontend renders the predecessor as
+    # evicted from the successor's founding day on).
+    old_a01 = client.get(f"/api/cells/{first_ids[0]}").json()
+    assert old_a01["tray_id"] == old_tray_id
+    assert old_a01["uses_consumed"] == 1
+    assert old_a01["status"] == "open"
+
+
 def test_place_sample_allows_mixed_run_times_per_cell(client):
     """Run time is per-cell now: two wells of the same plate can carry different movie times.
     Each stage keeps its own run_time_hours, and the plate's representative movie_hours (and

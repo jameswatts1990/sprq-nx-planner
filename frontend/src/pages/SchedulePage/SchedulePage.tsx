@@ -177,12 +177,13 @@ export function SchedulePage() {
     () => computeBlockedWellsByInstrumentAndDay(allTrayCells, win.days, trayFoundingDates),
     [allTrayCells, win.days, trayFoundingDates],
   );
-  // The projected physical-tray map for each instrument's left-column header, as of the
-  // latest scheduled day this week. Reuses the same tray founding/eviction/vacated maps the
-  // grid ghosts do, so tray residency agrees exactly (see instrumentTrayMap.ts).
+  // The physical-tray map for each instrument's left-column header: the tray resident at the
+  // start of the viewed week per carousel position, plus any successor trays loaded later that
+  // week (see instrumentTrayMaps.ts). Reuses the same tray founding/eviction/vacated maps the
+  // grid ghosts do, so tray residency agrees exactly.
   const trayMaps = useMemo(
-    () => computeInstrumentTrayMaps(allTrayCells, grouped, win.days, trayFoundingDates, trayEvictionDates, vacatedTrayIds),
-    [allTrayCells, grouped, win.days, trayFoundingDates, trayEvictionDates, vacatedTrayIds],
+    () => computeInstrumentTrayMaps(allTrayCells, win.days, trayFoundingDates, trayEvictionDates, vacatedTrayIds),
+    [allTrayCells, win.days, trayFoundingDates, trayEvictionDates, vacatedTrayIds],
   );
   // `runs` is fetched a few days wider than the visible window (see lookbackDateFrom
   // above), purely so continuation markers can see runs loaded just before it. Anything

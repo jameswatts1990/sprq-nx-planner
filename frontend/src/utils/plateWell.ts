@@ -60,14 +60,15 @@ export function plateWellFromPlate(
   return format(plateIndex, well.charAt(0).toUpperCase(), opts);
 }
 
-/** Cell position label "C1".."C4" (cells are NUMBERED, unlike lettered plate wells - this is
- *  PacBio's "cell 1 to cell 4"). Prefer trayPosition (1-4); fall back to mapping a legacy
- *  tray-less cell's home_well/loading-well letter A-D -> 1-4. */
+/** Cell position label "▣1".."▣4" (cells are NUMBERED, unlike lettered plate wells - this is
+ *  PacBio's "cell 1 to cell 4"). The prefix is U+25A3 (▣), deliberately NOT the letter "C",
+ *  so a cell position never gets misread as a plate well's column-C. Prefer trayPosition (1-4);
+ *  fall back to mapping a legacy tray-less cell's home_well/loading-well letter A-D -> 1-4. */
 export function cellPositionLabel(
   trayPosition: number | null | undefined,
   fallbackWell?: string | null,
 ): string {
   let n = trayPosition ?? 0;
   if (!n && fallbackWell) n = fallbackWell.charCodeAt(0) - 64; // "A" (65) -> 1 .. "D" (68) -> 4
-  return n >= 1 && n <= 4 ? `C${n}` : "C?";
+  return n >= 1 && n <= 4 ? `▣${n}` : "▣?";
 }

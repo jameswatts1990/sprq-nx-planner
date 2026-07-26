@@ -4,14 +4,49 @@
 .map {
   margin-top: 10px;
 }
-.caption {
+
+/* Mode indicator row. A neutral pill names the end-of-week projection the cells default to;
+   on hover it swaps to a green "now" pill (spinner) to signal the live reading. */
+.captionRow {
+  display: flex;
+  margin-bottom: 5px;
+}
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
   font-size: 8.5px;
-  font-weight: 700;
+  font-weight: 800;
   letter-spacing: 0.02em;
   text-transform: uppercase;
   color: var(--faint);
-  margin-bottom: 5px;
+  background: var(--line-soft);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 1px 6px;
+  white-space: nowrap;
 }
+.nowPill {
+  color: var(--green);
+  background: var(--green-tint);
+  border-color: var(--green);
+}
+.nowSpinner {
+  display: inline-flex;
+  font-size: 9px;
+  animation: trayNowSpin 0.9s linear infinite;
+}
+@keyframes trayNowSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nowSpinner {
+    animation: none;
+  }
+}
+
 .carousels {
   display: flex;
   align-items: flex-start;
@@ -59,6 +94,7 @@
   grid-template-columns: auto 1fr;
   grid-template-rows: auto auto;
   column-gap: 3px;
+  row-gap: 1px;
   align-items: baseline;
   border: 1px solid var(--line);
   border-radius: 6px;
@@ -82,50 +118,107 @@
   line-height: 1;
   color: var(--ink);
 }
+/* Expiry line: a coloured status icon + the precise 108h date + a live countdown, so the state
+   reads at a glance from both colour and icon. */
 .exp {
   grid-row: 2;
   grid-column: 1 / span 2;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
   font-size: 8.5px;
-  font-weight: 600;
+  font-weight: 700;
   font-family: var(--mono);
   color: var(--faint);
   white-space: nowrap;
 }
-/* A provisional (planned, not yet confirmed-loaded) expiry - italic so it reads as an
-   estimate, matching the "~" prefix. */
-.expEstimated {
-  font-style: italic;
-}
-.expNone {
-  grid-row: 2;
-  grid-column: 1 / span 2;
-  font-size: 9px;
+.expIcon {
+  display: inline-flex;
+  flex: none;
+  font-size: 10px;
+  line-height: 0;
   color: var(--faint);
 }
+.expDate {
+  flex: none;
+}
+/* The live countdown, pushed to the cell's right edge so the date and countdown never collide
+   in the narrow cell. */
+.expCount {
+  flex: none;
+  margin-left: auto;
+  padding-left: 3px;
+  font-weight: 700;
+  color: var(--faint);
+}
+/* The no-date fallback label (e.g. "unused"), sitting next to the icon. */
+.expRel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  color: var(--faint);
+}
+/* A provisional (planned, not yet confirmed-loaded) date - dotted underline so it reads as
+   projected, without the old fuzzy "~". */
+.provisional .expDate {
+  border-bottom: 1px dotted currentColor;
+}
 
-/* Urgency tones. soon = the actionable amber highlight (window closing with capacity left);
-   spent = benignly used up / retired (muted); danger = timed out or QC-stopped (red). */
-.soon {
+/* Expiry-state tones. The icon + date always carry the state colour; the actionable states
+   (soon / expired) also tint the whole card and the big uses number so lost or at-risk
+   capacity is impossible to miss. */
+.s_ok {
+  border-color: var(--green);
+}
+.s_ok .expIcon,
+.s_ok .expDate,
+.s_ok .expCount {
+  color: var(--green);
+}
+.s_soon {
   border-color: var(--amber);
   background: var(--amber-tint);
 }
-.soon .uses {
+.s_soon .expIcon,
+.s_soon .expDate,
+.s_soon .expCount,
+.s_soon .expRel,
+.s_soon .uses {
   color: var(--amber);
 }
-.spent {
-  background: var(--line-soft);
-  border-color: var(--line);
-}
-.spent .uses,
-.spent .letter {
-  color: var(--faint);
-}
-.danger {
+.s_expired {
   border-color: var(--red);
   background: var(--red-tint);
 }
-.danger .uses {
+.s_expired .expIcon,
+.s_expired .expDate,
+.s_expired .expCount,
+.s_expired .expRel,
+.s_expired .uses {
   color: var(--red);
+}
+.s_scheduled {
+  border-color: var(--blue);
+  background: var(--blue-tint);
+}
+.s_scheduled .expIcon,
+.s_scheduled .expDate,
+.s_scheduled .expCount {
+  color: var(--blue);
+}
+.s_spent {
+  background: var(--line-soft);
+  border-color: var(--line);
+}
+.s_spent .uses,
+.s_spent .letter,
+.s_spent .expIcon {
+  color: var(--faint);
+}
+.s_fresh .expIcon {
+  color: var(--faint);
 }
 
 /* An empty carousel position - no tray loaded, so it's available to load one. Dashed, echoing
@@ -145,4 +238,58 @@
   text-transform: uppercase;
   color: var(--faint);
   text-align: center;
+}
+
+/* "Loaded later this week" group: successor trays a mid-week turnover brings on after a
+   current tray ages out. Flagged red (border + tint) so an upcoming tray swap is obvious;
+   shown by id only, since these trays aren't physically on the deck yet. */
+.future {
+  margin-top: 7px;
+  border: 1px solid var(--red);
+  border-radius: var(--r-sm);
+  background: var(--red-tint);
+  padding: 4px 5px 5px;
+}
+.futureLabel {
+  font-size: 8.5px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--red);
+  margin-bottom: 4px;
+}
+.futureList {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.futureTray {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  text-decoration: none;
+  border: 1px solid var(--red);
+  border-radius: 6px;
+  background: var(--card);
+  padding: 2px 5px 3px;
+}
+.futureTray:hover {
+  background: var(--red-tint);
+}
+.futureTrayId {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  font-family: var(--mono);
+  color: var(--red);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.futureTrayWhen {
+  font-size: 8px;
+  font-weight: 600;
+  font-family: var(--mono);
+  color: var(--faint);
+  white-space: nowrap;
 }

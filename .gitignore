@@ -24,3 +24,5 @@ playwright-report/
 trace.zip
 # stray verification screenshots dropped in repo root by the browser tools
 /sched-*.png
+# any PNG dropped in the repo root
+/*.png
