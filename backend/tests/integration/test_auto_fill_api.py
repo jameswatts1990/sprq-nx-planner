@@ -7,7 +7,7 @@ import pytest
 
 from app.models.cell import Cell
 from app.models.cell_tray import CellTray
-from app.models.schedule import Cycle, RunBatch
+from app.models.schedule import CellUse, Cycle, RunBatch
 
 SIX_DISJOINT = "sample,barcodes\n" + "\n".join(f"X{i},bcx{i}" for i in range(1, 7))
 TEN_DISJOINT = "sample,barcodes\n" + "\n".join(f"Y{i},bcy{i}" for i in range(1, 11))
@@ -417,16 +417,6 @@ def test_auto_fill_never_exceeds_the_hard_three_use_cap_with_cells_per_day_four(
         assert len(active_uses) <= 3, f"{cell.code} has {len(active_uses)} uses - exceeds the hard 3-use cap"
 
 
-@pytest.mark.xfail(
-    reason="Run->Plate remodel: this test's run-structure assertion (`sorted(load_date for runs) "
-    "== week`, i.e. one run per weekday) is written against the OLD flat per-(instrument, day) model. "
-    "Under the 2-plate model a one-tray (cells_per_day=4) reuse pairs use 1 + use 2 into a single run "
-    "loaded once, so Mon-Fri collapses to fewer runs (~Mon, Wed, Thu) - the assertion needs rewriting "
-    "to the new run grouping. The regression it actually guards (no cell exceeds the 3-use cap, and a "
-    "terminal well is reloaded within a batch) is covered by "
-    "test_auto_fill_never_exceeds_the_hard_three_use_cap_with_cells_per_day_four. Follow-up.",
-    strict=False,
-)
 def test_auto_fill_reloads_a_terminal_well_with_a_new_tray_in_the_same_batch(client, db_session):
     """Companion to the hard-cap regression above: fixing the overuse must not
     over-correct into refusing to reload a genuinely terminal well. Once tray 1's 4
@@ -515,11 +505,11 @@ def test_auto_fill_rejects_weekend_cell(client):
 def test_auto_fill_disposes_a_tray_once_all_its_cells_reach_the_dial(client, db_session):
     """A SMRT-cell tray of 4 is one physical object: disposal is whole-tray, never per
     cell. 8 disjoint samples across a full week with max_uses=2 / cells_per_day=4 (one
-    tray) pack onto 4 fresh cells at 2 uses each (Use 1 Mon, reuse Use 2 Tue - both plates
-    of the Monday load session). Every cell in the single opened tray reaches the 2x dial,
-    so the whole tray is binned as a unit: all 4 cells marked Exhausted together (sticky
-    via discarded_at), each keeping its 2 scheduled uses intact, none offered for reuse
-    again."""
+    tray) pack onto 4 fresh cells at 2 uses each (Use 1 loads Monday, reuse Use 2 loads
+    Tuesday as its OWN 1-plate run - one tray per day, never two plates stacked on Monday).
+    Every cell in the single opened tray reaches the 2x dial, so the whole tray is binned as
+    a unit: all 4 cells marked Exhausted together (sticky via discarded_at), each keeping its
+    2 scheduled uses intact, none offered for reuse again."""
     client.post(
         "/api/imports",
         json={"raw_text": "sample,barcodes\n" + "\n".join(f"D{i},bcd{i}" for i in range(1, 9))},
@@ -539,15 +529,21 @@ def test_auto_fill_disposes_a_tray_once_all_its_cells_reach_the_dial(client, db_
     assert len(body["unplaced_sample_ids"]) == 0
     assert len(body["disposed_cell_ids"]) == 4
 
-    # The reuse Plate 2 of the Monday load session acquires the day after loading (Tue for a
-    # 24h movie) - derived from Plate 1's real end + wash via get_or_create_run/reuse_plate_
-    # window, never floated to a later slot day. Guards the auto-fill side of the reuse-timing
-    # fix (the manual side is covered in test_auto_derive_cell).
+    # Each acquisition day is its own 1-plate run now (a "1 plate per run" choice really loads
+    # one tray per day): Use 1 loads Monday, and the reuse Use 2 is a SEPARATE run loaded
+    # Tuesday - never a 2nd plate stacked on Monday (the old paired-run shape that rendered as
+    # "2 plates on Monday", reported by the lab owner). The reuse run's start chains off
+    # Monday's real movie end + wash (see auto_fill_service), so a 24h movie lands it Tuesday.
     week = _next_working_week()
-    mon_run = next(r for r in body["runs"] if r["load_date"] == week[0])
-    reuse_plate = next(p for p in mon_run["plates"] if p["plate_index"] == 2)
-    assert reuse_plate["is_reuse"] is True
-    assert reuse_plate["acquire_date"] == week[1]  # Tuesday
+    runs_by_day = {r["load_date"]: r for r in body["runs"]}
+    assert set(runs_by_day) == {week[0], week[1]}  # Mon (Use 1) + Tue (reuse Use 2) only
+    for day in (week[0], week[1]):
+        run = runs_by_day[day]
+        assert len(run["plates"]) == 1, "one tray per day, never two stacked plates"
+        assert run["plates"][0]["plate_index"] == 1
+        assert run["plates"][0]["is_reuse"] is False  # each run's plate acquires on its own load day
+    tue_stages = [s for p in runs_by_day[week[1]]["plates"] for s in p["stages"]]
+    assert len(tue_stages) == 4 and all(s["use_number"] == 2 for s in tue_stages)  # the same 4 cells, 2nd use
 
     cells = db_session.query(Cell).all()
     assert len(cells) == 4
@@ -592,6 +588,146 @@ def test_auto_fill_leaves_a_partly_used_tray_open(client, db_session):
         assert cell.status == "open", f"{cell.code} must stay open until its whole tray is spent"
         assert cell.discarded_at is None
     assert sorted(len([cu for cu in c.cell_uses if cu.status != "cancelled"]) for c in cells) == [0, 0, 1, 2]
+
+
+def test_auto_fill_chains_a_reuse_start_off_the_prior_movie_end(client):
+    """One-plate reuse timing: a cell reused the next day must not start before its previous
+    acquisition physically finishes. A 30h movie loaded at the default noon Monday ends Tue
+    18:00, so the reuse Use 2 - now its OWN Tuesday run - starts Tue 18:45 (prior end + the
+    0.75h on-board wash), not the flat noon load hour. Guards the chained-start fix in
+    auto_fill_service: the old paired-run shape only chained via get_or_create_run's intra-run
+    Plate 2 branch, which never applied once a reuse became a separate day's run."""
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nT1,bct1\nT2,bct2"})
+    week = _next_working_week()
+    resp = _auto_fill(
+        client,
+        [{"instrument_serial": "84047", "load_date": d} for d in week],
+        objective="fewest",
+        run_time_hours=30,
+        max_uses=2,
+        cells_per_day=4,
+    )
+    assert resp.status_code == 200, resp.text
+    runs_by_day = {r["load_date"]: r for r in resp.json()["runs"]}
+
+    def _hhmm(iso: str) -> str:
+        return datetime.fromisoformat(iso.replace("Z", "+00:00")).strftime("%H:%M")
+
+    mon_plate = runs_by_day[week[0]]["plates"][0]
+    tue_plate = runs_by_day[week[1]]["plates"][0]
+    assert _hhmm(mon_plate["planned_start_at"]) == "12:00"  # Use 1 at the load hour
+    assert tue_plate["acquire_date"] == week[1]
+    assert _hhmm(tue_plate["planned_start_at"]) == "18:45"  # after Mon's 30h movie ends (18:00) + wash
+
+
+def test_clear_via_bulk_remove_leaves_no_orphaned_lock(client, db_session):
+    """Reproduces the reported Clear bug. Auto-schedule a one-tray week (Use 1 loads Monday,
+    reuse Use 2 loads Tuesday as its own 1-plate run), then Clear it via the atomic bulk
+    endpoint. Clearing must wipe every run and cycle in ONE transaction and free the
+    instrument completely - the old one-DELETE-per-stage clear could race the empty-plate
+    cleanup (its FOR UPDATE guard is a no-op on SQLite) and strand an orphaned empty cycle
+    that kept projecting a stale instrument lock onto later days (the lab owner saw a "lock"
+    left on Tue+Wed with nothing scheduled). After the atomic clear no RunBatch/Cycle rows
+    survive and every weekday is loadable again."""
+    client.post(
+        "/api/imports",
+        json={"raw_text": "sample,barcodes\n" + "\n".join(f"C{i},bcc{i}" for i in range(1, 9))},
+    )
+    week = _next_working_week()
+    resp = _auto_fill(
+        client,
+        [{"instrument_serial": "84047", "load_date": d} for d in week],
+        objective="fewest",
+        max_uses=2,
+        cells_per_day=4,
+    )
+    assert resp.status_code == 200, resp.text
+    assert len(resp.json()["placed_sample_ids"]) == 8
+
+    runs = client.get("/api/cycles", params={"date_from": week[0], "date_to": week[4]}).json()
+    cell_use_ids = [s["cell_use_id"] for r in runs for s in _stages(r)]
+    assert len(cell_use_ids) == 8
+
+    cleared = client.post("/api/cell-uses/bulk-remove", json={"cell_use_ids": cell_use_ids})
+    assert cleared.status_code == 200, cleared.text
+    assert cleared.json()["removed_count"] == 8
+    assert cleared.json()["failed"] == []
+
+    # No orphaned RunBatch/Cycle rows survive - so nothing is left to project a stale lock.
+    assert db_session.query(RunBatch).count() == 0
+    assert db_session.query(Cycle).count() == 0
+
+    # The instrument is fully free again: a brand-new run loads onto Tuesday (a day the stale
+    # lock used to block) without a 409. (Under the bug, Tuesday's orphaned reuse cycle held
+    # the instrument through Wednesday.)
+    place = client.post(
+        "/api/cell-uses",
+        json={
+            "sample_id": _sid(client, "C1"),
+            "instrument_serial": "84047",
+            "load_date": week[1],
+            "slot_index": 0,
+            "run_time_hours": 24,
+            "cell_choice": {"mode": "new"},
+        },
+    )
+    assert place.status_code == 201, place.text
+
+
+def test_an_orphaned_empty_cycle_is_never_a_plate_or_a_lock(client, db_session):
+    """Defence-in-depth for the stale-lock bug: even if an empty cycle (no cell_uses) somehow
+    survives - the exact residue a partial/racy clear used to leave in the DB - it must not
+    render as a plate or hold the instrument. A full two-plate Monday run (both trays, 24h)
+    locks past Tuesday; deleting all its cell_uses directly (ORM, bypassing the cleanup)
+    leaves two empty planned cycles behind. The run must then serialize with no plates and
+    is_locked False, and - crucially - the dead cycles must not gate a brand-new run on
+    Tuesday the way a live full-tray lock would."""
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nO1,bco1\nO2,bco2\nO3,bco3"})
+    mon, tue = _next_monday_tuesday()
+    for ext, slot in (("O1", 0), ("O2", 4)):  # slot 0 -> Plate 1, slot 4 -> Plate 2 (both trays)
+        r = client.post(
+            "/api/cell-uses",
+            json={
+                "sample_id": _sid(client, ext),
+                "instrument_serial": "84047",
+                "load_date": mon,
+                "slot_index": slot,
+                "run_time_hours": 24,
+                "cell_choice": {"mode": "new"},
+            },
+        )
+        assert r.status_code == 201, r.text
+    run_id = r.json()["run_id"]
+
+    # Simulate the racy-clear residue: an empty planned Cycle whose cell_uses (and the cells
+    # they released) are gone, but the Cycle/RunBatch never got deleted. Drop the uses, cells
+    # and tray directly, leaving both Monday cycles empty.
+    for cu in db_session.query(CellUse).all():
+        db_session.delete(cu)
+    db_session.flush()
+    for cell in db_session.query(Cell).all():
+        db_session.delete(cell)
+    for tray in db_session.query(CellTray).all():
+        db_session.delete(tray)
+    db_session.commit()
+
+    run = client.get(f"/api/cycles/{run_id}").json()
+    assert run["plates"] == []  # empty cycles are not rendered as plates
+    assert run["is_locked"] is False
+
+    # The dead cycles must not project the full-tray lock that would otherwise span Tuesday.
+    r2 = client.post(
+        "/api/cell-uses",
+        json={
+            "sample_id": _sid(client, "O3"),
+            "instrument_serial": "84047",
+            "load_date": tue,
+            "slot_index": 0,
+            "run_time_hours": 24,
+            "cell_choice": {"mode": "new"},
+        },
+    )
+    assert r2.status_code == 201, r2.text
 
 
 def test_auto_fill_surfaces_barcode_conflicts_between_backlog_samples(client):

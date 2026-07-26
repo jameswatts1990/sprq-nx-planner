@@ -11,6 +11,22 @@
 .weekend {
   background: repeating-linear-gradient(135deg, #fbfbfc, #fbfbfc 6px, #f4f4f6 6px, #f4f4f6 12px);
 }
+/* Down-for-maintenance day (empty): greyed, non-interactive, distinct from the weekend
+   hatch so "instrument out of service" doesn't read as an ordinary closed weekend. */
+.down {
+  background: repeating-linear-gradient(135deg, #f3f3f5, #f3f3f5 6px, #ebeaed 6px, #ebeaed 12px);
+  cursor: not-allowed;
+  text-align: center;
+}
+.downLabel {
+  display: inline-block;
+  margin-top: 10px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--grey);
+}
 .emptyCell {
   background: #fdfdfe;
 }

@@ -19,6 +19,12 @@ const EMPTY_BLOCKED_WELLS: Set<string> = new Set();
 
 export interface SchedulerGridRowProps {
   serial: string;
+  /** Friendly instrument name shown as the row's primary label; falls back to the serial
+   * when unset. The serial stays the row's identity key regardless. */
+  name: string | null;
+  /** ISO date (YYYY-MM-DD) the instrument went down for maintenance, or null when online.
+   * Day-columns on/after this are greyed and non-selectable (see SchedulerDayCell's `down`). */
+  downFrom: string | null;
   rowIndex: number;
   days: string[];
   cyclesByDate: Map<string, RunOut>;
@@ -44,6 +50,8 @@ export interface SchedulerGridRowProps {
  * handlers and grouping. */
 export const SchedulerGridRow = memo(function SchedulerGridRow({
   serial,
+  name,
+  downFrom,
   rowIndex,
   days,
   cyclesByDate,
@@ -65,10 +73,14 @@ export const SchedulerGridRow = memo(function SchedulerGridRow({
     const weekend = isWeekendUTC(parseDateOnly(date));
     // Weekends are never open and never consult a continuation, so skip the costly scan.
     if (weekend) {
-      return { date, colIndex, weekend, run: cyclesByDate.get(date), continuation: undefined, selectable: false };
+      return { date, colIndex, weekend, run: cyclesByDate.get(date), continuation: undefined, selectable: false, down: false };
     }
+    // Down for maintenance from downFrom onward: the day is greyed and can't be selected or
+    // take a new run (mirrors the backend guard in placement_service.get_or_create_run). ISO
+    // date strings compare lexically, so a plain >= is the on-or-after-the-down-date test.
+    const down = downFrom !== null && date >= downFrom;
     const { run, continuation, open } = resolveCell(cyclesByDate, date);
-    return { date, colIndex, weekend, run, continuation, selectable: open };
+    return { date, colIndex, weekend, run, continuation, selectable: open && !down, down };
   });
   const selectableCols = dayInfos.filter((d) => d.selectable).map((d) => d.colIndex);
 
@@ -106,10 +118,11 @@ export const SchedulerGridRow = memo(function SchedulerGridRow({
         }
       >
         <div className={styles.ml}>Revio</div>
-        <div className={styles.mid}>{serial}</div>
+        <div className={styles.mid}>{name || serial}</div>
+        {name && <div className={styles.serialSub}>{serial}</div>}
         <InstrumentTrayMap map={trayMap} />
       </th>
-      {dayInfos.map(({ date, colIndex, weekend, run, continuation, selectable }) => {
+      {dayInfos.map(({ date, colIndex, weekend, run, continuation, selectable, down }) => {
         const selected = selectable && selection.isSelected(rowIndex, colIndex);
         return (
           <SchedulerDayCell
@@ -119,6 +132,7 @@ export const SchedulerGridRow = memo(function SchedulerGridRow({
             rowIndex={rowIndex}
             colIndex={colIndex}
             weekend={weekend}
+            down={down}
             run={run}
             continuation={continuation}
             selectable={selectable}

@@ -24,6 +24,11 @@ export interface SchedulerDayCellProps {
   rowIndex: number;
   colIndex: number;
   weekend: boolean;
+  /** The instrument is down for maintenance on this day (date on/after its down_from). An
+   * empty down day renders greyed and non-interactive instead of a droppable "+"; a day that
+   * still holds a run renders it normally so it stays manageable. Mirrors the backend guard,
+   * which blocks only new-run creation, not editing an existing run. */
+  down?: boolean;
   run: RunOut | undefined;
   /** An earlier run on this instrument still occupying this day (its Plate 2 acquires here,
    * or its lock spans it), when this day has no run of its own - purely informational, never
@@ -73,6 +78,7 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
     rowIndex,
     colIndex,
     weekend,
+    down,
     run,
     continuation,
     selectable,
@@ -138,6 +144,23 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
         data-row={rowIndex}
         data-col={colIndex}
       />
+    );
+  }
+
+  // Empty day on a down instrument: render greyed and non-interactive so it can't be selected
+  // or dropped onto (the backend refuses a new run here too). A down day that still holds a
+  // run or an earlier run's continuation falls through and renders normally, so an existing
+  // run stays visible and manageable.
+  if (down && run === undefined && continuation === undefined) {
+    return (
+      <td
+        className={`${styles.cell} ${styles.down}`}
+        title="Instrument down for maintenance — no new runs can be scheduled here."
+        data-row={rowIndex}
+        data-col={colIndex}
+      >
+        <span className={styles.downLabel}>Down</span>
+      </td>
     );
   }
 

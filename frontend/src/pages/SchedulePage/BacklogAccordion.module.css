@@ -3,6 +3,20 @@
   align-items: center;
   gap: 8px;
 }
+/* Collapsed pinned-Backlog variant: strip the shared Card's fill, border, shadow and
+   header divider so the header controls (Backlog toggle, ✦ Autoschedule pill, sample
+   count) float directly over the grid on their own shadows rather than on an opaque
+   panel. The Card's own header keeps its padding; only its chrome is removed. The direct
+   child selector targets the Card header row (Card.module.css .head) without reaching
+   into that module's scoped class name. */
+.floatHeader {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+.floatHeader > div {
+  border-bottom: none;
+}
 /* The ✨ Autoschedule entry point, pinned in the Backlog header right after the title.
    Magenta pill with a white monochrome sparkle glyph. */
 .sparkleBtn {

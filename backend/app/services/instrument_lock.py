@@ -43,10 +43,15 @@ def run_lock_until(db: Session, run_batch: RunBatch, *, cycles: Iterable[Cycle] 
 
     Pass `cycles` (a reliably-loaded RunBatch.cycles) to read the plates in memory - only
     where the collection is known fresh (post-commit/serialization); omit it and it uses
-    run_batch.cycles directly."""
-    plates = list(cycles) if cycles is not None else list(run_batch.cycles)
+    run_batch.cycles directly.
+
+    Cycles with no cell_uses (orphaned empty plates a partial/racy bulk removal could leave
+    behind) load nothing, so they hold the instrument for nothing and are ignored here - else
+    an empty plate's planned_start would keep projecting a stale lock onto later days after a
+    Clear (see run_serializer.run_out and docs/pacbio-sprq-nx-scheduling-reference.md)."""
+    plates = [c for c in (list(cycles) if cycles is not None else list(run_batch.cycles)) if c.cell_uses]
     if not plates:
-        return utcnow() + timedelta(hours=LOCK_BUFFER_HOURS)
+        return utcnow()
     if len(plates) <= 1:
         return ensure_aware(plates[0].planned_start_at) + timedelta(hours=LOCK_BUFFER_HOURS)
     last_end = max(ensure_aware(c.planned_start_at) + timedelta(hours=c.movie_hours) for c in plates)
@@ -67,8 +72,12 @@ def _candidate_runs(db: Session, instrument_id: int, *, on_or_before: date) -> l
             Cycle.acquire_date <= on_or_before,
             Cycle.acquire_date >= on_or_before - timedelta(days=LOOKBACK_DAYS),
             Cycle.status.notin_(("aborted", "completed")),
+            # Ignore orphaned empty cycles - they load nothing, so they hold the instrument
+            # for nothing (see run_lock_until). Without this an empty plate left by a partial
+            # bulk clear would keep gating brand-new runs on later days.
+            Cycle.cell_uses.any(),
         )
-        .options(selectinload(RunBatch.cycles))
+        .options(selectinload(RunBatch.cycles).selectinload(Cycle.cell_uses))
     )
     return list(db.scalars(stmt).unique().all())
 

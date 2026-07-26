@@ -12,6 +12,11 @@ import type { QueryClient } from "@tanstack/react-query";
  * invalidating ["cells"] never touches a ["cell", id] detail query cached under a
  * different id, and vice versa. Invalidating the bare singular prefix matches every
  * ["cell", *] entry regardless of which id a given page happens to be viewing.
+ *
+ * ["instruments"] is here too: an instrument going down (or being deleted/retired) changes
+ * which rows the schedule grid renders and greys, so an instrument mutation must refresh the
+ * grid's instrument axis (keyed ["instruments", true]) the same way. The Instruments-page-only
+ * ["instrument-stats"] query is invalidated at that page's own call sites, not here.
  */
 export function invalidateScheduleRelated(queryClient: QueryClient) {
   void queryClient.invalidateQueries({ queryKey: ["cycles"] });
@@ -20,4 +25,6 @@ export function invalidateScheduleRelated(queryClient: QueryClient) {
   void queryClient.invalidateQueries({ queryKey: ["cell"] });
   void queryClient.invalidateQueries({ queryKey: ["samples"] });
   void queryClient.invalidateQueries({ queryKey: ["sample"] });
+  void queryClient.invalidateQueries({ queryKey: ["instruments"] });
+  void queryClient.invalidateQueries({ queryKey: ["instrument"] });
 }

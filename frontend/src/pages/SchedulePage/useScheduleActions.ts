@@ -51,26 +51,23 @@ export function useScheduleActions({
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
 
   const removeSlots = useMutation({
-    mutationFn: async () => {
-      const stages = slotSelection.selectedStages;
-      const results = await Promise.allSettled(stages.map((stage) => cellUsesApi.remove(stage.cell_use_id)));
-      const failed = results.filter((r): r is PromiseRejectedResult => r.status === "rejected");
-      return { total: stages.length, failed: failed.length, firstError: failed[0] };
-    },
-    onSuccess: ({ total, failed, firstError }) => {
+    // One atomic request, not one DELETE per stage: the backend removes every stage in a
+    // single transaction, so it can't race the empty-plate cleanup and leave an orphaned
+    // cycle behind (a stale instrument lock - see cellUsesApi.bulkRemove).
+    mutationFn: () => cellUsesApi.bulkRemove(slotSelection.selectedStages.map((s) => s.cell_use_id)),
+    onSuccess: (res) => {
       invalidateScheduleRelated(queryClient);
       slotSelection.clear();
-      if (failed === 0) {
+      if (res.failed.length === 0) {
         setRemoveSlotsError(null);
       } else {
-        const detail = firstError?.reason instanceof ApiError ? firstError.reason.message : undefined;
+        const total = res.removed_count + res.failed.length;
         setRemoveSlotsError(
-          `${total - failed} of ${total} sample(s) removed; ${failed} could not be removed${detail ? ` (${detail})` : ""}.`,
+          `${res.removed_count} of ${total} sample(s) removed; ${res.failed.length} could not be removed (${res.failed[0].reason}).`,
         );
       }
     },
     onError: (err) => {
-      // Defensive only - mutationFn resolves via Promise.allSettled and shouldn't reject.
       setRemoveSlotsError(err instanceof ApiError ? err.message : "Failed to remove selected samples.");
     },
   });
@@ -106,28 +103,25 @@ export function useScheduleActions({
   // Bulk-remove every planned (unlocked) sample in the currently-viewed week - gated
   // behind the confirm modal since it's destructive and can span every instrument.
   const clearSchedule = useMutation({
-    mutationFn: async () => {
-      const stages = weekPlannedStages;
-      const results = await Promise.allSettled(stages.map((stage) => cellUsesApi.remove(stage.cell_use_id)));
-      const failed = results.filter((r): r is PromiseRejectedResult => r.status === "rejected");
-      return { total: stages.length, succeeded: stages.length - failed.length, failed: failed.length, firstError: failed[0] };
-    },
-    onSuccess: ({ total, succeeded, failed, firstError }) => {
+    // One atomic request (see removeSlots): clearing a whole week in a single transaction is
+    // what stops a half-emptied run - the exact orphaned-cycle-projects-a-stale-lock bug the
+    // lab owner hit after a Clear left "locks" on days with nothing scheduled.
+    mutationFn: () => cellUsesApi.bulkRemove(weekPlannedStages.map((s) => s.cell_use_id)),
+    onSuccess: (res) => {
       invalidateScheduleRelated(queryClient);
       setClearConfirmOpen(false);
-      if (failed === 0) {
-        setRunDesignNote({ tone: "good", icon: "✓", text: `${succeeded} sample(s) cleared from the schedule.` });
+      if (res.failed.length === 0) {
+        setRunDesignNote({ tone: "good", icon: "✓", text: `${res.removed_count} sample(s) cleared from the schedule.` });
       } else {
-        const detail = firstError?.reason instanceof ApiError ? firstError.reason.message : undefined;
+        const total = res.removed_count + res.failed.length;
         setRunDesignNote({
           tone: "warn",
           icon: "!",
-          text: `${succeeded} of ${total} sample(s) cleared; ${failed} could not be removed${detail ? ` (${detail})` : ""}.`,
+          text: `${res.removed_count} of ${total} sample(s) cleared; ${res.failed.length} could not be removed (${res.failed[0].reason}).`,
         });
       }
     },
     onError: (err) => {
-      // Defensive only - mutationFn resolves via Promise.allSettled and shouldn't reject.
       setRunDesignNote({
         tone: "bad",
         icon: "!",

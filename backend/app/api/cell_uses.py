@@ -15,6 +15,7 @@ from app.services.placement_service import (
     move_sample,
     place_sample,
     remove_sample,
+    remove_samples,
     return_cancelled_use_to_backlog,
     swap_samples,
     update_cell_use_run_time,
@@ -36,6 +37,10 @@ class CellUseStatusUpdate(BaseModel):
 
 class SwapCellUsesRequest(BaseModel):
     other_cell_use_id: int
+
+
+class BulkRemoveRequest(BaseModel):
+    cell_use_ids: list[int]
 
 
 class CellUseNotesUpdate(BaseModel):
@@ -188,6 +193,21 @@ def delete_cell_use(cell_use_id: int, db: SessionDep, actor: ActorDep) -> Respon
     except PlacementError as exc:
         raise HTTPException(exc.status_code, exc.detail) from exc
     return Response(status_code=204)
+
+
+@router.post("/bulk-remove")
+def bulk_remove_cell_uses(req: BulkRemoveRequest, db: SessionDep, actor: ActorDep) -> dict:
+    """Atomically remove many placements in one transaction - the "Clear schedule" and
+    multi-select "Remove from schedule" actions. Unlike firing one DELETE per stage
+    concurrently, this can't race the empty-plate cleanup and strand an orphaned cycle (a
+    stale instrument lock). Skips any id that can't be removed rather than failing the batch;
+    the response lists what was removed and why anything was skipped."""
+    removed, failures = remove_samples(db, req.cell_use_ids, actor)
+    return {
+        "removed_count": len(removed),
+        "removed_ids": removed,
+        "failed": [{"cell_use_id": cid, "reason": reason} for cid, reason in failures],
+    }
 
 
 @router.post("/{cell_use_id}/return-to-backlog")

@@ -10,6 +10,7 @@ import { CellsSection } from "./sections/CellsSection";
 import { GettingStartedSection } from "./sections/GettingStartedSection";
 import { HistorySection } from "./sections/HistorySection";
 import { ImportSection } from "./sections/ImportSection";
+import { InstrumentsSection } from "./sections/InstrumentsSection";
 import { LegendSection } from "./sections/LegendSection";
 import { ScheduleSection } from "./sections/ScheduleSection";
 import { StatsSection } from "./sections/StatsSection";
@@ -19,7 +20,8 @@ const SECTIONS = [
   { key: "import", title: "Import", Component: ImportSection },
   { key: "backlog", title: "Backlog", Component: BacklogSection },
   { key: "schedule", title: "Schedule", Component: ScheduleSection },
-  { key: "cells", title: "Cells & Instruments", Component: CellsSection },
+  { key: "cells", title: "Cells", Component: CellsSection },
+  { key: "instruments", title: "Instruments", Component: InstrumentsSection },
   { key: "history", title: "History", Component: HistorySection },
   { key: "stats", title: "Stats", Component: StatsSection },
   { key: "admin", title: "Admin", Component: AdminSection },

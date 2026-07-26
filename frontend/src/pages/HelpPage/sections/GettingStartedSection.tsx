@@ -21,8 +21,12 @@ export function GettingStartedSection() {
           the planner auto-fill them.
         </li>
         <li>
-          <b>Cells &amp; Instruments</b> shows every physical SMRT cell, how many of its uses are spent, and how
-          much of its 108-hour lifetime window is left.
+          <b>Cells</b> shows every physical SMRT cell, how many of its uses are spent, and how much of its 108-hour
+          lifetime window is left.
+        </li>
+        <li>
+          <b>Instruments</b> is where you add, rename or remove your Revios and mark one down for maintenance (which
+          greys it out in the Schedule) — plus at-a-glance status for each.
         </li>
         <li>
           <b>History</b> is the record of past and planned runs and of completed/failed samples.

@@ -117,15 +117,27 @@ def _run_status(cycles: list[Cycle]) -> str:
 def run_out(db: Session, run_batch: RunBatch) -> RunOut:
     instrument = run_batch.instrument
     serial = instrument.serial_number if instrument else "?"
-    cycles = sorted(run_batch.cycles, key=lambda c: c.plate_index)
+    # Drop any orphaned EMPTY cycle (no cell_uses at all): nothing is loaded, so it must not
+    # render as a plate or project an instrument lock/continuation. Such a cycle should never
+    # exist (get_or_create_run always adds a use immediately), but a partial or racy bulk
+    # removal could historically leave one behind - and it would then keep marking neighbouring
+    # days "locked" long after a Clear wiped every sample (reported by the lab owner: a lock
+    # left on Tue+Wed with nothing on Mon). A cancelled-only cycle keeps its cell_uses and is
+    # unaffected. The atomic bulk-remove path (placement_service.remove_samples) now prevents
+    # new orphans; this guard also neutralises any already in the DB.
+    cycles = sorted((c for c in run_batch.cycles if c.cell_uses), key=lambda c: c.plate_index)
 
     plates = [_plate_out(run_batch, c) for c in cycles]
     status = _run_status(cycles)
 
-    lock_until = run_lock_until(db, run_batch, cycles=cycles)
     now = utcnow()
-    earliest_start = min((ensure_aware(c.planned_start_at) for c in cycles), default=now)
-    is_locked = status not in ("aborted", "completed") and earliest_start <= now < lock_until
+    if cycles:
+        lock_until = run_lock_until(db, run_batch, cycles=cycles)
+        earliest_start = min(ensure_aware(c.planned_start_at) for c in cycles)
+        is_locked = status not in ("aborted", "completed") and earliest_start <= now < lock_until
+    else:
+        lock_until = now  # empty run: nothing loaded -> no lock, never a continuation
+        is_locked = False
 
     return RunOut(
         run_id=run_batch.id,

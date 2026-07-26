@@ -1,6 +1,6 @@
 import { DndContext, DragOverlay } from "@dnd-kit/core";
 import { useQuery } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { ApiError } from "@/api/client";
 import { cellsApi } from "@/api/cells";
@@ -80,6 +80,20 @@ export function SchedulePage() {
   const gridAreaRef = useRef<HTMLDivElement>(null);
   const stickyHeadRef = useRef<HTMLDivElement>(null);
 
+  // Expose the pinned head's live height as a CSS var so the grid's day-header row can pin
+  // itself directly beneath it (see SchedulerGrid.module.css .dayTh/.corner). Mirrors how
+  // AppShell publishes --topbar-h; the head grows/shrinks as the Backlog tray expands or
+  // wraps, so it's measured rather than hard-coded.
+  useLayoutEffect(() => {
+    const el = stickyHeadRef.current;
+    if (!el) return;
+    const setHeight = () => document.documentElement.style.setProperty("--sched-head-h", `${el.offsetHeight}px`);
+    setHeight();
+    const observer = new ResizeObserver(setHeight);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
   const instrumentsQuery = useQuery({
     queryKey: ["instruments", true],
     queryFn: () => instrumentsApi.list(true),
@@ -129,6 +143,15 @@ export function SchedulePage() {
 
   const instrumentSerials = useMemo(
     () => (instrumentsQuery.data ?? []).map((i) => i.serial_number),
+    [instrumentsQuery.data],
+  );
+  // Per-instrument display name + maintenance-down date for the grid (label + greyed down
+  // days), keyed by serial so the grid keeps using the serial as its row identity.
+  const instrumentMeta = useMemo(
+    () =>
+      new Map(
+        (instrumentsQuery.data ?? []).map((i) => [i.serial_number, { name: i.name, downFrom: i.down_from }]),
+      ),
     [instrumentsQuery.data],
   );
   const runs = useMemo(() => cyclesQuery.data ?? [], [cyclesQuery.data]);
@@ -530,6 +553,7 @@ export function SchedulePage() {
             {instrumentSerials.length > 0 && (
               <SchedulerGrid
                 instrumentSerials={instrumentSerials}
+                instrumentMeta={instrumentMeta}
                 days={win.days}
                 grouped={grouped}
                 selection={selection}

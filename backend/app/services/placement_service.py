@@ -198,6 +198,16 @@ def get_or_create_run(
     run_batch = _load_run_batch()
 
     if run_batch is None:
+        # Gate new-run creation against a maintenance-down window: an instrument marked down
+        # from a date refuses any brand-new run on/after that date (it stays greyed in the grid
+        # too - see the frontend). Like the lock gate below, this only blocks *creating* a run;
+        # adding a plate/sample to an already-existing run is never affected.
+        if instrument.down_from is not None and load_date >= instrument.down_from:
+            raise PlacementError(
+                409,
+                f"Instrument {instrument.serial_number} is down for maintenance from "
+                f"{instrument.down_from.isoformat()}.",
+            )
         # Gate new-run creation against a prior run's lock. The new run's earliest start is
         # Plate 1 on the load day (start hour), regardless of which plate is being created now.
         # A lock that clears *on* the load day doesn't block it - the instrument frees up that
@@ -737,7 +747,12 @@ def place_sample(
     return db.get(RunBatch, run_batch_id)
 
 
-def remove_sample(db: Session, cell_use_id: int, actor: str | None = None) -> None:
+def _remove_one(db: Session, cell_use_id: int, actor: str | None = None) -> None:
+    """Delete one planned placement, return its sample to the backlog, and clean up any
+    now-empty plate/run and released cell - WITHOUT committing. Shared by the single-item
+    `remove_sample` and the atomic bulk `remove_samples`. Every failure path (missing,
+    not-planned, cancelled marker) raises before any write, so a bulk caller can skip a bad
+    id and keep the rest of its one transaction intact."""
     cell_use = db.get(
         CellUse,
         cell_use_id,
@@ -759,10 +774,12 @@ def remove_sample(db: Session, cell_use_id: int, actor: str | None = None) -> No
     cell = cell_use.cell
     cycle_id = cycle.id
 
-    # Lock the cycle row so concurrent removals of sibling stages on the same plate (e.g.
-    # the "Remove from schedule" multi-select and "Clear schedule" bulk actions, which fire
-    # one DELETE per stage concurrently via Promise.all) serialize here instead of racing on
-    # the "any stages left?" count. No-op on SQLite (dev), which doesn't support FOR UPDATE.
+    # Lock the cycle row so concurrent removals of sibling stages on the same plate serialize
+    # here instead of racing on the "any stages left?" count. No-op on SQLite (dev), which
+    # doesn't support FOR UPDATE - which is exactly why the bulk clear now runs every removal
+    # in ONE transaction (remove_samples) rather than one concurrent DELETE per stage: a race
+    # here used to leave an orphaned empty cycle behind that then projected a stale instrument
+    # lock (see remove_samples and run_serializer.run_out).
     db.execute(select(Cycle.id).where(Cycle.id == cycle_id).with_for_update())
 
     if cell_use.sample is not None:
@@ -785,7 +802,34 @@ def remove_sample(db: Session, cell_use_id: int, actor: str | None = None) -> No
             details_json={"cycle_id": cycle_id, "plate_deleted": plate_deleted},
         )
     )
+
+
+def remove_sample(db: Session, cell_use_id: int, actor: str | None = None) -> None:
+    _remove_one(db, cell_use_id, actor)
     db.commit()
+
+
+def remove_samples(
+    db: Session, cell_use_ids: list[int], actor: str | None = None
+) -> tuple[list[int], list[tuple[int, str]]]:
+    """Atomically remove many planned placements in ONE transaction - the bulk "Clear
+    schedule" and multi-select "Remove from schedule" actions. Because every delete + cleanup
+    runs sequentially in a single transaction, _cleanup_emptied_plate always sees a consistent
+    stage count, so an emptied plate/run is always fully deleted - unlike the previous
+    one-concurrent-DELETE-per-stage path, which could race that count check and strand an
+    orphaned empty cycle (a stale instrument lock, reported by the lab owner). A use that
+    can't be removed (missing / not planned / a cancelled Stop marker) is skipped with its
+    reason instead of aborting the batch. Returns (removed_ids, [(id, reason), ...])."""
+    removed: list[int] = []
+    failures: list[tuple[int, str]] = []
+    for cid in cell_use_ids:
+        try:
+            _remove_one(db, cid, actor)
+            removed.append(cid)
+        except PlacementError as exc:
+            failures.append((cid, exc.detail))
+    db.commit()
+    return removed, failures
 
 
 def return_cancelled_use_to_backlog(db: Session, cell_use_id: int, actor: str | None = None) -> int | None:

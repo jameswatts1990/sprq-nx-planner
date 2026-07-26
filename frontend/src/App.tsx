@@ -10,6 +10,7 @@ import { HelpPage } from "@/pages/HelpPage/HelpPage";
 import { HistoryRunsPage } from "@/pages/HistoryRunsPage";
 import { HistorySamplesPage } from "@/pages/HistorySamplesPage";
 import { ImportPage } from "@/pages/ImportPage";
+import { InstrumentsPage } from "@/pages/InstrumentsPage";
 import { RunDetailPage } from "@/pages/RunDetailPage";
 import { SchedulePage } from "@/pages/SchedulePage/SchedulePage";
 import { StatsPage } from "@/pages/StatsPage/StatsPage";
@@ -26,6 +27,7 @@ export default function App() {
         <Route path="/print/batch-sheet" element={<BatchSheetPage />} />
         <Route path="/cells" element={<CellsPage />} />
         <Route path="/cells/:cellId" element={<CellDetailPage />} />
+        <Route path="/instruments" element={<InstrumentsPage />} />
         <Route path="/trays/:trayId" element={<TrayDetailPage />} />
         <Route path="/history/runs" element={<HistoryRunsPage />} />
         <Route path="/history/runs/:runId" element={<RunDetailPage />} />

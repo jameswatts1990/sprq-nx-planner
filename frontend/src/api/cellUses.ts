@@ -43,6 +43,16 @@ export const cellUsesApi = {
   place: (req: PlaceSampleRequest) => api.post<RunOut>("/api/cell-uses", req),
   /** Remove a placement. 204 no body; 409 if the owning run isn't "planned". */
   remove: (id: number) => api.del<void>(`/api/cell-uses/${id}`),
+  /** Atomically remove many placements in one request/transaction - the "Clear schedule"
+   * and multi-select "Remove from schedule" actions. Doing it server-side in one transaction
+   * (rather than one concurrent DELETE per stage) can't race the empty-plate cleanup and
+   * leave an orphaned cycle behind (a stale instrument lock). Ids that can't be removed are
+   * skipped and reported in `failed` rather than failing the whole batch. */
+  bulkRemove: (cellUseIds: number[]) =>
+    api.post<{ removed_count: number; removed_ids: number[]; failed: { cell_use_id: number; reason: string }[] }>(
+      "/api/cell-uses/bulk-remove",
+      { cell_use_ids: cellUseIds },
+    ),
   /** Atomically move an existing placement to a different (instrument, day, slot). 200 ->
    * the destination RunOut. 409 on a cross-instrument move, lock, or slot clash. */
   move: (id: number, req: MoveSampleRequest) => api.post<RunOut>(`/api/cell-uses/${id}/move`, req),

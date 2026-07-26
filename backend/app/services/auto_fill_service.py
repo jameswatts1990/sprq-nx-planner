@@ -6,12 +6,12 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, datetime, timedelta
 
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
-from app.engine.constants import CELL_LIFETIME_H, CELLS_PER_TRAY, DAY_START_HOUR, WELLS
+from app.engine.constants import CELL_LIFETIME_H, CELLS_PER_TRAY, DAY_START_HOUR, REUSE_PREP_H, WELLS
 from app.engine.packing import pack_cells
 from app.engine.slot_scheduling import fill_slots
 from app.engine.types import ConflictPair, SlotInput
@@ -77,6 +77,14 @@ def auto_fill(
     skipped: list[tuple[str, date]] = []
     for serial, run_date in requested:
         inst = instruments[serial]
+        # A maintenance-down instrument refuses new runs on/after its down date - skip the
+        # slot (same "skip, don't hard-fail the batch" UX as an already-locked day below)
+        # rather than letting get_or_create_run raise mid-loop. The grid already greys these
+        # days so the user shouldn't be able to select them, but auto-fill re-validates
+        # server-side rather than trusting the client selection.
+        if inst.down_from is not None and run_date >= inst.down_from:
+            skipped.append((serial, run_date))
+            continue
         # Checked via CellUse, not just RunBatch's existence: a RunBatch/Cycle can survive
         # with zero stages (remove_sample's concurrent bulk-delete race, or the admin
         # table-clear tool - see get_or_create_run's docstring), and the grid already
@@ -142,35 +150,58 @@ def auto_fill(
     ref_to_cell: dict[str, Cell] = {pc.id: cells_by_id[pc.cell_id] for pc in pack.cells if pc.prior}
 
     # --- persist ---
-    # Each PackedCell's earliest acquisition day is the load day of the run it belongs to: a
-    # fresh cell used on day D loads on D; that same cell's later reuse (D+1) still belongs to
-    # the run loaded on D, as its Plate 2. So group assignments by (instrument, load_date)
-    # into runs, and by plate within each run: acquire > load_date -> reuse Plate 2; a tray-2
-    # well on the load day -> a fresh parallel Plate 2; otherwise Plate 1.
-    # Group each assignment into a run (instrument, load_date) + a plate (1|2). How a cell's
-    # uses map to runs depends on the tray shape:
-    #
-    # - One tray (cells_per_day <= 4, only tray-1 wells offered): a cell's uses pair up -
-    #   use 1 + use 2 are loaded in ONE session (Plate 1, then the sequential reuse Plate 2,
-    #   acquiring the next weekday). A 3rd use starts a NEW run (a third load session; the
-    #   confirmed 2-plate cap), so uses chunk 2-at-a-time and the load day is each pair's
-    #   first use day. This is the headline reuse-run shape.
-    # - Two trays (cells_per_day == 8): each acquisition DAY is its own run/load session -
-    #   reloading the deck the next day is a fresh session, not a plate of the prior run.
-    #   Plate 1 = tray-1 wells, Plate 2 = tray-2 wells; a cell reused on a later day forms a
-    #   separate same-shaped run that day (its Use N shows via the grid colour).
-    cell_uses_by_id: dict[str, list] = defaultdict(list)
-    for a in sorted(fill.assignments, key=lambda x: (x.run_date, x.well)):
-        cell_uses_by_id[a.cell.id].append(a)
-    plan: dict[int, tuple[date, int]] = {}  # id(assignment) -> (run load_date, plate_index)
-    one_tray = cells_per_day <= CELLS_PER_TRAY
-    for uses in cell_uses_by_id.values():
-        for i, a in enumerate(uses):
-            if one_tray:
-                load_date = uses[i - (i % 2)].run_date  # the first use of a's pair
-                plan[id(a)] = (load_date, 2 if i % 2 == 1 else 1)
-            else:
-                plan[id(a)] = (a.run_date, 2 if a.well in WELLS[CELLS_PER_TRAY:] else 1)
+    # Each acquisition DAY is its own load session -> its own run (RunBatch keyed
+    # (instrument, load_date)), in BOTH plate modes. Plate 1 = tray-1 wells (A01-D01),
+    # Plate 2 = tray-2 wells (A02-D02); a cell reused a LATER day forms a SEPARATE run that
+    # day, carrying that cell on its next use (the Use 1/2/3 grid colour shows the reuse) -
+    # never a second plate stacked onto the load day's run. This replaced an earlier
+    # one-tray-only shape that paired a cell's use 1 + use 2 into a single TWO-plate run on
+    # the load day: it rendered as "2 plates on Monday" even though only one physical tray is
+    # ever loaded per day, contradicting a "1 plate per run" choice (reported by the lab
+    # owner). Two-plate mode already worked this way; one-plate mode now matches it. See
+    # docs/pacbio-sprq-nx-scheduling-reference.md's "Plate vs cell" / load-lock sections.
+    plate_index_of: dict[int, int] = {
+        id(a): (2 if a.well in WELLS[CELLS_PER_TRAY:] else 1) for a in fill.assignments
+    }
+
+    # Per-well planned start. A cell's first use in this batch starts at the run's load hour
+    # (a fresh cell, or a prior cell whose earlier use already finished - the instrument is
+    # free). A later reuse of the same cell chains off that use's real end + the on-board wash
+    # (REUSE_PREP_H), so a long (24-30h) movie starts its next-day reuse in the afternoon/
+    # evening rather than the flat load hour - never before the cells have physically finished
+    # their previous acquisition. The chained start is used only while it still lands on the
+    # very day the packer reserved for the reuse (which is weekday- and lock-aware); a chain
+    # long enough to spill past that day (e.g. a 30h x 3-use cell) falls back to the load hour,
+    # matching the packer's own day rather than silently floating the run to a later column.
+    # (Previously this chaining lived in get_or_create_run's intra-run Plate 2 branch, which
+    # only ran for the paired one-tray shape and never chained a 3rd use - see above.)
+    assign_start: dict[int, datetime] = {}
+    uses_by_cell_ref: dict[str, list] = defaultdict(list)
+    for a in fill.assignments:
+        uses_by_cell_ref[a.cell.id].append(a)
+    for uses in uses_by_cell_ref.values():
+        uses.sort(key=lambda x: x.run_date)
+        prev_end: datetime | None = None
+        for a in uses:
+            base_start, _ = planned_window(a.run_date, run_time_hours, start_hour, start_minute)
+            start = base_start
+            if prev_end is not None:
+                chained = prev_end + timedelta(hours=REUSE_PREP_H)
+                if base_start <= chained and chained.date() == a.run_date:
+                    start = chained
+            assign_start[id(a)] = start
+            prev_end = start + timedelta(hours=run_time_hours)
+
+    # A cycle (one plate of one day's run) starts at the latest start among its wells - all
+    # equal in practice (a day's wells are one reuse-generation), but the max keeps a mixed
+    # fresh+reuse day (not produced by the current packer, but cheap to guard) from ever
+    # starting a reused well before its cells are physically free.
+    cycle_start: dict[tuple[str, date, int], datetime] = {}
+    for a in fill.assignments:
+        key = (a.instrument_serial, a.run_date, plate_index_of[id(a)])
+        s = assign_start[id(a)]
+        if key not in cycle_start or s > cycle_start[key]:
+            cycle_start[key] = s
 
     run_plate_cycles: dict[tuple[str, date, int], int] = {}  # (instrument, load_date, plate) -> cycle id
     run_ids: set[int] = set()
@@ -228,23 +259,28 @@ def auto_fill(
     # (same as an already-locked day is skipped above) instead of letting it raise mid-loop
     # and roll back every other day already placed.
     for a in sorted(fill.assignments, key=lambda a: (a.instrument_serial, a.run_date)):
-        load_date, plate_index = plan[id(a)]
+        load_date = a.run_date  # each acquisition day is its own run/load session (see above)
+        plate_index = plate_index_of[id(a)]
         run_key = (a.instrument_serial, load_date)
         if run_key in skipped_keys:
             continue
         plate_key = (a.instrument_serial, load_date, plate_index)
         cycle_id = run_plate_cycles.get(plate_key)
         if cycle_id is None:
+            cyc_start = cycle_start[plate_key]
             try:
                 cyc = get_or_create_run(
                     db,
                     instrument=instruments[a.instrument_serial],
                     load_date=load_date,
                     plate_index=plate_index,
-                    acquire_date=a.run_date,
+                    # Reuse is now a separate later-day run (load_date == acquire_date), so the
+                    # intra-run reuse_plate_window branch never fires here; the reuse's chained
+                    # start is carried explicitly via cyc_start (computed above).
+                    acquire_date=load_date,
                     run_time_hours=run_time_hours,
-                    start_hour=start_hour,
-                    start_minute=start_minute,
+                    start_hour=cyc_start.hour,
+                    start_minute=cyc_start.minute,
                 )
             except PlacementError:
                 skipped_keys.add(run_key)
@@ -407,7 +443,7 @@ def auto_fill(
 
     last_date_by_ref: dict[str, date] = {}
     for a in fill.assignments:
-        if (a.instrument_serial, plan[id(a)][0]) in skipped_keys:
+        if (a.instrument_serial, a.run_date) in skipped_keys:  # each run's load day is its acquire day now
             continue
         cur = last_date_by_ref.get(a.cell.id)
         if cur is None or a.run_date > cur:

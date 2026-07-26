@@ -1,7 +1,12 @@
 /* Ported from CalendarGrid / InstrumentRow / CalendarDayHeader / ScheduleCalendar
    modules (CSS Modules can't be cross-imported). */
+/* overflow is deliberately visible (not auto): an overflow scroll container becomes a
+   scrollport in BOTH axes, which would trap the day-header row's vertical stickiness
+   inside this box instead of letting it pin to the window beneath the sticky Backlog head
+   (see .dayTh/.corner top). The table carries its own min-width, so a viewport too narrow
+   for the week scrolls the page horizontally rather than this box. */
 .gridScroll {
-  overflow-x: auto;
+  overflow: visible;
   border: 1px solid var(--line);
   border-radius: var(--r);
   background: var(--card);
@@ -35,12 +40,18 @@
   border-right: 1px solid var(--line);
   border-bottom: 1px solid var(--line-soft);
   position: sticky;
-  top: 0;
+  top: calc(var(--topbar-h, 69px) + var(--sched-head-h, 0px) + 8px);
   left: 0;
   z-index: 5;
   padding: 12px;
   text-align: left;
   vertical-align: top;
+  /* Two shadows (see .dayTh): a solid page-bg strip painted just ABOVE the row fills the
+     gap up to the sticky Backlog head opaquely so rows can't bleed through it above the
+     header, and a soft downward shadow below sells them sliding under and vanishing. */
+  box-shadow:
+    0 -22px 0 0 var(--bg),
+    0 6px 7px -5px rgba(18, 20, 33, 0.22);
 }
 .ml {
   font-size: 11px;
@@ -55,9 +66,11 @@
   padding: 12px;
   text-align: left;
   vertical-align: top;
+  /* Sticky-left only (no top): the instrument column pins horizontally, but must scroll
+     up with its row and vanish beneath the pinned day-header row - not also pin to the
+     window top under the nav (the grid now pins against the window, not an inner box). */
   position: sticky;
   left: 0;
-  top: 0;
   background: var(--card);
   z-index: 4;
   border-right: 1px solid var(--line);
@@ -71,6 +84,14 @@
   font-family: var(--mono);
   letter-spacing: -0.01em;
 }
+/* Serial microprint under a friendly instrument name (only shown when a name is set). */
+.serialSub {
+  font-size: 10px;
+  font-family: var(--mono);
+  letter-spacing: 0.04em;
+  color: var(--grey);
+  margin-top: 1px;
+}
 
 /* Day header (was CalendarDayHeader.module.css). */
 .dayTh {
@@ -80,9 +101,16 @@
   border-bottom: 1px solid var(--line-soft);
   border-right: 1px solid var(--line-soft);
   position: sticky;
-  top: 0;
+  top: calc(var(--topbar-h, 69px) + var(--sched-head-h, 0px) + 8px);
   background: var(--card);
   z-index: 2;
+  /* A solid page-bg strip painted just above the row (offset up, no blur/spread) fills the
+     gap between the sticky Backlog head and this pinned row so scrolling cells can't show
+     through above it; the soft downward shadow below makes those cells read as sliding
+     under the header and disappearing. Both cast only over lower-z rows, never upward. */
+  box-shadow:
+    0 -22px 0 0 var(--bg),
+    0 6px 7px -5px rgba(18, 20, 33, 0.22);
 }
 .weekendTh {
   background: #fafafb;
@@ -110,16 +138,19 @@
 .dn {
   font-size: 14px;
   font-weight: 800;
+  white-space: nowrap;
 }
 .weekendTh .dn {
   color: var(--faint);
   font-size: 11px;
 }
+/* The date, inlined after the weekday name on a single line (e.g. "Mon 20 Jul") so the
+   header row stays one line tall. */
 .dd {
   font-size: 11px;
   color: var(--faint);
   font-weight: 600;
-  margin-top: 1px;
+  margin-left: 4px;
 }
 
 /* Row/column headers that can select their whole row/column (see SchedulerGridRow /

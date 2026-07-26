@@ -205,8 +205,9 @@ export function ScheduleSection() {
           When a newly-created run loads and starts sequencing (there are no pre-loaded runs, so loading and
           sequencing begin together). Click <b>Loads HH:00</b> to open a quick radial dial and pick any hour from{" "}
           <b>08:00 to 20:00</b>. Auto Schedule gives every run it creates this time, and it&apos;s the starting point
-          the dial shows when you drag a sample by hand (see below). A reuse Plate 2 follows automatically — it runs
-          once Plate 1&apos;s movie finishes and the cells are washed — so a later load time pushes the reuse out too.
+          the dial shows when you drag a sample by hand (see below). A cell&apos;s reuse follows automatically — it
+          starts once the previous movie finishes and the cells are washed — so a later load time, or a longer movie,
+          pushes the reuse&apos;s start later too.
         </dd>
         <dt>Optimise for</dt>
         <dd>
@@ -219,13 +220,14 @@ export function ScheduleSection() {
         </dd>
         <dt>Plates per run (1 plate / 2 plates)</dt>
         <dd>
-          How many plates auto-fill loads into each run. <b>2 plates</b> (default, 8 wells) can fill both trays;{" "}
-          <b>1 plate</b> (4 wells) restricts auto-fill to Plate 1 only, so it never proposes a second plate that day
-          — useful if only one tray&apos;s worth of loading capacity is available. Note this is about a run&apos;s
-          loading positions, not a physical SMRT-cell tray. This only limits what auto-fill proposes; dragging a
-          sample onto Plate 2 by hand is unaffected. A <b>reuse run</b> (Plate 1 today, Plate 2 rerunning the same
-          cells the next weekday) comes from choosing 1 plate per run with Max uses ≥ 2 across consecutive days; a
-          <b> parallel 2-plate run</b> (two trays, both Use 1, acquiring the same day) comes from 2 plates per run.
+          How many trays auto-fill loads per day. <b>1 plate</b> (4 wells) loads one tray per day (Plate 1 only);{" "}
+          <b>2 plates</b> (default, 8 wells) can load both tray positions in a day. Note this is about a run&apos;s
+          loading positions, not a physical SMRT-cell shipping tray. Either way <b>each day is its own run</b>: a
+          cell reused a later day shows up as a <b>separate run that day</b>, reading its next use number — e.g. cell
+          1 loads Monday as Use 1, then reruns Tuesday as Use 2 — never a second plate stacked onto the load day. On
+          top of that, <b>2 plates</b> lets a single day&apos;s run load a second, different tray in parallel (both
+          Use 1, acquiring the same day). This only limits what auto-fill proposes; dragging a sample onto Plate 2 by
+          hand is unaffected.
         </dd>
       </dl>
       <RunDesignExample />
@@ -234,7 +236,9 @@ export function ScheduleSection() {
         in view as you scroll down the instrument rows — drag a card straight onto any slot and the grid scrolls to
         meet you, no scrolling back up to fetch the next sample. Click the <b>Backlog</b> header to open or collapse
         the tray (your choice is remembered next time); when open, its card list scrolls on its own so it never hides
-        the grid beneath it. To keep the tray as short as possible over the grid, its <b>search box, priority filter,
+        the grid beneath it. As you keep scrolling, the grid&apos;s <b>day-header row</b> (the weekday and date for each
+        column) catches just under the Backlog and stays pinned there, so you can always tell which day a slot is in;
+        the rows slide up and disappear beneath it. To keep the tray as short as possible over the grid, its <b>search box, priority filter,
         sort control, and page controls sit in the Backlog header bar</b> (to the right of <b>✦ Autoschedule</b>) rather
         than above the cards, leaving the body as just the sample list. They work exactly like the same controls on the
         Backlog tab, so you can narrow down to the sample you want before dragging it — see the Backlog tab&apos;s help
@@ -303,8 +307,9 @@ export function ScheduleSection() {
         cell</b> — so if you see the <i>same</i> foil on two different days, it&apos;s literally
         the same cell being reused; a <i>different</i> foil means a different cell, even when two seals share a label
         like <i>▣2</i>. That&apos;s the quickest read of whether Monday&apos;s <i>▣2</i> and Tuesday&apos;s{" "}
-        <i>▣2</i> are the same physical cell. A reused cell keeps one identity across all its uses: a one-tray reuse run
-        shows the same cell — <i>▣2</i> — reading <i>Use 1</i> on Plate 1 and <i>Use 2</i> on Plate 2. <b>Click the
+        <i>▣2</i> are the same physical cell. A reused cell keeps one identity across all its uses: the same cell —{" "}
+        <i>▣2</i> — reads <i>Use 1</i> on its load day and <i>Use 2</i> on its (separate) reuse day, with the same foil
+        both times. <b>Click the
         seal</b> to open that cell&apos;s details — uses so far, 108-hour window, tray position and burned barcodes, with
         links through to its full cell page and to its <b>tray</b> (all four cells of the physical tray, each linking
         back). (Clicking the card&apos;s <i>body</i> still opens the sample/slot detail —
@@ -316,9 +321,9 @@ export function ScheduleSection() {
             <SchedulerSlotView stage={STAGE_EXAMPLE_SOURCE} slotIndex={0} onOpenCell={() => {}} />
           </div>
           <span>
-            <b>Same physical cell, two uses.</b> Plate 1&apos;s <i>▣2</i> (Use 1) and Plate 2&apos;s <i>▣2</i> (Use 2)
-            below carry the <i>same</i> foil hue and tray id — one cell, reused. Click either seal for its cell
-            details.
+            <b>Same physical cell, two uses.</b> The two <i>▣2</i> seals below — <i>Use 1</i> and <i>Use 2</i> of one
+            cell, on its load day and its reuse day — carry the <i>same</i> foil hue and tray id: one physical cell,
+            reused. Click either seal for its cell details.
           </span>
         </div>
         <div className={styles.legendRow}>
@@ -558,7 +563,10 @@ export function ScheduleSection() {
           A <b>reuse run</b> reruns Plate 1&apos;s cells as Plate 2 on a <i>later</i> weekday (Use 2, after the
           instrument&apos;s on-board wash). Plate 2&apos;s header shows the day it acquires and a small{" "}
           <b>reuse</b> tag, and the whole thing is still one run you loaded once — you don&apos;t reload anything for
-          Plate 2.
+          Plate 2. <b>Auto Schedule no longer produces this shape</b>: it schedules each day as its own run, so a
+          cell it reuses appears as a <i>separate</i> run on the reuse day (reading Use 2) rather than a second plate
+          stacked on the load day. You&apos;ll see the Plate 2 reuse form only from a hand drop that reuses a cell
+          already loaded in that day&apos;s run.
         </li>
       </ul>
       <p>

@@ -25,6 +25,9 @@ const EMPTY_BLOCKED_BY_DATE: Map<string, Set<string>> = new Map();
 
 export interface SchedulerGridProps {
   instrumentSerials: string[];
+  /** Per-instrument display name + maintenance-down date, keyed by serial. Drives the row's
+   * name/serial label and the greyed, non-selectable down day-columns. */
+  instrumentMeta: Map<string, { name: string | null; downFrom: string | null }>;
   /** The 5 weekday (Mon-Fri) YYYY-MM-DD strings for the current window. */
   days: string[];
   /** Runs pre-grouped by (instrument_serial, load_date) - computed once in SchedulePage
@@ -93,8 +96,13 @@ function SchedulerDayHeader({
       tabIndex={selectable ? 0 : undefined}
       title={selectable ? "Select all open instruments for this day (Ctrl/Cmd-click to add to the current selection)" : undefined}
     >
-      <div className={styles.dn}>{shortWeekdayUTC(d)}</div>
-      {!weekend && <div className={styles.dd}>{formatShortDateUTC(d)}</div>}
+      {weekend ? (
+        <div className={styles.dn}>{shortWeekdayUTC(d)}</div>
+      ) : (
+        <div className={styles.dn}>
+          {shortWeekdayUTC(d)} <span className={styles.dd}>{formatShortDateUTC(d)}</span>
+        </div>
+      )}
     </th>
   );
 }
@@ -103,6 +111,7 @@ function SchedulerDayHeader({
  * column, one SchedulerGridRow per instrument. Mirrors the old CalendarGrid structure. */
 export function SchedulerGrid({
   instrumentSerials,
+  instrumentMeta,
   days,
   grouped,
   selection,
@@ -116,10 +125,17 @@ export function SchedulerGrid({
   blockedGrouped,
   trayMaps,
 }: SchedulerGridProps) {
+  function isDown(serial: string, date: string): boolean {
+    const downFrom = instrumentMeta.get(serial)?.downFrom ?? null;
+    return downFrom !== null && date >= downFrom;
+  }
+
   // Same open-cell computation SchedulerGridRow uses (via the shared resolveCell) - a day
-  // with no run of its own is still closed if an earlier run's continuation still occupies it.
+  // with no run of its own is still closed if an earlier run's continuation still occupies it,
+  // or if the instrument is down for maintenance from this date (so the column selection
+  // helpers below never sweep a greyed down cell into a selection).
   function isDateOpen(serial: string, date: string): boolean {
-    return resolveCell(grouped.get(serial), date).open;
+    return !isDown(serial, date) && resolveCell(grouped.get(serial), date).open;
   }
 
   // Select every open (non-weekend, run-free) cell in a day's column, across all
@@ -196,6 +212,8 @@ export function SchedulerGrid({
             <SchedulerGridRow
               key={serial}
               serial={serial}
+              name={instrumentMeta.get(serial)?.name ?? null}
+              downFrom={instrumentMeta.get(serial)?.downFrom ?? null}
               rowIndex={rowIndex}
               days={days}
               cyclesByDate={grouped.get(serial) ?? EMPTY_CYCLES_BY_DATE}

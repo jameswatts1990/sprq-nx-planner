@@ -68,7 +68,7 @@ export function StatsPage() {
               <option value="">All instruments</option>
               {(instrumentsQuery.data ?? []).map((i) => (
                 <option key={i.id} value={i.serial_number}>
-                  {i.serial_number}
+                  {i.name ? `${i.name} (${i.serial_number})` : i.serial_number}
                 </option>
               ))}
             </select>

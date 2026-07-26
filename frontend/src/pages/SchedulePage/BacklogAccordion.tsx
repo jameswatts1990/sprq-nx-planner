@@ -121,6 +121,10 @@ export function BacklogAccordion({ onOpenAutoschedule }: BacklogAccordionProps =
   return (
     <Accordion
       title="Backlog"
+      // Collapsed, the tray is just the Backlog toggle + ✦ Autoschedule button pinned over
+      // the grid; dropping the card chrome lets those controls float on their own shadows
+      // instead of sitting on an opaque panel that reads as a grey block over the grid.
+      className={open ? undefined : styles.floatHeader}
       open={open}
       onToggle={(next) => {
         setOpen(next);

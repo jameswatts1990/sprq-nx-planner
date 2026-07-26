@@ -1,0 +1,109 @@
+.page {
+  padding-top: 22px;
+}
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+.title {
+  font-size: 18px;
+  font-weight: 800;
+  margin: 0;
+}
+.intro {
+  color: var(--grey);
+  font-size: 13px;
+  margin: 0 0 18px;
+  max-width: 760px;
+}
+.spacer {
+  margin-left: auto;
+}
+.status {
+  color: var(--grey);
+  font-size: 13.5px;
+  padding: 24px 4px;
+  text-align: center;
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 14px;
+}
+
+/* Card header: friendly name over the serial microprint (mirrors the schedule row label). */
+.nameWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.name {
+  font-size: 15px;
+  font-weight: 800;
+}
+.serial {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--grey);
+}
+.inactive .name {
+  color: var(--grey);
+}
+
+.downNote {
+  margin: 0 0 12px;
+}
+.statLink {
+  color: var(--magenta);
+  text-decoration: none;
+  font-weight: 800;
+}
+.statLink:hover {
+  text-decoration: underline;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+/* Add/edit form fields (same look as CellsPage's modal fields). */
+.field {
+  margin-bottom: 14px;
+}
+.fieldLabel {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--grey);
+  margin-bottom: 7px;
+}
+.field input[type="text"],
+.field input[type="date"],
+.field textarea {
+  width: 100%;
+  font-family: var(--sans);
+  font-size: 13.5px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 8px 10px;
+}
+.field textarea {
+  min-height: 64px;
+  resize: vertical;
+}
+.helper {
+  font-size: 12.5px;
+  color: var(--grey);
+  margin: 0 0 16px;
+}

@@ -24,6 +24,10 @@ export interface AccordionProps {
    * collapsed, instead of unmounting them - e.g. so a parent can read their rendered
    * text for search. Default false (unchanged unmount-on-collapse behavior). */
   alwaysMounted?: boolean;
+  /** Extra class merged onto the underlying Card, e.g. so a pinned tray can drop its
+   * card chrome and let its header controls float transparently over the content
+   * behind it while collapsed. */
+  className?: string;
   children: ReactNode;
 }
 
@@ -37,6 +41,7 @@ export function Accordion({
   onToggle,
   alwaysMounted = false,
   titleAfter,
+  className,
   children,
 }: AccordionProps) {
   const [internalOpen, setInternalOpen] = useState(defaultOpen);
@@ -48,7 +53,7 @@ export function Accordion({
   }
 
   return (
-    <Card>
+    <Card className={className}>
       <CardHeader badge={badge}>
         <button
           type="button"

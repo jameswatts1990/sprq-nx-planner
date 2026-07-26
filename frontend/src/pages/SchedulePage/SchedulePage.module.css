@@ -9,10 +9,12 @@
    rows you've scrolled. Only this wrapper is sticky; its children lay out normally, and
    the Backlog tray caps its own card list height (see BacklogAccordion .grid) so the
    pinned region can't grow tall enough to hide the grid. The wrapper itself paints no
-   background - the toolbar and the Backlog card each carry their own opaque background so
-   grid rows still stay covered where a control actually sits, while the empty gap below the
-   tray stays transparent (a hard grey block there read as jarring where it overlapped the
-   grid scrolling underneath). */
+   background - the toolbar carries its own opaque background so its controls stay legible
+   over grid rows scrolling beneath it. The collapsed Backlog tray deliberately does NOT: it
+   drops its card chrome (see BacklogAccordion .floatHeader) so its toggle + Autoschedule
+   button float over the grid on their own shadows; only once expanded does its list get an
+   opaque card. This keeps the empty gap and collapsed header transparent (a hard grey block
+   there read as jarring where it overlapped the grid scrolling underneath). */
 .stickyHead {
   position: sticky;
   top: var(--topbar-h, 69px);
