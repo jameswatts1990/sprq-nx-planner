@@ -8,31 +8,34 @@
    nav, so the backlog stays reachable for a drag no matter how far down the instrument
    rows you've scrolled. Only this wrapper is sticky; its children lay out normally, and
    the Backlog tray caps its own card list height (see BacklogAccordion .grid) so the
-   pinned region can't grow tall enough to hide the grid. The wrapper itself paints no
-   background - the toolbar carries its own opaque background so its controls stay legible
-   over grid rows scrolling beneath it. The collapsed Backlog tray deliberately does NOT: it
-   drops its card chrome (see BacklogAccordion .floatHeader) so its toggle + Autoschedule
-   button float over the grid on their own shadows; only once expanded does its list get an
-   opaque card. This keeps the empty gap and collapsed header transparent (a hard grey block
-   there read as jarring where it overlapped the grid scrolling underneath). */
+   pinned region can't grow tall enough to hide the grid. The collapsed Backlog tray drops
+   its card chrome (see BacklogAccordion .floatHeader) so its toggle + Autoschedule button
+   read as floating controls, not a bolted-on panel; only once expanded does its list get
+   an opaque card.
+
+   The wrapper paints the page background (var(--bg), not a card fill) across the whole
+   pinned band. This is the opaque ceiling that instrument rows disappear under as they
+   scroll up: without it, grid cells bled through the transparent collapsed-Backlog gap and
+   showed ABOVE the pinned day-header row (a 22px shadow strip on .dayTh alone couldn't
+   cover the full gap). Because it's the page colour, not card chrome, it stays seamless -
+   the grid simply vanishes off the top of the page rather than under a hard grey block. */
 .stickyHead {
   position: sticky;
   top: var(--topbar-h, 69px);
   z-index: 20;
-  background: transparent;
+  background: var(--bg);
   padding: 10px 0;
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
-/* Its own opaque background so the toolbar controls stay legible over any grid rows that
-   scroll up beneath the pinned head (the wrapper no longer paints one). */
+/* Inherits the pinned head's opaque page background (.stickyHead), so the toolbar controls
+   stay legible with no grid rows showing through beneath them. */
 .toolbar {
   display: flex;
   align-items: center;
   gap: 14px;
   flex-wrap: wrap;
-  background: var(--bg);
 }
 .pager {
   display: flex;
