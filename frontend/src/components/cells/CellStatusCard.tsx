@@ -7,6 +7,7 @@ import type { CellOut } from "@/types/cell";
 import { CELL_QC_FLAG_LABEL, CELL_QC_FLAG_TONE } from "@/utils/cellQcFlag";
 import { CELL_STATUS_LABEL, CELL_STATUS_TONE } from "@/utils/cellStatus";
 import { runLabel } from "@/utils/runLabel";
+import { useSampleBackNav } from "@/utils/sampleBackNav";
 import { USE_STATUS_TONE } from "@/utils/useStatusTone";
 
 import styles from "./CellStatusCard.module.css";
@@ -24,6 +25,7 @@ export interface CellStatusCardProps {
  * debounce fires) - each card only re-renders when its own cell object changes (stable
  * across refetches via React Query's structural sharing). */
 export const CellStatusCard = memo(function CellStatusCard({ cell }: CellStatusCardProps) {
+  const backNav = useSampleBackNav();
   const showWindowMeter =
     cell.status !== "exhausted" &&
     cell.status !== "retired" &&
@@ -79,7 +81,7 @@ export const CellStatusCard = memo(function CellStatusCard({ cell }: CellStatusC
               <div key={u.id} className={styles.useRow}>
                 <Badge tone={USE_STATUS_TONE[u.status] ?? "default"}>{u.status}</Badge>
                 {u.sample_id !== null && u.sample_external_id !== null ? (
-                  <Link to={`/samples/${u.sample_id}`} className={styles.useSample}>
+                  <Link to={`/samples/${u.sample_id}`} state={backNav} className={styles.useSample}>
                     {u.sample_external_id}
                   </Link>
                 ) : (

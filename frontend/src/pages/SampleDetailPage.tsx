@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useLocation, useParams } from "react-router-dom";
 
 import { ApiError } from "@/api/client";
 import { samplesApi } from "@/api/samples";
@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Note } from "@/components/ui/Note";
 import { plateWellFromPlate } from "@/utils/plateWell";
+import { resolveSampleBackNav } from "@/utils/sampleBackNav";
 import { runLabel } from "@/utils/runLabel";
 import { SAMPLE_STATUS_LABEL, SAMPLE_STATUS_TONE } from "@/utils/sampleStatus";
 import { USE_STATUS_TONE } from "@/utils/useStatusTone";
@@ -45,6 +46,7 @@ const LOCKED_EDIT_STATUSES = ["completed", "failed", "cancelled"];
  * just the completed/failed ones that history lists. */
 export function SampleDetailPage() {
   const { sampleId } = useParams<{ sampleId: string }>();
+  const backNav = resolveSampleBackNav(useLocation().state);
   const id = Number(sampleId);
   const idIsValid = Number.isFinite(id);
   const queryClient = useQueryClient();
@@ -92,8 +94,8 @@ export function SampleDetailPage() {
 
   return (
     <div className={styles.page}>
-      <Link to="/history/samples" className={styles.backLink}>
-        ◂ Back to Samples
+      <Link to={backNav.to} className={styles.backLink}>
+        ◂ {backNav.label}
       </Link>
 
       <Card>

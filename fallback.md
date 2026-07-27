@@ -1,0 +1,43 @@
+- generic [ref=f1e2]:
+  - banner [ref=f1e3]:
+    - generic [ref=f1e5]:
+      - link "Run Nx" [ref=f1e6] [cursor=pointer]:
+        - /url: /schedule
+        - text: Run
+        - generic [ref=f1e7]: Nx
+      - navigation [ref=f1e9]:
+        - link "Import" [ref=f1e10] [cursor=pointer]:
+          - /url: /import
+        - link "Backlog" [ref=f1e11] [cursor=pointer]:
+          - /url: /backlog
+        - link "Schedule" [ref=f1e12] [cursor=pointer]:
+          - /url: /schedule
+        - link "Cells" [ref=f1e13] [cursor=pointer]:
+          - /url: /cells
+        - link "Instruments" [ref=f1e14] [cursor=pointer]:
+          - /url: /instruments
+        - link "History" [ref=f1e15] [cursor=pointer]:
+          - /url: /history/runs
+        - link "Samples" [ref=f1e16] [cursor=pointer]:
+          - /url: /history/samples
+        - link "Stats" [ref=f1e17] [cursor=pointer]:
+          - /url: /stats
+        - link "Admin" [ref=f1e18] [cursor=pointer]:
+          - /url: /admin
+        - link "Help" [ref=f1e19] [cursor=pointer]:
+          - /url: /help
+      - link "v0.22.1" [ref=f1e20] [cursor=pointer]:
+        - /url: https://github.com/jameswatts1990/sprq-nx-planner/commits/main
+  - generic [ref=f1e23]:
+    - link "◂ Back to Backlog" [ref=f1e24] [cursor=pointer]:
+      - /url: /backlog
+    - generic [ref=f1e25]:
+      - generic [ref=f1e26]:
+        - heading "RS5757_1" [level=2] [ref=f1e27]
+        - generic [ref=f1e29]
+      - generic [ref=f1e32]:
+        - generic [ref=f1e33]
+        - generic [ref=f1e68]
+    - generic [ref=f1e72]:
+      - heading "Cell uses" [level=2] [ref=f1e74]
+      - generic [ref=f1e75]: This sample has not been placed on any cell yet.

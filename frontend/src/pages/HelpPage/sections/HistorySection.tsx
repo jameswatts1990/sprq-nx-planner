@@ -77,6 +77,11 @@ export function HistorySection() {
         always links to.
       </p>
       <p>
+        <b>Back:</b> the link at the top left returns you to wherever you opened the sample from — the Backlog,
+        Schedule, a cell, or the Samples list — rather than always to one fixed place. Opening the page directly (a
+        shared link or a browser refresh) falls back to the Samples list.
+      </p>
+      <p>
         <b>Edit:</b> an <b>Edit</b> button next to the status badge opens the same form used elsewhere. A backlog
         sample is fully editable (everything but its container ID, which is fixed for life); a sample already placed on
         the grid (scheduled or in progress) lets you adjust only its loading parameters, since its barcodes and

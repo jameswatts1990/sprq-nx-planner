@@ -16,6 +16,7 @@ import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
 import { CELL_STATUS_LABEL, CELL_STATUS_TONE } from "@/utils/cellStatus";
 import { plateWellFromPlate, plateWellFromWell } from "@/utils/plateWell";
 import { runLabel } from "@/utils/runLabel";
+import { useSampleBackNav } from "@/utils/sampleBackNav";
 import { USE_STATUS_TONE } from "@/utils/useStatusTone";
 
 import styles from "./CellDetailPage.module.css";
@@ -29,6 +30,7 @@ export function CellDetailPage() {
   const id = Number(cellId);
   const idIsValid = Number.isFinite(id);
   const queryClient = useQueryClient();
+  const backNav = useSampleBackNav();
 
   const query = useQuery({
     queryKey: ["cell", id],
@@ -256,7 +258,9 @@ export function CellDetailPage() {
                       </td>
                       <td>
                         {u.sample_id !== null && u.sample_external_id !== null ? (
-                          <Link to={`/samples/${u.sample_id}`}>{u.sample_external_id}</Link>
+                          <Link to={`/samples/${u.sample_id}`} state={backNav}>
+                            {u.sample_external_id}
+                          </Link>
                         ) : (
                           (u.sample_external_id ?? "—")
                         )}

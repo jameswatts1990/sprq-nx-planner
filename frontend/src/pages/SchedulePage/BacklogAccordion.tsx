@@ -17,6 +17,7 @@ import { Note } from "@/components/ui/Note";
 import type { SampleOut } from "@/types/sample";
 import { useDebouncedValue } from "@/utils/useDebouncedValue";
 import { ABORTED_PRIORITY, priorityTone } from "@/utils/priority";
+import { useSampleBackNav } from "@/utils/sampleBackNav";
 
 import { SampleModal } from "../SampleModal";
 import styles from "./BacklogAccordion.module.css";
@@ -73,6 +74,7 @@ const SORT_OPTIONS: { value: SampleSortBy; label: string }[] = [
  * priority-tinted left edge make each card's run time and priority readable at a glance. */
 function DraggableSampleCard({ sample, onEdit }: { sample: SampleOut; onEdit: (sample: SampleOut) => void }) {
   const navigate = useNavigate();
+  const backNav = useSampleBackNav();
   const data: SampleDragData = {
     kind: "sample",
     sample: { id: sample.id, external_id: sample.external_id, barcodes: sample.barcodes },
@@ -88,7 +90,7 @@ function DraggableSampleCard({ sample, onEdit }: { sample: SampleOut; onEdit: (s
       className={classes.join(" ")}
       style={accent ? { ["--accent" as string]: accent } : undefined}
       title={`Open ${sample.external_id}`}
-      onClick={() => navigate(`/samples/${sample.id}`)}
+      onClick={() => navigate(`/samples/${sample.id}`, { state: backNav })}
       {...listeners}
       {...attributes}
     >

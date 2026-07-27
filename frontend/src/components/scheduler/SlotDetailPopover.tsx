@@ -18,6 +18,7 @@ import { SampleModal } from "@/pages/SampleModal";
 import type { RunOut, RunTimeHours, StageOut } from "@/types/schedule";
 import { plateWellFromSlot } from "@/utils/plateWell";
 import { runLabel } from "@/utils/runLabel";
+import { useSampleBackNav } from "@/utils/sampleBackNav";
 
 import styles from "./SlotDetailPopover.module.css";
 
@@ -61,6 +62,7 @@ const SAMPLE_LOCKED_USE_STATUSES = ["completed", "failed", "cancelled"];
  * overview); it isn't duplicated inline any more. Built on Modal. */
 export function SlotDetailPopover({ stage, run, onClose, onOpenQc }: SlotDetailPopoverProps) {
   const queryClient = useQueryClient();
+  const backNav = useSampleBackNav();
   // Editable placement note. `savedNotes` tracks the last persisted value so the Save button
   // can tell dirty from clean - the `stage` prop is captured at click time and isn't refreshed
   // in place after the mutation.
@@ -171,7 +173,7 @@ export function SlotDetailPopover({ stage, run, onClose, onOpenQc }: SlotDetailP
             {stage.sample_id != null ? (
               // The Container ID links to the sample's own page; the ✎ opens the inline edit
               // popup (its loading parameters) - two distinct affordances, not one combined link.
-              <Link to={`/samples/${stage.sample_id}`} className={styles.sampleLink}>
+              <Link to={`/samples/${stage.sample_id}`} state={backNav} className={styles.sampleLink}>
                 {stage.sample_external_id ?? "—"}
               </Link>
             ) : (

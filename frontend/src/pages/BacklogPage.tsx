@@ -19,6 +19,7 @@ import type { SegmentedOption } from "@/components/ui/SegmentedControl";
 import type { SampleOut } from "@/types/sample";
 import { useDebouncedValue } from "@/utils/useDebouncedValue";
 import { ABORTED_PRIORITY, priorityTone } from "@/utils/priority";
+import { useSampleBackNav } from "@/utils/sampleBackNav";
 
 import { SampleModal } from "./SampleModal";
 import styles from "./BacklogPage.module.css";
@@ -162,12 +163,17 @@ export function BacklogPage() {
   );
 
   const { mutate: cancelSample, isPending: cancelPending } = cancelMutation;
+  const backNav = useSampleBackNav();
 
   const columns = useMemo(
     () => [
       columnHelper.accessor("external_id", {
         header: () => sortableHeader("Container ID", "external_id"),
-        cell: (info) => <Link to={`/samples/${info.row.original.id}`}>{info.getValue()}</Link>,
+        cell: (info) => (
+          <Link to={`/samples/${info.row.original.id}`} state={backNav}>
+            {info.getValue()}
+          </Link>
+        ),
       }),
       columnHelper.accessor("barcodes", {
         header: () => sortableHeader("Barcodes", "barcode"),
@@ -232,7 +238,7 @@ export function BacklogPage() {
         ),
       }),
     ],
-    [sortableHeader, cancelSample, cancelPending],
+    [sortableHeader, cancelSample, cancelPending, backNav],
   );
 
   const items = query.data?.items ?? [];
