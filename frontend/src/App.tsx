@@ -9,6 +9,7 @@ import { HistoryRunsPage } from "@/pages/HistoryRunsPage";
 import { HistorySamplesPage } from "@/pages/HistorySamplesPage";
 import { InstrumentsPage } from "@/pages/InstrumentsPage";
 import { RunDetailPage } from "@/pages/RunDetailPage";
+import { SampleDetailPage } from "@/pages/SampleDetailPage";
 import { SchedulePage } from "@/pages/SchedulePage/SchedulePage";
 import { TrayDetailPage } from "@/pages/TrayDetailPage";
 
@@ -47,6 +48,7 @@ export default function App() {
           <Route path="/history/runs" element={<HistoryRunsPage />} />
           <Route path="/history/runs/:runId" element={<RunDetailPage />} />
           <Route path="/history/samples" element={<HistorySamplesPage />} />
+          <Route path="/samples/:sampleId" element={<SampleDetailPage />} />
           <Route path="/stats" element={<StatsPage />} />
           <Route path="/admin" element={<AdminPage />} />
           <Route path="/help" element={<HelpPage />} />

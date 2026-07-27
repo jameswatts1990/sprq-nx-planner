@@ -1,11 +1,13 @@
 from fastapi import APIRouter, HTTPException
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import selectinload
 
 from app.api.deps import ActorDep, SessionDep
 from app.models.cell import CELL_STATUSES, Cell
 from app.models.cell_tray import CellTray
-from app.models.schedule import CellUse, Cycle, RunBatch
+from app.models.instrument import Instrument
+from app.models.sample import Sample
+from app.models.schedule import CellUse, CellUseBarcode, Cycle, RunBatch
 from app.schemas.cell import (
     CellActorRequest,
     CellBootstrapRequest,
@@ -42,21 +44,19 @@ router = APIRouter(prefix="/api/cells", tags=["cells"])
 
 # Everything serialize_cell() reads: each use's cycle->run_batch->instrument (for
 # current_location/last_use_run_date/first_use_planned_start_at), its barcodes (burned set),
-# and the cell's own tray->instrument (for a zero-use sibling's location). Deliberately no
-# CellUse.sample - the list serializer never touches it.
+# its sample (for the card's linked container-id list, cell_use_summary), and the cell's own
+# tray->instrument (for a zero-use sibling's location).
 _LIST_OPTIONS = [
     selectinload(Cell.cell_uses).selectinload(CellUse.cycle).selectinload(Cycle.run_batch).selectinload(
         RunBatch.instrument
     ),
     selectinload(Cell.cell_uses).selectinload(CellUse.barcodes),
+    selectinload(Cell.cell_uses).selectinload(CellUse.sample),
     selectinload(Cell.tray).selectinload(CellTray.instrument),
 ]
-# Detail additionally needs each use's sample - serialize_cell_detail's history renders
-# sample fields. Kept out of _LIST_OPTIONS so the (much larger) list query doesn't load it.
-_DETAIL_OPTIONS = [
-    *_LIST_OPTIONS,
-    selectinload(Cell.cell_uses).selectinload(CellUse.sample),
-]
+# Detail needs the same relationships loaded; serialize_cell_detail's history renders the
+# same underlying use rows just with more per-use fields, so the option set is identical.
+_DETAIL_OPTIONS = list(_LIST_OPTIONS)
 
 
 @router.get("", response_model=Page[CellOut])
@@ -80,7 +80,35 @@ def list_cells(
     if qc_status and qc_status not in QC_STATUSES:
         raise HTTPException(400, f"Unknown qc_status '{qc_status}'. Valid: {', '.join(QC_STATUSES)}")
     if q:
-        stmt = stmt.where(Cell.code.ilike(f"%{q}%"))
+        # Search any id associated with a cell, not just its own code: its tray, and - via
+        # its uses - the container id (sample external id), burned barcodes, run name/id, and
+        # the instrument it ran on. So typing a container id, a Traction run id, or a barcode
+        # finds every cell that touched it, the same box that finds a cell code or "T123".
+        term = q.strip()
+        like = f"%{term}%"
+        conditions = [
+            Cell.code.ilike(like),
+            Cell.cell_uses.any(CellUse.sample.has(Sample.external_id.ilike(like))),
+            Cell.cell_uses.any(CellUse.barcodes.any(CellUseBarcode.barcode.ilike(like))),
+            Cell.cell_uses.any(
+                CellUse.cycle.has(Cycle.run_batch.has(RunBatch.run_name.ilike(like)))
+            ),
+            Cell.cell_uses.any(
+                CellUse.cycle.has(
+                    Cycle.run_batch.has(RunBatch.instrument.has(Instrument.serial_number.ilike(like)))
+                )
+            ),
+        ]
+        # Numeric-id shortcuts: "T123"/"123" -> tray id; "#45"/"45" -> run (RunBatch) id.
+        tray_token = term[1:] if term[:1] in ("t", "T") else term
+        if tray_token.isdigit():
+            conditions.append(Cell.tray_id == int(tray_token))
+        run_token = term[1:] if term[:1] == "#" else term
+        if run_token.isdigit():
+            conditions.append(
+                Cell.cell_uses.any(CellUse.cycle.has(Cycle.run_batch.has(RunBatch.id == int(run_token))))
+            )
+        stmt = stmt.where(or_(*conditions))
     if tray_id is not None:
         stmt = stmt.where(Cell.tray_id == tray_id)
 

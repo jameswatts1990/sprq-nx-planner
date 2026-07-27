@@ -18,7 +18,7 @@ from app.models.cell import Cell
 from app.models.cell_tray import CellTray
 from app.models.instrument import Instrument
 from app.models.schedule import CellUse, CellUseBarcode, Cycle, RunBatch
-from app.schemas.cell import CellBootstrapRequest, CellDetailOut, CellOut, CellUseHistoryOut
+from app.schemas.cell import CellBootstrapRequest, CellDetailOut, CellOut, CellUseHistoryOut, CellUseSummaryOut
 from app.timeutil import ensure_aware, utcnow
 
 
@@ -352,6 +352,28 @@ def awaiting_credit(cell: Cell) -> bool:
     return cell.pacbio_reported_at is not None and cell.credit_received_at is None
 
 
+def cell_use_summary(cell: Cell) -> list[CellUseSummaryOut]:
+    """Compact, chronological (earliest-first) list of the samples/runs a cell has been
+    used by - the linked container/run list on the cell card. Same ordering as the detail
+    page's full use history (use_sort_key), so a cell reads the same way in both places."""
+    summary: list[CellUseSummaryOut] = []
+    for cu in sorted(cell.cell_uses, key=use_sort_key):
+        run_batch = cu.cycle.run_batch if cu.cycle else None
+        summary.append(
+            CellUseSummaryOut(
+                id=cu.id,
+                run_batch_id=run_batch.id if run_batch else -1,
+                run_name=run_batch.run_name if run_batch else None,
+                sample_id=cu.sample_id,
+                sample_external_id=cu.sample.external_id if cu.sample else None,
+                well=cu.well,
+                status=cu.status,
+                run_started=run_has_started(cu),
+            )
+        )
+    return summary
+
+
 def serialize_cell(cell: Cell) -> CellOut:
     uses_consumed, remaining, burned = derive_cell_state(cell)
     instrument_serial, well = current_location(cell)
@@ -385,6 +407,7 @@ def serialize_cell(cell: Cell) -> CellOut:
         tray_id=cell.tray_id,
         tray_position=cell.tray_position,
         tray_size=CELLS_PER_TRAY,
+        uses=cell_use_summary(cell),
     )
 
 

@@ -13,13 +13,25 @@ export function CellsSection() {
         state.
       </p>
 
-      <p className={styles.subheading}>Filters</p>
+      <p className={styles.subheading}>Search, filters, sort &amp; grouping</p>
+      <p>
+        The big <b>Search</b> box at the top matches <i>any</i> id associated with a cell — its own code, its tray
+        (type <b>T123</b> or just <b>123</b>), a container ID, a barcode, a run name or run number (<b>#45</b>), or the
+        instrument it ran on — so whatever id you have to hand finds the cell that touched it.
+      </p>
       <p>
         The chips (All, Open, Exhausted, Window expired, Retired, Stopped, Unreported, Awaiting credit) filter the
-        list; the dropdown filters by instrument; <b>Search</b> matches cell code or barcode. The page opens on{" "}
-        <b>Open</b> cells by default. <b>Unreported</b> and <b>Awaiting credit</b> cut across the ordinary status
-        filters - they show cells with a QC issue (see below) at a particular stage of the PacBio credit workflow,
-        regardless of their Open/Exhausted/etc. status.
+        list; the instrument dropdown narrows to one instrument. The page opens on <b>Open</b> cells by default.{" "}
+        <b>Unreported</b> and <b>Awaiting credit</b> cut across the ordinary status filters - they show cells with a QC
+        issue (see below) at a particular stage of the PacBio credit workflow, regardless of their Open/Exhausted/etc.
+        status.
+      </p>
+      <p>
+        <b>Sort</b> orders the cells by cell code, last run date, instrument, window remaining, or date created; the{" "}
+        <b>▲/▼</b> button next to it flips the direction. <b>Group</b> arranges them into labelled sections — by{" "}
+        <b>Tray</b> (the default, so a physical tray&apos;s four cells sit together in position order, its header
+        linking to the tray page and flagging its soonest window expiry), by <b>Instrument</b>, by <b>Status</b>, or{" "}
+        <b>No grouping</b> for one flat grid.
       </p>
 
       <p className={styles.subheading}>Open trays</p>
@@ -62,9 +74,17 @@ export function CellsSection() {
       <p>
         <b>Each cell card shows:</b> the cell code (e.g. <b>C02-T123</b> — cells are <i>numbered</i> 1–4 by their fixed
         position in the physical tray, and <b>T123</b> is that tray&apos;s id, so a tray&apos;s four cells read{" "}
-        <b>C01-T123</b> … <b>C04-T123</b>), a status badge, uses spent, which instrument and well it&apos;s currently
-        in, its burned barcodes, and a 108-hour window meter. You can search by code — e.g. <b>T123</b> finds all four
-        siblings. Click a card to open its full detail.
+        <b>C01-T123</b> … <b>C04-T123</b>; click it to open the cell&apos;s full detail), a status badge, uses spent,
+        which instrument and well it&apos;s currently in, its <b>tray</b>, its burned barcodes, and a 108-hour window
+        meter. A <b>Samples &amp; runs</b> list at the foot of each card shows every sample the cell has carried — its
+        use status (so you can tell an already-run use from one still <i>scheduled</i>), its <b>container ID</b>, and
+        the <b>run</b> it ran on.
+      </p>
+      <p>
+        <b>Everything on the card links through:</b> the cell code to its detail page, the instrument to that
+        instrument&apos;s cells, the tray to the <b>tray page</b>, each container ID to that <b>sample&apos;s page</b>{" "}
+        (its full metadata and every cell/run it has touched), and each run to its <b>run page</b> — so you can hop
+        straight from a cell to any sample or run associated with it and back.
       </p>
       <div className={styles.legendGrid}>
         <div className={styles.legendRow}>
@@ -138,8 +158,8 @@ export function CellsSection() {
         </li>
         <li>
           <b>Use history</b> lists every run the cell has been in: run name if one was set, otherwise its number
-          (links to the run), well, use status, container ID, barcodes, priority, target OPLC, adaptive
-          loading, full resolution base Q, include base kinetics, instrument,
+          (links to the run), well, use status, container ID (links to that sample&apos;s page), barcodes, priority,
+          target OPLC, adaptive loading, full resolution base Q, include base kinetics, instrument,
           start/complete times, outcome notes, and a <b>Mark Failed</b> action.
         </li>
         <li>

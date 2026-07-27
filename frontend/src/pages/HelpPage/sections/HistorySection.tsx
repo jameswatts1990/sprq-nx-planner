@@ -56,6 +56,17 @@ export function HistorySection() {
         individual cell uses — the run, which plate (1 or 2) it ran on, the cell and well, the use status,
         start/complete times, and notes.
       </p>
+
+      <p className={styles.subheading}>Sample detail page</p>
+      <p>
+        <b>What it&apos;s for:</b> a single sample (container) on its own page, reached by clicking a <b>container ID</b>{" "}
+        anywhere in the app — a cell card, a cell&apos;s use history. It shows the sample&apos;s full metadata (parent
+        sample, priority, Target OPLC, volume, loading options, barcodes, Sanger IDs, created/updated times) and a{" "}
+        <b>Cell uses</b> table of every cell it has been placed on — the run (links to the run), plate, cell (links to
+        the cell), well, use status, start/complete times, and notes. Unlike the Samples list above, which only lists
+        finished samples, this page works for a sample of any status, so it&apos;s the durable place a container ID
+        always links to.
+      </p>
     </div>
   );
 }

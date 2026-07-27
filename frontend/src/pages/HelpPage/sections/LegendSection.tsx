@@ -3,7 +3,7 @@ import { CellStatusCard } from "@/components/cells/CellStatusCard";
 import { TraySiblingList } from "@/components/cells/TraySiblingList";
 import { WindowMeter } from "@/components/cells/WindowMeter";
 import { UseLegend } from "@/components/shared/SectionHeading";
-import { Badge, type BadgeTone } from "@/components/ui/Badge";
+import { Badge } from "@/components/ui/Badge";
 import { Note, type NoteTone } from "@/components/ui/Note";
 import { CELL_STATUSES, CELL_USE_STATUSES, CYCLE_STATUSES } from "@/types/common";
 import type { CellStatus, CellUseStatus, CycleStatus } from "@/types/common";
@@ -12,6 +12,7 @@ import type { CellQcFlag } from "@/utils/cellQcFlag";
 import { CELL_STATUS_LABEL, CELL_STATUS_TONE } from "@/utils/cellStatus";
 import { CYCLE_STATUS_TONE } from "@/utils/cycleStatus";
 import { priorityTone } from "@/utils/priority";
+import { SAMPLE_STATUS_TONE } from "@/utils/sampleStatus";
 import { USE_STATUS_TONE } from "@/utils/useStatusTone";
 
 import styles from "../HelpPage.module.css";
@@ -50,11 +51,6 @@ const USE_STATUS_MEANING: Record<CellUseStatus, string> = {
   failed: "The use did not complete successfully - the cell may be at fault; the sample is marked Failed.",
   aborted: "The run/instrument was the problem, not the cell or sample - the sample returns straight to the backlog.",
   cancelled: "The use was cancelled before or during the run.",
-};
-
-const SAMPLE_STATUS_TONE: Record<"completed" | "failed", BadgeTone> = {
-  completed: "success",
-  failed: "danger",
 };
 
 const SAMPLE_STATUS_MEANING: Record<"completed" | "failed", string> = {

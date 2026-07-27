@@ -1,12 +1,44 @@
 .page {
   padding-top: 22px;
 }
+.searchRow {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 14px;
+}
 .toolbar {
   display: flex;
   align-items: center;
   gap: 14px;
   flex-wrap: wrap;
   margin-bottom: 18px;
+}
+.control {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.controlLabel {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--grey);
+  font-weight: 700;
+}
+.dirToggle {
+  border: 1px solid var(--line);
+  background: var(--card);
+  border-radius: var(--r-sm);
+  padding: 7px 9px;
+  font-size: 11px;
+  color: var(--grey);
+  cursor: pointer;
+  line-height: 1;
+}
+.dirToggle:hover {
+  color: var(--magenta);
+  border-color: var(--magenta);
 }
 .trayAccordionWrap {
   margin-bottom: 18px;
@@ -33,12 +65,18 @@
   background: var(--magenta-tint);
 }
 .search {
+  flex: 1;
   font-family: var(--sans);
-  font-size: 13px;
-  border: 1px solid var(--line);
+  font-size: 15px;
+  border: 1.5px solid var(--line);
   border-radius: var(--r-sm);
-  padding: 8px 12px;
+  padding: 12px 16px;
   min-width: 220px;
+}
+.search:focus {
+  outline: none;
+  border-color: var(--magenta);
+  box-shadow: 0 0 0 3px var(--magenta-tint);
 }
 .select {
   font-family: var(--sans);
@@ -60,6 +98,52 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(258px, 1fr));
   gap: 14px;
+}
+.groups {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+.groupHeader {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  margin-bottom: 11px;
+  padding-bottom: 7px;
+  border-bottom: 1px solid var(--line-soft);
+  flex-wrap: wrap;
+}
+.groupTitle {
+  font-size: 15px;
+  font-weight: 800;
+  font-family: var(--mono);
+  color: var(--ink);
+  text-decoration: none;
+}
+a.groupTitle:hover {
+  color: var(--magenta);
+}
+.groupMeta {
+  font-size: 13px;
+  font-weight: 700;
+  font-family: var(--mono);
+  color: var(--grey);
+}
+.groupCount {
+  font-size: 12px;
+  color: var(--grey);
+}
+.groupExpiry {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--grey);
+}
+.groupExpiryUrgent {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--danger, #d64545);
 }
 
 .helper {

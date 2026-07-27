@@ -36,6 +36,26 @@ class CellUseHistoryOut(BaseModel):
     undo_available: bool
 
 
+class CellUseSummaryOut(BaseModel):
+    """Compact per-use record carried on every CellOut (the list view), so a cell card can
+    show which samples/runs the cell has been used by and link straight to each - without
+    the caller having to fetch each cell's full detail. A leaner cousin of
+    CellUseHistoryOut: just the identifiers the card links on, plus status so it can
+    distinguish an already-run use from a still-scheduled one."""
+
+    id: int
+    run_batch_id: int
+    run_name: str | None
+    sample_id: int | None
+    sample_external_id: str | None
+    well: str
+    status: str
+    # True once this use's run has reached/passed its scheduled start (see run_has_started) -
+    # lets the card separate "has actually run" from "merely scheduled" the same way the
+    # detail page does, rather than inferring it from status alone.
+    run_started: bool
+
+
 class CellOut(BaseModel):
     id: int
     code: str
@@ -72,6 +92,9 @@ class CellOut(BaseModel):
     tray_id: int | None
     tray_position: int | None
     tray_size: int
+    # Compact history of the samples/runs this cell has been used by, chronological
+    # (earliest use first). Powers the linked container/run list on the cell card.
+    uses: list[CellUseSummaryOut] = []
 
 
 class CellDetailOut(CellOut):

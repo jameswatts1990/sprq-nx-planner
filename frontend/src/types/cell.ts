@@ -30,6 +30,21 @@ export interface CellUseHistoryOut {
   undo_available: boolean;
 }
 
+/** Compact per-use record carried on every CellOut (the list view), so a cell card can
+ * link straight to each sample/run the cell has been used by without fetching its full
+ * detail. A leaner cousin of CellUseHistoryOut - just the ids the card links on, plus
+ * status/run_started so it can tell an already-run use from a still-scheduled one. */
+export interface CellUseSummaryOut {
+  id: number;
+  run_batch_id: number;
+  run_name: string | null;
+  sample_id: number | null;
+  sample_external_id: string | null;
+  well: string;
+  status: string;
+  run_started: boolean;
+}
+
 export interface CellOut {
   id: number;
   code: string;
@@ -64,6 +79,9 @@ export interface CellOut {
   tray_id: number | null;
   tray_position: number | null;
   tray_size: number;
+  // Compact, chronological (earliest-first) history of the samples/runs this cell has been
+  // used by - powers the linked container/run list on the cell card.
+  uses: CellUseSummaryOut[];
 }
 
 export interface CellDetailOut extends CellOut {

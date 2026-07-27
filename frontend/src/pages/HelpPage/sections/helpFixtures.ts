@@ -36,6 +36,28 @@ export const EXAMPLE_CELL: CellOut = {
   tray_id: 7,
   tray_position: 2,
   tray_size: 4,
+  uses: [
+    {
+      id: 1,
+      run_batch_id: 1,
+      run_name: "TRACTION-RUN-1234",
+      sample_id: 1,
+      sample_external_id: "SAMPLE-101",
+      well: "A01",
+      status: "completed",
+      run_started: true,
+    },
+    {
+      id: 2,
+      run_batch_id: 2,
+      run_name: null,
+      sample_id: 2,
+      sample_external_id: "SAMPLE-205",
+      well: "A01",
+      status: "planned",
+      run_started: false,
+    },
+  ],
 };
 
 export const EXAMPLE_CELL_UNREPORTED: CellOut = {

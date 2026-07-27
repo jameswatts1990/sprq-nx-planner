@@ -359,7 +359,13 @@ export function CellDetailPage() {
                       <td>
                         <Badge tone={USE_STATUS_TONE[u.status] ?? "default"}>{u.status}</Badge>
                       </td>
-                      <td>{u.sample_external_id ?? "—"}</td>
+                      <td>
+                        {u.sample_id !== null && u.sample_external_id !== null ? (
+                          <Link to={`/samples/${u.sample_id}`}>{u.sample_external_id}</Link>
+                        ) : (
+                          (u.sample_external_id ?? "—")
+                        )}
+                      </td>
                       <td>
                         <BarcodeChips barcodes={u.barcodes} />
                       </td>
