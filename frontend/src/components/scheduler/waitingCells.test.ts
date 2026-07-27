@@ -53,6 +53,7 @@ function baseCell(overrides: Partial<CellOut> = {}): CellOut {
     tray_id: null,
     tray_position: null,
     tray_size: 4,
+    uses: [],
     ...overrides,
   };
 }
