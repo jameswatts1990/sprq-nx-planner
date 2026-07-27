@@ -1,8 +1,11 @@
-"""QC workflow: flagging a cell-use Failed (this use only, cell stays open) or a whole
-Cell Stopped (all future uses lost, cascades planned uses back to backlog and excludes
-the cell from all future reuse), plus the PacBio credit-tracking workflow (report ->
-confirm -> receive) and its unreported/awaiting-credit list filters."""
+"""Cell QC: the unified Fail / Fail-and-Stop / Retire flow (POST /api/cells/{id}/qc/*),
+its continuous-queue tray re-zip (a failed/retired cell shifts every downstream sample onto
+the next surviving cell-use and displaces the tail), the per-sample disposition step
+(Lost -> top-up, Repeatable/Recoverable -> backlog above High), undo, the top-up list, and
+the PacBio credit workflow that a Fail/Fail-and-Stop still feeds."""
 from datetime import date, timedelta
+
+from tests.integration._qc_helpers import qc_commit, qc_preview, qc_retire, qc_stop
 
 
 def _weekdays(n: int) -> list[str]:
@@ -23,9 +26,6 @@ def _past_weekday() -> str:
 
 
 def _stages(run):
-    """All stages across a run's plates, flattened (plate 1 then plate 2). A single
-    placement into slot 0-3 yields one plate; a fresh parallel/second-tray or reuse
-    placement adds a second plate."""
     return [s for p in run["plates"] for s in p["stages"]]
 
 
@@ -39,854 +39,357 @@ def _sample(client, sample_id: int) -> dict:
     return next(s for s in items if s["id"] == sample_id)
 
 
-def _place(client, sample_id, run_date, slot_index, cell_choice, run_time_hours=24, instrument="84047", start_hour=None):
-    payload = {
-        "sample_id": sample_id,
-        "instrument_serial": instrument,
-        "load_date": run_date,
-        "slot_index": slot_index,
-        "cell_choice": cell_choice,
-        "run_time_hours": run_time_hours,
-        "max_uses": 3,
+def _place(client, sample_id, run_date, slot_index, cell_choice, run_time_hours=24, instrument="84047"):
+    return client.post(
+        "/api/cell-uses",
+        json={
+            "sample_id": sample_id,
+            "instrument_serial": instrument,
+            "load_date": run_date,
+            "slot_index": slot_index,
+            "cell_choice": cell_choice,
+            "run_time_hours": run_time_hours,
+            "max_uses": 3,
+        },
+    )
+
+
+def _tray_cells_by_well(client, tray_id) -> dict[str, int]:
+    return {
+        c["current_well"]: c["id"]
+        for c in client.get("/api/cells", params={"tray_id": tray_id, "page_size": 10}).json()["items"]
     }
-    if start_hour is not None:
-        payload["start_hour"] = start_hour
-    return client.post("/api/cell-uses", json=payload)
 
 
-def test_mark_cell_use_failed_keeps_cell_open_and_sample_can_be_requeued(client):
+def _build_worked_example(client):
+    """4-cell tray, Use 1 (Mon) then Use 2 (Wed reuse), one sample per cell per use - the
+    exact scenario from the plan. Returns (cellA_id, cells_by_well, mon_use1_A_id, wed_run_id,
+    mon_run_id). Mon's run is confirmed running so its uses are real; Wed's Use 2 stays planned."""
+    client.post(
+        "/api/imports",
+        json={"raw_text": "sample,barcodes\n" + "\n".join(f"P{p}{w},bc{p}{w}" for p in (1, 2) for w in "ABCD")},
+    )
+    mon, _tue, wed = _weekdays(3)
+
+    r = _place(client, _sid(client, "P1A"), mon, 0, {"mode": "new"})
+    assert r.status_code == 201, r.text
+    mon_run_id = r.json()["run_id"]
+    cellA = _stages(r.json())[0]["cell_id"]
+    tray_id = _stages(r.json())[0]["tray_id"]
+    cells = _tray_cells_by_well(client, tray_id)  # {A01: cellA, B01: cellB, ...}
+    for slot, well in ((1, "B01"), (2, "C01"), (3, "D01")):
+        rr = _place(client, _sid(client, f"P1{well[0]}"), mon, slot, {"mode": "existing", "cell_id": cells[well]})
+        assert rr.status_code == 201, rr.text
+    # confirm Monday's Use-1 run loaded (so a QC verdict can anchor on it)
+    assert client.patch(f"/api/cycles/{mon_run_id}", json={"status": "running"}).status_code == 200
+
+    wed_run_id = None
+    for slot, well in ((0, "A01"), (1, "B01"), (2, "C01"), (3, "D01")):
+        rr = _place(client, _sid(client, f"P2{well[0]}"), wed, slot, {"mode": "existing", "cell_id": cells[well]})
+        assert rr.status_code == 201, rr.text
+        wed_run_id = rr.json()["run_id"]
+
+    mon_use1_A = next(s["cell_use_id"] for s in _stages(client.get(f"/api/cycles/{mon_run_id}").json()) if s["cell_id"] == cellA)
+    return cellA, cells, mon_use1_A, wed_run_id, mon_run_id
+
+
+# --------------------------------------------------------------------------------------
+# Fail Cell (no shift)
+# --------------------------------------------------------------------------------------
+
+
+def test_fail_cell_loses_only_its_sample_and_keeps_the_cell_open(client):
     client.post("/api/imports", json={"raw_text": "sample,barcodes\nF1,bcf1"})
     past = _past_weekday()
-
     r1 = _place(client, _sid(client, "F1"), past, 0, {"mode": "new"})
     assert r1.status_code == 201, r1.text
     stage = _stages(r1.json())[0]
     assert client.patch(f"/api/cycles/{r1.json()['run_id']}", json={"status": "running"}).status_code == 200
 
-    resp = client.patch(f"/api/cell-uses/{stage['cell_use_id']}", json={"status": "failed", "notes": "no data produced"})
-    assert resp.status_code == 200, resp.text
-    assert resp.json()["status"] == "failed"
-    assert resp.json()["outcome_notes"] == "no data produced"
+    preview = qc_preview(client, stage["cell_id"], "fail", stage["cell_use_id"])
+    assert preview.status_code == 200, preview.text
+    affected = preview.json()["affected_samples"]
+    assert len(affected) == 1
+    assert affected[0]["role"] == "failed" and affected[0]["disposition_required"] is True
+    assert preview.json()["requires_disposition"] is True
 
-    f1 = _sample(client, _sid(client, "F1"))
-    assert f1["status"] == "failed"
+    f1_id = _sid(client, "F1")
+    commit = qc_commit(client, stage["cell_id"], "fail", stage["cell_use_id"], {f1_id: "lost"}, reason="no data")
+    assert commit.status_code == 200, commit.text
 
-    # cell stays open (1 of 3 uses consumed, capacity remains) - Failed doesn't stop it
     cell = client.get(f"/api/cells/{stage['cell_id']}").json()
-    assert cell["status"] == "open"
+    assert cell["status"] == "open"  # Fail Cell does NOT stop the cell
     assert cell["uses_consumed"] == 1
     assert cell["has_failed_use"] is True
     assert cell["needs_qc_report"] is True
-
-    requeued = client.post(f"/api/samples/{f1['id']}/requeue")
-    assert requeued.status_code == 200, requeued.text
-    assert requeued.json()["status"] == "backlog"
-
-
-def test_stop_cell_rehomes_a_later_use_onto_a_tray_sibling_and_excludes_the_stopped_cell(client):
-    client.post("/api/imports", json={"raw_text": "sample,barcodes\nG1,bcg1\nG2,bcg2\nG3,bcg3"})
-    mon, _tue, wed = _weekdays(3)
-
-    r1 = _place(client, _sid(client, "G1"), mon, 0, {"mode": "new"})
-    assert r1.status_code == 201, r1.text
-    cell_id = _stages(r1.json())[0]["cell_id"]
-    cycle1_id = r1.json()["run_id"]
-
-    # confirm Monday's run loaded and complete it - Use 1 becomes real, untouchable history
-    assert client.patch(f"/api/cycles/{cycle1_id}", json={"status": "running"}).status_code == 200
-    assert client.patch(f"/api/cycles/{cycle1_id}", json={"status": "completed"}).status_code == 200
-
-    # G2 reuses the same physical cell for a still-planned Use 2 on Wednesday
-    r2 = _place(client, _sid(client, "G2"), wed, 0, {"mode": "existing", "cell_id": cell_id})
-    assert r2.status_code == 201, r2.text
-    cycle2_id = r2.json()["run_id"]
-    g2_use_id = _stages(r2.json())[0]["cell_use_id"]
-    g2_id = _sid(client, "G2")
-
-    stop = client.post(f"/api/cells/{cell_id}/stop", json={"reason": "visible crack on tray"})
-    assert stop.status_code == 200, stop.text
-    body = stop.json()
-    # G2's later use re-homes onto one of the tray's remaining cells (the ICS reshuffle) -
-    # nothing overflows to the backlog, because a sibling still has capacity that day.
-    assert body["rehomed_sample_ids"] == [g2_id]
-    assert body["unrunnable_sample_ids"] == []
-    assert body["cell"]["status"] == "stopped"
-    assert body["cell"]["stopped_reason"] == "visible crack on tray"
-
-    # G2 stays scheduled (on its original day/slot), just on a different physical cell now.
-    g2 = _sample(client, g2_id)
-    assert g2["status"] == "scheduled"
-    wed_cycle = client.get(f"/api/cycles/{cycle2_id}").json()
-    wed_stage = next(s for s in _stages(wed_cycle) if s["cell_use_id"] == g2_use_id)
-    assert wed_stage["cell_use_status"] == "planned"  # still a live placement, re-homed
-    assert wed_stage["cell_id"] != cell_id  # a sibling cell now backs it
-    assert wed_stage["cell_status"] == "open"
-    assert wed_stage["well"] == "A01"  # the plate loading position is unchanged
-    assert wed_stage["sample_external_id"] == "G2"
-
-    # the slot is still occupied by G2 (now on a sibling), so a fresh drop there is rejected
-    reblock_attempt = _place(client, _sid(client, "G3"), wed, 0, {"mode": "new"})
-    assert reblock_attempt.status_code == 409
-    assert "already occupied" in reblock_attempt.json()["detail"].lower()
-
-    # Monday's completed Use 1 is untouched history
-    mon_cycle = client.get(f"/api/cycles/{cycle1_id}").json()
-    assert mon_cycle["status"] == "completed"
-    assert _stages(mon_cycle)[0]["sample_external_id"] == "G1"
-
-    # excluded from all future reuse: an explicit re-placement onto the stopped cell is rejected
-    reuse_attempt = _place(client, _sid(client, "G3"), wed, 1, {"mode": "existing", "cell_id": cell_id})
-    assert reuse_attempt.status_code == 409
-    assert "not open" in reuse_attempt.json()["detail"].lower()
-
-
-def test_stop_cell_overflows_to_backlog_when_the_tray_cannot_absorb_a_bumped_use(client):
-    """The reported scenario's tail: when the stopped cell's lost capacity leaves nothing in
-    the tray to re-home a bumped later use onto, that sample can no longer run - it goes back
-    to the backlog (ABORTED_PRIORITY) and is reported as unrunnable so the user is alerted."""
-    client.post("/api/imports", json={"raw_text": "sample,barcodes\nW1,bcw1\nW2,bcw2"})
-    mon, _tue, wed = _weekdays(3)
-
-    r1 = _place(client, _sid(client, "W1"), mon, 0, {"mode": "new"})
-    assert r1.status_code == 201, r1.text
-    cell_id = _stages(r1.json())[0]["cell_id"]
-    tray_id = client.get(f"/api/cells/{cell_id}").json()["tray_id"]
-    assert client.patch(f"/api/cycles/{r1.json()['run_id']}", json={"status": "running"}).status_code == 200
-
-    r2 = _place(client, _sid(client, "W2"), wed, 0, {"mode": "existing", "cell_id": cell_id})
-    assert r2.status_code == 201, r2.text
-    w2_use_id = _stages(r2.json())[0]["cell_use_id"]
-    w2_id = _sid(client, "W2")
-
-    # Discard the tray's three never-used siblings - now nothing in the tray can absorb W2.
-    siblings = [c["id"] for c in client.get("/api/cells", params={"tray_id": tray_id}).json()["items"] if c["id"] != cell_id]
-    for sib in siblings:
-        assert client.post(f"/api/cells/{sib}/discard", json={"reason": "test"}).status_code == 200
-
-    stop = client.post(f"/api/cells/{cell_id}/stop", json={"reason": "cell died"})
-    assert stop.status_code == 200, stop.text
-    assert stop.json()["rehomed_sample_ids"] == []
-    assert stop.json()["unrunnable_sample_ids"] == [w2_id]
-
-    # W2's use is a cancelled marker; its sample is back in the backlog, top-priority, alerted.
-    assert client.get(f"/api/cell-uses/{w2_use_id}").json()["status"] == "cancelled"
-    w2 = _sample(client, w2_id)
-    assert w2["status"] == "backlog"
-    assert w2["priority"] == "Aborted (0)"
-
-
-def test_stop_cell_from_a_specific_use_does_not_touch_an_earlier_still_started_use(client):
-    """Regression test for the reported bug: stopping a cell from its second use must not
-    also stop/touch its first use, even when that first use was confirmed loaded but never
-    explicitly marked completed (the normal case today - there is no UI action anywhere
-    that transitions a cycle to "completed"). Anchoring the stop to the specific cell_use
-    that triggered it (see cell_service.stop_cell's cell_use_id param) is what makes this
-    safe: only uses chronologically at or after that point are touched, and the trigger
-    itself is treated like a Fail (its sample is lost, not returned to backlog)."""
-    client.post("/api/imports", json={"raw_text": "sample,barcodes\nR1,bcr1\nR2,bcr2"})
-    mon, _tue, wed = _weekdays(3)
-
-    r1 = _place(client, _sid(client, "R1"), mon, 0, {"mode": "new"})
-    assert r1.status_code == 201, r1.text
-    cell_id = _stages(r1.json())[0]["cell_id"]
-    use1_id = _stages(r1.json())[0]["cell_use_id"]
-    r1_id = _sid(client, "R1")
-    # Confirm Use 1 loaded (started) - deliberately never marked "completed"
-    assert client.patch(f"/api/cycles/{r1.json()['run_id']}", json={"status": "running"}).status_code == 200
-
-    r2 = _place(client, _sid(client, "R2"), wed, 0, {"mode": "existing", "cell_id": cell_id})
-    assert r2.status_code == 201, r2.text
-    use2_id = _stages(r2.json())[0]["cell_use_id"]
-    r2_id = _sid(client, "R2")
-    assert client.patch(f"/api/cycles/{r2.json()['run_id']}", json={"status": "running"}).status_code == 200
-
-    stop = client.post(f"/api/cells/{cell_id}/stop", json={"reason": "cell died on Use 2", "cell_use_id": use2_id})
-    assert stop.status_code == 200, stop.text
-
-    # Use 1 is completely untouched - still "started", its sample still "in_progress"
-    use1 = client.get(f"/api/cell-uses/{use1_id}").json()
-    assert use1["status"] == "started"
-    assert _sample(client, r1_id)["status"] == "in_progress"
-
-    # Use 2 (the trigger) is treated like a Fail - lost, needs a PacBio credit case
-    use2 = client.get(f"/api/cell-uses/{use2_id}").json()
-    assert use2["status"] == "failed"
-    assert use2["outcome_notes"] == "cell died on Use 2"
-    assert _sample(client, r2_id)["status"] == "failed"
-
-    cell = client.get(f"/api/cells/{cell_id}").json()
-    assert cell["status"] == "stopped"
-    assert cell["has_failed_use"] is True
-
-
-def test_stage_flags_cell_has_failed_use_so_an_untouched_earlier_use_is_not_repainted_stopped(client):
-    """StageOut.cell_has_failed_use is what lets the grid tell an earlier, still-untouched
-    use (still "started", no outcome of its own) apart from the one a Stop cell was
-    actually triggered from, once the whole cell reads "stopped" - without it, the
-    frontend's qcAlert fallback would repaint every non-completed use "Stopped" purely
-    because the cell is, which is exactly the reported bug's visual symptom. See
-    SchedulerSlotView's qcAlert."""
-    client.post("/api/imports", json={"raw_text": "sample,barcodes\nS1,bcs1\nS2,bcs2"})
-    mon, _tue, wed = _weekdays(3)
-
-    r1 = _place(client, _sid(client, "S1"), mon, 0, {"mode": "new"})
-    assert r1.status_code == 201, r1.text
-    cell_id = _stages(r1.json())[0]["cell_id"]
-    cycle1_id = r1.json()["run_id"]
-    assert client.patch(f"/api/cycles/{cycle1_id}", json={"status": "running"}).status_code == 200
-
-    r2 = _place(client, _sid(client, "S2"), wed, 0, {"mode": "existing", "cell_id": cell_id})
-    assert r2.status_code == 201, r2.text
-    use2_id = _stages(r2.json())[0]["cell_use_id"]
-    cycle2_id = r2.json()["run_id"]
-    assert client.patch(f"/api/cycles/{cycle2_id}", json={"status": "running"}).status_code == 200
-
-    stop = client.post(f"/api/cells/{cell_id}/stop", json={"reason": "cell died on Use 2", "cell_use_id": use2_id})
-    assert stop.status_code == 200, stop.text
-
-    mon_stage = _stages(client.get(f"/api/cycles/{cycle1_id}").json())[0]
-    assert mon_stage["cell_use_status"] == "started"
-    assert mon_stage["cell_status"] == "stopped"
-    assert mon_stage["cell_has_failed_use"] is True
-
-    wed_stage = _stages(client.get(f"/api/cycles/{cycle2_id}").json())[0]
-    assert wed_stage["cell_use_status"] == "failed"
-    assert wed_stage["cell_has_failed_use"] is True
-
-
-def test_stop_cell_rehomes_only_uses_later_than_the_trigger(client):
-    client.post("/api/imports", json={"raw_text": "sample,barcodes\nR3,bcr3\nR4,bcr4\nR5,bcr5"})
-    mon, _tue, wed, thu = _weekdays(4)
-
-    r1 = _place(client, _sid(client, "R3"), mon, 0, {"mode": "new"})
-    assert r1.status_code == 201, r1.text
-    cell_id = _stages(r1.json())[0]["cell_id"]
-    use1_id = _stages(r1.json())[0]["cell_use_id"]
-    assert client.patch(f"/api/cycles/{r1.json()['run_id']}", json={"status": "running"}).status_code == 200
-
-    r2 = _place(client, _sid(client, "R4"), wed, 0, {"mode": "existing", "cell_id": cell_id})
-    assert r2.status_code == 201, r2.text
-    use2_id = _stages(r2.json())[0]["cell_use_id"]
-    assert client.patch(f"/api/cycles/{r2.json()['run_id']}", json={"status": "running"}).status_code == 200
-
-    r3 = _place(client, _sid(client, "R5"), thu, 0, {"mode": "existing", "cell_id": cell_id})
-    assert r3.status_code == 201, r3.text
-    use3_id = _stages(r3.json())[0]["cell_use_id"]
-    r5_id = _sid(client, "R5")
-    # Use 3 stays "planned" - never confirmed loaded
-
-    # Stop anchored on Use 2 (the trigger): Use 1 (earlier) is untouched, Use 3 (later) re-homes.
-    stop = client.post(f"/api/cells/{cell_id}/stop", json={"reason": "cell died on Use 2", "cell_use_id": use2_id})
-    assert stop.status_code == 200, stop.text
-    assert stop.json()["rehomed_sample_ids"] == [r5_id]
-    assert stop.json()["unrunnable_sample_ids"] == []
-
-    # Use 1 (before the trigger) is untouched; Use 2 (trigger) failed; Use 3 re-homed to a sibling.
-    assert client.get(f"/api/cell-uses/{use1_id}").json()["status"] == "started"
-    assert client.get(f"/api/cell-uses/{use2_id}").json()["status"] == "failed"
-    use3 = client.get(f"/api/cell-uses/{use3_id}").json()
-    assert use3["status"] == "planned"
-    assert use3["cell_id"] != cell_id  # now on a sibling
-    r5 = _sample(client, r5_id)
-    assert r5["status"] == "scheduled"
-
-
-def test_undo_stop_cell_restores_the_failed_origin_and_the_rehomed_later_use(client):
-    client.post("/api/imports", json={"raw_text": "sample,barcodes\nR6,bcr6\nR7,bcr7"})
-    mon, _tue, wed = _weekdays(3)
-
-    r1 = _place(client, _sid(client, "R6"), mon, 0, {"mode": "new"})
-    assert r1.status_code == 201, r1.text
-    cell_id = _stages(r1.json())[0]["cell_id"]
-    use1_id = _stages(r1.json())[0]["cell_use_id"]
-    r6_id = _sid(client, "R6")
-    assert client.patch(f"/api/cycles/{r1.json()['run_id']}", json={"status": "running"}).status_code == 200
-
-    r2 = _place(client, _sid(client, "R7"), wed, 0, {"mode": "existing", "cell_id": cell_id})
-    assert r2.status_code == 201, r2.text
-    use2_id = _stages(r2.json())[0]["cell_use_id"]
-    r7_id = _sid(client, "R7")
-    # Use 2 stays "planned"
-
-    stop = client.post(f"/api/cells/{cell_id}/stop", json={"reason": "wrong cell selected", "cell_use_id": use1_id})
-    assert stop.status_code == 200, stop.text
-
-    # The trigger use failed (sample lost); Use 2 re-homed onto a sibling (sample still scheduled).
-    assert client.get(f"/api/cell-uses/{use1_id}").json()["status"] == "failed"
-    assert _sample(client, r6_id)["status"] == "failed"
-    use2_stopped = client.get(f"/api/cell-uses/{use2_id}").json()
-    assert use2_stopped["status"] == "planned"
-    assert use2_stopped["cell_id"] != cell_id
-    assert _sample(client, r7_id)["status"] == "scheduled"
-
-    undo = client.post(f"/api/cells/{cell_id}/undo-stop")
-    assert undo.status_code == 200, undo.text
-    body = undo.json()
-    assert body["cell"]["status"] == "open"
-    assert set(body["reverted_cell_use_ids"]) == {use1_id, use2_id}
-
-    use1_after = client.get(f"/api/cell-uses/{use1_id}").json()
-    assert use1_after["status"] == "started"
-    assert _sample(client, r6_id)["status"] == "in_progress"
-
-    # Use 2 moves back onto the reopened cell, still scheduled the whole time.
-    use2_after = client.get(f"/api/cell-uses/{use2_id}").json()
-    assert use2_after["status"] == "planned"
-    assert use2_after["cell_id"] == cell_id
-    assert _sample(client, r7_id)["status"] == "scheduled"
-
-
-def test_stop_cell_rejects_cell_use_id_that_is_already_terminal(client):
-    client.post("/api/imports", json={"raw_text": "sample,barcodes\nR8,bcr8"})
-    (mon,) = _weekdays(1)
-
-    r1 = _place(client, _sid(client, "R8"), mon, 0, {"mode": "new"})
-    assert r1.status_code == 201, r1.text
-    cell_id = _stages(r1.json())[0]["cell_id"]
-    use1_id = _stages(r1.json())[0]["cell_use_id"]
-    cycle_id = r1.json()["run_id"]
-    assert client.patch(f"/api/cycles/{cycle_id}", json={"status": "running"}).status_code == 200
-    assert client.patch(f"/api/cycles/{cycle_id}", json={"status": "completed"}).status_code == 200
-
-    stop = client.post(f"/api/cells/{cell_id}/stop", json={"reason": "too late", "cell_use_id": use1_id})
-    assert stop.status_code == 409, stop.text
-    assert "completed" in stop.json()["detail"].lower()
-
-
-def test_stop_cell_rejects_cell_use_id_before_its_run_is_locked_in(client):
-    client.post("/api/imports", json={"raw_text": "sample,barcodes\nR9,bcr9"})
-    (mon,) = _weekdays(1)
-
-    r1 = _place(client, _sid(client, "R9"), mon, 0, {"mode": "new"})
-    assert r1.status_code == 201, r1.text
-    cell_id = _stages(r1.json())[0]["cell_id"]
-    use1_id = _stages(r1.json())[0]["cell_use_id"]
-    # Never confirmed loaded - cycle stays "planned"
-
-    stop = client.post(f"/api/cells/{cell_id}/stop", json={"reason": "too early", "cell_use_id": use1_id})
-    assert stop.status_code == 409, stop.text
-    assert "locked" in stop.json()["detail"].lower()
-
-
-def test_stop_cell_rejects_cell_use_id_from_a_different_cell(client):
-    client.post("/api/imports", json={"raw_text": "sample,barcodes\nRA,bcra\nRB,bcrb"})
-    mon, tue = _weekdays(2)
-
-    ra = _place(client, _sid(client, "RA"), mon, 0, {"mode": "new"})
-    assert ra.status_code == 201, ra.text
-    rb = _place(client, _sid(client, "RB"), tue, 4, {"mode": "new"})
-    assert rb.status_code == 201, rb.text
-    cell_a_id = _stages(ra.json())[0]["cell_id"]
-    use_b_id = _stages(rb.json())[0]["cell_use_id"]
-
-    stop = client.post(f"/api/cells/{cell_a_id}/stop", json={"reason": "wrong id", "cell_use_id": use_b_id})
-    assert stop.status_code == 409, stop.text
-    assert "does not belong" in stop.json()["detail"].lower()
-
-
-def test_stop_cell_rejects_double_stop_and_already_retired(client):
-    boot = client.post("/api/cells/bootstrap", json={"max_uses": 3, "uses_consumed": 0, "burned_barcodes": []})
-    cell_id = boot.json()["id"]
-
-    first = client.post(f"/api/cells/{cell_id}/stop", json={"reason": "damaged"})
-    assert first.status_code == 200, first.text
-
-    again = client.post(f"/api/cells/{cell_id}/stop", json={"reason": "damaged again"})
-    assert again.status_code == 409
-
-    other = client.post("/api/cells/bootstrap", json={"max_uses": 3, "uses_consumed": 0, "burned_barcodes": []})
-    retired_id = other.json()["id"]
-    assert client.post(f"/api/cells/{retired_id}/retire").status_code == 200
-    stop_retired = client.post(f"/api/cells/{retired_id}/stop", json={"reason": "damaged"})
-    assert stop_retired.status_code == 409
-
-
-def test_stopped_cell_status_is_sticky_against_later_cell_use_updates(client):
-    client.post("/api/imports", json={"raw_text": "sample,barcodes\nH1,bch1"})
-    (mon,) = _weekdays(1)
-    r1 = _place(client, _sid(client, "H1"), mon, 0, {"mode": "new"})
-    assert r1.status_code == 201, r1.text
+    assert _sample(client, f1_id)["status"] == "failed"
+    # Lost -> a top-up entry now exists for F1
+    topups = client.get("/api/topups").json()
+    assert [t["sample_id"] for t in topups] == [f1_id]
+
+
+def test_patch_cell_use_failed_is_rejected_and_points_at_qc(client):
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nZ1,bcz1"})
+    past = _past_weekday()
+    r1 = _place(client, _sid(client, "Z1"), past, 0, {"mode": "new"})
     stage = _stages(r1.json())[0]
-    cycle_id = r1.json()["run_id"]
+    assert client.patch(f"/api/cycles/{r1.json()['run_id']}", json={"status": "running"}).status_code == 200
 
-    client.patch(f"/api/cycles/{cycle_id}", json={"status": "running"})
-    client.patch(f"/api/cycles/{cycle_id}", json={"status": "completed"})
-
-    stop = client.post(f"/api/cells/{stage['cell_id']}/stop", json={"reason": "damaged after Use 1"})
-    assert stop.status_code == 200, stop.text
-    assert stop.json()["cell"]["status"] == "stopped"
-
-    # amending the already-completed use's notes still recomputes the cell's status -
-    # it must stay "stopped", never fall back to "open"/"exhausted"
-    amend = client.patch(f"/api/cell-uses/{stage['cell_use_id']}", json={"status": "completed", "notes": "amended"})
-    assert amend.status_code == 200, amend.text
-
-    cell = client.get(f"/api/cells/{stage['cell_id']}").json()
-    assert cell["status"] == "stopped"
+    resp = client.patch(f"/api/cell-uses/{stage['cell_use_id']}", json={"status": "failed"})
+    assert resp.status_code == 409, resp.text
+    assert "qc" in resp.json()["detail"].lower()
 
 
-def test_credit_workflow_guards_out_of_order_actions(client):
-    boot = client.post("/api/cells/bootstrap", json={"max_uses": 3, "uses_consumed": 0, "burned_barcodes": []})
-    cell_id = boot.json()["id"]
-
-    # not eligible yet - no failed use, not stopped
-    not_eligible = client.post(f"/api/cells/{cell_id}/report-to-pacbio", json={"case_number": "CASE-1"})
-    assert not_eligible.status_code == 409
-
-    assert client.post(f"/api/cells/{cell_id}/stop", json={"reason": "damaged"}).status_code == 200
-
-    # confirm/receive before reporting - both rejected
-    assert client.post(f"/api/cells/{cell_id}/confirm-credit", json={}).status_code == 409
-    assert client.post(f"/api/cells/{cell_id}/receive-credit", json={}).status_code == 409
-
-    report = client.post(f"/api/cells/{cell_id}/report-to-pacbio", json={"case_number": "CASE-1"})
-    assert report.status_code == 200, report.text
-    assert report.json()["pacbio_case_number"] == "CASE-1"
-    assert report.json()["needs_qc_report"] is False
-    assert report.json()["awaiting_credit"] is True
+# --------------------------------------------------------------------------------------
+# Fail-and-Stop: the worked-example tray re-zip
+# --------------------------------------------------------------------------------------
 
 
-def test_credit_workflow_happy_path_and_qc_status_filters(client):
-    boot = client.post("/api/cells/bootstrap", json={"max_uses": 3, "uses_consumed": 0, "burned_barcodes": []})
-    cell_id = boot.json()["id"]
-    assert client.post(f"/api/cells/{cell_id}/stop", json={"reason": "damaged"}).status_code == 200
+def test_fail_and_stop_rezips_the_tray_and_displaces_the_tail(client):
+    cellA, cells, mon_use1_A, wed_run_id, _mon_run_id = _build_worked_example(client)
+
+    preview = qc_preview(client, cellA, "fail_and_stop", mon_use1_A)
+    assert preview.status_code == 200, preview.text
+    by_sample = {a["external_id"]: a for a in preview.json()["affected_samples"]}
+    # P1A failed; P2A/P2B/P2C shifted onto the next cell (B/C/D); P2D displaced off the tail.
+    assert by_sample["P1A"]["role"] == "failed"
+    assert by_sample["P2A"]["role"] == "reassigned" and by_sample["P2A"]["actual_cell_code"] == by_sample["P2B"]["planned_cell_code"]
+    assert {"P2A", "P2B", "P2C"} <= {k for k, v in by_sample.items() if v["reassigned"]}
+    assert by_sample["P2D"]["role"] == "displaced"
+    assert {k for k, v in by_sample.items() if v["disposition_required"]} == {"P1A", "P2D"}
+
+    commit = qc_commit(
+        client,
+        cellA,
+        "fail_and_stop",
+        mon_use1_A,
+        {_sid(client, "P1A"): "lost", _sid(client, "P2D"): "recoverable"},
+        reason="cell died",
+    )
+    assert commit.status_code == 200, commit.text
+    body = commit.json()
+    assert body["cell"]["status"] == "stopped"
+
+    wed = client.get(f"/api/cycles/{wed_run_id}").json()
+    wed_stages = {s["sample_external_id"]: s for s in _stages(wed)}
+    # P2A now backs cell B (its planned neighbour), flagged reassigned; P2D is a cancelled tail.
+    assert wed_stages["P2A"]["cell_id"] == cells["B01"]
+    assert wed_stages["P2A"]["reassigned"] is True
+    assert wed_stages["P2A"]["cell_use_status"] == "planned"
+    assert wed_stages["P2D"]["cell_use_status"] == "cancelled"
+
+    assert _sample(client, _sid(client, "P1A"))["status"] == "failed"  # lost -> top-up
+    p2d = _sample(client, _sid(client, "P2D"))
+    assert p2d["status"] == "backlog" and p2d["qc_disposition"] == "recoverable"
+    assert p2d["priority"] == "Recoverable (0)"
+    assert [t["sample_id"] for t in client.get("/api/topups").json()] == [_sid(client, "P1A")]
+
+
+def test_fail_and_stop_requires_dispositions_for_every_must_dispose_sample(client):
+    cellA, _cells, mon_use1_A, _wed, _mon = _build_worked_example(client)
+    # Omit P2D's disposition -> 409, nothing committed.
+    commit = qc_commit(client, cellA, "fail_and_stop", mon_use1_A, {_sid(client, "P1A"): "lost"})
+    assert commit.status_code == 409, commit.text
+    assert client.get(f"/api/cells/{cellA}").json()["status"] == "open"  # untouched
+
+
+# --------------------------------------------------------------------------------------
+# Retire: shifts future uses without failing the current one
+# --------------------------------------------------------------------------------------
+
+
+def test_retire_rezips_future_uses_without_failing_the_current_use(client):
+    cellA, cells, mon_use1_A, wed_run_id, mon_run_id = _build_worked_example(client)
+
+    preview = qc_preview(client, cellA, "retire", None)
+    assert preview.status_code == 200, preview.text
+    by_sample = {a["external_id"]: a for a in preview.json()["affected_samples"]}
+    # No failed sample (retire doesn't fail the current use); P2A/B/C shift, P2D displaced.
+    assert "P1A" not in by_sample
+    assert {k for k, v in by_sample.items() if v["disposition_required"]} == {"P2D"}
+
+    commit = qc_commit(client, cellA, "retire", None, {_sid(client, "P2D"): "repeatable"})
+    assert commit.status_code == 200, commit.text
+    assert commit.json()["cell"]["status"] == "retired"
+
+    # Monday's Use 1 (P1A) is untouched - still running, not failed.
+    mon_stage = next(s for s in _stages(client.get(f"/api/cycles/{mon_run_id}").json()) if s["cell_id"] == cellA)
+    assert mon_stage["cell_use_status"] == "started"
+    p2d = _sample(client, _sid(client, "P2D"))
+    assert p2d["status"] == "backlog" and p2d["qc_disposition"] == "repeatable"
+
+
+# --------------------------------------------------------------------------------------
+# Barcode clash flagged on a shift
+# --------------------------------------------------------------------------------------
+
+
+def test_shift_onto_a_cell_with_a_clashing_burned_barcode_is_flagged(client):
+    """P2A's barcode collides with P1B's. Planned on cell A (no clash there), the re-zip
+    shifts P2A onto cell B - which already burned that barcode on Use 1 - so it's flagged."""
+    rows = [("P1A", "bcaa"), ("P1B", "bcSHARED"), ("P1C", "bccc"), ("P1D", "bcdd"),
+            ("P2A", "bcSHARED"), ("P2B", "bcbb2"), ("P2C", "bccc2"), ("P2D", "bcdd2")]
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\n" + "\n".join(f"{s},{b}" for s, b in rows)})
+    mon, _tue, wed = _weekdays(3)
+
+    r = _place(client, _sid(client, "P1A"), mon, 0, {"mode": "new"})
+    cellA = _stages(r.json())[0]["cell_id"]
+    mon_run_id = r.json()["run_id"]
+    cells = _tray_cells_by_well(client, _stages(r.json())[0]["tray_id"])
+    for slot, well in ((1, "B01"), (2, "C01"), (3, "D01")):
+        _place(client, _sid(client, f"P1{well[0]}"), mon, slot, {"mode": "existing", "cell_id": cells[well]})
+    assert client.patch(f"/api/cycles/{mon_run_id}", json={"status": "running"}).status_code == 200
+    for slot, well in ((0, "A01"), (1, "B01"), (2, "C01"), (3, "D01")):
+        _place(client, _sid(client, f"P2{well[0]}"), wed, slot, {"mode": "existing", "cell_id": cells[well]})
+    mon_use1_A = next(s["cell_use_id"] for s in _stages(client.get(f"/api/cycles/{mon_run_id}").json()) if s["cell_id"] == cellA)
+
+    preview = qc_preview(client, cellA, "fail_and_stop", mon_use1_A)
+    p2a = next(a for a in preview.json()["affected_samples"] if a["external_id"] == "P2A")
+    assert p2a["reassigned"] is True
+    assert p2a["barcode_clash"] is True
+
+    commit = qc_commit(
+        client, cellA, "fail_and_stop", mon_use1_A,
+        {_sid(client, "P1A"): "lost", _sid(client, "P2D"): "recoverable"},
+    )
+    assert commit.status_code == 200, commit.text
+    assert len(commit.json()["clash_cell_use_ids"]) == 1
+
+
+# --------------------------------------------------------------------------------------
+# Preview is read-only; Undo restores
+# --------------------------------------------------------------------------------------
+
+
+def test_preview_does_not_mutate(client):
+    cellA, _cells, mon_use1_A, _wed, _mon = _build_worked_example(client)
+    before = client.get(f"/api/cells/{cellA}").json()["status"]
+    qc_preview(client, cellA, "fail_and_stop", mon_use1_A)
+    qc_preview(client, cellA, "retire", None)
+    assert client.get(f"/api/cells/{cellA}").json()["status"] == before == "open"
+    assert client.get("/api/topups").json() == []
+
+
+def test_undo_qc_reopens_the_cell_and_restores_uses_and_samples(client):
+    cellA, cells, mon_use1_A, wed_run_id, _mon = _build_worked_example(client)
+    qc_commit(
+        client, cellA, "fail_and_stop", mon_use1_A,
+        {_sid(client, "P1A"): "lost", _sid(client, "P2D"): "recoverable"},
+    )
+    assert client.get(f"/api/cells/{cellA}").json()["status"] == "stopped"
+
+    undo = client.post(f"/api/cells/{cellA}/qc/undo")
+    assert undo.status_code == 200, undo.text
+    assert undo.json()["cell"]["status"] == "open"
+
+    # P2A moves back onto cell A; P2D's cancelled tail is planned again; the top-up is gone.
+    wed_stages = {s["sample_external_id"]: s for s in _stages(client.get(f"/api/cycles/{wed_run_id}").json())}
+    assert wed_stages["P2A"]["cell_id"] == cellA
+    assert wed_stages["P2A"]["reassigned"] is False
+    assert wed_stages["P2D"]["cell_use_status"] == "planned"
+    assert _sample(client, _sid(client, "P2D"))["status"] == "scheduled"
+    assert _sample(client, _sid(client, "P2D"))["qc_disposition"] is None
+    assert client.get("/api/topups").json() == []
+
+
+# --------------------------------------------------------------------------------------
+# Top-up list actions
+# --------------------------------------------------------------------------------------
+
+
+def test_topup_request_sent_then_cancel(client):
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nT1,bct1"})
+    past = _past_weekday()
+    r1 = _place(client, _sid(client, "T1"), past, 0, {"mode": "new"})
+    stage = _stages(r1.json())[0]
+    assert client.patch(f"/api/cycles/{r1.json()['run_id']}", json={"status": "running"}).status_code == 200
+    qc_commit(client, stage["cell_id"], "fail", stage["cell_use_id"], {_sid(client, "T1"): "lost"})
+
+    topups = client.get("/api/topups").json()
+    assert len(topups) == 1 and topups[0]["request_sent_at"] is None
+    tid = topups[0]["id"]
+
+    sent = client.post(f"/api/topups/{tid}/request-sent")
+    assert sent.status_code == 200, sent.text
+    assert sent.json()["request_sent_at"] is not None
+    assert client.get("/api/topups", params={"status": "pending"}).json() == []
+    assert len(client.get("/api/topups", params={"status": "sent"}).json()) == 1
+
+    assert client.delete(f"/api/topups/{tid}").status_code == 204
+    assert client.get("/api/topups").json() == []
+
+
+# --------------------------------------------------------------------------------------
+# PacBio credit workflow (still fed by a Fail / Fail-and-Stop)
+# --------------------------------------------------------------------------------------
+
+
+def test_credit_workflow_after_fail_and_stop(client):
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nC1,bcc1"})
+    past = _past_weekday()
+    r1 = _place(client, _sid(client, "C1"), past, 0, {"mode": "new"})
+    stage = _stages(r1.json())[0]
+    cell_id = stage["cell_id"]
+    assert client.patch(f"/api/cycles/{r1.json()['run_id']}", json={"status": "running"}).status_code == 200
+    qc_commit(client, cell_id, "fail_and_stop", stage["cell_use_id"], {_sid(client, "C1"): "lost"})
 
     unreported = client.get("/api/cells", params={"qc_status": "unreported"}).json()
     assert cell_id in [c["id"] for c in unreported["items"]]
 
-    assert (
-        client.post(f"/api/cells/{cell_id}/report-to-pacbio", json={"case_number": "CASE-42"}).status_code == 200
-    )
-
-    unreported_after = client.get("/api/cells", params={"qc_status": "unreported"}).json()
-    assert cell_id not in [c["id"] for c in unreported_after["items"]]
-
+    assert client.post(f"/api/cells/{cell_id}/report-to-pacbio", json={"case_number": "CASE-9"}).status_code == 200
     awaiting = client.get("/api/cells", params={"qc_status": "awaiting_credit"}).json()
     assert cell_id in [c["id"] for c in awaiting["items"]]
-
-    confirm = client.post(f"/api/cells/{cell_id}/confirm-credit", json={})
-    assert confirm.status_code == 200, confirm.text
-    assert confirm.json()["pacbio_credit_confirmed_at"] is not None
-
-    receive = client.post(f"/api/cells/{cell_id}/receive-credit", json={})
-    assert receive.status_code == 200, receive.text
-    assert receive.json()["credit_received_at"] is not None
-
+    assert client.post(f"/api/cells/{cell_id}/confirm-credit", json={}).status_code == 200
+    assert client.post(f"/api/cells/{cell_id}/receive-credit", json={}).status_code == 200
     awaiting_after = client.get("/api/cells", params={"qc_status": "awaiting_credit"}).json()
     assert cell_id not in [c["id"] for c in awaiting_after["items"]]
 
 
-def test_unknown_qc_status_filter_is_rejected(client):
-    resp = client.get("/api/cells", params={"qc_status": "bogus"})
-    assert resp.status_code == 400
+# --------------------------------------------------------------------------------------
+# Guards; aborted (a run problem, not QC) still flows through the run lifecycle
+# --------------------------------------------------------------------------------------
 
 
-def test_mark_failed_available_once_run_confirmed_loaded_regardless_of_scheduled_time(client):
-    """Mark Failed/Stop cell become available once a run is locked in (Confirm loaded
-    clicked, cycle status no longer "planned") - independent of whether its scheduled
-    start time has actually passed. A run that's merely scheduled in the past but never
-    confirmed loaded is NOT yet QC-able (nobody has told the system the tray is really on
-    the instrument), while a future-dated run that's already been confirmed loaded IS -
-    the lock state is what matters, not the calendar."""
-    client.post("/api/imports", json={"raw_text": "sample,barcodes\nP1,bcp1\nP2,bcp2"})
-    past = _past_weekday()
-    future = _weekdays(3)[-1]
-
-    r_past = _place(client, _sid(client, "P1"), past, 0, {"mode": "new"}, instrument="84093")
-    assert r_past.status_code == 201, r_past.text
-    past_stage = _stages(r_past.json())[0]
-    past_cycle_id = r_past.json()["run_id"]
-
-    r_future = _place(client, _sid(client, "P2"), future, 0, {"mode": "new"}, instrument="84309")
-    assert r_future.status_code == 201, r_future.text
-    future_stage = _stages(r_future.json())[0]
-    future_cycle_id = r_future.json()["run_id"]
-
-    def _run_started(cell_id: int, use_id: int) -> bool:
-        detail = client.get(f"/api/cells/{cell_id}").json()
-        use = next(u for u in detail["use_history"] if u["id"] == use_id)
-        return use["run_started"]
-
-    # Neither is QC-able yet - the past-dated one was never confirmed loaded, so it's
-    # still just "planned" as far as the system knows.
-    assert _run_started(past_stage["cell_id"], past_stage["cell_use_id"]) is False
-    assert _run_started(future_stage["cell_id"], future_stage["cell_use_id"]) is False
-
-    too_early = client.patch(f"/api/cell-uses/{past_stage['cell_use_id']}", json={"status": "failed"})
-    assert too_early.status_code == 409, too_early.text
-
-    # Confirming the future-dated run loaded makes it immediately actionable, even though
-    # its scheduled start time is still ahead.
-    assert client.patch(f"/api/cycles/{future_cycle_id}", json={"status": "running"}).status_code == 200
-    assert _run_started(future_stage["cell_id"], future_stage["cell_use_id"]) is True
-
-    fail = client.patch(
-        f"/api/cell-uses/{future_stage['cell_use_id']}", json={"status": "failed", "notes": "found dead cell on load"}
-    )
-    assert fail.status_code == 200, fail.text
-    assert fail.json()["status"] == "failed"
-
-    # Confirming the past-dated run loaded (late, but confirmed) makes it actionable too.
-    assert client.patch(f"/api/cycles/{past_cycle_id}", json={"status": "running"}).status_code == 200
-    assert _run_started(past_stage["cell_id"], past_stage["cell_use_id"]) is True
-    late_fail = client.patch(f"/api/cell-uses/{past_stage['cell_use_id']}", json={"status": "failed"})
-    assert late_fail.status_code == 200, late_fail.text
-
-
-def test_mark_failed_and_aborted_rejected_before_run_has_started(client):
-    """Server-side mirror of the frontend's canRecordQcOutcome gate (cellUseQc.ts) - a
-    direct API call must not be able to record a QC outcome on a use whose run hasn't
-    been locked in (confirmed loaded) yet, even though the UI itself already hides the
-    buttons for this case."""
+def test_qc_rejects_a_use_before_its_run_has_started(client):
     client.post("/api/imports", json={"raw_text": "sample,barcodes\nP3,bcp3"})
     future = _weekdays(3)[-1]
-
     r1 = _place(client, _sid(client, "P3"), future, 0, {"mode": "new"}, instrument="84093")
-    assert r1.status_code == 201, r1.text
-    use_id = _stages(r1.json())[0]["cell_use_id"]
-
-    fail = client.patch(f"/api/cell-uses/{use_id}", json={"status": "failed", "notes": "too early"})
-    assert fail.status_code == 409, fail.text
-    assert "started" in fail.json()["detail"].lower()
-
-    abort = client.patch(f"/api/cell-uses/{use_id}", json={"status": "aborted", "notes": "too early"})
-    assert abort.status_code == 409, abort.text
-    assert "started" in abort.json()["detail"].lower()
-
-    # untouched - still planned
-    assert client.get(f"/api/cell-uses/{use_id}").json()["status"] == "planned"
+    stage = _stages(r1.json())[0]
+    preview = qc_preview(client, stage["cell_id"], "fail_and_stop", stage["cell_use_id"])
+    assert preview.status_code == 409, preview.text
+    assert "started" in preview.json()["detail"].lower()
 
 
-def test_stage_surfaces_qc_status_for_failed_use_and_stopped_cell(client):
-    """The Weekly schedule grid flags a QC problem directly on the slot without a
-    click-through - this only works if StageOut carries the use's own status and its
-    cell's overall status through to the grid (see frontend SchedulerSlotView's qcAlert)."""
-    client.post("/api/imports", json={"raw_text": "sample,barcodes\nQ1,bcq1\nQ2,bcq2"})
-    past = _past_weekday()
-    future = _weekdays(1)[-1]
-
-    r1 = _place(client, _sid(client, "Q1"), past, 0, {"mode": "new"})
-    assert r1.status_code == 201, r1.text
-    cycle1_id = r1.json()["run_id"]
-    cell_use_id = _stages(r1.json())[0]["cell_use_id"]
-    cell_id = _stages(r1.json())[0]["cell_id"]
-    assert client.patch(f"/api/cycles/{cycle1_id}", json={"status": "running"}).status_code == 200
-
-    # Mark this use Failed - only this stage's cell_use_status flips, the cell stays open
-    fail = client.patch(f"/api/cell-uses/{cell_use_id}", json={"status": "failed"})
-    assert fail.status_code == 200, fail.text
-
-    stage = _stages(client.get(f"/api/cycles/{cycle1_id}").json())[0]
-    assert stage["cell_use_status"] == "failed"
-    assert stage["cell_status"] == "open"
-
-    # Reuse the (still open) cell for a second, still-planned use, then Stop the cell
-    r2 = _place(client, _sid(client, "Q2"), future, 0, {"mode": "existing", "cell_id": cell_id})
-    assert r2.status_code == 201, r2.text
-
-    stop = client.post(f"/api/cells/{cell_id}/stop", json={"reason": "damaged"})
-    assert stop.status_code == 200, stop.text
-
-    # The first stage's own recorded outcome ("failed") is untouched history - stop_cell()
-    # only cuts off the cell's *future*, not its past (see cell_service.stop_cell) - but the
-    # cell's own status now correctly reads "stopped" too, since the physical cell itself is
-    # out of service. The frontend grid relies on exactly this distinction to keep showing
-    # "Failed" here rather than repainting it "Stopped" (see SchedulerSlotView's qcAlert).
-    stage_after_stop = _stages(client.get(f"/api/cycles/{cycle1_id}").json())[0]
-    assert stage_after_stop["cell_use_status"] == "failed"
-    assert stage_after_stop["cell_status"] == "stopped"
+def test_qc_rejects_second_verdict_on_a_terminal_cell(client):
+    cellA, _cells, mon_use1_A, _wed, _mon = _build_worked_example(client)
+    qc_commit(client, cellA, "fail_and_stop", mon_use1_A, {_sid(client, "P1A"): "lost", _sid(client, "P2D"): "recoverable"})
+    again = qc_preview(client, cellA, "fail_and_stop", mon_use1_A)
+    assert again.status_code == 409
+    assert "already" in again.json()["detail"].lower()
 
 
 def test_mark_cell_use_aborted_returns_sample_straight_to_backlog(client):
-    """Aborted is a run/instrument problem, not a cell or sample one - unlike Failed, the
-    sample goes straight back to the backlog with no separate Requeue step, and it's
-    deliberately excluded from the PacBio credit workflow (has_failed_use only counts
-    "failed", never "aborted")."""
+    """Aborted is a run/instrument problem, not cell QC - still handled by the run-lifecycle
+    PATCH, sample straight back to the backlog, cell untouched and not credit-eligible."""
     client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bca1"})
     past = _past_weekday()
-
     r1 = _place(client, _sid(client, "A1"), past, 0, {"mode": "new"})
-    assert r1.status_code == 201, r1.text
     stage = _stages(r1.json())[0]
-    cycle_id = r1.json()["run_id"]
-    assert client.patch(f"/api/cycles/{cycle_id}", json={"status": "running"}).status_code == 200
+    assert client.patch(f"/api/cycles/{r1.json()['run_id']}", json={"status": "running"}).status_code == 200
 
-    resp = client.patch(
-        f"/api/cell-uses/{stage['cell_use_id']}", json={"status": "aborted", "notes": "instrument fault mid-run"}
-    )
+    resp = client.patch(f"/api/cell-uses/{stage['cell_use_id']}", json={"status": "aborted", "notes": "instrument fault"})
     assert resp.status_code == 200, resp.text
-    assert resp.json()["status"] == "aborted"
-
-    a1_id = _sid(client, "A1")
-    assert _sample(client, a1_id)["status"] == "backlog"
-
+    a1 = _sample(client, _sid(client, "A1"))
+    assert a1["status"] == "backlog"
     cell = client.get(f"/api/cells/{stage['cell_id']}").json()
-    assert cell["status"] == "open"  # cell itself is untouched, still open for its other uses
-    assert cell["uses_consumed"] == 1  # still counts as a consumed physical use, unlike "cancelled"
-    assert cell["has_failed_use"] is False  # aborted is not a cell-quality failure
-    assert cell["needs_qc_report"] is False  # so it never drives the PacBio credit workflow
-
-    stage_after = _stages(client.get(f"/api/cycles/{cycle_id}").json())[0]
-    assert stage_after["cell_use_status"] == "aborted"
-
-    # The backlog-returned sample can be rescheduled immediately - no extra step needed.
-    # Slot 4 (well A02, tray box 2), not slot 0 (well A01) - well A01 already has the
-    # original cell's own physical tray loaded on it (see open_new_tray()'s box guard),
-    # and reusing that same cell directly would trip the barcode-conflict guard instead
-    # (it already burned bca1 on its own aborted use).
-    reschedule = _place(client, a1_id, _weekdays(2)[-1], 4, {"mode": "new"})
-    assert reschedule.status_code == 201, reschedule.text
+    assert cell["status"] == "open" and cell["has_failed_use"] is False and cell["needs_qc_report"] is False
 
 
-def test_undo_mark_failed_restores_use_and_sample(client):
-    client.post("/api/imports", json={"raw_text": "sample,barcodes\nU1,bcu1"})
-    past = _past_weekday()
-
-    r1 = _place(client, _sid(client, "U1"), past, 0, {"mode": "new"}, instrument="84093")
-    assert r1.status_code == 201, r1.text
-    stage = _stages(r1.json())[0]
-    u1_id = _sid(client, "U1")
-    assert _sample(client, u1_id)["status"] == "scheduled"
-    assert client.patch(f"/api/cycles/{r1.json()['run_id']}", json={"status": "running"}).status_code == 200
-
-    fail = client.patch(f"/api/cell-uses/{stage['cell_use_id']}", json={"status": "failed", "notes": "no data"})
-    assert fail.status_code == 200, fail.text
-    assert _sample(client, u1_id)["status"] == "failed"
-
-    undo = client.post(f"/api/cell-uses/{stage['cell_use_id']}/undo")
-    assert undo.status_code == 200, undo.text
-    assert undo.json()["status"] == "started"
-    assert undo.json()["started_at"] is not None
-    assert undo.json()["outcome_notes"] is None
-    assert _sample(client, u1_id)["status"] == "in_progress"
-
-    # the cell is untouched by either the mark or the undo - it stays open throughout
-    cell = client.get(f"/api/cells/{stage['cell_id']}").json()
-    assert cell["status"] == "open"
-    assert cell["has_failed_use"] is False
-
-
-def test_undo_mark_aborted_restores_use_and_sample(client):
-    client.post("/api/imports", json={"raw_text": "sample,barcodes\nU2,bcu2"})
-    past = _past_weekday()
-
-    r1 = _place(client, _sid(client, "U2"), past, 0, {"mode": "new"}, instrument="84093")
-    assert r1.status_code == 201, r1.text
-    stage = _stages(r1.json())[0]
-    u2_id = _sid(client, "U2")
-    assert client.patch(f"/api/cycles/{r1.json()['run_id']}", json={"status": "running"}).status_code == 200
-
-    abort = client.patch(f"/api/cell-uses/{stage['cell_use_id']}", json={"status": "aborted"})
-    assert abort.status_code == 200, abort.text
-    assert _sample(client, u2_id)["status"] == "backlog"
-
-    undo = client.post(f"/api/cell-uses/{stage['cell_use_id']}/undo")
-    assert undo.status_code == 200, undo.text
-    assert undo.json()["status"] == "started"
-    assert _sample(client, u2_id)["status"] == "in_progress"
-
-
-def test_undo_rejected_for_a_use_that_was_never_flagged(client):
-    client.post("/api/imports", json={"raw_text": "sample,barcodes\nU3,bcu3"})
-    (mon,) = _weekdays(1)
-
-    r1 = _place(client, _sid(client, "U3"), mon, 0, {"mode": "new"})
-    assert r1.status_code == 201, r1.text
-    use_id = _stages(r1.json())[0]["cell_use_id"]
-
-    undo = client.post(f"/api/cell-uses/{use_id}/undo")
-    assert undo.status_code == 409, undo.text
-    assert "failed or aborted" in undo.json()["detail"].lower()
-
-
-def test_undo_mark_failed_blocked_once_sample_has_moved_on(client):
-    """If the sample was requeued and rescheduled onto a fresh placement before anyone
-    clicked Undo on the original mistaken Mark Failed, reviving the old use back to
-    "planned" would double-book that sample against its new placement - so undo must
-    hard-block rather than silently reviving only the use and leaving the sample alone."""
-    client.post("/api/imports", json={"raw_text": "sample,barcodes\nU4,bcu4"})
-    past = _past_weekday()
+def test_aborted_still_rejected_before_run_started(client):
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nA2,bca2"})
     future = _weekdays(3)[-1]
-
-    r1 = _place(client, _sid(client, "U4"), past, 0, {"mode": "new"}, instrument="84093")
-    assert r1.status_code == 201, r1.text
-    old_use_id = _stages(r1.json())[0]["cell_use_id"]
-    u4_id = _sid(client, "U4")
-    assert client.patch(f"/api/cycles/{r1.json()['run_id']}", json={"status": "running"}).status_code == 200
-
-    assert client.patch(f"/api/cell-uses/{old_use_id}", json={"status": "failed"}).status_code == 200
-    assert client.post(f"/api/samples/{u4_id}/requeue").status_code == 200
-
-    r2 = _place(client, u4_id, future, 0, {"mode": "new"}, instrument="84309")
-    assert r2.status_code == 201, r2.text
-    assert _sample(client, u4_id)["status"] == "scheduled"
-
-    undo = client.post(f"/api/cell-uses/{old_use_id}/undo")
-    assert undo.status_code == 409, undo.text
-    assert "moved on" in undo.json()["detail"].lower()
-
-    # untouched - the old use stays failed, the new placement stays intact
-    assert client.get(f"/api/cell-uses/{old_use_id}").json()["status"] == "failed"
-    assert _sample(client, u4_id)["status"] == "scheduled"
-
-
-def test_undo_stop_cell_reopens_cell_and_restores_planned_use(client):
-    client.post("/api/imports", json={"raw_text": "sample,barcodes\nU5,bcu5\nU6,bcu6"})
-    mon, _tue, wed = _weekdays(3)
-
-    r1 = _place(client, _sid(client, "U5"), mon, 0, {"mode": "new"})
-    assert r1.status_code == 201, r1.text
-    cell_id = _stages(r1.json())[0]["cell_id"]
-    cycle1_id = r1.json()["run_id"]
-
-    assert client.patch(f"/api/cycles/{cycle1_id}", json={"status": "running"}).status_code == 200
-    assert client.patch(f"/api/cycles/{cycle1_id}", json={"status": "completed"}).status_code == 200
-
-    r2 = _place(client, _sid(client, "U6"), wed, 0, {"mode": "existing", "cell_id": cell_id})
-    assert r2.status_code == 201, r2.text
-    u6_use_id = _stages(r2.json())[0]["cell_use_id"]
-    u6_id = _sid(client, "U6")
-
-    stop = client.post(f"/api/cells/{cell_id}/stop", json={"reason": "wrong cell selected"})
-    assert stop.status_code == 200, stop.text
-    # U6's later use re-homes onto a sibling - the sample stays scheduled, not backlogged.
-    assert _sample(client, u6_id)["status"] == "scheduled"
-    assert client.get(f"/api/cell-uses/{u6_use_id}").json()["cell_id"] != cell_id
-
-    undo = client.post(f"/api/cells/{cell_id}/undo-stop")
-    assert undo.status_code == 200, undo.text
-    assert undo.json()["cell"]["status"] == "open"
-    assert undo.json()["cell"]["stopped_reason"] is None
-    assert undo.json()["reverted_cell_use_ids"] == [u6_use_id]
-    assert undo.json()["drifted_cell_use_ids"] == []
-
-    u6_after = client.get(f"/api/cell-uses/{u6_use_id}").json()
-    assert u6_after["status"] == "planned"
-    assert u6_after["cell_id"] == cell_id  # moved back onto the reopened cell
-    assert _sample(client, u6_id)["status"] == "scheduled"
-
-    # Monday's completed use is untouched history throughout
-    mon_cycle = client.get(f"/api/cycles/{cycle1_id}").json()
-    assert mon_cycle["status"] == "completed"
-
-
-def test_undo_stop_cell_rejects_when_not_stopped(client):
-    boot = client.post("/api/cells/bootstrap", json={"max_uses": 3, "uses_consumed": 0, "burned_barcodes": []})
-    cell_id = boot.json()["id"]
-
-    undo = client.post(f"/api/cells/{cell_id}/undo-stop")
-    assert undo.status_code == 409, undo.text
-    assert "not stopped" in undo.json()["detail"].lower()
-
-
-def test_undo_stop_cell_leaves_a_drifted_rehomed_use_but_restores_the_rest(client):
-    """Stop cell can re-home several later uses onto tray siblings at once. If one of those
-    re-homed uses then starts running on its new cell before Undo is clicked, only that one
-    must stay put (moving a started use back would rewrite live history) - the other, still-
-    planned re-homed use is moved back onto the reopened cell as normal."""
-    client.post("/api/imports", json={"raw_text": "sample,barcodes\nU7,bcu7\nU8,bcu8\nU9,bcu9"})
-    mon, tue, wed = _weekdays(3)
-
-    r1 = _place(client, _sid(client, "U7"), mon, 0, {"mode": "new"})
-    assert r1.status_code == 201, r1.text
-    cell_id = _stages(r1.json())[0]["cell_id"]
-    cycle1_id = r1.json()["run_id"]
-
-    # confirm+complete U7's run so its own use is real history, not itself a "planned" use
-    # that Stop cell would also touch - isolates the drift scenario to U8 vs U9 below.
-    assert client.patch(f"/api/cycles/{cycle1_id}", json={"status": "running"}).status_code == 200
-    assert client.patch(f"/api/cycles/{cycle1_id}", json={"status": "completed"}).status_code == 200
-
-    r2 = _place(client, _sid(client, "U8"), tue, 0, {"mode": "existing", "cell_id": cell_id})
-    assert r2.status_code == 201, r2.text
-    u8_use_id = _stages(r2.json())[0]["cell_use_id"]
-    tue_cycle_id = r2.json()["run_id"]
-    u8_id = _sid(client, "U8")
-
-    r3 = _place(client, _sid(client, "U9"), wed, 0, {"mode": "existing", "cell_id": cell_id})
-    assert r3.status_code == 201, r3.text
-    u9_use_id = _stages(r3.json())[0]["cell_use_id"]
-    u9_id = _sid(client, "U9")
-
-    stop = client.post(f"/api/cells/{cell_id}/stop", json={"reason": "damaged"})
-    assert stop.status_code == 200, stop.text
-    # Both later uses re-homed onto siblings (still planned, on a different cell now).
-    assert set(stop.json()["rehomed_sample_ids"]) == {u8_id, u9_id}
-    assert client.get(f"/api/cell-uses/{u8_use_id}").json()["cell_id"] != cell_id
-
-    # U8's re-homed use starts running on its new cell before anyone undoes the stop; U9's
-    # re-homed use stays planned.
-    assert client.patch(f"/api/cycles/{tue_cycle_id}", json={"status": "running"}).status_code == 200
-    assert client.get(f"/api/cell-uses/{u8_use_id}").json()["status"] == "started"
-
-    undo = client.post(f"/api/cells/{cell_id}/undo-stop")
-    assert undo.status_code == 200, undo.text
-    body = undo.json()
-    assert body["cell"]["status"] == "open"
-    assert body["reverted_cell_use_ids"] == [u9_use_id]
-    assert body["drifted_cell_use_ids"] == [u8_use_id]
-
-    # U9 moves back onto the reopened cell; U8's now-running use is left on its sibling.
-    u9_after = client.get(f"/api/cell-uses/{u9_use_id}").json()
-    assert u9_after["status"] == "planned"
-    assert u9_after["cell_id"] == cell_id
-    assert _sample(client, u9_id)["status"] == "scheduled"
-    u8_after = client.get(f"/api/cell-uses/{u8_use_id}").json()
-    assert u8_after["status"] == "started"
-    assert u8_after["cell_id"] != cell_id
-    assert _sample(client, u8_id)["status"] == "in_progress"  # its run started, so it's live now
-
-
-def test_bulk_clear_style_removal_skips_cancelled_marker_and_removes_the_rest(client):
-    """Simulates the frontend's "Clear schedule" bulk action (loop DELETE over every
-    stage) against a week that has a stopped cell's cancelled marker in it - the scenario
-    reported as "the schedule looks cleared but I can no longer schedule anything". The
-    frontend's weekPlannedStages filter now excludes the cancelled stage from that payload
-    up front, but this confirms the backend's own per-item behaviour degrades gracefully
-    even if something else still sends it: the 3 real placements are removed, the
-    cancelled marker survives untouched, and the resulting cycle - down to just that one
-    marker - is exactly what isCellOpen/auto_fill's occupied-check need to see to treat the
-    day as open again."""
-    client.post("/api/imports", json={"raw_text": "sample,barcodes\nD1,bcd1\nD2,bcd2\nD3,bcd3\nD4,bcd4"})
-    (mon,) = _weekdays(1)
-
-    r1 = _place(client, _sid(client, "D1"), mon, 0, {"mode": "new"})
-    cell_id = _stages(r1.json())[0]["cell_id"]
-    cycle_id = r1.json()["run_id"]
-    tray_id = _stages(r1.json())[0]["tray_id"]
-    # D1's placement already opened the whole physical tray (eager tray-of-4 population) -
-    # its 3 unused siblings occupy wells B01/C01/D01, so D2-D4 must reuse them via
-    # "existing" (see open_new_tray()'s box guard) rather than each opening a competing
-    # new tray at a well the first tray already occupies.
-    tray_cells = {
-        c["current_well"]: c["id"]
-        for c in client.get("/api/cells", params={"tray_id": tray_id, "page_size": 10}).json()["items"]
-    }
-    r2 = _place(client, _sid(client, "D2"), mon, 1, {"mode": "existing", "cell_id": tray_cells["B01"]})
-    r3 = _place(client, _sid(client, "D3"), mon, 2, {"mode": "existing", "cell_id": tray_cells["C01"]})
-    r4 = _place(client, _sid(client, "D4"), mon, 3, {"mode": "existing", "cell_id": tray_cells["D01"]})
-    # All 4 placements land in the same instrument/date cycle, so every response above
-    # echoes that whole cycle's stages, not just its own - and stages are well-sorted, so
-    # stages[0] is always D1's own use (well A01) in every one of r1..r4's payload. Read the
-    # final response (r4, which by now includes all 4 stages) and key off slot_index (which
-    # each _place call above pinned explicitly to 0/1/2/3) instead.
-    final_stages = {s["slot_index"]: s["cell_use_id"] for s in _stages(r4.json())}
-    all_use_ids = [final_stages[i] for i in range(4)]
-
-    stop = client.post(f"/api/cells/{cell_id}/stop", json={"reason": "damaged"})
-    assert stop.status_code == 200, stop.text
-
-    # simulate the OLD, unfiltered bulk-clear payload - every stage in the (still
-    # "planned") cycle, including the now-cancelled one
-    statuses = [client.delete(f"/api/cell-uses/{use_id}").status_code for use_id in all_use_ids]
-    assert statuses.count(204) == 3
-    assert statuses.count(409) == 1
-
-    cycle = client.get(f"/api/cycles/{cycle_id}").json()
-    assert len(_stages(cycle)) == 1
-    assert _stages(cycle)[0]["cell_use_status"] == "cancelled"
-
-    backlog_ids = {
-        s["id"] for s in client.get("/api/samples", params={"status": "backlog", "page_size": 50}).json()["items"]
-    }
-    assert {_sid(client, "D2"), _sid(client, "D3"), _sid(client, "D4")} <= backlog_ids
+    r1 = _place(client, _sid(client, "A2"), future, 0, {"mode": "new"}, instrument="84093")
+    use_id = _stages(r1.json())[0]["cell_use_id"]
+    abort = client.patch(f"/api/cell-uses/{use_id}", json={"status": "aborted"})
+    assert abort.status_code == 409, abort.text
+    assert "started" in abort.json()["detail"].lower()

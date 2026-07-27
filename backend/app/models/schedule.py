@@ -100,6 +100,13 @@ class CellUse(Base):
     # is for the migration's existing rows only; every code path sets it explicitly.
     run_time_hours: Mapped[int] = mapped_column(Integer, nullable=False, server_default="24")
     status: Mapped[str] = mapped_column(String(20), default="planned", index=True)
+    # Set by a Cell QC tray re-zip (services/qc_service.py) when a failed/retired cell's
+    # loss shifts this acquisition onto a DIFFERENT physical cell than originally planned:
+    # holds the cell_id it was planned on. Null = ran on the planned cell. Drives the grid's
+    # "reassigned" flag and lets undo restore the original cell.
+    reassigned_from_cell_id: Mapped[int | None] = mapped_column(
+        ForeignKey("cells.id"), nullable=True
+    )
     outcome_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Free-text note the lab user attaches to this sample-on-this-cell placement. Distinct
     # from outcome_notes (which records a QC verdict via Mark Failed / Stop cell): this is a
@@ -110,7 +117,9 @@ class CellUse(Base):
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     cycle: Mapped["Cycle"] = relationship(back_populates="cell_uses")
-    cell: Mapped["Cell"] = relationship(back_populates="cell_uses")
+    # foreign_keys pins this to cell_id: there are now two FKs to cells (cell_id and the QC
+    # reassigned_from_cell_id), so the relationship join must be disambiguated.
+    cell: Mapped["Cell"] = relationship(back_populates="cell_uses", foreign_keys=[cell_id])
     sample: Mapped["Sample | None"] = relationship(back_populates="cell_uses")
     barcodes: Mapped[list["CellUseBarcode"]] = relationship(back_populates="cell_use", cascade="all, delete-orphan")
 

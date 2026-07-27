@@ -72,6 +72,11 @@ export interface StageOut {
   /** Free-text note the user attached to this sample-on-this-cell placement, shown and
    * editable in the slot-detail popover. Distinct from the QC outcome note. */
   notes: string | null;
+  /** Cell QC reconciliation: true if a QC tray re-zip shifted this acquisition onto a
+   * different physical cell than planned (drives a "reassigned" grid marker). */
+  reassigned?: boolean;
+  /** True if that reassignment landed on a cell that already burned a clashing barcode. */
+  barcode_clash?: boolean;
 }
 
 /** One acquisition round within a run (a persisted Cycle). Up to 4 wells. Plate 1 acquires

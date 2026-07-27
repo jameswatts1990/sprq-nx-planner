@@ -18,18 +18,21 @@ def test_bootstrap_cell_registers_existing_in_progress_cell(client):
     assert any(row["action"] == "bootstrap_cell" for row in audit["items"])
 
 
-def test_retire_cell_blocked_while_planned_uses_exist_but_allowed_once_exhausted(client):
-    # a fresh cell with 0 uses consumed - nothing planned, so retiring should succeed immediately
+def test_retire_cell_via_qc_and_rejects_a_second_retire(client):
+    # Retire is a Cell QC verdict now (POST /api/cells/{id}/qc/*). A fresh cell with no
+    # planned uses retires immediately (no samples to dispose).
+    from tests.integration._qc_helpers import qc_retire
+
     resp = client.post("/api/cells/bootstrap", json={"max_uses": 3, "uses_consumed": 0, "burned_barcodes": []})
     cell_id = resp.json()["id"]
 
-    retired = client.post(f"/api/cells/{cell_id}/retire")
-    assert retired.status_code == 200
-    assert retired.json()["status"] == "retired"
+    retired = qc_retire(client, cell_id)
+    assert retired.status_code == 200, retired.text
+    assert retired.json()["cell"]["status"] == "retired"
 
-    # retiring again is a no-op success (already retired, no planned uses to block it)
-    again = client.post(f"/api/cells/{cell_id}/retire")
-    assert again.status_code == 200
+    # already terminal - a second QC verdict is rejected (409), not a silent no-op
+    again = qc_retire(client, cell_id)
+    assert again.status_code == 409
 
 
 def test_instruments_are_seeded_by_fixture_and_listable(client):

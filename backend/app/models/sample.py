@@ -28,6 +28,13 @@ class Sample(Base):
     priority: Mapped[str | None] = mapped_column(String(50), nullable=True)
     ccs_kinetics: Mapped[str | None] = mapped_column(String(20), nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="backlog", index=True)
+    # QC disposition tag when a Cell QC action sends this sample back to the backlog:
+    # None | "repeatable" | "recoverable". An edit-proof grouping key for the Backlog's
+    # "Recoverable Samples" section (priority is free-text/user-editable and shares rank 0
+    # with "Aborted (0)", so it can't be relied on for grouping). Paired with a rank-0
+    # priority label (REPEATABLE_PRIORITY/RECOVERABLE_PRIORITY) that drives the ordering.
+    # Cleared when the sample is next placed. See services/qc_service.py.
+    qc_disposition: Mapped[str | None] = mapped_column(String(20), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
@@ -38,6 +45,9 @@ class Sample(Base):
         back_populates="sample", cascade="all, delete-orphan", order_by="SampleBarcode.position"
     )
     cell_uses: Mapped[list["CellUse"]] = relationship(back_populates="sample")
+    topups: Mapped[list["SampleTopup"]] = relationship(
+        back_populates="sample", cascade="all, delete-orphan"
+    )
 
     @property
     def barcode_list(self) -> list[str]:

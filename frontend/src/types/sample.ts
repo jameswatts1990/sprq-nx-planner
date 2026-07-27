@@ -13,6 +13,9 @@ export interface SampleOut {
   priority: string | null;
   ccs_kinetics: string | null;
   status: SampleStatus;
+  /** QC disposition tag ("repeatable"/"recoverable") when a Cell QC action returned this
+   * sample to the backlog - groups it into the Backlog's "Recoverable Samples" section. */
+  qc_disposition: string | null;
   barcodes: string[];
   import_batch_id: number | null;
   created_at: string;

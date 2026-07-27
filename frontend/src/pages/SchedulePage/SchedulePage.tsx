@@ -7,6 +7,7 @@ import { cellsApi } from "@/api/cells";
 import { cyclesApi } from "@/api/cycles";
 import { instrumentsApi } from "@/api/instruments";
 import { scheduleExportUrl } from "@/api/scheduleExport";
+import { CellQcModal } from "@/components/cells/CellQcModal";
 import { CellInfoPopover } from "@/components/scheduler/CellInfoPopover";
 import { LoadTimePicker } from "@/components/scheduler/LoadTimePicker";
 import {
@@ -69,6 +70,9 @@ export function SchedulePage() {
   const [printSheetOpen, setPrintSheetOpen] = useState(false);
   // The placement whose physical-cell info popover is open (the card's "ticket stub" click).
   const [cellInfo, setCellInfo] = useState<DetailTarget | null>(null);
+  // The cell whose QC modal is open (from a stub/card QC button or the tray overview).
+  // cellUseId anchors Fail / Fail-and-Stop; null = a whole-cell entry (tray/cell page).
+  const [qcTarget, setQcTarget] = useState<{ cellId: number; cellUseId: number | null } | null>(null);
   // A drop that would create a brand-new run, held while the load-time wheel is shown so the
   // user sets when that run loads/starts before it's committed (see LoadTimePicker).
   const [pendingLoadTime, setPendingLoadTime] = useState<{
@@ -387,7 +391,8 @@ export function SchedulePage() {
   // selection, so their mousedown must not wipe it out from under their own click.
   useEffect(() => {
     if (!selection.hasSelection && !slotSelection.hasSelection) return;
-    if (detail || cellInfo || printSheetOpen || actions.clearConfirmOpen || dnd.pendingPlacement || autoscheduleOpen) return;
+    if (detail || cellInfo || qcTarget || printSheetOpen || actions.clearConfirmOpen || dnd.pendingPlacement || autoscheduleOpen)
+      return;
     function onMouseDown(e: MouseEvent) {
       const target = e.target as Node;
       if (gridAreaRef.current?.contains(target)) return;
@@ -399,7 +404,7 @@ export function SchedulePage() {
     return () => window.removeEventListener("mousedown", onMouseDown);
     // selection/slotSelection are stable (memoized in their hooks), so depending on the
     // whole objects re-subscribes only on a real selection change, same as before.
-  }, [selection, slotSelection, detail, cellInfo, printSheetOpen, actions.clearConfirmOpen, dnd.pendingPlacement, autoscheduleOpen]);
+  }, [selection, slotSelection, detail, cellInfo, qcTarget, printSheetOpen, actions.clearConfirmOpen, dnd.pendingPlacement, autoscheduleOpen]);
 
   // Delete/Backspace removes the selected samples from the schedule, as long as focus
   // isn't in a text field (so it doesn't hijack editing elsewhere on the page).
@@ -421,6 +426,15 @@ export function SchedulePage() {
   }, []);
 
   const handleOpenCell = useCallback((stage: StageOut, run: RunOut) => setCellInfo({ stage, run }), []);
+
+  const handleOpenQc = useCallback(
+    (cellId: number, cellUseId: number | null) => setQcTarget({ cellId, cellUseId }),
+    [],
+  );
+
+  // Clicking a cell in the left tray overview opens its QC modal (whole-cell entry: no
+  // specific use anchor, so Fail/Fail-and-Stop target the cell's current failable use).
+  const handleOpenTrayCell = useCallback((cellId: number) => setQcTarget({ cellId, cellUseId: null }), []);
 
   const handleExportSchedule = useCallback(() => {
     const a = document.createElement("a");
@@ -566,6 +580,7 @@ export function SchedulePage() {
                 waitingGrouped={waitingGrouped}
                 blockedGrouped={blockedGrouped}
                 trayMaps={trayMaps}
+                onOpenTrayCell={handleOpenTrayCell}
               />
             )}
           </div>
@@ -630,8 +645,29 @@ export function SchedulePage() {
         />
       )}
 
-      {detail && <SlotDetailPopover stage={detail.stage} run={detail.run} onClose={() => setDetail(null)} />}
-      {cellInfo && <CellInfoPopover stage={cellInfo.stage} run={cellInfo.run} onClose={() => setCellInfo(null)} />}
+      {detail && (
+        <SlotDetailPopover
+          stage={detail.stage}
+          run={detail.run}
+          onClose={() => setDetail(null)}
+          onOpenQc={handleOpenQc}
+        />
+      )}
+      {cellInfo && (
+        <CellInfoPopover
+          stage={cellInfo.stage}
+          run={cellInfo.run}
+          onClose={() => setCellInfo(null)}
+          onOpenQc={handleOpenQc}
+        />
+      )}
+      {qcTarget && (
+        <CellQcModal
+          cellId={qcTarget.cellId}
+          cellUseId={qcTarget.cellUseId}
+          onClose={() => setQcTarget(null)}
+        />
+      )}
     </div>
   );
 }

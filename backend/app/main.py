@@ -14,6 +14,7 @@ from app.api import (
     samples,
     schedule_export,
     stats,
+    topups,
 )
 from app.config import settings
 
@@ -35,6 +36,7 @@ app.include_router(batch_sheet.router)
 app.include_router(schedule_export.router)
 app.include_router(cell_uses.router)
 app.include_router(cells.router)
+app.include_router(topups.router)
 app.include_router(instruments.router)
 app.include_router(stats.router)
 app.include_router(audit.router)

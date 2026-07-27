@@ -14,7 +14,7 @@ from app.engine.constants import CELLS_PER_TRAY, within_tray_pos
 from app.models.cell import Cell
 from app.models.schedule import CellUse, Cycle, RunBatch
 from app.schemas.run import PlateOut, RunOut, StageOut
-from app.services.cell_service import has_failed_use, use_sort_key, window_hours_elapsed
+from app.services.cell_service import has_barcode_clash, has_failed_use, use_sort_key, window_hours_elapsed
 from app.services.instrument_lock import run_lock_until
 from app.timeutil import ensure_aware, utcnow
 
@@ -77,6 +77,8 @@ def _stage_out(cell_use: CellUse, plate_index: int) -> StageOut:
         tray_id=cell_use.cell.tray_id if cell_use.cell else None,
         window_hours_elapsed=window_hours_elapsed(cell_use.cell) if cell_use.cell else None,
         notes=cell_use.notes,
+        reassigned=cell_use.reassigned_from_cell_id is not None,
+        barcode_clash=has_barcode_clash(cell_use),
     )
 
 

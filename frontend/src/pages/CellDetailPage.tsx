@@ -4,19 +4,16 @@ import { Link, useParams } from "react-router-dom";
 
 import { ApiError } from "@/api/client";
 import { cellsApi } from "@/api/cells";
-import { cellUsesApi } from "@/api/cellUses";
+import { CellQcModal } from "@/components/cells/CellQcModal";
 import { TraySiblingList } from "@/components/cells/TraySiblingList";
 import { WindowMeter } from "@/components/cells/WindowMeter";
 import { BarcodeChips } from "@/components/shared/BarcodeChips";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
-import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { Note } from "@/components/ui/Note";
 import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
-import type { CellUseHistoryOut } from "@/types/cell";
 import { CELL_STATUS_LABEL, CELL_STATUS_TONE } from "@/utils/cellStatus";
-import { canRecordQcOutcome, canUndoQcOutcome } from "@/utils/cellUseQc";
 import { plateWellFromPlate, plateWellFromWell } from "@/utils/plateWell";
 import { runLabel } from "@/utils/runLabel";
 import { USE_STATUS_TONE } from "@/utils/useStatusTone";
@@ -46,64 +43,12 @@ export function CellDetailPage() {
     enabled: trayId !== null,
   });
 
-  const [stopModalOpen, setStopModalOpen] = useState(false);
-  const [undoStopModalOpen, setUndoStopModalOpen] = useState(false);
-  const [stopFeedback, setStopFeedback] = useState<{ rehomed: number; unrunnable: number } | null>(null);
-  const [failTarget, setFailTarget] = useState<CellUseHistoryOut | null>(null);
-  const [undoTarget, setUndoTarget] = useState<CellUseHistoryOut | null>(null);
+  const [qcOpen, setQcOpen] = useState(false);
   const [caseNumber, setCaseNumber] = useState("");
 
   function invalidateCell() {
     invalidateScheduleRelated(queryClient);
   }
-
-  const retireMutation = useMutation({
-    mutationFn: () => cellsApi.retire(id),
-    onSuccess: invalidateCell,
-  });
-
-  const stopMutation = useMutation({
-    mutationFn: (reason: string) => {
-      // Anchor the stop to this cell's single in-progress use, if there's exactly one -
-      // its own sample is then treated like a Fail (lost, needs a PacBio credit case) and
-      // only *later* planned uses are re-homed onto the tray's other cells. With 0 or 2+
-      // candidates there's no unambiguous single use to anchor to, so fall back to the
-      // whole-cell behavior (every planned use is reshuffled, nothing is marked Failed).
-      const inProgress = query.data?.use_history.filter((u) => u.status === "planned" || u.status === "started") ?? [];
-      const cell_use_id = inProgress.length === 1 ? inProgress[0].id : undefined;
-      return cellsApi.stop(id, { reason: reason || null, cell_use_id });
-    },
-    onSuccess: (data) => {
-      invalidateCell();
-      setStopModalOpen(false);
-      setStopFeedback({ rehomed: data.rehomed_sample_ids.length, unrunnable: data.unrunnable_sample_ids.length });
-    },
-  });
-
-  const markFailedMutation = useMutation({
-    mutationFn: ({ useId, notes }: { useId: number; notes: string }) =>
-      cellUsesApi.updateStatus(useId, { status: "failed", notes: notes || undefined }),
-    onSuccess: () => {
-      invalidateCell();
-      setFailTarget(null);
-    },
-  });
-
-  const undoQcMutation = useMutation({
-    mutationFn: (useId: number) => cellUsesApi.undo(useId),
-    onSuccess: () => {
-      invalidateCell();
-      setUndoTarget(null);
-    },
-  });
-
-  const undoStopMutation = useMutation({
-    mutationFn: () => cellsApi.undoStop(id),
-    onSuccess: () => {
-      invalidateCell();
-      setUndoStopModalOpen(false);
-    },
-  });
 
   const reportMutation = useMutation({
     mutationFn: (caseNum: string) => cellsApi.reportToPacbio(id, { case_number: caseNum }),
@@ -152,25 +97,7 @@ export function CellDetailPage() {
     return <div className={styles.status}>Cell not found.</div>;
   }
 
-  const hasPlannedUse = cell.use_history.some((u) => u.status === "planned");
-  const retireDisabled =
-    hasPlannedUse || cell.status === "retired" || cell.status === "stopped" || retireMutation.isPending;
-  const retireTooltip = hasPlannedUse
-    ? "Cannot retire a cell with planned (not yet started) uses."
-    : cell.status === "retired"
-      ? "Cell is already retired."
-      : cell.status === "stopped"
-        ? "Cell is stopped."
-        : undefined;
-
-  const stopDisabled = cell.status === "retired" || cell.status === "stopped" || stopMutation.isPending;
-  const stopTooltip =
-    cell.status === "retired"
-      ? "Cell is retired."
-      : cell.status === "stopped"
-        ? "Cell is already stopped."
-        : undefined;
-
+  const isTerminal = cell.status === "retired" || cell.status === "stopped";
   const showCreditCard = cell.has_failed_use || cell.status === "stopped";
   const showWindowMeter =
     cell.status !== "exhausted" &&
@@ -187,7 +114,7 @@ export function CellDetailPage() {
         <CardBody>
           {cell.stopped_reason && (
             <Note tone="warn" icon="!">
-              Stopped: {cell.stopped_reason}
+              {cell.status === "retired" ? "Retired" : "Stopped"}: {cell.stopped_reason}
             </Note>
           )}
 
@@ -236,9 +163,9 @@ export function CellDetailPage() {
               <span className={styles.label}>Created</span>
               <span className={styles.value}>{formatDateTime(cell.created_at)}</span>
             </div>
-            {cell.status === "stopped" && (
+            {isTerminal && cell.stopped_at && (
               <div>
-                <span className={styles.label}>Stopped</span>
+                <span className={styles.label}>{cell.status === "retired" ? "Retired" : "Stopped"}</span>
                 <span className={styles.value}>{formatDateTime(cell.stopped_at)}</span>
               </div>
             )}
@@ -254,45 +181,10 @@ export function CellDetailPage() {
           )}
 
           <div className={styles.retireRow}>
-            <span title={retireTooltip}>
-              <Button variant="ghost" onClick={() => retireMutation.mutate()} disabled={retireDisabled}>
-                {retireMutation.isPending ? "Retiring…" : "Retire cell"}
-              </Button>
-            </span>
-            <span title={stopTooltip}>
-              <Button variant="ghost" onClick={() => setStopModalOpen(true)} disabled={stopDisabled}>
-                Stop cell
-              </Button>
-            </span>
-            {cell.status === "stopped" && (
-              <Button variant="ghost" onClick={() => setUndoStopModalOpen(true)} disabled={undoStopMutation.isPending}>
-                Undo stop
-              </Button>
-            )}
+            <Button variant="ghost" onClick={() => setQcOpen(true)}>
+              {isTerminal ? "Cell QC (undo)…" : "Cell QC…"}
+            </Button>
           </div>
-          {retireMutation.isError && (
-            <Note tone="bad" icon="!">
-              {retireMutation.error instanceof ApiError ? retireMutation.error.message : "Failed to retire cell."}
-            </Note>
-          )}
-          {undoStopMutation.isError && (
-            <Note tone="bad" icon="!">
-              {undoStopMutation.error instanceof ApiError ? undoStopMutation.error.message : "Failed to undo stop."}
-            </Note>
-          )}
-          {stopFeedback !== null && stopFeedback.rehomed > 0 && (
-            <Note tone="info" icon="↻">
-              {stopFeedback.rehomed} later sample{stopFeedback.rehomed === 1 ? "" : "s"} re-homed onto other cells in this
-              tray.
-            </Note>
-          )}
-          {stopFeedback !== null && stopFeedback.unrunnable > 0 && (
-            <Note tone="bad" icon="!">
-              {stopFeedback.unrunnable} sample{stopFeedback.unrunnable === 1 ? "" : "s"} can no longer run (the tray ran
-              out of capacity) and {stopFeedback.unrunnable === 1 ? "is" : "are"} back in the backlog — reschedule
-              {stopFeedback.unrunnable === 1 ? " it" : " them"} elsewhere.
-            </Note>
-          )}
         </CardBody>
       </Card>
 
@@ -344,7 +236,6 @@ export function CellDetailPage() {
                     <th>Started</th>
                     <th>Completed</th>
                     <th>Notes</th>
-                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -357,7 +248,11 @@ export function CellDetailPage() {
                       </td>
                       <td className={styles.mono}>{plateWellFromPlate(u.plate_index, u.well, { qualified: true })}</td>
                       <td>
-                        <Badge tone={USE_STATUS_TONE[u.status] ?? "default"}>{u.status}</Badge>
+                        <div style={{ display: "flex", gap: 4, alignItems: "center", flexWrap: "wrap" }}>
+                          <Badge tone={USE_STATUS_TONE[u.status] ?? "default"}>{u.status}</Badge>
+                          {u.reassigned && <Badge tone="info">reassigned</Badge>}
+                          {u.barcode_clash && <Badge tone="danger">clash</Badge>}
+                        </div>
                       </td>
                       <td>
                         {u.sample_id !== null && u.sample_external_id !== null ? (
@@ -378,22 +273,6 @@ export function CellDetailPage() {
                       <td>{formatDateTime(u.started_at)}</td>
                       <td>{formatDateTime(u.completed_at)}</td>
                       <td>{u.outcome_notes ?? "—"}</td>
-                      <td>
-                        {(canRecordQcOutcome(u) || canUndoQcOutcome(u)) && (
-                          <div className={styles.useActions}>
-                            {canRecordQcOutcome(u) && (
-                              <Button size="sm" variant="ghost" onClick={() => setFailTarget(u)}>
-                                Mark Failed
-                              </Button>
-                            )}
-                            {canUndoQcOutcome(u) && (
-                              <Button size="sm" variant="ghost" onClick={() => setUndoTarget(u)}>
-                                Undo {u.status === "failed" ? "Failed" : "Aborted"}
-                              </Button>
-                            )}
-                          </div>
-                        )}
-                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -491,186 +370,7 @@ export function CellDetailPage() {
         </Card>
       )}
 
-      {stopModalOpen && (
-        <StopCellModal
-          pending={stopMutation.isPending}
-          error={stopMutation.error}
-          onCancel={() => setStopModalOpen(false)}
-          onConfirm={(reason) => stopMutation.mutate(reason)}
-        />
-      )}
-
-      {undoStopModalOpen && (
-        <UndoStopCellModal
-          pending={undoStopMutation.isPending}
-          error={undoStopMutation.error}
-          onCancel={() => setUndoStopModalOpen(false)}
-          onConfirm={() => undoStopMutation.mutate()}
-        />
-      )}
-
-      {failTarget && (
-        <MarkFailedModal
-          use={failTarget}
-          pending={markFailedMutation.isPending}
-          error={markFailedMutation.error}
-          onCancel={() => setFailTarget(null)}
-          onConfirm={(notes) => markFailedMutation.mutate({ useId: failTarget.id, notes })}
-        />
-      )}
-
-      {undoTarget && (
-        <UndoQcModal
-          use={undoTarget}
-          pending={undoQcMutation.isPending}
-          error={undoQcMutation.error}
-          onCancel={() => setUndoTarget(null)}
-          onConfirm={() => undoQcMutation.mutate(undoTarget.id)}
-        />
-      )}
+      {qcOpen && <CellQcModal cellId={id} onClose={() => setQcOpen(false)} />}
     </div>
-  );
-}
-
-interface StopCellModalProps {
-  pending: boolean;
-  error: unknown;
-  onCancel: () => void;
-  onConfirm: (reason: string) => void;
-}
-
-/** QC: take this physical cell permanently out of service. If exactly one use is
- * currently in progress, it's treated like a Fail (sample lost, needs a PacBio credit
- * case); every later not-yet-run ("planned") use is cancelled and its sample returned to
- * the backlog flagged Aborted, ready to be rescued onto a different cell. Already-run
- * uses are left untouched as history. */
-function StopCellModal({ pending, error, onCancel, onConfirm }: StopCellModalProps) {
-  const [reason, setReason] = useState("");
-
-  return (
-    <ConfirmModal
-      title="Stop this cell?"
-      confirmLabel="Stop cell"
-      pendingLabel="Stopping…"
-      pending={pending}
-      error={error != null ? (error instanceof ApiError ? error.message : "Failed to stop cell.") : null}
-      textarea={{
-        label: "Reason (optional)",
-        value: reason,
-        onChange: setReason,
-        placeholder: "e.g. visible crack on tray",
-      }}
-      onCancel={onCancel}
-      onConfirm={() => onConfirm(reason)}
-    >
-      <p className={styles.helper}>
-        If exactly one use is currently in progress, its sample counts as Failed (no usable data, needs a PacBio
-        credit case). Every not-yet-run use is cancelled and its sample returned to the Backlog flagged Aborted, ready
-        to be rescued onto a different cell. Uses that already ran are kept as history. This cell will never be
-        offered for reuse again.
-      </p>
-    </ConfirmModal>
-  );
-}
-
-interface UndoStopCellModalProps {
-  pending: boolean;
-  error: unknown;
-  onCancel: () => void;
-  onConfirm: () => void;
-}
-
-/** Reverse a mistaken Stop cell - reopens the cell and restores every use it cancelled
- * back to Planned. Only use this if the wrong physical cell was stopped; if this cell
- * genuinely needs to stay out of service, leave it stopped. */
-function UndoStopCellModal({ pending, error, onCancel, onConfirm }: UndoStopCellModalProps) {
-  return (
-    <ConfirmModal
-      title="Undo Stop cell?"
-      confirmLabel="Undo stop"
-      pendingLabel="Undoing…"
-      pending={pending}
-      error={error != null ? (error instanceof ApiError ? error.message : "Failed to undo stop.") : null}
-      onCancel={onCancel}
-      onConfirm={onConfirm}
-    >
-      <Note tone="warn" icon="!">
-        This reopens the cell and restores every use it cancelled back to Planned. Only do this if the wrong
-        physical cell was stopped by mistake.
-      </Note>
-    </ConfirmModal>
-  );
-}
-
-interface MarkFailedModalProps {
-  use: CellUseHistoryOut;
-  pending: boolean;
-  error: unknown;
-  onCancel: () => void;
-  onConfirm: (notes: string) => void;
-}
-
-/** QC: this specific use produced no usable data. The cell itself stays open for its
- * remaining uses - only "Stop cell" takes the physical cell out of service. */
-function MarkFailedModal({ use, pending, error, onCancel, onConfirm }: MarkFailedModalProps) {
-  const [notes, setNotes] = useState("");
-
-  return (
-    <ConfirmModal
-      title={`Mark ${plateWellFromPlate(use.plate_index, use.well, { qualified: true })} (run ${runLabel({ run_id: use.run_batch_id, run_name: use.run_name })}) Failed?`}
-      confirmLabel="Mark Failed"
-      pendingLabel="Saving…"
-      pending={pending}
-      error={error != null ? (error instanceof ApiError ? error.message : "Failed to mark use as failed.") : null}
-      textarea={{
-        label: "Notes (optional)",
-        value: notes,
-        onChange: setNotes,
-        placeholder: "e.g. no data produced",
-      }}
-      onCancel={onCancel}
-      onConfirm={() => onConfirm(notes)}
-    >
-      <p className={styles.helper}>
-        {use.sample_external_id ? `Sample ${use.sample_external_id} will be marked Failed and ` : "The sample will be marked Failed and "}
-        can be requeued to the backlog from the Samples list. The cell remains open for its other uses.
-      </p>
-    </ConfirmModal>
-  );
-}
-
-interface UndoQcModalProps {
-  use: CellUseHistoryOut;
-  pending: boolean;
-  error: unknown;
-  onCancel: () => void;
-  onConfirm: () => void;
-}
-
-/** Reverse a mistaken Failed/Aborted verdict on this specific use (from Mark Failed or a
- * whole-cycle abort), restoring it (and its sample) to how they looked beforehand. Only
- * use this if the wrong slot was flagged by mistake - if this cell genuinely failed or
- * was aborted, leave the verdict as is. The backend still has the final say - it 409s if
- * the sample has since moved on (requeued or rescheduled), which surfaces here as the
- * error note below. */
-function UndoQcModal({ use, pending, error, onCancel, onConfirm }: UndoQcModalProps) {
-  const verdict = use.status === "failed" ? "Failed" : "Aborted";
-
-  return (
-    <ConfirmModal
-      title={`Undo ${plateWellFromPlate(use.plate_index, use.well, { qualified: true })} (run ${runLabel({ run_id: use.run_batch_id, run_name: use.run_name })}) ${verdict}?`}
-      confirmLabel="Undo"
-      pendingLabel="Undoing…"
-      pending={pending}
-      error={error != null ? (error instanceof ApiError ? error.message : "Failed to undo.") : null}
-      onCancel={onCancel}
-      onConfirm={onConfirm}
-    >
-      <Note tone="warn" icon="!">
-        This restores this placement to its previous state, ready to run again. Only do this if the wrong slot was
-        flagged by mistake - if this cell genuinely {use.status === "failed" ? "failed" : "was aborted"}, leave the
-        verdict as is.
-      </Note>
-    </ConfirmModal>
   );
 }

@@ -28,6 +28,10 @@ export interface CellUseHistoryOut {
   // True while a Failed/Aborted verdict on this use can still be undone - false once the
   // sample has moved on (requeued/rescheduled) since the verdict.
   undo_available: boolean;
+  // Cell QC reconciliation: this use was shifted onto this cell by a tray re-zip
+  // (reassigned), and/or now shares a burned barcode with another use of this cell.
+  reassigned?: boolean;
+  barcode_clash?: boolean;
 }
 
 /** Compact per-use record carried on every CellOut (the list view), so a cell card can
@@ -43,6 +47,11 @@ export interface CellUseSummaryOut {
   well: string;
   status: string;
   run_started: boolean;
+  // When this use's run begins (its actual start once confirmed, else the plate's planned
+  // start) - the anchor its physical breakout is staggered from. Lets the schedule tray map's
+  // live "now" reading count how many of a cell's uses have actually broken out by a given
+  // instant. null when the use has no cycle to anchor to.
+  breakout_anchor_at: string | null;
 }
 
 export interface CellOut {
@@ -95,27 +104,9 @@ export interface CellBootstrapRequest {
   actor?: string | null;
 }
 
-export interface CellStopRequest {
+/** Reason payload for the per-cell "Discard remaining use(s)" action. */
+export interface CellDiscardRequest {
   reason?: string | null;
-  /** The specific use that triggered the stop (e.g. the slot being viewed) - optional
-   * for a whole-cell Stop with no single use in view. */
-  cell_use_id?: number | null;
-}
-
-export interface CellStopOut {
-  cell: CellOut;
-  /** Samples whose not-yet-run later use was re-homed onto another cell in the same tray. */
-  rehomed_sample_ids: number[];
-  /** Samples that no longer fit anywhere in the tray and can't run - back in the backlog. */
-  unrunnable_sample_ids: number[];
-}
-
-export interface CellUndoStopOut {
-  cell: CellOut;
-  reverted_cell_use_ids: number[];
-  // cell_use ids whose sample had already moved on (requeued/rescheduled) since the
-  // stop, so its status was deliberately left untouched rather than reverted.
-  drifted_cell_use_ids: number[];
 }
 
 export interface CellReportToPacbioRequest {

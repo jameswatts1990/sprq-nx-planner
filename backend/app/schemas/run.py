@@ -62,6 +62,12 @@ class StageOut(BaseModel):
     # Free-text note the user attached to this sample-on-this-cell placement, shown (and
     # editable) in the slot-detail popover. Distinct from the QC outcome_notes field.
     notes: str | None = None
+    # Cell QC reconciliation (see services/qc_service.py): `reassigned` is True when a QC
+    # tray re-zip shifted this acquisition onto a different physical cell than planned;
+    # `barcode_clash` is True when it now shares a burned barcode with another use of that
+    # cell. Both drive a grid warning so a shifted/compromised sample is visible at a glance.
+    reassigned: bool = False
+    barcode_clash: bool = False
 
 
 class PlateOut(BaseModel):

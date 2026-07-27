@@ -168,7 +168,9 @@ def test_swap_rejects_a_cancelled_placement(client):
     for sib in [c["id"] for c in client.get("/api/cells", params={"tray_id": tray_id}).json()["items"] if c["id"] != cell_id]:
         client.post(f"/api/cells/{sib}/discard", json={"reason": "test"})
 
-    stopped = client.post(f"/api/cells/{cell_id}/stop", json={"reason": "QC issue"})
+    from tests.integration._qc_helpers import qc_retire
+
+    stopped = qc_retire(client, cell_id)
     assert stopped.status_code == 200, stopped.text
     cu = client.get(f"/api/cell-uses/{_stages(r1.json())[0]['cell_use_id']}").json()
     assert cu["status"] == "cancelled"

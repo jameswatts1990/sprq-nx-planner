@@ -38,9 +38,19 @@ export interface TrayPositionView {
   /** The cell's fixed tray position as a NUMBER 1-4 (PacBio "cell 1-4" - cells are numbered,
    * plates are lettered, so the two never read alike). */
   cellNumber: number;
-  /** Usable uses still available here (of 3) - the cell's remaining uses while it's still
-   * open, and 0 for any terminal/stopped cell (its physical remainder can no longer be run). */
+  /** Usable uses still available here (of 3) as of the END of the viewed week - the cell's
+   * remaining uses once every scheduled use this week has run, and 0 for any terminal/stopped
+   * cell (its physical remainder can no longer be run). This is the committed-plan figure; for a
+   * reference-time-aware count (how many have actually broken out by a given instant) see
+   * usesRemainingAt(). */
   usesRemaining: number;
+  /** The cell's total use capacity (3) - the ceiling usesRemainingAt() counts down from. */
+  maxUses: number;
+  /** Each still-live (non-cancelled) use's own physical breakout instant, in epoch ms: the
+   * use's run anchor plus this cell's staggered breakout offset. Sorted ascending. Lets
+   * usesRemainingAt() count how many uses have broken out by a reference instant. Empty for a
+   * terminal/stopped cell (no usable capacity to count). */
+  useBreakoutsMs: number[];
   status: CellStatus;
   /** ISO datetime this specific cell is removed from the tray (its own 108h clock starts): the
    * tray's load anchor + its staggered breakout offset. null when the cell has no running or
@@ -71,6 +81,18 @@ export function cellExpiryState(p: TrayPositionView, refMs: number): CellExpiryS
   const expiryMs = Date.parse(p.expiryAt);
   if (refMs >= expiryMs) return "expired";
   return (expiryMs - refMs) / 3_600_000 < EXPIRY_SOON_HOURS ? "soon" : "ok";
+}
+
+/** Uses still available on this cell *as of `refMs`* - capacity minus the uses whose physical
+ * breakout has already happened by then. At the end-of-week reference this converges on the
+ * committed-plan figure (`usesRemaining`, all scheduled uses counted); at a live "now" earlier
+ * in the week it reads higher, since a use scheduled for later this week hasn't broken out yet.
+ * A terminal/stopped cell always reads 0 (its remainder can no longer be run), matching
+ * `usesRemaining`. */
+export function usesRemainingAt(p: TrayPositionView, refMs: number): number {
+  if (p.status !== "open") return 0;
+  const brokenOut = p.useBreakoutsMs.filter((ms) => ms <= refMs).length;
+  return Math.max(0, p.maxUses - brokenOut);
 }
 
 /** One physical SMRT-cell tray (4 cells) resident in a carousel position. */
@@ -138,9 +160,20 @@ function positionView(cell: CellOut, carousel: 0 | 1): TrayPositionView {
   // Stagger the shared load anchor by this cell's physical breakout order so each cell in a tray
   // gets its own precise 108h clock (2h apart within a tray; +24h for the Plate-2 tray) instead
   // of the single fuzzy date all four used to share.
-  const breakoutMs = anchor ? new Date(anchor).getTime() + breakoutOffsetH(carousel, cellNumber) * 3_600_000 : null;
+  const offsetMs = breakoutOffsetH(carousel, cellNumber) * 3_600_000;
+  const breakoutMs = anchor ? new Date(anchor).getTime() + offsetMs : null;
   const breakoutAt = breakoutMs !== null ? new Date(breakoutMs).toISOString() : null;
   const expiryAt = breakoutMs !== null ? new Date(breakoutMs + CELL_LIFETIME_H * 3_600_000).toISOString() : null;
+  // Each still-live use breaks out at its own run anchor + this cell's fixed stagger offset. A
+  // cancelled use (a permanent Stop marker) never ran, so it's excluded, matching how the
+  // backend's uses_remaining counts capacity. Only meaningful while the cell is still open.
+  const useBreakoutsMs =
+    cell.status === "open"
+      ? cell.uses
+          .filter((u) => u.status !== "cancelled" && u.breakout_anchor_at !== null)
+          .map((u) => new Date(u.breakout_anchor_at as string).getTime() + offsetMs)
+          .sort((a, b) => a - b)
+      : [];
   return {
     cellId: cell.id,
     code: cell.code,
@@ -148,6 +181,8 @@ function positionView(cell: CellOut, carousel: 0 | 1): TrayPositionView {
     // A terminal/stopped cell offers no usable uses even if it physically has capacity left
     // (e.g. a tray disposed early at the max-uses dial) - show what can still be run: 0.
     usesRemaining: cell.status === "open" ? cell.uses_remaining : 0,
+    maxUses: cell.max_uses,
+    useBreakoutsMs,
     status: cell.status,
     breakoutAt,
     expiryAt,

@@ -46,6 +46,7 @@ export const EXAMPLE_CELL: CellOut = {
       well: "A01",
       status: "completed",
       run_started: true,
+      breakout_anchor_at: null,
     },
     {
       id: 2,
@@ -56,6 +57,7 @@ export const EXAMPLE_CELL: CellOut = {
       well: "A01",
       status: "planned",
       run_started: false,
+      breakout_anchor_at: null,
     },
   ],
 };

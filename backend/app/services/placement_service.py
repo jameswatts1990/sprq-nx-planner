@@ -792,6 +792,10 @@ def place_sample(
         db.add(CellUseBarcode(cell_use_id=cell_use.id, barcode=bc))
 
     sample.status = "scheduled"
+    # Clear any Cell-QC "recoverable"/"repeatable" tag once the sample is scheduled again, so a
+    # requeued-then-rescheduled sample doesn't linger in the Backlog's "Recoverable Samples"
+    # section if it ever returns to the backlog by another path. See services/qc_service.py.
+    sample.qc_disposition = None
 
     recompute_cycle_timing(db, cycle)
     db.refresh(cell, attribute_names=["cell_uses"])

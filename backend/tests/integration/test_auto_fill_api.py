@@ -250,9 +250,12 @@ def test_auto_fill_fills_around_a_cancelled_stopped_cell_marker_without_crashing
     cycle_id = r1.json()["run_id"]
     cell_id = _stages(r1.json())[0]["cell_id"]
 
-    # Stop the cell before its use runs - CM1 bounces back to backlog, and well A01 is kept
-    # forever as a cancelled marker occupying that one slot.
-    stop = client.post(f"/api/cells/{cell_id}/stop", json={"reason": "damaged"})
+    # Retire the cell before its use runs - CM1 bounces back to backlog, and well A01 is kept
+    # forever as a cancelled marker occupying that one slot. (Fail-and-Stop needs a started
+    # run; Retire produces the same cancelled marker without one.)
+    from tests.integration._qc_helpers import qc_retire
+
+    stop = qc_retire(client, cell_id)
     assert stop.status_code == 200, stop.text
 
     # 6 more disjoint samples - together with CM1 (back in the backlog), 7 backlog samples

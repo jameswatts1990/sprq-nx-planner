@@ -1,9 +1,16 @@
 import { Badge } from "@/components/ui/Badge";
-import { ABORTED_PRIORITY, priorityTone } from "@/utils/priority";
+import { ABORTED_PRIORITY, RECOVERABLE_PRIORITY, REPEATABLE_PRIORITY, priorityTone } from "@/utils/priority";
 
 import styles from "../HelpPage.module.css";
 
-const PRIORITY_EXAMPLES = [ABORTED_PRIORITY, "High (1)", "Medium (2)", "Standard (3)"];
+const PRIORITY_EXAMPLES = [
+  RECOVERABLE_PRIORITY,
+  REPEATABLE_PRIORITY,
+  ABORTED_PRIORITY,
+  "High (1)",
+  "Medium (2)",
+  "Standard (3)",
+];
 
 export function BacklogSection() {
   return (
@@ -45,18 +52,27 @@ export function BacklogSection() {
           </div>
         ))}
       </div>
+      <p className={styles.subheading}>Recoverable Samples (above the backlog)</p>
       <p>
-        <b>Aborted</b> is a special priority set automatically, not by a lab user: when a <b>Stop cell</b> QC action
-        (see the Schedule and Cells tabs&apos; help) cancels a cell&apos;s later, not-yet-run uses, each of those
-        samples is returned here with its priority set to <b>Aborted</b> — the highest rank there is, so it always
-        sorts to the very top of the Backlog. Rescuing one is no different from scheduling any other backlog sample:
-        drag it (or place it via Auto Schedule) onto a different cell.
+        When a <b>Cell QC</b> action (see the Schedule and Cells tabs&apos; help) takes a cell out of service, the
+        samples on its later uses shift onto the tray&apos;s other cells and the tail may drop off. Any sample you
+        dispositioned <b>Repeatable</b> or <b>Recoverable</b> comes back here into a <b>Recoverable Samples</b>{" "}
+        section shown <i>above</i> the main backlog, bumped above High priority so it&apos;s rescheduled first.
+        Rescuing one is no different from scheduling any other backlog sample: drag it (or place it via Auto Schedule)
+        onto a cell. A <Badge tone="info">N recoverable</Badge> count appears in the header while any are waiting.
+      </p>
+      <p className={styles.subheading}>Top-up required (below the backlog)</p>
+      <p>
+        Samples you dispositioned <b>Lost</b> (their material is gone and needs re-requesting) appear in a{" "}
+        <b>Top-up required</b> list <i>below</i> the backlog, showing the run/cell the loss came from. Click{" "}
+        <b>Request Sent</b> once you&apos;ve asked the submitter for fresh material — it records today&apos;s date on
+        the entry — or <b>Cancel</b> to remove it from the list. This is separate from the cell-level PacBio credit
+        workflow (which recovers the wasted <i>cell</i>, not the sample).
       </p>
       <p>
-        Whenever one or more Aborted samples are waiting, a red <Badge tone="danger">⚠ N aborted</Badge> warning
-        badge appears next to the sample count in this tab&apos;s header and in the Schedule tab&apos;s Backlog
-        panel header — visible even while that panel is collapsed — so a scheduler never misses one sitting
-        unrescued in the queue.
+        <b>Aborted</b> is a legacy top-priority label: if any sample carries it, a red{" "}
+        <Badge tone="danger">⚠ N aborted</Badge> badge appears next to the sample count here and in the Schedule
+        tab&apos;s Backlog panel header so it&apos;s never missed.
       </p>
 
       <p className={styles.subheading}>Actions</p>

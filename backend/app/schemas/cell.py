@@ -34,6 +34,11 @@ class CellUseHistoryOut(BaseModel):
     # run_service.undo_cell_use_status's own drift guard so the frontend can hide/disable
     # the Undo button instead of surfacing a 409 once the sample has moved on.
     undo_available: bool
+    # Cell QC reconciliation flags (see services/qc_service.py): this use was shifted onto
+    # this cell by a re-zip (reassigned), and/or now shares a burned barcode with another use
+    # of this cell (barcode_clash).
+    reassigned: bool = False
+    barcode_clash: bool = False
 
 
 class CellUseSummaryOut(BaseModel):
@@ -54,6 +59,12 @@ class CellUseSummaryOut(BaseModel):
     # lets the card separate "has actually run" from "merely scheduled" the same way the
     # detail page does, rather than inferring it from status alone.
     run_started: bool
+    # When this use's own run begins (its cell's started_at, else the plate's planned start) -
+    # the load anchor from which this use's physical breakout is staggered. Lets a
+    # reference-time-aware view (the schedule tray map's live "now" reading) count how many of a
+    # cell's uses have actually broken out by a given instant, rather than counting every
+    # scheduled use up front. None when the use has no cycle to anchor to.
+    breakout_anchor_at: datetime | None = None
 
 
 class CellOut(BaseModel):

@@ -9,6 +9,10 @@ export interface ListSamplesParams {
   status?: string;
   q?: string;
   priority?: string;
+  /** Comma-list of QC disposition tags to include, plus the sentinel "none" (untagged).
+   * The Backlog's main list passes "none" to exclude the Recoverable-section rows; the
+   * Recoverable section passes "repeatable,recoverable". */
+  qc_disposition?: string;
   sort_by?: SampleSortBy;
   sort_dir?: SampleSortDir;
   page?: number;

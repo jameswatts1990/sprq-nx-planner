@@ -1,5 +1,13 @@
 .page {
   padding-top: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.sectionHint {
+  margin: 0 0 12px;
+  color: var(--text-muted, #64748b);
+  font-size: 13px;
 }
 .badgeGroup {
   display: inline-flex;

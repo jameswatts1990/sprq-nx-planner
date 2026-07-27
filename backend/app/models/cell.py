@@ -54,5 +54,9 @@ class Cell(Base):
     # cell has a real use, its last CellUse.well takes over as usual.
     home_well: Mapped[str | None] = mapped_column(String(8), nullable=True)
 
-    cell_uses: Mapped[list["CellUse"]] = relationship(back_populates="cell", order_by="CellUse.id")
+    # foreign_keys pins this to CellUse.cell_id: cell_uses now has a second FK to cells
+    # (reassigned_from_cell_id, set by a QC re-zip), so the join must be disambiguated.
+    cell_uses: Mapped[list["CellUse"]] = relationship(
+        back_populates="cell", order_by="CellUse.id", foreign_keys="CellUse.cell_id"
+    )
     tray: Mapped["CellTray | None"] = relationship(back_populates="cells")

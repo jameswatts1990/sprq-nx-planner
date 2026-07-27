@@ -2,17 +2,16 @@ import { api, buildQuery } from "./client";
 import type {
   CellBootstrapRequest,
   CellDetailOut,
+  CellDiscardRequest,
   CellOut,
   CellReportToPacbioRequest,
-  CellStopOut,
-  CellStopRequest,
-  CellUndoStopOut,
   TrayDiscardOut,
   TrayDiscardRequest,
   TrayRotateOut,
   TrayRotateRequest,
 } from "@/types/cell";
 import type { Page } from "@/types/common";
+import type { QcCommitOut, QcCommitRequest, QcPreviewOut, QcPreviewRequest, QcUndoOut } from "@/types/qc";
 
 export interface ListCellsParams {
   status?: string;
@@ -51,18 +50,22 @@ export const cellsApi = {
   listAll,
   get: (id: number) => api.get<CellDetailOut>(`/api/cells/${id}`),
   bootstrap: (req: CellBootstrapRequest) => api.post<CellDetailOut>("/api/cells/bootstrap", req),
-  retire: (id: number) => api.post<CellOut>(`/api/cells/${id}/retire`),
-  stop: (id: number, req: CellStopRequest) => api.post<CellStopOut>(`/api/cells/${id}/stop`, req),
-  /** Reverse a mistaken Stop cell, reopening the cell and reviving every use it cancelled
-   * back to "planned" - except one whose sample has since moved on (requeued/rescheduled
-   * elsewhere), which stays cancelled to avoid double-booking that sample. */
-  undoStop: (id: number) => api.post<CellUndoStopOut>(`/api/cells/${id}/undo-stop`),
+  /** Read-only: which samples a Fail / Fail-and-Stop / Retire would affect (failed,
+   * displaced, reassigned) - drives the disposition step without mutating anything. */
+  qcPreview: (id: number, req: QcPreviewRequest) => api.post<QcPreviewOut>(`/api/cells/${id}/qc/preview`, req),
+  /** Atomically apply a QC verdict + per-sample dispositions: fail the triggering use,
+   * re-zip the tray's loading queue, set the cell's terminal status, and route each
+   * lost/displaced sample to a top-up or the backlog. */
+  qcCommit: (id: number, req: QcCommitRequest) => api.post<QcCommitOut>(`/api/cells/${id}/qc/commit`, req),
+  /** Reverse the most recent QC verdict on a cell - reopen it and restore the uses/samples
+   * it touched (skipping any that have since drifted, e.g. a top-up already sent). */
+  qcUndo: (id: number) => api.post<QcUndoOut>(`/api/cells/${id}/qc/undo`),
   reportToPacbio: (id: number, req: CellReportToPacbioRequest) =>
     api.post<CellOut>(`/api/cells/${id}/report-to-pacbio`, req),
   confirmCredit: (id: number) => api.post<CellOut>(`/api/cells/${id}/confirm-credit`, {}),
   receiveCredit: (id: number) => api.post<CellOut>(`/api/cells/${id}/receive-credit`, {}),
   /** Force a single cell to "exhausted" regardless of its actual remaining use count. */
-  discard: (id: number, req: CellStopRequest = {}) => api.post<CellOut>(`/api/cells/${id}/discard`, req),
+  discard: (id: number, req: CellDiscardRequest = {}) => api.post<CellOut>(`/api/cells/${id}/discard`, req),
   /** Force every physical cell in a tray to "exhausted" in one transaction - siblings
    * already retired/stopped/discarded are left untouched. */
   discardTray: (req: TrayDiscardRequest) => api.post<TrayDiscardOut>("/api/cells/discard-tray", req),

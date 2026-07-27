@@ -135,6 +135,11 @@ def get_cell_use(cell_use_id: int, db: SessionDep) -> dict:
 def patch_cell_use(cell_use_id: int, req: CellUseStatusUpdate, db: SessionDep, actor: ActorDep) -> dict:
     if req.status not in CELL_USE_STATUSES:
         raise HTTPException(400, f"Unknown status '{req.status}'. Valid: {', '.join(CELL_USE_STATUSES)}")
+    # Failing a use is a Cell QC verdict now (it may cascade a tray re-zip and needs a
+    # per-sample disposition), so it goes through POST /api/cells/{id}/qc/*, not this generic
+    # run-lifecycle PATCH. started/completed/aborted stay here.
+    if req.status == "failed":
+        raise HTTPException(409, "Fail a use via Cell QC (the cell's QC action), not this endpoint.")
     cu = db.get(CellUse, cell_use_id, options=_OPTIONS)
     if cu is None:
         raise HTTPException(404, "Cell use not found")

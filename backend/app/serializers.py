@@ -17,6 +17,7 @@ def sample_out(sample: Sample) -> SampleOut:
         priority=sample.priority,
         ccs_kinetics=sample.ccs_kinetics,
         status=sample.status,
+        qc_disposition=sample.qc_disposition,
         barcodes=sample.barcode_list,
         import_batch_id=sample.import_batch_id,
         created_at=sample.created_at,

@@ -60,6 +60,9 @@ class SampleOut(BaseModel):
     priority: str | None
     ccs_kinetics: str | None
     status: str
+    # QC disposition tag ("repeatable"/"recoverable") when a Cell QC action returned this
+    # sample to the backlog - drives the Backlog "Recoverable Samples" section grouping.
+    qc_disposition: str | None = None
     barcodes: list[str]
     import_batch_id: int | None
     created_at: datetime

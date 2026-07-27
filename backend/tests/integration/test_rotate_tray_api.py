@@ -175,7 +175,9 @@ def test_rotate_rejected_when_a_cell_in_the_tray_is_stopped(client):
     tray_id = _stage(r.json())["tray_id"]
     use_id = _stage(r.json())["cell_use_id"]
     assert _confirm_loaded(client, r.json()["run_id"]).status_code == 200
-    stop = client.post(f"/api/cells/{cell_id}/stop", json={"reason": "crack", "cell_use_id": use_id})
+    from tests.integration._qc_helpers import qc_stop
+
+    stop = qc_stop(client, cell_id, use_id)
     assert stop.status_code == 200, stop.text
 
     resp = client.post("/api/cells/rotate-tray", json={"tray_id": tray_id, "from_date": mon})
@@ -240,8 +242,10 @@ def test_return_to_backlog_rejects_a_stop_originated_block(client):
     for sib in [c["id"] for c in client.get("/api/cells", params={"tray_id": tray_id}).json()["items"] if c["id"] != cell_id]:
         client.post(f"/api/cells/{sib}/discard", json={"reason": "test"})
 
-    # Stop from Monday's (running) use overflows Wednesday's later use to cancelled.
-    stop = client.post(f"/api/cells/{cell_id}/stop", json={"reason": "crack", "cell_use_id": mon_use_id})
+    # Fail-and-Stop from Monday's (running) use displaces Wednesday's later use to cancelled.
+    from tests.integration._qc_helpers import qc_stop
+
+    stop = qc_stop(client, cell_id, mon_use_id)
     assert stop.status_code == 200, stop.text
     assert client.get(f"/api/cell-uses/{wed_use_id}").json()["status"] == "cancelled"
 

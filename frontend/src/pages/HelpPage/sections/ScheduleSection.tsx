@@ -87,8 +87,11 @@ export function ScheduleSection() {
         <li>
           The big number on each position is that cell&apos;s <b>uses remaining</b> (of 3), and beneath it a coloured
           status icon + <b>DD/MM</b> gives the cell&apos;s <b>108-hour reuse deadline</b> with a short countdown (e.g.{" "}
-          <i>2d left</i>). A never-used cell reads <b>unused</b> (its clock hasn&apos;t started); a planned, not-yet-
-          confirmed load shows its date with a <b>dotted underline</b> (it firms up once the run is confirmed loaded).
+          <i>2d left</i>). By default the number counts every use <b>scheduled this week</b> — what will be left once
+          the week&apos;s plan has run; hover for the live <b>NOW</b> view (below) and it switches to what&apos;s left{" "}
+          <b>right now</b>, counting only the uses that have actually broken out yet. A never-used cell reads{" "}
+          <b>unused</b> (its clock hasn&apos;t started); a planned, not-yet-confirmed load shows its date with a{" "}
+          <b>dotted underline</b> (it firms up once the run is confirmed loaded).
         </li>
         <li>
           <b>Each cell has its own deadline, not one shared date.</b> The instrument breaks a tray&apos;s four cells out
@@ -108,9 +111,11 @@ export function ScheduleSection() {
         <li>
           By default each cell is shown <b>as it will stand at the end of the week</b> you&apos;re viewing — the pill
           above the trays reads e.g. <i>&quot;by Fri 24 Jul&quot;</i> — so you can see which cells will have expired by
-          then. <b>Hover the map</b> to flip every cell to its status <b>right now</b>; a green <b>NOW</b> pill (with a
-          spinning icon) marks the live view. The trays shown are still those on the instrument at the start of the week,
-          not a not-yet-loaded successor.
+          then, and the uses-remaining number reflects the <b>whole week&apos;s plan</b>. <b>Hover the map</b> to flip
+          every cell to its status <b>right now</b>: colours, countdowns <i>and</i> the uses-remaining number all switch
+          to the live reading, so a cell whose later uses haven&apos;t broken out yet shows the higher count it still
+          physically has. A green <b>NOW</b> pill (with a spinning icon) marks the live view. The trays shown are still
+          those on the instrument at the start of the week, not a not-yet-loaded successor.
         </li>
         <li>
           <b>Loaded later.</b> When a tray ages out of its 108-hour window part-way through the week and
@@ -122,7 +127,9 @@ export function ScheduleSection() {
         </li>
         <li>
           Click a <b>TRAY #</b> heading (top maps or the &quot;loaded later&quot; group) to open the <b>Cells &amp; Instruments</b> tab
-          filtered to that instrument, to see the full cell details.
+          filtered to that instrument, to see the full cell details. Click an individual <b>cell</b> in a tray strip
+          to open its <b>Cell QC</b> dialog (status, and the Fail / Fail-and-Stop / Retire actions — see <b>QC
+          actions</b> below).
         </li>
       </ul>
 
@@ -397,22 +404,22 @@ export function ScheduleSection() {
 
       <p className={styles.subheading}>QC actions</p>
       <p>
-        <b>From the grid:</b> click a filled slot to open its detail. The Sample, Well, Run, Cell uses and this
-        cell&apos;s <b>Run time</b> are shown first — plus the cell&apos;s 108-hour window meter once its clock has
-        started — and its QC quick actions sit
-        in the top-right corner of the popover, next to the cell code: <b>Mark Failed</b> or <b>Stop cell</b> — the
-        same two actions available on the Cell detail page, without leaving the schedule. Both are shown in red,
-        since each takes the use or the physical cell out of service, and both only appear once that run is locked
-        in (<b>Confirm loaded</b> clicked) — they always appear and disappear together (see the Cells tab&apos;s
-        help for exactly when). Each shows a short reason/notes box and a confirm step in the same popover before
-        applying. <b>Mark Failed</b> only affects this one use — no usable data was produced, and the cell stays
-        open for its other uses. <b>Stop cell</b> does more: this use&apos;s sample counts as Failed too (no data,
-        needs a PacBio credit case), <i>and</i> the physical cell is taken out of service — every one of its later,
-        not-yet-run uses elsewhere on the grid is cancelled, their samples returned to the Backlog flagged{" "}
-        <b>Aborted</b> (see the Backlog tab&apos;s help) so a scheduler can rescue them onto a different cell. Uses
-        that already ran on this cell before the stop are left completely untouched. Every cancelled use stays
-        visible as a <b>Blocked</b> slot (see below) rather than disappearing, so a day&apos;s plan never silently
-        loses a placement without a trace.
+        <b>Cell QC</b> — <b>Fail Cell</b>, <b>Fail and Stop Cell</b>, or <b>Retire Cell</b> — lives in one dialog,
+        reachable three ways without leaving the schedule: click a card&apos;s <b>holographic seal</b> to open the
+        cell popover and press <b>QC…</b>; use the <b>Cell QC →</b> button in a filled slot&apos;s detail popover; or
+        click any cell in the left-hand <b>instrument cell map</b>. Fail / Fail-and-Stop become available once that
+        run is locked in (<b>Confirm loaded</b> clicked); Retire works on any open cell (the Cells tab&apos;s help has
+        the full definitions). Each takes an optional reason note.
+      </p>
+      <p>
+        Because loading is a continuous queue, stopping or retiring a cell shifts its later samples onto the
+        tray&apos;s remaining cells and the tail may drop off. The dialog then asks you to decide each affected sample
+        — <b>Lost</b> (→ the Backlog&apos;s <b>Top-up required</b> list), or <b>Repeatable</b> / <b>Recoverable</b>{" "}
+        (→ the Backlog&apos;s <b>Recoverable Samples</b> section, above High priority). Samples that simply ran on a
+        <i>different</i> cell than planned are flagged for review — with a warning if the shift created a barcode
+        clash. A stopped/retired cell is never offered for reuse again; the same dialog later offers <b>Undo QC</b> to
+        reverse the whole action (a top-up whose request was already sent is left in place). Cancelled uses stay
+        visible as <b>Blocked</b> slots (see below) rather than disappearing.
       </p>
       <p>
         <b>Editing the sample:</b> in a filled slot&apos;s detail the <b>Sample</b> value doubles as an edit link (it
@@ -441,13 +448,11 @@ export function ScheduleSection() {
         sample reused on another cell starts with a blank note there. Clearing the box and saving removes the note.
       </p>
       <p>
-        <b>Undoing a QC mistake:</b> flagged the wrong slot? An <b>Undo Failed</b> button replaces{" "}
-        <b>Mark Failed</b> once a verdict has been recorded, and an <b>Undo stop</b> button appears once a cell is
-        stopped — shown in the same neutral style as the rest of the popover&apos;s buttons, not red, since undoing
-        isn&apos;t itself a destructive action. Each restores the placement (or every use a Stop cell touched, for{" "}
-        <b>Undo stop</b>) to how it looked beforehand. The <b>Undo Failed</b> button disappears again if the sample
-        involved has since been requeued or rescheduled elsewhere, since undoing at that point would double-book
-        that sample — reschedule from the Backlog instead in that case.
+        <b>Undoing a QC mistake:</b> re-open the Cell QC dialog on a stopped or retired cell (from its seal, the
+        slot popover&apos;s <b>Cell QC →</b>, or the instrument cell map) and choose <b>Undo QC</b>. It reopens the
+        cell and restores every sample the action affected — reassigned samples move back, cancelled ones become
+        planned again, and backlog/top-up moves are reversed — except a sample that has since moved on, or a top-up
+        whose request was already marked sent, which are left as they are.
       </p>
       <p>
         <b>Failed/Aborted/Stopped/Blocked indicator</b> on the grid flags a QC problem without opening the slot,

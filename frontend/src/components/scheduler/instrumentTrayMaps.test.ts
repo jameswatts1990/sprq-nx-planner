@@ -2,7 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import type { CellOut } from "@/types/cell";
 
-import { breakoutOffsetH, cellExpiryState, computeInstrumentTrayMaps, type TrayPositionView } from "./instrumentTrayMaps";
+import {
+  breakoutOffsetH,
+  cellExpiryState,
+  computeInstrumentTrayMaps,
+  usesRemainingAt,
+  type TrayPositionView,
+} from "./instrumentTrayMaps";
 import { computeTrayEvictionDates, computeTrayFoundingDates, computeVacatedTrayIds } from "./waitingCells";
 
 const WEEK = ["2026-07-20", "2026-07-21", "2026-07-22", "2026-07-23", "2026-07-24"];
@@ -98,6 +104,30 @@ describe("computeInstrumentTrayMaps", () => {
     expect(tray.positions[1].expiryAt).toBe("2026-07-25T02:00:00.000Z");
     // Never-used C/D siblings have no anchor -> no expiry.
     expect(tray.positions[2].expiryAt).toBeNull();
+  });
+
+  it("derives each cell's per-use breakout instants (staggered) for the live count", () => {
+    const cells = trayCells(1, "01", [
+      {
+        uses_consumed: 2,
+        uses_remaining: 1,
+        first_use_started_at: "2026-07-20T12:00:00Z",
+        last_use_run_date: "2026-07-24",
+        // A completed Use 1 (Mon) and a still-planned Use 2 (Fri); a cancelled marker is ignored.
+        uses: [
+          { id: 1, run_batch_id: 1, run_name: "R1", sample_id: 1, sample_external_id: "s1", well: "A01", status: "completed", run_started: true, breakout_anchor_at: "2026-07-20T12:00:00Z" },
+          { id: 2, run_batch_id: 2, run_name: "R2", sample_id: 2, sample_external_id: "s2", well: "A01", status: "planned", run_started: false, breakout_anchor_at: "2026-07-24T12:00:00Z" },
+          { id: 3, run_batch_id: 3, run_name: "R3", sample_id: 3, sample_external_id: "s3", well: "A01", status: "cancelled", run_started: false, breakout_anchor_at: "2026-07-22T12:00:00Z" },
+        ],
+      },
+    ]);
+    const tray = build(cells).get(SERIAL)!.carousel[0]!;
+    const cell1 = tray.positions[0]; // cellNumber 1, offset 0 -> anchors unchanged
+    expect(cell1.maxUses).toBe(3);
+    expect(cell1.useBreakoutsMs).toEqual([Date.parse("2026-07-20T12:00:00Z"), Date.parse("2026-07-24T12:00:00Z")]);
+    // Committed-plan figure preserved; live count is higher before the 2nd use breaks out.
+    expect(cell1.usesRemaining).toBe(1);
+    expect(usesRemainingAt(cell1, Date.parse("2026-07-20T14:00:00Z"))).toBe(2);
   });
 
   it("places a *02 tray in the Plate 2 carousel position", () => {
@@ -229,6 +259,8 @@ function pos(overrides: Partial<TrayPositionView> = {}): TrayPositionView {
     code: "CELL-A000001",
     cellNumber: 1,
     usesRemaining: 2,
+    maxUses: 3,
+    useBreakoutsMs: [],
     status: "open",
     breakoutAt: "2026-07-20T12:00:00.000Z",
     expiryAt: "2026-07-25T00:00:00.000Z", // breakout + 108h
@@ -261,6 +293,30 @@ describe("cellExpiryState", () => {
     expect(cellExpiryState(pos({ status: "retired" }), REF)).toBe("spent");
     expect(cellExpiryState(pos({ status: "window_expired" }), REF)).toBe("expired");
     expect(cellExpiryState(pos({ status: "stopped" }), REF)).toBe("expired");
+  });
+});
+
+describe("usesRemainingAt", () => {
+  // Two committed uses: first breaks out Mon noon, second Fri noon; capacity 3.
+  const twoUses = pos({
+    usesRemaining: 1, // committed-plan figure (3 - 2 scheduled uses)
+    maxUses: 3,
+    useBreakoutsMs: [Date.parse("2026-07-20T12:00:00Z"), Date.parse("2026-07-24T12:00:00Z")],
+  });
+
+  it("counts down only uses that have broken out by the reference instant", () => {
+    // Before any breakout: full capacity, nothing physically consumed yet.
+    expect(usesRemainingAt(twoUses, Date.parse("2026-07-20T00:00:00Z"))).toBe(3);
+    // Mon 14:00: only the first use has broken out -> 2 left (not the planned 1).
+    expect(usesRemainingAt(twoUses, Date.parse("2026-07-20T14:00:00Z"))).toBe(2);
+    // End of week: both broken out -> converges on the committed-plan figure.
+    expect(usesRemainingAt(twoUses, Date.parse("2026-07-24T23:59:59Z"))).toBe(1);
+  });
+
+  it("reads 0 for a terminal/stopped cell regardless of the reference", () => {
+    const early = Date.parse("2026-07-20T00:00:00Z");
+    expect(usesRemainingAt(pos({ status: "exhausted", useBreakoutsMs: [] }), early)).toBe(0);
+    expect(usesRemainingAt(pos({ status: "stopped", useBreakoutsMs: [] }), early)).toBe(0);
   });
 });
 

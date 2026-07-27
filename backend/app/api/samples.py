@@ -35,11 +35,14 @@ def list_samples(
     status: str | None = None,
     q: str | None = None,
     priority: str | None = None,
+    qc_disposition: str | None = None,
     sort_by: str = "created_at",
     sort_dir: str = "desc",
 ) -> Page[SampleOut]:
     """One filterable endpoint covers the backlog (status=backlog) and history
-    (status=completed,failed) views - see the plan's API table."""
+    (status=completed,failed) views - see the plan's API table. `qc_disposition` is a
+    comma-list of tags, plus the sentinel "none" (untagged); the Backlog's main list passes
+    "none" to exclude the Recoverable-section rows, the Recoverable section passes the tags."""
     page, page_size = page_info
     if sort_by not in SORTABLE_FIELDS:
         raise HTTPException(400, f"Unknown sort_by '{sort_by}'. Valid: {', '.join(SORTABLE_FIELDS)}")
@@ -56,6 +59,16 @@ def list_samples(
     if priority:
         priorities = [p.strip() for p in priority.split(",") if p.strip()]
         stmt = stmt.where(Sample.priority.in_(priorities))
+    if qc_disposition:
+        tokens = [t.strip() for t in qc_disposition.split(",") if t.strip()]
+        values = [t for t in tokens if t != "none"]
+        clauses = []
+        if "none" in tokens:
+            clauses.append(Sample.qc_disposition.is_(None))
+        if values:
+            clauses.append(Sample.qc_disposition.in_(values))
+        if clauses:
+            stmt = stmt.where(or_(*clauses))
     if q:
         like = f"%{q}%"
         stmt = stmt.where(

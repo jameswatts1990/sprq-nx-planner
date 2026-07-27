@@ -132,54 +132,44 @@ export function CellsSection() {
           feature, or via Register in-progress cell, since those have no known tray.
         </li>
         <li>
-          <b>Retire cell</b> takes a cell permanently out of service. It&apos;s disabled — with a hover explanation
-          — when the cell still has planned (not-yet-started) uses (&quot;Cannot retire a cell with planned (not
-          yet started) uses.&quot;) or is already retired (&quot;Cell is already retired.&quot;). Remove or complete
-          its planned uses first if you need to retire it.
+          <b>Cell QC</b> opens the quality-control dialog for the cell, with three actions (each takes an optional
+          reason note):
+          <ul>
+            <li>
+              <b>Fail Cell</b> — the current run produced no usable data, but the cell is physically fine and keeps
+              its other scheduled uses. Only that one sample is affected.
+            </li>
+            <li>
+              <b>Fail and Stop Cell</b> — the run failed <i>and</i> the cell is out of service (e.g. visibly damaged);
+              its later scheduled uses can no longer run on it.
+            </li>
+            <li>
+              <b>Retire Cell</b> — take the cell out of service <i>without</i> failing the current run; its later
+              scheduled uses can no longer run on it.
+            </li>
+          </ul>
         </li>
         <li>
-          <b>Stop cell</b> is the QC action for a cell that has failed physically (e.g. visibly damaged) and can
-          never be used again. Unlike Retire, it doesn&apos;t require you to clear planned uses first. If exactly
-          one use is currently in progress, that use&apos;s sample counts as Failed too (no usable data — you&apos;ll
-          need to raise a PacBio credit case for it). Confirming then <b>reshuffles</b> the cell&apos;s later,
-          not-yet-run uses onto the tray&apos;s other cells automatically — each sample keeps its day and slot, just
-          on a different cell now (a note reports how many were re-homed). If the tray runs out of capacity, whatever
-          no longer fits <b>can no longer run</b> and goes back to the Backlog flagged <b>Aborted</b>, with a clear
-          alert so you can reschedule it elsewhere. Uses that already ran before the stop are kept untouched as
-          history. Once stopped, the cell is never offered again for reuse, including by Auto Schedule.
+          <b>What happens to the affected samples.</b> The instrument loads samples as a continuous queue, so stopping
+          or retiring a cell shifts its later samples forward onto the tray&apos;s remaining cells — and the last one
+          or two may fall off the end. The dialog then asks you to decide each affected sample: <b>Lost</b> (needs
+          fresh material — goes to the <b>Top-up required</b> list on the Backlog) or <b>Repeatable</b> /{" "}
+          <b>Recoverable</b> (back to the Backlog above High priority, in its <b>Recoverable Samples</b> section).
+          Samples that simply ran on a <i>different</i> cell than planned are flagged for review — with a warning if
+          the shift created a barcode clash — and left as they are unless you choose to route them too.
         </li>
         <li>
-          <b>Undo stop</b> appears once a cell is stopped, in place of Stop cell. Confirming it reopens the cell
-          and restores every use it touched back to how it looked beforehand — the Failed use (if any) back to its
-          prior state, each re-homed use moved back onto this cell, and any overflow use back to Planned with its
-          sample&apos;s original priority. If one of those uses has since started running or its sample was
-          rescheduled elsewhere, that one is deliberately left as is instead — reverting it would double-book the
-          sample or rewrite live history.
+          <b>When Fail / Fail-and-Stop are available:</b> as soon as that run is locked in — someone has clicked{" "}
+          <b>Confirm loaded</b> on the schedule grid. Retire is available on any open cell. Once a cell is stopped or
+          retired the same button offers <b>Undo QC</b>, which reopens the cell and restores the samples it affected
+          (a top-up whose request was already sent is left in place).
         </li>
         <li>
           <b>Use history</b> lists every run the cell has been in: run name if one was set, otherwise its number
-          (links to the run), well, use status, container ID (links to that sample&apos;s page), barcodes, priority,
-          target OPLC, adaptive loading, full resolution base Q, include base kinetics, instrument,
-          start/complete times, outcome notes, and a <b>Mark Failed</b> action.
-        </li>
-        <li>
-          <b>Mark Failed</b> means that particular run produced no usable data and the cell itself may be at fault;
-          the cell stays open for its other uses, and the sample is marked Failed and can be requeued to the
-          Backlog from the Samples list.
-        </li>
-        <li>
-          <b>When Mark Failed/Stop cell become available:</b> as soon as that run is locked in — someone has
-          clicked <b>Confirm loaded</b> on the schedule grid — so they always appear and disappear together. Both
-          are hidden for a run that hasn&apos;t been locked in yet, and for uses that were cancelled or already have
-          a recorded outcome (Failed, Aborted, or Completed).
-        </li>
-        <li>
-          <b>Undo Failed</b> replaces <b>Mark Failed</b> in the Actions column once a use has that verdict recorded
-          (whether from Mark Failed or as the use a Stop cell was triggered from). Confirming restores the use (and
-          its sample) to how they looked beforehand. The button itself disappears again once the sample has since
-          been requeued or rescheduled onto a fresh placement elsewhere — undoing at that point would double-book
-          that sample, so it stops being offered rather than failing with an error; reschedule from the Backlog
-          instead in that case.
+          (links to the run), well, use status (with <b>reassigned</b> / <b>clash</b> flags when a QC action shifted a
+          sample onto this cell), container ID (links to that sample&apos;s page), barcodes, priority, target OPLC,
+          adaptive loading, full resolution base Q, include base kinetics, instrument, start/complete times, and
+          outcome notes.
         </li>
       </ul>
 

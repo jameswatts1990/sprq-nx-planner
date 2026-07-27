@@ -68,7 +68,15 @@ const CELL_QC_FLAGS: CellQcFlag[] = ["unreported", "awaiting_credit"];
 // these are illustrative examples - the colouring itself comes from the real
 // priorityTone() function, keyed off the same "(N)" rank convention as the backend.
 const PRIORITY_EXAMPLES: { label: string; meaning: string }[] = [
-  { label: "High (1)", meaning: "Rank 1 - the most urgent priority." },
+  {
+    label: "Recoverable (0)",
+    meaning: "Rank 0 - returned to the backlog by a Cell QC action (data recoverable); shown in the Recoverable Samples section, above High.",
+  },
+  {
+    label: "Repeatable (0)",
+    meaning: "Rank 0 - returned to the backlog by a Cell QC action (library repeatable); shown in the Recoverable Samples section, above High.",
+  },
+  { label: "High (1)", meaning: "Rank 1 - the most urgent standard priority." },
   { label: "Medium (2)", meaning: "Rank 2 - elevated priority." },
   { label: "Standard (3)", meaning: "Rank 3 or lower, or unlabelled - the default priority." },
 ];

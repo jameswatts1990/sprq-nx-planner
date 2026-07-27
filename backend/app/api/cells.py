@@ -14,15 +14,14 @@ from app.schemas.cell import (
     CellDetailOut,
     CellOut,
     CellReportToPacbioRequest,
-    CellStopOut,
     CellStopRequest,
-    CellUndoStopOut,
     TrayDiscardOut,
     TrayDiscardRequest,
     TrayRotateOut,
     TrayRotateRequest,
 )
 from app.schemas.common import Page
+from app.schemas.qc import QcCommitOut, QcCommitRequest, QcPreviewOut, QcPreviewRequest, QcUndoOut
 from app.services.cell_service import (
     bootstrap_cell,
     confirm_cell_credit,
@@ -30,13 +29,11 @@ from app.services.cell_service import (
     discard_tray,
     receive_cell_credit,
     report_cell_to_pacbio,
-    retire_cell,
     rotate_tray,
     serialize_cell,
     serialize_cell_detail,
-    stop_cell,
-    undo_stop_cell,
 )
+from app.services.qc_service import commit_qc, preview_qc, undo_qc
 
 QC_STATUSES = ("unreported", "awaiting_credit")
 
@@ -150,34 +147,51 @@ def bootstrap_cell_endpoint(req: CellBootstrapRequest, db: SessionDep, actor: Ac
     return serialize_cell_detail(full)
 
 
-@router.post("/{cell_id}/retire", response_model=CellOut)
-def retire_cell_endpoint(cell_id: int, db: SessionDep, actor: ActorDep) -> CellOut:
+@router.post("/{cell_id}/qc/preview", response_model=QcPreviewOut)
+def qc_preview_endpoint(cell_id: int, req: QcPreviewRequest, db: SessionDep) -> QcPreviewOut:
+    """Read-only: report which samples a Fail / Fail-and-Stop / Retire would affect (failed,
+    displaced, reassigned) without mutating anything, so the frontend can show the disposition
+    step. See services/qc_service.preview_qc."""
     cell = db.get(Cell, cell_id, options=_DETAIL_OPTIONS)
     if cell is None:
         raise HTTPException(404, "Cell not found")
     try:
-        cell = retire_cell(db, cell, actor)
+        return preview_qc(cell, req.verdict, req.cell_use_id)
     except ValueError as exc:
         raise HTTPException(409, str(exc)) from exc
-    return serialize_cell(cell)
 
 
-@router.post("/{cell_id}/stop", response_model=CellStopOut)
-def stop_cell_endpoint(cell_id: int, req: CellStopRequest, db: SessionDep, actor: ActorDep) -> CellStopOut:
+@router.post("/{cell_id}/qc/commit", response_model=QcCommitOut)
+def qc_commit_endpoint(cell_id: int, req: QcCommitRequest, db: SessionDep, actor: ActorDep) -> QcCommitOut:
+    """Atomically apply a QC verdict + the per-sample dispositions: mark the failed use, re-zip
+    the tray's loading queue (reassign shifted cells, cancel the displaced tail), set the cell's
+    terminal status, and route each lost/displaced sample to a top-up or the backlog."""
     cell = db.get(Cell, cell_id, options=_DETAIL_OPTIONS)
     if cell is None:
         raise HTTPException(404, "Cell not found")
     try:
-        cell, rehomed_sample_ids, unrunnable_sample_ids = stop_cell(
-            db, cell, req.reason, req.actor or actor, cell_use_id=req.cell_use_id
+        return commit_qc(
+            db,
+            cell,
+            verdict=req.verdict,
+            cell_use_id=req.cell_use_id,
+            reason=req.reason,
+            dispositions=req.dispositions,
+            actor=req.actor or actor,
         )
     except ValueError as exc:
         raise HTTPException(409, str(exc)) from exc
-    return CellStopOut(
-        cell=serialize_cell(cell),
-        rehomed_sample_ids=rehomed_sample_ids,
-        unrunnable_sample_ids=unrunnable_sample_ids,
-    )
+
+
+@router.post("/{cell_id}/qc/undo", response_model=QcUndoOut)
+def qc_undo_endpoint(cell_id: int, db: SessionDep, actor: ActorDep) -> QcUndoOut:
+    cell = db.get(Cell, cell_id, options=_DETAIL_OPTIONS)
+    if cell is None:
+        raise HTTPException(404, "Cell not found")
+    try:
+        return undo_qc(db, cell, actor)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
 
 
 @router.post("/{cell_id}/discard", response_model=CellOut)
@@ -211,18 +225,6 @@ def rotate_tray_endpoint(req: TrayRotateRequest, db: SessionDep, actor: ActorDep
     except ValueError as exc:
         raise HTTPException(409, str(exc)) from exc
     return TrayRotateOut(new_cells=[serialize_cell(c) for c in new_cells], moved_count=moved_count)
-
-
-@router.post("/{cell_id}/undo-stop", response_model=CellUndoStopOut)
-def undo_stop_cell_endpoint(cell_id: int, db: SessionDep, actor: ActorDep) -> CellUndoStopOut:
-    cell = db.get(Cell, cell_id, options=_DETAIL_OPTIONS)
-    if cell is None:
-        raise HTTPException(404, "Cell not found")
-    try:
-        cell, reverted_ids, drifted_ids = undo_stop_cell(db, cell, actor)
-    except ValueError as exc:
-        raise HTTPException(409, str(exc)) from exc
-    return CellUndoStopOut(cell=serialize_cell(cell), reverted_cell_use_ids=reverted_ids, drifted_cell_use_ids=drifted_ids)
 
 
 @router.post("/{cell_id}/report-to-pacbio", response_model=CellOut)

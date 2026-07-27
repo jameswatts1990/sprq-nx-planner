@@ -1,10 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createColumnHelper, flexRender, getCoreRowModel, useReactTable } from "@tanstack/react-table";
+import type { Table } from "@tanstack/react-table";
 import { useCallback, useMemo, useState } from "react";
 
 import { ApiError } from "@/api/client";
 import type { SampleSortBy, SampleSortDir } from "@/api/samples";
 import { samplesApi } from "@/api/samples";
+import { topupsApi } from "@/api/topups";
 import { BarcodeChips } from "@/components/shared/BarcodeChips";
 import { Pagination } from "@/components/shared/Pagination";
 import { Badge } from "@/components/ui/Badge";
@@ -25,6 +27,8 @@ const PAGE_SIZE_OPTIONS: SegmentedOption<number>[] = [25, 50, 100, 200].map((n) 
   value: n,
   label: String(n),
 }));
+/** The QC-disposition tags whose samples show in the "Recoverable Samples" section. */
+const RECOVERABLE_TAGS = "repeatable,recoverable";
 const columnHelper = createColumnHelper<SampleOut>();
 
 function formatDateTime(iso: string): string {
@@ -34,6 +38,32 @@ function formatDateTime(iso: string): string {
 function sortIndicator(active: boolean, dir: SampleSortDir): string {
   if (!active) return "";
   return dir === "asc" ? " ▲" : " ▼";
+}
+
+/** Shared table markup for a react-table instance of backlog samples. */
+function SampleTableView({ table }: { table: Table<SampleOut> }) {
+  return (
+    <table className={styles.table}>
+      <thead>
+        {table.getHeaderGroups().map((hg) => (
+          <tr key={hg.id}>
+            {hg.headers.map((h) => (
+              <th key={h.id}>{flexRender(h.column.columnDef.header, h.getContext())}</th>
+            ))}
+          </tr>
+        ))}
+      </thead>
+      <tbody>
+        {table.getRowModel().rows.map((row) => (
+          <tr key={row.id}>
+            {row.getVisibleCells().map((cell) => (
+              <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>
+            ))}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
 }
 
 export function BacklogPage() {
@@ -53,11 +83,14 @@ export function BacklogPage() {
     queryFn: () => samplesApi.listPriorities("backlog"),
   });
 
+  // Main backlog EXCLUDES the QC-return (recoverable/repeatable) rows - they get their own
+  // section above - via qc_disposition:"none".
   const query = useQuery({
-    queryKey: ["samples", { status: "backlog", q, priority, sortBy, sortDir, page, page_size: pageSize }],
+    queryKey: ["samples", { status: "backlog", qc_disposition: "none", q, priority, sortBy, sortDir, page, page_size: pageSize }],
     queryFn: () =>
       samplesApi.list({
         status: "backlog",
+        qc_disposition: "none",
         q: q || undefined,
         priority: priority || undefined,
         sort_by: sortBy,
@@ -66,6 +99,18 @@ export function BacklogPage() {
         page_size: pageSize,
       }),
   });
+
+  // Samples returned to the backlog by a Cell QC action (Repeatable/Recoverable) - shown as
+  // a distinct band above the main backlog, already bumped above High by their rank-0 label.
+  const recoverableQuery = useQuery({
+    queryKey: ["samples", { status: "backlog", qc_disposition: RECOVERABLE_TAGS, page_size: 200 }],
+    queryFn: () =>
+      samplesApi.list({ status: "backlog", qc_disposition: RECOVERABLE_TAGS, sort_by: "priority", sort_dir: "asc", page: 1, page_size: 200 }),
+  });
+  const recoverableItems = recoverableQuery.data?.items ?? [];
+
+  const topupsQuery = useQuery({ queryKey: ["topups"], queryFn: () => topupsApi.list() });
+  const topups = topupsQuery.data ?? [];
 
   // Lightweight count-only check (page_size 1, just reading .total) for the warning badge.
   const abortedQuery = useQuery({
@@ -79,6 +124,15 @@ export function BacklogPage() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["samples"] });
     },
+  });
+
+  const topupSentMutation = useMutation({
+    mutationFn: (id: number) => topupsApi.requestSent(id),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["topups"] }),
+  });
+  const topupCancelMutation = useMutation({
+    mutationFn: (id: number) => topupsApi.cancel(id),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["topups"] }),
   });
 
   const toggleSort = useCallback((field: SampleSortBy) => {
@@ -108,10 +162,6 @@ export function BacklogPage() {
 
   const { mutate: cancelSample, isPending: cancelPending } = cancelMutation;
 
-  // Memoized so the column defs (and their header/cell render fns) keep a stable identity
-  // across unrelated re-renders - typing in the search box would otherwise rebuild the whole
-  // array every keystroke and force react-table to recompute its row model each time. Only
-  // the sort state and the cancel mutation's pending flag actually affect these columns.
   const columns = useMemo(
     () => [
       columnHelper.accessor("external_id", { header: () => sortableHeader("Container ID", "external_id") }),
@@ -168,15 +218,32 @@ export function BacklogPage() {
   const items = query.data?.items ?? [];
   const total = query.data?.total ?? 0;
   const table = useReactTable({ data: items, columns, getCoreRowModel: getCoreRowModel() });
+  const recoverableTable = useReactTable({ data: recoverableItems, columns, getCoreRowModel: getCoreRowModel() });
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   return (
     <div className={styles.page}>
+      {recoverableItems.length > 0 && (
+        <Card>
+          <CardHeader badge={<Badge tone="info">{recoverableItems.length} recoverable</Badge>}>
+            <h2>Recoverable Samples</h2>
+          </CardHeader>
+          <CardBody>
+            <p className={styles.sectionHint}>
+              Samples returned to the backlog by a Cell QC action — bumped above High priority. Reschedule them from
+              the grid like any backlog sample.
+            </p>
+            <SampleTableView table={recoverableTable} />
+          </CardBody>
+        </Card>
+      )}
+
       <Card>
         <CardHeader
           badge={
             <span className={styles.badgeGroup}>
               {abortedCount > 0 && <Badge tone="danger">⚠ {abortedCount} aborted</Badge>}
+              {recoverableItems.length > 0 && <Badge tone="info">{recoverableItems.length} recoverable</Badge>}
               {`${total} sample${total === 1 ? "" : "s"}`}
             </span>
           }
@@ -243,32 +310,80 @@ export function BacklogPage() {
 
           {!query.isLoading && !query.isError && items.length > 0 && (
             <>
-              <table className={styles.table}>
-                <thead>
-                  {table.getHeaderGroups().map((hg) => (
-                    <tr key={hg.id}>
-                      {hg.headers.map((h) => (
-                        <th key={h.id}>{flexRender(h.column.columnDef.header, h.getContext())}</th>
-                      ))}
-                    </tr>
-                  ))}
-                </thead>
-                <tbody>
-                  {table.getRowModel().rows.map((row) => (
-                    <tr key={row.id}>
-                      {row.getVisibleCells().map((cell) => (
-                        <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-
+              <SampleTableView table={table} />
               <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
             </>
           )}
         </CardBody>
       </Card>
+
+      {topups.length > 0 && (
+        <Card>
+          <CardHeader badge={<Badge tone="warning">{topups.length} top-up{topups.length === 1 ? "" : "s"}</Badge>}>
+            <h2>Top-up required</h2>
+          </CardHeader>
+          <CardBody>
+            <p className={styles.sectionHint}>
+              Samples lost to a Cell QC action that need fresh material. Confirm when the top-up request has been sent,
+              or cancel to remove it from this list.
+            </p>
+            {topupCancelMutation.isError && (
+              <Note tone="bad" icon="!">Failed to cancel the top-up.</Note>
+            )}
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th>Container ID</th>
+                  <th>Barcodes</th>
+                  <th>From</th>
+                  <th>Requested</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {topups.map((t) => (
+                  <tr key={t.id}>
+                    <td>
+                      {t.external_id ? <b>{t.external_id}</b> : `Sample ${t.sample_id}`}
+                    </td>
+                    <td>
+                      <BarcodeChips barcodes={t.barcodes} />
+                    </td>
+                    <td>
+                      {t.source_run_name ?? "—"}
+                      {t.source_cell_code ? ` · ${t.source_cell_code}` : ""}
+                    </td>
+                    <td>{t.request_sent_at ? new Date(t.request_sent_at).toLocaleDateString() : "—"}</td>
+                    <td>
+                      <div className={styles.rowActions}>
+                        {!t.request_sent_at && (
+                          <Button
+                            size="sm"
+                            variant="primary"
+                            onClick={() => topupSentMutation.mutate(t.id)}
+                            disabled={topupSentMutation.isPending}
+                          >
+                            Request Sent
+                          </Button>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => topupCancelMutation.mutate(t.id)}
+                          disabled={topupCancelMutation.isPending}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </CardBody>
+        </Card>
+      )}
+
       {addOpen && <SampleModal onClose={() => setAddOpen(false)} />}
       {editSample && <SampleModal sample={editSample} onClose={() => setEditSample(null)} />}
     </div>

@@ -19,6 +19,14 @@ _NATURAL_SORT_CHUNK_RE = re.compile(r"(\d+)")
 # pack_cells() run with no other changes needed.
 ABORTED_PRIORITY = "Aborted (0)"
 
+# Priority labels for samples a Cell QC action sends back to the backlog with a
+# disposition (see services/qc_service.py). Rank 0, like ABORTED_PRIORITY, so they sort
+# above "High (1)" - the "bumped above High" requirement. The distinct labels also let the
+# Backlog badge tone tell them apart; grouping into the "Recoverable Samples" section keys
+# off Sample.qc_disposition, not these strings.
+REPEATABLE_PRIORITY = "Repeatable (0)"
+RECOVERABLE_PRIORITY = "Recoverable (0)"
+
 
 def priority_rank(priority: str | None) -> int:
     """Lower is higher-priority. Extracts the trailing "(N)" from labels like

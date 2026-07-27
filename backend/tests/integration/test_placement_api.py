@@ -612,7 +612,12 @@ def test_cancel_run_preserves_a_cancelled_stopped_cell_marker(client):
     for sib in [c["id"] for c in client.get("/api/cells", params={"tray_id": tray_id}).json()["items"] if c["id"] != cell_id_1]:
         client.post(f"/api/cells/{sib}/discard", json={"reason": "test"})
 
-    stop = client.post(f"/api/cells/{cell_id_1}/stop", json={"reason": "damaged"})
+    # Retire (the run was never started, so Fail-and-Stop isn't applicable) - B1's planned
+    # use is displaced to a permanent cancelled marker, the case this test checks cancel_run
+    # preserves.
+    from tests.integration._qc_helpers import qc_retire
+
+    stop = qc_retire(client, cell_id_1)
     assert stop.status_code == 200, stop.text
 
     resp = client.post(f"/api/cycles/{cycle_id}/cancel")
@@ -630,8 +635,8 @@ def test_cancel_run_preserves_a_cancelled_stopped_cell_marker(client):
     assert client.get(f"/api/samples/{b1}").json()["status"] == "backlog"
     assert client.get(f"/api/samples/{b2}").json()["status"] == "backlog"
 
-    # B1's stopped cell is untouched by cancel_run - still stopped, still holding its marker
-    assert client.get(f"/api/cells/{cell_id_1}").json()["status"] == "stopped"
+    # B1's retired cell is untouched by cancel_run - still terminal, still holding its marker
+    assert client.get(f"/api/cells/{cell_id_1}").json()["status"] == "retired"
     # B2's cell was the only real use anywhere in its own tray (a separate tray from B1's -
     # each "new" placement opens its own tray) - now that cancel_run has removed it, every
     # sibling in that tray is back to 0/3, so the whole tray is cleaned up

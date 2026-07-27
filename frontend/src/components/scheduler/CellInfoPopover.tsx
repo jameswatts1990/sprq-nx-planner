@@ -24,6 +24,8 @@ export interface CellInfoPopoverProps {
   /** The owning run - gives the instrument/load-day context the reuse override needs. */
   run: RunOut;
   onClose: () => void;
+  /** Open the shared Cell QC modal for this physical cell (anchored on this use). */
+  onOpenQc: (cellId: number, cellUseId: number) => void;
 }
 
 /**
@@ -41,7 +43,7 @@ export interface CellInfoPopoverProps {
  * drag the sample onto that cell's own slot. And the engine already prefers reuse, so a
  * non-reuse placement means no eligible reuse existed to offer here anyway.
  */
-export function CellInfoPopover({ stage, run, onClose }: CellInfoPopoverProps) {
+export function CellInfoPopover({ stage, run, onClose, onOpenQc }: CellInfoPopoverProps) {
   const queryClient = useQueryClient();
   const cellQuery = useQuery({
     queryKey: ["cell", stage.cell_id],
@@ -183,9 +185,19 @@ export function CellInfoPopover({ stage, run, onClose }: CellInfoPopoverProps) {
         <Button variant="ghost" onClick={onClose} disabled={useNewCell.isPending}>
           Close
         </Button>
-        <Link to={`/cells/${stage.cell_id}`} className={`btn ${canOverride ? "" : "primary "}sm ${styles.viewCellLink}`}>
+        <Link to={`/cells/${stage.cell_id}`} className={`btn ghost sm ${styles.viewCellLink}`}>
           View full cell →
         </Link>
+        <Button
+          variant="danger"
+          onClick={() => {
+            onClose();
+            onOpenQc(stage.cell_id, stage.cell_use_id);
+          }}
+          disabled={useNewCell.isPending}
+        >
+          QC…
+        </Button>
         {canOverride && (
           <Button variant="primary" onClick={() => useNewCell.mutate()} disabled={useNewCell.isPending}>
             {useNewCell.isPending ? "Switching…" : "Use a new cell instead"}
