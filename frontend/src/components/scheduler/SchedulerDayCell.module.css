@@ -213,3 +213,26 @@
   font-weight: 700;
   color: var(--faint);
 }
+
+/* Load-time amend control inside the Confirm-loaded modal - lets the operator correct the
+   real load time as they lock the run. */
+.loadTimeField {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 12px;
+}
+.loadTimeLabel {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--grey);
+}
+.loadTimeSelect {
+  font-family: var(--sans);
+  font-size: 13px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 8px 10px;
+  background: var(--card);
+  color: var(--ink);
+}

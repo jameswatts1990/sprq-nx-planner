@@ -8,6 +8,11 @@ export interface CycleStatusUpdate {
   actor?: string;
   /** Only meaningful when status is "running" (locking the run) - see cycles.py. */
   run_name?: string;
+  /** Amend the run's load time (the hour it loads and starts sequencing) as part of this
+   * update - applied before the status change (the "amend the loading time" at Confirm
+   * loaded). Omit to leave the existing start untouched. */
+  start_hour?: number;
+  start_minute?: number;
 }
 
 export interface ListCyclesParams {

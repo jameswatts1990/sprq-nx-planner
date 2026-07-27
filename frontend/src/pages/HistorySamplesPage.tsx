@@ -11,6 +11,7 @@ import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Note } from "@/components/ui/Note";
 import type { SampleOut } from "@/types/sample";
 import { runLabel } from "@/utils/runLabel";
+import { USE_STATUS_TONE } from "@/utils/useStatusTone";
 import { useDebouncedValue } from "@/utils/useDebouncedValue";
 
 import styles from "./HistorySamplesPage.module.css";
@@ -170,9 +171,13 @@ const SampleRow = memo(function SampleRow({ sample, expanded, onToggle }: Sample
                           </Link>
                         </td>
                         <td>{u.plate_number != null ? `Plate ${u.plate_number}` : "—"}</td>
-                        <td className={styles.mono}>{u.cell_code}</td>
+                        <td className={styles.mono}>
+                          <Link to={`/cells/${u.cell_id}`}>{u.cell_code}</Link>
+                        </td>
                         <td className={styles.mono}>{u.well}</td>
-                        <td>{u.status}</td>
+                        <td>
+                          <Badge tone={USE_STATUS_TONE[u.status] ?? "default"}>{u.status}</Badge>
+                        </td>
                         <td>{u.started_at ? formatDateTime(u.started_at) : "—"}</td>
                         <td>{u.completed_at ? formatDateTime(u.completed_at) : "—"}</td>
                         <td>{u.outcome_notes ?? "—"}</td>

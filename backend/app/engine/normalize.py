@@ -12,6 +12,7 @@ import json
 import re
 from dataclasses import dataclass, field
 
+from app.engine.constants import DEFAULT_MOVIE_HOURS, MOVIE_HOURS_CHOICES
 from app.engine.csv_parse import parse_csv, split_barcodes
 from app.engine.import_fields import (
     K_ADAPTIVE_LOADING,
@@ -19,6 +20,7 @@ from app.engine.import_fields import (
     K_CCS_KINETICS,
     K_EXTERNAL_ID,
     K_FULL_RES_BASE_Q,
+    K_MOVIE_TIME,
     K_PARENT_SAMPLE,
     K_PRIORITY,
     K_SANGER,
@@ -64,6 +66,30 @@ def _parse_float_or_none(raw: str | None) -> float | None:
     """Mimics `parseFloat(x)||null` - note 0 is falsy in JS, so an actual 0 becomes None too."""
     v = _js_parse_float(raw)
     return v if v else None
+
+
+def coerce_movie_hours(value: object) -> int:
+    """A sample's movie / acquisition time, normalized to one of MOVIE_HOURS_CHOICES
+    (12/24/30). Anything missing, blank, or out of range falls back to DEFAULT_MOVIE_HOURS
+    (24h) - so a stored movie time is always a valid choice, and "not imported" means 24h.
+    Used on manual create/edit and on import."""
+    if value is None or (isinstance(value, str) and not value.strip()):
+        return DEFAULT_MOVIE_HOURS
+    v = _js_parse_float(value if isinstance(value, str) else str(value))
+    if v is None:
+        return DEFAULT_MOVIE_HOURS
+    n = int(round(v))
+    return n if n in MOVIE_HOURS_CHOICES else DEFAULT_MOVIE_HOURS
+
+
+def _parse_movie_time(raw: str | None) -> int | None:
+    """Parse a movie-time import cell to an int (12/24/30) or None when blank/unparseable -
+    None is left for the persist layer to fill with the default, so a blank column reads as
+    "use the default 24h" rather than a forced value here."""
+    if raw is None or not raw.strip():
+        return None
+    v = _js_parse_float(raw)
+    return int(round(v)) if v is not None else None
 
 
 # Boolean settings fields (Adaptive Loading, Full-Resolution Base Q, Include Base Kinetics)
@@ -145,6 +171,7 @@ def normalize_with_map(data_rows: list[list[str]], column_map: dict[str, int]) -
                 full_resolution_base_q=boolean(K_FULL_RES_BASE_Q, "Full-Resolution Base Q"),
                 priority=cell(r, K_PRIORITY).strip(),
                 ccs_kinetics=boolean(K_CCS_KINETICS, "Include Base Kinetics"),
+                movie_time=_parse_movie_time(cell(r, K_MOVIE_TIME)),
                 key=f"{sample_id}#{n}",
             )
         )

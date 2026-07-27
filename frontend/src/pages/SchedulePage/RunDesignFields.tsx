@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/Button";
 import { Note } from "@/components/ui/Note";
 import type { NoteTone } from "@/components/ui/Note";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
-import type { CellsPerDay, MaxUses, Objective, RunTimeHours } from "@/types/schedule";
+import type { CellsPerDay, MaxUses, Objective } from "@/types/schedule";
 import type { RunDesignState } from "@/types/schedulerGrid";
 
 import styles from "./RunDesignFields.module.css";
@@ -33,11 +33,6 @@ const MAX_USES_OPTIONS = [
   { value: 2 as MaxUses, label: "2×" },
   { value: 3 as MaxUses, label: "3×" },
 ];
-const RUN_TIME_OPTIONS = [
-  { value: 12 as RunTimeHours, label: "12 h" },
-  { value: 24 as RunTimeHours, label: "24 h" },
-  { value: 30 as RunTimeHours, label: "30 h" },
-];
 /** Two strategies only. The stored `value` is the engine mode name (see Objective in
  * types/schedule.ts); the `label` is what the lab user reads. "Fastest" fills a whole
  * tray so every sample starts sooner (each cell then has a running expiry timer);
@@ -59,7 +54,7 @@ export function objectiveLabel(objective: Objective): string {
 
 /** Short one-line summary of the current dials, e.g. for the Autoschedule drawer subtitle. */
 export function runDesignSummary(runDesign: RunDesignState): string {
-  return `${runDesign.max_uses}× · ${runDesign.run_time_hours} h · loads ${fmtLoadHour(runDesign.load_hour)} · ${objectiveLabel(
+  return `${runDesign.max_uses}× · loads ${fmtLoadHour(runDesign.load_hour)} · ${objectiveLabel(
     runDesign.objective,
   )} · ${runDesign.cells_per_day === 8 ? "2 plates" : "1 plate"}`;
 }
@@ -90,17 +85,6 @@ export function RunDesignFields({
           options={MAX_USES_OPTIONS}
           value={runDesign.max_uses}
           onChange={(v) => onChange({ ...runDesign, max_uses: v })}
-          fullWidth
-        />
-      </div>
-
-      <div className={styles.field}>
-        <div className={styles.fieldLabel}>Movie / run time</div>
-        <SegmentedControl
-          ariaLabel="Run time"
-          options={RUN_TIME_OPTIONS}
-          value={runDesign.run_time_hours}
-          onChange={(v) => onChange({ ...runDesign, run_time_hours: v })}
           fullWidth
         />
       </div>

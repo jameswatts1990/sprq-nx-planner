@@ -88,7 +88,9 @@
   flex-direction: column;
   gap: 3px;
 }
-/* One cell's fixed numbered position (▣1-▣4): position + uses-remaining on top, expiry beneath. */
+/* One cell's fixed numbered position (▣1-▣4): position + uses-remaining on top, expiry beneath.
+   Rendered as a link to the cell's detail page, so it resets anchor styling (no underline,
+   inherit colour) and shows a pointer cursor; the state colours below still win. */
 .cell {
   display: grid;
   grid-template-columns: auto 1fr;
@@ -100,6 +102,16 @@
   border-radius: 6px;
   background: var(--card);
   padding: 2px 4px 3px;
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+}
+.cell:hover {
+  border-color: #cfd2d8;
+}
+.cell:focus-visible {
+  outline: 2px solid var(--magenta-deep);
+  outline-offset: 1px;
 }
 .letter {
   grid-row: 1;

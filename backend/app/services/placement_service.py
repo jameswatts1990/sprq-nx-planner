@@ -18,7 +18,14 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
-from app.engine.constants import CELL_LIFETIME_H, DAY_START_HOUR, REUSE_PREP_H, WELLS, within_tray_pos
+from app.engine.constants import (
+    CELL_LIFETIME_H,
+    DAY_START_HOUR,
+    DEFAULT_MOVIE_HOURS,
+    REUSE_PREP_H,
+    WELLS,
+    within_tray_pos,
+)
 from app.models.audit import AuditLog
 from app.models.cell import Cell
 from app.models.cell_tray import CellTray
@@ -130,6 +137,41 @@ def recompute_cycle_timing(db: Session, cycle: Cycle) -> None:
         return
     cycle.movie_hours = int(longest)
     cycle.planned_end_at = ensure_aware(cycle.planned_start_at) + timedelta(hours=int(longest))
+
+
+def update_run_load_time(db: Session, run_batch: RunBatch, start_hour: int, start_minute: int = 0) -> None:
+    """Amend a run's load time - the hour it loads and starts sequencing - re-deriving every
+    plate's window from it. Called when the operator records/corrects the real load time at
+    Confirm-loaded (see api/cycles.patch_run). Plate 1 moves to the chosen time on the run's
+    own load_date; a same-day parallel Plate 2 loads with it; a reuse Plate 2 (a later
+    acquire_date) is re-chained off Plate 1's new movie end via reuse_plate_window, so its
+    day/time still reflects the movie length.
+
+    Deliberately NOT re-gated against a prior run's instrument lock: unlike creating a new run,
+    this records/corrects reality for an existing one, so it never raises. Caller owns the
+    commit."""
+    cycles = sorted(run_batch.cycles, key=lambda c: c.plate_index)
+    plate1 = next((c for c in cycles if c.plate_index == 1), None)
+    if plate1 is None:
+        return
+    load_date = run_batch.load_date
+    new_start = datetime.combine(load_date, time(hour=start_hour, minute=start_minute), tzinfo=timezone.utc)
+    plate1.planned_start_at = new_start
+    recompute_cycle_timing(db, plate1)  # planned_end_at + representative movie_hours from wells
+
+    for plate in cycles:
+        if plate.plate_index == 1:
+            continue
+        if plate.acquire_date > load_date:
+            # Reuse Plate 2: rerun Plate 1's cells after its movie finishes + on-board wash.
+            acquire_date, start, end = reuse_plate_window(plate1.planned_start_at, plate1.movie_hours, plate.movie_hours)
+            plate.acquire_date = acquire_date
+            plate.planned_start_at = start
+            plate.planned_end_at = end
+        else:
+            # Same-day parallel Plate 2 (a second tray): loaded in the same session as Plate 1.
+            plate.planned_start_at = new_start
+            recompute_cycle_timing(db, plate)
 
 
 def _cell_used_in_run(cell: Cell, instrument_id: int, load_date: date, *, exclude_use_id: int | None = None) -> bool:
@@ -676,7 +718,7 @@ def place_sample(
     load_date: date,
     slot_index: int,
     cell_choice: dict | None = None,
-    run_time_hours: float,
+    run_time_hours: float | None = None,
     start_hour: int = DAY_START_HOUR,
     start_minute: int = 0,
     actor: str | None = None,
@@ -699,6 +741,12 @@ def place_sample(
         raise PlacementError(400, f"Unknown instrument serial '{instrument_serial}'.")
 
     sample_barcodes = sample.barcode_list
+
+    # A plain drag-drop omits run_time_hours so the sample runs for its own imported/edited
+    # movie time (Sample.movie_time_hours, default 24h - see engine.constants). An explicit
+    # value (a re-place that carries an existing per-cell run time) still wins.
+    if run_time_hours is None:
+        run_time_hours = sample.movie_time_hours or DEFAULT_MOVIE_HOURS
 
     # No explicit cell choice (or an explicit "auto") -> the engine derives the cell, applying
     # the same reuse-before-new rule as auto-fill (see derive_best_cell). This is the default

@@ -20,6 +20,11 @@
 .backLink:hover {
   color: var(--ink);
 }
+.headerActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
 .headerGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));

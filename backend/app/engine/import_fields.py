@@ -31,6 +31,7 @@ K_ADAPTIVE_LOADING = "adaptive_loading"
 K_FULL_RES_BASE_Q = "full_resolution_base_q"
 K_PRIORITY = "priority"
 K_CCS_KINETICS = "ccs_kinetics"
+K_MOVIE_TIME = "movie_time_hours"
 
 
 @dataclass(frozen=True)
@@ -68,6 +69,10 @@ IMPORTABLE_FIELDS: list[ImportField] = [
     ImportField(K_PRIORITY, "Priority", "High", aliases=("priority", "prioity")),
     ImportField(K_CCS_KINETICS, "Include Base Kinetics", "True", kind="boolean",
                 aliases=("include base kinetics", "base kinetics", "kinetics")),
+    ImportField(
+        K_MOVIE_TIME, "Movie time (h)", "24", kind="number",
+        aliases=("movie time", "movie length", "run time", "acquisition time", "movie"),
+    ),
 ]
 
 FIELDS_BY_KEY: dict[str, ImportField] = {f.key: f for f in IMPORTABLE_FIELDS}

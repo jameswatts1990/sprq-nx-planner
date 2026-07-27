@@ -7,26 +7,18 @@ import { cyclesApi } from "@/api/cycles";
 import { instrumentsApi } from "@/api/instruments";
 import { Pagination } from "@/components/shared/Pagination";
 import { Badge } from "@/components/ui/Badge";
-import type { BadgeTone } from "@/components/ui/Badge";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Note } from "@/components/ui/Note";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import type { SegmentedOption } from "@/components/ui/SegmentedControl";
 import { allStages } from "@/components/scheduler/groupCyclesByInstrumentAndDay";
 import { CYCLE_STATUSES } from "@/types/common";
-import type { CycleStatus } from "@/types/common";
 import type { RunOut } from "@/types/schedule";
+import { CYCLE_STATUS_TONE } from "@/utils/cycleStatus";
 import { runLabel } from "@/utils/runLabel";
 import { useDebouncedValue } from "@/utils/useDebouncedValue";
 
 import styles from "./HistoryRunsPage.module.css";
-
-const STATUS_TONE: Record<CycleStatus, BadgeTone> = {
-  planned: "default",
-  running: "success",
-  completed: "info",
-  aborted: "danger",
-};
 
 const DEFAULT_PAGE_SIZE = 50;
 const PAGE_SIZE_OPTIONS: SegmentedOption<number>[] = [25, 50, 100, 200].map((n) => ({ value: n, label: String(n) }));
@@ -55,7 +47,7 @@ const RunRow = memo(function RunRow({ run }: { run: RunOut }) {
       <td className={styles.mono}>{run.load_date}</td>
       <td className={styles.mono}>{run.instrument_serial}</td>
       <td>
-        <Badge tone={STATUS_TONE[run.status]}>{run.status}</Badge>
+        <Badge tone={CYCLE_STATUS_TONE[run.status]}>{run.status}</Badge>
       </td>
       <td>{run.plates.length}</td>
       <td>{longestMovie} h</td>

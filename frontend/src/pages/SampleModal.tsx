@@ -35,6 +35,7 @@ function valuesFromSample(sample: SampleOut): Record<string, string> {
     full_resolution_base_q: sample.full_resolution_base_q ?? "",
     priority: sample.priority ?? "",
     ccs_kinetics: sample.ccs_kinetics ?? "",
+    movie_time_hours: sample.movie_time_hours != null ? String(sample.movie_time_hours) : "",
   };
 }
 
@@ -116,6 +117,7 @@ export function SampleModal({
       full_resolution_base_q: str("full_resolution_base_q"),
       priority: str("priority"),
       ccs_kinetics: str("ccs_kinetics"),
+      movie_time_hours: num("movie_time_hours"),
     };
 
     mutation.mutate(isEdit ? editable : { external_id: externalId, ...editable });

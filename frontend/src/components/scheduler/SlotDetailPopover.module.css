@@ -21,37 +21,55 @@
   color: var(--ink);
   text-align: right;
 }
-/* The Sample value doubling as an edit trigger: reads like the bold value on the right, but
-   is a button with a hover ✎ affordance and a magenta accent so it's clearly actionable. */
-.sampleEditLink {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 6px;
-  padding: 0;
-  border: none;
-  background: none;
-  font: inherit;
-  font-weight: 800;
-  color: var(--magenta-deep);
-  text-align: right;
-  cursor: pointer;
-}
-.sampleEditLink:hover {
-  text-decoration: underline;
-}
-.sampleEditLink:disabled {
-  cursor: default;
-  opacity: 0.6;
-  text-decoration: none;
-}
-.sampleEditLink:focus-visible {
-  outline: 2px solid var(--magenta-deep);
-  outline-offset: 2px;
-  border-radius: var(--r-sm);
-}
-.sampleEditIcon {
+/* The cell/well context line under the sample-titled heading. */
+.subtitle {
   font-size: 12px;
   color: var(--grey);
+  margin: -6px 0 12px;
+}
+/* Sample row: a link to the sample page + a separate ✎ edit-icon button, right-aligned. */
+.sampleValue {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.sampleLink,
+.runLink {
+  font-weight: 800;
+  color: var(--link);
+  text-decoration: none;
+}
+.sampleLink:hover,
+.runLink:hover {
+  text-decoration: underline;
+}
+.sampleEditIconBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  font-size: 12px;
+  line-height: 1;
+  color: var(--grey);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  transition: color 0.12s, border-color 0.12s;
+}
+.sampleEditIconBtn:hover {
+  color: var(--ink);
+  border-color: #cfd2d8;
+}
+.sampleEditIconBtn:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+.sampleEditIconBtn:focus-visible {
+  outline: 2px solid var(--magenta-deep);
+  outline-offset: 1px;
 }
 /* Run-time row hosts a SegmentedControl on the right, so centre-align it rather than the
    baseline the text rows use, and let the control keep its natural width. */

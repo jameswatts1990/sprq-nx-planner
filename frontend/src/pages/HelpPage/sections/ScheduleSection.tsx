@@ -128,8 +128,8 @@ export function ScheduleSection() {
         <li>
           Click a <b>TRAY #</b> heading (top maps or the &quot;loaded later&quot; group) to open the <b>Cells &amp; Instruments</b> tab
           filtered to that instrument, to see the full cell details. Click an individual <b>cell</b> in a tray strip
-          to open its <b>Cell QC</b> dialog (status, and the Fail / Fail-and-Stop / Retire actions — see <b>QC
-          actions</b> below).
+          to open that cell&apos;s <b>detail page</b> — its full history, status, 108-hour window, and Cell QC actions
+          all live there.
         </li>
       </ul>
 
@@ -200,12 +200,14 @@ export function ScheduleSection() {
           instrument — all its cells kept open — for a later run to finish and then dispose as a unit; a tray is
           never part-binned.
         </dd>
-        <dt>Movie / run time (12 h / 24 h / 30 h)</dt>
+        <dt>Movie / run time</dt>
         <dd>
-          The sequencing movie length given to each cell as you place or auto-schedule it. It&apos;s a per-cell
-          setting: cells in the same run can have different run times, and you can change any one cell&apos;s run time
-          later by clicking its slot (see <b>Run time</b> under QC actions below). The run&apos;s overall duration —
-          and how long its instrument stays reserved — follows its longest cell.
+          There&apos;s no movie-time dial here — a sample&apos;s movie length is now a <b>per-sample</b> setting
+          (12/24/30 h, set on the backlog or on import, defaulting to 24 h). Dragging a sample onto the grid runs it
+          for its own movie time, and you can still change any one cell&apos;s run time afterwards from its slot popover
+          (see <b>Run time</b> under QC actions below), so cells in the same run can differ. Auto Schedule currently
+          gives every cell it places a 24-hour movie. The run&apos;s overall duration — and how long its instrument
+          stays reserved — follows its longest cell.
         </dd>
         <dt>Load time</dt>
         <dd>
@@ -422,14 +424,25 @@ export function ScheduleSection() {
         visible as <b>Blocked</b> slots (see below) rather than disappearing.
       </p>
       <p>
-        <b>Editing the sample:</b> in a filled slot&apos;s detail the <b>Sample</b> value doubles as an edit link (it
-        shows a small <b>✎</b> and turns pink) — click it to adjust that sample&apos;s loading parameters (<b>Target
-        OPLC</b>, <b>Volume</b>, <b>Adaptive Loading</b>, <b>Full-Resolution Base Q</b>, <b>Priority</b> and{" "}
-        <b>Include Base Kinetics</b>) without going back to the Backlog. Once a sample is placed on the grid its{" "}
-        <b>barcodes</b>, Sanger IDs and parent are locked — they&apos;re already burned onto the cell — so only those
-        loading settings can change here. The link is hidden once the sample has finished (completed, failed or
-        aborted), since its record is then history. To fix a placement&apos;s <b>note</b>, use the <b>Notes</b> box
-        lower in the same popover.
+        <b>Opening a placement:</b> clicking a filled slot&apos;s <b>card body</b> opens its detail popover, now titled
+        by the <b>sample</b> (its Container ID), with the cell it ran on shown just beneath — so it reads clearly apart
+        from the cell-stub popover (which stays titled by the physical cell). The <b>Sample ID</b> is a link to that
+        sample&apos;s own page, and the <b>Run</b> value links to that run&apos;s page.
+      </p>
+      <p>
+        <b>Editing the sample:</b> next to the Sample ID a small <b>✎</b> button opens the quick edit form for that
+        sample&apos;s loading parameters (<b>Target OPLC</b>, <b>Volume</b>, <b>Adaptive Loading</b>,{" "}
+        <b>Full-Resolution Base Q</b>, <b>Priority</b> and <b>Include Base Kinetics</b>) without going back to the
+        Backlog. Once a sample is placed on the grid its <b>barcodes</b>, Sanger IDs and parent are locked —
+        they&apos;re already burned onto the cell — so only those loading settings can change here. The ✎ is hidden
+        once the sample has finished (completed, failed or aborted), since its record is then history. To fix a
+        placement&apos;s <b>note</b>, use the <b>Notes</b> box lower in the same popover.
+      </p>
+      <p>
+        <b>Estimated stage times:</b> the popover also shows a small gantt of the whole run&apos;s wells — each a prep
+        lead-in then its sequencing movie, staggered across the run — with <i>this</i> placement&apos;s row
+        highlighted, so you can see where your sample sits in the run&apos;s flow. These are approximate PacBio
+        timings anchored at the run&apos;s load time, an estimate rather than the instrument&apos;s exact schedule.
       </p>
       <p>
         <b>Run time:</b> the popover shows this cell&apos;s own movie / run time, and while the run is still planned
@@ -551,7 +564,9 @@ export function ScheduleSection() {
           give the run a name (e.g. your lab&apos;s own run id, such as Sanger&apos;s <b>TRACTION-RUN-1234</b>{" "}
           format) — optional, and it overrides the plain run number everywhere this run is shown afterward (Run
           detail, History, Cells use history). Leave it blank to keep the plain number. <b>Unlock</b> never clears a
-          name once it&apos;s set; re-confirming lets you change it.
+          name once it&apos;s set; re-confirming lets you change it. The same dialog also lets you <b>amend the load
+          time</b> — if the cells actually went on the instrument at a different hour than planned, correct it here and
+          the run&apos;s schedule (and any reuse plate chained off it) shifts to match.
         </li>
         <li>
           A <b>LOADED</b> tag marks a locked run; <b>Unlock</b> returns it to planned so you can edit it again.

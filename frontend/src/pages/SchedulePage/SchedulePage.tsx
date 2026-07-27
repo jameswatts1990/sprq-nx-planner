@@ -70,8 +70,8 @@ export function SchedulePage() {
   const [printSheetOpen, setPrintSheetOpen] = useState(false);
   // The placement whose physical-cell info popover is open (the card's "ticket stub" click).
   const [cellInfo, setCellInfo] = useState<DetailTarget | null>(null);
-  // The cell whose QC modal is open (from a stub/card QC button or the tray overview).
-  // cellUseId anchors Fail / Fail-and-Stop; null = a whole-cell entry (tray/cell page).
+  // The cell whose QC modal is open, opened from either slot popover's QC action. cellUseId
+  // anchors Fail / Fail-and-Stop on that specific use (null would mean a whole-cell entry).
   const [qcTarget, setQcTarget] = useState<{ cellId: number; cellUseId: number | null } | null>(null);
   // A drop that would create a brand-new run, held while the load-time wheel is shown so the
   // user sets when that run loads/starts before it's committed (see LoadTimePicker).
@@ -432,10 +432,6 @@ export function SchedulePage() {
     [],
   );
 
-  // Clicking a cell in the left tray overview opens its QC modal (whole-cell entry: no
-  // specific use anchor, so Fail/Fail-and-Stop target the cell's current failable use).
-  const handleOpenTrayCell = useCallback((cellId: number) => setQcTarget({ cellId, cellUseId: null }), []);
-
   const handleExportSchedule = useCallback(() => {
     const a = document.createElement("a");
     a.href = scheduleExportUrl({ date_from: win.dateFrom, date_to: win.dateTo });
@@ -580,7 +576,6 @@ export function SchedulePage() {
                 waitingGrouped={waitingGrouped}
                 blockedGrouped={blockedGrouped}
                 trayMaps={trayMaps}
-                onOpenTrayCell={handleOpenTrayCell}
               />
             )}
           </div>

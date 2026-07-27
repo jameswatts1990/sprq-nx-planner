@@ -117,6 +117,14 @@
 .card:hover {
   border-color: #cfd2d8;
 }
+/* Priority-tinted left edge: --accent is set inline from the same palette var the priority
+   Badge uses (see BacklogAccordion.tsx TONE_ACCENT_VAR), so a card's priority reads at a
+   glance without re-describing colours. Only prioritised samples get it; the rest keep the
+   plain 1px border. */
+.prioritised {
+  border-left-width: 3px;
+  border-left-color: var(--accent, var(--line));
+}
 /* Edit affordance pinned top-right, revealed on card hover / keyboard focus. Absolutely
    positioned so it never reflows the card, and small enough to clear the head row's badges.
    Kept out of the drag by stopping its own pointerdown (see DraggableSampleCard). */
@@ -207,4 +215,13 @@
   font-size: 11px;
   color: var(--faint);
   font-weight: 600;
+}
+/* Movie / acquisition time chip, pushed to the right of the head row so it lines up down the
+   card list. Quiet by default - it's reference info, not a status. */
+.movie {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--grey);
+  white-space: nowrap;
 }

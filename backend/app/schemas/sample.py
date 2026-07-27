@@ -24,6 +24,9 @@ class _SampleFieldsBase(BaseModel):
     full_resolution_base_q: str | None = None
     priority: str | None = None
     ccs_kinetics: str | None = None
+    # Desired movie / acquisition time (h). Accepted loosely (12/24/30); the service
+    # normalizes anything else to the 24h default (engine.normalize.coerce_movie_hours).
+    movie_time_hours: int | None = None
 
     @field_validator(*_BOOL_FIELDS, mode="before")
     @classmethod
@@ -59,6 +62,7 @@ class SampleOut(BaseModel):
     full_resolution_base_q: str | None
     priority: str | None
     ccs_kinetics: str | None
+    movie_time_hours: int | None
     status: str
     # QC disposition tag ("repeatable"/"recoverable") when a Cell QC action returned this
     # sample to the backlog - drives the Backlog "Recoverable Samples" section grouping.

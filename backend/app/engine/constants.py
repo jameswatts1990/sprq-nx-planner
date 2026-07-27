@@ -17,6 +17,14 @@ CELLS_PER_TRAY = 4
 FIRST_PREP_H = 2
 REUSE_PREP_H = 0.75
 
+# A sample's desired movie / acquisition time (h). One of these three (matching the
+# per-cell run-time choices); anything missing or out of range falls back to
+# DEFAULT_MOVIE_HOURS. Movie time is a per-sample field now (Sample.movie_time_hours) and
+# is used as the default run time when a sample is placed manually (see
+# placement_service.place_sample). Auto-fill still takes a single run time from its request.
+MOVIE_HOURS_CHOICES = (12, 24, 30)
+DEFAULT_MOVIE_HOURS = 24
+
 # Hours added to a run's movie_hours to get the total instrument lock window (movie time
 # plus turnaround/cleanup before the instrument can start its next run).
 LOCK_BUFFER_HOURS = 6

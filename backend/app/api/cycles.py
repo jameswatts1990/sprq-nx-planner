@@ -1,14 +1,14 @@
 from datetime import date, datetime
 
 from fastapi import APIRouter, HTTPException, Response
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 
 from app.api.deps import ActorDep, SessionDep
 from app.models.instrument import Instrument
 from app.models.schedule import CYCLE_STATUSES, RunBatch
 from app.schemas.run import RunOut
-from app.services.placement_service import PlacementError, cancel_run
+from app.services.placement_service import PlacementError, cancel_run, update_run_load_time
 from app.services.run_serializer import RUN_LOAD_OPTIONS, run_out
 from app.services.run_service import update_run_status
 
@@ -23,6 +23,11 @@ class RunStatusUpdate(BaseModel):
     actor: str | None = None
     # Only meaningful when locking (status="running") - see update_run_status.
     run_name: str | None = None
+    # Optional amend of the run's load time (the hour it loads and starts sequencing), applied
+    # before the status change - the "give an opportunity to amend the loading time" at
+    # Confirm-loaded. Omit to leave the run's existing start untouched. See update_run_load_time.
+    start_hour: int | None = Field(default=None, ge=0, le=23)
+    start_minute: int | None = Field(default=None, ge=0, le=59)
 
 
 @router.get("", response_model=list[RunOut])
@@ -65,6 +70,11 @@ def patch_run(run_id: int, req: RunStatusUpdate, db: SessionDep, actor: ActorDep
     run_batch = db.get(RunBatch, run_id, options=RUN_LOAD_OPTIONS)
     if run_batch is None:
         raise HTTPException(404, "Run not found")
+    # Amend the load time first (if given), so a Confirm-loaded that also corrects the time
+    # locks the run with the corrected schedule. update_run_load_time doesn't commit - the
+    # update_run_status call below commits both changes together.
+    if req.start_hour is not None:
+        update_run_load_time(db, run_batch, req.start_hour, req.start_minute or 0)
     try:
         run_batch = update_run_status(db, run_batch, req.status, req.at, req.actor or actor, req.run_name)
     except ValueError as exc:

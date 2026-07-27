@@ -1,0 +1,139 @@
+/* Estimated stage-times gantt, shown in the slot-detail popover. One row per loaded well:
+   a muted prep segment then a Use-coloured movie segment on a shared "hours from load" axis.
+   Colours come from the app's global palette vars, so it themes with the rest of the app. */
+.wrap {
+  margin: 12px 0 4px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 10px 12px 8px;
+  background: var(--card);
+}
+.caption {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.captionTitle {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--grey);
+}
+.captionHint {
+  font-size: 11px;
+  color: var(--faint);
+}
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.row {
+  display: grid;
+  grid-template-columns: 116px 1fr 96px;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 4px;
+  border-radius: 5px;
+}
+/* The popover's own placement, lifted so a scheduler finds it at a glance. */
+.current {
+  background: var(--magenta-tint, rgba(210, 20, 130, 0.08));
+  outline: 1px solid var(--magenta);
+}
+.rowLabel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.stub {
+  flex: none;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 800;
+  color: #fff;
+  background: var(--bar, var(--grey));
+  border-radius: 4px;
+  padding: 1px 5px;
+  white-space: nowrap;
+}
+.sample {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.track {
+  position: relative;
+  height: 14px;
+  background: var(--line-soft);
+  border-radius: 4px;
+  overflow: hidden;
+}
+/* Prep: a quiet, hatched-looking lead-in before the movie. */
+.prep {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: repeating-linear-gradient(
+    45deg,
+    var(--line) 0,
+    var(--line) 3px,
+    transparent 3px,
+    transparent 6px
+  );
+  border-right: 1px solid var(--line);
+}
+.movie {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bar, var(--grey));
+  border-radius: 3px;
+  min-width: 2px;
+}
+.movieLabel {
+  font-size: 9.5px;
+  font-weight: 800;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  padding: 0 3px;
+}
+.rowTime {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--grey);
+  text-align: right;
+  white-space: nowrap;
+}
+.axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  padding: 0 4px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--faint);
+}
+/* Per-use bar colour (magenta / blue / teal), matching the Use 1/2/3 swatches in the
+   shared legend (SectionHeading.module.css) - one --bar var drives both the stub chip and
+   the movie segment of a row. */
+.u1 {
+  --bar: var(--magenta);
+}
+.u2 {
+  --bar: var(--blue);
+}
+.u3 {
+  --bar: var(--teal);
+}

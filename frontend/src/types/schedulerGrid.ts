@@ -18,7 +18,10 @@ export interface PlaceSampleRequest {
    * what a plain drag-drop sends. An explicit choice overrides it (the cell-stub's "use a
    * different cell" path). */
   cell_choice?: CellChoice;
-  run_time_hours: RunTimeHours; // current Run Design dial
+  /** Omit to inherit the sample's own movie time (Sample.movie_time_hours, default 24 h) -
+   * what a plain drag-drop now sends. An explicit value overrides it (e.g. a re-place that
+   * carries an existing per-cell run time). */
+  run_time_hours?: RunTimeHours;
   /** Only meaningful when this placement creates a brand-new run (the first sample into
    * an empty instrument+day cell) - ignored otherwise, since an existing run's start is
    * already fixed. Omit to accept the backend's default (12:00). */

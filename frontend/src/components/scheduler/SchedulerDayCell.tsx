@@ -5,6 +5,7 @@ import { cellsApi } from "@/api/cells";
 import { ApiError } from "@/api/client";
 import { cyclesApi } from "@/api/cycles";
 import { TraySiblingList } from "@/components/cells/TraySiblingList";
+import { clampLoadHour, fmtHour, LOAD_HOURS } from "@/components/scheduler/LoadTimePicker";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
 import type { SlotIndex, RunOut, StageOut } from "@/types/schedule";
@@ -94,7 +95,7 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
   const queryClient = useQueryClient();
 
   const statusMutation = useMutation({
-    mutationFn: (req: { status: "running" | "planned"; run_name?: string }) => {
+    mutationFn: (req: { status: "running" | "planned"; run_name?: string; start_hour?: number; start_minute?: number }) => {
       if (!run) throw new Error("No run to update.");
       return cyclesApi.updateStatus(run.run_id, req);
     },
@@ -111,6 +112,10 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
 
   const [confirmingLoad, setConfirmingLoad] = useState(false);
   const [runName, setRunName] = useState("");
+  // The load hour amended in the Confirm-loaded modal (prefilled from Plate 1's current
+  // planned start when the modal opens). Sent with the lock so the operator can correct the
+  // real load time as they confirm - see cyclesApi.updateStatus / update_run_load_time.
+  const [loadHour, setLoadHour] = useState(12);
 
   const [rotateTrayId, setRotateTrayId] = useState<number | null>(null);
   const rotateMutation = useMutation({
@@ -287,6 +292,8 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
                   disabled={statusMutation.isPending}
                   onClick={() => {
                     setRunName(run.run_name ?? "");
+                    const plate1 = run.plates.find((p) => p.plate_index === 1);
+                    setLoadHour(clampLoadHour(plate1 ? new Date(plate1.planned_start_at).getUTCHours() : 12));
                     setConfirmingLoad(true);
                   }}
                 >
@@ -410,13 +417,29 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
             placeholder: "e.g. TRACTION-RUN-1234",
           }}
           onCancel={() => setConfirmingLoad(false)}
-          onConfirm={() => statusMutation.mutate({ status: "running", run_name: runName })}
+          onConfirm={() =>
+            statusMutation.mutate({ status: "running", run_name: runName, start_hour: loadHour, start_minute: 0 })
+          }
         >
           <p>
             This locks the whole run — both plates — so it can no longer be edited by accident. Give it a name (e.g.
             your lab&apos;s TRACTION run id) if you&apos;d like it shown instead of the run number everywhere this run
             appears.
           </p>
+          <label className={styles.loadTimeField}>
+            <span className={styles.loadTimeLabel}>Load time (when it loaded &amp; started sequencing)</span>
+            <select
+              className={styles.loadTimeSelect}
+              value={loadHour}
+              onChange={(e) => setLoadHour(Number(e.target.value))}
+            >
+              {LOAD_HOURS.map((h) => (
+                <option key={h} value={h}>
+                  {fmtHour(h)}
+                </option>
+              ))}
+            </select>
+          </label>
         </ConfirmModal>
       )}
 

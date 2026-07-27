@@ -41,8 +41,6 @@ export interface SchedulerGridRowProps {
   /** Projected on-instrument tray map (as of the latest scheduled day this week), shown
    * beneath the serial. Undefined when the instrument has no tray-linked cells at all. */
   trayMap: InstrumentTrayMapData | undefined;
-  /** Open a cell's QC modal when its position is clicked in the tray map. */
-  onOpenTrayCell?: (cellId: number) => void;
 }
 
 /** One instrument row: sticky-left <th> serial, then one SchedulerDayCell per day.
@@ -67,7 +65,6 @@ export const SchedulerGridRow = memo(function SchedulerGridRow({
   waitingCellsByDate,
   blockedWellsByDate,
   trayMap,
-  onOpenTrayCell,
 }: SchedulerGridRowProps) {
   // Everything each day-cell needs, derived once per day. continuation is the only costly
   // bit (it scans cyclesByDate) and used to be computed twice per day - here it's computed
@@ -123,7 +120,7 @@ export const SchedulerGridRow = memo(function SchedulerGridRow({
         <div className={styles.ml}>Revio</div>
         <div className={styles.mid}>{name || serial}</div>
         {name && <div className={styles.serialSub}>{serial}</div>}
-        <InstrumentTrayMap map={trayMap} onOpenCell={onOpenTrayCell} />
+        <InstrumentTrayMap map={trayMap} />
       </th>
       {dayInfos.map(({ date, colIndex, weekend, run, continuation, selectable, down }) => {
         const selected = selectable && selection.isSelected(rowIndex, colIndex);

@@ -652,3 +652,63 @@ def test_cancel_run_rejected_when_not_planned(client):
 
     resp = client.post(f"/api/cycles/{cycle_id}/cancel")
     assert resp.status_code == 409
+
+
+def test_place_inherits_the_samples_movie_time_when_run_time_omitted(client):
+    """A manual drag-drop omits run_time_hours, so the placement runs for the sample's own
+    movie time (Sample.movie_time_hours) - the per-sample-movie-time default."""
+    client.post("/api/samples", json={"external_id": "M1", "barcodes": ["bc9"], "movie_time_hours": 30})
+    (mon,) = _weekdays(1)
+    sid = _sid(client, "M1")
+    resp = client.post(
+        "/api/cell-uses",
+        json={
+            "sample_id": sid,
+            "instrument_serial": "84047",
+            "load_date": mon,
+            "slot_index": 0,
+            "cell_choice": {"mode": "new"},
+            # no run_time_hours -> inherit the sample's own 30h movie time
+        },
+    )
+    assert resp.status_code == 201, resp.text
+    run = resp.json()
+    assert _stages(run)[0]["run_time_hours"] == 30
+    assert run["plates"][0]["movie_hours"] == 30
+
+
+def test_place_defaults_movie_time_to_24_when_sample_has_none(client):
+    """A sample imported without a movie time falls back to the 24h default at placement."""
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1"})
+    (mon,) = _weekdays(1)
+    resp = client.post(
+        "/api/cell-uses",
+        json={
+            "sample_id": _sid(client, "A1"),
+            "instrument_serial": "84047",
+            "load_date": mon,
+            "slot_index": 0,
+            "cell_choice": {"mode": "new"},
+        },
+    )
+    assert resp.status_code == 201, resp.text
+    assert _stages(resp.json())[0]["run_time_hours"] == 24
+
+
+def test_patch_cycle_amends_load_time_at_confirm(client):
+    """Confirm-loaded can amend the run's load time in the same call - Plate 1's window moves
+    to the corrected hour (see update_run_load_time)."""
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1"})
+    (mon,) = _weekdays(1)
+    sid = _sid(client, "A1")
+    r1 = _place(client, sid, mon, 0, start_hour=9)
+    cycle_id = r1.json()["run_id"]
+    assert r1.json()["plates"][0]["planned_start_at"][11:16] == "09:00"
+
+    run = client.patch(f"/api/cycles/{cycle_id}", json={"status": "running", "start_hour": 14})
+    assert run.status_code == 200, run.text
+    p1 = run.json()["plates"][0]
+    assert run.json()["status"] == "running"
+    assert p1["planned_start_at"][11:16] == "14:00"
+    # planned_end_at follows the new start (14:00 + 24h movie -> 14:00 next day).
+    assert p1["planned_end_at"][11:16] == "14:00"

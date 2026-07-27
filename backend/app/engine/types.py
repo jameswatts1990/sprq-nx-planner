@@ -23,6 +23,10 @@ class ParsedSample:
     full_resolution_base_q: str | None = None
     priority: str = ""
     ccs_kinetics: str | None = None
+    # Desired movie / acquisition time (h) for this sample; None when the import didn't
+    # specify one (the persist layer fills the default, 24h). Not used by the pure packing
+    # engine - carried through so import can store it on the Sample.
+    movie_time: int | None = None
     key: str = ""
     sample_id: int | None = None  # DB id, populated once persisted; unused by pure engine
     # When this sample entered the backlog (Sample.created_at) - drives the "oldest

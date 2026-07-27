@@ -16,6 +16,7 @@ def sample_out(sample: Sample) -> SampleOut:
         full_resolution_base_q=sample.full_resolution_base_q,
         priority=sample.priority,
         ccs_kinetics=sample.ccs_kinetics,
+        movie_time_hours=sample.movie_time_hours,
         status=sample.status,
         qc_disposition=sample.qc_disposition,
         barcodes=sample.barcode_list,

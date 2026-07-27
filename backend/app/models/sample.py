@@ -27,6 +27,11 @@ class Sample(Base):
     full_resolution_base_q: Mapped[str | None] = mapped_column(String(20), nullable=True)
     priority: Mapped[str | None] = mapped_column(String(50), nullable=True)
     ccs_kinetics: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # Desired movie / acquisition time (h), one of 12/24/30. Nullable for rows created
+    # before this field existed; a null reads as the 24h default everywhere it's used (the
+    # backlog card, and the manual-placement run-time default in placement_service). New
+    # rows are always written a concrete value (see engine.normalize.coerce_movie_hours).
+    movie_time_hours: Mapped[int | None] = mapped_column(Integer, nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="backlog", index=True)
     # QC disposition tag when a Cell QC action sends this sample back to the backlog:
     # None | "repeatable" | "recoverable". An edit-proof grouping key for the Backlog's

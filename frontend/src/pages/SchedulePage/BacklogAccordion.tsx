@@ -1,6 +1,7 @@
 import { useDraggable } from "@dnd-kit/core";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 import { ApiError } from "@/api/client";
 import type { SampleSortBy, SampleSortDir } from "@/api/samples";
@@ -10,6 +11,7 @@ import { sampleDragId } from "@/components/scheduler/gridKeys";
 import type { SampleDragData } from "@/components/scheduler/useSchedulerDnd";
 import { Accordion } from "@/components/ui/Accordion";
 import { Badge } from "@/components/ui/Badge";
+import type { BadgeTone } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Note } from "@/components/ui/Note";
 import type { SampleOut } from "@/types/sample";
@@ -18,6 +20,21 @@ import { ABORTED_PRIORITY, priorityTone } from "@/utils/priority";
 
 import { SampleModal } from "../SampleModal";
 import styles from "./BacklogAccordion.module.css";
+
+/** Default movie time shown when a sample has none (mirrors the backend's 24h default). */
+const DEFAULT_MOVIE_HOURS = 24;
+
+/** The palette var each priority tone maps to, for the card's left-edge accent. References
+ * the same CSS custom properties the shared Badge tone map uses (see Badge.module.css) - a
+ * pointer at the palette, not a forked colour value. */
+const TONE_ACCENT_VAR: Record<BadgeTone, string> = {
+  default: "var(--grey)",
+  success: "var(--green)",
+  danger: "var(--red)",
+  warning: "var(--amber)",
+  orange: "var(--orange)",
+  info: "var(--blue-deep)",
+};
 
 const DEFAULT_PAGE_SIZE = 25;
 /** Persist whether the pinned backlog tray is open, so a scheduler who works with it open
@@ -47,20 +64,31 @@ const SORT_OPTIONS: { value: SampleSortBy; label: string }[] = [
 ];
 
 /** Draggable backlog sample card - doubles as the drag source for placing onto a slot.
- * Hovering (or keyboard-focusing the card) reveals an ✎ edit button pinned top-right that
- * opens the same Add/Edit modal the Backlog tab uses, so a scheduler can fix a sample's
- * details without leaving the grid. The button stops its own pointerdown so a click to edit
- * never trips dnd-kit's drag sensor. */
+ * Clicking the card (a plain click, not a drag - the PointerSensor's 5px activation distance
+ * keeps the two apart, the same way a filled grid slot opens its detail on click) opens the
+ * sample's detail page. Hovering (or keyboard-focusing the card) reveals an ✎ edit button
+ * pinned top-right that opens the same Add/Edit modal the Backlog tab uses, so a scheduler can
+ * fix a sample's details without leaving the grid. The button stops its own pointerdown/click
+ * so editing never trips the drag sensor or the card's navigate. A movie-time chip and a
+ * priority-tinted left edge make each card's run time and priority readable at a glance. */
 function DraggableSampleCard({ sample, onEdit }: { sample: SampleOut; onEdit: (sample: SampleOut) => void }) {
+  const navigate = useNavigate();
   const data: SampleDragData = {
     kind: "sample",
     sample: { id: sample.id, external_id: sample.external_id, barcodes: sample.barcodes },
   };
   const { setNodeRef, listeners, attributes, isDragging } = useDraggable({ id: sampleDragId(sample.id), data });
+  const accent = sample.priority ? TONE_ACCENT_VAR[priorityTone(sample.priority)] : undefined;
+  const classes = [styles.card];
+  if (isDragging) classes.push(styles.dragging);
+  if (accent) classes.push(styles.prioritised);
   return (
     <div
       ref={setNodeRef}
-      className={isDragging ? `${styles.card} ${styles.dragging}` : styles.card}
+      className={classes.join(" ")}
+      style={accent ? { ["--accent" as string]: accent } : undefined}
+      title={`Open ${sample.external_id}`}
+      onClick={() => navigate(`/samples/${sample.id}`)}
       {...listeners}
       {...attributes}
     >
@@ -81,6 +109,9 @@ function DraggableSampleCard({ sample, onEdit }: { sample: SampleOut; onEdit: (s
         <span className={styles.ext}>{sample.external_id}</span>
         {sample.parent_sample && <span className={styles.parent}>{sample.parent_sample}</span>}
         {sample.priority && <Badge tone={priorityTone(sample.priority)}>{sample.priority}</Badge>}
+        <span className={styles.movie} title="Movie / acquisition time">
+          ⏱ {sample.movie_time_hours ?? DEFAULT_MOVIE_HOURS} h
+        </span>
       </div>
       <BarcodeChips barcodes={sample.barcodes} />
     </div>

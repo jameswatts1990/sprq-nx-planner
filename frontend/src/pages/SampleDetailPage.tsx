@@ -1,10 +1,12 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import { ApiError } from "@/api/client";
 import { samplesApi } from "@/api/samples";
 import { BarcodeChips } from "@/components/shared/BarcodeChips";
 import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Note } from "@/components/ui/Note";
 import { plateWellFromPlate } from "@/utils/plateWell";
@@ -12,11 +14,27 @@ import { runLabel } from "@/utils/runLabel";
 import { SAMPLE_STATUS_LABEL, SAMPLE_STATUS_TONE } from "@/utils/sampleStatus";
 import { USE_STATUS_TONE } from "@/utils/useStatusTone";
 
+import { SampleModal } from "./SampleModal";
 import styles from "./SampleDetailPage.module.css";
 
 function formatDateTime(iso: string | null): string {
   return iso ? new Date(iso).toLocaleString() : "—";
 }
+
+/** Loading/annotation params - the only fields editable once a sample is placed on the grid
+ * (its barcodes/identity are frozen at placement). Mirrors the Schedule slot popover's set. */
+const PLACED_EDITABLE_KEYS = new Set([
+  "target_oplc",
+  "volume",
+  "adaptive_loading",
+  "full_resolution_base_q",
+  "priority",
+  "ccs_kinetics",
+]);
+
+/** Finished samples are history, not a plan - the backend rejects edits to them, so no
+ * Edit button is offered (matches update_sample's _LOCKED_EDIT_STATUSES). */
+const LOCKED_EDIT_STATUSES = ["completed", "failed", "cancelled"];
 
 /** Full detail for a single sample (container), reached by clicking any container id
  * across the app - a cell card, the cell detail use-history, the Samples history list.
@@ -29,6 +47,8 @@ export function SampleDetailPage() {
   const { sampleId } = useParams<{ sampleId: string }>();
   const id = Number(sampleId);
   const idIsValid = Number.isFinite(id);
+  const queryClient = useQueryClient();
+  const [editing, setEditing] = useState(false);
 
   const query = useQuery({
     queryKey: ["sample", id],
@@ -65,6 +85,11 @@ export function SampleDetailPage() {
     return <div className={styles.status}>Sample not found.</div>;
   }
 
+  const canEdit = !LOCKED_EDIT_STATUSES.includes(sample.status);
+  // A placed sample (scheduled/in_progress) can only have its loading params tweaked - its
+  // barcodes/identity are frozen at placement; a backlog sample is fully editable.
+  const isPlaced = sample.status === "scheduled" || sample.status === "in_progress";
+
   return (
     <div className={styles.page}>
       <Link to="/history/samples" className={styles.backLink}>
@@ -73,7 +98,16 @@ export function SampleDetailPage() {
 
       <Card>
         <CardHeader
-          badge={<Badge tone={SAMPLE_STATUS_TONE[sample.status]}>{SAMPLE_STATUS_LABEL[sample.status]}</Badge>}
+          badge={
+            <span className={styles.headerActions}>
+              <Badge tone={SAMPLE_STATUS_TONE[sample.status]}>{SAMPLE_STATUS_LABEL[sample.status]}</Badge>
+              {canEdit && (
+                <Button size="sm" variant="ghost" onClick={() => setEditing(true)}>
+                  Edit
+                </Button>
+              )}
+            </span>
+          }
         >
           <h2>{sample.external_id}</h2>
         </CardHeader>
@@ -110,6 +144,10 @@ export function SampleDetailPage() {
             <div>
               <span className={styles.label}>Include base kinetics</span>
               <span className={styles.value}>{sample.ccs_kinetics ?? "—"}</span>
+            </div>
+            <div>
+              <span className={styles.label}>Movie time</span>
+              <span className={styles.value}>{sample.movie_time_hours ?? 24} h</span>
             </div>
             <div>
               <span className={styles.label}>Created</span>
@@ -185,6 +223,15 @@ export function SampleDetailPage() {
           )}
         </CardBody>
       </Card>
+
+      {editing && (
+        <SampleModal
+          sample={sample}
+          editableKeys={isPlaced ? PLACED_EDITABLE_KEYS : undefined}
+          onClose={() => setEditing(false)}
+          onSaved={() => void queryClient.invalidateQueries({ queryKey: ["sample", id] })}
+        />
+      )}
     </div>
   );
 }

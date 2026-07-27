@@ -151,49 +151,21 @@ function positionTitle(p: TrayPositionView, state: CellExpiryState, refMs: numbe
  * ok (green) = comfortable window; soon (amber) = closing within a day; expired (red) = past its
  * deadline or QC-stopped; scheduled (blue) = clock not started yet; spent (grey) = used up; fresh
  * = open but never on a clock. */
-function TrayPositionCell({
-  p,
-  refMs,
-  live,
-  onOpenCell,
-}: {
-  p: TrayPositionView;
-  refMs: number;
-  live: boolean;
-  onOpenCell?: (cellId: number) => void;
-}) {
+function TrayPositionCell({ p, refMs, live }: { p: TrayPositionView; refMs: number; live: boolean }) {
   const state = cellExpiryState(p, refMs);
   const detail = inlineDetail(p, state, refMs);
   // Live "now" view: count only uses that have actually broken out by now, so a cell reads its
   // real remaining capacity at this instant. Default (end-of-week) view keeps the committed-plan
   // figure - every scheduled use this week counted.
   const remaining = live ? usesRemainingAt(p, refMs) : p.usesRemaining;
-  const clickable = !!onOpenCell;
   const className = [styles.cell, styles[`s_${state}`], p.provisional ? styles.provisional : null]
     .filter(Boolean)
     .join(" ");
-  // Clicking a cell opens its Cell QC modal (status + Fail/Fail-and-Stop/Retire). The enclosing
-  // map already stopPropagation()s to protect the row-header select, so this click is safe.
-  const open = () => onOpenCell?.(p.cellId);
+  // Clicking a cell opens its detail page (status, uses, 108h window, QC actions all live
+  // there). The enclosing map already stopPropagation()s pointer/keyboard events to protect
+  // the row-header select, so navigating from here doesn't also toggle the instrument row.
   return (
-    <div
-      className={className}
-      title={positionTitle(p, state, refMs, live)}
-      onClick={clickable ? open : undefined}
-      onKeyDown={
-        clickable
-          ? (e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                open();
-              }
-            }
-          : undefined
-      }
-      role={clickable ? "button" : undefined}
-      tabIndex={clickable ? 0 : undefined}
-      style={clickable ? { cursor: "pointer" } : undefined}
-    >
+    <Link className={className} to={`/cells/${p.cellId}`} title={positionTitle(p, state, refMs, live)}>
       {/* Cell position prefix is U+25A3 (▣), not "C" - a numbered cell position must never be
           misread as a plate well's column-C (see cellPositionLabel in utils/plateWell.ts). */}
       <span className={styles.letter}><span className={styles.cellGlyph}>▣</span>{p.cellNumber}</span>
@@ -211,21 +183,11 @@ function TrayPositionCell({
           <span className={styles.expRel}>{STATE_LABEL[state]}</span>
         )}
       </span>
-    </div>
+    </Link>
   );
 }
 
-function TrayStrip({
-  tray,
-  refMs,
-  live,
-  onOpenCell,
-}: {
-  tray: TrayView;
-  refMs: number;
-  live: boolean;
-  onOpenCell?: (cellId: number) => void;
-}) {
+function TrayStrip({ tray, refMs, live }: { tray: TrayView; refMs: number; live: boolean }) {
   return (
     <div className={styles.strip}>
       <Link
@@ -237,7 +199,7 @@ function TrayStrip({
       </Link>
       <div className={styles.cells}>
         {tray.positions.map((p) => (
-          <TrayPositionCell key={p.cellId} p={p} refMs={refMs} live={live} onOpenCell={onOpenCell} />
+          <TrayPositionCell key={p.cellId} p={p} refMs={refMs} live={live} />
         ))}
       </div>
     </div>
@@ -285,8 +247,6 @@ function FutureTrays({ trays }: { trays: FutureTrayView[] }) {
 
 export interface InstrumentTrayMapProps {
   map: TrayMap | undefined;
-  /** Open a cell's QC modal when its position is clicked in the map. */
-  onOpenCell?: (cellId: number) => void;
 }
 
 /** The at-a-glance map of physical SMRT-cell trays currently on one instrument, rendered beneath
@@ -296,7 +256,7 @@ export interface InstrumentTrayMapProps {
  * By default every cell's state is projected to the END of the viewed week; hovering the panel
  * flips it to a live "now" reading, flagged by a green "NOW" pill. Read-only; each tray header
  * links to that tray's own page. */
-export const InstrumentTrayMap = memo(function InstrumentTrayMap({ map, onOpenCell }: InstrumentTrayMapProps) {
+export const InstrumentTrayMap = memo(function InstrumentTrayMap({ map }: InstrumentTrayMapProps) {
   const [hovering, setHovering] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
 
@@ -357,12 +317,12 @@ export const InstrumentTrayMap = memo(function InstrumentTrayMap({ map, onOpenCe
       </div>
       <div className={styles.carousels}>
         {map.carousel[0] ? (
-          <TrayStrip tray={map.carousel[0]} refMs={refMs} live={hovering} onOpenCell={onOpenCell} />
+          <TrayStrip tray={map.carousel[0]} refMs={refMs} live={hovering} />
         ) : (
           <EmptyCarousel />
         )}
         {map.carousel[1] ? (
-          <TrayStrip tray={map.carousel[1]} refMs={refMs} live={hovering} onOpenCell={onOpenCell} />
+          <TrayStrip tray={map.carousel[1]} refMs={refMs} live={hovering} />
         ) : (
           <EmptyCarousel />
         )}

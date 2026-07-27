@@ -129,6 +129,7 @@ def create_sample(req: SampleCreate, db: SessionDep, actor: ActorDep) -> SampleO
             full_resolution_base_q=req.full_resolution_base_q,
             priority=req.priority,
             ccs_kinetics=req.ccs_kinetics,
+            movie_time_hours=req.movie_time_hours,
         )
     except DuplicateSampleError as err:
         raise HTTPException(409, str(err)) from err
@@ -208,6 +209,7 @@ def update_sample(sample_id: int, req: SampleUpdate, db: SessionDep, actor: Acto
             full_resolution_base_q=req.full_resolution_base_q,
             priority=req.priority,
             ccs_kinetics=req.ccs_kinetics,
+            movie_time_hours=req.movie_time_hours,
         )
     else:
         update_placed_sample_metadata(

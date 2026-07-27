@@ -32,42 +32,100 @@
   gap: 12px;
   margin-left: auto;
 }
+
+/* Two plate trays side-by-side on a wide screen, stacking on a narrow one - so the run reads
+   like one weekly-grid cell blown up. */
 .plates {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+  max-width: 820px;
+}
+
+/* A tray's cells travel together - one bordered card, matching the grid's .tray so a run's
+   plate here reads as the same physical object shown in the weekly view. */
+.tray {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  max-width: 760px;
-}
-.plate {
-  border: 1px solid var(--line-soft);
+  gap: 8px;
+  min-width: 0;
+  border: 1px solid var(--tray-card-border);
   border-radius: var(--r-sm);
-  padding: 10px 12px 12px;
-  background: var(--card);
+  background: var(--tray-card-bg);
+  padding: 10px 10px 12px;
 }
-.plateHead {
+.trayHeader {
   display: flex;
   align-items: baseline;
-  gap: 10px;
+  justify-content: space-between;
+  gap: 8px;
   flex-wrap: wrap;
-  margin-bottom: 8px;
 }
-.plateTitle {
+.plateLabelWrap {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.trayLabel {
+  font-size: 11px;
   font-weight: 800;
-  font-size: 13px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--faint);
 }
-.plateMeta {
-  font-size: 12px;
+/* "reuse" chip - teal, matching the Use-2 family, so it reads as "a later acquisition of the
+   same cells". Mirrors the grid's .reuseTag. */
+.reuseTag {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--teal-deep);
+  background: var(--teal-tint, #dff3f1);
+  border: 1px solid var(--teal-deep);
+  border-radius: 4px;
+  padding: 0 5px;
+}
+/* The day this plate actually sequences, shown only when it differs from the load day. */
+.acquireTag {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--faint);
+  white-space: nowrap;
+}
+
+/* The plate's loading window (planned/actual start-end + movie length), right-aligned in the
+   tray header. */
+.timing {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 11px;
   color: var(--grey);
+  font-variant-numeric: tabular-nums;
 }
-.plateMeta b {
+.movie {
+  font-weight: 700;
   color: var(--ink);
 }
-.reuse {
+.actual {
   color: var(--teal-deep);
-  font-weight: 700;
+  font-weight: 600;
 }
+
+/* The plate's 4 wells, stacked vertically like a grid cell's tray. */
 .runSlots {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+/* Filled cards are click-to-open on this page (there's no dnd here), so give them the same
+   affordance the grid's clickable slots have. */
+.clickable {
+  cursor: pointer;
 }

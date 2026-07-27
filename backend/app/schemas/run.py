@@ -142,7 +142,11 @@ class PlaceSampleRequest(BaseModel):
     # see placement_service.derive_best_cell); this is what a plain drag-drop sends. An explicit
     # {"new"|"existing"} overrides that (the cell-stub's "use a different cell" path).
     cell_choice: CellChoice | None = None
-    run_time_hours: Literal[12, 24, 30]
+    # Omit (null) to inherit the sample's own movie time (Sample.movie_time_hours, default
+    # 24h) - this is what a plain drag-drop now sends, so a sample runs for the movie time it
+    # was imported/edited with. An explicit value overrides it (e.g. a re-place that keeps an
+    # existing per-cell run time). See placement_service.place_sample.
+    run_time_hours: Literal[12, 24, 30] | None = None
     # Only meaningful the first time a sample is placed into an empty (instrument, load_date)
     # grid cell - that's what actually creates the run and fixes its start time. Ignored
     # (the run's existing start stands) when placing into an already-existing run/plate.

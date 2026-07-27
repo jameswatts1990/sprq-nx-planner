@@ -153,7 +153,8 @@ export function useScheduleActions({
         instrument_serial: v.instrument_serial,
         load_date: v.load_date,
         slot_index: v.slot_index,
-        run_time_hours: runDesign.run_time_hours,
+        // No run_time_hours: a manual drop inherits the sample's own movie time
+        // (Sample.movie_time_hours, default 24 h) - resolved server-side in place_sample.
         start_hour: v.start_hour,
         start_minute: v.start_minute,
       }),

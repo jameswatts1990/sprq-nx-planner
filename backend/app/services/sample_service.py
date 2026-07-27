@@ -5,6 +5,7 @@ from __future__ import annotations
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.engine.normalize import coerce_movie_hours
 from app.models.sample import SAMPLE_TERMINAL_STATUSES, Sample, SampleBarcode
 
 
@@ -29,6 +30,7 @@ def create_backlog_sample(
     full_resolution_base_q: str | None = None,
     priority: str | None = None,
     ccs_kinetics: str | None = None,
+    movie_time_hours: int | None = None,
     import_batch_id: int | None = None,
 ) -> Sample:
     """Insert one backlog Sample + its barcodes. Does NOT commit — the caller owns the
@@ -53,6 +55,7 @@ def create_backlog_sample(
         full_resolution_base_q=full_resolution_base_q or None,
         priority=priority or None,
         ccs_kinetics=ccs_kinetics or None,
+        movie_time_hours=coerce_movie_hours(movie_time_hours),
         status="backlog",
     )
     db.add(sample)
@@ -75,6 +78,7 @@ def update_backlog_sample(
     full_resolution_base_q: str | None = None,
     priority: str | None = None,
     ccs_kinetics: str | None = None,
+    movie_time_hours: int | None = None,
 ) -> Sample:
     """Overwrite an existing backlog Sample's editable fields and replace its barcode set.
     The sample's identity (external_id / Container ID) is intentionally left untouched.
@@ -87,6 +91,7 @@ def update_backlog_sample(
     sample.full_resolution_base_q = full_resolution_base_q or None
     sample.priority = priority or None
     sample.ccs_kinetics = ccs_kinetics or None
+    sample.movie_time_hours = coerce_movie_hours(movie_time_hours)
 
     # Replace barcodes. Clear + flush deletes the old rows first, so re-adding an unchanged
     # barcode doesn't collide with the uq_sample_barcode (sample_id, barcode) constraint

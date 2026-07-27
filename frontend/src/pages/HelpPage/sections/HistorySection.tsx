@@ -35,14 +35,23 @@ export function HistorySection() {
         </div>
       </div>
       <p>
-        <b>Run detail page</b> shows the run&apos;s instrument, load date, status, and whether it&apos;s{" "}
-        <b>Active now</b>, then a block per plate (Plate 1, and Plate 2 if the run has one) with that plate&apos;s
-        acquisition date, movie length, and a <b>reuse</b> marker when it reruns Plate 1&apos;s cells. Each
-        plate&apos;s four wells are drawn with the same colour-coded view used on the schedule:
+        <b>Run detail page</b> shows the run&apos;s instrument, load date, when it loads &amp; starts sequencing,
+        status, and whether it&apos;s <b>Active now</b>, then a tray block per plate laid out just like the weekly
+        schedule. Each plate&apos;s header carries a <b>reuse</b> marker when it reruns Plate 1&apos;s cells, an{" "}
+        <b>→ acquire-day</b> tag when the plate sequences on a different day from loading, the planned start → end of
+        its movie, and — once the run has actually run — the <b>actual</b> start/end recorded on the instrument. Each
+        plate&apos;s four wells are drawn with the same colour-coded cards used on the schedule:
       </p>
       <div className={styles.ghostExampleSwatch}>
-        <SchedulerSlotView stage={STAGE_EXAMPLE_SOURCE} slotIndex={0} locked />
+        <SchedulerSlotView stage={STAGE_EXAMPLE_SOURCE} slotIndex={0} locked onOpenCell={() => {}} />
       </div>
+      <p>
+        <b>Click a card</b> to see that placement&apos;s detail (sample, well, run time, barcodes, notes). Click the
+        shiny <b>cell stub</b> on the right edge of a card to open the physical cell — its uses so far, its 108-hour
+        window, tray position, and burned barcodes — and from either you can open <b>Cell QC</b> to record how a use
+        turned out. On a finished run these views are read-only; on a still-<i>planned</i> run you can adjust a
+        cell&apos;s run time or switch a reuse to a fresh cell, exactly as on the schedule.
+      </p>
       <p>
         <b>Cancel run</b> is available only while a run is still <i>planned</i>; once it&apos;s running/loaded it
         can&apos;t be cancelled from here.
@@ -53,8 +62,8 @@ export function HistorySection() {
         <b>What it&apos;s for:</b> every sample that has finished, either <b>completed</b> (green) or <b>failed</b>{" "}
         (red). Search by container ID, barcode, or parent sample. Each row shows the sample&apos;s status, barcodes,
         parent sample, Target OPLC, volume, and last-updated time. Click a row to expand it and see that sample&apos;s
-        individual cell uses — the run, which plate (1 or 2) it ran on, the cell and well, the use status,
-        start/complete times, and notes.
+        individual cell uses — the run (links to the run), which plate (1 or 2) it ran on, the cell (links to the
+        cell) and well, the use status as a colour-coded badge, start/complete times, and notes.
       </p>
 
       <p className={styles.subheading}>Sample detail page</p>
@@ -66,6 +75,13 @@ export function HistorySection() {
         the cell), well, use status, start/complete times, and notes. Unlike the Samples list above, which only lists
         finished samples, this page works for a sample of any status, so it&apos;s the durable place a container ID
         always links to.
+      </p>
+      <p>
+        <b>Edit:</b> an <b>Edit</b> button next to the status badge opens the same form used elsewhere. A backlog
+        sample is fully editable (everything but its container ID, which is fixed for life); a sample already placed on
+        the grid (scheduled or in progress) lets you adjust only its loading parameters, since its barcodes and
+        identity are locked once placed. Finished samples (completed, failed, cancelled) are read-only history, so no
+        Edit button is shown.
       </p>
     </div>
   );

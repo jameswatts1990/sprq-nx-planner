@@ -7,6 +7,7 @@ import { cellsApi } from "@/api/cells";
 import { cellUsesApi } from "@/api/cellUses";
 import { samplesApi } from "@/api/samples";
 import { WindowMeter } from "@/components/cells/WindowMeter";
+import { RunStageGantt } from "@/components/scheduler/RunStageGantt";
 import { BarcodeChips } from "@/components/shared/BarcodeChips";
 import { Button } from "@/components/ui/Button";
 import { Modal, ModalActions } from "@/components/ui/Modal";
@@ -134,7 +135,13 @@ export function SlotDetailPopover({ stage, run, onClose, onOpenQc }: SlotDetailP
   }
 
   return (
-    <Modal onClose={onClose} title={stage.cell_ref}>
+    // Titled by the SAMPLE (Container ID) - the card-body popover is about this placement,
+    // so it reads differently from the cell-stub popover (CellInfoPopover), which stays
+    // titled by the physical cell code. The cell it ran on is shown as a subtitle for context.
+    <Modal onClose={onClose} title={stage.sample_external_id ?? "Placement"}>
+      <div className={styles.subtitle}>
+        on cell {stage.cell_ref} · {plateWellFromSlot(stage.slot_index, { full: true })}
+      </div>
       {isCancelled && (
         <Note tone="warn" icon="!">
           {isDiscardBlocked ? (
@@ -160,22 +167,29 @@ export function SlotDetailPopover({ stage, run, onClose, onOpenQc }: SlotDetailP
       <div className={styles.details}>
         <div className={styles.row}>
           <span className={styles.label}>Sample</span>
-          {sampleEditable ? (
-            <button
-              type="button"
-              className={styles.sampleEditLink}
-              onClick={() => setEditingSample(true)}
-              disabled={editingSample && sampleQuery.isLoading}
-              title="Edit this sample's loading parameters"
-            >
-              {stage.sample_external_id ?? "—"}
-              <span className={styles.sampleEditIcon} aria-hidden="true">
-                ✎
-              </span>
-            </button>
-          ) : (
-            <b className={styles.value}>{stage.sample_external_id ?? "—"}</b>
-          )}
+          <span className={styles.sampleValue}>
+            {stage.sample_id != null ? (
+              // The Container ID links to the sample's own page; the ✎ opens the inline edit
+              // popup (its loading parameters) - two distinct affordances, not one combined link.
+              <Link to={`/samples/${stage.sample_id}`} className={styles.sampleLink}>
+                {stage.sample_external_id ?? "—"}
+              </Link>
+            ) : (
+              <b className={styles.value}>{stage.sample_external_id ?? "—"}</b>
+            )}
+            {sampleEditable && (
+              <button
+                type="button"
+                className={styles.sampleEditIconBtn}
+                onClick={() => setEditingSample(true)}
+                disabled={editingSample && sampleQuery.isLoading}
+                title="Edit this sample's loading parameters"
+                aria-label="Edit sample loading parameters"
+              >
+                <span aria-hidden="true">✎</span>
+              </button>
+            )}
+          </span>
         </div>
         {editingSample && sampleQuery.isError && (
           <Note tone="bad" icon="!">
@@ -188,7 +202,9 @@ export function SlotDetailPopover({ stage, run, onClose, onOpenQc }: SlotDetailP
         </div>
         <div className={styles.row}>
           <span className={styles.label}>Run</span>
-          <b className={styles.value}>{runLabel(run)}</b>
+          <Link to={`/history/runs/${run.run_id}`} className={styles.runLink}>
+            {runLabel(run)}
+          </Link>
         </div>
         {cell && (
           <div className={styles.row}>
@@ -222,6 +238,9 @@ export function SlotDetailPopover({ stage, run, onClose, onOpenQc }: SlotDetailP
           {runTimeMutation.error instanceof ApiError ? runTimeMutation.error.message : "Failed to change run time."}
         </Note>
       )}
+
+      {/* Estimated stage-times gantt for the whole run, this placement's row highlighted. */}
+      <RunStageGantt run={run} currentCellUseId={stage.cell_use_id} />
 
       {showWindowMeter && <WindowMeter windowHours={cell!.window_hours_elapsed as number} />}
 

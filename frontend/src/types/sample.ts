@@ -12,6 +12,10 @@ export interface SampleOut {
   full_resolution_base_q: string | null;
   priority: string | null;
   ccs_kinetics: string | null;
+  /** Desired movie / acquisition time (h): 12, 24, or 30. Null for samples created before
+   * this field existed — treated as the 24 h default wherever it's shown or used as the
+   * placement run-time default. */
+  movie_time_hours: number | null;
   status: SampleStatus;
   /** QC disposition tag ("repeatable"/"recoverable") when a Cell QC action returned this
    * sample to the backlog - groups it into the Backlog's "Recoverable Samples" section. */
@@ -33,6 +37,7 @@ export interface SampleCreate {
   full_resolution_base_q?: string | null;
   priority?: string | null;
   ccs_kinetics?: string | null;
+  movie_time_hours?: number | null;
 }
 
 /** Edit-a-backlog-sample payload: same editable fields as create, minus the Container ID

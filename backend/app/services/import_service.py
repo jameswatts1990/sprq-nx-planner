@@ -83,6 +83,7 @@ def import_samples(db: Session, req: ImportRequest) -> ImportResult:
                 full_resolution_base_q=parsed.full_resolution_base_q,
                 priority=parsed.priority,
                 ccs_kinetics=parsed.ccs_kinetics,
+                movie_time_hours=parsed.movie_time,
                 import_batch_id=batch.id,
             )
         except DuplicateSampleError as err:
