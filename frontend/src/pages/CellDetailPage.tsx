@@ -152,7 +152,7 @@ export function CellDetailPage() {
             {trayId !== null && (
               <div>
                 <span className={styles.label}>Tray</span>
-                <Link to={`/cells?tray=${trayId}`} className={styles.value}>
+                <Link to={`/cells?tray=${trayId}`} className={`${styles.value} link`}>
                   Tray {trayId}
                 </Link>
               </div>
@@ -194,7 +194,9 @@ export function CellDetailPage() {
         <Card>
           <CardHeader>
             <h2>
-              <Link to={`/cells?tray=${trayId}`}>Cell tray — Tray {trayId} →</Link>
+              <Link to={`/cells?tray=${trayId}`} className="link">
+                Cell tray — Tray {trayId} →
+              </Link>
             </h2>
           </CardHeader>
           <CardBody>
@@ -244,7 +246,7 @@ export function CellDetailPage() {
                   {cell.use_history.map((u) => (
                     <tr key={u.id}>
                       <td>
-                        <Link to={`/history/runs/${u.run_batch_id}`}>
+                        <Link to={`/history/runs/${u.run_batch_id}`} className="link">
                           {runLabel({ run_id: u.run_batch_id, run_name: u.run_name })}
                         </Link>
                       </td>
@@ -258,7 +260,7 @@ export function CellDetailPage() {
                       </td>
                       <td>
                         {u.sample_id !== null && u.sample_external_id !== null ? (
-                          <Link to={`/samples/${u.sample_id}`} state={backNav}>
+                          <Link to={`/samples/${u.sample_id}`} state={backNav} className="link">
                             {u.sample_external_id}
                           </Link>
                         ) : (

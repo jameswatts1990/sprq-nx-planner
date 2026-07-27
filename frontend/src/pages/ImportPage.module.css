@@ -4,12 +4,30 @@
   flex-direction: column;
   gap: 18px;
 }
+/* Persistent "Undo last import" banner on the input screen — understated, only shown while
+   the most recent import is still undoable. */
+.undoBanner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 8px 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--line-soft);
+  font-size: var(--fs-base);
+  color: var(--grey);
+}
+.undoBannerText b {
+  color: var(--ink);
+}
 textarea {
   width: 100%;
   min-height: 220px;
   resize: vertical;
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: var(--fs-sm);
   line-height: 1.55;
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
@@ -28,7 +46,7 @@ textarea::placeholder {
   align-items: center;
 }
 .filehint {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--grey);
 }
 /* Split button: primary "Upload CSV" + a caret that opens more upload options. */
@@ -47,7 +65,7 @@ textarea::placeholder {
   margin-left: -1px; /* collapse the shared border into one seam */
   padding-left: 9px;
   padding-right: 9px;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   border-top-left-radius: 0;
   border-bottom-left-radius: 0;
 }
@@ -81,7 +99,7 @@ textarea::placeholder {
   background: var(--line-soft);
 }
 .uploadMenuItemTitle {
-  font-size: 13px;
+  font-size: var(--fs-base);
   font-weight: 600;
 }
 .uploadMenuItemHint {
@@ -94,7 +112,7 @@ textarea::placeholder {
   padding: 11px 13px;
   border-radius: var(--r-sm);
   background: var(--line-soft);
-  font-size: 13px;
+  font-size: var(--fs-base);
   color: var(--grey);
   display: flex;
   gap: 16px;
@@ -113,12 +131,12 @@ textarea::placeholder {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 12.5px;
+  font-size: var(--fs-md);
   color: var(--grey);
 }
 .filenameField input {
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: var(--fs-sm);
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
   padding: 7px 10px;
@@ -140,11 +158,11 @@ textarea::placeholder {
 .rejectedTable {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12.5px;
+  font-size: var(--fs-md);
 }
 .rejectedTable th {
   text-align: left;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--grey);
@@ -162,7 +180,7 @@ textarea::placeholder {
   justify-content: flex-end;
 }
 .subheading {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--grey);
@@ -172,16 +190,16 @@ textarea::placeholder {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 12.5px;
+  font-size: var(--fs-md);
   color: var(--grey);
 }
 .reviewIntro {
-  font-size: 13px;
+  font-size: var(--fs-base);
   color: var(--grey);
   margin-bottom: 16px;
 }
 .req {
-  color: var(--danger, #c0392b);
+  color: var(--red);
   font-weight: 700;
 }
 .mapGrid {
@@ -196,13 +214,13 @@ textarea::placeholder {
   gap: 4px;
 }
 .mapLabel {
-  font-size: 12.5px;
+  font-size: var(--fs-md);
   color: var(--ink);
   font-weight: 600;
 }
 .select {
   font-family: var(--sans);
-  font-size: 13px;
+  font-size: var(--fs-base);
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
   padding: 7px 10px;
@@ -215,11 +233,11 @@ textarea::placeholder {
 .table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12.5px;
+  font-size: var(--fs-md);
 }
 .table th {
   text-align: left;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--grey);

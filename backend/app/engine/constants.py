@@ -44,3 +44,25 @@ def within_tray_pos(well: str) -> int:
     shipping-tray size (CELLS_PER_TRAY) and the deck-half size (PLATE_SIZE = len(WELLS)//2). If
     WELLS ever changes so those diverge, this is the one place to reconcile them."""
     return WELLS.index(well) % CELLS_PER_TRAY if well in WELLS else 0
+
+
+# Auto Schedule's movie-time cell-position rule (a lab-workflow constraint layered on top of
+# the physical model, not sourced from the PacBio deck): a 12h sample may only load on cell 1
+# (carousel position A) and a 30h sample only on cell 4 (position D); a 24h sample has no
+# position restriction and may take any cell. Values are within_tray_pos indices
+# (0 = cell 1 .. 3 = cell 4). Movie times not listed here (24h, or a missing/None movie time
+# that reads as the 24h default) are unrestricted. Only the auto-fill engine applies this -
+# a manual drag-drop places a sample wherever the operator drops it. See
+# engine/packing.py, engine/slot_scheduling.py and docs/pacbio-sprq-nx-scheduling-reference.md.
+MOVIE_CELL_POSITION: dict[int, int] = {12: 0, 30: 3}
+ALL_CELL_POSITIONS: frozenset[int] = frozenset(range(CELLS_PER_TRAY))  # {0, 1, 2, 3}
+
+
+def movie_allowed_positions(movie_hours: int | None) -> frozenset[int]:
+    """Which carousel cell positions (within_tray_pos, 0-3) a sample of this movie length may
+    load into under Auto Schedule's movie-time rules: 12h -> only cell 1 (pos 0), 30h -> only
+    cell 4 (pos 3), everything else (24h, or a missing movie time that defaults to 24h) ->
+    every position. Returned as a frozenset so callers can intersect a cell's uses' allowances
+    to find the positions still open to a whole (possibly multi-use) cell."""
+    pos = MOVIE_CELL_POSITION.get(movie_hours if movie_hours is not None else DEFAULT_MOVIE_HOURS)
+    return ALL_CELL_POSITIONS if pos is None else frozenset({pos})

@@ -8,7 +8,7 @@
   align-items: center;
   gap: 9px;
   flex-wrap: wrap;
-  font-size: 13px;
+  font-size: var(--fs-base);
 }
 .metaItem {
   font-weight: 700;
@@ -29,7 +29,7 @@ a.metaItem:hover {
 }
 /* Marks the cell whose detail page you're on, so its card stands out among its siblings. */
 .current {
-  border-radius: var(--r-md, 10px);
+  border-radius: var(--r-sm);
   box-shadow: 0 0 0 2px var(--magenta);
 }
 .actions {

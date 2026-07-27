@@ -129,7 +129,7 @@ export function CellInfoPopover({ stage, run, onClose, onOpenQc }: CellInfoPopov
               <div className={styles.row}>
                 <span className={styles.label}>Tray</span>
                 <b className={styles.value}>
-                  <Link to={`/cells?tray=${cell.tray_id}`}>
+                  <Link to={`/cells?tray=${cell.tray_id}`} className="link">
                     Tray {cell.tray_id}
                     {cell.tray_position !== null ? ` · cell ${cell.tray_position}/${cell.tray_size}` : ""}
                   </Link>

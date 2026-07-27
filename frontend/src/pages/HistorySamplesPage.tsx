@@ -166,13 +166,15 @@ const SampleRow = memo(function SampleRow({ sample, expanded, onToggle }: Sample
                     {detailQuery.data.cell_uses.map((u) => (
                       <tr key={u.id}>
                         <td>
-                          <Link to={`/history/runs/${u.run_batch_id}`}>
+                          <Link to={`/history/runs/${u.run_batch_id}`} className="link">
                             {runLabel({ run_id: u.run_batch_id, run_name: u.run_name })}
                           </Link>
                         </td>
                         <td>{u.plate_number != null ? `Plate ${u.plate_number}` : "—"}</td>
                         <td className={styles.mono}>
-                          <Link to={`/cells/${u.cell_id}`}>{u.cell_code}</Link>
+                          <Link to={`/cells/${u.cell_id}`} className="link">
+                            {u.cell_code}
+                          </Link>
                         </td>
                         <td className={styles.mono}>{u.well}</td>
                         <td>

@@ -6,7 +6,7 @@
   margin-bottom: 14px;
 }
 .label {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   font-weight: 700;
   letter-spacing: 0.03em;
   text-transform: uppercase;
@@ -16,7 +16,7 @@
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
   padding: 8px 10px;
-  font-size: 14px;
+  font-size: var(--fs-xl);
 }
 .choices {
   border: none;
@@ -45,6 +45,6 @@
   min-width: 0;
 }
 .meta {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--grey);
 }

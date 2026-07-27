@@ -81,6 +81,30 @@ export function ImportSection() {
           A red note means the import failed entirely (for example a server error) — fix it and try again.
         </Note>
       </div>
+
+      <p className={styles.subheading}>Undo an import</p>
+      <p>
+        Imported the wrong file, or picked the wrong columns? You can <b>undo the most recent import</b> — it removes
+        every sample that import added and clears the batch, as if it never happened.
+      </p>
+      <dl className={styles.terms}>
+        <dt>Where to find it</dt>
+        <dd>
+          <b>Undo import</b> sits on the result panel right after importing, and — for as long as it&apos;s still
+          available — in a <b>Last import</b> banner at the top of this tab when you come back to it. Either opens a
+          short confirmation before anything is removed.
+        </dd>
+        <dt>When it&apos;s allowed</dt>
+        <dd>
+          Only the <b>single most recent</b> import can be undone, and only while <b>none of its samples have been
+          touched</b> — nothing scheduled onto a run, cancelled, edited, flagged in Cell QC, or given a top-up. As
+          soon as you start working with the imported samples, undo is no longer offered (the banner disappears), so
+          it can never quietly discard work already in progress. Importing again afterwards makes that new batch the
+          one you can undo.
+        </dd>
+        <dt>Can I redo it?</dt>
+        <dd>No — undo permanently removes the samples. To bring them back, import the file again.</dd>
+      </dl>
     </div>
   );
 }

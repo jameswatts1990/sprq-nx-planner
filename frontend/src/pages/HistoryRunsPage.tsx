@@ -42,7 +42,9 @@ const RunRow = memo(function RunRow({ run }: { run: RunOut }) {
   return (
     <tr>
       <td className={styles.mono}>
-        <Link to={`/history/runs/${run.run_id}`}>{runLabel(run)}</Link>
+        <Link to={`/history/runs/${run.run_id}`} className="link">
+          {runLabel(run)}
+        </Link>
       </td>
       <td className={styles.mono}>{run.load_date}</td>
       <td className={styles.mono}>{run.instrument_serial}</td>

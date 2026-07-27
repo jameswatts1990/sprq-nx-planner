@@ -196,7 +196,9 @@ export function useScheduleActions({
       schedulerApi.autoFill({
         cells: selectedCells,
         max_uses: runDesign.max_uses,
-        run_time_hours: runDesign.run_time_hours,
+        // Only these movie times are pulled from the backlog; each well then runs for its own
+        // sample's movie time (12 h -> cell 1, 30 h -> cell 4, 24 h anywhere).
+        movie_times: runDesign.movie_times,
         objective: runDesign.objective,
         cells_per_day: runDesign.cells_per_day,
         // Every run this batch creates loads/starts at the Run design load hour.

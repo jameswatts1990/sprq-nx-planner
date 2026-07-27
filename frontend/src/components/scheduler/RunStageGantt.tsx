@@ -1,6 +1,6 @@
 import type { RunOut } from "@/types/schedule";
 import { cellPositionLabel } from "@/utils/plateWell";
-import { computeRunTimeline, PREP_H, type StageTiming } from "@/utils/stageTimings";
+import { computeRunTimeline, PPA_H, PREP_H, type StageTiming } from "@/utils/stageTimings";
 import { classForUseIndex } from "@/utils/useIndexClass";
 
 import styles from "./RunStageGantt.module.css";
@@ -36,6 +36,11 @@ function GanttRow({ t, spanH, current }: { t: StageTiming; spanH: number; curren
         >
           <span className={styles.movieLabel}>{s.run_time_hours} h</span>
         </div>
+        <div
+          className={styles.ppa}
+          style={{ left: pct(t.ppaStartH), width: pct(t.ppaEndH - t.ppaStartH) }}
+          title={`PPA (post-primary analysis) ~${PPA_H} h · from ${hhmm(t.ppaStartMs)}`}
+        />
       </div>
       <div className={styles.rowTime}>
         {hhmm(t.movieStartMs)}–{hhmm(t.movieEndMs)}
@@ -51,8 +56,9 @@ export interface RunStageGanttProps {
 }
 
 /**
- * A compact, estimated gantt of a run's wells: one row per loaded well, each a prep segment
- * then a movie segment on a shared "hours from load" axis, with the current placement's row
+ * A compact, estimated gantt of a run's wells: one row per loaded well, each showing three
+ * stages on a shared "hours from load" axis — a prep lead-in (amber), the movie (Use-coloured),
+ * then a PPA / post-primary-analysis tail (purple) — with the current placement's row
  * highlighted. Timings are the PacBio approximate-timing estimates (see utils/stageTimings) -
  * illustrative, not the instrument's exact schedule. Read-only; used in the slot-detail
  * popover so a scheduler can see where their sample sits in the run's sequencing flow.
@@ -64,7 +70,20 @@ export function RunStageGantt({ run, currentCellUseId }: RunStageGanttProps) {
     <div className={styles.wrap}>
       <div className={styles.caption}>
         <span className={styles.captionTitle}>Estimated stage times</span>
-        <span className={styles.captionHint}>prep → movie, from load</span>
+        <span className={styles.legend}>
+          <span className={styles.legendItem}>
+            <span className={`${styles.swatch} ${styles.swPrep}`} />
+            prep
+          </span>
+          <span className={styles.legendItem} title="Movie colour matches the cell's use — magenta (1), blue (2), teal (3)">
+            <span className={`${styles.swatch} ${styles.swMovie}`} />
+            movie
+          </span>
+          <span className={styles.legendItem}>
+            <span className={`${styles.swatch} ${styles.swPpa}`} />
+            PPA
+          </span>
+        </span>
       </div>
       <div className={styles.rows}>
         {timings.map((t) => (

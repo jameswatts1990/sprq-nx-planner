@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { PlateOut, RunOut, StageOut } from "@/types/schedule";
 
-import { computeRunTimeline, PREP_H, WELL_STAGGER_H } from "./stageTimings";
+import { computeRunTimeline, PPA_H, PREP_H, WELL_STAGGER_H } from "./stageTimings";
 
 function stage(slotIndex: number, runTimeHours: 12 | 24 | 30, cellUseId: number): StageOut {
   return {
@@ -65,13 +65,17 @@ describe("computeRunTimeline", () => {
     expect(s0.prepStartH).toBe(0);
     expect(s0.movieStartH).toBe(PREP_H); // 4
     expect(s0.movieEndH).toBe(PREP_H + 24); // 28
+    expect(s0.ppaStartH).toBe(PREP_H + 24); // PPA starts as the movie ends
+    expect(s0.ppaEndH).toBe(PREP_H + 24 + PPA_H); // 34
 
     const s1 = timings.find((t) => t.stage.cell_use_id === 11)!;
     expect(s1.prepStartH).toBe(WELL_STAGGER_H); // 2
     expect(s1.movieStartH).toBe(WELL_STAGGER_H + PREP_H); // 6
     expect(s1.movieEndH).toBe(WELL_STAGGER_H + PREP_H + 24); // 30
+    expect(s1.ppaEndH).toBe(WELL_STAGGER_H + PREP_H + 24 + PPA_H); // 36
 
-    expect(spanH).toBe(30);
+    // Span now runs to the last well's PPA tail, not its movie end.
+    expect(spanH).toBe(36);
   });
 
   it("anchors a later plate at its own real start offset from the load time", () => {
@@ -86,5 +90,6 @@ describe("computeRunTimeline", () => {
     expect(s.prepStartH).toBe(24); // plate-2 offset + (4 % 4)*stagger
     expect(s.movieStartH).toBe(24 + PREP_H);
     expect(s.movieEndH).toBe(24 + PREP_H + 12);
+    expect(s.ppaEndH).toBe(24 + PREP_H + 12 + PPA_H);
   });
 });

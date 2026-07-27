@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from pydantic import BaseModel
 
 from app.schemas.sample import SampleOut
@@ -85,3 +87,28 @@ class SchedulerConvertResult(BaseModel):
     source_row_count: int  # rows read from the sheet (header excluded)
     pool_count: int  # completed SMRT-cell pools -> container rows emitted
     warnings: list[str]
+
+
+# --- undo the most recent import ---------------------------------------------------------
+
+
+class LatestImportOut(BaseModel):
+    """The most recent import batch + whether it can still be undone. Powers the Import
+    screen's 'Undo last import' banner."""
+
+    id: int
+    created_at: datetime
+    created_by: str
+    source_filename: str | None
+    row_count: int
+    imported_count: int
+    undoable: bool
+    # Why undo is unavailable (samples progressed/edited, or a newer import exists); null when undoable.
+    undo_block_reason: str | None = None
+    # How many of the batch's samples are no longer pristine (drives the block reason copy).
+    blocking_count: int = 0
+
+
+class UndoImportResult(BaseModel):
+    import_batch_id: int
+    removed_count: int

@@ -8,12 +8,12 @@
   margin-bottom: 8px;
 }
 .blockHead h3 {
-  font-size: 14px;
+  font-size: var(--fs-xl);
   font-weight: 700;
   color: var(--ink);
 }
 .subtitle {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--faint);
 }
 .empty {
@@ -22,7 +22,7 @@
   align-items: center;
   justify-content: center;
   color: var(--faint);
-  font-size: 13px;
+  font-size: var(--fs-base);
   background: var(--line-soft);
   border-radius: var(--r-sm);
 }

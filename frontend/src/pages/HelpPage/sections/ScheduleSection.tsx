@@ -26,6 +26,7 @@ function RunDesignExample() {
   const [runDesign, setRunDesign] = useState<RunDesignState>({
     max_uses: 3,
     run_time_hours: 24,
+    movie_times: [24],
     objective: "fewest",
     cells_per_day: 8,
     load_hour: 12,
@@ -200,14 +201,18 @@ export function ScheduleSection() {
           instrument — all its cells kept open — for a later run to finish and then dispose as a unit; a tray is
           never part-binned.
         </dd>
-        <dt>Movie / run time</dt>
+        <dt>Movie times (12 / 24 / 30 h)</dt>
         <dd>
-          There&apos;s no movie-time dial here — a sample&apos;s movie length is now a <b>per-sample</b> setting
-          (12/24/30 h, set on the backlog or on import, defaulting to 24 h). Dragging a sample onto the grid runs it
-          for its own movie time, and you can still change any one cell&apos;s run time afterwards from its slot popover
-          (see <b>Run time</b> under QC actions below), so cells in the same run can differ. Auto Schedule currently
-          gives every cell it places a 24-hour movie. The run&apos;s overall duration — and how long its instrument
-          stays reserved — follows its longest cell.
+          Tick which sample <b>movie lengths</b> Auto Schedule should include — only <b>24 h</b> is ticked by default.
+          A movie length is a <b>per-sample</b> setting (12/24/30 h, set on the backlog or on import, defaulting to
+          24 h); Auto Schedule only pulls backlog samples whose length you&apos;ve ticked and leaves the rest in the
+          backlog (they aren&apos;t counted as &quot;unplaced&quot;). Each cell it places runs for its <b>own</b> movie
+          time, so a run can mix lengths — its overall duration, and how long the instrument stays reserved, follows
+          its longest cell. Two placement rules apply: <b>12 h</b> samples can load only on <b>cell 1</b> (the A-column
+          carousel position) and <b>30 h</b> samples only on <b>cell 4</b> (the D-column); <b>24 h</b> samples can use
+          any cell, taking cells 1 or 4 only when no 12 h/30 h sample needs them. Dragging a sample onto the grid by
+          hand is unaffected — it always runs for its own movie time wherever you drop it, and you can still change any
+          one cell&apos;s run time afterwards from its slot popover (see <b>Run time</b> under QC actions below).
         </dd>
         <dt>Load time</dt>
         <dd>
@@ -439,10 +444,12 @@ export function ScheduleSection() {
         placement&apos;s <b>note</b>, use the <b>Notes</b> box lower in the same popover.
       </p>
       <p>
-        <b>Estimated stage times:</b> the popover also shows a small gantt of the whole run&apos;s wells — each a prep
-        lead-in then its sequencing movie, staggered across the run — with <i>this</i> placement&apos;s row
-        highlighted, so you can see where your sample sits in the run&apos;s flow. These are approximate PacBio
-        timings anchored at the run&apos;s load time, an estimate rather than the instrument&apos;s exact schedule.
+        <b>Estimated stage times:</b> the popover also shows a small gantt of the whole run&apos;s wells, each broken
+        into its three stages in sequence — an amber <b>prep</b> lead-in, the sequencing <b>movie</b> (coloured by the
+        cell&apos;s use: magenta 1 / blue 2 / teal 3), then a purple <b>PPA</b> (post-primary analysis) tail — staggered
+        across the run, with <i>this</i> placement&apos;s row highlighted, so you can see where your sample sits in the
+        run&apos;s flow. These are approximate PacBio timings anchored at the run&apos;s load time, an estimate rather
+        than the instrument&apos;s exact schedule.
       </p>
       <p>
         <b>Run time:</b> the popover shows this cell&apos;s own movie / run time, and while the run is still planned

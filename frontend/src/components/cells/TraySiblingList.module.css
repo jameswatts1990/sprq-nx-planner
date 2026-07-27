@@ -15,20 +15,20 @@
   color: inherit;
 }
 .trayItem:hover {
-  border-color: #cfd2d8;
+  border-color: var(--line-hover);
 }
 .trayItemCurrent {
   border-color: var(--blue-deep);
   background: var(--blue-tint);
 }
 .trayItemPosition {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: 700;
   color: var(--grey);
   min-width: 28px;
 }
 .trayItemCode {
-  font-size: 12.5px;
+  font-size: var(--fs-md);
   font-weight: 700;
   font-family: var(--mono);
   color: var(--blue-deep);
@@ -40,13 +40,13 @@
   font-weight: 600;
 }
 .trayItemExpiry {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--grey);
   font-weight: 600;
   white-space: nowrap;
 }
 .trayItemExpiryUrgent {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--red);
   font-weight: 800;
   white-space: nowrap;

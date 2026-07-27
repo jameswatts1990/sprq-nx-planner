@@ -11,7 +11,14 @@ from datetime import date, datetime, timedelta
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
-from app.engine.constants import CELL_LIFETIME_H, CELLS_PER_TRAY, DAY_START_HOUR, REUSE_PREP_H, WELLS
+from app.engine.constants import (
+    CELL_LIFETIME_H,
+    CELLS_PER_TRAY,
+    DAY_START_HOUR,
+    DEFAULT_MOVIE_HOURS,
+    REUSE_PREP_H,
+    WELLS,
+)
 from app.engine.packing import pack_cells
 from app.engine.slot_scheduling import fill_slots
 from app.engine.types import ConflictPair, SlotInput
@@ -23,7 +30,12 @@ from app.models.schedule import CellUse, CellUseBarcode, Cycle, RunBatch
 from app.services import instrument_lock
 from app.services.cell_service import mark_cell_discarded, open_new_tray, recompute_status
 from app.services.engine_bridge import load_backlog_samples, load_prior_cells, to_parsed_samples
-from app.services.placement_service import PlacementError, get_or_create_run, planned_window
+from app.services.placement_service import (
+    PlacementError,
+    get_or_create_run,
+    planned_window,
+    recompute_cycle_timing,
+)
 from app.timeutil import ensure_aware, utcnow
 
 
@@ -43,13 +55,25 @@ def auto_fill(
     *,
     cells,
     max_uses: int,
-    run_time_hours: float,
+    movie_times: list[int],
     objective: str,
     cells_per_day: int = len(WELLS),
     start_hour: int = DAY_START_HOUR,
     start_minute: int = 0,
     actor: str | None = None,
 ):
+    # Movie times (12/24/30) the user ticked in the Autoschedule panel - only backlog samples
+    # of these lengths are scheduled this batch. Each placed well then runs for its OWN
+    # sample's movie time, and 12h/30h samples are confined to cell 1/cell 4 respectively
+    # (see engine/packing.cell_allowed_positions and engine/slot_scheduling.fill_slots).
+    movie_set = set(movie_times)
+    # A single conservative length only for the new-run lock gate below (which just needs "does
+    # a prior lock span the whole load day"): the longest ticked movie can't under-reserve.
+    probe_hours = max(movie_times) if movie_times else DEFAULT_MOVIE_HOURS
+
+    def _movie(sample) -> int:
+        return sample.movie_time or DEFAULT_MOVIE_HOURS
+
     # --- validation ---
     for c in cells:
         if c.load_date.weekday() >= 5:
@@ -108,7 +132,7 @@ def auto_fill(
         if occupied is not None:
             skipped.append((serial, run_date))
             continue
-        proposed_start, _proposed_end = planned_window(run_date, run_time_hours, start_hour, start_minute)
+        proposed_start, _proposed_end = planned_window(run_date, probe_hours, start_hour, start_minute)
         if instrument_lock.resolve_new_run_start(db, inst.id, run_date, proposed_start) is None:
             # Same rule as place_sample: only a lock spanning the *whole* load day blocks it
             # (a lock clearing on the day still leaves it loadable - get_or_create_run starts
@@ -119,7 +143,10 @@ def auto_fill(
             empty_slots.append(SlotInput(instrument_serial=serial, run_date=run_date))
 
     # --- engine ---
-    samples = load_backlog_samples(db)
+    # Only the ticked movie times are scheduled; the rest stay in the backlog (a sample with no
+    # movie time reads as the 24h default). Filtered-out samples are NOT reported as "unplaced"
+    # - they were never offered to this batch - since unplaced is derived from `samples` below.
+    samples = [s for s in load_backlog_samples(db) if (s.movie_time_hours or DEFAULT_MOVIE_HOURS) in movie_set]
     parsed = to_parsed_samples(samples)
     prior_cells, cells_by_id = load_prior_cells(db, [])
     # Cells cannot move between instruments: a prior cell pinned to an instrument that
@@ -144,7 +171,7 @@ def auto_fill(
         available_days=available_days,
         cells_per_day=cells_per_day,
     )
-    fill = fill_slots(pack.cells, empty_slots, run_time_hours, cells_per_day=cells_per_day)
+    fill = fill_slots(pack.cells, empty_slots, cells_per_day=cells_per_day)
 
     # PackedCell.id -> DB Cell (prior cells resolve to real rows; fresh cells created on first use)
     ref_to_cell: dict[str, Cell] = {pc.id: cells_by_id[pc.cell_id] for pc in pack.cells if pc.prior}
@@ -183,14 +210,17 @@ def auto_fill(
         uses.sort(key=lambda x: x.run_date)
         prev_end: datetime | None = None
         for a in uses:
-            base_start, _ = planned_window(a.run_date, run_time_hours, start_hour, start_minute)
+            # planned_window's start ([0]) doesn't depend on the movie length; the movie only
+            # matters for chaining a reuse off the PRIOR use's real end, which is now that
+            # prior sample's own movie time (a run can mix 12/24/30 movies well-by-well).
+            base_start, _ = planned_window(a.run_date, _movie(a.sample), start_hour, start_minute)
             start = base_start
             if prev_end is not None:
                 chained = prev_end + timedelta(hours=REUSE_PREP_H)
                 if base_start <= chained and chained.date() == a.run_date:
                     start = chained
             assign_start[id(a)] = start
-            prev_end = start + timedelta(hours=run_time_hours)
+            prev_end = start + timedelta(hours=_movie(a.sample))
 
     # A cycle (one plate of one day's run) starts at the latest start among its wells - all
     # equal in practice (a day's wells are one reuse-generation), but the max keeps a mixed
@@ -202,6 +232,18 @@ def auto_fill(
         s = assign_start[id(a)]
         if key not in cycle_start or s > cycle_start[key]:
             cycle_start[key] = s
+
+    # A cycle (one plate of one day) stays busy until its LONGEST well finishes, so its
+    # representative movie length is the max movie time across its wells - used to gate the
+    # new run's instrument lock at creation. Each well still records its own movie on its
+    # CellUse; recompute_cycle_timing at the end re-derives movie_hours from those, so this
+    # only has to be a safe upper bound for the lock gate, never the final stored value.
+    cycle_movie: dict[tuple[str, date, int], int] = {}
+    for a in fill.assignments:
+        key = (a.instrument_serial, a.run_date, plate_index_of[id(a)])
+        m = _movie(a.sample)
+        if key not in cycle_movie or m > cycle_movie[key]:
+            cycle_movie[key] = m
 
     run_plate_cycles: dict[tuple[str, date, int], int] = {}  # (instrument, load_date, plate) -> cycle id
     run_ids: set[int] = set()
@@ -278,7 +320,7 @@ def auto_fill(
                     # intra-run reuse_plate_window branch never fires here; the reuse's chained
                     # start is carried explicitly via cyc_start (computed above).
                     acquire_date=load_date,
-                    run_time_hours=run_time_hours,
+                    run_time_hours=cycle_movie[plate_key],
                     start_hour=cyc_start.hour,
                     start_minute=cyc_start.minute,
                 )
@@ -365,11 +407,12 @@ def auto_fill(
             cell_id=db_cell.id,
             sample_id=a.sample.sample_id,
             well=well,
-            # Every well an auto-fill batch places shares the one Run Design dial value, so a
-            # run's representative movie_hours (set at get_or_create_run) already equals this
-            # - no per-cycle recompute needed. Editing a single cell's run time afterward
-            # (slot-detail popover) is what makes a run's wells diverge later.
-            run_time_hours=int(run_time_hours),
+            # Each well runs for its OWN sample's movie time (12/24/30) now that Auto Schedule
+            # is movie-time aware, so a run's wells can differ (e.g. a 12h cell 1 alongside a
+            # 30h cell 4). The plate's representative movie_hours is re-derived from these as
+            # the longest well by recompute_cycle_timing after the loop - same as the manual
+            # placement path, and as editing a single cell's run time from the slot popover.
+            run_time_hours=int(_movie(a.sample)),
             status="planned",
         )
         db.add(cell_use)
@@ -383,6 +426,15 @@ def auto_fill(
 
     if placed_sample_ids:
         db.execute(update(Sample).where(Sample.id.in_(placed_sample_ids)).values(status="scheduled"))
+
+    # A run can now mix movie times well-by-well (a 12h cell 1 beside a 30h cell 4), so each
+    # touched plate's representative movie_hours / planned_end_at must be re-derived as the
+    # longest of its actual wells - exactly the recompute the manual placement path already
+    # runs. planned_start_at (incl. a reuse's chained start) is left untouched.
+    for cycle_id in set(run_plate_cycles.values()):
+        cyc = db.get(Cycle, cycle_id)
+        if cyc is not None:
+            recompute_cycle_timing(db, cyc)
 
     for db_cell in touched_cells:
         db.refresh(db_cell, attribute_names=["cell_uses"])
@@ -458,8 +510,9 @@ def auto_fill(
             continue
         # Measure to the last use's *start*, not its end: the 108h window is defined on when
         # the later use starts (see docs/pacbio-sprq-nx-scheduling-reference.md #2 and
-        # _reuse_window_open), so planned_window()[0] (start), not [1] (end).
-        planned_start = planned_window(last_date_by_ref[pc.id], run_time_hours, start_hour, start_minute)[0]
+        # _reuse_window_open), so planned_window()[0] (start), not [1] (end). The movie length
+        # passed here is irrelevant - only [0] (the start) is read - so any value serves.
+        planned_start = planned_window(last_date_by_ref[pc.id], DEFAULT_MOVIE_HOURS, start_hour, start_minute)[0]
         span_h = (planned_start - ensure_aware(started)).total_seconds() / 3600
         if span_h > CELL_LIFETIME_H:
             _bump(db_cell.code, span_h)

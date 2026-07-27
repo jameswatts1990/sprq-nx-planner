@@ -1,7 +1,7 @@
 .note {
   border-radius: var(--r-sm);
   padding: 11px 14px;
-  font-size: 13px;
+  font-size: var(--fs-base);
   display: flex;
   gap: 11px;
   align-items: flex-start;
@@ -37,5 +37,5 @@
   background: rgba(0, 0, 0, 0.06);
   padding: 1px 5px;
   border-radius: 4px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }

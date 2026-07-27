@@ -17,7 +17,7 @@ def auto_fill_endpoint(req: AutoFillRequest, db: SessionDep, actor: ActorDep) ->
             db,
             cells=req.cells,
             max_uses=req.max_uses,
-            run_time_hours=req.run_time_hours,
+            movie_times=req.movie_times,
             objective=req.objective,
             cells_per_day=req.cells_per_day,
             start_hour=req.start_hour,

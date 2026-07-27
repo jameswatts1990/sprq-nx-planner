@@ -7,12 +7,19 @@ import { ApiError } from "@/api/client";
 import { importsApi, importTemplateUrl } from "@/api/imports";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { Note } from "@/components/ui/Note";
 import { StatTile, StatTiles } from "@/components/shared/StatTile";
 import type { ImportField, ImportPreviewResult, ImportResult } from "@/types/importing";
 import { readSpreadsheetFile } from "@/utils/readSpreadsheetFile";
 
 import styles from "./ImportPage.module.css";
+
+/** Info about a just-completed undo, shown as a one-off confirmation on the input screen. */
+interface UndoneInfo {
+  count: number;
+  filename: string | null;
+}
 
 function downloadTemplate() {
   const a = document.createElement("a");
@@ -23,6 +30,28 @@ function downloadTemplate() {
   a.remove();
 }
 
+/** Backend timestamps are UTC; a tz-naive value (dev SQLite serializes without an offset)
+ * must be read as UTC, not the browser's local zone, or "just now" reads as hours ago. */
+function parseUtcMs(iso: string): number {
+  const hasTz = /[zZ]|[+-]\d{2}:?\d{2}$/.test(iso);
+  return new Date(hasTz ? iso : `${iso}Z`).getTime();
+}
+
+/** Compact relative age for the "last import" banner (e.g. "just now", "6 min ago"). */
+function formatWhen(iso: string): string {
+  const then = parseUtcMs(iso);
+  if (Number.isNaN(then)) return "";
+  const secs = Math.max(0, Math.round((Date.now() - then) / 1000));
+  if (secs < 60) return "just now";
+  const mins = Math.round(secs / 60);
+  if (mins < 60) return `${mins} min ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `${hrs} hour${hrs === 1 ? "" : "s"} ago`;
+  const days = Math.round(hrs / 24);
+  if (days < 7) return `${days} day${days === 1 ? "" : "s"} ago`;
+  return new Date(then).toLocaleDateString();
+}
+
 export function ImportPage() {
   const [text, setText] = useState("");
   const [filename, setFilename] = useState("");
@@ -31,6 +60,7 @@ export function ImportPage() {
   const [columnMap, setColumnMap] = useState<Record<string, number>>({});
   const [uploadMenuOpen, setUploadMenuOpen] = useState(false);
   const [readError, setReadError] = useState<string | null>(null);
+  const [justUndone, setJustUndone] = useState<UndoneInfo | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const schedulerInputRef = useRef<HTMLInputElement>(null);
   const uploadMenuRef = useRef<HTMLDivElement>(null);
@@ -38,6 +68,10 @@ export function ImportPage() {
 
   const fieldsQuery = useQuery({ queryKey: ["import-fields"], queryFn: () => importsApi.fields() });
   const fields = useMemo<ImportField[]>(() => fieldsQuery.data ?? [], [fieldsQuery.data]);
+
+  // The most recent import + whether it can still be undone — drives the persistent
+  // "Undo last import" banner on the input screen (so undo survives navigating away).
+  const latestQuery = useQuery({ queryKey: ["import-latest"], queryFn: () => importsApi.latest() });
 
   const previewMutation = useMutation({
     // Optional overrides let the scheduler flow preview the just-converted CSV without
@@ -87,9 +121,17 @@ export function ImportPage() {
         column_map: columnMap,
       }),
     onSuccess: () => {
+      setJustUndone(null);
       void queryClient.invalidateQueries({ queryKey: ["samples"] });
+      void queryClient.invalidateQueries({ queryKey: ["import-latest"] });
     },
   });
+
+  // After an undo: note it for a one-off confirmation and drop back to a clean input screen.
+  function handleUndone(info: UndoneInfo) {
+    handleClear();
+    setJustUndone(info);
+  }
 
   function handleFileChange(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -161,9 +203,10 @@ export function ImportPage() {
     ) : null;
 
   if (importMutation.isSuccess) {
+    const result = importMutation.data;
     return (
       <div className={styles.page}>
-        <ImportResultPanel result={importMutation.data} />
+        <ImportResultPanel result={result} />
         <div className={styles.actions}>
           <Button
             variant="ghost"
@@ -173,6 +216,14 @@ export function ImportPage() {
           >
             Import another file
           </Button>
+          {result.imported_count > 0 && (
+            <UndoImportControl
+              batchId={result.import_batch_id}
+              count={result.imported_count}
+              filename={filename || null}
+              onUndone={handleUndone}
+            />
+          )}
         </div>
       </div>
     );
@@ -297,9 +348,44 @@ export function ImportPage() {
 
   // ---- Phase 1: paste / upload ----------------------------------------------------------
   const lineCount = text.trim().length ? text.trim().split(/\r?\n/).length : 0;
+  const latest = latestQuery.data;
 
   return (
     <div className={styles.page}>
+      {justUndone && text.length === 0 && (
+        <Note tone="good" icon="✓">
+          Import undone — removed <b>{justUndone.count}</b> sample{justUndone.count === 1 ? "" : "s"}
+          {justUndone.filename ? (
+            <>
+              {" "}
+              from <b>{justUndone.filename}</b>
+            </>
+          ) : null}
+          .
+        </Note>
+      )}
+
+      {!justUndone && latest?.undoable && latest.imported_count > 0 && (
+        <div className={styles.undoBanner}>
+          <span className={styles.undoBannerText}>
+            Last import: <b>{latest.imported_count}</b> sample{latest.imported_count === 1 ? "" : "s"}
+            {latest.source_filename ? (
+              <>
+                {" "}
+                from <b>{latest.source_filename}</b>
+              </>
+            ) : null}{" "}
+            · {formatWhen(latest.created_at)}
+          </span>
+          <UndoImportControl
+            batchId={latest.id}
+            count={latest.imported_count}
+            filename={latest.source_filename}
+            onUndone={handleUndone}
+          />
+        </div>
+      )}
+
       <Card>
         <CardHeader badge="paste or upload CSV">
           <h2>Samples &amp; barcodes</h2>
@@ -434,6 +520,79 @@ export function ImportPage() {
         </CardBody>
       </Card>
     </div>
+  );
+}
+
+/** The "Undo import" trigger + its confirmation dialog, shared by the post-import result
+ * panel and the persistent "last import" banner. Owns its own mutation so a 409 (a sample was
+ * scheduled/edited between the status read and the click) surfaces inline in the modal, and
+ * refreshes the backlog + latest-import state on settle so the banner self-corrects. */
+function UndoImportControl({
+  batchId,
+  count,
+  filename,
+  onUndone,
+}: {
+  batchId: number;
+  count: number;
+  filename: string | null;
+  onUndone: (info: UndoneInfo) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const queryClient = useQueryClient();
+
+  const undoMutation = useMutation({
+    mutationFn: () => importsApi.undo(batchId),
+    onSuccess: (res) => {
+      setOpen(false);
+      onUndone({ count: res.removed_count, filename });
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ["samples"] });
+      void queryClient.invalidateQueries({ queryKey: ["import-latest"] });
+    },
+  });
+
+  return (
+    <>
+      <Button variant="ghost" size="sm" onClick={() => setOpen(true)}>
+        Undo import
+      </Button>
+      {open && (
+        <ConfirmModal
+          title="Undo this import?"
+          confirmLabel="Undo import"
+          pendingLabel="Undoing…"
+          pending={undoMutation.isPending}
+          onCancel={() => {
+            undoMutation.reset();
+            setOpen(false);
+          }}
+          onConfirm={() => undoMutation.mutate()}
+          error={
+            undoMutation.isError
+              ? undoMutation.error instanceof ApiError
+                ? undoMutation.error.message
+                : "Couldn't undo the import."
+              : undefined
+          }
+        >
+          <p>
+            This removes the <b>{count}</b> sample{count === 1 ? "" : "s"} added by this import
+            {filename ? (
+              <>
+                {" "}
+                from <b>{filename}</b>
+              </>
+            ) : null}
+            . It can&apos;t be redone — you&apos;d import the file again to bring them back.
+          </p>
+          <Note tone="warn" icon="!">
+            Only possible while none of these samples have been scheduled or edited.
+          </Note>
+        </ConfirmModal>
+      )}
+    </>
   );
 }
 

@@ -49,6 +49,7 @@ import { useSchedulerWindow } from "./useSchedulerWindow";
 const DEFAULT_RUN_DESIGN: RunDesignState = {
   max_uses: 3,
   run_time_hours: 24,
+  movie_times: [24],
   objective: "fewest",
   cells_per_day: 8,
   load_hour: 12,

@@ -27,7 +27,7 @@
   margin-bottom: 12px;
 }
 .title {
-  font-size: 17px;
+  font-size: var(--fs-title);
   margin-bottom: 0;
 }
 .titleExtra {

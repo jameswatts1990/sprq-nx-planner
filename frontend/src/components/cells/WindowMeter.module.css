@@ -4,7 +4,7 @@
   border-top: 1px solid var(--line-soft);
 }
 .label {
-  font-size: 10.5px;
+  font-size: var(--fs-2xs);
   color: var(--grey);
   font-weight: 700;
   display: flex;

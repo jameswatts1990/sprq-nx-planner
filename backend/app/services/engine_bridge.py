@@ -30,6 +30,10 @@ def to_parsed_samples(samples: list[Sample]) -> list[ParsedSample]:
             sanger=s.sanger_ids or [],
             volume=s.volume,
             priority=s.priority or "",
+            # Carried so Auto Schedule can honour the per-sample movie time - both as the run
+            # duration it schedules and for the 12h->cell 1 / 30h->cell 4 placement rule (see
+            # engine/packing.cell_allowed_positions, engine/slot_scheduling, auto_fill_service).
+            movie_time=s.movie_time_hours,
             key=f"sample:{s.id}",
             sample_id=s.id,
             created_at=s.created_at,

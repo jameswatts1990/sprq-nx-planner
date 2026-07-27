@@ -170,7 +170,7 @@ export function BacklogPage() {
       columnHelper.accessor("external_id", {
         header: () => sortableHeader("Container ID", "external_id"),
         cell: (info) => (
-          <Link to={`/samples/${info.row.original.id}`} state={backNav}>
+          <Link to={`/samples/${info.row.original.id}`} state={backNav} className="link">
             {info.getValue()}
           </Link>
         ),

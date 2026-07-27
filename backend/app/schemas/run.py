@@ -184,7 +184,12 @@ class AutoFillRequest(BaseModel):
     cells: list[GridCellRef] = Field(min_length=1)
     max_uses: Literal[1, 2, 3] = 3  # target packing depth for new cells this batch (always honored in full,
     # subject only to how many distinct days are on offer); not a physical cap (always 3)
-    run_time_hours: Literal[12, 24, 30] = 24
+    # Movie times (12/24/30) the user ticked in the Autoschedule panel: only backlog samples of
+    # these movie lengths are auto-scheduled this batch, and each placed well runs for its own
+    # sample's movie time (a run may mix them). Defaults to just 24h (the everyday case). 12h
+    # samples are confined to cell 1 and 30h samples to cell 4 - see auto_fill_service and
+    # engine/slot_scheduling.fill_slots.
+    movie_times: list[Literal[12, 24, 30]] = Field(default_factory=lambda: [24], min_length=1)
     objective: Literal["fewest", "balance", "fastest", "utilisation"] = "fewest"
     # 4 = one tray (Plate 1 only, up to 4 wells/day); 8 = both trays (up to 8 wells/day).
     # Caps how many wells auto-fill uses per acquisition day - see slot_scheduling.fill_slots.

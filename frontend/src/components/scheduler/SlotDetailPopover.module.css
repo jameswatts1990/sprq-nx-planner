@@ -8,10 +8,10 @@
   gap: 12px;
   padding: 7px 0;
   border-bottom: 1px solid var(--line-soft);
-  font-size: 13px;
+  font-size: var(--fs-base);
 }
 .label {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: 700;
   letter-spacing: 0.03em;
   text-transform: uppercase;
@@ -23,7 +23,7 @@
 }
 /* The cell/well context line under the sample-titled heading. */
 .subtitle {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--grey);
   margin: -6px 0 12px;
 }
@@ -50,7 +50,7 @@
   width: 22px;
   height: 22px;
   padding: 0;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   line-height: 1;
   color: var(--grey);
   background: var(--card);
@@ -61,7 +61,7 @@
 }
 .sampleEditIconBtn:hover {
   color: var(--ink);
-  border-color: #cfd2d8;
+  border-color: var(--line-hover);
 }
 .sampleEditIconBtn:disabled {
   cursor: default;
@@ -95,7 +95,7 @@
   margin-top: 10px;
 }
 .helper {
-  font-size: 12.5px;
+  font-size: var(--fs-md);
   color: var(--grey);
   margin: 0 0 10px;
 }
@@ -104,7 +104,7 @@
   min-height: 60px;
   resize: vertical;
   font-family: var(--mono);
-  font-size: 12.5px;
+  font-size: var(--fs-md);
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
   padding: 8px 10px;
@@ -123,11 +123,11 @@
 }
 .notesError {
   flex: 1;
-  font-size: 12px;
-  color: var(--bad, #c0392b);
+  font-size: var(--fs-sm);
+  color: var(--red);
 }
 .hint {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--grey);
   margin: 10px 0 14px;
 }

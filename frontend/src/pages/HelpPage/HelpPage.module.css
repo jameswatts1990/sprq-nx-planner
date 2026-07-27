@@ -5,14 +5,14 @@
   gap: 14px;
 }
 .intro {
-  font-size: 13.5px;
+  font-size: var(--fs-lg);
   color: var(--grey);
   margin: 0 0 4px;
   max-width: 68ch;
 }
 .search {
   font-family: var(--sans);
-  font-size: 13px;
+  font-size: var(--fs-base);
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
   padding: 8px 10px;
@@ -22,17 +22,17 @@
 }
 .empty {
   color: var(--grey);
-  font-size: 13.5px;
+  font-size: var(--fs-lg);
   padding: 24px 4px;
   text-align: center;
 }
 .helper {
-  font-size: 13px;
+  font-size: var(--fs-base);
   color: var(--grey);
   margin: 0 0 12px;
 }
 .copy {
-  font-size: 13.5px;
+  font-size: var(--fs-lg);
   line-height: 1.55;
   max-width: 72ch;
 }
@@ -60,7 +60,7 @@
   color: var(--grey);
 }
 .subheading {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   font-weight: 700;
   letter-spacing: 0.03em;
   text-transform: uppercase;
@@ -82,7 +82,7 @@
   border-radius: var(--r-sm);
 }
 .legendRow > span:last-child {
-  font-size: 13px;
+  font-size: var(--fs-base);
   color: var(--ink);
 }
 .legendSwatchLabel {

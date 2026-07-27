@@ -18,7 +18,7 @@
   outline: none;
 }
 .ring:focus-visible {
-  box-shadow: 0 0 0 3px var(--link-glow);
+  box-shadow: 0 0 0 3px var(--highlight-glow);
 }
 
 /* Each hour button, pushed out along its own angle then counter-rotated so the number
@@ -42,13 +42,13 @@
   transition: background 0.08s, color 0.08s, box-shadow 0.08s, border-color 0.08s;
 }
 .sector:hover {
-  border-color: var(--link);
+  border-color: var(--highlight);
 }
 .active {
-  background: var(--link);
-  border-color: var(--link);
+  background: var(--highlight);
+  border-color: var(--highlight);
   color: #fff;
-  box-shadow: 0 0 0 4px var(--link-glow);
+  box-shadow: 0 0 0 4px var(--highlight-glow);
 }
 
 /* Centre read-out of the highlighted time. */

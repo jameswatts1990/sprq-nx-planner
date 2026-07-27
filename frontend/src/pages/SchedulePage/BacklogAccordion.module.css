@@ -3,36 +3,10 @@
   align-items: center;
   gap: 8px;
 }
-/* The ✨ Autoschedule entry point, pinned in the Backlog header right after the title.
-   Magenta pill with a white monochrome sparkle glyph. */
-.sparkleBtn {
-  font-family: var(--sans);
-  font-size: 13px;
-  font-weight: 800;
-  color: #fff;
-  background: var(--magenta);
-  border: 1px solid var(--magenta);
-  border-radius: var(--r-sm);
-  padding: 7px 14px;
-  cursor: pointer;
-  transition: 0.14s;
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  white-space: nowrap;
-  box-shadow: var(--shadow-sm);
-}
-.sparkleBtn:hover {
-  background: var(--magenta-deep);
-  border-color: var(--magenta-deep);
-  box-shadow: var(--shadow);
-}
-.sparkleBtn:focus-visible {
-  outline: 2px solid var(--magenta-deep);
-  outline-offset: 2px;
-}
+/* The ✦ Autoschedule entry point, pinned in the Backlog header right after the title -
+   a shared primary Button (see BacklogAccordion.tsx); only its sparkle glyph needs sizing. */
 .sparkleIcon {
-  font-size: 15px;
+  font-size: var(--fs-2xl);
   line-height: 1;
   color: #fff;
 }
@@ -53,14 +27,14 @@
   flex: 0 1 190px;
   min-width: 120px;
   font-family: var(--sans);
-  font-size: 13px;
+  font-size: var(--fs-base);
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
   padding: 7px 10px;
 }
 .select {
   font-family: var(--sans);
-  font-size: 13px;
+  font-size: var(--fs-base);
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
   padding: 7px 8px;
@@ -76,7 +50,7 @@
   gap: 2px;
 }
 .pageInfo {
-  font-size: 12.5px;
+  font-size: var(--fs-md);
   font-weight: 700;
   color: var(--grey);
   white-space: nowrap;
@@ -85,7 +59,7 @@
 }
 .status {
   color: var(--grey);
-  font-size: 13px;
+  font-size: var(--fs-base);
   padding: 12px 4px;
 }
 .grid {
@@ -115,7 +89,7 @@
   touch-action: none;
 }
 .card:hover {
-  border-color: #cfd2d8;
+  border-color: var(--line-hover);
 }
 /* Priority-tinted left edge: --accent is set inline from the same palette var the priority
    Badge uses (see BacklogAccordion.tsx TONE_ACCENT_VAR), so a card's priority reads at a
@@ -123,7 +97,7 @@
    defaults to grey, so the edge always reflects a real priority. */
 .prioritised {
   border-left-width: 3px;
-  border-left-color: var(--accent, var(--line));
+  border-left-color: var(--line);
 }
 /* Edit affordance pinned top-right, revealed on card hover / keyboard focus. Absolutely
    positioned so it never reflows the card, and small enough to clear the head row's badges.
@@ -138,7 +112,7 @@
   width: 24px;
   height: 24px;
   padding: 0;
-  font-size: 13px;
+  font-size: var(--fs-base);
   line-height: 1;
   color: var(--grey);
   background: var(--card);
@@ -154,7 +128,7 @@
 }
 .editBtn:hover {
   color: var(--ink);
-  border-color: #cfd2d8;
+  border-color: var(--line-hover);
 }
 .editBtn:focus-visible {
   outline: 2px solid var(--magenta-deep);
@@ -170,7 +144,7 @@
   gap: 4px;
   min-height: 64px;
   font-family: var(--sans);
-  font-size: 12.5px;
+  font-size: var(--fs-md);
   font-weight: 700;
   color: var(--grey);
   background: transparent;
@@ -189,7 +163,7 @@
   outline-offset: 2px;
 }
 .addPlus {
-  font-size: 22px;
+  font-size: var(--fs-display);
   font-weight: 400;
   line-height: 1;
 }
@@ -207,12 +181,12 @@
   margin-bottom: 6px;
 }
 .ext {
-  font-size: 13px;
+  font-size: var(--fs-base);
   font-weight: 800;
   color: var(--ink);
 }
 .parent {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--faint);
   font-weight: 600;
 }
@@ -220,7 +194,7 @@
    card list. Quiet by default - it's reference info, not a status. */
 .movie {
   margin-left: auto;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: 700;
   color: var(--grey);
   white-space: nowrap;

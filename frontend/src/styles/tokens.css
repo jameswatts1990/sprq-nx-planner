@@ -16,6 +16,10 @@
   --faint: #9a9aa2;
   --line: #e6e8ec;
   --line-soft: #eff1f4;
+  /* De-facto hover border used across buttons, cards, and popovers (was hardcoded
+     as #cfd2d8 in ~8 places, incl. .btn:hover). Promoted to a token so it lives in
+     one place. */
+  --line-hover: #cfd2d8;
   --bg: #f4f5f7;
   --card: #ffffff;
   --green: #2fa84f;
@@ -28,14 +32,37 @@
   --amber-tint: #fbf0de;
   --tray-card-bg: #fafafb;
   --tray-card-border: #e2e4ea;
-  --link: var(--purple);
-  --link-tint: #f3e8fb;
-  --link-glow: rgba(122, 31, 162, 0.32);
-  --link-dim-opacity: 0.4;
+  /* Text hyperlinks - the brand magenta (see the global `a` / `.link` rules in base.css).
+     Kept as a semantic alias so link colour lives in one place. */
+  --link: var(--magenta);
+  --link-tint: var(--magenta-tint);
+  /* Cross-time "same cell" highlight, clock-picker selection, and the purple "returned
+     to backlog" badge tone. Deliberately purple - a distinct hue from the magenta Use-1
+     cell tint and the magenta brand links, so the grid highlight never reads as either.
+     (Formerly the --link* family, before links were retargeted to magenta.) */
+  --highlight: var(--purple);
+  --highlight-tint: #f3e8fb;
+  --highlight-glow: rgba(122, 31, 162, 0.32);
+  --highlight-dim-opacity: 0.4;
   --shadow: 0 1px 2px rgba(20, 20, 30, 0.05), 0 6px 20px rgba(20, 20, 30, 0.06);
   --shadow-sm: 0 1px 2px rgba(20, 20, 30, 0.06);
   --r: 14px;
   --r-sm: 9px;
   --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
   --mono: "SF Mono", ui-monospace, "Cascadia Code", Consolas, "Liberation Mono", monospace;
+  /* Font-size scale. The app previously scattered ~30 raw px values; these name the
+     common, non-dense steps so shared components and page copy draw from one ramp.
+     The ultra-dense scheduler/gantt/tray glyphs (8-10px) stay as raw px on purpose -
+     they're a self-contained data-density layer, not part of this vocabulary. */
+  --fs-2xs: 10.5px;
+  --fs-xs: 11px;
+  --fs-sm: 12px;
+  --fs-md: 12.5px;
+  --fs-base: 13px;
+  --fs-lg: 13.5px;
+  --fs-xl: 14px;
+  --fs-2xl: 15px;
+  --fs-title: 17px;
+  --fs-heading: 20px;
+  --fs-display: 22px;
 }

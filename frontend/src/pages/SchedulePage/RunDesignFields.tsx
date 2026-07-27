@@ -5,13 +5,21 @@ import { Button } from "@/components/ui/Button";
 import { Note } from "@/components/ui/Note";
 import type { NoteTone } from "@/components/ui/Note";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
-import type { CellsPerDay, MaxUses, Objective } from "@/types/schedule";
+import type { CellsPerDay, MaxUses, Objective, RunTimeHours } from "@/types/schedule";
 import type { RunDesignState } from "@/types/schedulerGrid";
 
 import styles from "./RunDesignFields.module.css";
 
 function fmtLoadHour(h: number): string {
   return `${String(h).padStart(2, "0")}:00`;
+}
+
+/** The three per-sample movie lengths, offered as include/exclude tickboxes. */
+const MOVIE_TIME_OPTIONS: RunTimeHours[] = [12, 24, 30];
+
+/** Add or remove a movie time from the include set, kept ascending for a stable summary. */
+function toggleMovieTime(current: RunTimeHours[], h: RunTimeHours): RunTimeHours[] {
+  return current.includes(h) ? current.filter((m) => m !== h) : [...current, h].sort((a, b) => a - b);
 }
 
 export interface RunDesignFieldsProps {
@@ -54,7 +62,8 @@ export function objectiveLabel(objective: Objective): string {
 
 /** Short one-line summary of the current dials, e.g. for the Autoschedule drawer subtitle. */
 export function runDesignSummary(runDesign: RunDesignState): string {
-  return `${runDesign.max_uses}× · loads ${fmtLoadHour(runDesign.load_hour)} · ${objectiveLabel(
+  const movies = runDesign.movie_times.length ? `${runDesign.movie_times.join("/")} h` : "no movie times";
+  return `${runDesign.max_uses}× · ${movies} · loads ${fmtLoadHour(runDesign.load_hour)} · ${objectiveLabel(
     runDesign.objective,
   )} · ${runDesign.cells_per_day === 8 ? "2 plates" : "1 plate"}`;
 }
@@ -87,6 +96,32 @@ export function RunDesignFields({
           onChange={(v) => onChange({ ...runDesign, max_uses: v })}
           fullWidth
         />
+      </div>
+
+      <div className={styles.field}>
+        <div className={styles.fieldLabel}>
+          Movie times <span className={styles.hint}>which sample movie lengths to include</span>
+        </div>
+        <div className={styles.movieRow} role="group" aria-label="Movie times to include">
+          {MOVIE_TIME_OPTIONS.map((h) => {
+            const checked = runDesign.movie_times.includes(h);
+            return (
+              <label key={h} className={`${styles.movieOption} ${checked ? styles.movieOptionChecked : ""}`}>
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={() => onChange({ ...runDesign, movie_times: toggleMovieTime(runDesign.movie_times, h) })}
+                />
+                {h} h
+              </label>
+            );
+          })}
+        </div>
+        <p className={styles.movieNote}>
+          Auto Schedule only pulls backlog samples whose movie time is ticked, and runs each cell for its own length.{" "}
+          <b>12 h</b> samples load only on <b>cell 1</b> and <b>30 h</b> only on <b>cell 4</b>; <b>24 h</b> can use any
+          cell.
+        </p>
       </div>
 
       <div className={styles.field}>
@@ -127,7 +162,11 @@ export function RunDesignFields({
       </div>
 
       <div className={styles.autoBar}>
-        <Button variant="primary" onClick={onAutoSchedule} disabled={selectedCount === 0 || autoFilling}>
+        <Button
+          variant="primary"
+          onClick={onAutoSchedule}
+          disabled={selectedCount === 0 || autoFilling || runDesign.movie_times.length === 0}
+        >
           {autoFilling ? "Auto scheduling…" : `Auto schedule (${selectedCount} selected)`}
         </Button>
         <Button onClick={onRequestClearSchedule} disabled={weekPlannedCount === 0}>
@@ -136,6 +175,7 @@ export function RunDesignFields({
         <span className={styles.autoHint}>
           Select empty cells in the grid, then auto-fill from the backlog. Clear schedule wipes this week&apos;s planned
           runs.
+          {runDesign.movie_times.length === 0 && " Tick at least one movie time to enable Auto schedule."}
         </span>
       </div>
 

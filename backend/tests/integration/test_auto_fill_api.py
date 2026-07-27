@@ -63,13 +63,13 @@ def _sid(client, external_id: str) -> int:
     return next(s["id"] for s in items if s["external_id"] == external_id)
 
 
-def _auto_fill(client, cells, objective="fastest", run_time_hours=24, max_uses=3, cells_per_day=8):
+def _auto_fill(client, cells, objective="fastest", movie_times=(24,), max_uses=3, cells_per_day=8):
     return client.post(
         "/api/auto-fill",
         json={
             "cells": cells,
             "objective": objective,
-            "run_time_hours": run_time_hours,
+            "movie_times": list(movie_times),
             "max_uses": max_uses,
             "cells_per_day": cells_per_day,
         },
@@ -600,13 +600,13 @@ def test_auto_fill_chains_a_reuse_start_off_the_prior_movie_end(client):
     0.75h on-board wash), not the flat noon load hour. Guards the chained-start fix in
     auto_fill_service: the old paired-run shape only chained via get_or_create_run's intra-run
     Plate 2 branch, which never applied once a reuse became a separate day's run."""
-    client.post("/api/imports", json={"raw_text": "sample,barcodes\nT1,bct1\nT2,bct2"})
+    client.post("/api/imports", json={"raw_text": "sample,barcodes,movie_time_hours\nT1,bct1,30\nT2,bct2,30"})
     week = _next_working_week()
     resp = _auto_fill(
         client,
         [{"instrument_serial": "84047", "load_date": d} for d in week],
         objective="fewest",
-        run_time_hours=30,
+        movie_times=[30],
         max_uses=2,
         cells_per_day=4,
     )
@@ -749,3 +749,51 @@ def test_auto_fill_surfaces_barcode_conflicts_between_backlog_samples(client):
     conflict = body["barcode_conflicts"][0]
     assert {conflict["sample_external_id_a"], conflict["sample_external_id_b"]} == {"CJ1", "CJ2"}
     assert conflict["shared_barcodes"] == ["shared"]
+
+
+def test_auto_fill_only_schedules_ticked_movie_times(client):
+    """The Autoschedule movie-time tickboxes filter the backlog: only samples whose movie
+    length is ticked get scheduled; the rest stay in the backlog and are NOT reported as
+    unplaced (they were never offered to this batch)."""
+    client.post(
+        "/api/imports",
+        json={"raw_text": "sample,barcodes,movie_time_hours\nM12,bc12,12\nM24,bc24,24\nM30,bc30,30"},
+    )
+    (mon,) = _weekdays(1)
+
+    resp = _auto_fill(client, [{"instrument_serial": "84047", "load_date": mon}], movie_times=[24])
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+
+    placed = {s["sample_external_id"] for r in body["runs"] for s in _stages(r)}
+    assert placed == {"M24"}
+    assert body["unplaced_sample_ids"] == []
+
+    # The excluded 12h/30h samples stay in the backlog for a later run that ticks them.
+    samples = client.get("/api/samples", params={"page_size": 200}).json()["items"]
+    by_id = {s["external_id"]: s for s in samples}
+    assert by_id["M12"]["status"] == "backlog"
+    assert by_id["M30"]["status"] == "backlog"
+    assert by_id["M24"]["status"] == "scheduled"
+
+
+def test_auto_fill_places_12h_on_cell_1_and_30h_on_cell_4(client):
+    """The movie-time cell rule: a 12h sample loads on cell 1 (tray position 1 / A-column,
+    A01), a 30h sample on cell 4 (tray position 4 / D-column, D01), and each runs for its own
+    movie time."""
+    client.post(
+        "/api/imports",
+        json={"raw_text": "sample,barcodes,movie_time_hours\nH12,bch12,12\nH30,bch30,30"},
+    )
+    (mon,) = _weekdays(1)
+
+    resp = _auto_fill(client, [{"instrument_serial": "84047", "load_date": mon}], movie_times=[12, 30])
+    assert resp.status_code == 200, resp.text
+    stages = {s["sample_external_id"]: s for r in resp.json()["runs"] for s in _stages(r)}
+
+    assert stages["H12"]["tray_position"] == 1
+    assert stages["H12"]["well"] == "A01"
+    assert stages["H12"]["run_time_hours"] == 12
+    assert stages["H30"]["tray_position"] == 4
+    assert stages["H30"]["well"] == "D01"
+    assert stages["H30"]["run_time_hours"] == 30

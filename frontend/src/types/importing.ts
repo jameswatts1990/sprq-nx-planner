@@ -87,3 +87,23 @@ export interface ImportBatchOut {
   duplicate_count: number;
   warnings: string[];
 }
+
+/** The most recent import batch + whether it can still be undone (drives the Import banner). */
+export interface LatestImport {
+  id: number;
+  created_at: string;
+  created_by: string;
+  source_filename: string | null;
+  row_count: number;
+  imported_count: number;
+  undoable: boolean;
+  /** Why undo is unavailable (samples progressed/edited, or a newer import exists); null when undoable. */
+  undo_block_reason: string | null;
+  /** How many of the batch's samples are no longer pristine. */
+  blocking_count: number;
+}
+
+export interface UndoImportResult {
+  import_batch_id: number;
+  removed_count: number;
+}

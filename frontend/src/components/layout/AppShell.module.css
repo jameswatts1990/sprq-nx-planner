@@ -29,7 +29,7 @@
   align-items: baseline;
   gap: 2px;
   font-weight: 800;
-  font-size: 22px;
+  font-size: var(--fs-display);
   letter-spacing: -0.03em;
   color: var(--ink);
   text-decoration: none;
@@ -54,7 +54,7 @@
   padding-left: 18px;
 }
 .navLink {
-  font-size: 13px;
+  font-size: var(--fs-base);
   font-weight: 700;
   color: var(--grey);
   text-decoration: none;
@@ -89,7 +89,7 @@
 }
 
 .versionNumber {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   font-weight: 600;
 }
 

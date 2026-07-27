@@ -6,8 +6,8 @@
 }
 .sectionHint {
   margin: 0 0 12px;
-  color: var(--text-muted, #64748b);
-  font-size: 13px;
+  color: var(--grey);
+  font-size: var(--fs-base);
 }
 .badgeGroup {
   display: inline-flex;
@@ -25,14 +25,14 @@
   flex: 1 1 260px;
   max-width: 420px;
   font-family: var(--sans);
-  font-size: 13px;
+  font-size: var(--fs-base);
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
   padding: 8px 12px;
 }
 .select {
   font-family: var(--sans);
-  font-size: 13px;
+  font-size: var(--fs-base);
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
   padding: 8px 10px;
@@ -42,18 +42,18 @@
 }
 .status {
   color: var(--grey);
-  font-size: 13.5px;
+  font-size: var(--fs-lg);
   padding: 18px 4px;
   text-align: center;
 }
 .table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: var(--fs-base);
 }
 .table th {
   text-align: left;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--grey);

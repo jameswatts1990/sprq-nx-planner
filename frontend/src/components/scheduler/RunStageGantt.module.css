@@ -22,9 +22,34 @@
   text-transform: uppercase;
   color: var(--grey);
 }
-.captionHint {
-  font-size: 11px;
-  color: var(--faint);
+/* Names the three per-row stage colours (prep / movie / PPA) so the gantt is self-explaining. */
+.legend {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--grey);
+}
+.swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex: none;
+}
+.swPrep {
+  background: var(--amber);
+}
+.swMovie {
+  background: var(--magenta);
+}
+.swPpa {
+  background: var(--purple);
 }
 .rows {
   display: flex;
@@ -76,19 +101,14 @@
   border-radius: 4px;
   overflow: hidden;
 }
-/* Prep: a quiet, hatched-looking lead-in before the movie. */
+/* Prep: an amber lead-in before the movie (sample loading / setup). */
 .prep {
   position: absolute;
   top: 0;
   bottom: 0;
-  background: repeating-linear-gradient(
-    45deg,
-    var(--line) 0,
-    var(--line) 3px,
-    transparent 3px,
-    transparent 6px
-  );
-  border-right: 1px solid var(--line);
+  background: var(--amber);
+  border-radius: 3px 0 0 3px;
+  min-width: 2px;
 }
 .movie {
   position: absolute;
@@ -98,7 +118,15 @@
   align-items: center;
   justify-content: center;
   background: var(--bar, var(--grey));
-  border-radius: 3px;
+  min-width: 2px;
+}
+/* PPA: a purple tail after the movie (post-primary analysis). */
+.ppa {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--purple);
+  border-radius: 0 3px 3px 0;
   min-width: 2px;
 }
 .movieLabel {

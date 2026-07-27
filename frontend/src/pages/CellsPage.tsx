@@ -251,15 +251,15 @@ export function CellsPage() {
               </option>
             ))}
           </select>
-          <button
-            type="button"
-            className={styles.dirToggle}
+          <Button
+            size="sm"
+            variant="ghost"
             onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))}
             title={sortDir === "asc" ? "Ascending" : "Descending"}
             aria-label={`Sort direction: ${sortDir === "asc" ? "ascending" : "descending"}`}
           >
             {sortDir === "asc" ? "▲" : "▼"}
-          </button>
+          </Button>
         </label>
         <label className={styles.control}>
           <span className={styles.controlLabel}>Group</span>

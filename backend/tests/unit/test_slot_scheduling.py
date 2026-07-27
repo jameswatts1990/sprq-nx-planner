@@ -26,6 +26,11 @@ def _samples(n, prefix="S"):
     return [ParsedSample(id=f"{prefix}{i}", barcodes=[f"bc{prefix}{i}"], key=f"{prefix}{i}#0") for i in range(n)]
 
 
+def _msample(id_, movie):
+    """A single sample carrying a specific movie time (drives the 12h/30h cell rule)."""
+    return ParsedSample(id=id_, barcodes=[f"bc{id_}"], key=f"{id_}#0", movie_time=movie)
+
+
 def _one_use_cells(n):
     # A single physical cell can only run once per calendar day, so filling all 8 wells
     # of one slot in one day takes 8 distinct cells (e.g. 8 fresh cells, or several prior
@@ -37,7 +42,7 @@ def test_fill_slots_fills_all_eight_wells_of_one_slot():
     cells = _one_use_cells(8)
     slot = SlotInput(instrument_serial="84047", run_date=date(2026, 7, 20))
 
-    result = fill_slots(cells, [slot], run_time_hours=24)
+    result = fill_slots(cells, [slot])
 
     assert len(result.assignments) == 8
     assert {a.well for a in result.assignments} == {
@@ -51,7 +56,7 @@ def test_fill_slots_leaves_extra_samples_unplaced_once_eight_wells_are_full():
     cells = _one_use_cells(9)
     slot = SlotInput(instrument_serial="84047", run_date=date(2026, 7, 20))
 
-    result = fill_slots(cells, [slot], run_time_hours=24)
+    result = fill_slots(cells, [slot])
 
     assert len(result.assignments) == 8
     assert len(result.unplaced) == 1
@@ -61,7 +66,7 @@ def test_fill_slots_caps_wells_to_tray_one_when_cells_per_day_is_four():
     cells = _one_use_cells(8)
     slot = SlotInput(instrument_serial="84047", run_date=date(2026, 7, 20))
 
-    result = fill_slots(cells, [slot], run_time_hours=24, cells_per_day=4)
+    result = fill_slots(cells, [slot], cells_per_day=4)
 
     assert len(result.assignments) == 4
     assert {a.well for a in result.assignments} == {"A01", "B01", "C01", "D01"}
@@ -73,7 +78,7 @@ def test_fill_slots_respects_cross_instrument_pin_when_a_compatible_slot_exists(
     matching = SlotInput(instrument_serial="84047", run_date=date(2026, 7, 20))
     other = SlotInput(instrument_serial="84098", run_date=date(2026, 7, 21))
 
-    result = fill_slots([cell], [matching, other], run_time_hours=24)
+    result = fill_slots([cell], [matching, other])
 
     # sample 0 takes the matching-instrument slot; sample 1 can't reuse that same day
     # (strictly-later-date rule) and the only later slot is the wrong instrument (pin) -
@@ -87,7 +92,7 @@ def test_fill_slots_strands_pinned_cell_when_only_a_different_instrument_slot_is
     cell = _cell("P1", _samples(1), prior=True, pinned="84047")
     other = SlotInput(instrument_serial="84098", run_date=date(2026, 7, 20))
 
-    result = fill_slots([cell], [other], run_time_hours=24)
+    result = fill_slots([cell], [other])
 
     assert result.assignments == []
     assert [s.id for s in result.unplaced] == ["S0"]
@@ -97,7 +102,7 @@ def test_fill_slots_unpinned_cell_can_use_any_offered_instrument():
     cell = _cell("C1", _samples(1))  # pinned=None: no prior use anywhere yet
     slot = SlotInput(instrument_serial="84098", run_date=date(2026, 7, 20))
 
-    result = fill_slots([cell], [slot], run_time_hours=24)
+    result = fill_slots([cell], [slot])
 
     assert len(result.assignments) == 1
     assert result.assignments[0].instrument_serial == "84098"
@@ -119,7 +124,7 @@ def test_fill_slots_pins_a_fresh_cell_to_its_first_assigned_instrument():
         SlotInput(instrument_serial="84309", run_date=date(2026, 7, 23)),  # Thu
     ]
 
-    result = fill_slots([cell], slots, run_time_hours=24)
+    result = fill_slots([cell], slots)
 
     assert len(result.assignments) == 1
     assert result.assignments[0].instrument_serial == "84047"
@@ -134,7 +139,7 @@ def test_fill_slots_reused_cell_only_takes_its_own_pinned_well():
     cell = _cell("P1", _samples(1), prior=True, pinned="84047", pinned_well="C01")
     slot = SlotInput(instrument_serial="84047", run_date=date(2026, 7, 20))
 
-    result = fill_slots([cell], [slot], run_time_hours=24)
+    result = fill_slots([cell], [slot])
 
     assert len(result.assignments) == 1
     assert result.assignments[0].well == "C01"
@@ -152,7 +157,7 @@ def test_fill_slots_strands_pinned_cell_when_its_well_is_taken():
     other_pinned = _cell("P2", _samples(1), prior=True, pinned="84047", pinned_well="A01")
     slot = SlotInput(instrument_serial="84047", run_date=date(2026, 7, 20))
 
-    result = fill_slots([pinned_cell, other_pinned], [slot], run_time_hours=24)
+    result = fill_slots([pinned_cell, other_pinned], [slot])
 
     # Only one of the two same-well-pinned cells can be placed this slot; the other is
     # stranded rather than silently relocated to a different well.
@@ -171,7 +176,7 @@ def test_fill_slots_pins_a_fresh_cell_to_its_first_assigned_well():
         SlotInput(instrument_serial="84047", run_date=date(2026, 7, 22)),
     ]
 
-    result = fill_slots([cell], slots, run_time_hours=24)
+    result = fill_slots([cell], slots)
 
     assert len(result.assignments) == 2
     wells = {a.well for a in result.assignments}
@@ -203,7 +208,7 @@ def test_fill_slots_never_hands_a_vacated_well_to_a_different_fresh_cell():
     ]
     # Cap this to a single well (cells_per_day=1) so C1 and C2 are forced to compete for
     # the exact same well instead of just spreading across tray 1's other 3 wells.
-    result = fill_slots([c1, c2], week, run_time_hours=24, cells_per_day=1)
+    result = fill_slots([c1, c2], week, cells_per_day=1)
 
     wells_by_cell: dict[str, set[str]] = {}
     for a in result.assignments:
@@ -236,7 +241,7 @@ def test_fill_slots_reloads_a_genuinely_exhausted_well_with_a_new_cell():
         SlotInput(instrument_serial="84047", run_date=date(2026, 7, 23)),  # Thu
         SlotInput(instrument_serial="84047", run_date=date(2026, 7, 24)),  # Fri
     ]
-    result = fill_slots([c1, c2], week, run_time_hours=24, cells_per_day=1)
+    result = fill_slots([c1, c2], week, cells_per_day=1)
 
     wells_by_cell: dict[str, set[str]] = {}
     for a in result.assignments:
@@ -246,6 +251,81 @@ def test_fill_slots_reloads_a_genuinely_exhausted_well_with_a_new_cell():
     # legitimately takes over the same well for Thu/Fri - nothing is stranded.
     assert wells_by_cell.get("C1") == {"A01"}
     assert wells_by_cell.get("C2") == {"A01"}
+    assert result.unplaced == []
+
+
+def test_fill_slots_confines_a_12h_cell_to_cell_1():
+    """A 12h sample may only load on cell 1 - the A-column carousel position (A01/A02)."""
+    cell = _cell("C1", [_msample("S12", 12)])
+    slot = SlotInput(instrument_serial="84047", run_date=date(2026, 7, 20))
+
+    result = fill_slots([cell], [slot])
+
+    assert len(result.assignments) == 1
+    assert result.assignments[0].well == "A01"
+
+
+def test_fill_slots_confines_a_30h_cell_to_cell_4():
+    """A 30h sample may only load on cell 4 - the D-column carousel position (D01/D02)."""
+    cell = _cell("C1", [_msample("S30", 30)])
+    slot = SlotInput(instrument_serial="84047", run_date=date(2026, 7, 20))
+
+    result = fill_slots([cell], [slot])
+
+    assert len(result.assignments) == 1
+    assert result.assignments[0].well == "D01"
+
+
+def test_fill_slots_places_a_12h_cell_before_a_24h_cell_claims_cell_1():
+    """"Restriction only": a 24h cell may use cell 1, but a 12h cell can use ONLY cell 1, so
+    the constrained cell is placed first and gets A01 - the 24h cell yields to it and falls to
+    the next free position, rather than stranding the 12h sample. Order of the input list must
+    not matter (24h listed first here on purpose)."""
+    twenty_four = _cell("C24", [_msample("S24", 24)])
+    twelve = _cell("C12", [_msample("S12", 12)])
+    slot = SlotInput(instrument_serial="84047", run_date=date(2026, 7, 20))
+
+    result = fill_slots([twenty_four, twelve], [slot])
+
+    by_cell = {a.cell.id: a.well for a in result.assignments}
+    assert by_cell["C12"] == "A01"
+    assert by_cell["C24"] != "A01"
+    assert len(result.assignments) == 2
+
+
+def test_fill_slots_strands_a_second_12h_cell_when_cell_1_is_taken():
+    """Only one cell-1 position exists per tray (cells_per_day=4 -> tray 1 only, so just A01).
+    Two 12h cells can't both load that day; the second is left unplaced rather than pushed to
+    a forbidden well."""
+    a = _cell("A", [_msample("SA", 12)])
+    b = _cell("B", [_msample("SB", 12)])
+    slot = SlotInput(instrument_serial="84047", run_date=date(2026, 7, 20))
+
+    result = fill_slots([a, b], [slot], cells_per_day=4)
+
+    assert len(result.assignments) == 1
+    assert result.assignments[0].well == "A01"
+    assert len(result.unplaced) == 1
+
+
+def test_fill_slots_full_mixed_tray_lands_each_movie_time_on_its_cell():
+    """The natural full tray: a 12h on cell 1, two 24h on cells 2 & 3, a 30h on cell 4."""
+    cells = [
+        _cell("C12", [_msample("S12", 12)]),
+        _cell("C24a", [_msample("S24a", 24)]),
+        _cell("C24b", [_msample("S24b", 24)]),
+        _cell("C30", [_msample("S30", 30)]),
+    ]
+    slot = SlotInput(instrument_serial="84047", run_date=date(2026, 7, 20))
+
+    result = fill_slots(cells, [slot], cells_per_day=4)
+
+    by_cell = {a.cell.id: a.well for a in result.assignments}
+    assert by_cell["C12"] == "A01"  # cell 1
+    assert by_cell["C30"] == "D01"  # cell 4
+    assert by_cell["C24a"] in {"B01", "C01"}
+    assert by_cell["C24b"] in {"B01", "C01"}
+    assert by_cell["C24a"] != by_cell["C24b"]
     assert result.unplaced == []
 
 
@@ -261,7 +341,7 @@ def test_fill_slots_fresh_cell_reuses_stay_on_first_instrument_when_available():
         SlotInput(instrument_serial="84047", run_date=date(2026, 7, 22)),  # Wed, inst A again
     ]
 
-    result = fill_slots([cell], slots, run_time_hours=24)
+    result = fill_slots([cell], slots)
 
     assert len(result.assignments) == 2
     assert {a.instrument_serial for a in result.assignments} == {"84047"}

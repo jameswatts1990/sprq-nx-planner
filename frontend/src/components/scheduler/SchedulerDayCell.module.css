@@ -103,7 +103,7 @@
   margin-left: auto;
 }
 .ctrl:hover:not(:disabled) {
-  border-color: #cfd2d8;
+  border-color: var(--line-hover);
 }
 .ctrl:disabled {
   opacity: 0.5;

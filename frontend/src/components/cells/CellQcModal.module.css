@@ -1,7 +1,7 @@
 .intro {
   margin: 0 0 12px;
-  color: var(--text-muted, #64748b);
-  font-size: 13px;
+  color: var(--grey);
+  font-size: var(--fs-base);
 }
 
 .reason {
@@ -9,8 +9,8 @@
   min-height: 60px;
   resize: vertical;
   padding: 8px 10px;
-  border: 1px solid var(--border, #cbd5e1);
-  border-radius: 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
   font: inherit;
   margin-bottom: 12px;
 }
@@ -28,36 +28,36 @@
   align-items: flex-start;
   gap: 2px;
   padding: 10px 12px;
-  border: 1px solid var(--border, #cbd5e1);
-  border-radius: 8px;
-  background: var(--surface, #fff);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--card);
   cursor: pointer;
   text-align: left;
   width: 100%;
 }
 .verdictBtn:hover:not(:disabled) {
-  border-color: var(--accent, #2563eb);
-  background: var(--surface-hover, #f8fafc);
+  border-color: var(--magenta);
+  background: var(--line-soft);
 }
 .verdictBtn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 .verdictBtn b {
-  font-size: 14px;
+  font-size: var(--fs-xl);
 }
 .verdictBtn small {
-  color: var(--text-muted, #64748b);
-  font-size: 12px;
+  color: var(--grey);
+  font-size: var(--fs-sm);
 }
 
 .groupTitle {
   margin: 14px 0 6px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--text-muted, #64748b);
+  color: var(--grey);
 }
 
 .dispList {
@@ -73,12 +73,12 @@
   flex-direction: column;
   gap: 6px;
   padding: 10px;
-  border: 1px solid var(--border, #e2e8f0);
-  border-radius: 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
 }
 .sampleRow.clash {
-  border-color: var(--danger, #dc2626);
-  background: color-mix(in srgb, var(--danger, #dc2626) 6%, transparent);
+  border-color: var(--red);
+  background: color-mix(in srgb, var(--red) 6%, transparent);
 }
 
 .sampleHead {
@@ -91,13 +91,13 @@
   font-weight: 700;
 }
 .meta {
-  color: var(--text-muted, #64748b);
-  font-size: 12px;
+  color: var(--grey);
+  font-size: var(--fs-sm);
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
 }
 .shift {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   font-weight: 600;
 }

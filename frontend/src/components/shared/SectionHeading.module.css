@@ -5,7 +5,7 @@
   margin: 30px 0 14px;
 }
 .secHead h2 {
-  font-size: 20px;
+  font-size: var(--fs-heading);
 }
 .rule {
   flex: 1;
@@ -53,7 +53,7 @@
   display: flex;
   gap: 14px;
   align-items: center;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--grey);
   flex-wrap: wrap;
 }

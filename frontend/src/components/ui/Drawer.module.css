@@ -57,17 +57,17 @@
   gap: 4px;
 }
 .title {
-  font-size: 17px;
+  font-size: var(--fs-title);
   margin: 0;
 }
 .subtitle {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--grey);
   font-weight: 600;
 }
 .close {
   font-family: var(--sans);
-  font-size: 15px;
+  font-size: var(--fs-2xl);
   line-height: 1;
   color: var(--grey);
   background: transparent;
@@ -79,7 +79,7 @@
 }
 .close:hover {
   color: var(--ink);
-  border-color: #cfd2d8;
+  border-color: var(--line-hover);
   box-shadow: var(--shadow-sm);
 }
 .body {

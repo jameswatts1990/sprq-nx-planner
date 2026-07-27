@@ -4,7 +4,13 @@ from __future__ import annotations
 import re
 from datetime import datetime, timezone
 
-from app.engine.constants import CELL_MAX_USES, WELLS
+from app.engine.constants import (
+    ALL_CELL_POSITIONS,
+    CELL_MAX_USES,
+    WELLS,
+    movie_allowed_positions,
+    within_tray_pos,
+)
 from app.engine.csv_parse import split_barcodes
 from app.engine.types import ConflictPair, PackedCell, PackResult, ParsedSample, PriorCellInput
 
@@ -52,6 +58,23 @@ def external_id_sort_key(external_id: str) -> tuple[str | int, ...]:
 
 def disjoint(set_a: set[str], arr_b: list[str]) -> bool:
     return not any(b in set_a for b in arr_b)
+
+
+def cell_allowed_positions(c: PackedCell) -> frozenset[int]:
+    """The carousel cell positions (within_tray_pos, 0-3) still open to this whole cell,
+    given Auto Schedule's movie-time rule (see engine/constants.movie_allowed_positions).
+
+    A cell is one physical position for life, so every one of its uses must share a
+    position: the intersection of each already-assigned use's movie-time allowance, further
+    narrowed to the cell's fixed position if it's a prior/pinned cell. Empty means the uses
+    already conflict (e.g. a 12h and a 30h use can never share one cell). For the all-24h
+    common case this is always the full {0,1,2,3}, so it never constrains anything."""
+    positions = ALL_CELL_POSITIONS
+    if c.pinned_well is not None:
+        positions &= frozenset({within_tray_pos(c.pinned_well)})
+    for u in c.uses:
+        positions &= movie_allowed_positions(u.movie_time)
+    return positions
 
 
 def pack_cells(
@@ -175,11 +198,17 @@ def pack_cells(
 
     unplaced: list[ParsedSample] = []
     for s in ordered:
+        s_positions = movie_allowed_positions(s.movie_time)
         cands = [
             c
             for c in cells
             if (len(c.uses) < _prior_allowance(c) if c.prior else len(c.uses) < cap)
             and disjoint(c.barcodes, s.barcodes)
+            # Auto Schedule's movie-time cell rule: this sample can only share a cell whose
+            # remaining allowed positions overlap its own (e.g. a 12h sample never lands on a
+            # cell pinned to - or already holding a use pinned to - anything but cell 1). For
+            # all-24h backlogs both sides are the full position set, so this never bites.
+            and (cell_allowed_positions(c) & s_positions)
         ]
         if objective == "utilisation" and sum(1 for c in cells if not c.prior) < utilisation_width:
             # Not enough distinct fresh cells open yet to fill a whole instrument-day -

@@ -93,6 +93,44 @@ def test_pack_marks_samples_unplaced_when_max_uses_is_zero_capacity():
     assert result2.cells == []
 
 
+def test_pack_does_not_co_pack_a_12h_and_a_30h_sample():
+    # A 12h sample needs cell 1 and a 30h needs cell 4 - one physical cell can't be both, so
+    # even with disjoint barcodes and room to deepen they must land on separate cells.
+    samples = [
+        ParsedSample(id="S12", barcodes=["b12"], key="S12#0", movie_time=12),
+        ParsedSample(id="S30", barcodes=["b30"], key="S30#1", movie_time=30),
+    ]
+    result = pack_cells(samples, max_uses=3, objective="fewest")
+    assert len(result.cells) == 2
+    assert all(len(c.uses) == 1 for c in result.cells)
+
+
+def test_pack_co_packs_a_12h_and_a_24h_sample_onto_one_cell():
+    # 12h -> cell 1, 24h -> any cell (incl. cell 1), so they can share one physical cell (both
+    # valid at position 1). objective "fewest" deepens onto the same cell rather than opening
+    # a second one.
+    samples = [
+        ParsedSample(id="S12", barcodes=["b12"], key="S12#0", movie_time=12),
+        ParsedSample(id="S24", barcodes=["b24"], key="S24#1", movie_time=24),
+    ]
+    result = pack_cells(samples, max_uses=3, objective="fewest")
+    assert len(result.cells) == 1
+    assert {s.id for s in result.cells[0].uses} == {"S12", "S24"}
+
+
+def test_pack_keeps_a_12h_sample_off_a_prior_cell_at_a_middle_position():
+    # A prior cell physically fixed to cell 2 (home well B01) can never take a 12h sample
+    # (12h -> cell 1 only), even with a disjoint barcode and remaining capacity - the 12h
+    # sample opens a fresh cell instead.
+    prior = [PriorCellInput(barcodes_text="bprior", uses_consumed=1, cell_id=7, pinned_well="B01")]
+    samples = [ParsedSample(id="S12", barcodes=["b12"], key="S12#0", movie_time=12)]
+
+    result = pack_cells(samples, max_uses=3, objective="fewest", prior_cells=prior)
+
+    placed = {c.id: [s.id for s in c.uses] for c in result.cells}
+    assert placed == {"C1": ["S12"]}  # fresh cell only; the prior cell (P1) took nothing
+
+
 def _disjoint_samples(n: int) -> list[ParsedSample]:
     return [ParsedSample(id=f"S{i}", barcodes=[f"bc{i}"], key=f"S{i}#0") for i in range(n)]
 

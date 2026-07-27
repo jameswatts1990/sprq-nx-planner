@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Response
 from sqlalchemy import select
 
-from app.api.deps import SessionDep
+from app.api.deps import ActorDep, SessionDep
 from app.engine.scheduler_import import SchedulerFormatError
 from app.models.importing import ImportBatch
 from app.schemas.importing import (
@@ -10,15 +10,21 @@ from app.schemas.importing import (
     ImportPreviewResult,
     ImportRequest,
     ImportResult,
+    LatestImportOut,
     SchedulerConvertRequest,
     SchedulerConvertResult,
+    UndoImportResult,
 )
 from app.services.import_service import (
+    UndoBatchNotFoundError,
+    UndoNotAllowedError,
     import_samples,
     importable_fields,
+    latest_import,
     preview_import,
     scheduler_convert,
     template_csv,
+    undo_import,
 )
 
 router = APIRouter(prefix="/api/imports", tags=["imports"])
@@ -89,6 +95,26 @@ def list_imports(db: SessionDep, page: int = 1, page_size: int = 50) -> dict:
         ],
         "total": total_count,
     }
+
+
+@router.get("/latest", response_model=LatestImportOut | None)
+def get_latest_import(db: SessionDep) -> LatestImportOut | None:
+    """The most recent import batch and whether it can still be undone (null if none exist).
+    Registered above /{import_batch_id} so this literal path isn't parsed as an int id."""
+    return latest_import(db)
+
+
+@router.post("/{import_batch_id}/undo", response_model=UndoImportResult)
+def undo(import_batch_id: int, db: SessionDep, actor: ActorDep) -> UndoImportResult:
+    """Undo an import: delete the samples it created and the batch record. Allowed only for the
+    most recent import while every one of its samples is still an untouched backlog row - a 409
+    otherwise (samples scheduled/edited, or a newer import exists)."""
+    try:
+        return undo_import(db, import_batch_id, actor)
+    except UndoBatchNotFoundError as err:
+        raise HTTPException(404, str(err)) from err
+    except UndoNotAllowedError as err:
+        raise HTTPException(409, str(err)) from err
 
 
 @router.get("/{import_batch_id}")

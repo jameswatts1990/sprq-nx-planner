@@ -42,7 +42,7 @@
   gap: 8px;
 }
 .range {
-  font-size: 13px;
+  font-size: var(--fs-base);
   font-weight: 800;
   color: var(--ink);
   min-width: 150px;
@@ -50,7 +50,7 @@
 }
 .jumpDate {
   font-family: var(--sans);
-  font-size: 12.5px;
+  font-size: var(--fs-md);
   font-weight: 700;
   color: var(--ink);
   background: var(--card);
@@ -66,13 +66,13 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 12.5px;
+  font-size: var(--fs-md);
   font-weight: 700;
   color: var(--magenta-deep);
 }
 .status {
   color: var(--grey);
-  font-size: 13.5px;
+  font-size: var(--fs-lg);
   padding: 24px 4px;
   text-align: center;
 }
@@ -81,7 +81,7 @@
 }
 .dragChip {
   font-family: var(--sans);
-  font-size: 12px;
+  font-size: var(--fs-sm);
   font-weight: 800;
   color: #fff;
   background: var(--magenta);

@@ -2,17 +2,25 @@ import type { RunOut, StageOut } from "@/types/schedule";
 
 /**
  * Estimated per-well stage timing, from PacBio's "Approximate Revio timings" reference
- * (the table the lab owner supplied). Within one plate, each well's prep starts
- * `WELL_STAGGER_H` apart and its movie starts `PREP_H` after that well's own prep start —
- * e.g. cell 1: prep T+0, movie T+4; cell 2: prep T+2, movie T+6; … — then the movie runs the
- * well's own run time. These are illustrative estimates: this app does not model per-well
- * prep / PPA timing (see docs/pacbio-sprq-nx-scheduling-reference.md, "Instrument load-lock
- * timing"), so anything built on them is labelled "estimated". Each plate is anchored at its
- * real backend `planned_start_at`, so the estimate still tracks the run's actual load time
- * and any reuse-plate day offset.
+ * (the table the lab owner supplied). Each well runs three stages on a shared "hours from
+ * load" axis: prep → movie → PPA. Within one plate, each well's prep starts `WELL_STAGGER_H`
+ * apart and its movie starts `PREP_H` after that well's own prep start; post-primary analysis
+ * (PPA) then runs `PPA_H` once the well's movie ends — e.g. cell 1: prep T+0, movie T+4, PPA
+ * T+4+run; cell 2: prep T+2, movie T+6, … — with the movie lasting the well's own run time.
+ * These are illustrative estimates only: the scheduler's own locks/windows do not consume
+ * per-well prep or PPA timing (see docs/pacbio-sprq-nx-scheduling-reference.md, "Instrument
+ * load-lock timing"), so anything built on them is labelled "estimated". Each plate is anchored
+ * at its real backend `planned_start_at`, so the estimate still tracks the run's actual load
+ * time and any reuse-plate day offset.
  */
 export const PREP_H = 4;
 export const WELL_STAGGER_H = 2;
+/**
+ * Illustrative per-well post-primary analysis (PPA), running after the well's movie. Derived
+ * from the reference's "~14h PPA for 4 SMRT cells (a 2h offset + two 6h units)" ≈ one 6h unit
+ * per well — an estimate for the gantt only, never a scheduled/locked duration.
+ */
+export const PPA_H = 6;
 const HOUR_MS = 3_600_000;
 
 export interface StageTiming {
@@ -21,10 +29,14 @@ export interface StageTiming {
   prepStartH: number;
   movieStartH: number;
   movieEndH: number;
+  ppaStartH: number;
+  ppaEndH: number;
   /** Absolute epoch ms (for HH:MM labels). */
   prepStartMs: number;
   movieStartMs: number;
   movieEndMs: number;
+  ppaStartMs: number;
+  ppaEndMs: number;
 }
 
 export interface RunTimeline {
@@ -54,20 +66,26 @@ export function computeRunTimeline(run: RunOut): RunTimeline {
       const prepStartH = plateOffsetH + withinPos * WELL_STAGGER_H;
       const movieStartH = prepStartH + PREP_H;
       const movieEndH = movieStartH + stage.run_time_hours;
+      const ppaStartH = movieEndH;
+      const ppaEndH = ppaStartH + PPA_H;
       timings.push({
         stage,
         prepStartH,
         movieStartH,
         movieEndH,
+        ppaStartH,
+        ppaEndH,
         prepStartMs: loadMs + prepStartH * HOUR_MS,
         movieStartMs: loadMs + movieStartH * HOUR_MS,
         movieEndMs: loadMs + movieEndH * HOUR_MS,
+        ppaStartMs: loadMs + ppaStartH * HOUR_MS,
+        ppaEndMs: loadMs + ppaEndH * HOUR_MS,
       });
     }
   }
   timings.sort(
     (a, b) => a.stage.slot_index - b.stage.slot_index || a.stage.cell_use_id - b.stage.cell_use_id,
   );
-  const spanH = timings.reduce((m, t) => Math.max(m, t.movieEndH), 0);
+  const spanH = timings.reduce((m, t) => Math.max(m, t.ppaEndH), 0);
   return { loadMs, spanH, timings };
 }

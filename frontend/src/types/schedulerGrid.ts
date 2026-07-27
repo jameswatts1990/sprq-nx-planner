@@ -53,7 +53,10 @@ export interface GridCellRef {
 export interface AutoFillRequest {
   cells: GridCellRef[];
   max_uses: MaxUses; // target packing depth for new cells this batch, not a physical cap (always 3)
-  run_time_hours: RunTimeHours;
+  /** Movie times (12/24/30 h) ticked in the Autoschedule panel: only backlog samples of these
+   * lengths are scheduled, and each placed well runs for its own sample's movie time. 12 h
+   * samples go only on cell 1, 30 h only on cell 4 (24 h anywhere). */
+  movie_times: RunTimeHours[];
   objective: Objective;
   /** 4 = one tray (Plate 1 only), 8 = both trays (Plate 2 too). Surfaced as "Plates per run". */
   cells_per_day: CellsPerDay;
@@ -89,7 +92,13 @@ export interface AutoFillResponse {
 /** The Run Design dials, held in page state and threaded into place/auto-fill. */
 export interface RunDesignState {
   max_uses: MaxUses;
+  /** Kept for the drag-move mutation's required (but ignored - the move keeps its own) run
+   * time; Auto Schedule no longer uses a single run time - see `movie_times`. */
   run_time_hours: RunTimeHours;
+  /** Which movie times (12/24/30 h) Auto Schedule includes from the backlog. Only 24 h by
+   * default. Each scheduled well runs for its own sample's movie time; 12 h samples are
+   * confined to cell 1 and 30 h samples to cell 4. */
+  movie_times: RunTimeHours[];
   objective: Objective;
   cells_per_day: CellsPerDay;
   /** The hour (8-20) a newly-created run loads and starts sequencing. Auto Schedule uses it

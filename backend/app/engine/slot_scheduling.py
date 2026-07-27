@@ -13,7 +13,16 @@ from __future__ import annotations
 import math
 from datetime import timedelta
 
-from app.engine.constants import CELL_LIFETIME_H, CELL_MAX_USES, LOCK_BUFFER_HOURS, WELLS
+from app.engine.constants import (
+    ALL_CELL_POSITIONS,
+    CELL_LIFETIME_H,
+    CELL_MAX_USES,
+    DEFAULT_MOVIE_HOURS,
+    LOCK_BUFFER_HOURS,
+    WELLS,
+    within_tray_pos,
+)
+from app.engine.packing import cell_allowed_positions
 from app.engine.types import (
     PackedCell,
     SlotAssignment,
@@ -26,13 +35,25 @@ from app.engine.types import (
 def fill_slots(
     cells: list[PackedCell],
     slots: list[SlotInput],
-    run_time_hours: float,
     cells_per_day: int = len(WELLS),
 ) -> SlotFillResult:
     # Deterministic order: earliest date first, then instrument serial.
     slots_sorted = sorted(slots, key=lambda s: (s.run_date, s.instrument_serial))
-    # Same cell ordering as schedule_cells: prior cells first, then most-used first.
-    ordered_cells = sorted(cells, key=lambda c: (0 if c.prior else 1, -c.future_uses))
+    # Prior cells first, then most-used first (same as schedule_cells). Layered on top: a cell
+    # whose movie-time rule confines it to specific wells (a 12h/30h cell - see
+    # cell_allowed_positions) sorts before an unrestricted 24h cell within the same group, so
+    # it claims its one required well before a 24h cell can take it (the "restriction only"
+    # rule - 24h may use cells 1/4, but only when a 12h/30h sample doesn't need them). All-24h
+    # backlogs are unaffected: every cell is unrestricted, so this middle key is constant and
+    # the order collapses back to prior-first, most-used-first.
+    ordered_cells = sorted(
+        cells,
+        key=lambda c: (
+            0 if c.prior else 1,
+            0 if cell_allowed_positions(c) != ALL_CELL_POSITIONS else 1,
+            -c.future_uses,
+        ),
+    )
 
     # Free wells per slot, filled A01..D01 in order. `cells_per_day` restricts this to
     # tray 1 only (WELLS[:4]) when the user has capped auto-fill to one tray/day - see
@@ -106,6 +127,7 @@ def fill_slots(
             continue
 
         wells_used = 0
+        slot_max_movie = 0  # longest movie placed in this slot - drives its lock window below
         for cell in ordered_cells:
             if not free_wells[slot]:
                 break
@@ -134,12 +156,16 @@ def fill_slots(
                 # *other*, not-yet-vacated cell already claimed earlier in this batch (see
                 # well_owner/_well_is_vacated above) - only a well nobody has claimed yet,
                 # or whose claimant has genuinely finished its physical lifetime, is truly
-                # available to a brand-new cell.
+                # available to a brand-new cell. It must ALSO sit in a carousel position this
+                # cell's movie-time rule allows (cell_allowed_positions): a 12h cell only
+                # cell 1's wells (A01/A02), a 30h cell only cell 4's (D01/D02); a 24h cell any.
+                allowed = cell_allowed_positions(cell)
                 well = next(
                     (
                         w
                         for w in free_wells[slot]
-                        if (owner := well_owner.get((slot.instrument_serial, w))) is None or _well_is_vacated(owner)
+                        if within_tray_pos(w) in allowed
+                        and ((owner := well_owner.get((slot.instrument_serial, w))) is None or _well_is_vacated(owner))
                     ),
                     None,
                 )
@@ -148,6 +174,7 @@ def fill_slots(
                 free_wells[slot].remove(well)
 
             sample = cell.uses[idx]
+            slot_max_movie = max(slot_max_movie, sample.movie_time or DEFAULT_MOVIE_HOURS)
             assignments.append(
                 SlotAssignment(
                     cell=cell,
@@ -181,7 +208,7 @@ def fill_slots(
             wells_used += 1
 
         if wells_used > 0:
-            lock_hours = run_time_hours + LOCK_BUFFER_HOURS if wells_used > len(WELLS) // 2 else LOCK_BUFFER_HOURS
+            lock_hours = slot_max_movie + LOCK_BUFFER_HOURS if wells_used > len(WELLS) // 2 else LOCK_BUFFER_HOURS
             gap_days = math.ceil(lock_hours / 24)
             instrument_open_from[slot.instrument_serial] = slot.run_date + timedelta(days=gap_days)
 

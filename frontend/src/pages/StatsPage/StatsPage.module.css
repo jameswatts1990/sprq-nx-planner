@@ -16,17 +16,17 @@
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
   background: var(--card);
-  font-size: 13px;
+  font-size: var(--fs-base);
   color: var(--ink);
 }
 .rangeNote {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--faint);
 }
 .status {
   padding: 24px 0;
   color: var(--faint);
-  font-size: 13px;
+  font-size: var(--fs-base);
 }
 /* Two charts per row on wide screens, one when it gets tight - each block can shrink
    (min-width:0 in charts.module.css) so recharts' ResponsiveContainer never overflows. */

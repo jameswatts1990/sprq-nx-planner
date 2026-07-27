@@ -29,7 +29,7 @@ h3 {
 
 .btn {
   font-family: var(--sans);
-  font-size: 13.5px;
+  font-size: var(--fs-lg);
   font-weight: 700;
   border-radius: var(--r-sm);
   border: 1px solid var(--line);
@@ -47,7 +47,7 @@ h3 {
   white-space: nowrap;
 }
 .btn:hover {
-  border-color: #cfd2d8;
+  border-color: var(--line-hover);
   box-shadow: var(--shadow-sm);
 }
 .btn.primary {
@@ -73,15 +73,41 @@ h3 {
 }
 .btn.sm {
   padding: 6px 11px;
-  font-size: 12.5px;
+  font-size: var(--fs-md);
 }
 .btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* One keyboard-focus ring for the whole app, in the brand magenta. Buttons, segmented
+   controls, links, and focusable cards all draw from this so focus looks the same
+   everywhere (previously buttons used a blue ring and components a magenta one). */
 .btn:focus-visible {
-  outline: 3px solid rgba(0, 145, 210, 0.4);
+  outline: 2px solid var(--magenta-deep);
   outline-offset: 2px;
+}
+
+/* Text links default to the brand link colour instead of the browser's blue, so any
+   router <Link> or <a> that doesn't opt into a more specific style still reads as ours.
+   Components that render a link as a button (.btn) or a whole card set their own colour
+   and win via higher specificity. */
+a {
+  color: var(--link);
+}
+/* Canonical text-link treatment: quiet at rest, underline on hover, shared focus ring.
+   Apply to navigational text links (sample/cell/run names, table links, etc.). */
+.link {
+  color: var(--link);
+  text-decoration: none;
+}
+.link:hover {
+  text-decoration: underline;
+}
+.link:focus-visible {
+  outline: 2px solid var(--magenta-deep);
+  outline-offset: 2px;
+  border-radius: 3px;
 }
 
 @media print {

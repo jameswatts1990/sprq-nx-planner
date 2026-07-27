@@ -207,9 +207,9 @@ export function BacklogAccordion({ onOpenAutoschedule }: BacklogAccordionProps =
       titleAfter={
         <>
           {onOpenAutoschedule && (
-            <button
-              type="button"
-              className={styles.sparkleBtn}
+            <Button
+              variant="primary"
+              size="sm"
               onClick={onOpenAutoschedule}
               aria-label="Open Autoschedule"
               title="Autoschedule — set the run design and auto-fill selected cells from the backlog"
@@ -218,7 +218,7 @@ export function BacklogAccordion({ onOpenAutoschedule }: BacklogAccordionProps =
                 ✦
               </span>
               Autoschedule
-            </button>
+            </Button>
           )}
           {/* Search / filter / sort / pagination live in the header so the tray body is
               nothing but the scrollable card list — keeping the pinned backlog as short as

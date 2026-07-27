@@ -7,7 +7,7 @@
   padding: 0;
   font-family: var(--sans);
   font-weight: 700;
-  font-size: 14px;
+  font-size: var(--fs-xl);
   color: var(--ink);
   cursor: pointer;
   display: flex;
@@ -21,5 +21,5 @@
 }
 .caret {
   color: var(--grey);
-  font-size: 11px;
+  font-size: var(--fs-xs);
 }

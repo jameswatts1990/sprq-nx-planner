@@ -15,7 +15,7 @@
 }
 .intro {
   color: var(--grey);
-  font-size: 13px;
+  font-size: var(--fs-base);
   margin: 0 0 18px;
   max-width: 760px;
 }
@@ -24,7 +24,7 @@
 }
 .status {
   color: var(--grey);
-  font-size: 13.5px;
+  font-size: var(--fs-lg);
   padding: 24px 4px;
   text-align: center;
 }
@@ -41,12 +41,12 @@
   gap: 2px;
 }
 .name {
-  font-size: 15px;
+  font-size: var(--fs-2xl);
   font-weight: 800;
 }
 .serial {
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: var(--fs-xs);
   letter-spacing: 0.04em;
   color: var(--grey);
 }
@@ -81,7 +81,7 @@
 }
 .fieldLabel {
   display: block;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   font-weight: 700;
   letter-spacing: 0.03em;
   text-transform: uppercase;
@@ -93,7 +93,7 @@
 .field textarea {
   width: 100%;
   font-family: var(--sans);
-  font-size: 13.5px;
+  font-size: var(--fs-lg);
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
   padding: 8px 10px;
@@ -103,7 +103,7 @@
   resize: vertical;
 }
 .helper {
-  font-size: 12.5px;
+  font-size: var(--fs-md);
   color: var(--grey);
   margin: 0 0 16px;
 }
