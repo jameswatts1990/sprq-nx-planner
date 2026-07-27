@@ -23,6 +23,7 @@ const NAV_ITEMS = [
   { to: "/cells", label: "Cells" },
   { to: "/instruments", label: "Instruments" },
   { to: "/history/runs", label: "History" },
+  { to: "/history/samples", label: "Samples" },
   { to: "/stats", label: "Stats" },
   { to: "/admin", label: "Admin" },
   { to: "/help", label: "Help" },

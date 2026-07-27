@@ -30,8 +30,9 @@ export function BacklogSection() {
 
       <p className={styles.subheading}>Columns &amp; sorting</p>
       <p>
-        <b>Columns:</b> Container ID, Barcodes, Parent sample, Sanger IDs, Priority, Target OPLC, and Created (when
-        it was imported). A dash (—) means that field is empty for the sample.
+        <b>Columns:</b> Container ID, Barcodes, Parent sample, Sanger IDs, Priority, Target OPLC, Volume, Adaptive
+        loading, Full res. base Q, Include base kinetics, and Created (when it was imported). A dash (—) means that
+        field is empty for the sample. Click a <b>Container ID</b> to open that sample&apos;s detail page.
       </p>
       <p>
         <b>Sorting:</b> click the <b>Container ID</b>, <b>Barcodes</b>, or <b>Priority</b> column header to sort by

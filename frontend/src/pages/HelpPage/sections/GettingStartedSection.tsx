@@ -29,7 +29,8 @@ export function GettingStartedSection() {
           greys it out in the Schedule) — plus at-a-glance status for each.
         </li>
         <li>
-          <b>History</b> is the record of past and planned runs and of completed/failed samples.
+          <b>History</b> is the record of past and planned runs, and <b>Samples</b> is the list of completed and
+          failed samples.
         </li>
         <li>
           <b>Stats</b> turns all of the above into charts — throughput, cell reuse, failures and credits, and

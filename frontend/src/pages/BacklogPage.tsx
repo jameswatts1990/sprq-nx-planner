@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createColumnHelper, flexRender, getCoreRowModel, useReactTable } from "@tanstack/react-table";
 import type { Table } from "@tanstack/react-table";
 import { useCallback, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 
 import { ApiError } from "@/api/client";
 import type { SampleSortBy, SampleSortDir } from "@/api/samples";
@@ -164,7 +165,10 @@ export function BacklogPage() {
 
   const columns = useMemo(
     () => [
-      columnHelper.accessor("external_id", { header: () => sortableHeader("Container ID", "external_id") }),
+      columnHelper.accessor("external_id", {
+        header: () => sortableHeader("Container ID", "external_id"),
+        cell: (info) => <Link to={`/samples/${info.row.original.id}`}>{info.getValue()}</Link>,
+      }),
       columnHelper.accessor("barcodes", {
         header: () => sortableHeader("Barcodes", "barcode"),
         cell: (info) => <BarcodeChips barcodes={info.getValue()} />,
@@ -186,6 +190,22 @@ export function BacklogPage() {
       }),
       columnHelper.accessor("target_oplc", {
         header: "Target OPLC",
+        cell: (info) => info.getValue() ?? "—",
+      }),
+      columnHelper.accessor("volume", {
+        header: "Volume",
+        cell: (info) => info.getValue() ?? "—",
+      }),
+      columnHelper.accessor("adaptive_loading", {
+        header: "Adaptive loading",
+        cell: (info) => info.getValue() ?? "—",
+      }),
+      columnHelper.accessor("full_resolution_base_q", {
+        header: "Full res. base Q",
+        cell: (info) => info.getValue() ?? "—",
+      }),
+      columnHelper.accessor("ccs_kinetics", {
+        header: "Include base kinetics",
         cell: (info) => info.getValue() ?? "—",
       }),
       columnHelper.accessor("created_at", {
