@@ -22,7 +22,10 @@ export interface ClientSort<K extends string> {
 export function useClientSort<T, K extends string>(
   items: T[],
   accessors: Record<K, (item: T) => SortValue>,
-  initial: { by: K; dir?: SortDir },
+  // `NoInfer` keeps K inferred from `accessors` (the full column-key union) — otherwise the
+  // literal passed here (e.g. "container") narrows K to that single key and every
+  // `sortBy === "otherKey"` comparison becomes a "no overlap" type error.
+  initial: { by: NoInfer<K>; dir?: SortDir },
 ): { sorted: T[] } & ClientSort<K> {
   const [sortBy, setSortBy] = useState<K>(initial.by);
   const [sortDir, setSortDir] = useState<SortDir>(initial.dir ?? "asc");
