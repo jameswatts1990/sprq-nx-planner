@@ -39,6 +39,9 @@ export interface ImportField {
   kind: "text" | "number" | "barcodes" | "sanger" | "boolean";
   required: boolean;
   example: string;
+  /** True for fields that can be mapped/imported but aren't offered on the manual add/edit
+   * form (value comes in via import only, shown only on the batch sheet). */
+  import_only?: boolean;
 }
 
 export interface PreviewColumn {

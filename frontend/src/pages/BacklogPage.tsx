@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createColumnHelper, flexRender, getCoreRowModel, useReactTable } from "@tanstack/react-table";
 import type { Table } from "@tanstack/react-table";
 import { useCallback, useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 
 import { ApiError } from "@/api/client";
@@ -10,6 +11,7 @@ import { samplesApi } from "@/api/samples";
 import { topupsApi } from "@/api/topups";
 import { BarcodeChips } from "@/components/shared/BarcodeChips";
 import { Pagination } from "@/components/shared/Pagination";
+import { SortableColumnHeader } from "@/components/shared/SortableColumnHeader";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
@@ -17,8 +19,10 @@ import { Note } from "@/components/ui/Note";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import type { SegmentedOption } from "@/components/ui/SegmentedControl";
 import type { SampleOut } from "@/types/sample";
+import type { SampleTopupOut } from "@/types/topup";
 import { useDebouncedValue } from "@/utils/useDebouncedValue";
-import { ABORTED_PRIORITY, priorityLabel, priorityTone } from "@/utils/priority";
+import { ABORTED_PRIORITY, priorityLabel, priorityRank, priorityTone } from "@/utils/priority";
+import { useClientSort } from "@/utils/useClientSort";
 import { useSampleBackNav } from "@/utils/sampleBackNav";
 
 import { SampleModal } from "./SampleModal";
@@ -37,9 +41,114 @@ function formatDateTime(iso: string): string {
   return new Date(iso).toLocaleString();
 }
 
-function sortIndicator(active: boolean, dir: SampleSortDir): string {
-  if (!active) return "";
-  return dir === "asc" ? " ▲" : " ▼";
+/** One value-per-sortable-column, used by the client-sorted Recoverable table (which is
+ * fully loaded, so it sorts in the browser). Priority sorts by rank — not the raw label —
+ * so it matches the server-sorted main backlog. Keys mirror the backend's SampleSortBy. */
+const SAMPLE_SORT_ACCESSORS: Record<SampleSortBy, (s: SampleOut) => string | number | null> = {
+  created_at: (s) => s.created_at,
+  updated_at: (s) => s.updated_at,
+  external_id: (s) => s.external_id,
+  barcode: (s) => s.barcodes[0] ?? null,
+  priority: (s) => priorityRank(s.priority),
+  status: (s) => s.status,
+  parent_sample: (s) => s.parent_sample,
+  sanger_ids: (s) => s.sanger_ids[0] ?? null,
+  target_oplc: (s) => s.target_oplc,
+  volume: (s) => s.volume,
+  adaptive_loading: (s) => s.adaptive_loading,
+  full_resolution_base_q: (s) => s.full_resolution_base_q,
+  ccs_kinetics: (s) => s.ccs_kinetics,
+};
+
+/** Column keys for the client-sorted Top-up table (fully loaded, no pagination). */
+type TopupSortKey = "container" | "barcode" | "from" | "requested";
+const TOPUP_SORT_ACCESSORS: Record<TopupSortKey, (t: SampleTopupOut) => string | number | null> = {
+  container: (t) => t.external_id ?? `Sample ${t.sample_id}`,
+  barcode: (t) => t.barcodes[0] ?? null,
+  from: (t) => t.source_run_name ?? null,
+  requested: (t) => t.request_sent_at ?? null,
+};
+
+interface SampleColumnDeps {
+  /** Renders a clickable, sort-aware column header. The main backlog passes a server-sort
+   * renderer; the Recoverable table passes a client-sort one, so each table sorts itself. */
+  renderHeader: (label: string, field: SampleSortBy) => ReactNode;
+  backNav: ReturnType<typeof useSampleBackNav>;
+  onEdit: (sample: SampleOut) => void;
+  onCancel: (id: number) => void;
+  cancelPending: boolean;
+}
+
+/** The backlog sample table columns, parameterised by the header renderer so the main and
+ * Recoverable tables can share cell markup while driving their own independent sort state. */
+function buildSampleColumns({ renderHeader, backNav, onEdit, onCancel, cancelPending }: SampleColumnDeps) {
+  return [
+    columnHelper.accessor("external_id", {
+      header: () => renderHeader("Container ID", "external_id"),
+      cell: (info) => (
+        <Link to={`/samples/${info.row.original.id}`} state={backNav} className="link">
+          {info.getValue()}
+        </Link>
+      ),
+    }),
+    columnHelper.accessor("barcodes", {
+      header: () => renderHeader("Barcodes", "barcode"),
+      cell: (info) => <BarcodeChips barcodes={info.getValue()} />,
+    }),
+    columnHelper.accessor("parent_sample", {
+      header: () => renderHeader("Parent sample", "parent_sample"),
+      cell: (info) => info.getValue() ?? "—",
+    }),
+    columnHelper.accessor("sanger_ids", {
+      header: () => renderHeader("Sanger IDs", "sanger_ids"),
+      cell: (info) => (info.getValue().length ? info.getValue().join(", ") : "—"),
+    }),
+    columnHelper.accessor("priority", {
+      header: () => renderHeader("Priority", "priority"),
+      cell: (info) => {
+        const v = info.getValue();
+        return <Badge tone={priorityTone(v)}>{priorityLabel(v)}</Badge>;
+      },
+    }),
+    columnHelper.accessor("target_oplc", {
+      header: () => renderHeader("Target OPLC", "target_oplc"),
+      cell: (info) => info.getValue() ?? "—",
+    }),
+    columnHelper.accessor("volume", {
+      header: () => renderHeader("Volume", "volume"),
+      cell: (info) => info.getValue() ?? "—",
+    }),
+    columnHelper.accessor("adaptive_loading", {
+      header: () => renderHeader("Adaptive loading", "adaptive_loading"),
+      cell: (info) => info.getValue() ?? "—",
+    }),
+    columnHelper.accessor("full_resolution_base_q", {
+      header: () => renderHeader("Full res. base Q", "full_resolution_base_q"),
+      cell: (info) => info.getValue() ?? "—",
+    }),
+    columnHelper.accessor("ccs_kinetics", {
+      header: () => renderHeader("Include base kinetics", "ccs_kinetics"),
+      cell: (info) => info.getValue() ?? "—",
+    }),
+    columnHelper.accessor("created_at", {
+      header: () => renderHeader("Created", "created_at"),
+      cell: (info) => formatDateTime(info.getValue()),
+    }),
+    columnHelper.display({
+      id: "actions",
+      header: "",
+      cell: (info) => (
+        <div className={styles.rowActions}>
+          <Button size="sm" variant="ghost" onClick={() => onEdit(info.row.original)}>
+            Edit
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => onCancel(info.row.original.id)} disabled={cancelPending}>
+            Cancel
+          </Button>
+        </div>
+      ),
+    }),
+  ];
 }
 
 /** Shared table markup for a react-table instance of backlog samples. */
@@ -149,102 +258,69 @@ export function BacklogPage() {
     });
   }, []);
 
+  // Main backlog: server-side sort (spans every page), driven by the query params above.
   const sortableHeader = useCallback(
-    (label: string, field: SampleSortBy) => {
-      const active = sortBy === field;
-      return (
-        <button type="button" className={styles.sortHeader} onClick={() => toggleSort(field)}>
-          {label}
-          {sortIndicator(active, sortDir)}
-        </button>
-      );
-    },
+    (label: string, field: SampleSortBy) => (
+      <SortableColumnHeader label={label} active={sortBy === field} dir={sortDir} onClick={() => toggleSort(field)} />
+    ),
     [sortBy, sortDir, toggleSort],
   );
+
+  // Recoverable band: fully loaded (no pagination), so it sorts in the browser and its
+  // headers must NOT touch the main backlog's server sort.
+  const recoverableSort = useClientSort(recoverableItems, SAMPLE_SORT_ACCESSORS, { by: "priority", dir: "asc" });
+  // Destructure the stable pieces (sortBy/sortDir are primitives, toggle is memoized) so the
+  // header renderer isn't rebuilt on every render just because useClientSort returns a fresh object.
+  const { sortBy: recSortBy, sortDir: recSortDir, toggle: recToggle } = recoverableSort;
+  const recoverableHeader = useCallback(
+    (label: string, field: SampleSortBy) => (
+      <SortableColumnHeader
+        label={label}
+        active={recSortBy === field}
+        dir={recSortDir}
+        onClick={() => recToggle(field)}
+      />
+    ),
+    [recSortBy, recSortDir, recToggle],
+  );
+
+  // Top-up list is fully loaded too, so it sorts client-side like the Recoverable band.
+  const topupSort = useClientSort(topups, TOPUP_SORT_ACCESSORS, { by: "container", dir: "asc" });
 
   const { mutate: cancelSample, isPending: cancelPending } = cancelMutation;
   const backNav = useSampleBackNav();
 
   const columns = useMemo(
-    () => [
-      columnHelper.accessor("external_id", {
-        header: () => sortableHeader("Container ID", "external_id"),
-        cell: (info) => (
-          <Link to={`/samples/${info.row.original.id}`} state={backNav} className="link">
-            {info.getValue()}
-          </Link>
-        ),
+    () =>
+      buildSampleColumns({
+        renderHeader: sortableHeader,
+        backNav,
+        onEdit: setEditSample,
+        onCancel: cancelSample,
+        cancelPending,
       }),
-      columnHelper.accessor("barcodes", {
-        header: () => sortableHeader("Barcodes", "barcode"),
-        cell: (info) => <BarcodeChips barcodes={info.getValue()} />,
-      }),
-      columnHelper.accessor("parent_sample", {
-        header: "Parent sample",
-        cell: (info) => info.getValue() ?? "—",
-      }),
-      columnHelper.accessor("sanger_ids", {
-        header: "Sanger IDs",
-        cell: (info) => (info.getValue().length ? info.getValue().join(", ") : "—"),
-      }),
-      columnHelper.accessor("priority", {
-        header: () => sortableHeader("Priority", "priority"),
-        cell: (info) => {
-          const v = info.getValue();
-          return <Badge tone={priorityTone(v)}>{priorityLabel(v)}</Badge>;
-        },
-      }),
-      columnHelper.accessor("target_oplc", {
-        header: "Target OPLC",
-        cell: (info) => info.getValue() ?? "—",
-      }),
-      columnHelper.accessor("volume", {
-        header: "Volume",
-        cell: (info) => info.getValue() ?? "—",
-      }),
-      columnHelper.accessor("adaptive_loading", {
-        header: "Adaptive loading",
-        cell: (info) => info.getValue() ?? "—",
-      }),
-      columnHelper.accessor("full_resolution_base_q", {
-        header: "Full res. base Q",
-        cell: (info) => info.getValue() ?? "—",
-      }),
-      columnHelper.accessor("ccs_kinetics", {
-        header: "Include base kinetics",
-        cell: (info) => info.getValue() ?? "—",
-      }),
-      columnHelper.accessor("created_at", {
-        header: "Created",
-        cell: (info) => formatDateTime(info.getValue()),
-      }),
-      columnHelper.display({
-        id: "actions",
-        header: "",
-        cell: (info) => (
-          <div className={styles.rowActions}>
-            <Button size="sm" variant="ghost" onClick={() => setEditSample(info.row.original)}>
-              Edit
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => cancelSample(info.row.original.id)}
-              disabled={cancelPending}
-            >
-              Cancel
-            </Button>
-          </div>
-        ),
-      }),
-    ],
     [sortableHeader, cancelSample, cancelPending, backNav],
+  );
+  const recoverableColumns = useMemo(
+    () =>
+      buildSampleColumns({
+        renderHeader: recoverableHeader,
+        backNav,
+        onEdit: setEditSample,
+        onCancel: cancelSample,
+        cancelPending,
+      }),
+    [recoverableHeader, cancelSample, cancelPending, backNav],
   );
 
   const items = query.data?.items ?? [];
   const total = query.data?.total ?? 0;
   const table = useReactTable({ data: items, columns, getCoreRowModel: getCoreRowModel() });
-  const recoverableTable = useReactTable({ data: recoverableItems, columns, getCoreRowModel: getCoreRowModel() });
+  const recoverableTable = useReactTable({
+    data: recoverableSort.sorted,
+    columns: recoverableColumns,
+    getCoreRowModel: getCoreRowModel(),
+  });
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   return (
@@ -359,15 +435,43 @@ export function BacklogPage() {
             <table className={styles.table}>
               <thead>
                 <tr>
-                  <th>Container ID</th>
-                  <th>Barcodes</th>
-                  <th>From</th>
-                  <th>Requested</th>
+                  <th>
+                    <SortableColumnHeader
+                      label="Container ID"
+                      active={topupSort.sortBy === "container"}
+                      dir={topupSort.sortDir}
+                      onClick={() => topupSort.toggle("container")}
+                    />
+                  </th>
+                  <th>
+                    <SortableColumnHeader
+                      label="Barcodes"
+                      active={topupSort.sortBy === "barcode"}
+                      dir={topupSort.sortDir}
+                      onClick={() => topupSort.toggle("barcode")}
+                    />
+                  </th>
+                  <th>
+                    <SortableColumnHeader
+                      label="From"
+                      active={topupSort.sortBy === "from"}
+                      dir={topupSort.sortDir}
+                      onClick={() => topupSort.toggle("from")}
+                    />
+                  </th>
+                  <th>
+                    <SortableColumnHeader
+                      label="Requested"
+                      active={topupSort.sortBy === "requested"}
+                      dir={topupSort.sortDir}
+                      onClick={() => topupSort.toggle("requested")}
+                    />
+                  </th>
                   <th></th>
                 </tr>
               </thead>
               <tbody>
-                {topups.map((t) => (
+                {topupSort.sorted.map((t) => (
                   <tr key={t.id}>
                     <td>
                       {t.external_id ? <b>{t.external_id}</b> : `Sample ${t.sample_id}`}

@@ -18,7 +18,11 @@ export interface BatchSheetWellOut {
   ccs_kinetics: string | null;
   full_resolution_base_q: string | null;
   target_oplc: number | null;
-  volume: number | null;
+  volume: number | null; // "Volume to Load" / library volume taken for complex
+  // Complex-loading dilution volumes for the SOP 7.3 worksheet (optional, from import).
+  cleaned_complex_volume: number | null;
+  loading_buffer_volume: number | null;
+  control_dilution_3_volume: number | null;
   notes: string | null;
 }
 

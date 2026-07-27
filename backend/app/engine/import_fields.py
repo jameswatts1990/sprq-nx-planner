@@ -32,6 +32,11 @@ K_FULL_RES_BASE_Q = "full_resolution_base_q"
 K_PRIORITY = "priority"
 K_CCS_KINETICS = "ccs_kinetics"
 K_MOVIE_TIME = "movie_time_hours"
+# Batch-sheet-only loading-dilution volumes (all optional). Importable, but not shown or
+# editable in the manual add/edit form — see `import_only` below.
+K_CLEANED_COMPLEX_VOL = "cleaned_complex_volume"
+K_LOADING_BUFFER_VOL = "loading_buffer_volume"
+K_CONTROL_DIL3_VOL = "control_dilution_3_volume"
 
 
 @dataclass(frozen=True)
@@ -42,6 +47,10 @@ class ImportField:
     kind: str = "text"  # text | number | barcodes | sanger | boolean
     required: bool = False
     aliases: tuple[str, ...] = field(default_factory=tuple)
+    # True for fields that can be mapped/imported from a file but aren't offered on the manual
+    # "Add / edit sample" form — the value only ever comes in via an import and is shown only
+    # on the batch sheet. The mapping-review UI still lists them; SampleModal filters them out.
+    import_only: bool = False
 
 
 # Order here is the order shown in the mapping UI, the manual-add form, and the template.
@@ -72,6 +81,21 @@ IMPORTABLE_FIELDS: list[ImportField] = [
     ImportField(
         K_MOVIE_TIME, "Movie time (h)", "24", kind="number",
         aliases=("movie time", "movie length", "run time", "acquisition time", "movie"),
+    ),
+    # Batch-sheet-only loading-dilution volumes. Optional, mappable from a normal CSV and
+    # carried automatically from the scheduler sheet; aliases cover both the tidy labels here
+    # and the scheduler sheet's own longer headers so both auto-map.
+    ImportField(
+        K_CLEANED_COMPLEX_VOL, "Cleaned Complex Vol (uL)", "8", kind="number", import_only=True,
+        aliases=("cleaned complex",),
+    ),
+    ImportField(
+        K_LOADING_BUFFER_VOL, "Loading Buffer Vol (uL)", "6", kind="number", import_only=True,
+        aliases=("loading buffer",),
+    ),
+    ImportField(
+        K_CONTROL_DIL3_VOL, "Control Dilution 3 Vol (uL)", "2", kind="number", import_only=True,
+        aliases=("control dilution",),
     ),
 ]
 

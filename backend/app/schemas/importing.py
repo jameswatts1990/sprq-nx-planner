@@ -49,6 +49,9 @@ class ImportFieldOut(BaseModel):
     kind: str
     required: bool
     example: str
+    # True for fields that can be mapped/imported but aren't offered on the manual add/edit
+    # form (the value only comes in via import and is shown only on the batch sheet).
+    import_only: bool = False
 
 
 class PreviewColumn(BaseModel):

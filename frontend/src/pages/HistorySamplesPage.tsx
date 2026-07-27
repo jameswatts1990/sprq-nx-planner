@@ -3,14 +3,17 @@ import { memo, useCallback, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { ApiError } from "@/api/client";
+import type { SampleSortBy, SampleSortDir } from "@/api/samples";
 import { samplesApi } from "@/api/samples";
 import { BarcodeChips } from "@/components/shared/BarcodeChips";
 import { Pagination } from "@/components/shared/Pagination";
+import { SortableColumnHeader } from "@/components/shared/SortableColumnHeader";
 import { Badge } from "@/components/ui/Badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Note } from "@/components/ui/Note";
-import type { SampleOut } from "@/types/sample";
+import type { SampleCellUseOut, SampleOut } from "@/types/sample";
 import { runLabel } from "@/utils/runLabel";
+import { useClientSort } from "@/utils/useClientSort";
 import { USE_STATUS_TONE } from "@/utils/useStatusTone";
 import { useDebouncedValue } from "@/utils/useDebouncedValue";
 
@@ -22,18 +25,63 @@ function formatDateTime(iso: string): string {
   return new Date(iso).toLocaleString();
 }
 
+/** One value per sortable column of a sample's cell-use list. That list is fully loaded
+ * (lazily fetched when the row expands), so it sorts in the browser. */
+type CellUseSortKey = "run" | "plate" | "cell" | "well" | "status" | "started" | "completed" | "notes";
+const CELL_USE_SORT_ACCESSORS: Record<CellUseSortKey, (u: SampleCellUseOut) => string | number | null> = {
+  run: (u) => u.run_name ?? u.run_batch_id,
+  plate: (u) => u.plate_number,
+  cell: (u) => u.cell_code,
+  well: (u) => u.well,
+  status: (u) => u.status,
+  started: (u) => u.started_at,
+  completed: (u) => u.completed_at,
+  notes: (u) => u.outcome_notes,
+};
+
 export function HistorySamplesPage() {
   const [qInput, setQInput] = useState("");
   const q = useDebouncedValue(qInput, 350);
   const [page, setPage] = useState(1);
+  // Server-side sort so it spans every page, not just the loaded one. Defaults to most
+  // recently updated first — the natural "what happened last" history order.
+  const [sortBy, setSortBy] = useState<SampleSortBy>("updated_at");
+  const [sortDir, setSortDir] = useState<SampleSortDir>("desc");
   const [expandedId, setExpandedId] = useState<number | null>(null);
   // Stable identity so the memoized rows below only re-render the one whose `expanded` flips,
   // rather than the whole page on every parent render (e.g. each search keystroke).
   const handleToggle = useCallback((id: number) => setExpandedId((cur) => (cur === id ? null : id)), []);
 
+  const toggleSort = useCallback((field: SampleSortBy) => {
+    setPage(1);
+    setSortBy((cur) => {
+      if (cur === field) {
+        setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+        return cur;
+      }
+      setSortDir("asc");
+      return field;
+    });
+  }, []);
+
+  const sortableHeader = useCallback(
+    (label: string, field: SampleSortBy) => (
+      <SortableColumnHeader label={label} active={sortBy === field} dir={sortDir} onClick={() => toggleSort(field)} />
+    ),
+    [sortBy, sortDir, toggleSort],
+  );
+
   const query = useQuery({
-    queryKey: ["samples", { status: "completed,failed", q, page, page_size: PAGE_SIZE }],
-    queryFn: () => samplesApi.list({ status: "completed,failed", q: q || undefined, page, page_size: PAGE_SIZE }),
+    queryKey: ["samples", { status: "completed,failed", q, sortBy, sortDir, page, page_size: PAGE_SIZE }],
+    queryFn: () =>
+      samplesApi.list({
+        status: "completed,failed",
+        q: q || undefined,
+        sort_by: sortBy,
+        sort_dir: sortDir,
+        page,
+        page_size: PAGE_SIZE,
+      }),
   });
 
   const items = query.data?.items ?? [];
@@ -74,14 +122,14 @@ export function HistorySamplesPage() {
                 <thead>
                   <tr>
                     <th />
-                    <th>Container ID</th>
-                    <th>Status</th>
-                    <th>Barcodes</th>
-                    <th>Parent sample</th>
-                    <th>Target OPLC</th>
-                    <th>Volume</th>
-                    <th>Priority</th>
-                    <th>Updated</th>
+                    <th>{sortableHeader("Container ID", "external_id")}</th>
+                    <th>{sortableHeader("Status", "status")}</th>
+                    <th>{sortableHeader("Barcodes", "barcode")}</th>
+                    <th>{sortableHeader("Parent sample", "parent_sample")}</th>
+                    <th>{sortableHeader("Target OPLC", "target_oplc")}</th>
+                    <th>{sortableHeader("Volume", "volume")}</th>
+                    <th>{sortableHeader("Priority", "priority")}</th>
+                    <th>{sortableHeader("Updated", "updated_at")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -119,6 +167,8 @@ const SampleRow = memo(function SampleRow({ sample, expanded, onToggle }: Sample
     enabled: expanded,
   });
 
+  const cellUseSort = useClientSort(detailQuery.data?.cell_uses ?? [], CELL_USE_SORT_ACCESSORS, { by: "run", dir: "asc" });
+
   return (
     <>
       <tr className={styles.row} onClick={() => onToggle(sample.id)}>
@@ -152,18 +202,74 @@ const SampleRow = memo(function SampleRow({ sample, expanded, onToggle }: Sample
                 <table className={styles.innerTable}>
                   <thead>
                     <tr>
-                      <th>Run</th>
-                      <th>Plate</th>
-                      <th>Cell</th>
-                      <th>Well</th>
-                      <th>Status</th>
-                      <th>Started</th>
-                      <th>Completed</th>
-                      <th>Notes</th>
+                      <th>
+                        <SortableColumnHeader
+                          label="Run"
+                          active={cellUseSort.sortBy === "run"}
+                          dir={cellUseSort.sortDir}
+                          onClick={() => cellUseSort.toggle("run")}
+                        />
+                      </th>
+                      <th>
+                        <SortableColumnHeader
+                          label="Plate"
+                          active={cellUseSort.sortBy === "plate"}
+                          dir={cellUseSort.sortDir}
+                          onClick={() => cellUseSort.toggle("plate")}
+                        />
+                      </th>
+                      <th>
+                        <SortableColumnHeader
+                          label="Cell"
+                          active={cellUseSort.sortBy === "cell"}
+                          dir={cellUseSort.sortDir}
+                          onClick={() => cellUseSort.toggle("cell")}
+                        />
+                      </th>
+                      <th>
+                        <SortableColumnHeader
+                          label="Well"
+                          active={cellUseSort.sortBy === "well"}
+                          dir={cellUseSort.sortDir}
+                          onClick={() => cellUseSort.toggle("well")}
+                        />
+                      </th>
+                      <th>
+                        <SortableColumnHeader
+                          label="Status"
+                          active={cellUseSort.sortBy === "status"}
+                          dir={cellUseSort.sortDir}
+                          onClick={() => cellUseSort.toggle("status")}
+                        />
+                      </th>
+                      <th>
+                        <SortableColumnHeader
+                          label="Started"
+                          active={cellUseSort.sortBy === "started"}
+                          dir={cellUseSort.sortDir}
+                          onClick={() => cellUseSort.toggle("started")}
+                        />
+                      </th>
+                      <th>
+                        <SortableColumnHeader
+                          label="Completed"
+                          active={cellUseSort.sortBy === "completed"}
+                          dir={cellUseSort.sortDir}
+                          onClick={() => cellUseSort.toggle("completed")}
+                        />
+                      </th>
+                      <th>
+                        <SortableColumnHeader
+                          label="Notes"
+                          active={cellUseSort.sortBy === "notes"}
+                          dir={cellUseSort.sortDir}
+                          onClick={() => cellUseSort.toggle("notes")}
+                        />
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
-                    {detailQuery.data.cell_uses.map((u) => (
+                    {cellUseSort.sorted.map((u) => (
                       <tr key={u.id}>
                         <td>
                           <Link to={`/history/runs/${u.run_batch_id}`} className="link">

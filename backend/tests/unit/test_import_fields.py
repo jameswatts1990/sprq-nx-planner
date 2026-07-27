@@ -63,4 +63,4 @@ def test_template_round_trips_through_the_mapper():
 def test_tracker_layout_and_importable_fields_stay_independent():
     # sanity: the tracker export spec is a different, larger layout than the import fields
     assert len(TRACKER_COLUMNS) == 56
-    assert len(IMPORTABLE_FIELDS) == 11
+    assert len(IMPORTABLE_FIELDS) == 14

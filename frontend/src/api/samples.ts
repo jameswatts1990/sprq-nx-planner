@@ -2,7 +2,20 @@ import { api, buildQuery } from "./client";
 import type { Page } from "@/types/common";
 import type { SampleCreate, SampleDetailOut, SampleOut, SampleUpdate } from "@/types/sample";
 
-export type SampleSortBy = "created_at" | "external_id" | "barcode" | "priority";
+export type SampleSortBy =
+  | "created_at"
+  | "updated_at"
+  | "external_id"
+  | "barcode"
+  | "priority"
+  | "status"
+  | "parent_sample"
+  | "sanger_ids"
+  | "target_oplc"
+  | "volume"
+  | "adaptive_loading"
+  | "full_resolution_base_q"
+  | "ccs_kinetics";
 export type SampleSortDir = "asc" | "desc";
 
 export interface ListSamplesParams {

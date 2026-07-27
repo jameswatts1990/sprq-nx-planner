@@ -231,3 +231,36 @@ def test_emitted_csv_auto_maps_and_imports_through_the_normal_path():
     assert sample.id == "POOL-1"
     assert sample.barcodes == ["bc1", "bc2"]
     assert sample.sanger == ["DTOL1", "DTOL2"]
+
+
+def test_loading_volumes_carry_from_the_scheduler_sheet_and_auto_map():
+    """The four loading volumes are read from the scheduler sheet's own headers, emitted
+    into the standard CSV, and auto-map into the batch-sheet-only ParsedSample fields."""
+    header = [
+        "Pool ID",
+        "Portion of SMRT Cell",
+        "Complex Batch ID",
+        "Library Volume Taken for Complex (uL)",
+        "Cleaned complex volume for desired OPLC (uL)",
+        "Loading buffer volume (uL)",
+        "Volume of Control Dilution 3 (uL)",
+    ]
+    row = ["POOL-1", "1", "bc1", "12", "8", "6", "2"]
+    buf = io.StringIO()
+    writer = csv.writer(buf, lineterminator="\r\n")
+    writer.writerows([header, row])
+
+    converted = convert_scheduler_csv(buf.getvalue()).csv
+    rec = _by_container(converted)["POOL-1"]
+    assert rec["Volume to Load (uL)"] == "12"
+    assert rec["Cleaned Complex Vol (uL)"] == "8"
+    assert rec["Loading Buffer Vol (uL)"] == "6"
+    assert rec["Control Dilution 3 Vol (uL)"] == "2"
+
+    rows = parse_csv(converted)
+    normalized = normalize_with_map(rows[1:], suggest_column_map(rows[0]))
+    sample = normalized.samples[0]
+    assert sample.volume == 12
+    assert sample.cleaned_complex_volume == 8
+    assert sample.loading_buffer_volume == 6
+    assert sample.control_dilution_3_volume == 2

@@ -160,6 +160,9 @@ export function SampleModal({
 
       <div className={styles.grid}>
         {fields
+          // import_only fields (batch-sheet loading volumes) are mappable on import but not
+          // hand-editable here — never show them on this form.
+          .filter((f) => !f.import_only)
           // In restricted mode show only the editable fields plus the (locked) Container ID
           // for context; every other field is hidden rather than shown greyed-out.
           .filter((f) => !isRestricted || editableKeys.has(f.key) || PROTECTED_KEYS.has(f.key))

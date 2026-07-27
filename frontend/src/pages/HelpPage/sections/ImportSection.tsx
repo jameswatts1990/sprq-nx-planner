@@ -27,7 +27,10 @@ export function ImportSection() {
           <b>pools</b> the rows that share a cell into one container (Pool ID becomes the Container ID; barcodes and
           Sanger IDs are combined). It then takes you straight to the mapping step with a note saying how many rows
           became how many containers, plus a warning for any group that didn&apos;t add up to a whole cell (those
-          are left out). A Plate ID column, if present, is ignored — the planner doesn&apos;t track it.
+          are left out). A Plate ID column, if present, is ignored — the planner doesn&apos;t track it. The
+          complex-loading volumes on the sheet — the library volume taken for complex, cleaned-complex, loading-buffer
+          and Control Dilution 3 volumes — are carried across automatically and later pre-fill the batch sheet&apos;s
+          loading-dilution worksheet.
         </dd>
         <dt>Download template</dt>
         <dd>Saves a blank CSV with the right column headers and one example row — fill it in and upload it back.</dd>
@@ -51,6 +54,12 @@ export function ImportSection() {
         a dropdown. Fields marked <span aria-hidden>*</span> are required — <b>Container ID</b> and{" "}
         <b>Barcodes</b> must be mapped before the <b>Import</b> button enables. Rows with no barcode are skipped, and
         a note tells you how many. Use <b>‹ Back</b> to return to the text without losing it.
+      </p>
+      <p>
+        A few fields — the complex-loading volumes (<i>cleaned-complex</i>, <i>loading-buffer</i> and{" "}
+        <i>Control Dilution 3</i>) — are optional and used only on the batch sheet, so you&apos;ll see them in the
+        mapping list but not on the manual <i>Add sample</i> form. Leave them unmapped if your file doesn&apos;t have
+        them.
       </p>
 
       <p className={styles.subheading}>Result panel</p>

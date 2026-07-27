@@ -102,5 +102,8 @@ def _well_out(cell_use: CellUse, plate_index: int) -> BatchSheetWellOut:
         full_resolution_base_q=sample.full_resolution_base_q if sample else None,
         target_oplc=sample.target_oplc if sample else None,
         volume=sample.volume if sample else None,
+        cleaned_complex_volume=sample.cleaned_complex_volume if sample else None,
+        loading_buffer_volume=sample.loading_buffer_volume if sample else None,
+        control_dilution_3_volume=sample.control_dilution_3_volume if sample else None,
         notes=cell_use.notes,
     )

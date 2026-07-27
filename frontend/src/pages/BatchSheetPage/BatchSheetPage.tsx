@@ -74,10 +74,16 @@ function WellRow({ well }: { well: BatchSheetWellOut }) {
   );
 }
 
+/** A SOP 7.3 dilution-volume cell: prints the imported volume when the scheduler sheet
+ * supplied one, otherwise a blank box to hand-write at the bench. */
+function WorksheetVolumeCell({ value }: { value: number | null }) {
+  return value != null ? <td>{value}</td> : <td className={styles.entryCell} />;
+}
+
 /** SOP 7.3 — Final complex loading dilution, per plate. One row per well; the app pre-fills
- * what it knows (well, Traction ID, target OPLC) and leaves the dilution volumes and achieved
- * OPLC as blank cells to hand-write at the bench, since the app has no complex-concentration
- * data. */
+ * what it knows (well, Traction ID, target OPLC, and — when the scheduler sheet supplied them
+ * — the complex / loading-buffer / control-dilution volumes) and leaves the remaining dilution
+ * volumes and achieved OPLC as blank cells to hand-write at the bench. */
 function DilutionWorksheet({ plate }: { plate: BatchSheetPlateOut }) {
   return (
     <div className={styles.worksheetCol}>
@@ -114,9 +120,11 @@ function DilutionWorksheet({ plate }: { plate: BatchSheetPlateOut }) {
               <td>{plateWellFromSlot(w.slot_index, { qualified: true })}</td>
               <td>{w.sample_external_id ?? "—"}</td>
               <td>{w.target_oplc ?? ""}</td>
-              <td className={styles.entryCell} />
-              <td className={styles.entryCell} />
-              <td className={styles.entryCell} />
+              {/* Pre-filled from import when the scheduler sheet supplied a value; otherwise a
+                  blank box to hand-write at the bench. */}
+              <WorksheetVolumeCell value={w.cleaned_complex_volume} />
+              <WorksheetVolumeCell value={w.loading_buffer_volume} />
+              <WorksheetVolumeCell value={w.control_dilution_3_volume} />
               <td className={styles.entryCell} />
               <td className={styles.entryCell} />
               <td className={styles.entryCell} />

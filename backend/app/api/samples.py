@@ -21,11 +21,55 @@ from app.services.sample_service import (
 
 router = APIRouter(prefix="/api/samples", tags=["samples"])
 
-SORTABLE_FIELDS = ("created_at", "external_id", "barcode", "priority")
+SORTABLE_FIELDS = (
+    "created_at",
+    "updated_at",
+    "external_id",
+    "barcode",
+    "priority",
+    "status",
+    "parent_sample",
+    "sanger_ids",
+    "target_oplc",
+    "volume",
+    "adaptive_loading",
+    "full_resolution_base_q",
+    "ccs_kinetics",
+)
 
 
 def _first_barcode(sample: Sample) -> str:
     return sample.barcode_list[0] if sample.barcode_list else ""
+
+
+def _lower_or_none(value: str | None) -> str | None:
+    """Case-insensitive sort key for a nullable text column; None stays None so the
+    caller can keep empty cells grouped at the end regardless of direction."""
+    return value.lower() if value else None
+
+
+# Simple single-column sort keys (text lower-cased, numbers as-is). Each returns None for
+# an empty cell so `_sort_none_last` can keep blanks at the bottom either way. The columns
+# with bespoke ordering (external_id / barcode / priority / created_at) are handled inline.
+_SIMPLE_SORT_KEYS = {
+    "updated_at": lambda s: s.updated_at,
+    "status": lambda s: s.status,
+    "parent_sample": lambda s: _lower_or_none(s.parent_sample),
+    "sanger_ids": lambda s: (s.sanger_ids[0].lower() if s.sanger_ids else None),
+    "target_oplc": lambda s: s.target_oplc,
+    "volume": lambda s: s.volume,
+    "adaptive_loading": lambda s: _lower_or_none(s.adaptive_loading),
+    "full_resolution_base_q": lambda s: _lower_or_none(s.full_resolution_base_q),
+    "ccs_kinetics": lambda s: _lower_or_none(s.ccs_kinetics),
+}
+
+
+def _sort_none_last(samples: list[Sample], key, reverse: bool) -> list[Sample]:
+    """Stable sort keeping rows with an empty (None) key at the end regardless of
+    direction, so flipping asc/desc never floats blank cells to the top."""
+    present = sorted((s for s in samples if key(s) is not None), key=key, reverse=reverse)
+    absent = [s for s in samples if key(s) is None]
+    return present + absent
 
 
 @router.get("", response_model=Page[SampleOut])
@@ -97,6 +141,8 @@ def list_samples(
             key=lambda s: (priority_rank(s.priority), external_id_sort_key(s.external_id)),
             reverse=reverse,
         )
+    elif sort_by in _SIMPLE_SORT_KEYS:
+        all_matching = _sort_none_last(all_matching, _SIMPLE_SORT_KEYS[sort_by], reverse)
     # "created_at" is already the base query order (desc); re-sort only if asc requested
     elif sort_dir == "asc":
         all_matching.reverse()

@@ -94,6 +94,9 @@ def import_samples(db: Session, req: ImportRequest) -> ImportResult:
                 parent_sample=parsed.parent,
                 target_oplc=parsed.target_oplc,
                 volume=parsed.volume,
+                cleaned_complex_volume=parsed.cleaned_complex_volume,
+                loading_buffer_volume=parsed.loading_buffer_volume,
+                control_dilution_3_volume=parsed.control_dilution_3_volume,
                 adaptive_loading=parsed.adaptive_loading,
                 full_resolution_base_q=parsed.full_resolution_base_q,
                 priority=parsed.priority,
@@ -175,7 +178,10 @@ def scheduler_convert(raw_text: str) -> SchedulerConvertResult:
 
 def importable_fields() -> list[ImportFieldOut]:
     return [
-        ImportFieldOut(key=f.key, label=f.label, kind=f.kind, required=f.required, example=f.example)
+        ImportFieldOut(
+            key=f.key, label=f.label, kind=f.kind, required=f.required,
+            example=f.example, import_only=f.import_only,
+        )
         for f in IMPORTABLE_FIELDS
     ]
 

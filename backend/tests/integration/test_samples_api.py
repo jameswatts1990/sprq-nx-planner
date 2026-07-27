@@ -86,6 +86,38 @@ def test_sort_by_priority_groups_equal_rank_by_container_id(client):
     assert [s["external_id"] for s in resp.json()["items"]] == ["A1", "B1", "C1"]
 
 
+def test_sort_by_numeric_column_orders_numerically_with_blanks_last(client):
+    # target_oplc is a nullable number; blanks (A3) must stay at the end in BOTH directions
+    # rather than floating to the top when the direction flips.
+    _create(client, external_id="A1", barcodes=["bc1"], target_oplc=250)
+    _create(client, external_id="A2", barcodes=["bc2"], target_oplc=90)
+    _create(client, external_id="A3", barcodes=["bc3"])
+
+    asc = client.get("/api/samples", params={"sort_by": "target_oplc", "sort_dir": "asc"})
+    assert asc.status_code == 200, asc.text
+    assert [s["external_id"] for s in asc.json()["items"]] == ["A2", "A1", "A3"]
+
+    desc = client.get("/api/samples", params={"sort_by": "target_oplc", "sort_dir": "desc"})
+    assert desc.status_code == 200, desc.text
+    assert [s["external_id"] for s in desc.json()["items"]] == ["A1", "A2", "A3"]
+
+
+def test_sort_by_text_column_is_case_insensitive(client):
+    _create(client, external_id="A1", barcodes=["bc1"], parent_sample="zebra")
+    _create(client, external_id="A2", barcodes=["bc2"], parent_sample="Apple")
+    _create(client, external_id="A3", barcodes=["bc3"], parent_sample="mango")
+
+    resp = client.get("/api/samples", params={"sort_by": "parent_sample", "sort_dir": "asc"})
+    assert resp.status_code == 200, resp.text
+    assert [s["external_id"] for s in resp.json()["items"]] == ["A2", "A3", "A1"]
+
+
+def test_sort_by_unknown_field_is_400(client):
+    _import(client, "sample,barcodes\nA1,bc1")
+    resp = client.get("/api/samples", params={"sort_by": "not_a_column"})
+    assert resp.status_code == 400
+
+
 def test_list_priorities_scopes_to_status(client):
     _import(
         client,

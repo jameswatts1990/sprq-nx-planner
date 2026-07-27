@@ -61,9 +61,11 @@ export function HistorySection() {
       <p>
         <b>What it&apos;s for:</b> every sample that has finished, either <b>completed</b> (green) or <b>failed</b>{" "}
         (red). Search by container ID, barcode, or parent sample. Each row shows the sample&apos;s status, barcodes,
-        parent sample, Target OPLC, volume, and last-updated time. Click a row to expand it and see that sample&apos;s
-        individual cell uses — the run (links to the run), which plate (1 or 2) it ran on, the cell (links to the
-        cell) and well, the use status as a colour-coded badge, start/complete times, and notes.
+        parent sample, Target OPLC, volume, and last-updated time. Click <i>any</i> column header to sort the list by
+        that field (click again to reverse); it starts with the most recently updated first. Click a row to expand it
+        and see that sample&apos;s individual cell uses — the run (links to the run), which plate (1 or 2) it ran on,
+        the cell (links to the cell) and well, the use status as a colour-coded badge, start/complete times, and
+        notes. That inner cell-uses table has clickable, sortable headers too.
       </p>
 
       <p className={styles.subheading}>Sample detail page</p>

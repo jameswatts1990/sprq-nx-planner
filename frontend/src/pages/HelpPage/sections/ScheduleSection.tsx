@@ -156,8 +156,10 @@ export function ScheduleSection() {
         Below each run&apos;s table the sheet also prints two <b>fill-in worksheets per plate</b> to record the bench
         work as you go; for a two-plate run the two plates&apos; worksheets sit <b>side by side</b> to make the most of
         the landscape page. The <b>7.3 · Final complex loading dilution</b> table has a row per well, pre-filled with the
-        well, Traction ID and Target OPLC, and blank boxes to write in the complex, loading-buffer and control-dilution
-        volumes, the final volume and the OPLC you actually achieved. The <b>7.4 · Plate loading</b> checklist (one per
+        well, Traction ID and Target OPLC. If the sample was imported with its complex, loading-buffer and
+        control-dilution volumes (these come straight across when you upload from the scheduler sheet), those boxes
+        are pre-filled too; any the app doesn&apos;t have are left blank to write in at the bench, along with the final
+        volume and the OPLC you actually achieved. The <b>7.4 · Plate loading</b> checklist (one per
         plate) has a space to note the plate&apos;s QR / serial number, tick boxes for the plate-prep steps
         (vortexed, spun down, foil pierced) and a per-well tick for &quot;23 µL loaded&quot; and &quot;sealed&quot;.
         These are for writing on the printout by hand — the values aren&apos;t stored back in the app.

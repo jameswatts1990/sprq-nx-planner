@@ -24,7 +24,11 @@ class BatchSheetWellOut(BaseModel):
     ccs_kinetics: str | None
     full_resolution_base_q: str | None
     target_oplc: float | None
-    volume: float | None
+    volume: float | None  # "Volume to Load" / library volume taken for complex
+    # Complex-loading dilution volumes for the SOP 7.3 worksheet (optional, from import).
+    cleaned_complex_volume: float | None
+    loading_buffer_volume: float | None
+    control_dilution_3_volume: float | None
     notes: str | None  # free-text placement note, printed alongside the well
 
 

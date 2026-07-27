@@ -32,6 +32,12 @@ import re
 from dataclasses import dataclass, field
 
 from app.engine.csv_parse import parse_csv, split_barcodes
+from app.engine.import_fields import (
+    K_CLEANED_COMPLEX_VOL,
+    K_CONTROL_DIL3_VOL,
+    K_LOADING_BUFFER_VOL,
+    K_VOLUME,
+)
 from app.engine.tracker_columns import (
     K_BARCODES,
     K_PLATE_ID,
@@ -47,8 +53,19 @@ from app.engine.tracker_columns import (
 _TOLERANCE = 0.001
 
 # Canonical headers of the CSV we emit. Chosen to match IMPORTABLE_FIELDS labels so the
-# ordinary importer's suggest_column_map auto-maps every one of them.
-OUT_HEADERS = ["Container ID", "Barcodes", "Sanger Sample IDs", "Priority", "Target OPLC (pM)"]
+# ordinary importer's suggest_column_map auto-maps every one of them. The four volume
+# columns are batch-sheet-only fields carried straight from the scheduler sheet.
+OUT_HEADERS = [
+    "Container ID",
+    "Barcodes",
+    "Sanger Sample IDs",
+    "Priority",
+    "Target OPLC (pM)",
+    "Volume to Load (uL)",
+    "Cleaned Complex Vol (uL)",
+    "Loading Buffer Vol (uL)",
+    "Control Dilution 3 Vol (uL)",
+]
 
 # field-key -> the normalized headers that feed it. Exact (whitespace-collapsed, lower-cased)
 # matches only — we never silently borrow an unrelated column. The strings cover both the
@@ -66,6 +83,12 @@ _FIELD_ALIASES: dict[str, tuple[str, ...]] = {
         "target oplc",
     ),
     K_PORTION: ("portion of smrt cell", "portion"),
+    # Batch-sheet-only loading volumes — exact-matched against the scheduler sheet's own
+    # headers (the lab's current column names).
+    K_VOLUME: ("library volume taken for complex (ul)", "volume to load (ul)"),
+    K_CLEANED_COMPLEX_VOL: ("cleaned complex volume for desired oplc (ul)", "cleaned complex vol (ul)"),
+    K_LOADING_BUFFER_VOL: ("loading buffer volume (ul)", "loading buffer vol (ul)"),
+    K_CONTROL_DIL3_VOL: ("volume of control dilution 3 (ul)", "control dilution 3 vol (ul)"),
 }
 
 # Without these three we can't produce importable containers: Pool ID is the Container ID,
@@ -99,6 +122,12 @@ class _Pool:
     sanger: list[str]
     priority: str
     target_oplc: str
+    # Batch-sheet-only loading volumes; first non-empty value across the pool (they describe
+    # how the shared cell is loaded, so they're the same for every row of a pool in practice).
+    volume: str
+    cleaned_complex_volume: str
+    loading_buffer_volume: str
+    control_dilution_3_volume: str
 
 
 def _resolve_columns(header: list[str]) -> dict[str, int]:
@@ -177,6 +206,10 @@ def _finalize(group: list[list[str]], cols: dict[str, int]) -> _Pool:
         sanger=combined(K_SANGER, _split_ids),
         priority=first_nonempty(K_PRIORITY),
         target_oplc=first_nonempty(K_TARGET_OPLC),
+        volume=first_nonempty(K_VOLUME),
+        cleaned_complex_volume=first_nonempty(K_CLEANED_COMPLEX_VOL),
+        loading_buffer_volume=first_nonempty(K_LOADING_BUFFER_VOL),
+        control_dilution_3_volume=first_nonempty(K_CONTROL_DIL3_VOL),
     )
 
 
@@ -263,6 +296,10 @@ def _pools_to_csv(pools: list[_Pool]) -> str:
                 sanger_cell,
                 pool.priority,
                 pool.target_oplc,
+                pool.volume,
+                pool.cleaned_complex_volume,
+                pool.loading_buffer_volume,
+                pool.control_dilution_3_volume,
             ]
         )
     return buf.getvalue()

@@ -23,6 +23,13 @@ class Sample(Base):
     sanger_ids: Mapped[list[str]] = mapped_column(JSON, default=list)
     target_oplc: Mapped[float | None] = mapped_column(Float, nullable=True)
     volume: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # The complex-loading dilution volumes taken from the scheduler sheet (all optional).
+    # These are batch-sheet-only: imported and printed on the batch sheet's SOP 7.3 dilution
+    # worksheet, but not shown or edited anywhere else, so they aren't in SampleOut or the
+    # sample edit form. Nullable like every other optional import field.
+    cleaned_complex_volume: Mapped[float | None] = mapped_column(Float, nullable=True)
+    loading_buffer_volume: Mapped[float | None] = mapped_column(Float, nullable=True)
+    control_dilution_3_volume: Mapped[float | None] = mapped_column(Float, nullable=True)
     adaptive_loading: Mapped[str | None] = mapped_column(String(20), nullable=True)
     full_resolution_base_q: Mapped[str | None] = mapped_column(String(20), nullable=True)
     priority: Mapped[str | None] = mapped_column(String(50), nullable=True)

@@ -35,10 +35,11 @@ export function BacklogSection() {
         field is empty for the sample. Click a <b>Container ID</b> to open that sample&apos;s detail page.
       </p>
       <p>
-        <b>Sorting:</b> click the <b>Container ID</b>, <b>Barcodes</b>, or <b>Priority</b> column header to sort by
-        that field; click again to reverse the direction. An arrow (▲/▼) on the header shows the active sort and
-        direction. Priority sorts by rank (High before Standard), not alphabetically; samples that share a
-        priority are then ordered by Container ID — the same order the scheduler processes them in.
+        <b>Sorting:</b> click <i>any</i> column header to sort by that field; click it again to reverse the
+        direction. An arrow (▲/▼) on the header shows the active sort and direction. Empty cells (shown as —) always
+        sit at the bottom, whichever direction you choose, so a blank never floats to the top. Priority sorts by rank
+        (High before Standard), not alphabetically; samples that share a priority are then ordered by Container ID —
+        the same order the scheduler processes them in.
       </p>
       <p>
         <b>Priority</b> shows as a coloured badge so the most urgent samples stand out at a glance, both here and
@@ -63,7 +64,8 @@ export function BacklogSection() {
         dispositioned <b>Repeatable</b> or <b>Recoverable</b> comes back here into a <b>Recoverable Samples</b>{" "}
         section shown <i>above</i> the main backlog, bumped above High priority so it&apos;s rescheduled first.
         Rescuing one is no different from scheduling any other backlog sample: drag it (or place it via Auto Schedule)
-        onto a cell. A <Badge tone="info">N recoverable</Badge> count appears in the header while any are waiting.
+        onto a cell. A <Badge tone="info">N recoverable</Badge> count appears in the header while any are waiting. Its
+        column headers are clickable to sort, just like the main backlog (it starts sorted by priority).
       </p>
       <p className={styles.subheading}>Top-up required (below the backlog)</p>
       <p>
@@ -71,7 +73,7 @@ export function BacklogSection() {
         <b>Top-up required</b> list <i>below</i> the backlog, showing the run/cell the loss came from. Click{" "}
         <b>Request Sent</b> once you&apos;ve asked the submitter for fresh material — it records today&apos;s date on
         the entry — or <b>Cancel</b> to remove it from the list. This is separate from the cell-level PacBio credit
-        workflow (which recovers the wasted <i>cell</i>, not the sample).
+        workflow (which recovers the wasted <i>cell</i>, not the sample). Click any column header to sort this list.
       </p>
       <p>
         <b>Aborted</b> is a legacy top-priority label: if any sample carries it, a red{" "}

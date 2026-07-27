@@ -18,6 +18,12 @@ class ParsedSample:
     sanger: list[str] = field(default_factory=list)
     target_oplc: float | None = None
     volume: float | None = None
+    # Batch-sheet-only complex-loading dilution volumes (optional). Carried through import
+    # so they can be stored on the Sample and printed on the batch sheet; unused by the
+    # pure packing engine.
+    cleaned_complex_volume: float | None = None
+    loading_buffer_volume: float | None = None
+    control_dilution_3_volume: float | None = None
     # Boolean settings stored canonically as "True"/"False" (None when unspecified).
     adaptive_loading: str | None = None
     full_resolution_base_q: str | None = None
