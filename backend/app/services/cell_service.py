@@ -21,6 +21,18 @@ from app.schemas.cell import CellBootstrapRequest, CellDetailOut, CellOut, CellU
 from app.timeutil import ensure_aware, utcnow
 
 
+def derive_status(remaining: int, window_breached: bool) -> str:
+    """The non-terminal status a cell derives from its capacity + window state. The single
+    rule shared by the persisted path (recompute_status) and the read-only "as of" projection
+    (serialize_cell) so the two can't drift. Callers handle terminal states (retired/stopped/
+    discarded) themselves - those are sticky and never re-derived from capacity."""
+    if remaining <= 0:
+        return "exhausted"
+    if window_breached:
+        return "window_expired"
+    return "open"
+
+
 def recompute_status(cell: Cell, at: datetime | None = None) -> None:
     """The single place cell.status is derived - called any time a cell's uses change
     (committing new uses onto it, or recording a real-world outcome), so the persisted
@@ -34,16 +46,11 @@ def recompute_status(cell: Cell, at: datetime | None = None) -> None:
             cell.window_breached = True
 
     _uses_consumed, remaining, _burned = derive_cell_state(cell)
-    if remaining <= 0:
-        cell.status = "exhausted"
-    elif cell.window_breached:
-        cell.status = "window_expired"
-    else:
-        cell.status = "open"
+    cell.status = derive_status(remaining, cell.window_breached)
 
 
-def derive_cell_state(cell: Cell) -> tuple[int, int, list[str]]:
-    uses = active_uses(cell)
+def derive_cell_state(cell: Cell, uses: list[CellUse] | None = None) -> tuple[int, int, list[str]]:
+    uses = active_uses(cell) if uses is None else uses
     uses_consumed = len(uses)
     remaining = max(0, cell.max_uses - uses_consumed)
     burned: list[str] = []
@@ -87,14 +94,14 @@ def use_sort_key(cell_use: CellUse) -> tuple[date, int]:
     return (use_run_date(cell_use) or date.min, cell_use.id)
 
 
-def current_location(cell: Cell) -> tuple[str | None, str | None]:
+def current_location(cell: Cell, uses: list[CellUse] | None = None) -> tuple[str | None, str | None]:
     """(instrument_serial, well) a cell physically occupies. The instrument is where its most
     recent use runs (a cell never crosses instruments once used), falling back to its tray's
     instrument for a not-yet-used sibling. The well is the cell's fixed tray IDENTITY
     (home_well) - the A/B/C/D position it keeps for life - NOT wherever a sample happened to be
     loaded: CellUse.well is a plate LOADING position now, which can differ from the cell's own
     well. Only a legacy/bootstrap cell with no tray falls back to its last use's loading well."""
-    uses = active_uses(cell)
+    uses = active_uses(cell) if uses is None else uses
     instrument_serial: str | None = None
     if uses:
         last = max(uses, key=use_sort_key)
@@ -275,11 +282,11 @@ def cleanup_tray_if_fully_unused(db: Session, cell: Cell) -> None:
     db.delete(tray)
 
 
-def last_use_run_date(cell: Cell) -> date | None:
+def last_use_run_date(cell: Cell, uses: list[CellUse] | None = None) -> date | None:
     """The run_date of the cell's most recent active use - the earliest calendar day its
     *next* use could legally start is the following weekday (reuse is always a strictly
     later date, never same-day - see docs/pacbio-sprq-nx-scheduling-reference.md #4)."""
-    uses = active_uses(cell)
+    uses = active_uses(cell) if uses is None else uses
     if not uses:
         return None
     last = max(uses, key=use_sort_key)
@@ -301,11 +308,11 @@ def first_use_planned_start_at(cell: Cell) -> datetime | None:
     return first.cycle.planned_start_at if first.cycle else None
 
 
-def window_hours_elapsed(cell: Cell) -> float | None:
+def window_hours_elapsed(cell: Cell, at: datetime | None = None) -> float | None:
     if cell.first_use_started_at is None:
         return None
     started = ensure_aware(cell.first_use_started_at)
-    return (utcnow() - started).total_seconds() / 3600
+    return ((at or utcnow()) - started).total_seconds() / 3600
 
 
 def run_has_started(cell_use: CellUse) -> bool:
@@ -368,12 +375,13 @@ def awaiting_credit(cell: Cell) -> bool:
     return cell.pacbio_reported_at is not None and cell.credit_received_at is None
 
 
-def cell_use_summary(cell: Cell) -> list[CellUseSummaryOut]:
+def cell_use_summary(cell: Cell, uses: list[CellUse] | None = None) -> list[CellUseSummaryOut]:
     """Compact, chronological (earliest-first) list of the samples/runs a cell has been
     used by - the linked container/run list on the cell card. Same ordering as the detail
     page's full use history (use_sort_key), so a cell reads the same way in both places."""
+    uses = cell.cell_uses if uses is None else uses
     summary: list[CellUseSummaryOut] = []
-    for cu in sorted(cell.cell_uses, key=use_sort_key):
+    for cu in sorted(uses, key=use_sort_key):
         run_batch = cu.cycle.run_batch if cu.cycle else None
         # Same anchor precedence the frontend applies to the cell's first use (actual start once
         # confirmed loaded, else the plate's planned start) but per-use, so each use can be placed
@@ -395,22 +403,64 @@ def cell_use_summary(cell: Cell) -> list[CellUseSummaryOut]:
     return summary
 
 
-def serialize_cell(cell: Cell) -> CellOut:
-    uses_consumed, remaining, burned = derive_cell_state(cell)
-    instrument_serial, well = current_location(cell)
+def _active_uses_as_of(cell: Cell, as_of: datetime) -> list[CellUse]:
+    """A cell's active uses that have *happened by* `as_of` - the ones whose acquire day is
+    on or before the reference date. Drives the read-only "as of now / as of end of week"
+    projection on the Cells page: a use scheduled for later this week doesn't yet count toward
+    consumed capacity when viewing "as of now", but does when viewing "as of end of week". A
+    date-less use sorts as the distant past (use_run_date -> None -> treated < any date), so it
+    always counts - matching use_sort_key's date.min convention."""
+    ref = as_of.date()
+    return [cu for cu in active_uses(cell) if (use_run_date(cu) or date.min) <= ref]
+
+
+def serialize_cell(cell: Cell, as_of: datetime | None = None) -> CellOut:
+    """Serialize a cell for the API. With `as_of` set, every time-derived field (uses
+    consumed/remaining, burned barcodes, current location, use list, window elapsed, and the
+    derived status) is projected to that reference instant instead of "now" - a strictly
+    READ-ONLY view (it never mutates the cell or clears a persisted window breach). Terminal
+    states (retired/stopped/discarded) and a persisted window breach are sticky and always
+    shown, so the projection can reveal a *future* exhaustion/expiry but never un-expire a
+    cell. `as_of=None` reproduces the persisted-status "now" behaviour exactly."""
+    if as_of is None:
+        uses_consumed, remaining, burned = derive_cell_state(cell)
+        instrument_serial, well = current_location(cell)
+        status = cell.status
+        elapsed = window_hours_elapsed(cell)
+        window_breached = cell.window_breached
+        uses = cell_use_summary(cell)
+        last_run_date = last_use_run_date(cell)
+    else:
+        as_of_uses = _active_uses_as_of(cell, as_of)
+        uses_consumed, remaining, burned = derive_cell_state(cell, as_of_uses)
+        instrument_serial, well = current_location(cell, as_of_uses)
+        # The 108h window only "runs" in the projection once the cell has a use by `as_of` -
+        # otherwise a cell with no projected uses would show a running window meter, contradicting
+        # its "0 uses" reading. (window_hours_elapsed is still anchored to the real confirmed
+        # first_use_started_at; this just gates whether we show it at all in the projected view.)
+        elapsed = window_hours_elapsed(cell, at=as_of) if as_of_uses else None
+        # Monotonic: a persisted breach stays breached; the projection may only add a future one.
+        window_breached = cell.window_breached or (elapsed is not None and elapsed > CELL_LIFETIME_H)
+        # Terminal states are sticky and time-independent - keep them; otherwise re-derive.
+        if cell.status in ("retired", "stopped") or cell.discarded_at is not None:
+            status = cell.status
+        else:
+            status = derive_status(remaining, window_breached)
+        uses = cell_use_summary(cell, as_of_uses)
+        last_run_date = last_use_run_date(cell, as_of_uses)
     return CellOut(
         id=cell.id,
         code=cell.code,
         max_uses=cell.max_uses,
-        status=cell.status,
+        status=status,
         uses_consumed=uses_consumed,
         uses_remaining=remaining,
         burned_barcodes=burned,
-        window_hours_elapsed=window_hours_elapsed(cell),
-        window_breached=cell.window_breached,
+        window_hours_elapsed=elapsed,
+        window_breached=window_breached,
         current_instrument_serial=instrument_serial,
         current_well=well,
-        last_use_run_date=last_use_run_date(cell),
+        last_use_run_date=last_run_date,
         first_use_started_at=cell.first_use_started_at,
         first_use_planned_start_at=first_use_planned_start_at(cell),
         created_at=cell.created_at,
@@ -428,7 +478,7 @@ def serialize_cell(cell: Cell) -> CellOut:
         tray_id=cell.tray_id,
         tray_position=cell.tray_position,
         tray_size=CELLS_PER_TRAY,
-        uses=cell_use_summary(cell),
+        uses=uses,
     )
 
 

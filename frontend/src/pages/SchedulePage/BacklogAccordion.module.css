@@ -119,8 +119,8 @@
 }
 /* Priority-tinted left edge: --accent is set inline from the same palette var the priority
    Badge uses (see BacklogAccordion.tsx TONE_ACCENT_VAR), so a card's priority reads at a
-   glance without re-describing colours. Only prioritised samples get it; the rest keep the
-   plain 1px border. */
+   glance without re-describing colours. Every card gets one - Standard / no priority
+   defaults to grey, so the edge always reflects a real priority. */
 .prioritised {
   border-left-width: 3px;
   border-left-color: var(--accent, var(--line));

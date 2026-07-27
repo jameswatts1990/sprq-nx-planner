@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useParams } from "react-router-dom";
 
 import { AppShell } from "@/components/layout/AppShell";
 import { BacklogPage } from "@/pages/BacklogPage";
@@ -11,7 +11,6 @@ import { InstrumentsPage } from "@/pages/InstrumentsPage";
 import { RunDetailPage } from "@/pages/RunDetailPage";
 import { SampleDetailPage } from "@/pages/SampleDetailPage";
 import { SchedulePage } from "@/pages/SchedulePage/SchedulePage";
-import { TrayDetailPage } from "@/pages/TrayDetailPage";
 
 // Rare / heavy routes are code-split so their large dependencies stay out of the initial
 // bundle that gates first paint of the default (Schedule) screen: StatsPage pulls in recharts,
@@ -31,6 +30,13 @@ function RouteFallback() {
   return <div style={{ padding: "2rem", color: "var(--grey)" }}>Loading…</div>;
 }
 
+/** The dedicated Tray page was folded into the Cells page as a `?tray=` filter; this keeps old
+ * `/trays/:trayId` links and bookmarks working by redirecting to the equivalent filtered view. */
+function TrayRedirect() {
+  const { trayId } = useParams<{ trayId: string }>();
+  return <Navigate to={trayId ? `/cells?tray=${trayId}` : "/cells"} replace />;
+}
+
 export default function App() {
   return (
     <AppShell>
@@ -44,7 +50,7 @@ export default function App() {
           <Route path="/cells" element={<CellsPage />} />
           <Route path="/cells/:cellId" element={<CellDetailPage />} />
           <Route path="/instruments" element={<InstrumentsPage />} />
-          <Route path="/trays/:trayId" element={<TrayDetailPage />} />
+          <Route path="/trays/:trayId" element={<TrayRedirect />} />
           <Route path="/history/runs" element={<HistoryRunsPage />} />
           <Route path="/history/runs/:runId" element={<RunDetailPage />} />
           <Route path="/history/samples" element={<HistorySamplesPage />} />

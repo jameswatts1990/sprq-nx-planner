@@ -5,7 +5,7 @@ import { Link, useParams } from "react-router-dom";
 import { ApiError } from "@/api/client";
 import { cellsApi } from "@/api/cells";
 import { CellQcModal } from "@/components/cells/CellQcModal";
-import { TraySiblingList } from "@/components/cells/TraySiblingList";
+import { TrayPanel } from "@/components/cells/TrayPanel";
 import { WindowMeter } from "@/components/cells/WindowMeter";
 import { BarcodeChips } from "@/components/shared/BarcodeChips";
 import { Badge } from "@/components/ui/Badge";
@@ -152,7 +152,7 @@ export function CellDetailPage() {
             {trayId !== null && (
               <div>
                 <span className={styles.label}>Tray</span>
-                <Link to={`/trays/${trayId}`} className={styles.value}>
+                <Link to={`/cells?tray=${trayId}`} className={styles.value}>
                   Tray {trayId}
                 </Link>
               </div>
@@ -194,7 +194,7 @@ export function CellDetailPage() {
         <Card>
           <CardHeader>
             <h2>
-              <Link to={`/trays/${trayId}`}>Cell tray — Tray {trayId} →</Link>
+              <Link to={`/cells?tray=${trayId}`}>Cell tray — Tray {trayId} →</Link>
             </h2>
           </CardHeader>
           <CardBody>
@@ -206,7 +206,7 @@ export function CellDetailPage() {
             {trayQuery.isLoading ? (
               <div className={styles.status}>Loading tray…</div>
             ) : (
-              <TraySiblingList cells={trayQuery.data?.items ?? []} currentCellId={cell.id} />
+              <TrayPanel trayId={trayId} cells={trayQuery.data?.items ?? []} currentCellId={cell.id} />
             )}
           </CardBody>
         </Card>

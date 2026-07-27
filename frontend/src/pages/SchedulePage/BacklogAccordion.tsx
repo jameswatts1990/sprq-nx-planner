@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/Button";
 import { Note } from "@/components/ui/Note";
 import type { SampleOut } from "@/types/sample";
 import { useDebouncedValue } from "@/utils/useDebouncedValue";
-import { ABORTED_PRIORITY, priorityTone } from "@/utils/priority";
+import { ABORTED_PRIORITY, priorityLabel, priorityTone } from "@/utils/priority";
 import { useSampleBackNav } from "@/utils/sampleBackNav";
 
 import { SampleModal } from "../SampleModal";
@@ -35,6 +35,8 @@ const TONE_ACCENT_VAR: Record<BadgeTone, string> = {
   warning: "var(--amber)",
   orange: "var(--orange)",
   info: "var(--blue-deep)",
+  blue: "var(--blue)",
+  purple: "var(--purple)",
 };
 
 const DEFAULT_PAGE_SIZE = 25;
@@ -80,15 +82,16 @@ function DraggableSampleCard({ sample, onEdit }: { sample: SampleOut; onEdit: (s
     sample: { id: sample.id, external_id: sample.external_id, barcodes: sample.barcodes },
   };
   const { setNodeRef, listeners, attributes, isDragging } = useDraggable({ id: sampleDragId(sample.id), data });
-  const accent = sample.priority ? TONE_ACCENT_VAR[priorityTone(sample.priority)] : undefined;
-  const classes = [styles.card];
+  // Every card gets a priority-coloured left edge, defaulting to grey for Standard / no
+  // priority - so the accent always reads as "this is its priority", never an absent chip.
+  const accent = TONE_ACCENT_VAR[priorityTone(sample.priority)];
+  const classes = [styles.card, styles.prioritised];
   if (isDragging) classes.push(styles.dragging);
-  if (accent) classes.push(styles.prioritised);
   return (
     <div
       ref={setNodeRef}
       className={classes.join(" ")}
-      style={accent ? { ["--accent" as string]: accent } : undefined}
+      style={{ ["--accent" as string]: accent }}
       title={`Open ${sample.external_id}`}
       onClick={() => navigate(`/samples/${sample.id}`, { state: backNav })}
       {...listeners}
@@ -110,7 +113,7 @@ function DraggableSampleCard({ sample, onEdit }: { sample: SampleOut; onEdit: (s
       <div className={styles.cardHead}>
         <span className={styles.ext}>{sample.external_id}</span>
         {sample.parent_sample && <span className={styles.parent}>{sample.parent_sample}</span>}
-        {sample.priority && <Badge tone={priorityTone(sample.priority)}>{sample.priority}</Badge>}
+        <Badge tone={priorityTone(sample.priority)}>{priorityLabel(sample.priority)}</Badge>
         <span className={styles.movie} title="Movie / acquisition time">
           ⏱ {sample.movie_time_hours ?? DEFAULT_MOVIE_HOURS} h
         </span>

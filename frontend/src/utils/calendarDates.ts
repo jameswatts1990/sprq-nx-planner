@@ -71,6 +71,28 @@ export function shortWeekdayUTC(date: Date): string {
   return DAY_SHORT[date.getUTCDay()];
 }
 
+/** The Friday (UTC date-only) of the Monday-based week containing `date` - the last weekday of
+ * the scheduling week. Reused for the Cells page's "as of end of week" reference instant. */
+export function fridayOfWeekUTC(date: Date): Date {
+  return addDaysUTC(mondayOfWeekUTC(date), 4);
+}
+
+/** ISO datetime for the end of the current scheduling week - this week's Friday at 23:59:59Z.
+ * The reference instant behind the Cells page's "End of week" view: how every cell's uses /
+ * window / status will stand once all of this week's runs have gone. */
+export function endOfWeekIso(): string {
+  const friday = fridayOfWeekUTC(parseDateOnly(todayIsoUTC()));
+  friday.setUTCHours(23, 59, 59, 0);
+  return friday.toISOString();
+}
+
+/** Short label for this week's Friday, e.g. "Fri 31 Jul" - used in the "End of week" toggle
+ * so the reference date is explicit rather than implied. */
+export function endOfWeekLabel(): string {
+  const friday = fridayOfWeekUTC(parseDateOnly(todayIsoUTC()));
+  return `${shortWeekdayUTC(friday)} ${formatShortDateUTC(friday)}`;
+}
+
 /** Formats a UTC date-only value as e.g. "13 Jul". */
 export function formatShortDateUTC(date: Date): string {
   return date.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });

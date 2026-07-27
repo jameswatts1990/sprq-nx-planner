@@ -7,7 +7,7 @@ import { ApiError } from "@/api/client";
 import { cellsApi } from "@/api/cells";
 import { instrumentsApi } from "@/api/instruments";
 import { CellStatusCard } from "@/components/cells/CellStatusCard";
-import { OpenTraysAccordion } from "@/components/cells/OpenTraysAccordion";
+import { TrayPanel } from "@/components/cells/TrayPanel";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Modal, ModalActions } from "@/components/ui/Modal";
@@ -23,6 +23,7 @@ import {
   type SortDir,
   sortCells,
 } from "@/utils/cellOrdering";
+import { endOfWeekIso, endOfWeekLabel } from "@/utils/calendarDates";
 import { CELL_STATUS_LABEL, CELL_STATUS_TONE } from "@/utils/cellStatus";
 import { soonestTrayExpiry } from "@/utils/openTrays";
 import { useDebouncedValue } from "@/utils/useDebouncedValue";
@@ -32,6 +33,8 @@ import styles from "./CellsPage.module.css";
 
 type QcFilter = "unreported" | "awaiting_credit";
 type StatusFilter = CellStatus | "all" | QcFilter;
+/** Reference instant for every time-derived field on the page - "now" or this week's end. */
+type AsOf = "now" | "eow";
 
 const STATUS_FILTERS: { value: StatusFilter; label: string }[] = [
   { value: "all", label: "All" },
@@ -67,6 +70,19 @@ export function CellsPage() {
   const [searchParams] = useSearchParams();
   const [status, setStatus] = useState<StatusFilter>(() => statusFromParam(searchParams.get("status")) ?? "open");
   const [instrumentSerial, setInstrumentSerial] = useState(() => searchParams.get("instrument") ?? "");
+  // A tray filter (?tray=123) pins the page to one physical tray - the deep-link that replaced
+  // the standalone Tray page. Kept in the URL (not just local state) so it can be linked to and
+  // cleared by navigating back to /cells. Reflected from searchParams every render.
+  const trayParam = searchParams.get("tray");
+  const trayId = trayParam && /^\d+$/.test(trayParam) ? Number(trayParam) : null;
+  // Time reference for every derived field. Local view state (not URL) - see how status/instrument
+  // are only seeded from the URL once. "now" projects out future-scheduled uses; "eow" shows how
+  // the tray will stand once all of this week's runs have gone.
+  const [asOf, setAsOf] = useState<AsOf>("now");
+  // Resolve to a concrete instant only when the toggle changes - NOT on every render, or a fresh
+  // `new Date()` each render would make the query key unstable and refetch in a tight loop. "Now"
+  // is thus captured when the page loads / the toggle is flipped, which is exactly the intent.
+  const asOfIso = useMemo(() => (asOf === "eow" ? endOfWeekIso() : new Date().toISOString()), [asOf]);
   const [qInput, setQInput] = useState("");
   const q = useDebouncedValue(qInput, 350);
   const [modalOpen, setModalOpen] = useState(false);
@@ -90,15 +106,20 @@ export function CellsPage() {
   });
 
   const query = useQuery({
-    queryKey: ["cells", { status, instrumentSerial, q }],
+    queryKey: trayId !== null
+      ? ["cells", { tray_id: trayId, asOf: asOfIso }]
+      : ["cells", { status, instrumentSerial, q, asOf: asOfIso }],
     queryFn: () =>
-      cellsApi.list({
-        status: status === "all" || isQcFilter(status) ? undefined : status,
-        qc_status: isQcFilter(status) ? status : undefined,
-        instrument_serial: instrumentSerial || undefined,
-        q: q || undefined,
-        page_size: 100,
-      }),
+      trayId !== null
+        ? cellsApi.list({ tray_id: trayId, as_of: asOfIso, page_size: 100 })
+        : cellsApi.list({
+            status: status === "all" || isQcFilter(status) ? undefined : status,
+            qc_status: isQcFilter(status) ? status : undefined,
+            instrument_serial: instrumentSerial || undefined,
+            q: q || undefined,
+            as_of: asOfIso,
+            page_size: 100,
+          }),
   });
 
   const cells = query.data?.items ?? [];
@@ -110,8 +131,72 @@ export function CellsPage() {
     [cells, sortBy, sortDir, groupBy],
   );
 
+  // A prominent, always-visible switch for the reference instant behind every time-derived
+  // field on the page (uses, loading status, window). Rendered on both the normal and the
+  // tray-filtered view so the "as of" context is never ambiguous.
+  const asOfToggle = (
+    <div className={styles.asOfRow}>
+      <span className={styles.asOfLabel}>Showing data as of</span>
+      <div className={styles.asOfToggle} role="group" aria-label="Reference time">
+        <button
+          type="button"
+          className={styles.asOfBtn}
+          aria-pressed={asOf === "now"}
+          onClick={() => setAsOf("now")}
+        >
+          Now
+        </button>
+        <button
+          type="button"
+          className={styles.asOfBtn}
+          aria-pressed={asOf === "eow"}
+          onClick={() => setAsOf("eow")}
+        >
+          End of week ({endOfWeekLabel()})
+        </button>
+      </div>
+    </div>
+  );
+
+  if (trayId !== null) {
+    return (
+      <div className={styles.page}>
+        {asOfToggle}
+        <div className={styles.trayViewHead}>
+          <Link to="/cells" className={styles.backLink}>
+            ◂ All cells &amp; instruments
+          </Link>
+          <h2 className={styles.trayTitle}>Tray {trayId}</h2>
+        </div>
+        {query.isLoading && <div className={styles.status}>Loading tray…</div>}
+        {query.isError && (
+          <Note tone="bad" icon="!">
+            {query.error instanceof ApiError ? query.error.message : "Failed to load tray."}
+          </Note>
+        )}
+        {!query.isLoading && !query.isError && cells.length === 0 && (
+          <Note tone="info" icon="i">
+            No cells found for tray {trayId} — it may have been fully cleared.
+          </Note>
+        )}
+        {cells.length > 0 && <TrayPanel trayId={trayId} cells={cells} />}
+
+        {modalOpen && (
+          <RegisterInProgressCellModal
+            onClose={() => setModalOpen(false)}
+            onRegistered={() => {
+              setModalOpen(false);
+              void queryClient.invalidateQueries({ queryKey: ["cells"] });
+            }}
+          />
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className={styles.page}>
+      {asOfToggle}
       <div className={styles.searchRow}>
         <input
           type="search"
@@ -192,10 +277,6 @@ export function CellsPage() {
         </label>
       </div>
 
-      <div className={styles.trayAccordionWrap}>
-        <OpenTraysAccordion />
-      </div>
-
       {query.isLoading && <div className={styles.status}>Loading cells…</div>}
       {query.isError && (
         <Note tone="bad" icon="!">
@@ -265,7 +346,7 @@ function GroupHeader({ groupBy, cells }: GroupHeaderProps) {
     return (
       <div className={styles.groupHeader}>
         {trayId !== null ? (
-          <Link to={`/trays/${trayId}`} className={styles.groupTitle}>
+          <Link to={`/cells?tray=${trayId}`} className={styles.groupTitle}>
             Tray {trayId}
           </Link>
         ) : (

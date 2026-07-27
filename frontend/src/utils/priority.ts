@@ -21,13 +21,24 @@ export function priorityRank(priority: string | null): number {
   return m ? Number(m[1]) : 999;
 }
 
+/** Display label for a sample's priority. An imported sample with no priority is treated
+ * as Standard (the default), so it reads as an explicit grey "Standard" badge rather than a
+ * blank — never leaving the user to guess what "no priority" means. */
+export const DEFAULT_PRIORITY = "Standard";
+export function priorityLabel(priority: string | null): string {
+  return priority && priority.trim() ? priority : DEFAULT_PRIORITY;
+}
+
 export function priorityTone(priority: string | null): BadgeTone {
-  // QC-return labels get their own tones so they read apart from the red Aborted/High:
-  // Recoverable (recoverable via re-prep) = blue, Repeatable = orange.
-  if (priority?.startsWith("Recoverable")) return "info";
-  if (priority?.startsWith("Repeatable")) return "orange";
+  // Colour scale, low urgency → high: Standard (grey) → Medium (light blue) → High (dark
+  // blue). Aborted and the QC-return-to-backlog labels (Recoverable/Repeatable) share
+  // purple, since all three mean "bumped back to the backlog", distinct from the blue
+  // scale of normal scheduling priority.
+  if (priority?.startsWith("Aborted")) return "purple";
+  if (priority?.startsWith("Recoverable")) return "purple";
+  if (priority?.startsWith("Repeatable")) return "purple";
   const rank = priorityRank(priority);
-  if (rank <= 1) return "danger";
-  if (rank === 2) return "warning";
-  return "default";
+  if (rank <= 1) return "info"; // High → dark blue
+  if (rank === 2) return "blue"; // Medium → light blue
+  return "default"; // Standard / unlabelled → grey
 }

@@ -5,7 +5,7 @@ import { cellsApi } from "@/api/cells";
 import { ApiError } from "@/api/client";
 import { cyclesApi } from "@/api/cycles";
 import { TraySiblingList } from "@/components/cells/TraySiblingList";
-import { clampLoadHour, fmtHour, LOAD_HOURS } from "@/components/scheduler/LoadTimePicker";
+import { formatLoadTime, isValidLoadTime, parseLoadTime } from "@/components/scheduler/loadTime";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
 import type { SlotIndex, RunOut, StageOut } from "@/types/schedule";
@@ -112,10 +112,11 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
 
   const [confirmingLoad, setConfirmingLoad] = useState(false);
   const [runName, setRunName] = useState("");
-  // The load hour amended in the Confirm-loaded modal (prefilled from Plate 1's current
-  // planned start when the modal opens). Sent with the lock so the operator can correct the
-  // real load time as they confirm - see cyclesApi.updateStatus / update_run_load_time.
-  const [loadHour, setLoadHour] = useState(12);
+  // The load time amended in the Confirm-Revio-loaded modal, as a free-text hh:mm string
+  // (prefilled from Plate 1's current planned start when the modal opens). Sent with the lock
+  // so the operator can correct the real load time as they confirm - see cyclesApi.updateStatus
+  // / update_run_load_time.
+  const [loadTime, setLoadTime] = useState("12:00");
 
   const [rotateTrayId, setRotateTrayId] = useState<number | null>(null);
   const rotateMutation = useMutation({
@@ -293,7 +294,7 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
                   onClick={() => {
                     setRunName(run.run_name ?? "");
                     const plate1 = run.plates.find((p) => p.plate_index === 1);
-                    setLoadHour(clampLoadHour(plate1 ? new Date(plate1.planned_start_at).getUTCHours() : 12));
+                    setLoadTime(plate1 ? formatLoadTime(new Date(plate1.planned_start_at)) : "12:00");
                     setConfirmingLoad(true);
                   }}
                 >
@@ -399,10 +400,11 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
 
       {confirmingLoad && (
         <ConfirmModal
-          title="Confirm cells loaded?"
+          title="Confirm Revio Loaded?"
           confirmLabel="Confirm loaded"
           pendingLabel="Confirming…"
           pending={statusMutation.isPending}
+          confirmDisabled={!isValidLoadTime(loadTime)}
           error={
             statusMutation.isError
               ? statusMutation.error instanceof ApiError
@@ -410,36 +412,54 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
                 : "Status update failed."
               : null
           }
-          input={{
-            label: "Run name (optional)",
-            value: runName,
-            onChange: setRunName,
-            placeholder: "e.g. TRACTION-RUN-1234",
-          }}
           onCancel={() => setConfirmingLoad(false)}
-          onConfirm={() =>
-            statusMutation.mutate({ status: "running", run_name: runName, start_hour: loadHour, start_minute: 0 })
-          }
+          onConfirm={() => {
+            const parsed = parseLoadTime(loadTime);
+            if (!parsed) return;
+            statusMutation.mutate({
+              status: "running",
+              run_name: runName,
+              start_hour: parsed.hour,
+              start_minute: parsed.minute,
+            });
+          }}
         >
           <p>
             This locks the whole run — both plates — so it can no longer be edited by accident. Give it a name (e.g.
             your lab&apos;s TRACTION run id) if you&apos;d like it shown instead of the run number everywhere this run
             appears.
           </p>
-          <label className={styles.loadTimeField}>
-            <span className={styles.loadTimeLabel}>Load time (when it loaded &amp; started sequencing)</span>
-            <select
-              className={styles.loadTimeSelect}
-              value={loadHour}
-              onChange={(e) => setLoadHour(Number(e.target.value))}
-            >
-              {LOAD_HOURS.map((h) => (
-                <option key={h} value={h}>
-                  {fmtHour(h)}
-                </option>
-              ))}
-            </select>
-          </label>
+          <div className={styles.loadModalField}>
+            <label className={styles.loadModalLabel} htmlFor="confirm-run-name">
+              Run name (optional)
+            </label>
+            <input
+              id="confirm-run-name"
+              type="text"
+              className={styles.loadModalInput}
+              value={runName}
+              onChange={(e) => setRunName(e.target.value)}
+              placeholder="e.g. TRACTION-RUN-1234"
+            />
+          </div>
+          <div className={styles.loadModalField}>
+            <label className={styles.loadModalLabel} htmlFor="confirm-load-time">
+              Revio Loaded at:
+            </label>
+            <input
+              id="confirm-load-time"
+              type="text"
+              inputMode="numeric"
+              className={`${styles.loadModalInput} ${isValidLoadTime(loadTime) ? "" : styles.loadModalInputInvalid}`}
+              value={loadTime}
+              onChange={(e) => setLoadTime(e.target.value)}
+              placeholder="hh:mm"
+              aria-invalid={!isValidLoadTime(loadTime)}
+            />
+            {!isValidLoadTime(loadTime) && (
+              <span className={styles.loadModalHint}>Enter a 24-hour time as hh:mm (e.g. 14:30).</span>
+            )}
+          </div>
         </ConfirmModal>
       )}
 

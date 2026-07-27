@@ -18,7 +18,7 @@ import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import type { SegmentedOption } from "@/components/ui/SegmentedControl";
 import type { SampleOut } from "@/types/sample";
 import { useDebouncedValue } from "@/utils/useDebouncedValue";
-import { ABORTED_PRIORITY, priorityTone } from "@/utils/priority";
+import { ABORTED_PRIORITY, priorityLabel, priorityTone } from "@/utils/priority";
 import { useSampleBackNav } from "@/utils/sampleBackNav";
 
 import { SampleModal } from "./SampleModal";
@@ -191,7 +191,7 @@ export function BacklogPage() {
         header: () => sortableHeader("Priority", "priority"),
         cell: (info) => {
           const v = info.getValue();
-          return v ? <Badge tone={priorityTone(v)}>{v}</Badge> : "—";
+          return <Badge tone={priorityTone(v)}>{priorityLabel(v)}</Badge>;
         },
       }),
       columnHelper.accessor("target_oplc", {

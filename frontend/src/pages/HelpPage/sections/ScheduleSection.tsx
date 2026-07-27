@@ -127,7 +127,7 @@ export function ScheduleSection() {
         </li>
         <li>
           Click a <b>TRAY #</b> heading (top maps or the &quot;loaded later&quot; group) to open the <b>Cells &amp; Instruments</b> tab
-          filtered to that instrument, to see the full cell details. Click an individual <b>cell</b> in a tray strip
+          filtered to that tray — its four cells, summary, and Discard action on one screen. Click an individual <b>cell</b> in a tray strip
           to open that cell&apos;s <b>detail page</b> — its full history, status, 108-hour window, and Cell QC actions
           all live there.
         </li>
@@ -565,8 +565,9 @@ export function ScheduleSection() {
           format) — optional, and it overrides the plain run number everywhere this run is shown afterward (Run
           detail, History, Cells use history). Leave it blank to keep the plain number. <b>Unlock</b> never clears a
           name once it&apos;s set; re-confirming lets you change it. The same dialog also lets you <b>amend the load
-          time</b> — if the cells actually went on the instrument at a different hour than planned, correct it here and
-          the run&apos;s schedule (and any reuse plate chained off it) shifts to match.
+          time</b> — the <b>Revio Loaded at:</b> field prefills with the planned time; if the cells actually went on the
+          instrument at a different time, type the real one as <b>hh:mm</b> and the run&apos;s schedule (and any reuse
+          plate chained off it) shifts to match.
         </li>
         <li>
           A <b>LOADED</b> tag marks a locked run; <b>Unlock</b> returns it to planned so you can edit it again.

@@ -19,6 +19,9 @@ export interface ListCellsParams {
   qc_status?: "unreported" | "awaiting_credit";
   q?: string;
   tray_id?: number;
+  /** ISO datetime; when set, the API projects every time-derived field (uses, window, status)
+   * to that instant instead of "now" - drives the Cells page Now / End-of-week toggle. */
+  as_of?: string;
   page?: number;
   page_size?: number;
 }

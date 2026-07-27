@@ -57,7 +57,7 @@ export const CellStatusCard = memo(function CellStatusCard({ cell }: CellStatusC
         {cell.tray_id !== null && (
           <div className={styles.row}>
             <span>Tray</span>
-            <Link to={`/trays/${cell.tray_id}`}>Tray {cell.tray_id}</Link>
+            <Link to={`/cells?tray=${cell.tray_id}`}>Tray {cell.tray_id}</Link>
           </div>
         )}
         {cell.burned_barcodes.length > 0 && (

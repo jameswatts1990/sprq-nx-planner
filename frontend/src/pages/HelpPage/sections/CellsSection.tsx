@@ -1,9 +1,8 @@
 import { CellStatusCard } from "@/components/cells/CellStatusCard";
-import { TraySiblingList } from "@/components/cells/TraySiblingList";
 import { WindowMeter } from "@/components/cells/WindowMeter";
 
 import styles from "../HelpPage.module.css";
-import { EXAMPLE_CELL_UNREPORTED, EXAMPLE_TRAY_SIBLINGS } from "./helpFixtures";
+import { EXAMPLE_CELL_UNREPORTED } from "./helpFixtures";
 
 export function CellsSection() {
   return (
@@ -11,6 +10,17 @@ export function CellsSection() {
       <p>
         <b>What this tab is for:</b> browsing every physical SMRT cell the system knows about and its current
         state.
+      </p>
+
+      <p className={styles.subheading}>Now vs End of week</p>
+      <p>
+        A big <b>Showing data as of</b> toggle at the very top switches every time-based figure on the page between{" "}
+        <b>Now</b> and <b>End of week</b> (this week&apos;s Friday). It changes how each cell reads: a cell whose next
+        uses are still <i>scheduled</i> for later this week shows those uses as not-yet-spent under <b>Now</b>, but
+        counted under <b>End of week</b> — so a cell can read &quot;1 / 3 · Open&quot; now and &quot;3 / 3 ·
+        Exhausted&quot; by Friday. The 108-hour window and status badges shift the same way, letting you see at a glance
+        which cells will be spent or window-expired by the end of the week. It&apos;s a view only — nothing is changed on
+        the cell; the Schedule grid remains the place placements actually happen.
       </p>
 
       <p className={styles.subheading}>Search, filters, sort &amp; grouping</p>
@@ -34,28 +44,19 @@ export function CellsSection() {
         <b>No grouping</b> for one flat grid.
       </p>
 
-      <p className={styles.subheading}>Open trays</p>
+      <p className={styles.subheading}>Trays</p>
       <p>
-        A collapsible section above the cell list (collapsed by default - expand it to see the list) showing every
-        physical SPRQ-Nx SMRT Cell tray that currently has at least one open (usable) cell, grouped by which
-        instrument it&apos;s sitting on - so you can see, across every instrument at a glance, which trays still
-        have spare capacity waiting to be picked up, without opening a specific cell&apos;s detail page first. Any
-        open cell that has started its 108-hour window shows how many hours it has left, turning red once
-        it&apos;s down to its last 18 hours; the tray header itself flags &quot;Expires soon&quot; once any of its
-        cells is that close. There&apos;s no way to move a tray to a different instrument yet. (This physical
-        &quot;tray&quot; is a different thing from the Schedule grid&apos;s &quot;Plate 1&quot;/&quot;Plate 2&quot;
-        loading positions within a run - see the Schedule section.)
+        A physical SPRQ-Nx SMRT Cell tray holds 4 cells. There isn&apos;t a separate tray screen — clicking a{" "}
+        <b>tray id</b> anywhere in the app (a cell card, a cell&apos;s detail page, a seal popover, or the Schedule
+        grid&apos;s instrument cell map) opens this same <b>Cells</b> tab <i>filtered to that one tray</i>. That view
+        shows the tray&apos;s instrument, how many of its cells are present, its soonest window expiry, and the tray&apos;s
+        cells as the usual cell cards — plus a <b>Discard all cells</b> button. Use the <b>◂ All cells &amp;
+        instruments</b> link to return to the full list. (This physical &quot;tray&quot; is a different thing from the
+        Schedule grid&apos;s &quot;Plate 1&quot;/&quot;Plate 2&quot; loading positions within a run - see the Schedule
+        section.)
       </p>
       <p>
-        Each tray shows its (up to 4) sibling cells with their own status and uses - a tray never shows one merged
-        status, since its own cells can genuinely be in different states (one exhausted, one still open, one never
-        used):
-      </p>
-      <div className={styles.legendGrid}>
-        <TraySiblingList cells={EXAMPLE_TRAY_SIBLINGS} />
-      </div>
-      <p>
-        <b>Discard all cells:</b> each tray has a <b>Discard all cells</b> button that force-closes every cell
+        <b>Discard all cells:</b> the tray view has a <b>Discard all cells</b> button that force-closes every cell
         still physically in that tray - cancelling any not-yet-run placements for those cells (their samples return
         to the backlog) and marking every cell exhausted regardless of how many uses it has left. Use it when a
         tray is being pulled from the instrument for good and its remaining capacity won&apos;t be used. This cannot
@@ -82,7 +83,8 @@ export function CellsSection() {
       </p>
       <p>
         <b>Everything on the card links through:</b> the cell code to its detail page, the instrument to that
-        instrument&apos;s cells, the tray to the <b>tray page</b>, each container ID to that <b>sample&apos;s page</b>{" "}
+        instrument&apos;s cells, the tray to <b>that tray&apos;s cells</b> (this tab filtered to the tray), each container
+        ID to that <b>sample&apos;s page</b>{" "}
         (its full metadata and every cell/run it has touched), and each run to its <b>run page</b> — so you can hop
         straight from a cell to any sample or run associated with it and back.
       </p>
@@ -124,12 +126,12 @@ export function CellsSection() {
         </li>
         <li>
           <b>Cell tray</b> card: SPRQ-Nx SMRT Cells ship in a physical tray of 4. The moment any one cell in a tray
-          gets a sample, all 4 are registered together, in cell-number order - this card lists the tray&apos;s other
-          cells (with a link, status, and uses, shown live above) so you can see at a glance which are still
-          available, even before their own first use. Its heading links to the <b>tray page</b> — the whole tray and
-          its four cells on one screen, each linking back here — and the same tray is reachable from a cell&apos;s seal
-          popover, the grid&apos;s instrument cell map, and the Open trays list. Not shown for cells created before this
-          feature, or via Register in-progress cell, since those have no known tray.
+          gets a sample, all 4 are registered together, in cell-number order - this card shows the tray&apos;s cells as
+          the same cards as the main list (the one you&apos;re viewing highlighted), so you can see at a glance which are
+          still available, even before their own first use. Its heading opens the full <b>tray view</b> (this tab
+          filtered to the tray), also reachable from a cell&apos;s seal popover and the grid&apos;s instrument cell map.
+          Not shown for cells created before this feature, or via Register in-progress cell, since those have no known
+          tray.
         </li>
         <li>
           <b>Cell QC</b> opens the quality-control dialog for the cell, with three actions (each takes an optional

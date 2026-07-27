@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from fastapi import APIRouter, HTTPException
 from sqlalchemy import or_, select
 from sqlalchemy.orm import selectinload
@@ -64,16 +66,22 @@ def list_cells(
     qc_status: str | None = None,
     q: str | None = None,
     tray_id: int | None = None,
+    as_of: datetime | None = None,
     page: int = 1,
     page_size: int = 50,
 ) -> Page[CellOut]:
+    # `as_of` requests a read-only projection of every time-derived field to that instant
+    # (the Cells page's Now / End-of-week toggle). The status filter must then run on the
+    # *projected* status, not the persisted one, so it's applied post-serialize below - the
+    # persisted DB-level status filter only applies to the default "now" (as_of=None) path.
     stmt = select(Cell).options(*_LIST_OPTIONS)
     if status:
         statuses = [s.strip() for s in status.split(",") if s.strip()]
         for s in statuses:
             if s not in CELL_STATUSES:
                 raise HTTPException(400, f"Unknown status '{s}'. Valid: {', '.join(CELL_STATUSES)}")
-        stmt = stmt.where(Cell.status.in_(statuses))
+        if as_of is None:
+            stmt = stmt.where(Cell.status.in_(statuses))
     if qc_status and qc_status not in QC_STATUSES:
         raise HTTPException(400, f"Unknown qc_status '{qc_status}'. Valid: {', '.join(QC_STATUSES)}")
     if q:
@@ -110,7 +118,10 @@ def list_cells(
         stmt = stmt.where(Cell.tray_id == tray_id)
 
     cells = list(db.scalars(stmt.order_by(Cell.created_at.desc())).unique().all())
-    serialized = [serialize_cell(c) for c in cells]
+    serialized = [serialize_cell(c, as_of=as_of) for c in cells]
+    if status and as_of is not None:
+        wanted = {s.strip() for s in status.split(",") if s.strip()}
+        serialized = [c for c in serialized if c.status in wanted]
     if instrument_serial:
         serialized = [c for c in serialized if c.current_instrument_serial == instrument_serial]
     if qc_status == "unreported":

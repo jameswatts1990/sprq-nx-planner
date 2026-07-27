@@ -31,6 +31,9 @@ export interface ConfirmModalProps {
   confirmLabel: string;
   pendingLabel: string;
   pending: boolean;
+  /** Disable the confirm button without showing the pending label - e.g. while a required
+   * field is empty/invalid. Distinct from `pending`, which means a request is in flight. */
+  confirmDisabled?: boolean;
   /** Pre-resolved error message (caller does its own ApiError check, matching the rest of the app). */
   error?: ReactNode;
   onCancel: () => void;
@@ -50,6 +53,7 @@ export function ConfirmModal({
   confirmLabel,
   pendingLabel,
   pending,
+  confirmDisabled,
   error,
   onCancel,
   onConfirm,
@@ -91,7 +95,7 @@ export function ConfirmModal({
         <Button variant="ghost" onClick={onCancel} disabled={pending}>
           Cancel
         </Button>
-        <Button variant="primary" onClick={onConfirm} disabled={pending}>
+        <Button variant="primary" onClick={onConfirm} disabled={pending || confirmDisabled}>
           {pending ? pendingLabel : confirmLabel}
         </Button>
       </ModalActions>

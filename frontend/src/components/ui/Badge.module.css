@@ -32,3 +32,15 @@
   color: var(--blue-deep);
   background: var(--blue-tint);
 }
+/* Light blue - the priority scale's mid step (Medium). Deliberately paler than .info
+   (High), which uses the deeper blue text on the same tint. */
+.blue {
+  color: var(--blue);
+  background: var(--blue-tint);
+}
+/* Purple - "returned to the backlog" labels (Aborted / Recoverable / Repeatable), set
+   apart from the blue scheduling-priority scale. */
+.purple {
+  color: var(--purple);
+  background: var(--link-tint);
+}

@@ -1,0 +1,42 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.meta {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+.metaItem {
+  font-weight: 700;
+  font-family: var(--mono);
+  color: var(--ink);
+  text-decoration: none;
+}
+a.metaItem:hover {
+  color: var(--magenta);
+}
+.metaSep {
+  color: var(--grey);
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(258px, 1fr));
+  gap: 14px;
+}
+/* Marks the cell whose detail page you're on, so its card stands out among its siblings. */
+.current {
+  border-radius: var(--r-md, 10px);
+  box-shadow: 0 0 0 2px var(--magenta);
+}
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  border-top: 1px solid var(--line-soft);
+  padding-top: 14px;
+}

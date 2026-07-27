@@ -42,7 +42,10 @@ export function BacklogSection() {
       </p>
       <p>
         <b>Priority</b> shows as a coloured badge so the most urgent samples stand out at a glance, both here and
-        on the draggable cards in the Schedule tab&apos;s Backlog panel:
+        on the draggable cards in the Schedule tab&apos;s Backlog panel. A sample imported without a priority is
+        treated as <b>Standard</b> — it shows an explicit Standard badge rather than a blank, so a priority is never
+        left to guess. The colours run from calm to urgent — Standard, then Medium, then High — with Aborted and the
+        &quot;returned to the backlog&quot; labels (Recoverable / Repeatable) set apart in their own colour:
       </p>
       <div className={styles.legendGrid}>
         {PRIORITY_EXAMPLES.map((p) => (

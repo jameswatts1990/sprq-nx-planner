@@ -192,7 +192,7 @@ function TrayStrip({ tray, refMs, live }: { tray: TrayView; refMs: number; live:
     <div className={styles.strip}>
       <Link
         className={styles.trayHeader}
-        to={`/trays/${tray.trayId}`}
+        to={`/cells?tray=${tray.trayId}`}
         title={`Tray ${tray.trayId} - view this tray's 4 cells`}
       >
         TRAY #{tray.trayId}
@@ -230,7 +230,7 @@ function FutureTrays({ trays }: { trays: FutureTrayView[] }) {
             <Link
               key={t.trayId}
               className={styles.futureTray}
-              to={`/trays/${t.trayId}`}
+              to={`/cells?tray=${t.trayId}`}
               title={`Tray ${t.trayId} - loads into Plate ${t.carousel + 1} on ${when}`}
             >
               <span className={styles.futureTrayId}>TRAY #{t.trayId}</span>

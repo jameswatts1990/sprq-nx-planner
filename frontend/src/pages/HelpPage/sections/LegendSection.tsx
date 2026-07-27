@@ -281,9 +281,9 @@ export function LegendSection() {
         <div className={styles.legendRow}>
           <TraySiblingList cells={EXAMPLE_TRAY_SIBLINGS} />
           <span>
-            A physical tray&apos;s four sibling cells (Cell detail&apos;s &quot;Cell tray&quot; card, and the Cells
-            tab&apos;s Open trays list) - each keeps its own independent status, since one cell&apos;s history can
-            diverge from its tray-mates.
+            A physical tray&apos;s four sibling cells, the compact list shown in the Schedule grid&apos;s cell popover -
+            each keeps its own independent status, since one cell&apos;s history can diverge from its tray-mates. (On the
+            Cells tab and a cell&apos;s detail page a tray&apos;s cells are shown as the full cell cards above instead.)
           </span>
         </div>
       </div>
