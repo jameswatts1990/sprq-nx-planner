@@ -169,9 +169,60 @@ def test_update_missing_sample_is_404(client):
     assert resp.status_code == 404
 
 
-def test_update_non_backlog_sample_is_409(client):
+def test_update_terminal_sample_is_409(client):
+    """A finished sample (here: cancelled) is read-only history - editing is refused."""
     created = _create(client, barcodes=["bc1"])
     assert client.post(f"/api/samples/{created['id']}/cancel").status_code == 200
     resp = client.patch(f"/api/samples/{created['id']}", json={"barcodes": ["bc1"]})
     assert resp.status_code == 409
-    assert "backlog" in resp.json()["detail"].lower()
+    assert "cancelled" in resp.json()["detail"].lower()
+
+
+def _next_monday_iso() -> str:
+    from datetime import date, timedelta
+
+    d = date.today() + timedelta(days=1)
+    while d.weekday() != 0:
+        d += timedelta(days=1)
+    return d.isoformat()
+
+
+def test_update_scheduled_sample_edits_loading_params_but_freezes_barcodes(client):
+    """A placed (scheduled) sample stays editable, but only its loading/annotation
+    parameters. Its barcodes and parent are frozen at placement (barcodes are burned onto
+    the cell use), so those fields in the request are ignored rather than applied."""
+    created = _create(
+        client, external_id="TRAC-2-40100", barcodes=["bc1", "bc2"], parent_sample="P1"
+    )
+    place = client.post(
+        "/api/cell-uses",
+        json={
+            "sample_id": created["id"],
+            "instrument_serial": "84047",
+            "load_date": _next_monday_iso(),
+            "slot_index": 0,
+            "run_time_hours": 24,
+        },
+    )
+    assert place.status_code in (200, 201), place.text
+    assert client.get(f"/api/samples/{created['id']}").json()["status"] == "scheduled"
+
+    resp = client.patch(
+        f"/api/samples/{created['id']}",
+        json={
+            "barcodes": ["bcX"],  # frozen once placed -> ignored
+            "parent_sample": "P-CHANGED",  # frozen -> ignored
+            "priority": "High (1)",  # editable
+            "target_oplc": 275,  # editable
+            "adaptive_loading": "true",  # editable, normalized to "True"
+        },
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["status"] == "scheduled"
+    assert body["priority"] == "High (1)"
+    assert body["target_oplc"] == 275
+    assert body["adaptive_loading"] == "True"
+    # Frozen fields are left exactly as placed.
+    assert body["barcodes"] == ["bc1", "bc2"]
+    assert body["parent_sample"] == "P1"

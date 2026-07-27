@@ -16,6 +16,7 @@ import type { SampleOut } from "@/types/sample";
 import { useDebouncedValue } from "@/utils/useDebouncedValue";
 import { ABORTED_PRIORITY, priorityTone } from "@/utils/priority";
 
+import { SampleModal } from "../SampleModal";
 import styles from "./BacklogAccordion.module.css";
 
 const DEFAULT_PAGE_SIZE = 25;
@@ -45,8 +46,12 @@ const SORT_OPTIONS: { value: SampleSortBy; label: string }[] = [
   { value: "priority", label: "Priority" },
 ];
 
-/** Draggable backlog sample card - doubles as the drag source for placing onto a slot. */
-function DraggableSampleCard({ sample }: { sample: SampleOut }) {
+/** Draggable backlog sample card - doubles as the drag source for placing onto a slot.
+ * Hovering (or keyboard-focusing the card) reveals an ✎ edit button pinned top-right that
+ * opens the same Add/Edit modal the Backlog tab uses, so a scheduler can fix a sample's
+ * details without leaving the grid. The button stops its own pointerdown so a click to edit
+ * never trips dnd-kit's drag sensor. */
+function DraggableSampleCard({ sample, onEdit }: { sample: SampleOut; onEdit: (sample: SampleOut) => void }) {
   const data: SampleDragData = {
     kind: "sample",
     sample: { id: sample.id, external_id: sample.external_id, barcodes: sample.barcodes },
@@ -59,6 +64,19 @@ function DraggableSampleCard({ sample }: { sample: SampleOut }) {
       {...listeners}
       {...attributes}
     >
+      <button
+        type="button"
+        className={styles.editBtn}
+        aria-label={`Edit sample ${sample.external_id}`}
+        title={`Edit ${sample.external_id}`}
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
+          onEdit(sample);
+        }}
+      >
+        <span aria-hidden="true">✎</span>
+      </button>
       <div className={styles.cardHead}>
         <span className={styles.ext}>{sample.external_id}</span>
         {sample.parent_sample && <span className={styles.parent}>{sample.parent_sample}</span>}
@@ -66,6 +84,20 @@ function DraggableSampleCard({ sample }: { sample: SampleOut }) {
       </div>
       <BarcodeChips barcodes={sample.barcodes} />
     </div>
+  );
+}
+
+/** Dashed placeholder pinned as the last item in the card list - a shortcut to the same
+ * "Add sample to backlog" modal the Backlog tab uses, so a scheduler can add a sample
+ * inline without switching tabs. Not a drag source. */
+function AddSampleCard({ onClick }: { onClick: () => void }) {
+  return (
+    <button type="button" className={styles.addCard} onClick={onClick} title="Add a new sample to the backlog">
+      <span className={styles.addPlus} aria-hidden="true">
+        +
+      </span>
+      Add sample
+    </button>
   );
 }
 
@@ -85,6 +117,11 @@ export function BacklogAccordion({ onOpenAutoschedule }: BacklogAccordionProps =
   const [sortBy, setSortBy] = useState<SampleSortBy>("created_at");
   const [sortDir, setSortDir] = useState<SampleSortDir>("desc");
   const [open, setOpen] = useState<boolean>(readOpenPref);
+  // The Add/Edit sample modal (reused from the Backlog tab): `addOpen` for a brand-new
+  // sample via the trailing "+" card, `editSample` for the ✎ button on a card. The modal
+  // invalidates the ["samples"] query on save, so this list refreshes on its own.
+  const [addOpen, setAddOpen] = useState(false);
+  const [editSample, setEditSample] = useState<SampleOut | null>(null);
   const q = useDebouncedValue(qInput, 350);
 
   const prioritiesQuery = useQuery({
@@ -121,10 +158,6 @@ export function BacklogAccordion({ onOpenAutoschedule }: BacklogAccordionProps =
   return (
     <Accordion
       title="Backlog"
-      // Collapsed, the tray is just the Backlog toggle + ✦ Autoschedule button pinned over
-      // the grid; dropping the card chrome lets those controls float on their own shadows
-      // instead of sitting on an opaque panel that reads as a grey block over the grid.
-      className={open ? undefined : styles.floatHeader}
       open={open}
       onToggle={(next) => {
         setOpen(next);
@@ -266,17 +299,22 @@ export function BacklogAccordion({ onOpenAutoschedule }: BacklogAccordionProps =
           {query.error instanceof ApiError ? query.error.message : "Failed to load backlog."}
         </Note>
       )}
-      {!query.isLoading && !query.isError && items.length === 0 && (
-        <div className={styles.status}>No backlog samples found.</div>
+      {!query.isLoading && !query.isError && (
+        <>
+          {items.length === 0 && <div className={styles.status}>No backlog samples found.</div>}
+          {/* The "+" add card is always the last item, so the shortcut is there even when the
+              list is empty or filtered down to nothing. */}
+          <div className={styles.grid}>
+            {items.map((sample) => (
+              <DraggableSampleCard key={sample.id} sample={sample} onEdit={setEditSample} />
+            ))}
+            <AddSampleCard onClick={() => setAddOpen(true)} />
+          </div>
+        </>
       )}
 
-      {items.length > 0 && (
-        <div className={styles.grid}>
-          {items.map((sample) => (
-            <DraggableSampleCard key={sample.id} sample={sample} />
-          ))}
-        </div>
-      )}
+      {addOpen && <SampleModal onClose={() => setAddOpen(false)} />}
+      {editSample && <SampleModal sample={editSample} onClose={() => setEditSample(null)} />}
     </Accordion>
   );
 }

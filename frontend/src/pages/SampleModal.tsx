@@ -40,9 +40,31 @@ function valuesFromSample(sample: SampleOut): Record<string, string> {
 
 /** Add a new backlog sample, or (when `sample` is given) edit an existing one. Same form
  * either way; in edit mode the Container ID is greyed out because a sample's identity is
- * fixed once created. */
-export function SampleModal({ sample, onClose }: { sample?: SampleOut; onClose: () => void }) {
+ * fixed once created.
+ *
+ * `editableKeys` puts the form into restricted mode: only fields whose key is in the set
+ * are shown as editable (the Container ID is still shown, locked, for context; every other
+ * field is hidden). The Schedule page's slot-detail popover uses this to edit an
+ * already-placed sample's loading parameters only — its barcodes/Sanger/parent are frozen
+ * once scheduled (the backend ignores them for a placed sample regardless), so exposing
+ * them here would just invite edits that silently don't apply.
+ *
+ * `onSaved` runs after a successful save, before onClose — a hook for callers that need to
+ * refresh more than the ["samples"] list this modal already invalidates (e.g. the popover
+ * refreshing the schedule grid it lives on). */
+export function SampleModal({
+  sample,
+  editableKeys,
+  onClose,
+  onSaved,
+}: {
+  sample?: SampleOut;
+  editableKeys?: Set<string>;
+  onClose: () => void;
+  onSaved?: () => void;
+}) {
   const isEdit = sample != null;
+  const isRestricted = editableKeys != null;
   const queryClient = useQueryClient();
   const [values, setValues] = useState<Record<string, string>>(() =>
     sample ? valuesFromSample(sample) : {},
@@ -57,6 +79,7 @@ export function SampleModal({ sample, onClose }: { sample?: SampleOut; onClose: 
       sample ? samplesApi.update(sample.id, body) : samplesApi.create(body as SampleCreate),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["samples"] });
+      onSaved?.();
       onClose();
     },
   });
@@ -70,7 +93,10 @@ export function SampleModal({ sample, onClose }: { sample?: SampleOut; onClose: 
     const externalId = (values.external_id ?? "").trim();
     const barcodes = splitList(values.barcodes ?? "");
     if (!isEdit && !externalId) return setClientError("Container ID is required.");
-    if (barcodes.length === 0) return setClientError("At least one barcode is required.");
+    // In restricted (placed-sample) mode barcodes aren't editable and the backend ignores
+    // them, so don't block on them — the seeded set is sent unchanged just to satisfy the
+    // shared request shape.
+    if (!isRestricted && barcodes.length === 0) return setClientError("At least one barcode is required.");
 
     const str = (k: string) => ((values[k] ?? "").trim() ? (values[k] ?? "").trim() : null);
     const num = (k: string) => {
@@ -108,11 +134,16 @@ export function SampleModal({ sample, onClose }: { sample?: SampleOut; onClose: 
   return (
     <Modal
       onClose={onClose}
-      title={isEdit ? "Edit backlog sample" : "Add sample to backlog"}
+      title={isRestricted ? "Edit scheduled sample" : isEdit ? "Edit backlog sample" : "Add sample to backlog"}
       maxWidth={560}
     >
       <p className={styles.intro}>
-        {isEdit ? (
+        {isRestricted ? (
+          <>
+            This sample is already scheduled. Its barcodes and identity are locked once it&apos;s placed on
+            the grid — you can still adjust its loading parameters below.
+          </>
+        ) : isEdit ? (
           <>
             Update this backlog sample. The Container ID identifies the sample and can&apos;t be
             changed; at least one barcode is still required.
@@ -126,8 +157,12 @@ export function SampleModal({ sample, onClose }: { sample?: SampleOut; onClose: 
       </p>
 
       <div className={styles.grid}>
-        {fields.map((f) => {
-          const locked = isEdit && PROTECTED_KEYS.has(f.key);
+        {fields
+          // In restricted mode show only the editable fields plus the (locked) Container ID
+          // for context; every other field is hidden rather than shown greyed-out.
+          .filter((f) => !isRestricted || editableKeys.has(f.key) || PROTECTED_KEYS.has(f.key))
+          .map((f) => {
+          const locked = (isEdit && PROTECTED_KEYS.has(f.key)) || (isRestricted && !editableKeys.has(f.key));
           return (
             <label key={f.key} className={styles.field}>
               <span className={styles.label}>

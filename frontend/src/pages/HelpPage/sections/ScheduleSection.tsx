@@ -244,6 +244,13 @@ export function ScheduleSection() {
         Backlog tab, so you can narrow down to the sample you want before dragging it — see the Backlog tab&apos;s help
         for details on each control.
       </p>
+      <p>
+        <b>Editing and adding samples from the tray:</b> hover a backlog card (or tab to it) and an <b>✎ edit</b> button
+        appears in its top-right corner — click it to open the same sample form the Backlog tab uses, so you can fix a
+        sample&apos;s barcodes, priority, or other details without leaving the grid. The last item in the list is always
+        a dashed <b>+ Add sample</b> card; click it to add a brand-new sample straight to the backlog with that same
+        form. Either way the tray refreshes on save.
+      </p>
 
       <p className={styles.subheading}>Placing samples</p>
       <ol>
@@ -285,6 +292,16 @@ export function ScheduleSection() {
         capacity left does a fresh tray of 4 open. The card stays in the slot you dropped on; its <b>stub</b> tells you
         which cell it actually landed on (e.g. <i>▣2</i>). No picker interrupts the drop; the first placement into an empty
         day just uses a default <b>12:00</b> loading start time.
+      </p>
+      <p>
+        <b>A barcode clash can&apos;t push cells out of tray order.</b> A cell can never run the same barcode twice, so if
+        a sample&apos;s barcode was already burned on the cell that would naturally back its slot, RunNx skips that cell.
+        Usually it just reaches for the next usable cell — but if doing so would leave the plate loading its cells{" "}
+        <i>out of tray order</i> (e.g. <i>▣2</i> in an earlier slot than <i>▣1</i>, something the instrument never does on
+        a tray whose cells are all at the same use), the drop is <b>refused</b> with a note naming the sample whose barcode
+        forced it. Move that sample to a different slot or day (or onto a fresh cell) and try again. (Cells legitimately
+        loading out of position because one is further through its uses — nearer its 108-hour deadline — is fine and is
+        never blocked.)
       </p>
       <p>
         <b>Dropping onto a day the tray has already expired loads a fresh one — automatically.</b> A cell can only be
@@ -396,6 +413,16 @@ export function ScheduleSection() {
         that already ran on this cell before the stop are left completely untouched. Every cancelled use stays
         visible as a <b>Blocked</b> slot (see below) rather than disappearing, so a day&apos;s plan never silently
         loses a placement without a trace.
+      </p>
+      <p>
+        <b>Editing the sample:</b> in a filled slot&apos;s detail the <b>Sample</b> value doubles as an edit link (it
+        shows a small <b>✎</b> and turns pink) — click it to adjust that sample&apos;s loading parameters (<b>Target
+        OPLC</b>, <b>Volume</b>, <b>Adaptive Loading</b>, <b>Full-Resolution Base Q</b>, <b>Priority</b> and{" "}
+        <b>Include Base Kinetics</b>) without going back to the Backlog. Once a sample is placed on the grid its{" "}
+        <b>barcodes</b>, Sanger IDs and parent are locked — they&apos;re already burned onto the cell — so only those
+        loading settings can change here. The link is hidden once the sample has finished (completed, failed or
+        aborted), since its record is then history. To fix a placement&apos;s <b>note</b>, use the <b>Notes</b> box
+        lower in the same popover.
       </p>
       <p>
         <b>Run time:</b> the popover shows this cell&apos;s own movie / run time, and while the run is still planned

@@ -3,20 +3,6 @@
   align-items: center;
   gap: 8px;
 }
-/* Collapsed pinned-Backlog variant: strip the shared Card's fill, border, shadow and
-   header divider so the header controls (Backlog toggle, ✦ Autoschedule pill, sample
-   count) float directly over the grid on their own shadows rather than on an opaque
-   panel. The Card's own header keeps its padding; only its chrome is removed. The direct
-   child selector targets the Card header row (Card.module.css .head) without reaching
-   into that module's scoped class name. */
-.floatHeader {
-  background: transparent;
-  border-color: transparent;
-  box-shadow: none;
-}
-.floatHeader > div {
-  border-bottom: none;
-}
 /* The ✨ Autoschedule entry point, pinned in the Backlog header right after the title.
    Magenta pill with a white monochrome sparkle glyph. */
 .sparkleBtn {
@@ -119,6 +105,7 @@
   padding: 4px;
 }
 .card {
+  position: relative;
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
   background: var(--card);
@@ -129,6 +116,74 @@
 }
 .card:hover {
   border-color: #cfd2d8;
+}
+/* Edit affordance pinned top-right, revealed on card hover / keyboard focus. Absolutely
+   positioned so it never reflows the card, and small enough to clear the head row's badges.
+   Kept out of the drag by stopping its own pointerdown (see DraggableSampleCard). */
+.editBtn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  font-size: 13px;
+  line-height: 1;
+  color: var(--grey);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s, color 0.12s, border-color 0.12s;
+}
+.card:hover .editBtn,
+.editBtn:focus-visible {
+  opacity: 1;
+}
+.editBtn:hover {
+  color: var(--ink);
+  border-color: #cfd2d8;
+}
+.editBtn:focus-visible {
+  outline: 2px solid var(--magenta-deep);
+  outline-offset: 1px;
+}
+/* Trailing "add a sample" placeholder - a dashed card that shares the grid track sizing
+   with the sample cards, so it reads as the natural next slot in the list. */
+.addCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 64px;
+  font-family: var(--sans);
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--grey);
+  background: transparent;
+  border: 1px dashed var(--line);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  transition: 0.14s;
+}
+.addCard:hover {
+  color: var(--magenta-deep);
+  border-color: var(--magenta);
+  background: var(--card);
+}
+.addCard:focus-visible {
+  outline: 2px solid var(--magenta-deep);
+  outline-offset: 2px;
+}
+.addPlus {
+  font-size: 22px;
+  font-weight: 400;
+  line-height: 1;
 }
 .card:active {
   cursor: grabbing;

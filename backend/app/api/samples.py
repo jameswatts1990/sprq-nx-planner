@@ -16,6 +16,7 @@ from app.services.sample_service import (
     DuplicateSampleError,
     create_backlog_sample,
     update_backlog_sample,
+    update_placed_sample_metadata,
 )
 
 router = APIRouter(prefix="/api/samples", tags=["samples"])
@@ -158,31 +159,53 @@ def get_sample(sample_id: int, db: SessionDep) -> SampleDetailOut:
     return sample_detail_out(sample)
 
 
+# A sample that has finished its lifecycle - its schedule is history, not a plan, so it's
+# read-only. Everything before that (backlog, or placed-but-not-yet-run) can still be edited,
+# though a placed sample is limited to its loading parameters (see update_placed_sample_metadata).
+_LOCKED_EDIT_STATUSES = ("completed", "failed", "cancelled")
+
+
 @router.patch("/{sample_id}", response_model=SampleOut)
 def update_sample(sample_id: int, req: SampleUpdate, db: SessionDep, actor: ActorDep) -> SampleOut:
-    """Manually edit a backlog sample. Everything on the add form is editable except the
-    Container ID (external_id), which identifies the sample and is fixed once created."""
+    """Edit a sample. A backlog sample is fully editable (everything on the add form except
+    the Container ID, which is fixed once created). A sample already placed on the grid
+    (scheduled/in_progress) is edited from the slot-detail popover and is limited to its
+    loading/annotation parameters — its barcodes, Sanger IDs, and parent are frozen at
+    placement (the barcodes are burned onto the cell use), so any barcode/sanger/parent
+    fields in the request are ignored for it. A finished sample can no longer be edited."""
     sample = db.get(Sample, sample_id, options=[selectinload(Sample.barcodes)])
     if sample is None:
         raise HTTPException(404, "Sample not found")
-    if sample.status != "backlog":
-        raise HTTPException(409, f"Only backlog samples can be edited (current status: {sample.status})")
-    barcodes = split_barcodes(" ".join(req.barcodes))
-    if not barcodes:
-        raise HTTPException(422, "At least one barcode is required")
-    update_backlog_sample(
-        db,
-        sample,
-        barcodes=barcodes,
-        sanger_ids=req.sanger_ids,
-        parent_sample=req.parent_sample,
-        target_oplc=req.target_oplc,
-        volume=req.volume,
-        adaptive_loading=req.adaptive_loading,
-        full_resolution_base_q=req.full_resolution_base_q,
-        priority=req.priority,
-        ccs_kinetics=req.ccs_kinetics,
-    )
+    if sample.status in _LOCKED_EDIT_STATUSES:
+        raise HTTPException(409, f"A {sample.status} sample can no longer be edited")
+
+    if sample.status == "backlog":
+        barcodes = split_barcodes(" ".join(req.barcodes))
+        if not barcodes:
+            raise HTTPException(422, "At least one barcode is required")
+        update_backlog_sample(
+            db,
+            sample,
+            barcodes=barcodes,
+            sanger_ids=req.sanger_ids,
+            parent_sample=req.parent_sample,
+            target_oplc=req.target_oplc,
+            volume=req.volume,
+            adaptive_loading=req.adaptive_loading,
+            full_resolution_base_q=req.full_resolution_base_q,
+            priority=req.priority,
+            ccs_kinetics=req.ccs_kinetics,
+        )
+    else:
+        update_placed_sample_metadata(
+            sample,
+            target_oplc=req.target_oplc,
+            volume=req.volume,
+            adaptive_loading=req.adaptive_loading,
+            full_resolution_base_q=req.full_resolution_base_q,
+            priority=req.priority,
+            ccs_kinetics=req.ccs_kinetics,
+        )
     db.add(AuditLog(actor=actor, action="update_sample", entity_type="sample", entity_id=sample.id, details_json={}))
     db.commit()
     db.refresh(sample)

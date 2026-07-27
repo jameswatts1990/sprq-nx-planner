@@ -257,7 +257,10 @@ export const SchedulerSlotView = memo(
                 {sealMicrotext}
               </span>
               <span className={styles.stubLabel}>
-                <span className={styles.stubCell}>{stubCell}</span>
+                <span className={styles.stubCell}>
+                  <span className={styles.stubCellGlyph}>{stubCell.slice(0, 1)}</span>
+                  {stubCell.slice(1)}
+                </span>
                 <span className={styles.stubUseBox}>{stubUse}</span>
               </span>
             </button>

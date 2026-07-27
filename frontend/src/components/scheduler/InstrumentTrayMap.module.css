@@ -109,6 +109,14 @@
   font-family: var(--mono);
   color: var(--grey);
 }
+/* The U+25A3 cell-position glyph, bumped up and given a little breathing room so it reads
+   clearly at this small size (the number stays at .letter's font-size). */
+.cellGlyph {
+  font-size: 1.45em;
+  line-height: 1;
+  padding-right: 0.2em;
+  vertical-align: -0.1em;
+}
 .uses {
   grid-row: 1;
   grid-column: 2;

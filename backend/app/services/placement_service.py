@@ -18,7 +18,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
-from app.engine.constants import CELL_LIFETIME_H, DAY_START_HOUR, REUSE_PREP_H, WELLS
+from app.engine.constants import CELL_LIFETIME_H, DAY_START_HOUR, REUSE_PREP_H, WELLS, within_tray_pos
 from app.models.audit import AuditLog
 from app.models.cell import Cell
 from app.models.cell_tray import CellTray
@@ -592,6 +592,82 @@ def derive_best_cell(
     return {"mode": "new"}
 
 
+def _tray_pos_label(home_well: str) -> str:
+    """The grid's cell-position badge for a home well - ▣1..▣4 for tray positions A..D, matching
+    SchedulerSlotView's ▣N stub. Used in the plate-order error so the message names cells the
+    same way the user sees them on the card."""
+    return f"▣{within_tray_pos(home_well) + 1}"
+
+
+def _assert_no_barcode_forced_inversion(db: Session, cycle_id: int) -> None:
+    """A tray breaks its cells out in physical order - ▣1 (position A) before ▣2 before ▣3 before
+    ▣4 - so across a plate's loading slots (A01→B01→C01→D01) the cells drawn from one physical
+    tray must appear in that same non-decreasing order. A barcode clash can silently force a
+    sample off the cell that would naturally back its slot and onto a later-position sibling,
+    transposing two equally-reusable cells - e.g. slot A01 backed by ▣3 while slot B01 is backed
+    by ▣2 ("cell order 3 then 2"), which a real instrument would never produce. `derive_best_cell`
+    treats a slot as a pure loading position and reaches for the next-in-order *eligible* cell, so
+    the clash is invisible to it (see _reuse_eligible's silent barcode skip); this catches the
+    resulting impossible plate order and refuses it, naming the clashing sample, rather than
+    committing it (reported by the lab owner, 2026-07-27).
+
+    Only a *barcode-forced* transposition of two cells at the SAME reuse depth is blocked. A
+    genuine difference in reuse depth (the "most-used / expiring-next first" ordering, or a
+    shorter run leaving one sibling further along) legitimately puts a later-position cell in an
+    earlier slot, and is left alone - exactly the lab owner's noted exception. Must run after the
+    placement is flushed but before commit; the caller rolls back on the raise so nothing is
+    persisted."""
+    db.flush()
+    # populate_existing: a sibling cell in this plate may have been last loaded in an earlier
+    # (already-committed) request, leaving its cached cell_uses collection stale in the identity
+    # map - which would give derive_cell_state a wrong use count and mis-fire the reuse-depth
+    # exception below. Force the eager loads to overwrite that stale state.
+    uses = db.scalars(
+        select(CellUse)
+        .where(CellUse.cycle_id == cycle_id, CellUse.status != "cancelled")
+        .options(
+            selectinload(CellUse.cell).selectinload(Cell.cell_uses).selectinload(CellUse.barcodes),
+            selectinload(CellUse.barcodes),
+            selectinload(CellUse.sample),
+        )
+        .execution_options(populate_existing=True)
+    ).all()
+    # Only tray-linked cells have a fixed A/B/C/D order to violate; a legacy/bootstrap cell
+    # (no tray, no home_well) has no position to compare.
+    stages = [u for u in uses if u.cell is not None and u.cell.tray_id is not None and u.cell.home_well]
+    for earlier in stages:
+        for later in stages:
+            if earlier is later or earlier.cell.tray_id != later.cell.tray_id:
+                continue
+            if within_tray_pos(earlier.well) >= within_tray_pos(later.well):
+                continue  # `earlier` must load before `later`
+            if within_tray_pos(earlier.cell.home_well) <= within_tray_pos(later.cell.home_well):
+                continue  # cells already in tray order across these two slots - fine
+            # A real reuse-depth difference (expiring-next / shorter-run) justifies the order.
+            if derive_cell_state(earlier.cell)[0] != derive_cell_state(later.cell)[0]:
+                continue
+            # Barcode-forced? i.e. could `earlier`'s sample NOT have taken `later`'s (lower,
+            # earlier-loading) cell, because it shares a burned barcode with it.
+            later_burned = set(derive_cell_state(later.cell)[2])
+            if not any(bc in later_burned for bc in earlier.barcode_list):
+                continue
+            # The `earlier`-slot sample is always the culprit: it was bumped onto the
+            # higher-position cell precisely because it clashes with the lower one (`later`'s
+            # cell), which then landed in the later slot. That's true whichever of the two the
+            # user dropped last, so the message names it regardless of drop order.
+            earlier_lbl = _tray_pos_label(earlier.cell.home_well)
+            later_lbl = _tray_pos_label(later.cell.home_well)
+            culprit = earlier.sample.external_id if earlier.sample else "the other sample"
+            raise PlacementError(
+                409,
+                f"Can't place here: the plate would load cell {later_lbl} after {earlier_lbl} "
+                f"(slot {earlier.well} → {earlier_lbl}, slot {later.well} → {later_lbl}), but a tray "
+                f"loads its cells in order ({later_lbl} before {earlier_lbl}). {culprit}'s barcode "
+                f"clashes with {later_lbl}, forcing it off that cell. Move {culprit} to a different "
+                f"slot or day (or onto a fresh cell) first.",
+            )
+
+
 def place_sample(
     db: Session,
     *,
@@ -720,6 +796,12 @@ def place_sample(
     recompute_cycle_timing(db, cycle)
     db.refresh(cell, attribute_names=["cell_uses"])
     recompute_status(cell, utcnow())
+
+    try:
+        _assert_no_barcode_forced_inversion(db, cycle.id)
+    except PlacementError:
+        db.rollback()
+        raise
 
     run_batch_id = cycle.run_batch_id
     db.add(
@@ -1082,6 +1164,12 @@ def move_sample(
     # Destination gains this well (its representative run time may now be longer).
     recompute_cycle_timing(db, dest_cycle)
 
+    try:
+        _assert_no_barcode_forced_inversion(db, dest_cycle.id)
+    except PlacementError:
+        db.rollback()
+        raise
+
     db.add(
         AuditLog(
             actor=actor or "unknown",
@@ -1203,6 +1291,12 @@ def _move_sample_to_new_cell(
     _release_cell(db, old_cell, now)
     db.refresh(new_cell, attribute_names=["cell_uses"])
     recompute_status(new_cell, now)
+
+    try:
+        _assert_no_barcode_forced_inversion(db, dest_cycle.id)
+    except PlacementError:
+        db.rollback()
+        raise
 
     db.add(
         AuditLog(

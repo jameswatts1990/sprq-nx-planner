@@ -5,6 +5,7 @@ import { Link } from "react-router-dom";
 import { ApiError } from "@/api/client";
 import { cellsApi } from "@/api/cells";
 import { cellUsesApi } from "@/api/cellUses";
+import { samplesApi } from "@/api/samples";
 import { WindowMeter } from "@/components/cells/WindowMeter";
 import { BarcodeChips } from "@/components/shared/BarcodeChips";
 import { Button } from "@/components/ui/Button";
@@ -12,6 +13,7 @@ import { Modal, ModalActions } from "@/components/ui/Modal";
 import { Note } from "@/components/ui/Note";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
+import { SampleModal } from "@/pages/SampleModal";
 import type { RunOut, RunTimeHours, StageOut } from "@/types/schedule";
 import { canRecordQcOutcome, canUndoQcOutcome } from "@/utils/cellUseQc";
 import { plateWellFromSlot } from "@/utils/plateWell";
@@ -35,6 +37,23 @@ export interface SlotDetailPopoverProps {
 /** Which of the popover's alternate inline views is showing, in place of the normal
  * detail + footer. Mutually exclusive, so a single field rather than several booleans. */
 type PopoverMode = "view" | "markFailed" | "stop" | "undoQc" | "undoStop";
+
+/** The only sample fields still editable once a sample has been placed on the grid — its
+ * loading/annotation parameters. Barcodes, Sanger IDs, parent, and the Container ID are
+ * frozen at placement (the barcodes are burned onto the cell use; the backend enforces this
+ * too — see update_placed_sample_metadata). Keys match the importable-field set. */
+const PLACED_EDITABLE_KEYS = new Set([
+  "target_oplc",
+  "volume",
+  "adaptive_loading",
+  "full_resolution_base_q",
+  "priority",
+  "ccs_kinetics",
+]);
+
+/** Cell-use statuses whose sample is done/gone, so its record is read-only history. Used as
+ * a cheap, no-fetch gate on whether the Sample value is shown as an edit link. */
+const SAMPLE_LOCKED_USE_STATUSES = ["completed", "failed", "cancelled"];
 
 /** Detail for one filled slot: cell code, the cell's burned barcodes, the sample. A cell
  * is physically fixed to its tray/well position for life, so this popover never offers a
@@ -63,6 +82,17 @@ export function SlotDetailPopover({ stage, run, onClose }: SlotDetailPopoverProp
   // longest well (recomputed server-side), so the grid may show a new run duration after.
   const [runTime, setRunTime] = useState<RunTimeHours>(stage.run_time_hours);
   const [savedRunTime, setSavedRunTime] = useState<RunTimeHours>(stage.run_time_hours);
+
+  // Editing this slot's sample (loading parameters only) via the shared SampleModal. Fetched
+  // lazily on click - only the placed-sample subset is editable, so the full record is pulled
+  // just-in-time rather than eagerly on every popover open.
+  const [editingSample, setEditingSample] = useState(false);
+  const sampleQuery = useQuery({
+    queryKey: ["sample", stage.sample_id],
+    queryFn: () => samplesApi.get(stage.sample_id as number),
+    enabled: editingSample && stage.sample_id != null,
+  });
+  const sampleEditable = stage.sample_id != null && !SAMPLE_LOCKED_USE_STATUSES.includes(stage.cell_use_status);
 
   const cellQuery = useQuery({
     queryKey: ["cell", stage.cell_id],
@@ -198,6 +228,21 @@ export function SlotDetailPopover({ stage, run, onClose }: SlotDetailPopoverProp
     </div>
   );
 
+  // Swap the whole popover for the edit modal while editing (rather than stacking two
+  // dialogs): a single overlay/Escape target, and closing the edit form returns cleanly to
+  // this popover with its own state (notes, run time) intact. Only swaps once the sample has
+  // loaded, so the popover stays put during the brief fetch.
+  if (editingSample && sampleQuery.data) {
+    return (
+      <SampleModal
+        sample={sampleQuery.data}
+        editableKeys={PLACED_EDITABLE_KEYS}
+        onClose={() => setEditingSample(false)}
+        onSaved={() => invalidateScheduleRelated(queryClient)}
+      />
+    );
+  }
+
   return (
     <Modal onClose={onClose} title={stage.cell_ref} titleExtra={qcActions || undefined}>
       {isCancelled && (
@@ -219,8 +264,28 @@ export function SlotDetailPopover({ stage, run, onClose }: SlotDetailPopoverProp
       <div className={styles.details}>
         <div className={styles.row}>
           <span className={styles.label}>Sample</span>
-          <b className={styles.value}>{stage.sample_external_id ?? "—"}</b>
+          {sampleEditable ? (
+            <button
+              type="button"
+              className={styles.sampleEditLink}
+              onClick={() => setEditingSample(true)}
+              disabled={editingSample && sampleQuery.isLoading}
+              title="Edit this sample's loading parameters"
+            >
+              {stage.sample_external_id ?? "—"}
+              <span className={styles.sampleEditIcon} aria-hidden="true">
+                ✎
+              </span>
+            </button>
+          ) : (
+            <b className={styles.value}>{stage.sample_external_id ?? "—"}</b>
+          )}
         </div>
+        {editingSample && sampleQuery.isError && (
+          <Note tone="bad" icon="!">
+            {sampleQuery.error instanceof ApiError ? sampleQuery.error.message : "Failed to load the sample."}
+          </Note>
+        )}
         <div className={styles.row}>
           <span className={styles.label}>Well</span>
           <b className={styles.value}>{plateWellFromSlot(stage.slot_index, { full: true })}</b>

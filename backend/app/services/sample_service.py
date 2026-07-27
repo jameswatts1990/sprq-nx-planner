@@ -96,3 +96,29 @@ def update_backlog_sample(
     for i, bc in enumerate(barcodes):
         sample.barcodes.append(SampleBarcode(barcode=bc, position=i))
     return sample
+
+
+def update_placed_sample_metadata(
+    sample: Sample,
+    *,
+    target_oplc: float | None = None,
+    volume: float | None = None,
+    adaptive_loading: str | None = None,
+    full_resolution_base_q: str | None = None,
+    priority: str | None = None,
+    ccs_kinetics: str | None = None,
+) -> Sample:
+    """Update only the loading/annotation parameters that stay editable once a sample has
+    left the backlog and been placed on the grid (status scheduled/in_progress). The
+    sample's identity (external_id), its barcodes, Sanger IDs, and parent are deliberately
+    frozen at placement time — the barcodes in particular are burned onto the cell use when
+    it's scheduled (see run_serializer._stage_out), so a later sample-record edit must not
+    diverge from what the cell already carries. Sets attributes on the tracked ORM object
+    only; the caller owns the flush/commit (no barcode rows to reconcile, so no `db` needed)."""
+    sample.target_oplc = target_oplc
+    sample.volume = volume
+    sample.adaptive_loading = adaptive_loading or None
+    sample.full_resolution_base_q = full_resolution_base_q or None
+    sample.priority = priority or None
+    sample.ccs_kinetics = ccs_kinetics or None
+    return sample

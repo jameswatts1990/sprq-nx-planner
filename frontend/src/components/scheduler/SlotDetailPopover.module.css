@@ -21,6 +21,38 @@
   color: var(--ink);
   text-align: right;
 }
+/* The Sample value doubling as an edit trigger: reads like the bold value on the right, but
+   is a button with a hover ✎ affordance and a magenta accent so it's clearly actionable. */
+.sampleEditLink {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-weight: 800;
+  color: var(--magenta-deep);
+  text-align: right;
+  cursor: pointer;
+}
+.sampleEditLink:hover {
+  text-decoration: underline;
+}
+.sampleEditLink:disabled {
+  cursor: default;
+  opacity: 0.6;
+  text-decoration: none;
+}
+.sampleEditLink:focus-visible {
+  outline: 2px solid var(--magenta-deep);
+  outline-offset: 2px;
+  border-radius: var(--r-sm);
+}
+.sampleEditIcon {
+  font-size: 12px;
+  color: var(--grey);
+}
 /* Run-time row hosts a SegmentedControl on the right, so centre-align it rather than the
    baseline the text rows use, and let the control keep its natural width. */
 .runTimeRow {

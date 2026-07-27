@@ -258,6 +258,13 @@
   font-size: 11px;
   line-height: 1;
 }
+/* The U+25A3 cell-position glyph, enlarged with a little trailing space so it stays legible
+   over the foil (the cell number keeps .stubCell's font-size). */
+.stubCellGlyph {
+  font-size: 1.4em;
+  padding-right: 0.15em;
+  vertical-align: -0.08em;
+}
 /* The use number in "its own square": a small bordered box over the use-tinted strip, so the
    use reads both as a number and (via the strip colour) as the Use 1/2/3 palette. */
 .stubUseBox {

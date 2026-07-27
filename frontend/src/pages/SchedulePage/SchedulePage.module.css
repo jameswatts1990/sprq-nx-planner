@@ -8,10 +8,9 @@
    nav, so the backlog stays reachable for a drag no matter how far down the instrument
    rows you've scrolled. Only this wrapper is sticky; its children lay out normally, and
    the Backlog tray caps its own card list height (see BacklogAccordion .grid) so the
-   pinned region can't grow tall enough to hide the grid. The collapsed Backlog tray drops
-   its card chrome (see BacklogAccordion .floatHeader) so its toggle + Autoschedule button
-   read as floating controls, not a bolted-on panel; only once expanded does its list get
-   an opaque card.
+   pinned region can't grow tall enough to hide the grid. The Backlog tray keeps its Card
+   chrome (opaque white block with border + shadow) whether collapsed or expanded, so the
+   collapsed header reads as the same panel as the open tray rather than floating loose.
 
    The wrapper paints the page background (var(--bg), not a card fill) across the whole
    pinned band. This is the opaque ceiling that instrument rows disappear under as they
