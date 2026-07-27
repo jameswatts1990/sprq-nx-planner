@@ -31,7 +31,11 @@ export interface ListCellsParams {
  * with no visible sign anything was cut off. Not for CellsPage's browse UI, which keeps
  * real page/page_size controls since the user can see and page through its total. */
 async function listAll(params: Omit<ListCellsParams, "page" | "page_size"> = {}): Promise<CellOut[]> {
-  const page_size = 500;
+  // Sized so a single request covers each status category's realistic lab-wide total (open /
+  // stopped / terminal), keeping these system-wide reads to one round-trip each. The loop
+  // below still handles the (rare) case of a category exceeding this, so nothing is ever
+  // silently truncated - it just won't page for ordinary volumes.
+  const page_size = 1000;
   const first = await cellsApi.list({ ...params, page: 1, page_size });
   const items = [...first.items];
   for (let page = 2; items.length < first.total; page++) {

@@ -7,7 +7,10 @@
   display: block;
   text-decoration: none;
   color: inherit;
-  transition: 0.14s;
+  /* Explicit property list rather than the `all` shorthand: only the two properties the
+     hover state actually changes are transitioned, so a grid of ~100 of these cards isn't
+     asking the compositor to watch every animatable property on each one. */
+  transition: border-color 0.14s ease, box-shadow 0.14s ease;
 }
 .card:hover {
   border-color: #cfd2d8;

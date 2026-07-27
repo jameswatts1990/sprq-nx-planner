@@ -1,4 +1,4 @@
-import { createContext, useCallback, useEffect, useRef, useState } from "react";
+import { createContext, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { CellLinkTarget } from "./cellLinkState";
 
@@ -112,6 +112,17 @@ export function useCellLinkHighlight(suppressed: boolean): CellLinkContextValue 
     };
   }, [pinned]);
 
-  if (suppressed) return INERT_CONTEXT;
-  return { active: pinned ?? hovered, setHover, clearHover, togglePin };
+  // Memoized so the provider value keeps a stable identity across the many SchedulePage
+  // re-renders that don't touch the highlight (the 60s cycles poll, opening a popover, drag
+  // state, etc.). Context consumers re-render whenever this value's identity changes -
+  // regardless of React.memo - so a fresh object each render would repaint every filled slot
+  // in the grid. The callbacks are already useCallback-stable, so this only changes when the
+  // hover/pin target actually changes.
+  const value = useMemo(
+    () => ({ active: pinned ?? hovered, setHover, clearHover, togglePin }),
+    [pinned, hovered, setHover, clearHover, togglePin],
+  );
+  // A drag suppresses the highlight entirely; returning the shared INERT identity (rather than
+  // a new no-op object) keeps every consumer's memo intact for the duration of the drag.
+  return suppressed ? INERT_CONTEXT : value;
 }

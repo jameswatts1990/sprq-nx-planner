@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { memo, useCallback, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { ApiError } from "@/api/client";
@@ -26,6 +26,9 @@ export function HistorySamplesPage() {
   const q = useDebouncedValue(qInput, 350);
   const [page, setPage] = useState(1);
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  // Stable identity so the memoized rows below only re-render the one whose `expanded` flips,
+  // rather than the whole page on every parent render (e.g. each search keystroke).
+  const handleToggle = useCallback((id: number) => setExpandedId((cur) => (cur === id ? null : id)), []);
 
   const query = useQuery({
     queryKey: ["samples", { status: "completed,failed", q, page, page_size: PAGE_SIZE }],
@@ -82,12 +85,7 @@ export function HistorySamplesPage() {
                 </thead>
                 <tbody>
                   {items.map((s) => (
-                    <SampleRow
-                      key={s.id}
-                      sample={s}
-                      expanded={expandedId === s.id}
-                      onToggle={() => setExpandedId((cur) => (cur === s.id ? null : s.id))}
-                    />
+                    <SampleRow key={s.id} sample={s} expanded={expandedId === s.id} onToggle={handleToggle} />
                   ))}
                 </tbody>
               </table>
@@ -104,13 +102,16 @@ export function HistorySamplesPage() {
 interface SampleRowProps {
   sample: SampleOut;
   expanded: boolean;
-  onToggle: () => void;
+  /** Receives this row's sample id so the parent can pass one stable handler to every row
+   * (keeps this memoized row from re-rendering just because a new closure was created). */
+  onToggle: (id: number) => void;
 }
 
 /** Keeps this view simple (per spec, lower priority): rather than a separate sample
  * detail page, each row expands inline and lazily fetches samplesApi.get(id) to show
- * the sample's cell_uses. */
-function SampleRow({ sample, expanded, onToggle }: SampleRowProps) {
+ * the sample's cell_uses. Memoized so a search keystroke re-renders only the row whose
+ * expanded state changed, not all 25 (each row also owns a lazy detail useQuery). */
+const SampleRow = memo(function SampleRow({ sample, expanded, onToggle }: SampleRowProps) {
   const detailQuery = useQuery({
     queryKey: ["sample", sample.id],
     queryFn: () => samplesApi.get(sample.id),
@@ -119,7 +120,7 @@ function SampleRow({ sample, expanded, onToggle }: SampleRowProps) {
 
   return (
     <>
-      <tr className={styles.row} onClick={onToggle}>
+      <tr className={styles.row} onClick={() => onToggle(sample.id)}>
         <td className={styles.toggleCell}>{expanded ? "▼" : "▶"}</td>
         <td>{sample.external_id}</td>
         <td>
@@ -185,4 +186,4 @@ function SampleRow({ sample, expanded, onToggle }: SampleRowProps) {
       )}
     </>
   );
-}
+});

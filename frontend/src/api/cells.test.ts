@@ -24,19 +24,19 @@ describe("cellsApi.listAll", () => {
     // dropping the oldest still-open cells (e.g. an untouched tray sibling) once the
     // system holds more open cells than one page - see docs/pacbio-sprq-nx-scheduling-
     // reference.md's "Tray-of-4 eager population" bug log.
-    const page1 = Array.from({ length: 500 }, (_, i) => stubCell(i + 1));
-    const page2 = [stubCell(501), stubCell(502)];
+    const page1 = Array.from({ length: 1000 }, (_, i) => stubCell(i + 1));
+    const page2 = [stubCell(1001), stubCell(1002)];
     const list = vi
       .spyOn(cellsApi, "list")
-      .mockResolvedValueOnce({ items: page1, total: 502 })
-      .mockResolvedValueOnce({ items: page2, total: 502 });
+      .mockResolvedValueOnce({ items: page1, total: 1002 })
+      .mockResolvedValueOnce({ items: page2, total: 1002 });
 
     const all = await cellsApi.listAll({ status: "open" });
 
-    expect(all).toHaveLength(502);
+    expect(all).toHaveLength(1002);
     expect(all.map((c) => c.id)).toEqual([...page1, ...page2].map((c) => c.id));
-    expect(list).toHaveBeenNthCalledWith(1, { status: "open", page: 1, page_size: 500 });
-    expect(list).toHaveBeenNthCalledWith(2, { status: "open", page: 2, page_size: 500 });
+    expect(list).toHaveBeenNthCalledWith(1, { status: "open", page: 1, page_size: 1000 });
+    expect(list).toHaveBeenNthCalledWith(2, { status: "open", page: 2, page_size: 1000 });
   });
 
   it("stops instead of looping forever if total overstates what the server actually returns", async () => {

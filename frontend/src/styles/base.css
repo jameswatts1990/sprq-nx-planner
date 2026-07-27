@@ -37,7 +37,10 @@ h3 {
   color: var(--ink);
   padding: 9px 15px;
   cursor: pointer;
-  transition: 0.14s;
+  /* Scoped to the properties the button variants actually animate on hover/active (see the
+     :hover / .primary / .ghost rules below) instead of the `all` shorthand - buttons appear
+     all over the app, so this keeps their transitions off every other animatable property. */
+  transition: background-color 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease, color 0.14s ease;
   display: inline-flex;
   align-items: center;
   gap: 7px;

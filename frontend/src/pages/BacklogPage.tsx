@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createColumnHelper, flexRender, getCoreRowModel, useReactTable } from "@tanstack/react-table";
-import { useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import { ApiError } from "@/api/client";
 import type { SampleSortBy, SampleSortDir } from "@/api/samples";
@@ -81,7 +81,7 @@ export function BacklogPage() {
     },
   });
 
-  function toggleSort(field: SampleSortBy) {
+  const toggleSort = useCallback((field: SampleSortBy) => {
     setPage(1);
     setSortBy((cur) => {
       if (cur === field) {
@@ -91,67 +91,79 @@ export function BacklogPage() {
       setSortDir("asc");
       return field;
     });
-  }
+  }, []);
 
-  function sortableHeader(label: string, field: SampleSortBy) {
-    const active = sortBy === field;
-    return (
-      <button type="button" className={styles.sortHeader} onClick={() => toggleSort(field)}>
-        {label}
-        {sortIndicator(active, sortDir)}
-      </button>
-    );
-  }
+  const sortableHeader = useCallback(
+    (label: string, field: SampleSortBy) => {
+      const active = sortBy === field;
+      return (
+        <button type="button" className={styles.sortHeader} onClick={() => toggleSort(field)}>
+          {label}
+          {sortIndicator(active, sortDir)}
+        </button>
+      );
+    },
+    [sortBy, sortDir, toggleSort],
+  );
 
-  const columns = [
-    columnHelper.accessor("external_id", { header: () => sortableHeader("Container ID", "external_id") }),
-    columnHelper.accessor("barcodes", {
-      header: () => sortableHeader("Barcodes", "barcode"),
-      cell: (info) => <BarcodeChips barcodes={info.getValue()} />,
-    }),
-    columnHelper.accessor("parent_sample", {
-      header: "Parent sample",
-      cell: (info) => info.getValue() ?? "—",
-    }),
-    columnHelper.accessor("sanger_ids", {
-      header: "Sanger IDs",
-      cell: (info) => (info.getValue().length ? info.getValue().join(", ") : "—"),
-    }),
-    columnHelper.accessor("priority", {
-      header: () => sortableHeader("Priority", "priority"),
-      cell: (info) => {
-        const v = info.getValue();
-        return v ? <Badge tone={priorityTone(v)}>{v}</Badge> : "—";
-      },
-    }),
-    columnHelper.accessor("target_oplc", {
-      header: "Target OPLC",
-      cell: (info) => info.getValue() ?? "—",
-    }),
-    columnHelper.accessor("created_at", {
-      header: "Created",
-      cell: (info) => formatDateTime(info.getValue()),
-    }),
-    columnHelper.display({
-      id: "actions",
-      header: "",
-      cell: (info) => (
-        <div className={styles.rowActions}>
-          <Button size="sm" variant="ghost" onClick={() => setEditSample(info.row.original)}>
-            Edit
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => cancelMutation.mutate(info.row.original.id)}
-            disabled={cancelMutation.isPending}
-          >
-            Cancel
-          </Button>
-        </div>
-      ),
-    }),
-  ];
+  const { mutate: cancelSample, isPending: cancelPending } = cancelMutation;
+
+  // Memoized so the column defs (and their header/cell render fns) keep a stable identity
+  // across unrelated re-renders - typing in the search box would otherwise rebuild the whole
+  // array every keystroke and force react-table to recompute its row model each time. Only
+  // the sort state and the cancel mutation's pending flag actually affect these columns.
+  const columns = useMemo(
+    () => [
+      columnHelper.accessor("external_id", { header: () => sortableHeader("Container ID", "external_id") }),
+      columnHelper.accessor("barcodes", {
+        header: () => sortableHeader("Barcodes", "barcode"),
+        cell: (info) => <BarcodeChips barcodes={info.getValue()} />,
+      }),
+      columnHelper.accessor("parent_sample", {
+        header: "Parent sample",
+        cell: (info) => info.getValue() ?? "—",
+      }),
+      columnHelper.accessor("sanger_ids", {
+        header: "Sanger IDs",
+        cell: (info) => (info.getValue().length ? info.getValue().join(", ") : "—"),
+      }),
+      columnHelper.accessor("priority", {
+        header: () => sortableHeader("Priority", "priority"),
+        cell: (info) => {
+          const v = info.getValue();
+          return v ? <Badge tone={priorityTone(v)}>{v}</Badge> : "—";
+        },
+      }),
+      columnHelper.accessor("target_oplc", {
+        header: "Target OPLC",
+        cell: (info) => info.getValue() ?? "—",
+      }),
+      columnHelper.accessor("created_at", {
+        header: "Created",
+        cell: (info) => formatDateTime(info.getValue()),
+      }),
+      columnHelper.display({
+        id: "actions",
+        header: "",
+        cell: (info) => (
+          <div className={styles.rowActions}>
+            <Button size="sm" variant="ghost" onClick={() => setEditSample(info.row.original)}>
+              Edit
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => cancelSample(info.row.original.id)}
+              disabled={cancelPending}
+            >
+              Cancel
+            </Button>
+          </div>
+        ),
+      }),
+    ],
+    [sortableHeader, cancelSample, cancelPending],
+  );
 
   const items = query.data?.items ?? [];
   const total = query.data?.total ?? 0;

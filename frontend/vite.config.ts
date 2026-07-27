@@ -1,7 +1,20 @@
+import { execSync } from "node:child_process";
+
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
 import pkg from "./package.json";
+
+// Last commit date/time, surfaced next to the version in the navbar so the
+// deployed build's age is visible at a glance. Falls back to build time if git
+// isn't available (e.g. a source-only checkout).
+function commitDate() {
+  try {
+    return execSync("git log -1 --format=%cI").toString().trim();
+  } catch {
+    return "";
+  }
+}
 
 // Dev server proxies /api to the local backend so the app never branches on
 // environment - the same relative fetch("/api/...") call works in dev, in the
@@ -12,6 +25,7 @@ export default defineConfig({
   // vX.X.X) with each change so the deployed build is identifiable at a glance.
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
+    __COMMIT_DATE__: JSON.stringify(commitDate()),
   },
   server: {
     proxy: {
@@ -28,6 +42,20 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": "/src",
+    },
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        // Split the rarely-changing core framework libs into their own long-lived chunks so
+        // they stay cached across deploys (app code changes far more often than these do).
+        // Route-specific heavy deps (recharts, read-excel-file) are already split out by the
+        // React.lazy route boundaries in App.tsx, so they don't need a manual entry here.
+        manualChunks: {
+          "react-vendor": ["react", "react-dom", "react-router-dom"],
+          "query-vendor": ["@tanstack/react-query"],
+        },
+      },
     },
   },
 });

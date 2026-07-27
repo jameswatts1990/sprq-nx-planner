@@ -124,9 +124,14 @@ export function BacklogAccordion({ onOpenAutoschedule }: BacklogAccordionProps =
   const [editSample, setEditSample] = useState<SampleOut | null>(null);
   const q = useDebouncedValue(qInput, 350);
 
+  // Only feeds the priority-filter dropdown, which is rendered solely while the tray is open
+  // (see the `open && (...)` header controls). Gated on `open` so a collapsed backlog on the
+  // Schedule page - the default - doesn't fetch it. The two count queries below stay live
+  // regardless, since their totals drive the always-visible header badges.
   const prioritiesQuery = useQuery({
     queryKey: ["samples", "priorities", "backlog"],
     queryFn: () => samplesApi.listPriorities("backlog"),
+    enabled: open,
   });
 
   // Lightweight count-only check (page_size 1, just reading .total) so the warning badge

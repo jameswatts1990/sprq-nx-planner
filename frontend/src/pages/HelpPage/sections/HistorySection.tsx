@@ -12,7 +12,8 @@ export function HistorySection() {
       <p>
         <b>What it&apos;s for:</b> a searchable record of every sequencing run (past, active, and planned). Filter
         by status, instrument, and a date range, or type in the search box to match by id, run name, instrument,
-        status, or date.
+        status, or date. Long histories are shown a page at a time — choose how many rows per page and use the
+        <b> Previous</b>/<b>Next</b> buttons below the table to move through them.
       </p>
       <p>
         <b>Columns:</b> Run (its name if one was given when it was locked via <b>Confirm loaded</b>, otherwise its

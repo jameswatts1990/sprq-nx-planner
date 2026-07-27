@@ -1,5 +1,5 @@
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { ApiError } from "@/api/client";
@@ -43,32 +43,50 @@ export function OpenTraysAccordion() {
     },
   });
 
+  // Collapsed by default; lifted to controlled state so the per-tray fan-out below can be
+  // gated on it. The header count still needs the outer query while collapsed, but the
+  // per-tray sibling lists are only rendered once the section is actually opened.
+  const [expanded, setExpanded] = useState(false);
+
   const openCellsQuery = useQuery({
     queryKey: ["cells", "open-trays"],
     queryFn: () => cellsApi.listAll({ status: "open" }),
   });
 
-  const grouped = groupOpenTrayIdsByInstrument(openCellsQuery.data ?? []);
-  const trayCount = countOpenTrays(grouped);
-  const instrumentEntries = [...grouped.entries()].sort((a, b) =>
-    a[0].localeCompare(b[0], undefined, { numeric: true }),
-  );
-  const allTrayIds = instrumentEntries.flatMap(([, trayIds]) => trayIds);
+  // Grouped/sorted once per data change rather than on every render - a parent CellsPage
+  // keystroke (e.g. the cell search box) would otherwise re-run the grouping + sort each time.
+  const { instrumentEntries, allTrayIds, trayCount } = useMemo(() => {
+    const grouped = groupOpenTrayIdsByInstrument(openCellsQuery.data ?? []);
+    const entries = [...grouped.entries()].sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }));
+    return {
+      instrumentEntries: entries,
+      allTrayIds: entries.flatMap(([, trayIds]) => trayIds),
+      trayCount: countOpenTrays(grouped),
+    };
+  }, [openCellsQuery.data]);
 
   // One request per distinct open tray (see CellDetailPage.tsx's identical queryKey
   // shape for the same data) - bounded by how many trays are currently open lab-wide,
   // not total cell count, and shares React Query's cache with a cell detail page the
-  // user may have already visited this session.
+  // user may have already visited this session. Gated on `expanded` so a collapsed
+  // accordion (the default, and the common case on a Cells-page visit) doesn't fan out a
+  // request per open tray for a sibling list that isn't even rendered yet.
   const trayQueries = useQueries({
     queries: allTrayIds.map((trayId) => ({
       queryKey: ["cells", { tray_id: trayId }],
       queryFn: () => cellsApi.list({ tray_id: trayId, page_size: 10 }),
+      enabled: expanded,
     })),
   });
   const trayQueryById = new Map(allTrayIds.map((trayId, i) => [trayId, trayQueries[i]]));
 
   return (
-    <Accordion title="Open trays" badge={`${trayCount} tray${trayCount === 1 ? "" : "s"}`}>
+    <Accordion
+      title="Open trays"
+      badge={`${trayCount} tray${trayCount === 1 ? "" : "s"}`}
+      open={expanded}
+      onToggle={setExpanded}
+    >
       {openCellsQuery.isLoading && <div className={styles.status}>Loading open trays…</div>}
       {openCellsQuery.isError && (
         <Note tone="bad" icon="!">

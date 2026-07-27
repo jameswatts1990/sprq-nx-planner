@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Link } from "react-router-dom";
 
 import { BarcodeChips } from "@/components/shared/BarcodeChips";
@@ -13,8 +14,11 @@ export interface CellStatusCardProps {
   cell: CellOut;
 }
 
-/** Live-cell card backed by CellOut; links through to the cell detail page. */
-export function CellStatusCard({ cell }: CellStatusCardProps) {
+/** Live-cell card backed by CellOut; links through to the cell detail page. Memoized so a
+ * grid of up to ~100 cards doesn't all re-render on an unrelated CellsPage state change (e.g.
+ * a keystroke in the search box before its debounce fires) - each card only re-renders when
+ * its own cell object changes (stable across refetches via React Query's structural sharing). */
+export const CellStatusCard = memo(function CellStatusCard({ cell }: CellStatusCardProps) {
   const showWindowMeter =
     cell.status !== "exhausted" &&
     cell.status !== "retired" &&
@@ -57,4 +61,4 @@ export function CellStatusCard({ cell }: CellStatusCardProps) {
       </div>
     </Link>
   );
-}
+});

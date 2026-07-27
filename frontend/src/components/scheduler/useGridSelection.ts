@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 
 export interface Coord {
   r: number;
@@ -53,35 +53,38 @@ function rectKeys(a: Coord, b: Coord): string[] {
  */
 export function useGridSelection(): GridSelection {
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
-  const [anchor, setAnchor] = useState<Coord | null>(null);
+  // The shift-click rectangle anchor. Held in a ref, not state: it's only ever read inside
+  // the click handler below (never during render), so keeping it out of state lets
+  // handleCellClick stay referentially stable ([] deps) instead of getting a new identity on
+  // every click. That stability matters because handleCellClick is passed as `onSelect` to
+  // every memoized day-cell - an unstable identity would re-render the whole grid on each
+  // click, defeating SchedulerDayCell's memo.
+  const anchorRef = useRef<Coord | null>(null);
 
   const isSelected = useCallback((r: number, c: number) => selected.has(key(r, c)), [selected]);
 
-  const handleCellClick = useCallback(
-    (r: number, c: number, shift: boolean, ctrl: boolean) => {
-      if (shift && anchor) {
-        setSelected(new Set(rectKeys(anchor, { r, c })));
-        return;
-      }
+  const handleCellClick = useCallback((r: number, c: number, shift: boolean, ctrl: boolean) => {
+    if (shift && anchorRef.current) {
+      setSelected(new Set(rectKeys(anchorRef.current, { r, c })));
+      return;
+    }
 
-      if (ctrl) {
-        setSelected((prev) => {
-          const next = new Set(prev);
-          const k = key(r, c);
-          if (next.has(k)) next.delete(k);
-          else next.add(k);
-          return next;
-        });
-        setAnchor({ r, c });
-        return;
-      }
+    if (ctrl) {
+      setSelected((prev) => {
+        const next = new Set(prev);
+        const k = key(r, c);
+        if (next.has(k)) next.delete(k);
+        else next.add(k);
+        return next;
+      });
+      anchorRef.current = { r, c };
+      return;
+    }
 
-      // Plain click on the current sole selection clears it; otherwise selects just this cell.
-      setSelected((prev) => (prev.size === 1 && prev.has(key(r, c)) ? new Set() : new Set([key(r, c)])));
-      setAnchor({ r, c });
-    },
-    [anchor],
-  );
+    // Plain click on the current sole selection clears it; otherwise selects just this cell.
+    setSelected((prev) => (prev.size === 1 && prev.has(key(r, c)) ? new Set() : new Set([key(r, c)])));
+    anchorRef.current = { r, c };
+  }, []);
 
   const selectMany = useCallback((coords: Coord[], ctrl = false) => {
     setSelected((prev) => {
@@ -96,12 +99,12 @@ export function useGridSelection(): GridSelection {
       const unchanged = prev.size === next.size && nextKeys.every((k) => prev.has(k));
       return unchanged ? new Set() : next;
     });
-    setAnchor(coords.length > 0 ? coords[coords.length - 1] : null);
+    anchorRef.current = coords.length > 0 ? coords[coords.length - 1] : null;
   }, []);
 
   const clear = useCallback(() => {
     setSelected(new Set());
-    setAnchor(null);
+    anchorRef.current = null;
   }, []);
 
   // Memoized so consumers (SchedulePage's selectedCells memo, the memoized grid rows) get a

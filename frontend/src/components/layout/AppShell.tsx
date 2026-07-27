@@ -3,6 +3,19 @@ import { NavLink } from "react-router-dom";
 
 import styles from "./AppShell.module.css";
 
+// Render the commit ISO timestamp as a compact, locale-friendly date + time.
+function formatCommitDate(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleString(undefined, {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 const NAV_ITEMS = [
   { to: "/import", label: "Import" },
   { to: "/backlog", label: "Backlog" },
@@ -51,7 +64,16 @@ export function AppShell({ children }: { children: ReactNode }) {
               </NavLink>
             ))}
           </nav>
-          <span className={styles.version}>v{__APP_VERSION__}</span>
+          <a
+            className={styles.version}
+            href="https://github.com/jameswatts1990/sprq-nx-planner/commits/main"
+            target="_blank"
+            rel="noreferrer"
+            title="View changelog on GitHub"
+          >
+            <span className={styles.versionNumber}>v{__APP_VERSION__}</span>
+            {__COMMIT_DATE__ && <span className={styles.versionDate}>{formatCommitDate(__COMMIT_DATE__)}</span>}
+          </a>
         </div>
       </header>
       <div className="wrap">{children}</div>
