@@ -30,9 +30,33 @@
   break-inside: avoid;
   page-break-inside: avoid;
 }
+/* Run title/meta on the left, the date/sign-off box on the right of each run's page. */
+.runHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+}
 .instrumentTitle {
   font-size: 18px;
   margin-bottom: 4px;
+}
+.signBlock {
+  flex: 0 0 auto;
+  min-width: 220px;
+  font-size: 12px;
+}
+.signLine {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  margin-bottom: 8px;
+  white-space: nowrap;
+}
+.signBlank {
+  flex: 1 1 auto;
+  border-bottom: 1px solid var(--ink);
+  min-width: 90px;
 }
 .instrumentMeta {
   display: flex;
@@ -83,9 +107,19 @@
   max-width: 220px;
 }
 /* Run settings flow inline (middot-separated) instead of one line each, to keep well rows short. */
-.settingsCell span:not(:last-child)::after {
+.settingsCell > span:not(:last-child)::after {
   content: " · ";
   color: var(--grey);
+}
+/* A setting value that differs from the configured default (paired with a trailing "*"). */
+.settingDiff {
+  font-weight: 700;
+}
+/* Legend for the "*" flag, printed once under the well table. */
+.footnote {
+  font-size: 11px;
+  color: var(--grey);
+  margin-top: 4px;
 }
 
 /* --- SOP 7.3 / 7.4 data-entry worksheets ------------------------------- */
@@ -161,6 +195,11 @@
 .qrBlank {
   display: inline-block;
   min-width: 220px;
+  border-bottom: 1px solid var(--ink);
+}
+.qrBlankShort {
+  display: inline-block;
+  min-width: 120px;
   border-bottom: 1px solid var(--ink);
 }
 
@@ -246,13 +285,26 @@
   .qrLine {
     font-size: 10px;
   }
+  .signBlock {
+    font-size: 10px;
+    min-width: 180px;
+  }
+  .signLine {
+    margin-bottom: 5px;
+  }
+  .footnote {
+    font-size: 9px;
+    margin-top: 2px;
+  }
 
-  /* Keep the light header shading and checkbox borders when printing. */
+  /* Keep the light header shading, checkbox and write-in borders when printing. */
   .wellTable th,
   .worksheetTable th,
   .trayHeader td,
   .check,
-  .qrBlank {
+  .qrBlank,
+  .qrBlankShort,
+  .signBlank {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }

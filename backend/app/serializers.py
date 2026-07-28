@@ -14,7 +14,6 @@ def sample_out(sample: Sample) -> SampleOut:
         actual_oplc=sample.actual_oplc,
         cleaned_complex_volume=sample.cleaned_complex_volume,
         loading_buffer_volume=sample.loading_buffer_volume,
-        control_dilution_3_volume=sample.control_dilution_3_volume,
         adaptive_loading=sample.adaptive_loading,
         full_resolution_base_q=sample.full_resolution_base_q,
         priority=sample.priority,

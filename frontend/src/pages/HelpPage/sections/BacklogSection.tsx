@@ -95,8 +95,8 @@ export function BacklogSection() {
       </p>
       <p>
         <b>Edit</b> (on each row) opens the same form to correct a backlog sample&apos;s details — barcodes, Sanger
-        IDs, priority, Target OPLC, Actual OPLC, the complex-loading volumes (cleaned-complex, loading-buffer and
-        Control Dilution 3, which pre-fill the batch sheet&apos;s dilution worksheet), and the other settings. The{" "}
+        IDs, priority, Target OPLC, Actual OPLC, the complex-loading volumes (cleaned-complex and loading-buffer,
+        which pre-fill the batch sheet&apos;s dilution worksheet), and the other settings. The{" "}
         <b>Container ID</b> is greyed out and can&apos;t be changed: it identifies the sample and is fixed once
         created. A backlog sample is fully editable; once it&apos;s scheduled you can still adjust its loading
         parameters (including those volumes) from the Schedule slot popover, but its barcodes and identity are locked.

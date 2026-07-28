@@ -31,7 +31,6 @@ class Sample(Base):
     # loading parameter. Nullable like every other optional import field.
     cleaned_complex_volume: Mapped[float | None] = mapped_column(Float, nullable=True)
     loading_buffer_volume: Mapped[float | None] = mapped_column(Float, nullable=True)
-    control_dilution_3_volume: Mapped[float | None] = mapped_column(Float, nullable=True)
     adaptive_loading: Mapped[str | None] = mapped_column(String(20), nullable=True)
     full_resolution_base_q: Mapped[str | None] = mapped_column(String(20), nullable=True)
     priority: Mapped[str | None] = mapped_column(String(50), nullable=True)

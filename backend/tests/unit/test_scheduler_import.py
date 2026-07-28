@@ -234,9 +234,10 @@ def test_emitted_csv_auto_maps_and_imports_through_the_normal_path():
 
 
 def test_loading_volumes_carry_from_the_scheduler_sheet_and_auto_map():
-    """The three dilution volumes are read from the scheduler sheet's own headers, emitted
-    into the standard CSV, and auto-map into the batch-sheet-only ParsedSample fields. The
-    sheet's "Library Volume Taken for Complex" column is no longer stored, so it's dropped."""
+    """The two stored dilution volumes (cleaned-complex, loading-buffer) are read from the
+    scheduler sheet's own headers, emitted into the standard CSV, and auto-map into the
+    batch-sheet-only ParsedSample fields. The "Library Volume Taken for Complex" and "Volume
+    of Control Dilution 3" columns are no longer stored, so they're dropped."""
     header = [
         "Pool ID",
         "Portion of SMRT Cell",
@@ -254,13 +255,12 @@ def test_loading_volumes_carry_from_the_scheduler_sheet_and_auto_map():
     converted = convert_scheduler_csv(buf.getvalue()).csv
     rec = _by_container(converted)["POOL-1"]
     assert "Volume to Load (uL)" not in rec  # the library-volume column is dropped
+    assert "Control Dilution 3 Vol (uL)" not in rec  # fixed 1 µL now, no longer carried
     assert rec["Cleaned Complex Vol (uL)"] == "8"
     assert rec["Loading Buffer Vol (uL)"] == "6"
-    assert rec["Control Dilution 3 Vol (uL)"] == "2"
 
     rows = parse_csv(converted)
     normalized = normalize_with_map(rows[1:], suggest_column_map(rows[0]))
     sample = normalized.samples[0]
     assert sample.cleaned_complex_volume == 8
     assert sample.loading_buffer_volume == 6
-    assert sample.control_dilution_3_volume == 2

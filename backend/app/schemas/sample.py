@@ -22,9 +22,9 @@ class _SampleFieldsBase(BaseModel):
     target_oplc: float | None = None
     actual_oplc: float | None = None
     # Loading-dilution volumes that pre-fill the batch sheet's SOP 7.3 worksheet (all optional).
+    # Control Dilution 3 isn't stored - it's a fixed 1 µL printed on the batch sheet.
     cleaned_complex_volume: float | None = None
     loading_buffer_volume: float | None = None
-    control_dilution_3_volume: float | None = None
     adaptive_loading: str | None = None
     full_resolution_base_q: str | None = None
     priority: str | None = None
@@ -74,7 +74,6 @@ class SampleOut(BaseModel):
     actual_oplc: float | None
     cleaned_complex_volume: float | None
     loading_buffer_volume: float | None
-    control_dilution_3_volume: float | None
     adaptive_loading: str | None
     full_resolution_base_q: str | None
     priority: str | None

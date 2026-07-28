@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react";
+
 import type { RunOut } from "@/types/schedule";
 import { cellPositionLabel } from "@/utils/plateWell";
 import { computeRunTimeline, PPA_H, PREP_H, type StageTiming } from "@/utils/stageTimings";
@@ -5,10 +7,49 @@ import { classForUseIndex } from "@/utils/useIndexClass";
 
 import styles from "./RunStageGantt.module.css";
 
+const HOUR_MS = 3_600_000;
+/** Candidate axis tick spacings (hours); the smallest that keeps the axis to ≤ MAX_TICKS labels
+ *  wins — so a short run reads every 2 h and a long one every 6/12 h, never a wall of numbers. */
+const TICK_STEPS_H = [2, 4, 6, 8, 12, 24];
+const MAX_TICKS = 7;
+
 /** "HH:MM" (UTC) for an epoch-ms instant - matches the app's UTC clock everywhere else. */
 function hhmm(ms: number): string {
   const d = new Date(ms);
   return `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
+}
+
+/** The app's shared "live / now" glyph: a rotating 270° arc (matches InstrumentTrayMap's NOW
+ *  pill), so a spinning icon means the same thing everywhere. CSS spins it; reduced-motion stops it. */
+function LiveSpinner() {
+  return (
+    <svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" aria-hidden>
+      <path d="M12 3a9 9 0 1 1-7.5 4" />
+    </svg>
+  );
+}
+
+interface AxisTick {
+  /** Hours from load - shares the bars' axis. */
+  h: number;
+  label: string;
+}
+
+/**
+ * Clock-aligned ticks (…, 06:00, 12:00, 18:00, …) spanning the run, spaced so the axis stays
+ * readable. Ticks land on round clock times (multiples of the step in UTC), not on load+N, so
+ * the labels read cleanly and a 00:00 tick marks each day rollover.
+ */
+function buildAxisTicks(loadMs: number, spanH: number): AxisTick[] {
+  const stepH = TICK_STEPS_H.find((s) => spanH / s <= MAX_TICKS) ?? 24;
+  const stepMs = stepH * HOUR_MS;
+  const endMs = loadMs + spanH * HOUR_MS;
+  const ticks: AxisTick[] = [];
+  // First clock-aligned instant at or after load, then step across the span.
+  for (let ms = Math.ceil(loadMs / stepMs) * stepMs; ms <= endMs + 1000; ms += stepMs) {
+    ticks.push({ h: (ms - loadMs) / HOUR_MS, label: hhmm(ms) });
+  }
+  return ticks;
 }
 
 function GanttRow({ t, spanH, current }: { t: StageTiming; spanH: number; current: boolean }) {
@@ -42,9 +83,6 @@ function GanttRow({ t, spanH, current }: { t: StageTiming; spanH: number; curren
           title={`PPA (post-primary analysis) ~${PPA_H} h · from ${hhmm(t.ppaStartMs)}`}
         />
       </div>
-      <div className={styles.rowTime}>
-        {hhmm(t.movieStartMs)}–{hhmm(t.movieEndMs)}
-      </div>
     </div>
   );
 }
@@ -57,15 +95,34 @@ export interface RunStageGanttProps {
 
 /**
  * A compact, estimated gantt of a run's wells: one row per loaded well, each showing three
- * stages on a shared "hours from load" axis — a prep lead-in (amber), the movie (Use-coloured),
- * then a PPA / post-primary-analysis tail (purple) — with the current placement's row
- * highlighted. Timings are the PacBio approximate-timing estimates (see utils/stageTimings) -
- * illustrative, not the instrument's exact schedule. Read-only; used in the slot-detail
- * popover so a scheduler can see where their sample sits in the run's sequencing flow.
+ * stages on a shared axis — a slate prep lead-in, the Use-coloured movie, then a darker slate
+ * PPA / post-primary-analysis tail — over a clock-time axis, with the current placement's row
+ * highlighted. When "now" falls inside the run, a live green line (a spinning glyph on top)
+ * sweeps across all the bars to show where the run is up to. Timings are the PacBio
+ * approximate-timing estimates (see utils/stageTimings) - illustrative, not the instrument's
+ * exact schedule. Read-only; used in the slot-detail popover.
  */
 export function RunStageGantt({ run, currentCellUseId }: RunStageGanttProps) {
-  const { spanH, timings } = computeRunTimeline(run);
+  const { loadMs, spanH, timings } = computeRunTimeline(run);
+
+  // Live "now" marker. A slow tick keeps the line's position current to the minute; the spinning
+  // glyph (not this interval) is what signals "live". Hooks run unconditionally, so this sits
+  // above the early return below.
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNowMs(Date.now()), 30_000);
+    return () => clearInterval(id);
+  }, []);
+
   if (timings.length === 0 || spanH <= 0) return null;
+
+  const pct = (h: number) => `${(h / spanH) * 100}%`;
+  const ticks = buildAxisTicks(loadMs, spanH);
+  const nowH = (nowMs - loadMs) / HOUR_MS;
+  // Only show the live line while the run is actually in progress - not for a future (planned)
+  // run, nor once it's fully past.
+  const live = nowH >= 0 && nowH <= spanH;
+
   return (
     <div className={styles.wrap}>
       <div className={styles.caption}>
@@ -89,10 +146,28 @@ export function RunStageGantt({ run, currentCellUseId }: RunStageGanttProps) {
         {timings.map((t) => (
           <GanttRow key={t.stage.cell_use_id} t={t} spanH={spanH} current={t.stage.cell_use_id === currentCellUseId} />
         ))}
+        {live && (
+          <div className={styles.liveOverlay} aria-hidden>
+            <div />
+            <div className={styles.liveTrack}>
+              <div className={styles.liveLine} style={{ left: pct(nowH) }} title={`Now · ${hhmm(nowMs)}`}>
+                <span className={styles.liveGlyph}>
+                  <LiveSpinner />
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
       <div className={styles.axis}>
-        <span>load</span>
-        <span>+{Math.round(spanH)} h</span>
+        <div />
+        <div className={styles.axisTrack}>
+          {ticks.map((tk) => (
+            <span key={tk.h} className={styles.tick} style={{ left: pct(tk.h) }}>
+              {tk.label}
+            </span>
+          ))}
+        </div>
       </div>
     </div>
   );

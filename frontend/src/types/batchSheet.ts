@@ -13,6 +13,7 @@ export interface BatchSheetWellOut {
   window_breached: boolean;
   sample_id: number | null;
   sample_external_id: string | null;
+  parent_sample: string | null;
   barcodes: string[];
   adaptive_loading: string | null;
   base_kinetics: string | null;
@@ -20,9 +21,9 @@ export interface BatchSheetWellOut {
   target_oplc: number | null;
   actual_oplc: number | null; // the achieved on-plate loading concentration, if recorded
   // Complex-loading dilution volumes for the SOP 7.3 worksheet (optional, from import).
+  // Control Dilution 3 is a fixed 1 µL printed on the batch sheet, so it isn't carried here.
   cleaned_complex_volume: number | null;
   loading_buffer_volume: number | null;
-  control_dilution_3_volume: number | null;
   notes: string | null;
 }
 

@@ -36,8 +36,6 @@ function valuesFromSample(sample: SampleOut): Record<string, string> {
       sample.cleaned_complex_volume != null ? String(sample.cleaned_complex_volume) : "",
     loading_buffer_volume:
       sample.loading_buffer_volume != null ? String(sample.loading_buffer_volume) : "",
-    control_dilution_3_volume:
-      sample.control_dilution_3_volume != null ? String(sample.control_dilution_3_volume) : "",
     adaptive_loading: sample.adaptive_loading ?? "",
     full_resolution_base_q: sample.full_resolution_base_q ?? "",
     priority: sample.priority ?? "",
@@ -146,7 +144,6 @@ export function SampleModal({
       actual_oplc: num("actual_oplc"),
       cleaned_complex_volume: num("cleaned_complex_volume"),
       loading_buffer_volume: num("loading_buffer_volume"),
-      control_dilution_3_volume: num("control_dilution_3_volume"),
       adaptive_loading: str("adaptive_loading"),
       full_resolution_base_q: str("full_resolution_base_q"),
       priority: str("priority"),

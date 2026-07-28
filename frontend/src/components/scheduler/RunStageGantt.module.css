@@ -1,7 +1,13 @@
 /* Estimated stage-times gantt, shown in the slot-detail popover. One row per loaded well:
-   a muted prep segment then a Use-coloured movie segment on a shared "hours from load" axis.
-   Colours come from the app's global palette vars, so it themes with the rest of the app. */
+   a slate prep segment, a Use-coloured movie, then a darker slate PPA tail, over a shared
+   clock-time axis. A sequential (light → vivid → dark) palette keeps the movie the focus and
+   the two supporting stages calm; the vivid movie colour still carries the Use identity.
+   Movie/stub colours come from the app's global palette vars, so it themes with the app. */
 .wrap {
+  /* Prep / PPA framing colours: a desaturated indigo-slate ramp (light → dark) that recedes
+     behind whichever Use colour the movie uses, and reads as a clean sequential progression. */
+  --c-prep: #9aa6c0;
+  --c-ppa: #515f7e;
   margin: 12px 0 4px;
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
@@ -43,22 +49,26 @@
   flex: none;
 }
 .swPrep {
-  background: var(--amber);
+  background: var(--c-prep);
 }
 .swMovie {
   background: var(--magenta);
 }
 .swPpa {
-  background: var(--purple);
+  background: var(--c-ppa);
 }
 .rows {
+  position: relative; /* anchors the live "now" overlay */
   display: flex;
   flex-direction: column;
   gap: 3px;
 }
+/* Row and axis share this two-column shape (label | track), so axis ticks and the live line
+   line up with the bars. Keep the 116px / 8px gap / 4px padding in sync across .row, .axis and
+   .liveOverlay - that trio is what makes the second column start at the same x in all three. */
 .row {
   display: grid;
-  grid-template-columns: 116px 1fr 96px;
+  grid-template-columns: 116px 1fr;
   align-items: center;
   gap: 8px;
   padding: 3px 4px;
@@ -101,12 +111,12 @@
   border-radius: 4px;
   overflow: hidden;
 }
-/* Prep: an amber lead-in before the movie (sample loading / setup). */
+/* Prep: a quiet slate lead-in before the movie (sample loading / setup). */
 .prep {
   position: absolute;
   top: 0;
   bottom: 0;
-  background: var(--amber);
+  background: var(--c-prep);
   border-radius: 3px 0 0 3px;
   min-width: 2px;
 }
@@ -120,12 +130,12 @@
   background: var(--bar, var(--grey));
   min-width: 2px;
 }
-/* PPA: a purple tail after the movie (post-primary analysis). */
+/* PPA: a deeper slate tail after the movie (post-primary analysis). */
 .ppa {
   position: absolute;
   top: 0;
   bottom: 0;
-  background: var(--purple);
+  background: var(--c-ppa);
   border-radius: 0 3px 3px 0;
   min-width: 2px;
 }
@@ -137,21 +147,93 @@
   overflow: hidden;
   padding: 0 3px;
 }
-.rowTime {
-  font-family: var(--mono);
-  font-size: 10.5px;
-  color: var(--grey);
-  text-align: right;
-  white-space: nowrap;
-}
-.axis {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 6px;
+
+/* Live "now" line: sweeps top-to-bottom through every bar at the current time, with a spinning
+   green glyph on top. Overlays .rows and mirrors the row grid so it lands in the track column. */
+.liveOverlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: 116px 1fr;
+  gap: 8px;
   padding: 0 4px;
+  pointer-events: none;
+}
+.liveTrack {
+  position: relative;
+}
+.liveLine {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 2px;
+  margin-left: -1px; /* centre the 2px line on its instant */
+  background: var(--green);
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.65); /* stays legible over a dark bar */
+}
+.liveGlyph {
+  position: absolute;
+  top: -9px;
+  left: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
   font-size: 10px;
+  color: #fff;
+  background: var(--green);
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--card);
+  transform: translateX(-50%);
+  animation: ganttLiveSpin 0.9s linear infinite;
+}
+@keyframes ganttLiveSpin {
+  from {
+    transform: translateX(-50%) rotate(0deg);
+  }
+  to {
+    transform: translateX(-50%) rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .liveGlyph {
+    animation: none;
+  }
+}
+
+/* Clock-time axis: ticks positioned by % within a track-aligned column (see .row note). */
+.axis {
+  display: grid;
+  grid-template-columns: 116px 1fr;
+  gap: 8px;
+  padding: 0 4px;
+  margin-top: 8px;
+}
+.axisTrack {
+  position: relative;
+  height: 13px;
+}
+.tick {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  font-family: var(--mono);
+  font-size: 9.5px;
   font-weight: 700;
   color: var(--faint);
+  white-space: nowrap;
+}
+.tick::before {
+  content: "";
+  position: absolute;
+  top: -5px;
+  left: 50%;
+  width: 1px;
+  height: 3px;
+  background: var(--line);
+  transform: translateX(-50%);
 }
 /* Per-use bar colour (magenta / blue / teal), matching the Use 1/2/3 swatches in the
    shared legend (SectionHeading.module.css) - one --bar var drives both the stub chip and

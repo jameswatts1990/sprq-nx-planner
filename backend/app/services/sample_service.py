@@ -29,7 +29,6 @@ def create_backlog_sample(
     actual_oplc: float | None = None,
     cleaned_complex_volume: float | None = None,
     loading_buffer_volume: float | None = None,
-    control_dilution_3_volume: float | None = None,
     adaptive_loading: str | None = None,
     full_resolution_base_q: str | None = None,
     priority: str | None = None,
@@ -62,7 +61,6 @@ def create_backlog_sample(
         actual_oplc=actual_oplc,
         cleaned_complex_volume=cleaned_complex_volume,
         loading_buffer_volume=loading_buffer_volume,
-        control_dilution_3_volume=control_dilution_3_volume,
         adaptive_loading=adaptive_loading if adaptive_loading is not None else defaults["adaptive_loading"],
         full_resolution_base_q=full_resolution_base_q
         if full_resolution_base_q is not None
@@ -90,7 +88,6 @@ def update_backlog_sample(
     actual_oplc: float | None = None,
     cleaned_complex_volume: float | None = None,
     loading_buffer_volume: float | None = None,
-    control_dilution_3_volume: float | None = None,
     adaptive_loading: str | None = None,
     full_resolution_base_q: str | None = None,
     priority: str | None = None,
@@ -107,7 +104,6 @@ def update_backlog_sample(
     sample.actual_oplc = actual_oplc
     sample.cleaned_complex_volume = cleaned_complex_volume
     sample.loading_buffer_volume = loading_buffer_volume
-    sample.control_dilution_3_volume = control_dilution_3_volume
     sample.adaptive_loading = adaptive_loading or None
     sample.full_resolution_base_q = full_resolution_base_q or None
     sample.priority = priority or None
@@ -131,7 +127,6 @@ def update_placed_sample_metadata(
     actual_oplc: float | None = None,
     cleaned_complex_volume: float | None = None,
     loading_buffer_volume: float | None = None,
-    control_dilution_3_volume: float | None = None,
     adaptive_loading: str | None = None,
     full_resolution_base_q: str | None = None,
     priority: str | None = None,
@@ -150,7 +145,6 @@ def update_placed_sample_metadata(
     sample.actual_oplc = actual_oplc
     sample.cleaned_complex_volume = cleaned_complex_volume
     sample.loading_buffer_volume = loading_buffer_volume
-    sample.control_dilution_3_volume = control_dilution_3_volume
     sample.adaptive_loading = adaptive_loading or None
     sample.full_resolution_base_q = full_resolution_base_q or None
     sample.priority = priority or None

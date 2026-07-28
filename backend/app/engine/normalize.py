@@ -20,7 +20,6 @@ from app.engine.import_fields import (
     K_BARCODES,
     K_BASE_KINETICS,
     K_CLEANED_COMPLEX_VOL,
-    K_CONTROL_DIL3_VOL,
     K_EXTERNAL_ID,
     K_FULL_RES_BASE_Q,
     K_LOADING_BUFFER_VOL,
@@ -172,7 +171,6 @@ def normalize_with_map(data_rows: list[list[str]], column_map: dict[str, int]) -
                 actual_oplc=_parse_float_or_none(cell(r, K_ACTUAL_OPLC)),
                 cleaned_complex_volume=_parse_float_or_none(cell(r, K_CLEANED_COMPLEX_VOL)),
                 loading_buffer_volume=_parse_float_or_none(cell(r, K_LOADING_BUFFER_VOL)),
-                control_dilution_3_volume=_parse_float_or_none(cell(r, K_CONTROL_DIL3_VOL)),
                 adaptive_loading=boolean(K_ADAPTIVE_LOADING, "Adaptive Loading"),
                 full_resolution_base_q=boolean(K_FULL_RES_BASE_Q, "Full-Resolution Base Q"),
                 # Coerced to a canonical label (High/Medium/Standard); an unrecognized or

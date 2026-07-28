@@ -46,7 +46,6 @@ const PLACED_EDITABLE_KEYS = new Set([
   "actual_oplc",
   "cleaned_complex_volume",
   "loading_buffer_volume",
-  "control_dilution_3_volume",
   "adaptive_loading",
   "full_resolution_base_q",
   "priority",

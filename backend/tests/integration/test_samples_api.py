@@ -170,33 +170,31 @@ def test_update_backlog_sample_edits_fields_and_replaces_barcodes(client):
 
 
 def test_create_and_update_loading_dilution_volumes(client):
-    """The three batch-sheet loading-dilution volumes are settable on manual create and
-    editable afterwards, and round-trip through SampleOut (they pre-fill the batch sheet)."""
+    """The two stored batch-sheet loading-dilution volumes are settable on manual create and
+    editable afterwards, and round-trip through SampleOut (they pre-fill the batch sheet).
+    Control Dilution 3 is a fixed 1 µL and isn't stored per sample."""
     created = _create(
         client,
         barcodes=["bc1"],
         cleaned_complex_volume=8,
         loading_buffer_volume=6,
-        control_dilution_3_volume=2,
     )
     assert created["cleaned_complex_volume"] == 8
     assert created["loading_buffer_volume"] == 6
-    assert created["control_dilution_3_volume"] == 2
+    assert "control_dilution_3_volume" not in created
 
     resp = client.patch(
         f"/api/samples/{created['id']}",
         json={
             "barcodes": ["bc1"],
             "cleaned_complex_volume": 10,
-            "loading_buffer_volume": 5,
-            "control_dilution_3_volume": None,  # clearing one back to blank
+            "loading_buffer_volume": None,  # clearing one back to blank
         },
     )
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert body["cleaned_complex_volume"] == 10
-    assert body["loading_buffer_volume"] == 5
-    assert body["control_dilution_3_volume"] is None
+    assert body["loading_buffer_volume"] is None
 
 
 def test_update_keeps_a_reused_barcode_without_unique_constraint_error(client):

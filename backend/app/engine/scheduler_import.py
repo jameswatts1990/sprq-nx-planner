@@ -34,7 +34,6 @@ from dataclasses import dataclass, field
 from app.engine.csv_parse import parse_csv, split_barcodes
 from app.engine.import_fields import (
     K_CLEANED_COMPLEX_VOL,
-    K_CONTROL_DIL3_VOL,
     K_LOADING_BUFFER_VOL,
 )
 from app.engine.tracker_columns import (
@@ -62,7 +61,6 @@ OUT_HEADERS = [
     "Target OPLC (pM)",
     "Cleaned Complex Vol (uL)",
     "Loading Buffer Vol (uL)",
-    "Control Dilution 3 Vol (uL)",
 ]
 
 # field-key -> the normalized headers that feed it. Exact (whitespace-collapsed, lower-cased)
@@ -85,7 +83,6 @@ _FIELD_ALIASES: dict[str, tuple[str, ...]] = {
     # headers (the lab's current column names).
     K_CLEANED_COMPLEX_VOL: ("cleaned complex volume for desired oplc (ul)", "cleaned complex vol (ul)"),
     K_LOADING_BUFFER_VOL: ("loading buffer volume (ul)", "loading buffer vol (ul)"),
-    K_CONTROL_DIL3_VOL: ("volume of control dilution 3 (ul)", "control dilution 3 vol (ul)"),
 }
 
 # Without these three we can't produce importable containers: Pool ID is the Container ID,
@@ -123,7 +120,6 @@ class _Pool:
     # how the shared cell is loaded, so they're the same for every row of a pool in practice).
     cleaned_complex_volume: str
     loading_buffer_volume: str
-    control_dilution_3_volume: str
 
 
 def _resolve_columns(header: list[str]) -> dict[str, int]:
@@ -204,7 +200,6 @@ def _finalize(group: list[list[str]], cols: dict[str, int]) -> _Pool:
         target_oplc=first_nonempty(K_TARGET_OPLC),
         cleaned_complex_volume=first_nonempty(K_CLEANED_COMPLEX_VOL),
         loading_buffer_volume=first_nonempty(K_LOADING_BUFFER_VOL),
-        control_dilution_3_volume=first_nonempty(K_CONTROL_DIL3_VOL),
     )
 
 
@@ -293,7 +288,6 @@ def _pools_to_csv(pools: list[_Pool]) -> str:
                 pool.target_oplc,
                 pool.cleaned_complex_volume,
                 pool.loading_buffer_volume,
-                pool.control_dilution_3_volume,
             ]
         )
     return buf.getvalue()

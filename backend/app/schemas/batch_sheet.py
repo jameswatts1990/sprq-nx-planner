@@ -19,6 +19,7 @@ class BatchSheetWellOut(BaseModel):
     window_breached: bool
     sample_id: int | None
     sample_external_id: str | None
+    parent_sample: str | None
     barcodes: list[str]
     adaptive_loading: str | None
     base_kinetics: str | None
@@ -26,9 +27,9 @@ class BatchSheetWellOut(BaseModel):
     target_oplc: float | None
     actual_oplc: float | None  # the achieved on-plate loading concentration, if recorded
     # Complex-loading dilution volumes for the SOP 7.3 worksheet (optional, from import).
+    # Control Dilution 3 is a fixed 1 µL, printed by the batch sheet, so it isn't carried here.
     cleaned_complex_volume: float | None
     loading_buffer_volume: float | None
-    control_dilution_3_volume: float | None
     notes: str | None  # free-text placement note, printed alongside the well
 
 

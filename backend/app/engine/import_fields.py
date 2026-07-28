@@ -37,9 +37,9 @@ K_BASE_KINETICS = "base_kinetics"
 K_MOVIE_TIME = "movie_time_hours"
 # Loading-dilution volumes (all optional) that pre-fill the batch sheet's SOP 7.3 worksheet.
 # Importable, and also editable on the manual add/edit form like every other optional field.
+# (Control Dilution 3 is a fixed 1 µL, printed on the batch sheet, so it isn't stored here.)
 K_CLEANED_COMPLEX_VOL = "cleaned_complex_volume"
 K_LOADING_BUFFER_VOL = "loading_buffer_volume"
-K_CONTROL_DIL3_VOL = "control_dilution_3_volume"
 
 
 @dataclass(frozen=True)
@@ -102,10 +102,6 @@ IMPORTABLE_FIELDS: list[ImportField] = [
     ImportField(
         K_LOADING_BUFFER_VOL, "Loading Buffer Vol (uL)", "6", kind="number",
         aliases=("loading buffer",),
-    ),
-    ImportField(
-        K_CONTROL_DIL3_VOL, "Control Dilution 3 Vol (uL)", "2", kind="number",
-        aliases=("control dilution",),
     ),
 ]
 

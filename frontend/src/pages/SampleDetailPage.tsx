@@ -29,7 +29,6 @@ const PLACED_EDITABLE_KEYS = new Set([
   "actual_oplc",
   "cleaned_complex_volume",
   "loading_buffer_volume",
-  "control_dilution_3_volume",
   "adaptive_loading",
   "full_resolution_base_q",
   "priority",
@@ -145,10 +144,6 @@ export function SampleDetailPage() {
             <div>
               <span className={styles.label}>Loading buffer vol</span>
               <span className={styles.value}>{sample.loading_buffer_volume ?? "—"}</span>
-            </div>
-            <div>
-              <span className={styles.label}>Control dilution 3 vol</span>
-              <span className={styles.value}>{sample.control_dilution_3_volume ?? "—"}</span>
             </div>
             <div>
               <span className={styles.label}>Adaptive loading</span>

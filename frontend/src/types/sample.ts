@@ -9,10 +9,10 @@ export interface SampleOut {
   target_oplc: number | null;
   /** The achieved on-plate loading concentration (pM), distinct from the planned Target OPLC. */
   actual_oplc: number | null;
-  /** Loading-dilution volumes (µL) that pre-fill the batch sheet's SOP 7.3 worksheet. */
+  /** Loading-dilution volumes (µL) that pre-fill the batch sheet's SOP 7.3 worksheet.
+   * (Control Dilution 3 is a fixed 1 µL printed on the batch sheet, so it isn't stored.) */
   cleaned_complex_volume: number | null;
   loading_buffer_volume: number | null;
-  control_dilution_3_volume: number | null;
   adaptive_loading: string | null;
   full_resolution_base_q: string | null;
   priority: string | null;
@@ -40,7 +40,6 @@ export interface SampleCreate {
   actual_oplc?: number | null;
   cleaned_complex_volume?: number | null;
   loading_buffer_volume?: number | null;
-  control_dilution_3_volume?: number | null;
   adaptive_loading?: string | null;
   full_resolution_base_q?: string | null;
   priority?: string | null;

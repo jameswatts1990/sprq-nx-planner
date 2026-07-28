@@ -96,6 +96,7 @@ def _well_out(cell_use: CellUse, plate_index: int) -> BatchSheetWellOut:
         window_breached=cell.window_breached if cell else False,
         sample_id=cell_use.sample_id,
         sample_external_id=sample.external_id if sample else None,
+        parent_sample=sample.parent_sample if sample else None,
         barcodes=cell_use.barcode_list,
         adaptive_loading=sample.adaptive_loading if sample else None,
         base_kinetics=sample.base_kinetics if sample else None,
@@ -104,6 +105,5 @@ def _well_out(cell_use: CellUse, plate_index: int) -> BatchSheetWellOut:
         actual_oplc=sample.actual_oplc if sample else None,
         cleaned_complex_volume=sample.cleaned_complex_volume if sample else None,
         loading_buffer_volume=sample.loading_buffer_volume if sample else None,
-        control_dilution_3_volume=sample.control_dilution_3_volume if sample else None,
         notes=cell_use.notes,
     )

@@ -148,9 +148,12 @@ export function ScheduleSection() {
         1</b>, then <b>Plate 2</b> if the run has one. Each plate block is headed with the day it sequences, e.g.{" "}
         <i>&quot;Plate 2 · acquires Fri 25 Jul · reuse (Use 2)&quot;</i> — so a reuse run&apos;s second plate, which the
         instrument runs the next day, is on the sheet too (both plates are loaded in the one session). Each well shows
-        its cell code, use number and 108-hour reuse deadline, the sample to load and its barcode(s), and the per-cell
-        run settings (movie / run time, adaptive loading, include base kinetics, full-resolution baseQ, Target OPLC,
-        Actual OPLC). Because run time is per-cell, each well shows its own movie time. A final <b>Notes</b> column prints
+        its cell code, use number and 108-hour reuse deadline, the sample to load and its <b>parent sample</b>, the
+        per-cell run settings (movie / run time, adaptive loading, include base kinetics, full-resolution baseQ) and the
+        <b> Actual OPLC</b>. Any setting that differs from the configured Sample Defaults (Admin tab) is shown in
+        <b> bold with a &quot;*&quot;</b> so a non-standard value stands out; a footnote under the table explains the
+        mark. Because run time is per-cell, each well shows its own movie time. Each run&apos;s page also has a
+        <b> Date</b> and <b>Signed / initials</b> box top-right to sign off the load. A final <b>Notes</b> column prints
         any note you&apos;ve added to a sample on its cell (see <b>Sample notes</b> under QC actions below). Use the
         page&apos;s <b>Print / Save as PDF</b> button, which opens your browser&apos;s normal print dialog (choose a
         physical printer, or &quot;Save as PDF&quot;). The sheet prints <b>landscape, one run per page</b>, so each
@@ -162,14 +165,17 @@ export function ScheduleSection() {
         Below each run&apos;s table the sheet also prints two <b>fill-in worksheets per plate</b> to record the bench
         work as you go; for a two-plate run the two plates&apos; worksheets sit <b>side by side</b> to make the most of
         the landscape page. The <b>7.3 · Final complex loading dilution</b> table has a row per well, pre-filled with the
-        well, Traction ID and Target OPLC. If the sample has its complex, loading-buffer and control-dilution
-        volumes — whether carried across when you upload from the scheduler sheet, or filled in on the sample&apos;s
-        edit form — those boxes are pre-filled too; any the app doesn&apos;t have are left blank to write in at the
-        bench, along with the final volume. The achieved <b>Actual OPLC</b> is pre-filled when it&apos;s been recorded
+        well and Traction ID. <b>Control Dilution 3</b> is always <b>1 µL</b> and is printed for you. If the sample has
+        its complex and loading-buffer volumes — whether carried across when you upload from the scheduler sheet, or
+        filled in on the sample&apos;s edit form — those boxes are pre-filled too; any the app doesn&apos;t have are left
+        blank to write in at the bench. The <b>final volume</b> is worked out for you as complex + loading buffer + the
+        1 µL control dilution 3 whenever the complex and loading-buffer volumes are known, otherwise left blank. The
+        achieved <b>Actual OPLC</b> is pre-filled when it&apos;s been recorded
         on the sample, otherwise left blank to write in. The <b>7.4 · Plate loading</b> checklist (one per
-        plate) has a space to note the plate&apos;s QR / serial number, tick boxes for the plate-prep steps
-        (vortexed, spun down, foil pierced) and a per-well tick for &quot;23 µL loaded&quot; and &quot;sealed&quot;.
-        These are for writing on the printout by hand — the values aren&apos;t stored back in the app.
+        plate) has a space to note the plate&apos;s QR / serial number and the time loaded, tick boxes for the loading
+        steps (humidity &gt;25%rH, tips refilled, deck reloaded, excess cells disposed) and a per-well tick for
+        &quot;Control Dil. added&quot; and &quot;23 µL loaded&quot;. These are for writing on the printout by
+        hand — the values aren&apos;t stored back in the app.
       </p>
 
       <p className={styles.subheading}>Export schedule</p>
@@ -450,7 +456,7 @@ export function ScheduleSection() {
       <p>
         <b>Editing the sample:</b> next to the Sample ID a small <b>✎</b> button opens the quick edit form for that
         sample&apos;s loading parameters (<b>Target OPLC</b>, <b>Actual OPLC</b>, the complex-loading volumes{" "}
-        <b>Cleaned Complex</b>, <b>Loading Buffer</b> and <b>Control Dilution 3</b> that pre-fill the batch
+        <b>Cleaned Complex</b> and <b>Loading Buffer</b> that pre-fill the batch
         sheet&apos;s dilution worksheet, <b>Adaptive Loading</b>, <b>Full-Resolution Base Q</b>, <b>Priority</b> and{" "}
         <b>Include Base Kinetics</b>) without going back to the Backlog. Once a sample is placed on the grid its{" "}
         <b>barcodes</b>, Sanger IDs and parent are locked —
@@ -461,11 +467,13 @@ export function ScheduleSection() {
       </p>
       <p>
         <b>Estimated stage times:</b> the popover also shows a small gantt of the whole run&apos;s wells, each broken
-        into its three stages in sequence — an amber <b>prep</b> lead-in, the sequencing <b>movie</b> (coloured by the
-        cell&apos;s use: magenta 1 / blue 2 / teal 3), then a purple <b>PPA</b> (post-primary analysis) tail — staggered
-        across the run, with <i>this</i> placement&apos;s row highlighted, so you can see where your sample sits in the
-        run&apos;s flow. These are approximate PacBio timings anchored at the run&apos;s load time, an estimate rather
-        than the instrument&apos;s exact schedule.
+        into its three stages in sequence — a slate <b>prep</b> lead-in, the sequencing <b>movie</b> (coloured by the
+        cell&apos;s use: magenta 1 / blue 2 / teal 3), then a darker slate <b>PPA</b> (post-primary analysis) tail —
+        staggered across the run, with <i>this</i> placement&apos;s row highlighted, so you can see where your sample
+        sits in the run&apos;s flow. The axis along the bottom is marked in <b>clock time</b> (e.g. 12:00, 18:00), and
+        if the run is happening <i>right now</i> a green <b>live line</b> — topped with a spinning marker — sweeps down
+        through every bar to show where the run has got to. These are approximate PacBio timings anchored at the
+        run&apos;s load time, an estimate rather than the instrument&apos;s exact schedule.
       </p>
       <p>
         <b>Run time:</b> the popover shows this cell&apos;s own movie / run time, and while the run is still planned

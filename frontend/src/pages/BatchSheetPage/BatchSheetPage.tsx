@@ -4,6 +4,7 @@ import { Link, useSearchParams } from "react-router-dom";
 
 import { ApiError } from "@/api/client";
 import { batchSheetApi } from "@/api/batchSheet";
+import { settingsApi, type SampleDefaults } from "@/api/settings";
 import { Button } from "@/components/ui/Button";
 import { Note } from "@/components/ui/Note";
 import type { BatchSheetPlateOut, BatchSheetRunOut, BatchSheetWellOut } from "@/types/batchSheet";
@@ -43,7 +44,28 @@ function plateHeading(plate: BatchSheetPlateOut): string {
   return parts.join(" · ");
 }
 
-function WellRow({ well }: { well: BatchSheetWellOut }) {
+/** One setting in the well row's Settings cell. When the sample's value differs from the
+ * configured Sample Default it prints bold with a trailing "*", so a non-default setting is
+ * obvious at a glance (the "*" keeps it legible in black-and-white print). A blank/unknown
+ * value or one equal to the default prints plainly. */
+function SettingSpan({
+  label,
+  value,
+  defaultValue,
+}: {
+  label: string;
+  value: string | null;
+  defaultValue?: string;
+}) {
+  const differs = value != null && defaultValue != null && value !== defaultValue;
+  return (
+    <span>
+      {label} {differs ? <span className={styles.settingDiff}>{value}*</span> : value ?? "—"}
+    </span>
+  );
+}
+
+function WellRow({ well, defaults }: { well: BatchSheetWellOut; defaults?: SampleDefaults }) {
   return (
     <tr>
       <td>{plateWellFromSlot(well.slot_index, { qualified: true })}</td>
@@ -60,14 +82,17 @@ function WellRow({ well }: { well: BatchSheetWellOut }) {
       <td>
         <div>{well.sample_external_id ?? "—"}</div>
       </td>
-      <td>{well.barcodes.length > 0 ? well.barcodes.join(", ") : "—"}</td>
+      <td>{well.parent_sample ?? "—"}</td>
       <td className={styles.settingsCell}>
         <span>Movie {well.run_time_hours}h</span>
-        <span>Adaptive {well.adaptive_loading ?? "—"}</span>
-        <span>Kinetics {well.base_kinetics ?? "—"}</span>
-        <span>baseQ {well.full_resolution_base_q ?? "—"}</span>
+        <SettingSpan label="Adaptive" value={well.adaptive_loading} defaultValue={defaults?.adaptive_loading} />
+        <SettingSpan label="Kinetics" value={well.base_kinetics} defaultValue={defaults?.base_kinetics} />
+        <SettingSpan
+          label="baseQ"
+          value={well.full_resolution_base_q}
+          defaultValue={defaults?.full_resolution_base_q}
+        />
       </td>
-      <td>{well.target_oplc ?? "—"}</td>
       <td>{well.actual_oplc ?? "—"}</td>
       <td className={styles.notesCell}>{well.notes ? well.notes : "—"}</td>
     </tr>
@@ -80,10 +105,24 @@ function WorksheetVolumeCell({ value }: { value: number | null }) {
   return value != null ? <td>{value}</td> : <td className={styles.entryCell} />;
 }
 
+/** Control Dilution 3 is always 1 µL, so the batch sheet prints a fixed value rather than
+ * carrying it per sample. */
+const CONTROL_DILUTION_3_UL = 1;
+
+/** Final loading volume = complex + loading buffer + the fixed 1 µL control dilution 3.
+ * Computed only when the two per-sample inputs are known (they share the same all-or-nothing
+ * import path); otherwise the cell is left blank to hand-write once the volumes are worked out
+ * at the bench. Rounded to shed binary-float noise (e.g. 0.1 + 0.2). */
+function finalVolume(w: BatchSheetWellOut): number | null {
+  const { cleaned_complex_volume: c, loading_buffer_volume: b } = w;
+  if (c == null || b == null) return null;
+  return Number((c + b + CONTROL_DILUTION_3_UL).toFixed(2));
+}
+
 /** SOP 7.3 — Final complex loading dilution, per plate. One row per well; the app pre-fills
- * what it knows (well, Traction ID, target OPLC, the achieved/actual OPLC when recorded, and
- * — when the scheduler sheet supplied them — the complex / loading-buffer / control-dilution
- * volumes) and leaves the remaining dilution volumes as blank cells to hand-write at the bench. */
+ * what it knows (well, Traction ID, the achieved/actual OPLC when recorded, the fixed 1 µL
+ * control dilution 3, and — when the scheduler sheet supplied them — the complex and
+ * loading-buffer volumes) and leaves anything unknown as blank cells to hand-write at the bench. */
 function DilutionWorksheet({ plate }: { plate: BatchSheetPlateOut }) {
   return (
     <div className={styles.worksheetCol}>
@@ -93,9 +132,6 @@ function DilutionWorksheet({ plate }: { plate: BatchSheetPlateOut }) {
           <tr>
             <th>Well</th>
             <th>Traction ID</th>
-            <th>
-              Target OPLC <span className={styles.unit}>(pM)</span>
-            </th>
             <th>
               Complex vol <span className={styles.unit}>(µL)</span>
             </th>
@@ -111,7 +147,6 @@ function DilutionWorksheet({ plate }: { plate: BatchSheetPlateOut }) {
             <th>
               Actual OPLC <span className={styles.unit}>(pM)</span>
             </th>
-            <th>Init</th>
           </tr>
         </thead>
         <tbody>
@@ -119,17 +154,17 @@ function DilutionWorksheet({ plate }: { plate: BatchSheetPlateOut }) {
             <tr key={w.slot_index}>
               <td>{plateWellFromSlot(w.slot_index, { qualified: true })}</td>
               <td>{w.sample_external_id ?? "—"}</td>
-              <td>{w.target_oplc ?? ""}</td>
               {/* Pre-filled from import when the scheduler sheet supplied a value; otherwise a
                   blank box to hand-write at the bench. */}
               <WorksheetVolumeCell value={w.cleaned_complex_volume} />
               <WorksheetVolumeCell value={w.loading_buffer_volume} />
-              <WorksheetVolumeCell value={w.control_dilution_3_volume} />
-              {/* Final vol: hand-written at the bench. */}
-              <td className={styles.entryCell} />
+              {/* Control Dilution 3 is always 1 µL. */}
+              <td>{CONTROL_DILUTION_3_UL}</td>
+              {/* Final vol = complex + loading buffer + control dilution 3; blank to write in
+                  when any input is missing. */}
+              <WorksheetVolumeCell value={finalVolume(w)} />
               {/* Actual OPLC: pre-filled when recorded, otherwise a blank box to write in. */}
               <WorksheetVolumeCell value={w.actual_oplc} />
-              <td className={styles.entryCell} />
             </tr>
           ))}
         </tbody>
@@ -149,18 +184,25 @@ function PlateLoadingChecklist({ plate }: { plate: BatchSheetPlateOut }) {
       <div className={styles.qrLine}>
         Plate QR / serial no.: <span className={styles.qrBlank} />
       </div>
+      <div className={styles.qrLine}>
+        Time loaded: <span className={styles.qrBlankShort} />
+      </div>
       <div className={styles.prepChecks}>
         <span>
           <span className={styles.check} />
-          Vortexed 1 min @ 1800
+          Humidity &gt;25%rH
         </span>
         <span>
           <span className={styles.check} />
-          Spun down
+          Tips Refilled
         </span>
         <span>
           <span className={styles.check} />
-          Foil pierced (A01–D01)
+          Deck Reloaded
+        </span>
+        <span>
+          <span className={styles.check} />
+          Excess Cells Disposed (if required)
         </span>
       </div>
       <table className={styles.worksheetTable}>
@@ -168,11 +210,10 @@ function PlateLoadingChecklist({ plate }: { plate: BatchSheetPlateOut }) {
           <tr>
             <th>Well</th>
             <th>Sample</th>
+            <th>Control Dil. Added</th>
             <th>
               23 <span className={styles.unit}>µL</span> loaded
             </th>
-            <th>Sealed</th>
-            <th>Init</th>
           </tr>
         </thead>
         <tbody>
@@ -186,7 +227,6 @@ function PlateLoadingChecklist({ plate }: { plate: BatchSheetPlateOut }) {
               <td>
                 <span className={styles.check} />
               </td>
-              <td className={styles.entryCell} />
             </tr>
           ))}
         </tbody>
@@ -197,24 +237,37 @@ function PlateLoadingChecklist({ plate }: { plate: BatchSheetPlateOut }) {
 
 /** One run = one load session on one instrument, holding 1-2 plates. The well table splits
  * into a tbody per plate; the SOP 7.3/7.4 worksheets repeat per plate too. */
-function RunSection({ run }: { run: BatchSheetRunOut }) {
+function RunSection({ run, defaults }: { run: BatchSheetRunOut; defaults?: SampleDefaults }) {
   const movieHours = run.plates.map((p) => p.movie_hours);
   const longestMovie = movieHours.length > 0 ? Math.max(...movieHours) : 0;
 
   return (
     <section className={styles.instrumentSection}>
-      <h2 className={styles.instrumentTitle}>
-        {run.instrument_name}
-        {run.instrument_name !== run.instrument_serial && (
-          <span className={styles.meta}> ({run.instrument_serial})</span>
-        )}
-        <span className={styles.meta}> · Run {runLabel(run)}</span>
-      </h2>
-      <div className={styles.instrumentMeta}>
-        <span>Load day: {formatFullDate(run.load_date)}</span>
-        <span>Plates: {run.plates.length}</span>
-        <span>Movie time (longest): {longestMovie}h</span>
-        <span>Status: {run.status}</span>
+      <div className={styles.runHeader}>
+        <div>
+          <h2 className={styles.instrumentTitle}>
+            {run.instrument_name}
+            {run.instrument_name !== run.instrument_serial && (
+              <span className={styles.meta}> ({run.instrument_serial})</span>
+            )}
+            <span className={styles.meta}> · Run {runLabel(run)}</span>
+          </h2>
+          <div className={styles.instrumentMeta}>
+            <span>Load day: {formatFullDate(run.load_date)}</span>
+            <span>Plates: {run.plates.length}</span>
+            <span>Movie time (longest): {longestMovie}h</span>
+            <span>Status: {run.status}</span>
+          </div>
+        </div>
+        {/* Sign-off box (top-right of each run's page) for the tech to date and initial. */}
+        <div className={styles.signBlock}>
+          <div className={styles.signLine}>
+            Date: <span className={styles.signBlank} />
+          </div>
+          <div className={styles.signLine}>
+            Signed / initials: <span className={styles.signBlank} />
+          </div>
+        </div>
       </div>
 
       <table className={styles.wellTable}>
@@ -223,9 +276,8 @@ function RunSection({ run }: { run: BatchSheetRunOut }) {
             <th>Well</th>
             <th>Cell</th>
             <th>Container ID</th>
-            <th>Barcodes</th>
+            <th>Parent sample</th>
             <th>Settings</th>
-            <th>Target OPLC</th>
             <th>Actual OPLC</th>
             <th>Notes</th>
           </tr>
@@ -233,14 +285,15 @@ function RunSection({ run }: { run: BatchSheetRunOut }) {
         {run.plates.map((plate) => (
           <tbody key={plate.plate_number}>
             <tr className={styles.trayHeader}>
-              <td colSpan={8}>{plateHeading(plate)}</td>
+              <td colSpan={7}>{plateHeading(plate)}</td>
             </tr>
             {plate.wells.map((w) => (
-              <WellRow key={w.slot_index} well={w} />
+              <WellRow key={w.slot_index} well={w} defaults={defaults} />
             ))}
           </tbody>
         ))}
       </table>
+      <div className={styles.footnote}>* differs from configured default</div>
 
       <div className={styles.worksheetRow}>
         {run.plates.map((plate) => (
@@ -270,6 +323,12 @@ export function BatchSheetPage() {
     queryKey: ["batch-sheet", date, instrumentSerials],
     queryFn: () => batchSheetApi.get(date, instrumentSerials),
     enabled: date.length > 0,
+  });
+
+  // The configured Sample Defaults, so the Settings column can flag values that differ.
+  const defaultsQuery = useQuery({
+    queryKey: ["sample-defaults"],
+    queryFn: () => settingsApi.getSampleDefaults(),
   });
 
   // Name the tab — and so the browser's Save-as-PDF default filename — "YYYY.MM.DD - Revio <serial>".
@@ -322,7 +381,7 @@ export function BatchSheetPage() {
             </Note>
           )}
           {query.data.runs.map((run) => (
-            <RunSection key={run.run_id} run={run} />
+            <RunSection key={run.run_id} run={run} defaults={defaultsQuery.data} />
           ))}
         </>
       )}
