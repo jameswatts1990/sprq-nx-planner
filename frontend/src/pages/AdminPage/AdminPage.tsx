@@ -60,8 +60,7 @@ export function AdminPage() {
           </p>
         </div>
         <Button
-          variant="ghost"
-          className={styles.dangerButton}
+          variant="danger"
           onClick={() => setClearBacklogOpen(true)}
           disabled={backlogCount === 0}
         >

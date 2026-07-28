@@ -15,6 +15,7 @@ from app.models.cell import Cell
 from app.models.schedule import CellUse, Cycle, RunBatch
 from app.schemas.run import PlateOut, RunOut, StageOut
 from app.services.cell_service import has_barcode_clash, has_failed_use, use_sort_key, window_hours_elapsed
+from app.services.cell_timing import run_is_acquiring
 from app.services.instrument_lock import run_lock_until
 from app.timeutil import ensure_aware, utcnow
 
@@ -134,9 +135,14 @@ def run_out(db: Session, run_batch: RunBatch) -> RunOut:
 
     now = utcnow()
     if cycles:
+        # Two different windows, deliberately: `lock_until` is the short LOADING-lock (gates when
+        # the NEXT run can load; drives grid continuation), while `is_locked` means this run is
+        # physically ACQUIRING now (some cell prepping / sequencing / in PPA) across its full
+        # ~30h+ load->last-PPA span - what "Active now" and the instrument live-gantts key off.
+        # Deriving is_locked from lock_until made a mid-sequencing run read as idle a few hours in
+        # (see cell_timing.run_is_acquiring / run_acquisition_end).
         lock_until = run_lock_until(db, run_batch, cycles=cycles)
-        earliest_start = min(ensure_aware(c.planned_start_at) for c in cycles)
-        is_locked = status not in ("aborted", "completed") and earliest_start <= now < lock_until
+        is_locked = status not in ("aborted", "completed") and run_is_acquiring(run_batch, now)
     else:
         lock_until = now  # empty run: nothing loaded -> no lock, never a continuation
         is_locked = False

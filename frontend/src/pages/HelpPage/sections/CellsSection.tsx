@@ -52,7 +52,7 @@ export function CellsSection() {
         <b>tray id</b> anywhere in the app (a cell card, a cell&apos;s detail page, a seal popover, or the Schedule
         grid&apos;s instrument cell map) opens this same <b>Cells</b> tab <i>filtered to that one tray</i>. That view
         shows the tray&apos;s instrument, how many of its cells are present, its soonest window expiry, and the tray&apos;s
-        cells as the usual cell cards — plus a <b>Discard all cells</b> button. Use the <b>◂ All cells</b> link to
+        cells as the usual cell cards — plus a <b>Discard all cells</b> button. Use the <b>All cells</b> link to
         return to the full list. (This physical &quot;tray&quot; is a different thing from the
         Schedule grid&apos;s &quot;Plate 1&quot;/&quot;Plate 2&quot; loading positions within a run - see the Schedule
         section.)

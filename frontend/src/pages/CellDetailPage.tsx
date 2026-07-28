@@ -195,7 +195,7 @@ export function CellDetailPage() {
           <CardHeader>
             <h2>
               <Link to={`/cells?tray=${trayId}`} className="link">
-                Cell tray — Tray {trayId} →
+                Cell tray — Tray {trayId}
               </Link>
             </h2>
           </CardHeader>

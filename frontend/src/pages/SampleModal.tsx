@@ -16,6 +16,24 @@ import styles from "./SampleModal.module.css";
  * import-field spec for the key names). Container ID is the sample's fixed identity. */
 const PROTECTED_KEYS = new Set(["external_id"]);
 
+// Loading buffer is a derived volume, not a free input: Complex + Loading buffer always tops
+// up to this fixed total (µL), so Loading buffer defaults to 25 − Cleaned Complex Vol. The
+// user can still override it, but an off-target override shows a persistent warning.
+const LOADING_TOTAL_UL = 25;
+const K_COMPLEX = "cleaned_complex_volume";
+const K_LOADING_BUFFER = "loading_buffer_volume";
+
+/** The Loading buffer volume that keeps Complex + Loading buffer = 25 µL, given the current
+ * Cleaned Complex Vol input. Returns null when complex is blank/non-numeric (nothing to
+ * derive from). Rounded to shed binary-float noise (e.g. 25 − 8.1). */
+function expectedLoadingBuffer(complexRaw: string): number | null {
+  const raw = complexRaw.trim();
+  if (!raw) return null;
+  const c = Number(raw);
+  if (!Number.isFinite(c)) return null;
+  return Number((LOADING_TOTAL_UL - c).toFixed(2));
+}
+
 /** Split a free-text list (commas/semicolons/whitespace), trim, drop blanks, de-dupe. */
 function splitList(raw: string): string[] {
   const parts = raw.split(/[,;/\s]+/).map((p) => p.trim()).filter(Boolean);
@@ -76,6 +94,15 @@ export function SampleModal({
   const [values, setValues] = useState<Record<string, string>>(() =>
     sample ? valuesFromSample(sample) : {},
   );
+  // Whether Loading buffer is still tracking the derived 25 − complex default (vs. a manual
+  // override). Auto while a fresh add hasn't been touched, or when an existing sample's stored
+  // buffer already matches the derived value; flipped off the moment the user edits it by hand.
+  const [lbAuto, setLbAuto] = useState<boolean>(() => {
+    if (!sample) return true;
+    if (sample.loading_buffer_volume == null) return true;
+    const exp = expectedLoadingBuffer(String(sample.cleaned_complex_volume ?? ""));
+    return exp != null && Number(sample.loading_buffer_volume) === exp;
+  });
   const [clientError, setClientError] = useState<string | null>(null);
 
   const fieldsQuery = useQuery({ queryKey: ["import-fields"], queryFn: () => importsApi.fields() });
@@ -115,8 +142,34 @@ export function SampleModal({
   });
 
   function set(key: string, v: string) {
-    setValues((prev) => ({ ...prev, [key]: v }));
+    setValues((prev) => {
+      const next = { ...prev, [key]: v };
+      // Keep Loading buffer topped up to 25 − complex while it's still auto-derived. Editing
+      // complex re-derives it; editing complex to blank clears the derived buffer too.
+      if (key === K_COMPLEX && lbAuto) {
+        const exp = expectedLoadingBuffer(v);
+        next[K_LOADING_BUFFER] = exp != null ? String(exp) : "";
+      }
+      return next;
+    });
+    // A hand-edit to Loading buffer detaches it from the derived default (persistent warning
+    // then flags any off-target value until it's reset).
+    if (key === K_LOADING_BUFFER) setLbAuto(false);
   }
+
+  /** Restore Loading buffer to the derived 25 − complex default and resume auto-tracking. */
+  function resetLoadingBuffer() {
+    const exp = expectedLoadingBuffer(values[K_COMPLEX] ?? "");
+    setValues((prev) => ({ ...prev, [K_LOADING_BUFFER]: exp != null ? String(exp) : "" }));
+    setLbAuto(true);
+  }
+
+  // Derived off-target check for the persistent Loading buffer warning.
+  const lbExpected = expectedLoadingBuffer(values[K_COMPLEX] ?? "");
+  const lbRaw = (values[K_LOADING_BUFFER] ?? "").trim();
+  const lbNum = Number(lbRaw);
+  const lbOffTarget =
+    lbExpected != null && lbRaw !== "" && Number.isFinite(lbNum) && lbNum !== lbExpected;
 
   function handleSubmit() {
     setClientError(null);
@@ -199,8 +252,12 @@ export function SampleModal({
           .filter((f) => !isRestricted || editableKeys.has(f.key) || PROTECTED_KEYS.has(f.key))
           .map((f) => {
           const locked = (isEdit && PROTECTED_KEYS.has(f.key)) || (isRestricted && !editableKeys.has(f.key));
+          const isLoadingBuffer = f.key === K_LOADING_BUFFER;
           return (
-            <label key={f.key} className={styles.field}>
+            <label
+              key={f.key}
+              className={`${styles.field}${isLoadingBuffer ? ` ${styles.fieldWide}` : ""}`}
+            >
               <span className={styles.label}>
                 {f.label}
                 {f.required && <span className={styles.req}> *</span>}
@@ -238,11 +295,34 @@ export function SampleModal({
                   placeholder={f.example}
                   inputMode={f.kind === "number" ? "decimal" : undefined}
                   disabled={locked}
+                  title={
+                    isLoadingBuffer
+                      ? `Auto-calculated as ${LOADING_TOTAL_UL} − Cleaned Complex Vol. Complex + Loading buffer = ${LOADING_TOTAL_UL} µL. You can override it.`
+                      : undefined
+                  }
                   onChange={(e) => set(f.key, e.target.value)}
                 />
               )}
               {locked ? (
                 <span className={styles.hint}>The sample&apos;s identity — fixed once created.</span>
+              ) : isLoadingBuffer ? (
+                <>
+                  <span className={styles.hint}>
+                    Auto-calculated as {LOADING_TOTAL_UL} − Cleaned Complex Vol · Complex + Loading buffer ={" "}
+                    {LOADING_TOTAL_UL} µL. Override if needed.
+                  </span>
+                  {lbOffTarget && (
+                    <div className={styles.lbWarn}>
+                      <Note tone="warn" icon="!">
+                        Loading buffer is {lbNum} µL, {lbNum > (lbExpected as number) ? "above" : "below"} the{" "}
+                        {lbExpected} µL that keeps Complex + Loading buffer = {LOADING_TOTAL_UL} µL.{" "}
+                        <button type="button" className={styles.lbReset} onClick={resetLoadingBuffer}>
+                          Use {lbExpected} µL
+                        </button>
+                      </Note>
+                    </div>
+                  )}
+                </>
               ) : (
                 (f.kind === "barcodes" || f.kind === "sanger") && (
                   <span className={styles.hint}>Separate multiple with commas or spaces.</span>

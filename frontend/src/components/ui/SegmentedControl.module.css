@@ -45,8 +45,10 @@
 .segOpt[aria-pressed="true"] small {
   color: var(--grey);
 }
+/* Same magenta keyboard-focus ring as the app-wide .btn:focus-visible, so segmented
+   controls, buttons, and links all read as one focus system (previously blue here). */
 .segOpt:focus-visible {
-  outline: 3px solid rgba(0, 145, 210, 0.4);
+  outline: 2px solid var(--magenta-deep);
   outline-offset: 2px;
 }
 @media (prefers-reduced-motion: reduce) {

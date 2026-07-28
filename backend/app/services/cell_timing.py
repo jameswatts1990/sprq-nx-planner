@@ -20,9 +20,10 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from app.engine.constants import within_tray_pos
+from app.timeutil import ensure_aware
 
 PREP_H = 4.0
 STAGGER_H = 2.0
@@ -93,19 +94,29 @@ def _schedule_ppa(timings) -> None:
 
 # --- adapters over the ORM ---------------------------------------------------------------------
 
+def _plate_anchor(cycle) -> datetime:
+    """This plate's effective load anchor on the timeline: its real confirm-load time
+    (``actual_start_at``, set once the plate is running) when known, else its planned start.
+    "Loading time = the time entered at Confirm loaded" (docs/pacbio-sprq-nx-scheduling-
+    reference.md, "Per-cell breakout..."), so once a run is loaded its live "what's running"
+    state and its gantt key off the *real* load; a still-planned run keys off the plan. Mirrored
+    by the frontend gantt (frontend/src/utils/stageTimings.ts ``plateAnchorMs``)."""
+    return ensure_aware(cycle.actual_start_at or cycle.planned_start_at)
+
+
 def _run_cell_inputs(run_batch) -> list[CellInput]:
     """Build the timing inputs for every loaded cell of a run. Cells loaded together (same plate
     ``planned_start_at``) share the sequencing lanes; a reuse plate on a later day is its own
-    group off its own start."""
-    from app.timeutil import ensure_aware
-
+    group off its own start. Offsets are measured from each plate's *effective* anchor
+    (``_plate_anchor``: actual load once running, else planned), so a run confirmed-loaded at a
+    different time than planned lays out from when it truly started."""
     cycles = [c for c in run_batch.cycles if c.cell_uses]
     if not cycles:
         return []
-    earliest = min(ensure_aware(c.planned_start_at) for c in cycles)
+    earliest = min(_plate_anchor(c) for c in cycles)
     cells: list[CellInput] = []
     for cycle in cycles:
-        base_h = (ensure_aware(cycle.planned_start_at) - earliest).total_seconds() / 3600.0
+        base_h = (_plate_anchor(cycle) - earliest).total_seconds() / 3600.0
         for cu in cycle.cell_uses:
             pos = within_tray_pos(cu.cell.home_well or cu.well or "")
             slot = (cycle.plate_index - 1) * SEQ_LANES + pos
@@ -127,6 +138,41 @@ def run_breakout_offsets(run_batch) -> dict[int, float]:
     shared tray timestamp. Keyed by cell_use id; missing ids default to 0.0 at the call site."""
     timings = compute_timings(_run_cell_inputs(run_batch))
     return {key: t.breakout_h for key, t in timings.items()}
+
+
+def run_load_at(run_batch) -> datetime | None:
+    """The run's effective load time = the earliest plate anchor (real confirm-load once running,
+    else planned - see ``_plate_anchor``). None when nothing is loaded."""
+    cycles = [c for c in run_batch.cycles if c.cell_uses]
+    if not cycles:
+        return None
+    return min(_plate_anchor(c) for c in cycles)
+
+
+def run_acquisition_end(run_batch) -> datetime | None:
+    """The absolute time the run's *last* cell finishes PPA. The instrument is physically busy
+    with this run - some cell prepping, sequencing, or in PPA - from ``run_load_at`` until here,
+    so this is the run's "what's running now" window end. Derived from the same per-cell timing
+    model as the gantt, so the two agree cell-for-cell. None when nothing is loaded.
+
+    Distinct from ``instrument_lock.run_lock_until``: that is the much shorter *loading*-lock that
+    gates when a brand-new run may be loaded (a single tray frees the loading bay after
+    LOCK_BUFFER_HOURS even while its cells keep sequencing for ~30h). Using the loading-lock as
+    the "is it still running" test is exactly what made a mid-sequencing run read as idle."""
+    load_at = run_load_at(run_batch)
+    if load_at is None:
+        return None
+    timings = compute_timings(_run_cell_inputs(run_batch))
+    return load_at + timedelta(hours=max((t.ppa_end_h for t in timings.values()), default=0.0))
+
+
+def run_is_acquiring(run_batch, at: datetime) -> bool:
+    """True when ``at`` falls in this run's ``[load, last-PPA-end)`` acquisition window - i.e. the
+    run physically has cells on the instrument doing something at ``at``. The single source of
+    truth the Instruments page, its live gantts, and RunOut.is_locked all share."""
+    load_at = run_load_at(run_batch)
+    end = run_acquisition_end(run_batch)
+    return load_at is not None and end is not None and load_at <= at < end
 
 
 # --- live instrument state ---------------------------------------------------------------------
@@ -181,9 +227,8 @@ def phase_at(timing: CellTiming, load_at: datetime, at: datetime) -> str:
 
 def instrument_activity(run_batches, at: datetime) -> InstrumentActivity:
     """Aggregate the live phase of every resident cell across the given runs at time ``at``.
-    Each run's cells are timed off that run's own load (earliest plate ``planned_start_at``)."""
-    from app.timeutil import ensure_aware
-
+    Each run's cells are timed off that run's own effective load (``run_load_at``: real
+    confirm-load once running, else planned)."""
     act = InstrumentActivity()
     counters = {
         PHASE_AWAITING_PREP: "awaiting_prep",
@@ -194,10 +239,10 @@ def instrument_activity(run_batches, at: datetime) -> InstrumentActivity:
     }
     for run in run_batches:
         inputs = _run_cell_inputs(run)
-        if not inputs:
+        load_at = run_load_at(run)
+        if not inputs or load_at is None:
             continue
         timings = compute_timings(inputs)
-        load_at = min(ensure_aware(c.planned_start_at) for c in run.cycles if c.cell_uses)
         for t in timings.values():
             attr = counters.get(phase_at(t, load_at, at))
             if attr is not None:

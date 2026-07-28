@@ -42,7 +42,7 @@ export function Drawer({ onClose, title, subtitle, side = "left", width = 380, c
             <h2 className={styles.title}>{title}</h2>
             {subtitle !== undefined && <div className={styles.subtitle}>{subtitle}</div>}
           </div>
-          <button type="button" className={styles.close} onClick={onClose} aria-label="Close">
+          <button type="button" className={`btn ghost icon ${styles.close}`} onClick={onClose} aria-label="Close">
             ✕
           </button>
         </div>

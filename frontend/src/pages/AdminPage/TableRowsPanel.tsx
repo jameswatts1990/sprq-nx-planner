@@ -69,8 +69,7 @@ export function TableRowsPanel({ table }: TableRowsPanelProps) {
           {table} <span className={styles.rowCount}>({total} row{total === 1 ? "" : "s"})</span>
         </h2>
         <Button
-          variant="ghost"
-          className={styles.dangerButton}
+          variant="danger"
           onClick={() => setClearModalOpen(true)}
           disabled={total === 0}
         >
@@ -159,8 +158,7 @@ export function TableRowsPanel({ table }: TableRowsPanelProps) {
               Cancel
             </Button>
             <Button
-              variant="primary"
-              className={styles.dangerButton}
+              variant="danger"
               onClick={() => deleteMutation.mutate(rowPendingDelete)}
               disabled={deleteMutation.isPending}
             >

@@ -167,7 +167,7 @@ export function CellsPage() {
         {asOfToggle}
         <div className={styles.trayViewHead}>
           <Link to="/cells" className={styles.backLink}>
-            ◂ All cells
+            All cells
           </Link>
           <h2 className={styles.trayTitle}>Tray {trayId}</h2>
         </div>

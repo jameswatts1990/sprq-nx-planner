@@ -79,6 +79,13 @@
 .gridArea {
   display: contents;
 }
+/* "Hide barcodes" from the toolbar's View options menu. Scoped to the grid area (not the
+   whole page) so the barcode chips still show in the slot/cell detail popovers, which
+   render as page-level siblings of the grid. display:contents leaves the DOM tree intact,
+   so this descendant rule still reaches the chips inside each sample card. */
+.gridArea[data-barcodes="hidden"] [data-barcode-chips] {
+  display: none;
+}
 .dragChip {
   font-family: var(--sans);
   font-size: var(--fs-sm);

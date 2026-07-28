@@ -99,7 +99,7 @@ function DraggableSampleCard({ sample, onEdit }: { sample: SampleOut; onEdit: (s
     >
       <button
         type="button"
-        className={styles.editBtn}
+        className={`btn icon sm ${styles.editBtn}`}
         aria-label={`Edit sample ${sample.external_id}`}
         title={`Edit ${sample.external_id}`}
         onPointerDown={(e) => e.stopPropagation()}

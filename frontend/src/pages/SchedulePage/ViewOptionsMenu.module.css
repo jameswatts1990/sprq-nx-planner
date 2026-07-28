@@ -1,0 +1,39 @@
+.wrap {
+  position: relative;
+  display: inline-flex;
+}
+/* Drops from the button's right edge so the panel stays inside the viewport when the
+   button sits at the far-right of the toolbar. Sits above the pinned grid rows that
+   scroll beneath the sticky head. */
+.panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 30;
+  min-width: 240px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  box-shadow: var(--shadow);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.label {
+  font-size: var(--fs-base);
+  font-weight: 800;
+  color: var(--ink);
+}
+.hint {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--grey);
+  line-height: 1.4;
+}

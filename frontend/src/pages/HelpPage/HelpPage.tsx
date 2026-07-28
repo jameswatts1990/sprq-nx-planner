@@ -111,10 +111,10 @@ export function HelpPage() {
                       {search.position} / {search.total}
                     </span>
                     <div className={styles.searchNavBtns}>
-                      <button type="button" className={styles.searchNavBtn} onClick={search.goPrev} aria-label="Previous match">
+                      <button type="button" className={`btn icon sm ${styles.searchNavBtn}`} onClick={search.goPrev} aria-label="Previous match">
                         ↑
                       </button>
-                      <button type="button" className={styles.searchNavBtn} onClick={search.goNext} aria-label="Next match">
+                      <button type="button" className={`btn icon sm ${styles.searchNavBtn}`} onClick={search.goNext} aria-label="Next match">
                         ↓
                       </button>
                     </div>

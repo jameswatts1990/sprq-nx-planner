@@ -59,7 +59,7 @@ export function ScheduleSection() {
 
       <p className={styles.subheading}>Moving through time</p>
       <p>
-        <b>‹ Prev</b> and <b>Next ›</b> page the view by 7 days; <b>Today</b> jumps back to the current window. The
+        <b>Prev</b> and <b>Next</b> page the view by 7 days; <b>Today</b> jumps back to the current window. The
         date range is shown between them, and it&apos;s remembered in the page URL so you can bookmark or share a
         week. The date field next to <b>Today</b> is a jump-to-date picker — pick any day and the view jumps
         straight to the Mon-Fri week that contains it, without paging through every week in between.
@@ -80,6 +80,15 @@ export function ScheduleSection() {
         glance where &quot;now&quot; sits in the week. Past days stay fully editable; it&apos;s only a visual cue. The
         pink bar next to the <b>Weekly schedule</b> heading fills up like a progress bar, with the RunNx dot marking
         how far through the displayed week today is.
+      </p>
+
+      <p className={styles.subheading}>View options</p>
+      <p>
+        <b>View options</b> at the far right of the date toolbar opens a small menu of display toggles that change
+        only how the grid is drawn, never the plan itself. Right now it holds one toggle — <b>Barcodes: Show / Hide</b>{" "}
+        — which shows or hides the barcode chips on every sample card in the grid, handy for a cleaner, less busy view
+        when you don&apos;t need the barcodes. It only affects the grid: barcodes still appear when you open a card&apos;s
+        detail popover. Your choice is remembered next time you open the Schedule page.
       </p>
 
       <p className={styles.subheading}>Instrument cell map</p>
@@ -431,7 +440,7 @@ export function ScheduleSection() {
       <p>
         <b>Cell QC</b> — <b>Fail Cell</b>, <b>Fail and Stop Cell</b>, or <b>Retire Cell</b> — lives in one dialog,
         opened <b>two ways without leaving the schedule</b>: click a card&apos;s <b>holographic seal</b> to open the
-        cell popover and press <b>QC…</b>, or use the <b>Cell QC →</b> button in a filled slot&apos;s detail popover.
+        cell popover and press <b>QC…</b>, or use the <b>Cell QC</b> button in a filled slot&apos;s detail popover.
         (Clicking a cell in the left-hand <b>instrument cell map</b> instead opens that cell&apos;s <b>detail page</b>,
         where the same QC actions live.) Fail / Fail-and-Stop become available once that run is locked in (<b>Confirm
         loaded</b> clicked); Retire works on any open cell (the Cells tab&apos;s help has the full definitions). Each
@@ -496,7 +505,7 @@ export function ScheduleSection() {
       </p>
       <p>
         <b>Undoing a QC mistake:</b> re-open the Cell QC dialog on a stopped or retired cell — from its seal or the
-        slot popover&apos;s <b>Cell QC →</b> on the schedule, or on the cell&apos;s detail page (which the instrument
+        slot popover&apos;s <b>Cell QC</b> on the schedule, or on the cell&apos;s detail page (which the instrument
         cell map opens) — and choose <b>Undo QC</b>. It reopens the
         cell and restores every sample the action affected — reassigned samples move back, cancelled ones become
         planned again, and backlog/top-up moves are reversed — except a sample that has since moved on, or a top-up

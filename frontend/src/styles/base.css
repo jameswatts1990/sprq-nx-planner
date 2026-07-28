@@ -75,6 +75,24 @@ h3 {
   padding: 6px 11px;
   font-size: var(--fs-md);
 }
+/* Square, single-glyph icon button - shares the text button family's border, background,
+   radius, hover and focus so edit pencils, a drawer's close ✕, and nav chevrons all read as
+   one control instead of each re-declaring these. Pair with .sm for the compact inline size
+   (card corners, popovers), or .ghost for a transparent fill. Component-specific layout
+   (absolute positioning, reveal-on-hover) and any understated colour stay in the caller's own
+   class. Ordered after .sm so its padding:0 wins over .btn.sm on a `btn icon sm` element. */
+.btn.icon {
+  padding: 0;
+  width: 34px;
+  height: 34px;
+  justify-content: center;
+  font-size: var(--fs-2xl);
+}
+.btn.icon.sm {
+  width: 24px;
+  height: 24px;
+  font-size: var(--fs-base);
+}
 .btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;

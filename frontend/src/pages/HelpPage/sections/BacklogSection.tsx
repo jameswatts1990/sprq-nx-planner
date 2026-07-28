@@ -102,6 +102,14 @@ export function BacklogSection() {
         parameters (including those volumes) from the Schedule slot popover, but its barcodes and identity are locked.
       </p>
       <p>
+        <b>Loading buffer is worked out for you.</b> Complex and loading buffer always top up to <b>25 µL</b>
+        together, so the form fills in <b>Loading Buffer Vol</b> automatically as <b>25 − Cleaned Complex Vol</b> as
+        soon as you enter the complex volume. You can still type a different value if a particular sample needs it —
+        the form then shows a warning that the two no longer add up to 25 µL, with a one-click link to put it back to
+        the calculated value. The same behaviour applies everywhere this form appears (Add sample, Edit, and the
+        Schedule slot popover).
+      </p>
+      <p>
         <b>Movie time (h)</b> is a per-sample setting — 12, 24, and 30 h are the usual instrument values — you can
         import it (a &quot;Movie time&quot; column) or type it on the add/edit form, which takes any number and
         defaults to <b>24 h</b> when not given. When you drag a sample onto the schedule it runs for its own movie

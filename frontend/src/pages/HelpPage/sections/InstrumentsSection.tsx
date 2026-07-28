@@ -36,8 +36,11 @@ export function InstrumentsSection() {
       <p className={styles.subheading}>The figures on each card</p>
       <ul>
         <li>
-          <b>Currently running</b> — the run sequencing on the instrument right now (its name or number) and when the
-          instrument next frees up; &quot;idle&quot; when nothing is running.
+          <b>Currently running</b> — the run on the instrument right now (its name or number) and when it finishes and
+          the instrument frees up; &quot;idle&quot; when nothing is loaded. A run counts as running the whole time its
+          cells are on the instrument — from load, through prep and sequencing, right until the last cell&apos;s PPA
+          finishes — measured from when it was <em>actually</em> loaded (the time entered at Confirm loaded), not just
+          the first hour or two.
         </li>
         <li>
           <b>Open trays</b> — how many SMRT cell trays with spare capacity are sitting on the instrument. Click the
@@ -51,6 +54,15 @@ export function InstrumentsSection() {
           next scheduled run date.
         </li>
       </ul>
+
+      <p className={styles.subheading}>What it&apos;s doing right now</p>
+      <p>
+        When a run is in progress, a green dot and a short live summary spell out what the instrument is doing at this
+        moment — e.g. <b>&quot;3 sequencing · 2 in PPA · 1 awaiting prep&quot;</b> — counting each loaded cell by the
+        stage it&apos;s in. An amber <b>prep-locked</b> chip appears while any cell is still being (or still waiting to
+        be) broken out: the instrument is committed and can&apos;t take a fresh tray until every cell has started prep.
+        These counts use the same timings as the gantt below, measured from when the run was actually loaded.
+      </p>
 
       <p className={styles.subheading}>Live run progress</p>
       <p>

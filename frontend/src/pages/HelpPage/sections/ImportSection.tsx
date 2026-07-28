@@ -39,7 +39,7 @@ export function ImportSection() {
           Leave ticked for normal CSVs (the first line names the columns). Untick it for a bare two-column list of{" "}
           <i>sample ID, barcodes</i> with no header line.
         </dd>
-        <dt>Continue to mapping →</dt>
+        <dt>Continue to mapping</dt>
         <dd>Reads the file (without importing yet) and takes you to the column-matching step.</dd>
         <dt>Filename (optional)</dt>
         <dd>A label stored with the batch (e.g. batch-2026-07.csv); purely for your own reference.</dd>
@@ -55,7 +55,7 @@ export function ImportSection() {
         live preview of the first rows shows exactly what will be imported, and the mapping updates it as you change
         a dropdown. Fields marked <span aria-hidden>*</span> are required — <b>Container ID</b> and{" "}
         <b>Barcodes</b> must be mapped before the <b>Import</b> button enables. Rows with no barcode are skipped, and
-        a note tells you how many. Use <b>‹ Back</b> to return to the text without losing it.
+        a note tells you how many. Use <b>Back</b> to return to the text without losing it.
       </p>
       <p>
         A few fields — the complex-loading volumes (<i>cleaned-complex</i> and <i>loading-buffer</i>) — are optional
@@ -82,7 +82,7 @@ export function ImportSection() {
         Two tables make skipped and duplicate rows <b>actionable</b>: the <b>Skipped rows</b> table lists each
         sample ID and why it was skipped (e.g. &quot;No barcodes&quot;) so you can fix the source and re-import, and
         the <b>Duplicates</b> table lists each Container ID that already existed. Use <b>Import another file</b> to
-        start over, or <b>View backlog →</b> to jump to the newly imported samples.
+        start over, or <b>View backlog</b> to jump to the newly imported samples.
       </p>
       <div className={styles.noteExamples}>
         <Note tone="warn" icon="!">

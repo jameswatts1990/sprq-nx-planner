@@ -45,6 +45,7 @@ import { PrintBatchSheetModal } from "./PrintBatchSheetModal";
 import styles from "./SchedulePage.module.css";
 import { useScheduleActions } from "./useScheduleActions";
 import { useSchedulerWindow } from "./useSchedulerWindow";
+import { ViewOptionsMenu } from "./ViewOptionsMenu";
 
 const DEFAULT_RUN_DESIGN: RunDesignState = {
   max_uses: 3,
@@ -60,6 +61,25 @@ interface DetailTarget {
   run: RunOut;
 }
 
+/** Persist the grid's "show barcodes" view toggle so a scheduler's choice survives paging,
+ * navigation and reloads, mirroring how the backlog tray remembers whether it's open.
+ * Shown by default; a locked-down browser (localStorage throwing) falls back to that. */
+const SHOW_BARCODES_STORAGE_KEY = "runnx.schedule.showBarcodes";
+function readShowBarcodesPref(): boolean {
+  try {
+    return localStorage.getItem(SHOW_BARCODES_STORAGE_KEY) !== "0";
+  } catch {
+    return true;
+  }
+}
+function writeShowBarcodesPref(show: boolean): void {
+  try {
+    localStorage.setItem(SHOW_BARCODES_STORAGE_KEY, show ? "1" : "0");
+  } catch {
+    /* ignore - persistence is a convenience, not a requirement */
+  }
+}
+
 export function SchedulePage() {
   const win = useSchedulerWindow();
   const selection = useGridSelection();
@@ -69,6 +89,13 @@ export function SchedulePage() {
   const [autoscheduleOpen, setAutoscheduleOpen] = useState(false);
   const [detail, setDetail] = useState<DetailTarget | null>(null);
   const [printSheetOpen, setPrintSheetOpen] = useState(false);
+  // Grid display-only toggle (see ViewOptionsMenu): whether barcode chips show on the
+  // sample cards. Hiding via a CSS scope on the grid area, not by re-rendering the grid.
+  const [showBarcodes, setShowBarcodes] = useState(readShowBarcodesPref);
+  const handleChangeShowBarcodes = useCallback((show: boolean) => {
+    setShowBarcodes(show);
+    writeShowBarcodesPref(show);
+  }, []);
   // The placement whose physical-cell info popover is open (the card's "ticket stub" click).
   const [cellInfo, setCellInfo] = useState<DetailTarget | null>(null);
   // The cell whose QC modal is open, opened from either slot popover's QC action. cellUseId
@@ -477,11 +504,11 @@ export function SchedulePage() {
             <div className={styles.toolbar}>
               <div className={styles.pager}>
                 <Button size="sm" variant="ghost" onClick={win.prev}>
-                  ‹ Prev
+                  Prev
                 </Button>
                 <span className={styles.range}>{rangeLabel}</span>
                 <Button size="sm" variant="ghost" onClick={win.next}>
-                  Next ›
+                  Next
                 </Button>
                 <Button size="sm" variant="ghost" onClick={win.goToday}>
                   Today
@@ -531,6 +558,7 @@ export function SchedulePage() {
                   </Button>
                 </div>
               )}
+              <ViewOptionsMenu showBarcodes={showBarcodes} onChangeShowBarcodes={handleChangeShowBarcodes} />
             </div>
             <BacklogAccordion onOpenAutoschedule={() => setAutoscheduleOpen(true)} />
           </div>
@@ -541,7 +569,7 @@ export function SchedulePage() {
             </Note>
           )}
 
-          <div className={styles.gridArea} ref={gridAreaRef}>
+          <div className={styles.gridArea} ref={gridAreaRef} data-barcodes={showBarcodes ? undefined : "hidden"}>
             <SectionHeading title="Weekly schedule" legend={<UseLegend />} progress={weekProgress} />
 
             {instrumentsQuery.isLoading && <div className={styles.status}>Loading instruments…</div>}

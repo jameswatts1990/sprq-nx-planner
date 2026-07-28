@@ -330,7 +330,7 @@ export function ImportPage() {
 
             <div className={styles.actions}>
               <Button variant="ghost" onClick={resetToInput} disabled={importMutation.isPending}>
-                ‹ Back
+                Back
               </Button>
               <Button
                 variant="primary"
@@ -505,7 +505,7 @@ export function ImportPage() {
                 fieldsQuery.isLoading
               }
             >
-              {previewMutation.isPending ? "Reading…" : "Continue to mapping →"}
+              {previewMutation.isPending ? "Reading…" : "Continue to mapping"}
             </Button>
             <label className={styles.filenameField}>
               Filename (optional)
@@ -674,7 +674,7 @@ function ImportResultPanel({ result }: { result: ImportResult }) {
 
         <div className={styles.footerLink}>
           <Link to="/backlog" className="btn primary">
-            View backlog →
+            View backlog
           </Link>
         </div>
       </CardBody>

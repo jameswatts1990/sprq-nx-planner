@@ -92,7 +92,7 @@
 }
 .ctrl {
   font-family: var(--sans);
-  font-size: 10.5px;
+  font-size: var(--fs-2xs);
   font-weight: 700;
   border: 1px solid var(--line);
   background: var(--card);
@@ -187,7 +187,7 @@
    tray - not an error/write-off. */
 .rotateBtn {
   font-family: var(--sans);
-  font-size: 12px;
+  font-size: var(--fs-sm);
   font-weight: 800;
   line-height: 1;
   border: none;

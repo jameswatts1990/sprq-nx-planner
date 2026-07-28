@@ -54,24 +54,13 @@
   display: flex;
   gap: 4px;
 }
+/* Structure/border/hover/focus come from the shared `btn icon sm` variant (base.css); only
+   the understated grey glyph colour is component-specific. */
 .searchNavBtn {
-  font-family: var(--sans);
-  font-size: var(--fs-sm);
-  line-height: 1;
   color: var(--grey);
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  padding: 4px 8px;
-  cursor: pointer;
 }
 .searchNavBtn:hover {
-  border-color: var(--line-hover);
   color: var(--ink);
-}
-.searchNavBtn:focus-visible {
-  outline: 2px solid var(--magenta-deep);
-  outline-offset: 1px;
 }
 
 .toc {

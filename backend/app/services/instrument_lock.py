@@ -23,6 +23,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.engine.constants import LOCK_BUFFER_HOURS
 from app.models.schedule import Cycle, RunBatch
+from app.services.cell_timing import run_is_acquiring, run_load_at
 from app.timeutil import ensure_aware, utcnow
 
 # Longest span is a reuse run: Plate 1 loaded on day D, Plate 2 acquiring ~D+1 with a 30h
@@ -118,15 +119,27 @@ def resolve_new_run_start(
     return None
 
 
-def currently_locked_run(db: Session, instrument_id: int, at: datetime | None = None) -> RunBatch | None:
-    """The run (if any) whose [earliest plate start, lock_until) window contains `at` -
-    _candidate_runs already excludes runs stopped early (aborted) or already completed."""
+def acquiring_runs(db: Session, instrument_id: int, at: datetime | None = None) -> list[RunBatch]:
+    """Runs physically ACQUIRING on this instrument at ``at`` - ``at`` falls within each run's
+    ``[load, last-PPA-end)`` window from the per-cell timing model (cell_timing.run_is_acquiring).
+    This is "what's running right now", the single source of truth the Instruments page and the
+    live gantts share.
+
+    Distinct from the loading-lock (run_lock_until / latest_lock_until) that gates when a *new*
+    run may be loaded - a single tray's loading bay frees after LOCK_BUFFER_HOURS while its cells
+    keep sequencing for ~30h, so the two windows genuinely differ. _candidate_runs already drops
+    aborted/completed runs and orphaned empty cycles."""
     at = at or utcnow()
-    active: list[tuple[datetime, RunBatch]] = []
-    for run in _candidate_runs(db, instrument_id, on_or_before=at.date()):
-        starts = [ensure_aware(c.planned_start_at) for c in run.cycles]
-        if starts and min(starts) <= at < run_lock_until(db, run, cycles=run.cycles):
-            active.append((min(starts), run))
+    return [r for r in _candidate_runs(db, instrument_id, on_or_before=at.date()) if run_is_acquiring(r, at)]
+
+
+def currently_locked_run(db: Session, instrument_id: int, at: datetime | None = None) -> RunBatch | None:
+    """The run (if any) physically acquiring on this instrument at ``at`` (see acquiring_runs).
+    When several overlap - a reuse plate 2 alongside a freshly-loaded new run - the latest-loaded
+    one is taken as "the" current run for the single-run label/badge. Was the short loading-lock
+    window; now the full acquisition window, so a run reads as running for its whole ~30h+
+    sequencing+PPA span rather than only the loading-lock's first few hours."""
+    active = acquiring_runs(db, instrument_id, at)
     if not active:
         return None
-    return max(active, key=lambda pair: pair[0])[1]
+    return max(active, key=lambda run: run_load_at(run) or (at or utcnow()))

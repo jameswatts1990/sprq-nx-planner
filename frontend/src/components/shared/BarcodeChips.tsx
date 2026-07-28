@@ -19,7 +19,7 @@ export function BarcodeChips({ barcodes, variant = "u1" }: BarcodeChipsProps) {
   const rest = barcodes.slice(MAX_SHOWN);
 
   return (
-    <div className={styles.bcs}>
+    <div className={styles.bcs} data-barcode-chips="">
       {shown.map((code) => (
         <span key={code} className={`${styles.bc} ${styles[variant]}`}>
           {code}

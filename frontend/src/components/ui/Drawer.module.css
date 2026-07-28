@@ -65,22 +65,13 @@
   color: var(--grey);
   font-weight: 600;
 }
+/* Structure/border/hover come from the shared `btn ghost icon` variant (base.css); only the
+   understated grey glyph colour is component-specific. */
 .close {
-  font-family: var(--sans);
-  font-size: var(--fs-2xl);
-  line-height: 1;
   color: var(--grey);
-  background: transparent;
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  padding: 6px 9px;
-  cursor: pointer;
-  transition: 0.14s;
 }
 .close:hover {
   color: var(--ink);
-  border-color: var(--line-hover);
-  box-shadow: var(--shadow-sm);
 }
 .body {
   padding: 18px 20px 24px;

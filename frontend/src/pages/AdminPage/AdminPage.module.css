@@ -170,8 +170,3 @@
   padding: 8px 10px;
   margin-bottom: 14px;
 }
-.dangerButton {
-  border-color: var(--red) !important;
-  color: var(--red) !important;
-  background: var(--red-tint) !important;
-}

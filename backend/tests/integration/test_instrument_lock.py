@@ -347,3 +347,69 @@ def test_instrument_out_ignores_aborted_runs_for_lock_state(client, db_session):
 
     after = next(i for i in client.get("/api/instruments").json() if i["serial_number"] == "84047")
     assert after["is_locked"] is False
+
+
+def test_run_reads_as_running_through_its_whole_acquisition_window_not_just_the_loading_lock(client, db_session):
+    """Regression: a single-tray run sequences for ~30h, but its LOADING-lock clears after only
+    LOCK_BUFFER_HOURS (6h) - that's when the *next* run can load, not when this one stops running.
+    Deriving is_locked / the "currently running" state from the loading-lock made a run that was
+    still mid-movie read as idle ~6h in, with a blank instrument gantt. is_locked / instrument
+    state now follow the per-cell acquisition window (cell_timing.run_is_acquiring)."""
+    from app.timeutil import utcnow
+
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1"})
+    (mon,) = _weekdays(1)
+    r1 = _place(client, _sid(client, "A1"), mon, run_time_hours=24)
+    run_id = r1.json()["run_id"]
+
+    # Backdate to 10h ago: PAST the 6h loading-lock, but well inside the ~34h (4h prep + 24h movie
+    # + 6h PPA) acquisition window - the exact gap the bug fell into.
+    run_batch = db_session.query(RunBatch).filter_by(id=run_id).one()
+    cycle = db_session.query(Cycle).filter_by(run_batch_id=run_id).one()
+    run_batch.load_date = utcnow().date()
+    cycle.acquire_date = utcnow().date()
+    cycle.planned_start_at = utcnow() - timedelta(hours=10)
+    cycle.planned_end_at = cycle.planned_start_at + timedelta(hours=cycle.movie_hours)
+    cycle.status = "running"
+    db_session.commit()
+
+    run = client.get(f"/api/cycles/{run_id}").json()
+    # The loading-lock (lock_until) has already cleared (start + 6h = 4h ago) - proving is_locked
+    # is no longer tied to it - yet the run still reads as actively running.
+    assert run["lock_until"] < utcnow().isoformat()
+    assert run["is_locked"] is True
+
+    inst = next(i for i in client.get("/api/instruments").json() if i["serial_number"] == "84047")
+    assert inst["is_locked"] is True
+    assert inst["locked_until"] > utcnow().isoformat()  # acquisition end is still in the future
+
+    stats = next(s for s in client.get("/api/instruments/stats").json() if s["serial_number"] == "84047")
+    assert stats["running_run_name"] == f"#{run_id}"
+    assert stats["cells_sequencing"] == 1  # 10h in: past 4h prep, inside the 24h movie
+
+
+def test_acquisition_window_anchors_on_the_real_confirm_load_time_not_the_plan(client, db_session):
+    """"Loading time = the time entered at Confirm loaded." A run confirmed-loaded far later than
+    it was planned is timed from its actual_start_at: even when the *planned* window has long
+    since lapsed, the run reads as running if its real load puts "now" inside the acquisition
+    window (and vice-versa). This is what keeps the gantt and the live state honest."""
+    from app.timeutil import utcnow
+
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1"})
+    (mon,) = _weekdays(1)
+    run_id = _place(client, _sid(client, "A1"), mon, run_time_hours=24).json()["run_id"]
+
+    run_batch = db_session.query(RunBatch).filter_by(id=run_id).one()
+    cycle = db_session.query(Cycle).filter_by(run_batch_id=run_id).one()
+    run_batch.load_date = utcnow().date()
+    cycle.acquire_date = utcnow().date()
+    # Planned 40h ago: a window anchored on the plan (40h > the ~34h span) would read as finished.
+    cycle.planned_start_at = utcnow() - timedelta(hours=40)
+    cycle.planned_end_at = cycle.planned_start_at + timedelta(hours=cycle.movie_hours)
+    # But it was actually loaded only 10h ago - so it IS still running.
+    cycle.actual_start_at = utcnow() - timedelta(hours=10)
+    cycle.status = "running"
+    db_session.commit()
+
+    run = client.get(f"/api/cycles/{run_id}").json()
+    assert run["is_locked"] is True  # anchored on actual_start_at (10h ago), not planned (40h ago)

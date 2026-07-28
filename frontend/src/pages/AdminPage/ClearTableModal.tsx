@@ -52,8 +52,7 @@ export function ClearTableModal({ table, rowCount, pending, error, onCancel, onC
           Cancel
         </Button>
         <Button
-          variant="primary"
-          className={styles.dangerButton}
+          variant="danger"
           onClick={onConfirm}
           disabled={pending || !matches}
         >

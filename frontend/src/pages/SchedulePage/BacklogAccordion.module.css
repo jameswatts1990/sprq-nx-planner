@@ -102,23 +102,13 @@
 /* Edit affordance pinned top-right, revealed on card hover / keyboard focus. Absolutely
    positioned so it never reflows the card, and small enough to clear the head row's badges.
    Kept out of the drag by stopping its own pointerdown (see DraggableSampleCard). */
+/* Shape/border/hover/focus come from the shared `btn icon sm` variant (base.css); only the
+   corner positioning, understated grey colour, and reveal-on-hover are component-specific. */
 .editBtn {
   position: absolute;
   top: 6px;
   right: 6px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  font-size: var(--fs-base);
-  line-height: 1;
   color: var(--grey);
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  cursor: pointer;
   opacity: 0;
   transition: opacity 0.12s, color 0.12s, border-color 0.12s;
 }
@@ -128,11 +118,6 @@
 }
 .editBtn:hover {
   color: var(--ink);
-  border-color: var(--line-hover);
-}
-.editBtn:focus-visible {
-  outline: 2px solid var(--magenta-deep);
-  outline-offset: 1px;
 }
 /* Trailing "add a sample" placeholder - a dashed card that shares the grid track sizing
    with the sample cards, so it reads as the natural next slot in the list. */

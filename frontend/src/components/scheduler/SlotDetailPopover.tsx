@@ -60,7 +60,7 @@ const SAMPLE_LOCKED_USE_STATUSES = ["completed", "failed", "cancelled"];
  * per-cell run time and a free-text note. A cell is physically fixed to its tray/well
  * position for life, so this popover never reassigns it in place - reallocating a sample
  * means dragging it. Cell QC (Fail / Fail-and-Stop / Retire) lives in the shared Cell QC
- * modal, reachable from here via "Cell QC →" (and from the card's ticket-stub / the tray
+ * modal, reachable from here via the "Cell QC" button (and from the card's ticket-stub / the tray
  * overview); it isn't duplicated inline any more. Built on Modal. */
 export function SlotDetailPopover({ stage, run, onClose, onOpenQc }: SlotDetailPopoverProps) {
   const queryClient = useQueryClient();
@@ -184,7 +184,7 @@ export function SlotDetailPopover({ stage, run, onClose, onOpenQc }: SlotDetailP
             {sampleEditable && (
               <button
                 type="button"
-                className={styles.sampleEditIconBtn}
+                className={`btn icon sm ${styles.sampleEditIconBtn}`}
                 onClick={() => setEditingSample(true)}
                 disabled={editingSample && sampleQuery.isLoading}
                 title="Edit this sample's loading parameters"
@@ -297,8 +297,8 @@ export function SlotDetailPopover({ stage, run, onClose, onOpenQc }: SlotDetailP
         <Button variant="ghost" onClick={onClose} disabled={returnToBacklogMutation.isPending}>
           Close
         </Button>
-        <Link to={`/cells/${stage.cell_id}`} className={`btn ghost sm ${styles.viewCellLink}`}>
-          View cell →
+        <Link to={`/cells/${stage.cell_id}`} className={`btn ghost ${styles.viewCellLink}`}>
+          View cell
         </Link>
         {!isCancelled && (
           <Button
@@ -308,7 +308,7 @@ export function SlotDetailPopover({ stage, run, onClose, onOpenQc }: SlotDetailP
               onOpenQc(stage.cell_id, stage.cell_use_id);
             }}
           >
-            Cell QC →
+            Cell QC
           </Button>
         )}
         {isDiscardBlocked && (

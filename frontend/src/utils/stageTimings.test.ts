@@ -141,6 +141,35 @@ describe("sequencing lanes (second tray waits for the first to free the instrume
   });
 });
 
+describe("effective load anchor (actual_start_at overrides planned_start_at)", () => {
+  it("anchors the whole timeline on the real confirm-load time once loaded, not the plan", () => {
+    // Planned for 12:00 but actually loaded (Confirm loaded) at 18:00 - 6h later.
+    const p = plate(1, "2026-08-03T12:00:00+00:00", [stage(0, 24, 10)]);
+    p.actual_start_at = "2026-08-03T18:00:00+00:00";
+    const { loadMs, timings } = computeTimeline([run([p])]);
+
+    // Time zero is the real load (18:00), not the plan (12:00) - so the live line and "Active
+    // now" (which key off the same backend window) agree with the bars.
+    expect(loadMs).toBe(Date.parse("2026-08-03T18:00:00+00:00"));
+    const s = timings.find((t) => t.stage.cell_use_id === 10)!;
+    expect(s.prepStartH).toBe(0);
+    expect(s.prepStartMs).toBe(Date.parse("2026-08-03T18:00:00+00:00"));
+    expect(s.movieStartMs).toBe(Date.parse("2026-08-03T22:00:00+00:00")); // 18:00 + 4h prep
+  });
+
+  it("offsets a still-planned reuse plate from the first plate's real load", () => {
+    // Plate 1 actually loaded at 14:00 (planned 12:00); reuse Plate 2 is still only planned, a
+    // day later at the same clock time - it should sit 24h after plate 1's *real* load.
+    const p1 = plate(1, "2026-08-03T12:00:00+00:00", [stage(0, 24, 10)]);
+    p1.actual_start_at = "2026-08-03T14:00:00+00:00";
+    const p2 = plate(2, "2026-08-04T14:00:00+00:00", [stage(4, 12, 20)]);
+    const { loadMs, timings } = computeTimeline([run([p1, p2])]);
+
+    expect(loadMs).toBe(Date.parse("2026-08-03T14:00:00+00:00"));
+    expect(timings.find((t) => t.stage.cell_use_id === 20)!.prepStartH).toBe(24);
+  });
+});
+
 describe("PPA capacity (only 2 cells in PPA at once)", () => {
   it("delays cells 3 & 4 until a PPA lane frees, giving the reference ~14h PPA span", () => {
     // A full tray of four 24h cells, 2h-staggered. Movies end at 28/30/32/34h.

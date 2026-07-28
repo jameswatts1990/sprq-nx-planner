@@ -185,8 +185,8 @@ export function CellInfoPopover({ stage, run, onClose, onOpenQc }: CellInfoPopov
         <Button variant="ghost" onClick={onClose} disabled={useNewCell.isPending}>
           Close
         </Button>
-        <Link to={`/cells/${stage.cell_id}`} className={`btn ghost sm ${styles.viewCellLink}`}>
-          View full cell →
+        <Link to={`/cells/${stage.cell_id}`} className={`btn ghost ${styles.viewCellLink}`}>
+          View full cell
         </Link>
         <Button
           variant="danger"

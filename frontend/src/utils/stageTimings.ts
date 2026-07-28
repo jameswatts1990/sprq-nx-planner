@@ -1,4 +1,4 @@
-import type { RunOut, StageOut } from "@/types/schedule";
+import type { PlateOut, RunOut, StageOut } from "@/types/schedule";
 
 /**
  * Estimated per-cell stage timing, from PacBio's "Approximate Revio timings" reference and the
@@ -16,10 +16,13 @@ import type { RunOut, StageOut } from "@/types/schedule";
  *  - **`PPA_SERVERS` (2) PPA lanes.** At most two cells are in PPA at once; a cell whose movie
  *    ends while both lanes are busy waits (PPA-pending), giving the slide's ~14h PPA span for 4.
  *
- * Load time is the run's real load/confirm time (each plate anchored at its own
- * `planned_start_at`, so a reuse plate on a later day keeps its offset). These are illustrative
- * estimates: the backend scheduler does not consume them (see docs/pacbio-sprq-nx-scheduling-
- * reference.md, "Per-cell breakout, PPA capacity, and instrument state").
+ * Load time is the run's real load time: each plate is anchored at its own `actual_start_at`
+ * once the run is running (the time entered at Confirm loaded), falling back to `planned_start_at`
+ * while it's still planned — so a loaded run's bars and live line sit on when it *actually*
+ * started, and a reuse plate on a later day keeps its offset. This matches the backend's
+ * `cell_timing._plate_anchor`, so the gantt agrees with the "Active now"/instrument live-state.
+ * These are illustrative estimates: the backend scheduler does not consume them (see
+ * docs/pacbio-sprq-nx-scheduling-reference.md, "Per-cell breakout, PPA capacity, and instrument state").
  */
 export const PREP_H = 4;
 export const WELL_STAGGER_H = 2;
@@ -112,6 +115,16 @@ function layoutGroup(seeds: Seed[], loadMs: number): StageTiming[] {
 }
 
 /**
+ * A plate's effective load anchor (epoch ms): its real confirm-load time (`actual_start_at`, set
+ * once the plate is running) when known, else its planned start. "Loading time = the time entered
+ * at Confirm loaded", so a loaded run's gantt keys off the real load while a still-planned run
+ * (e.g. the slot-detail preview) keys off the plan. Mirrors backend `cell_timing._plate_anchor`.
+ */
+function plateAnchorMs(plate: PlateOut): number {
+  return Date.parse(plate.actual_start_at ?? plate.planned_start_at);
+}
+
+/**
  * Build one estimated timeline across any number of runs on a single shared axis. Time zero is
  * the earliest plate start across all the runs shown. Within each run, cells are grouped by load
  * (plate `planned_start_at`) — cells loaded together share the instrument's 4 sequencing lanes,
@@ -120,11 +133,11 @@ function layoutGroup(seeds: Seed[], loadMs: number): StageTiming[] {
  * a run by grid slot. Passing a single run degenerates to that run's own timeline.
  */
 export function computeTimeline(runs: RunOut[]): RunTimeline {
-  const allStarts = runs.flatMap((r) => r.plates.map((p) => Date.parse(p.planned_start_at)));
+  const allStarts = runs.flatMap((r) => r.plates.map((p) => plateAnchorMs(p)));
   const loadMs = allStarts.length ? Math.min(...allStarts) : 0;
 
   const earliestStart = (r: RunOut) =>
-    r.plates.length ? Math.min(...r.plates.map((p) => Date.parse(p.planned_start_at))) : Number.MAX_SAFE_INTEGER;
+    r.plates.length ? Math.min(...r.plates.map((p) => plateAnchorMs(p))) : Number.MAX_SAFE_INTEGER;
   const orderedRuns = [...runs].sort((a, b) => earliestStart(a) - earliestStart(b) || a.run_id - b.run_id);
 
   const timings: StageTiming[] = [];
@@ -132,7 +145,7 @@ export function computeTimeline(runs: RunOut[]): RunTimeline {
     // Seed every loaded cell with its load group + lane, then lay out each group independently.
     const groups = new Map<string, Seed[]>();
     for (const plate of run.plates) {
-      const groupBaseH = (Date.parse(plate.planned_start_at) - loadMs) / HOUR_MS;
+      const groupBaseH = (plateAnchorMs(plate) - loadMs) / HOUR_MS;
       for (const stage of plate.stages) {
         const seed: Seed = { stage, runId: run.run_id, groupBaseH, groupKey: plate.planned_start_at, lane: stage.slot_index % 4 };
         const list = groups.get(seed.groupKey);
