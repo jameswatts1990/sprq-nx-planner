@@ -69,6 +69,12 @@ export function ScheduleSection() {
         started at weekends.
       </p>
       <p>
+        <b>A down instrument&apos;s days are greyed out.</b> From the date you mark an instrument down for maintenance
+        (on the Instruments tab), each of its empty days shows a muted <b>Down</b> cell that can&apos;t be selected or
+        dropped onto, so no new run can be scheduled there until you bring it back online. Runs already on it, and days
+        before the down date, are left untouched.
+      </p>
+      <p>
         <b>The day headers are colour-coded to today.</b> Days already past are shown greyed, the current day is
         highlighted in rose pink with a magenta underline, and days still to come stay white — so you can see at a
         glance where &quot;now&quot; sits in the week. Past days stay fully editable; it&apos;s only a visual cue. The
@@ -127,7 +133,7 @@ export function ScheduleSection() {
           onto an empty slot</i>), and the new tray simply shows up here and as a new <b>Use 1</b> on the grid.
         </li>
         <li>
-          Click a <b>TRAY #</b> heading (top maps or the &quot;loaded later&quot; group) to open the <b>Cells &amp; Instruments</b> tab
+          Click a <b>TRAY #</b> heading (top maps or the &quot;loaded later&quot; group) to open the <b>Cells</b> tab
           filtered to that tray — its four cells, summary, and Discard action on one screen. Click an individual <b>cell</b> in a tray strip
           to open that cell&apos;s <b>detail page</b> — its full history, status, 108-hour window, and Cell QC actions
           all live there.
@@ -138,7 +144,7 @@ export function ScheduleSection() {
       <p>
         <b>Print Batch Sheet</b> opens a printable loading sheet for the Revios. Pick the <b>load day</b> and tick which
         instruments to include — handy when different people load different machines, since each person can print
-        just their own. You get <b>one section per run</b>, and within it a table split into a block per plate: <b>Plate
+        just their own, then click <b>View Sheet</b> to open the printable sheet in a new tab. You get <b>one section per run</b>, and within it a table split into a block per plate: <b>Plate
         1</b>, then <b>Plate 2</b> if the run has one. Each plate block is headed with the day it sequences, e.g.{" "}
         <i>&quot;Plate 2 · acquires Fri 25 Jul · reuse (Use 2)&quot;</i> — so a reuse run&apos;s second plate, which the
         instrument runs the next day, is on the sheet too (both plates are loaded in the one session). Each well shows
@@ -185,7 +191,7 @@ export function ScheduleSection() {
 
       <p className={styles.subheading}>Autoschedule (run design &amp; auto-fill)</p>
       <p>
-        The big pink <b>✨ Autoschedule</b> button (to the left of the Backlog tray) opens the <b>Autoschedule</b>{" "}
+        The pink <b>✦ Autoschedule</b> button in the <b>Backlog</b> panel header opens the <b>Autoschedule</b>{" "}
         panel — a pop-out from the left edge — which sets the parameters used for both single placements and auto-fill.
         Close it with the <b>✕</b>, the <b>Esc</b> key, or by clicking outside it; your grid selection stays put while
         it&apos;s open. The same controls are shown live below:
@@ -306,8 +312,10 @@ export function ScheduleSection() {
         tray in that position (all four cells, <b>▣1–▣4</b>), not just the well you dropped on: if a used-up cell sits
         in that slot, the drop simply routes to the next usable cell in the tray. Only when no cell in the tray has
         capacity left does a fresh tray of 4 open. The card stays in the slot you dropped on; its <b>stub</b> tells you
-        which cell it actually landed on (e.g. <i>▣2</i>). No picker interrupts the drop; the first placement into an empty
-        day just uses a default <b>12:00</b> loading start time.
+        which cell it actually landed on (e.g. <i>▣2</i>). No <i>cell</i> picker ever interrupts the drop — the
+        instrument chooses the cell — though the first sample onto a brand-new run day still opens the radial{" "}
+        <b>load-time dial</b> (defaulting to your Run design load time) to set when that run loads, as described under{" "}
+        <i>Placing samples</i> above.
       </p>
       <p>
         <b>A barcode clash can&apos;t push cells out of tray order.</b> A cell can never run the same barcode twice, so if
@@ -387,9 +395,10 @@ export function ScheduleSection() {
         then names <i>that</i> cell, not the one it came from. Moving a sample to the <i>same</i> slot on a different
         day is the exception: that&apos;s a plain reschedule that keeps its own cell. This is what keeps a fresh cell
         in tray order — slot A01 keeps showing cell 1 while cell 1 still has capacity, and you can&apos;t shuffle a
-        later cell into an earlier slot ahead of an available one. Dropping a sample back onto the exact slot it came from does
-        nothing. Dropping it onto a slot that already has a <i>different</i> sample in it is rejected — it never
-        swaps or overwrites what&apos;s there.
+        later cell into an earlier slot ahead of an available one. Dropping a sample back onto the exact slot it came
+        from does nothing. Dropping an already-placed sample onto a slot that already holds a <i>different</i> sample{" "}
+        <b>swaps the two</b> — they trade places, and a swap preview highlights the target as you hover. Dropping a{" "}
+        <i>backlog</i> sample onto an occupied slot, by contrast, does nothing — it never overwrites what&apos;s there.
       </p>
       <p>
         <b>Auto-schedule result</b> summarises the outcome, e.g. &quot;12 placed · 3 unplaced · 1 cell(s) skipped ·
@@ -414,11 +423,12 @@ export function ScheduleSection() {
       <p className={styles.subheading}>QC actions</p>
       <p>
         <b>Cell QC</b> — <b>Fail Cell</b>, <b>Fail and Stop Cell</b>, or <b>Retire Cell</b> — lives in one dialog,
-        reachable three ways without leaving the schedule: click a card&apos;s <b>holographic seal</b> to open the
-        cell popover and press <b>QC…</b>; use the <b>Cell QC →</b> button in a filled slot&apos;s detail popover; or
-        click any cell in the left-hand <b>instrument cell map</b>. Fail / Fail-and-Stop become available once that
-        run is locked in (<b>Confirm loaded</b> clicked); Retire works on any open cell (the Cells tab&apos;s help has
-        the full definitions). Each takes an optional reason note.
+        opened <b>two ways without leaving the schedule</b>: click a card&apos;s <b>holographic seal</b> to open the
+        cell popover and press <b>QC…</b>, or use the <b>Cell QC →</b> button in a filled slot&apos;s detail popover.
+        (Clicking a cell in the left-hand <b>instrument cell map</b> instead opens that cell&apos;s <b>detail page</b>,
+        where the same QC actions live.) Fail / Fail-and-Stop become available once that run is locked in (<b>Confirm
+        loaded</b> clicked); Retire works on any open cell (the Cells tab&apos;s help has the full definitions). Each
+        takes an optional reason note.
       </p>
       <p>
         Because loading is a continuous queue, stopping or retiring a cell shifts its later samples onto the
@@ -442,8 +452,9 @@ export function ScheduleSection() {
         <b>Full-Resolution Base Q</b>, <b>Priority</b> and <b>Include Base Kinetics</b>) without going back to the
         Backlog. Once a sample is placed on the grid its <b>barcodes</b>, Sanger IDs and parent are locked —
         they&apos;re already burned onto the cell — so only those loading settings can change here. The ✎ is hidden
-        once the sample has finished (completed, failed or aborted), since its record is then history. To fix a
-        placement&apos;s <b>note</b>, use the <b>Notes</b> box lower in the same popover.
+        once the sample&apos;s use is locked (completed, failed, or a cancelled &quot;Blocked&quot; slot), since its
+        record is then history. To fix a placement&apos;s <b>note</b>, use the <b>Notes</b> box lower in the same
+        popover.
       </p>
       <p>
         <b>Estimated stage times:</b> the popover also shows a small gantt of the whole run&apos;s wells, each broken
@@ -470,8 +481,9 @@ export function ScheduleSection() {
         sample reused on another cell starts with a blank note there. Clearing the box and saving removes the note.
       </p>
       <p>
-        <b>Undoing a QC mistake:</b> re-open the Cell QC dialog on a stopped or retired cell (from its seal, the
-        slot popover&apos;s <b>Cell QC →</b>, or the instrument cell map) and choose <b>Undo QC</b>. It reopens the
+        <b>Undoing a QC mistake:</b> re-open the Cell QC dialog on a stopped or retired cell — from its seal or the
+        slot popover&apos;s <b>Cell QC →</b> on the schedule, or on the cell&apos;s detail page (which the instrument
+        cell map opens) — and choose <b>Undo QC</b>. It reopens the
         cell and restores every sample the action affected — reassigned samples move back, cancelled ones become
         planned again, and backlog/top-up moves are reversed — except a sample that has since moved on, or a top-up
         whose request was already marked sent, which are left as they are.

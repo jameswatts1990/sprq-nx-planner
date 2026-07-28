@@ -43,11 +43,13 @@ export function ImportSection() {
         <dd>Reads the file (without importing yet) and takes you to the column-matching step.</dd>
         <dt>Filename (optional)</dt>
         <dd>A label stored with the batch (e.g. batch-2026-07.csv); purely for your own reference.</dd>
+        <dt>Clear</dt>
+        <dd>Empties the paste box and filename so you can start fresh.</dd>
       </dl>
 
       <p className={styles.subheading}>Step 2 — review columns</p>
       <p>
-        Each field (Container ID, Barcodes, Sanger IDs, Target OPLC, priority, Movie time, True/False settings…) has a
+        Each field (Container ID, Barcodes, Sanger Sample IDs, Target OPLC, priority, Movie time, True/False settings…) has a
         dropdown where you pick which column of your file feeds it. The planner <b>pre-fills its best guess</b>, so
         usually you just glance and confirm; correct any that are wrong, or set one to <i>“— not imported —”</i>. A
         live preview of the first rows shows exactly what will be imported, and the mapping updates it as you change

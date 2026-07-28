@@ -11,10 +11,12 @@ export function StatsSection() {
 
       <p className={styles.subheading}>Filters at the top</p>
       <p>
-        Pick a <b>time range</b> (30 days, 90 days, or all time) and optionally a single <b>instrument</b>. The
-        trend charts (anything &quot;per week&quot;) follow these filters. The current-state figures — cells by
-        status, samples by status, and the PacBio credit funnel — always show the situation <i>right now</i>,
-        because an outstanding credit or a stopped cell still matters even if it happened before the chosen window.
+        Pick a <b>time range</b> (30 days, 90 days, or all time) and optionally a single <b>instrument</b>. As the
+        toolbar note says, <b>trends cover the selected range while the cell, sample and credit totals show the
+        current state</b> — an outstanding credit or a stopped cell still matters even if it happened before the
+        chosen window. Two things sit outside the range filter on purpose: <b>Samples imported per week</b> always
+        counts every import, and <b>Samples by status</b> is always lab-wide (it ignores the instrument picker),
+        while the cell and credit figures do narrow to the instrument you pick.
       </p>
 
       <p className={styles.subheading}>Headline numbers</p>
@@ -22,7 +24,7 @@ export function StatsSection() {
         <li><b>Runs completed / Samples completed</b> — finished runs and finished cell-uses in the range.</li>
         <li><b>Avg uses / cell</b> — average number of the 3 possible uses that finished cells actually reached. Higher is better value.</li>
         <li><b>Reaching Use 3</b> — the share of finished cells that got all 3 uses before their window closed.</li>
-        <li><b>Failure rate</b> — of the runs that got a verdict, the share marked <i>failed</i> (a data/cell problem, not an instrument abort).</li>
+        <li><b>Failure rate</b> — of the cell-uses that got a verdict, the share marked <i>failed</i> (a data/cell problem, not an instrument abort).</li>
         <li><b>Well fill</b> — how full runs were, out of the 8 wells a run can hold.</li>
         <li><b>Awaiting credit / Credits received</b> — cells reported to PacBio still waiting for a replacement credit, and credits that have landed.</li>
       </ul>

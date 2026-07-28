@@ -14,7 +14,7 @@ export function AdminSection() {
 
       <Note tone="warn" icon="!">
         These actions bypass business logic (for example, deleting a cell&apos;s row here doesn&apos;t check
-        whether it has planned uses the way <b>Retire cell</b> on the Cells &amp; Instruments tab does) — use with
+        whether it has planned uses the way <b>Retire Cell</b> on the Cells tab does) — use with
         care, and only against development data.
       </Note>
 
@@ -42,7 +42,8 @@ export function AdminSection() {
         <dd>
           Permanently deletes every row in the selected table — the table itself and its columns are kept, so it
           remains usable immediately afterward. Because this is irreversible, you must type the table&apos;s exact
-          name into the confirmation dialog before the button enables.
+          name into the confirmation dialog before the button enables; it&apos;s disabled when the table is already
+          empty.
         </dd>
       </dl>
     </div>

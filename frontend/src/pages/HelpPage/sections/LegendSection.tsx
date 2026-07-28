@@ -5,14 +5,16 @@ import { WindowMeter } from "@/components/cells/WindowMeter";
 import { UseLegend } from "@/components/shared/SectionHeading";
 import { Badge } from "@/components/ui/Badge";
 import { Note, type NoteTone } from "@/components/ui/Note";
-import { CELL_STATUSES, CELL_USE_STATUSES, CYCLE_STATUSES } from "@/types/common";
-import type { CellStatus, CellUseStatus, CycleStatus } from "@/types/common";
+import { CELL_STATUSES, CELL_USE_STATUSES, CYCLE_STATUSES, SAMPLE_STATUSES } from "@/types/common";
+import type { CellStatus, CellUseStatus, CycleStatus, SampleStatus } from "@/types/common";
 import { CELL_QC_FLAG_LABEL, CELL_QC_FLAG_TONE } from "@/utils/cellQcFlag";
 import type { CellQcFlag } from "@/utils/cellQcFlag";
 import { CELL_STATUS_LABEL, CELL_STATUS_TONE } from "@/utils/cellStatus";
 import { CYCLE_STATUS_TONE } from "@/utils/cycleStatus";
+import { INSTRUMENT_STATUSES, INSTRUMENT_STATUS_LABEL, INSTRUMENT_STATUS_TONE } from "@/utils/instrumentStatus";
+import type { InstrumentStatus } from "@/utils/instrumentStatus";
 import { priorityTone } from "@/utils/priority";
-import { SAMPLE_STATUS_TONE } from "@/utils/sampleStatus";
+import { SAMPLE_STATUS_LABEL, SAMPLE_STATUS_TONE } from "@/utils/sampleStatus";
 import { USE_STATUS_TONE } from "@/utils/useStatusTone";
 
 import styles from "../HelpPage.module.css";
@@ -50,12 +52,23 @@ const USE_STATUS_MEANING: Record<CellUseStatus, string> = {
   completed: "The use finished successfully.",
   failed: "The use did not complete successfully - the cell may be at fault; the sample is marked Failed.",
   aborted: "The run/instrument was the problem, not the cell or sample - the sample returns straight to the backlog.",
-  cancelled: "The use was cancelled before or during the run.",
+  cancelled: "The use was cancelled before it ever ran - e.g. a future use lost when its cell was Stopped or discarded; the sample returns to the backlog.",
 };
 
-const SAMPLE_STATUS_MEANING: Record<"completed" | "failed", string> = {
+const SAMPLE_STATUS_MEANING: Record<SampleStatus, string> = {
+  backlog: "Imported and waiting to be scheduled.",
+  scheduled: "Placed on the grid, but its run hasn't been confirmed loaded yet.",
+  in_progress: "On a run that's been confirmed loaded and is sequencing.",
   completed: "The sample finished sequencing successfully.",
   failed: "The sample did not complete successfully.",
+  cancelled: "Removed before it ever ran - cancelled from the backlog, or a placement blocked by a Cell QC action.",
+};
+
+const INSTRUMENT_STATUS_MEANING: Record<InstrumentStatus, string> = {
+  ready: "Available - nothing sequencing on it right now.",
+  running: "A run is confirmed loaded and sequencing on it.",
+  down: "Marked down for maintenance from a chosen date; takes no new runs until it's brought back online.",
+  inactive: "Retired - hidden from the Schedule and instrument dropdowns, but all its history is kept.",
 };
 
 const CELL_QC_FLAG_MEANING: Record<CellQcFlag, string> = {
@@ -75,6 +88,10 @@ const PRIORITY_EXAMPLES: { label: string; meaning: string }[] = [
   {
     label: "Repeatable (0)",
     meaning: "Rank 0 - returned to the backlog by a Cell QC action (library repeatable); shown in the Recoverable Samples section, above High.",
+  },
+  {
+    label: "Aborted (0)",
+    meaning: "Rank 0 - a legacy top-priority label given when a sample's run was aborted (an instrument/run problem) and it was bumped back to the backlog.",
   },
   { label: "High (1)", meaning: "Rank 1 - the most urgent standard priority." },
   { label: "Medium (2)", meaning: "Rank 2 - elevated priority." },
@@ -101,7 +118,7 @@ export function LegendSection() {
         styling changes, so what you see here always matches the real screens.
       </p>
 
-      <p className={styles.subheading}>Cell status (Cells &amp; Instruments, Cell detail)</p>
+      <p className={styles.subheading}>Cell status (Cells, Cell detail)</p>
       <div className={styles.legendGrid}>
         {CELL_STATUSES.map((s) => (
           <div className={styles.legendRow} key={s}>
@@ -113,7 +130,7 @@ export function LegendSection() {
         ))}
       </div>
 
-      <p className={styles.subheading}>QC / credit flags (Cells &amp; Instruments, Cell detail)</p>
+      <p className={styles.subheading}>QC / credit flags (Cells, Cell detail)</p>
       <div className={styles.legendGrid}>
         {CELL_QC_FLAGS.map((f) => (
           <div className={styles.legendRow} key={f}>
@@ -121,6 +138,18 @@ export function LegendSection() {
               <Badge tone={CELL_QC_FLAG_TONE[f]}>{CELL_QC_FLAG_LABEL[f]}</Badge>
             </span>
             <span>{CELL_QC_FLAG_MEANING[f]}</span>
+          </div>
+        ))}
+      </div>
+
+      <p className={styles.subheading}>Instrument status (Instruments)</p>
+      <div className={styles.legendGrid}>
+        {INSTRUMENT_STATUSES.map((s) => (
+          <div className={styles.legendRow} key={s}>
+            <span className={styles.legendSwatchLabel}>
+              <Badge tone={INSTRUMENT_STATUS_TONE[s]}>{INSTRUMENT_STATUS_LABEL[s]}</Badge>
+            </span>
+            <span>{INSTRUMENT_STATUS_MEANING[s]}</span>
           </div>
         ))}
       </div>
@@ -149,12 +178,12 @@ export function LegendSection() {
         ))}
       </div>
 
-      <p className={styles.subheading}>Sample status (History → Samples)</p>
+      <p className={styles.subheading}>Sample status (Backlog, Schedule, Sample detail)</p>
       <div className={styles.legendGrid}>
-        {(["completed", "failed"] as const).map((s) => (
+        {SAMPLE_STATUSES.map((s) => (
           <div className={styles.legendRow} key={s}>
             <span className={styles.legendSwatchLabel}>
-              <Badge tone={SAMPLE_STATUS_TONE[s]}>{s}</Badge>
+              <Badge tone={SAMPLE_STATUS_TONE[s]}>{SAMPLE_STATUS_LABEL[s]}</Badge>
             </span>
             <span>{SAMPLE_STATUS_MEANING[s]}</span>
           </div>
@@ -261,7 +290,7 @@ export function LegendSection() {
         </div>
       </div>
 
-      <p className={styles.subheading}>Cell card, tray, and window meter (Cells &amp; Instruments, Cell detail)</p>
+      <p className={styles.subheading}>Cell card, tray, and window meter (Cells, Cell detail)</p>
       <div className={styles.legendGrid}>
         <div className={styles.legendRow}>
           <div className={styles.ghostExampleSwatch}>

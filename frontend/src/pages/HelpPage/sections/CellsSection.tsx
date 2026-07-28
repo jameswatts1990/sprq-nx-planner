@@ -40,7 +40,7 @@ export function CellsSection() {
         <b>Sort</b> orders the cells by cell code, last run date, instrument, window remaining, or date created; the{" "}
         <b>▲/▼</b> button next to it flips the direction. <b>Group</b> arranges them into labelled sections — by{" "}
         <b>Tray</b> (the default, so a physical tray&apos;s four cells sit together in position order, its header
-        linking to the tray page and flagging its soonest window expiry), by <b>Instrument</b>, by <b>Status</b>, or{" "}
+        linking to that tray&apos;s filtered view and flagging its soonest window expiry), by <b>Instrument</b>, by <b>Status</b>, or{" "}
         <b>No grouping</b> for one flat grid.
       </p>
 
@@ -50,17 +50,18 @@ export function CellsSection() {
         <b>tray id</b> anywhere in the app (a cell card, a cell&apos;s detail page, a seal popover, or the Schedule
         grid&apos;s instrument cell map) opens this same <b>Cells</b> tab <i>filtered to that one tray</i>. That view
         shows the tray&apos;s instrument, how many of its cells are present, its soonest window expiry, and the tray&apos;s
-        cells as the usual cell cards — plus a <b>Discard all cells</b> button. Use the <b>◂ All cells &amp;
-        instruments</b> link to return to the full list. (This physical &quot;tray&quot; is a different thing from the
+        cells as the usual cell cards — plus a <b>Discard all cells</b> button. Use the <b>◂ All cells</b> link to
+        return to the full list. (This physical &quot;tray&quot; is a different thing from the
         Schedule grid&apos;s &quot;Plate 1&quot;/&quot;Plate 2&quot; loading positions within a run - see the Schedule
         section.)
       </p>
       <p>
-        <b>Discard all cells:</b> the tray view has a <b>Discard all cells</b> button that force-closes every cell
-        still physically in that tray - cancelling any not-yet-run placements for those cells (their samples return
-        to the backlog) and marking every cell exhausted regardless of how many uses it has left. Use it when a
-        tray is being pulled from the instrument for good and its remaining capacity won&apos;t be used. This cannot
-        be undone.
+        <b>Discard all cells:</b> the tray view — and a cell&apos;s own <b>Cell tray</b> card on its detail page —
+        carry a <b>Discard all cells</b> button that force-closes every cell still physically in that tray, cancelling
+        any not-yet-run placements for those cells (their samples return to the backlog) and marking every cell
+        exhausted regardless of how many uses it has left. It&apos;s only offered while at least one cell in the tray
+        is still open. Use it when a tray is being pulled from the instrument for good and its remaining capacity
+        won&apos;t be used. This cannot be undone.
       </p>
       <p>
         <b>Auto Schedule disposes whole trays too:</b> a tray of 4 is one physical object — it&apos;s thrown away as
@@ -76,8 +77,9 @@ export function CellsSection() {
         <b>Each cell card shows:</b> the cell code (e.g. <b>C02-T123</b> — cells are <i>numbered</i> 1–4 by their fixed
         position in the physical tray, and <b>T123</b> is that tray&apos;s id, so a tray&apos;s four cells read{" "}
         <b>C01-T123</b> … <b>C04-T123</b>; click it to open the cell&apos;s full detail), a status badge, uses spent,
-        which instrument and well it&apos;s currently in, its <b>tray</b>, its burned barcodes, and a 108-hour window
-        meter. A <b>Samples &amp; runs</b> list at the foot of each card shows every sample the cell has carried — its
+        which instrument and well it&apos;s currently in, its <b>tray</b>, its burned barcodes, a <b>QC badge</b>
+        (Unreported / Awaiting credit) when the cell has an open PacBio-credit case, and a 108-hour window meter. A{" "}
+        <b>Samples &amp; runs</b> list at the foot of each card shows every sample the cell has carried — its
         use status (so you can tell an already-run use from one still <i>scheduled</i>), its <b>container ID</b>, and
         the <b>run</b> it ran on.
       </p>
@@ -95,8 +97,8 @@ export function CellsSection() {
           </div>
           <span>
             <b>The 108-hour window</b> is the lifetime a multi-use cell has from its first use to the start of its
-            third use; the meter fills toward 108 h and turns over-limit if breached. Exhausted and retired cells
-            don&apos;t show a meter.
+            third use; the meter fills toward 108 h and turns over-limit if breached. Exhausted, retired, and stopped
+            cells don&apos;t show a meter.
           </span>
         </div>
         <div className={styles.legendRow}>
@@ -122,7 +124,8 @@ export function CellsSection() {
           started</b> and <b>Created</b> timestamps; and the cell&apos;s <b>Burned barcodes</b>. While the cell is
           still tracking its window (not yet Exhausted, Retired, or Stopped), the same 108-hour window meter as the
           cards list replaces the plain numbers, showing elapsed hours toward the limit; otherwise plain{" "}
-          <b>Window elapsed</b> and <b>Window breached</b> values are shown instead.
+          <b>Window elapsed</b> and <b>Window breached</b> values are shown instead. A <b>stopped</b> or{" "}
+          <b>retired</b> cell also shows a note with the reason it was taken out of service and the date it happened.
         </li>
         <li>
           <b>Cell tray</b> card: SPRQ-Nx SMRT Cells ship in a physical tray of 4. The moment any one cell in a tray

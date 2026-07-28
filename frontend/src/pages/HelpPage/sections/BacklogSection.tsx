@@ -22,7 +22,7 @@ export function BacklogSection() {
 
       <p className={styles.subheading}>Filters &amp; search</p>
       <p>
-        <b>Search</b> by external ID, barcode, parent sample, or priority; results narrow as you type. Use the{" "}
+        <b>Search</b> by Container ID, barcode, parent sample, or priority; results narrow as you type. Use the{" "}
         <b>priority dropdown</b> to narrow the list to one priority value — it only lists priorities that are
         actually present in the backlog, so a choice never comes back empty. The <b>rows-per-page</b> control (25 /
         50 / 100 / 200, defaulting to 50) sets how many samples are shown at once.
@@ -97,10 +97,10 @@ export function BacklogSection() {
         in the backlog; once it&apos;s scheduled its details are locked.
       </p>
       <p>
-        <b>Movie time (h)</b> is a per-sample setting — 12, 24, or 30 hours — you can import it (a &quot;Movie time&quot;
-        column) or set it on the add/edit form. It defaults to <b>24 h</b> when not given. When you drag a sample onto
-        the schedule it runs for its own movie time by default (you can still fine-tune the per-cell run time from the
-        slot popover afterwards).
+        <b>Movie time (h)</b> is a per-sample setting — 12, 24, and 30 h are the usual instrument values — you can
+        import it (a &quot;Movie time&quot; column) or type it on the add/edit form, which takes any number and
+        defaults to <b>24 h</b> when not given. When you drag a sample onto the schedule it runs for its own movie
+        time by default (you can still fine-tune the per-cell run time from the slot popover afterwards).
       </p>
       <p>
         <b>Cancel</b> (on each row) removes a sample from the backlog when you never intend to sequence it. Use it
@@ -109,12 +109,12 @@ export function BacklogSection() {
       </p>
       <p>
         The same backlog also appears as draggable cards inside the Schedule tab&apos;s Backlog panel, with the same
-        search, priority, sort, and rows-per-page controls (sort there is a dropdown plus a direction button rather
-        than clickable column headers, since that panel is a card list, not a table). Each card shows the
-        sample&apos;s <b>movie time</b> (e.g. ⏱ 24 h) and carries a coloured left edge matching its priority. Drag a
-        card onto a slot to schedule it, or <b>click</b> it to open that sample&apos;s detail page (the ✎ button in the
-        card&apos;s corner still opens the quick edit form). You rarely need to cancel from there during normal
-        planning.
+        search, priority filter, and rows-per-page controls. Sorting there is a compact dropdown (Created, Container
+        ID, Barcode, or Priority) plus a direction button rather than clickable column headers, since that panel is a
+        card list, not a table. Each card shows the sample&apos;s parent sample, a coloured <b>priority</b> badge, and
+        its <b>movie time</b> (e.g. ⏱ 24 h), with a coloured left edge matching its priority. Drag a card onto a slot to
+        schedule it, or <b>click</b> it to open that sample&apos;s detail page (the ✎ button in the card&apos;s corner
+        still opens the quick edit form). To cancel a sample, use the Backlog tab.
       </p>
     </div>
   );

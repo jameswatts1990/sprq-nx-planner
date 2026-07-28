@@ -17,7 +17,7 @@ export function HistorySection() {
       </p>
       <p>
         <b>Columns:</b> Run (its name if one was given when it was locked via <b>Confirm loaded</b>, otherwise its
-        plain number; links to detail), Load date, Instrument, Status badge, number of Plates (1 or 2), Movie length
+        number, shown as <b>#45</b>; links to detail), Load date, Instrument, Status badge, number of Plates (1 or 2), Movie length
         in hours (its longest plate), number of Cells in the run, and the planned start time.
       </p>
       <div className={styles.legendGrid}>
@@ -32,6 +32,18 @@ export function HistorySection() {
             <Badge tone={CYCLE_STATUS_TONE.running}>running</Badge>
           </span>
           <span>Confirmed loaded / currently sequencing.</span>
+        </div>
+        <div className={styles.legendRow}>
+          <span className={styles.legendSwatchLabel}>
+            <Badge tone={CYCLE_STATUS_TONE.completed}>completed</Badge>
+          </span>
+          <span>The run has finished.</span>
+        </div>
+        <div className={styles.legendRow}>
+          <span className={styles.legendSwatchLabel}>
+            <Badge tone={CYCLE_STATUS_TONE.aborted}>aborted</Badge>
+          </span>
+          <span>The run was stopped or cancelled.</span>
         </div>
       </div>
       <p>
@@ -60,9 +72,10 @@ export function HistorySection() {
       <p className={styles.subheading}>History → Samples</p>
       <p>
         <b>What it&apos;s for:</b> every sample that has finished, either <b>completed</b> (green) or <b>failed</b>{" "}
-        (red). Search by container ID, barcode, or parent sample. Each row shows the sample&apos;s status, barcodes,
-        parent sample, Target OPLC, volume, and last-updated time. Click <i>any</i> column header to sort the list by
-        that field (click again to reverse); it starts with the most recently updated first. Click a row to expand it
+        (red). Search by Container ID, barcode, or parent sample. Each row shows the sample&apos;s <b>Container ID</b>,
+        status, barcodes, parent sample, Target OPLC, volume, priority, and last-updated time. Click <i>any</i> column
+        header to sort the list by that field (click again to reverse); it starts with the most recently updated
+        first, and long lists are paged with the same <b>Previous</b>/<b>Next</b> control. Click a row to expand it
         and see that sample&apos;s individual cell uses — the run (links to the run), which plate (1 or 2) it ran on,
         the cell (links to the cell) and well, the use status as a colour-coded badge, start/complete times, and
         notes. That inner cell-uses table has clickable, sortable headers too.
@@ -72,7 +85,7 @@ export function HistorySection() {
       <p>
         <b>What it&apos;s for:</b> a single sample (container) on its own page, reached by clicking a <b>container ID</b>{" "}
         anywhere in the app — a cell card, a cell&apos;s use history. It shows the sample&apos;s full metadata (parent
-        sample, priority, Target OPLC, volume, loading options, barcodes, Sanger IDs, created/updated times) and a{" "}
+        sample, priority, Target OPLC, volume, movie time, loading options, barcodes, Sanger IDs, created/updated times) and a{" "}
         <b>Cell uses</b> table of every cell it has been placed on — the run (links to the run), plate, cell (links to
         the cell), well, use status, start/complete times, and notes. Unlike the Samples list above, which only lists
         finished samples, this page works for a sample of any status, so it&apos;s the durable place a container ID
@@ -80,7 +93,7 @@ export function HistorySection() {
       </p>
       <p>
         <b>Back:</b> the link at the top left returns you to wherever you opened the sample from — the Backlog,
-        Schedule, a cell, or the Samples list — rather than always to one fixed place. Opening the page directly (a
+        Schedule, a cell, a run, or the Samples list — rather than always to one fixed place. Opening the page directly (a
         shared link or a browser refresh) falls back to the Samples list.
       </p>
       <p>

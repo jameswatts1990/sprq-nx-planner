@@ -110,6 +110,20 @@ a {
   border-radius: 3px;
 }
 
+/* Help-page search highlighting. The names are registered document-wide in the CSS
+   highlight registry by the Help page's useHelpSearch hook (and cleared on unmount), so
+   these globals only ever paint while that page is mounted. `help-search-active` is the
+   one match the user has stepped to; it's given a higher Highlight.priority so it wins
+   where it overlaps the all-matches paint. */
+::highlight(help-search) {
+  background-color: #ffdf7e;
+  color: var(--ink);
+}
+::highlight(help-search-active) {
+  background-color: var(--magenta);
+  color: #fff;
+}
+
 @media print {
   body {
     background: #fff;

@@ -14,6 +14,7 @@ import { StatTile, StatTiles } from "@/components/shared/StatTile";
 import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
 import type { InstrumentOut, InstrumentStatsOut } from "@/types/instrument";
 import { formatShortDateTimeUTC, formatShortDateUTC, parseDateOnly } from "@/utils/calendarDates";
+import { INSTRUMENT_STATUS_LABEL, INSTRUMENT_STATUS_TONE, instrumentStatus } from "@/utils/instrumentStatus";
 
 import styles from "./InstrumentsPage.module.css";
 
@@ -144,10 +145,8 @@ export function InstrumentsPage() {
 // --- status ---------------------------------------------------------------
 
 function statusBadge(instrument: InstrumentOut): ReactNode {
-  if (!instrument.active) return <Badge tone="default">Inactive</Badge>;
-  if (instrument.down_from) return <Badge tone="orange">Down</Badge>;
-  if (instrument.is_locked) return <Badge tone="info">Running</Badge>;
-  return <Badge tone="success">Ready</Badge>;
+  const status = instrumentStatus(instrument);
+  return <Badge tone={INSTRUMENT_STATUS_TONE[status]}>{INSTRUMENT_STATUS_LABEL[status]}</Badge>;
 }
 
 // --- card -----------------------------------------------------------------

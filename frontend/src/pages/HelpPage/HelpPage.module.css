@@ -1,51 +1,185 @@
 .page {
   padding-top: 22px;
+}
+
+/* Docs-style two-column shell: a persistent table-of-contents rail beside one
+   continuous column of sections. */
+.layout {
+  display: grid;
+  grid-template-columns: 236px minmax(0, 1fr);
+  gap: 44px;
+  align-items: start;
+}
+
+/* --- Sidebar (search + table of contents) ------------------------------------ */
+.sidebar {
+  position: sticky;
+  top: calc(var(--topbar-h, 64px) + 20px);
+  align-self: start;
+  max-height: calc(100vh - var(--topbar-h, 64px) - 40px);
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 14px;
 }
-.intro {
-  font-size: var(--fs-lg);
-  color: var(--grey);
-  margin: 0 0 4px;
-  max-width: 68ch;
+.searchWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 .search {
+  width: 100%;
   font-family: var(--sans);
   font-size: var(--fs-base);
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
   padding: 8px 10px;
-  min-width: 260px;
-  max-width: 420px;
-  margin-bottom: 4px;
 }
-.empty {
+.search:focus-visible {
+  outline: 2px solid var(--magenta-deep);
+  outline-offset: 1px;
+}
+.searchNav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 2px;
+}
+.searchCount {
+  font-size: var(--fs-sm);
   color: var(--grey);
-  font-size: var(--fs-lg);
-  padding: 24px 4px;
+}
+.searchNavBtns {
+  display: flex;
+  gap: 4px;
+}
+.searchNavBtn {
+  font-family: var(--sans);
+  font-size: var(--fs-sm);
+  line-height: 1;
+  color: var(--grey);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 4px 8px;
+  cursor: pointer;
+}
+.searchNavBtn:hover {
+  border-color: var(--line-hover);
+  color: var(--ink);
+}
+.searchNavBtn:focus-visible {
+  outline: 2px solid var(--magenta-deep);
+  outline-offset: 1px;
+}
+
+.toc {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-left: 1px solid var(--line);
+}
+.tocLink {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  font-family: var(--sans);
+  font-size: var(--fs-base);
+  font-weight: 600;
+  color: var(--grey);
+  background: transparent;
+  border: none;
+  border-left: 2px solid transparent;
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+  margin-left: -1px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+.tocLink:hover {
+  color: var(--ink);
+  background: var(--line-soft);
+}
+.tocLink:focus-visible {
+  outline: 2px solid var(--magenta-deep);
+  outline-offset: -2px;
+}
+.tocLinkActive {
+  color: var(--magenta);
+  background: var(--magenta-tint);
+  border-left-color: var(--magenta);
+  font-weight: 700;
+}
+.tocLinkMuted {
+  opacity: 0.45;
+}
+.tocLabel {
+  min-width: 0;
+}
+.tocCount {
+  flex-shrink: 0;
+  font-size: var(--fs-2xs);
+  font-weight: 700;
+  color: var(--amber);
+  background: var(--amber-tint);
+  border-radius: 999px;
+  padding: 1px 7px;
+  min-width: 18px;
   text-align: center;
 }
-.helper {
-  font-size: var(--fs-base);
-  color: var(--grey);
-  margin: 0 0 12px;
+
+/* --- Content column ---------------------------------------------------------- */
+.content {
+  min-width: 0;
 }
+.contentHead {
+  margin-bottom: 4px;
+}
+.title {
+  font-size: var(--fs-display);
+  margin: 0 0 6px;
+}
+.intro {
+  font-size: var(--fs-lg);
+  color: var(--grey);
+  margin: 0;
+  max-width: 80ch;
+}
+.section {
+  scroll-margin-top: calc(var(--topbar-h, 64px) + 16px);
+  padding: 26px 0;
+  border-top: 1px solid var(--line);
+}
+.section:first-of-type {
+  border-top: none;
+  padding-top: 14px;
+}
+.sectionTitle {
+  font-size: var(--fs-heading);
+  margin: 0 0 14px;
+}
+
+/* --- Shared section body styles (consumed by every sections/*.tsx via styles.copy
+       etc.) - the wider measure here is what lets the prose use the horizontal space
+       and take fewer lines. ------------------------------------------------------ */
 .copy {
   font-size: var(--fs-lg);
-  line-height: 1.55;
-  max-width: 72ch;
+  line-height: 1.5;
+  max-width: 108ch;
 }
 .copy p {
-  margin: 0 0 12px;
+  margin: 0 0 11px;
 }
 .copy ul,
 .copy ol {
-  margin: 0 0 12px;
+  margin: 0 0 11px;
   padding-left: 20px;
 }
 .copy li {
-  margin-bottom: 6px;
+  margin-bottom: 5px;
 }
 .terms {
   margin: 0 0 14px;
@@ -96,4 +230,34 @@
 .ghostExampleSwatch {
   width: 130px;
   flex-shrink: 0;
+}
+
+/* Stack the rail above the content on narrow viewports; the table of contents
+   becomes a row of wrapping chips. */
+@media (max-width: 860px) {
+  .layout {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+  .sidebar {
+    position: static;
+    max-height: none;
+    overflow: visible;
+  }
+  .toc {
+    flex-direction: row;
+    flex-wrap: wrap;
+    border-left: none;
+    gap: 6px;
+  }
+  .tocLink {
+    width: auto;
+    margin-left: 0;
+    border-left: none;
+    border: 1px solid var(--line);
+    border-radius: var(--r-sm);
+  }
+  .tocLinkActive {
+    border-color: var(--magenta);
+  }
 }
