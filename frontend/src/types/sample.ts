@@ -8,6 +8,10 @@ export interface SampleOut {
   sanger_ids: string[];
   target_oplc: number | null;
   volume: number | null;
+  /** Loading-dilution volumes (µL) that pre-fill the batch sheet's SOP 7.3 worksheet. */
+  cleaned_complex_volume: number | null;
+  loading_buffer_volume: number | null;
+  control_dilution_3_volume: number | null;
   adaptive_loading: string | null;
   full_resolution_base_q: string | null;
   priority: string | null;
@@ -33,6 +37,9 @@ export interface SampleCreate {
   parent_sample?: string | null;
   target_oplc?: number | null;
   volume?: number | null;
+  cleaned_complex_volume?: number | null;
+  loading_buffer_volume?: number | null;
+  control_dilution_3_volume?: number | null;
   adaptive_loading?: string | null;
   full_resolution_base_q?: string | null;
   priority?: string | null;

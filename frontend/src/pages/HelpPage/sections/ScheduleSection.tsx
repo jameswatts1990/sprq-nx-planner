@@ -162,9 +162,10 @@ export function ScheduleSection() {
         Below each run&apos;s table the sheet also prints two <b>fill-in worksheets per plate</b> to record the bench
         work as you go; for a two-plate run the two plates&apos; worksheets sit <b>side by side</b> to make the most of
         the landscape page. The <b>7.3 · Final complex loading dilution</b> table has a row per well, pre-filled with the
-        well, Traction ID and Target OPLC. If the sample was imported with its complex, loading-buffer and
-        control-dilution volumes (these come straight across when you upload from the scheduler sheet), those boxes
-        are pre-filled too; any the app doesn&apos;t have are left blank to write in at the bench, along with the final
+        well, Traction ID and Target OPLC. If the sample has its complex, loading-buffer and control-dilution
+        volumes — whether carried across when you upload from the scheduler sheet, or filled in on the sample&apos;s
+        edit form — those boxes are pre-filled too; any the app doesn&apos;t have are left blank to write in at the
+        bench, along with the final
         volume and the OPLC you actually achieved. The <b>7.4 · Plate loading</b> checklist (one per
         plate) has a space to note the plate&apos;s QR / serial number, tick boxes for the plate-prep steps
         (vortexed, spun down, foil pierced) and a per-well tick for &quot;23 µL loaded&quot; and &quot;sealed&quot;.
@@ -448,9 +449,11 @@ export function ScheduleSection() {
       </p>
       <p>
         <b>Editing the sample:</b> next to the Sample ID a small <b>✎</b> button opens the quick edit form for that
-        sample&apos;s loading parameters (<b>Target OPLC</b>, <b>Volume</b>, <b>Adaptive Loading</b>,{" "}
-        <b>Full-Resolution Base Q</b>, <b>Priority</b> and <b>Include Base Kinetics</b>) without going back to the
-        Backlog. Once a sample is placed on the grid its <b>barcodes</b>, Sanger IDs and parent are locked —
+        sample&apos;s loading parameters (<b>Target OPLC</b>, <b>Volume</b>, the complex-loading volumes{" "}
+        <b>Cleaned Complex</b>, <b>Loading Buffer</b> and <b>Control Dilution 3</b> that pre-fill the batch
+        sheet&apos;s dilution worksheet, <b>Adaptive Loading</b>, <b>Full-Resolution Base Q</b>, <b>Priority</b> and{" "}
+        <b>Include Base Kinetics</b>) without going back to the Backlog. Once a sample is placed on the grid its{" "}
+        <b>barcodes</b>, Sanger IDs and parent are locked —
         they&apos;re already burned onto the cell — so only those loading settings can change here. The ✎ is hidden
         once the sample&apos;s use is locked (completed, failed, or a cancelled &quot;Blocked&quot; slot), since its
         record is then history. To fix a placement&apos;s <b>note</b>, use the <b>Notes</b> box lower in the same

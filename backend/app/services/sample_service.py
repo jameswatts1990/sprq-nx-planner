@@ -80,6 +80,9 @@ def update_backlog_sample(
     parent_sample: str | None = None,
     target_oplc: float | None = None,
     volume: float | None = None,
+    cleaned_complex_volume: float | None = None,
+    loading_buffer_volume: float | None = None,
+    control_dilution_3_volume: float | None = None,
     adaptive_loading: str | None = None,
     full_resolution_base_q: str | None = None,
     priority: str | None = None,
@@ -93,6 +96,9 @@ def update_backlog_sample(
     sample.sanger_ids = sanger_ids or []
     sample.target_oplc = target_oplc
     sample.volume = volume
+    sample.cleaned_complex_volume = cleaned_complex_volume
+    sample.loading_buffer_volume = loading_buffer_volume
+    sample.control_dilution_3_volume = control_dilution_3_volume
     sample.adaptive_loading = adaptive_loading or None
     sample.full_resolution_base_q = full_resolution_base_q or None
     sample.priority = priority or None
@@ -114,6 +120,9 @@ def update_placed_sample_metadata(
     *,
     target_oplc: float | None = None,
     volume: float | None = None,
+    cleaned_complex_volume: float | None = None,
+    loading_buffer_volume: float | None = None,
+    control_dilution_3_volume: float | None = None,
     adaptive_loading: str | None = None,
     full_resolution_base_q: str | None = None,
     priority: str | None = None,
@@ -121,13 +130,18 @@ def update_placed_sample_metadata(
 ) -> Sample:
     """Update only the loading/annotation parameters that stay editable once a sample has
     left the backlog and been placed on the grid (status scheduled/in_progress). The
-    sample's identity (external_id), its barcodes, Sanger IDs, and parent are deliberately
+    loading-dilution volumes are included — they only feed the batch sheet, which is printed
+    for an already-scheduled run, so editing them post-placement is exactly the common case.
+    The sample's identity (external_id), its barcodes, Sanger IDs, and parent are deliberately
     frozen at placement time — the barcodes in particular are burned onto the cell use when
     it's scheduled (see run_serializer._stage_out), so a later sample-record edit must not
     diverge from what the cell already carries. Sets attributes on the tracked ORM object
     only; the caller owns the flush/commit (no barcode rows to reconcile, so no `db` needed)."""
     sample.target_oplc = target_oplc
     sample.volume = volume
+    sample.cleaned_complex_volume = cleaned_complex_volume
+    sample.loading_buffer_volume = loading_buffer_volume
+    sample.control_dilution_3_volume = control_dilution_3_volume
     sample.adaptive_loading = adaptive_loading or None
     sample.full_resolution_base_q = full_resolution_base_q or None
     sample.priority = priority or None

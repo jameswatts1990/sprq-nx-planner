@@ -59,9 +59,9 @@ export function ImportSection() {
       </p>
       <p>
         A few fields — the complex-loading volumes (<i>cleaned-complex</i>, <i>loading-buffer</i> and{" "}
-        <i>Control Dilution 3</i>) — are optional and used only on the batch sheet, so you&apos;ll see them in the
-        mapping list but not on the manual <i>Add sample</i> form. Leave them unmapped if your file doesn&apos;t have
-        them.
+        <i>Control Dilution 3</i>) — are optional and used only on the batch sheet&apos;s loading-dilution
+        worksheet. You can map them here, and you can also fill them in (or correct them) later on the manual{" "}
+        <i>Add / Edit sample</i> form. Leave them unmapped if your file doesn&apos;t have them.
       </p>
 
       <p className={styles.subheading}>Result panel</p>

@@ -27,6 +27,9 @@ function formatDateTime(iso: string | null): string {
 const PLACED_EDITABLE_KEYS = new Set([
   "target_oplc",
   "volume",
+  "cleaned_complex_volume",
+  "loading_buffer_volume",
+  "control_dilution_3_volume",
   "adaptive_loading",
   "full_resolution_base_q",
   "priority",
@@ -134,6 +137,18 @@ export function SampleDetailPage() {
             <div>
               <span className={styles.label}>Volume</span>
               <span className={styles.value}>{sample.volume ?? "—"}</span>
+            </div>
+            <div>
+              <span className={styles.label}>Cleaned complex vol</span>
+              <span className={styles.value}>{sample.cleaned_complex_volume ?? "—"}</span>
+            </div>
+            <div>
+              <span className={styles.label}>Loading buffer vol</span>
+              <span className={styles.value}>{sample.loading_buffer_volume ?? "—"}</span>
+            </div>
+            <div>
+              <span className={styles.label}>Control dilution 3 vol</span>
+              <span className={styles.value}>{sample.control_dilution_3_volume ?? "—"}</span>
             </div>
             <div>
               <span className={styles.label}>Adaptive loading</span>

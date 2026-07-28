@@ -32,8 +32,8 @@ K_FULL_RES_BASE_Q = "full_resolution_base_q"
 K_PRIORITY = "priority"
 K_CCS_KINETICS = "ccs_kinetics"
 K_MOVIE_TIME = "movie_time_hours"
-# Batch-sheet-only loading-dilution volumes (all optional). Importable, but not shown or
-# editable in the manual add/edit form — see `import_only` below.
+# Loading-dilution volumes (all optional) that pre-fill the batch sheet's SOP 7.3 worksheet.
+# Importable, and also editable on the manual add/edit form like every other optional field.
 K_CLEANED_COMPLEX_VOL = "cleaned_complex_volume"
 K_LOADING_BUFFER_VOL = "loading_buffer_volume"
 K_CONTROL_DIL3_VOL = "control_dilution_3_volume"
@@ -82,19 +82,20 @@ IMPORTABLE_FIELDS: list[ImportField] = [
         K_MOVIE_TIME, "Movie time (h)", "24", kind="number",
         aliases=("movie time", "movie length", "run time", "acquisition time", "movie"),
     ),
-    # Batch-sheet-only loading-dilution volumes. Optional, mappable from a normal CSV and
-    # carried automatically from the scheduler sheet; aliases cover both the tidy labels here
-    # and the scheduler sheet's own longer headers so both auto-map.
+    # Loading-dilution volumes that pre-fill the batch sheet's SOP 7.3 worksheet. Optional,
+    # mappable from a normal CSV and carried automatically from the scheduler sheet; aliases
+    # cover both the tidy labels here and the scheduler sheet's own longer headers so both
+    # auto-map. Also editable on the manual add/edit form and the placed-sample slot popover.
     ImportField(
-        K_CLEANED_COMPLEX_VOL, "Cleaned Complex Vol (uL)", "8", kind="number", import_only=True,
+        K_CLEANED_COMPLEX_VOL, "Cleaned Complex Vol (uL)", "8", kind="number",
         aliases=("cleaned complex",),
     ),
     ImportField(
-        K_LOADING_BUFFER_VOL, "Loading Buffer Vol (uL)", "6", kind="number", import_only=True,
+        K_LOADING_BUFFER_VOL, "Loading Buffer Vol (uL)", "6", kind="number",
         aliases=("loading buffer",),
     ),
     ImportField(
-        K_CONTROL_DIL3_VOL, "Control Dilution 3 Vol (uL)", "2", kind="number", import_only=True,
+        K_CONTROL_DIL3_VOL, "Control Dilution 3 Vol (uL)", "2", kind="number",
         aliases=("control dilution",),
     ),
 ]

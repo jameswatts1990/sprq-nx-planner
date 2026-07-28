@@ -24,9 +24,9 @@ class Sample(Base):
     target_oplc: Mapped[float | None] = mapped_column(Float, nullable=True)
     volume: Mapped[float | None] = mapped_column(Float, nullable=True)
     # The complex-loading dilution volumes taken from the scheduler sheet (all optional).
-    # These are batch-sheet-only: imported and printed on the batch sheet's SOP 7.3 dilution
-    # worksheet, but not shown or edited anywhere else, so they aren't in SampleOut or the
-    # sample edit form. Nullable like every other optional import field.
+    # They pre-fill the batch sheet's SOP 7.3 dilution worksheet and are editable on the
+    # sample add/edit form (and the placed-sample slot popover) like every other optional
+    # loading parameter. Nullable like every other optional import field.
     cleaned_complex_volume: Mapped[float | None] = mapped_column(Float, nullable=True)
     loading_buffer_volume: Mapped[float | None] = mapped_column(Float, nullable=True)
     control_dilution_3_volume: Mapped[float | None] = mapped_column(Float, nullable=True)

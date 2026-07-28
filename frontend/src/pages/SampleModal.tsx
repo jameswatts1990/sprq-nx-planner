@@ -31,6 +31,12 @@ function valuesFromSample(sample: SampleOut): Record<string, string> {
     parent_sample: sample.parent_sample ?? "",
     target_oplc: sample.target_oplc != null ? String(sample.target_oplc) : "",
     volume: sample.volume != null ? String(sample.volume) : "",
+    cleaned_complex_volume:
+      sample.cleaned_complex_volume != null ? String(sample.cleaned_complex_volume) : "",
+    loading_buffer_volume:
+      sample.loading_buffer_volume != null ? String(sample.loading_buffer_volume) : "",
+    control_dilution_3_volume:
+      sample.control_dilution_3_volume != null ? String(sample.control_dilution_3_volume) : "",
     adaptive_loading: sample.adaptive_loading ?? "",
     full_resolution_base_q: sample.full_resolution_base_q ?? "",
     priority: sample.priority ?? "",
@@ -113,6 +119,9 @@ export function SampleModal({
       parent_sample: str("parent_sample"),
       target_oplc: num("target_oplc"),
       volume: num("volume"),
+      cleaned_complex_volume: num("cleaned_complex_volume"),
+      loading_buffer_volume: num("loading_buffer_volume"),
+      control_dilution_3_volume: num("control_dilution_3_volume"),
       adaptive_loading: str("adaptive_loading"),
       full_resolution_base_q: str("full_resolution_base_q"),
       priority: str("priority"),
@@ -160,8 +169,8 @@ export function SampleModal({
 
       <div className={styles.grid}>
         {fields
-          // import_only fields (batch-sheet loading volumes) are mappable on import but not
-          // hand-editable here — never show them on this form.
+          // import_only fields are mappable on import but never hand-editable here. (No field
+          // currently sets this, but the guard stays so a future import-only field is hidden.)
           .filter((f) => !f.import_only)
           // In restricted mode show only the editable fields plus the (locked) Container ID
           // for context; every other field is hidden rather than shown greyed-out.

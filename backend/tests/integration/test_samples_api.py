@@ -169,6 +169,36 @@ def test_update_backlog_sample_edits_fields_and_replaces_barcodes(client):
     assert body["status"] == "backlog"
 
 
+def test_create_and_update_loading_dilution_volumes(client):
+    """The three batch-sheet loading-dilution volumes are settable on manual create and
+    editable afterwards, and round-trip through SampleOut (they pre-fill the batch sheet)."""
+    created = _create(
+        client,
+        barcodes=["bc1"],
+        cleaned_complex_volume=8,
+        loading_buffer_volume=6,
+        control_dilution_3_volume=2,
+    )
+    assert created["cleaned_complex_volume"] == 8
+    assert created["loading_buffer_volume"] == 6
+    assert created["control_dilution_3_volume"] == 2
+
+    resp = client.patch(
+        f"/api/samples/{created['id']}",
+        json={
+            "barcodes": ["bc1"],
+            "cleaned_complex_volume": 10,
+            "loading_buffer_volume": 5,
+            "control_dilution_3_volume": None,  # clearing one back to blank
+        },
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["cleaned_complex_volume"] == 10
+    assert body["loading_buffer_volume"] == 5
+    assert body["control_dilution_3_volume"] is None
+
+
 def test_update_keeps_a_reused_barcode_without_unique_constraint_error(client):
     """Re-submitting an unchanged barcode must not trip uq_sample_barcode: the old rows
     are deleted before the new ones are inserted."""
@@ -247,6 +277,8 @@ def test_update_scheduled_sample_edits_loading_params_but_freezes_barcodes(clien
             "priority": "High (1)",  # editable
             "target_oplc": 275,  # editable
             "adaptive_loading": "true",  # editable, normalized to "True"
+            "cleaned_complex_volume": 9,  # editable (feeds the batch sheet)
+            "loading_buffer_volume": 4,  # editable
         },
     )
     assert resp.status_code == 200, resp.text
@@ -255,6 +287,8 @@ def test_update_scheduled_sample_edits_loading_params_but_freezes_barcodes(clien
     assert body["priority"] == "High (1)"
     assert body["target_oplc"] == 275
     assert body["adaptive_loading"] == "True"
+    assert body["cleaned_complex_volume"] == 9
+    assert body["loading_buffer_volume"] == 4
     # Frozen fields are left exactly as placed.
     assert body["barcodes"] == ["bc1", "bc2"]
     assert body["parent_sample"] == "P1"

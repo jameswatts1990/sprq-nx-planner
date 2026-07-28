@@ -20,6 +20,10 @@ class _SampleFieldsBase(BaseModel):
     parent_sample: str | None = None
     target_oplc: float | None = None
     volume: float | None = None
+    # Loading-dilution volumes that pre-fill the batch sheet's SOP 7.3 worksheet (all optional).
+    cleaned_complex_volume: float | None = None
+    loading_buffer_volume: float | None = None
+    control_dilution_3_volume: float | None = None
     adaptive_loading: str | None = None
     full_resolution_base_q: str | None = None
     priority: str | None = None
@@ -58,6 +62,9 @@ class SampleOut(BaseModel):
     sanger_ids: list[str]
     target_oplc: float | None
     volume: float | None
+    cleaned_complex_volume: float | None
+    loading_buffer_volume: float | None
+    control_dilution_3_volume: float | None
     adaptive_loading: str | None
     full_resolution_base_q: str | None
     priority: str | None
