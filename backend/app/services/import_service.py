@@ -93,14 +93,14 @@ def import_samples(db: Session, req: ImportRequest) -> ImportResult:
                 sanger_ids=parsed.sanger,
                 parent_sample=parsed.parent,
                 target_oplc=parsed.target_oplc,
-                volume=parsed.volume,
+                actual_oplc=parsed.actual_oplc,
                 cleaned_complex_volume=parsed.cleaned_complex_volume,
                 loading_buffer_volume=parsed.loading_buffer_volume,
                 control_dilution_3_volume=parsed.control_dilution_3_volume,
                 adaptive_loading=parsed.adaptive_loading,
                 full_resolution_base_q=parsed.full_resolution_base_q,
                 priority=parsed.priority,
-                ccs_kinetics=parsed.ccs_kinetics,
+                base_kinetics=parsed.base_kinetics,
                 movie_time_hours=parsed.movie_time,
                 import_batch_id=batch.id,
             )
@@ -180,7 +180,7 @@ def importable_fields() -> list[ImportFieldOut]:
     return [
         ImportFieldOut(
             key=f.key, label=f.label, kind=f.kind, required=f.required,
-            example=f.example, import_only=f.import_only,
+            example=f.example, import_only=f.import_only, choices=list(f.choices),
         )
         for f in IMPORTABLE_FIELDS
     ]

@@ -72,12 +72,12 @@ def test_sort_by_priority_orders_by_rank_not_object_identity(client):
 
 
 def test_sort_by_priority_groups_equal_rank_by_container_id(client):
-    # Two rank-1 samples separated in import order by another rank-1 sample. They must
-    # group by Container ID within the shared rank (the scheduler's own processing order),
-    # not stay scattered by import/created order.
+    # Three rank-1 (High) samples in a scrambled import order. They must group by Container
+    # ID within the shared rank (the scheduler's own processing order), not stay scattered by
+    # import/created order.
     _import(
         client,
-        "sample,barcodes,priority\nB1,bc1,High (1)\nA1,bc2,Urgent (1)\nC1,bc3,High (1)",
+        "sample,barcodes,priority\nB1,bc1,High (1)\nA1,bc2,High (1)\nC1,bc3,High (1)",
     )
 
     resp = client.get("/api/samples", params={"sort_by": "priority", "sort_dir": "asc"})
@@ -121,15 +121,15 @@ def test_sort_by_unknown_field_is_400(client):
 def test_list_priorities_scopes_to_status(client):
     _import(
         client,
-        "sample,barcodes,priority\nA1,bc1,High (1)\nA2,bc2,Rush (0)",
+        "sample,barcodes,priority\nA1,bc1,High (1)\nA2,bc2,Medium (2)",
     )
-    # Cancel the "Rush (0)" sample so that priority now lives only on a non-backlog sample.
+    # Cancel the "Medium (2)" sample so that priority now lives only on a non-backlog sample.
     items = client.get("/api/samples", params={"status": "backlog"}).json()["items"]
-    rush = next(s for s in items if s["priority"] == "Rush (0)")
-    assert client.post(f"/api/samples/{rush['id']}/cancel").status_code == 200
+    medium = next(s for s in items if s["priority"] == "Medium (2)")
+    assert client.post(f"/api/samples/{medium['id']}/cancel").status_code == 200
 
-    # Unscoped still reports every priority ever used (rank order: 0 before 1).
-    assert client.get("/api/samples/priorities").json() == ["Rush (0)", "High (1)"]
+    # Unscoped still reports every priority ever used (rank order: 1 before 2).
+    assert client.get("/api/samples/priorities").json() == ["High (1)", "Medium (2)"]
     # Backlog-scoped (what the filter dropdown uses) drops the cancelled-only priority,
     # so the dropdown never offers a value that returns zero backlog rows.
     assert client.get("/api/samples/priorities", params={"status": "backlog"}).json() == ["High (1)"]

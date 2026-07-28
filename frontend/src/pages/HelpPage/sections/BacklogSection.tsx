@@ -30,9 +30,10 @@ export function BacklogSection() {
 
       <p className={styles.subheading}>Columns &amp; sorting</p>
       <p>
-        <b>Columns:</b> Container ID, Barcodes, Parent sample, Sanger IDs, Priority, Target OPLC, Volume, Adaptive
-        loading, Full res. base Q, Include base kinetics, and Created (when it was imported). A dash (—) means that
-        field is empty for the sample. Click a <b>Container ID</b> to open that sample&apos;s detail page.
+        <b>Columns:</b> Container ID, Barcodes, Parent sample, Sanger IDs, Priority, Target OPLC, Actual OPLC, Adaptive
+        loading, Full res. base Q, Include base kinetics, and Created (when it was imported). <b>Target OPLC</b> is the
+        planned loading concentration; <b>Actual OPLC</b> is the concentration actually achieved on the plate. A dash
+        (—) means that field is empty for the sample. Click a <b>Container ID</b> to open that sample&apos;s detail page.
       </p>
       <p>
         <b>Sorting:</b> click <i>any</i> column header to sort by that field; click it again to reverse the
@@ -86,14 +87,16 @@ export function BacklogSection() {
         <b>+ Add sample</b> (top-right of the toolbar) opens a form to add one sample to the backlog by hand — handy
         when a sample isn&apos;t in a file to import. <b>Container ID</b> and at least one <b>barcode</b>{" "}
         are required (enter several barcodes separated by commas or spaces); every other field is optional. The
-        three True/False settings (Adaptive Loading, Full-Resolution Base Q, Include Base Kinetics) are chosen from a
-        dropdown. The new sample lands in the backlog exactly like an imported one. If the Container ID already
-        belongs to an active sample, the form says so and nothing is added.
+        three True/False settings (Adaptive Loading, Full-Resolution Base Q, Include Base Kinetics) and Priority
+        (Standard / Medium / High) are chosen from a dropdown, and start on the defaults set in the Admin tab&apos;s{" "}
+        <b>Sample defaults</b> panel — change any of them before saving. The new sample lands in the backlog exactly
+        like an imported one. If the Container ID already belongs to an active sample, the form says so and nothing
+        is added.
       </p>
       <p>
         <b>Edit</b> (on each row) opens the same form to correct a backlog sample&apos;s details — barcodes, Sanger
-        IDs, priority, Target OPLC, the complex-loading volumes (cleaned-complex, loading-buffer and Control
-        Dilution 3, which pre-fill the batch sheet&apos;s dilution worksheet), and the other settings. The{" "}
+        IDs, priority, Target OPLC, Actual OPLC, the complex-loading volumes (cleaned-complex, loading-buffer and
+        Control Dilution 3, which pre-fill the batch sheet&apos;s dilution worksheet), and the other settings. The{" "}
         <b>Container ID</b> is greyed out and can&apos;t be changed: it identifies the sample and is fixed once
         created. A backlog sample is fully editable; once it&apos;s scheduled you can still adjust its loading
         parameters (including those volumes) from the Schedule slot popover, but its barcodes and identity are locked.

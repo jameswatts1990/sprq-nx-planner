@@ -7,7 +7,8 @@ export interface SampleOut {
   parent_sample: string | null;
   sanger_ids: string[];
   target_oplc: number | null;
-  volume: number | null;
+  /** The achieved on-plate loading concentration (pM), distinct from the planned Target OPLC. */
+  actual_oplc: number | null;
   /** Loading-dilution volumes (µL) that pre-fill the batch sheet's SOP 7.3 worksheet. */
   cleaned_complex_volume: number | null;
   loading_buffer_volume: number | null;
@@ -15,7 +16,7 @@ export interface SampleOut {
   adaptive_loading: string | null;
   full_resolution_base_q: string | null;
   priority: string | null;
-  ccs_kinetics: string | null;
+  base_kinetics: string | null;
   /** Desired movie / acquisition time (h): 12, 24, or 30. Null for samples created before
    * this field existed — treated as the 24 h default wherever it's shown or used as the
    * placement run-time default. */
@@ -36,14 +37,14 @@ export interface SampleCreate {
   sanger_ids?: string[];
   parent_sample?: string | null;
   target_oplc?: number | null;
-  volume?: number | null;
+  actual_oplc?: number | null;
   cleaned_complex_volume?: number | null;
   loading_buffer_volume?: number | null;
   control_dilution_3_volume?: number | null;
   adaptive_loading?: string | null;
   full_resolution_base_q?: string | null;
   priority?: string | null;
-  ccs_kinetics?: string | null;
+  base_kinetics?: string | null;
   movie_time_hours?: number | null;
 }
 

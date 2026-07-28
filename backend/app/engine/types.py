@@ -17,7 +17,8 @@ class ParsedSample:
     parent: str = ""
     sanger: list[str] = field(default_factory=list)
     target_oplc: float | None = None
-    volume: float | None = None
+    # Actual (achieved) loading concentration, distinct from the planned target_oplc.
+    actual_oplc: float | None = None
     # Batch-sheet-only complex-loading dilution volumes (optional). Carried through import
     # so they can be stored on the Sample and printed on the batch sheet; unused by the
     # pure packing engine.
@@ -28,7 +29,7 @@ class ParsedSample:
     adaptive_loading: str | None = None
     full_resolution_base_q: str | None = None
     priority: str = ""
-    ccs_kinetics: str | None = None
+    base_kinetics: str | None = None
     # Desired movie / acquisition time (h) for this sample; None when the import didn't
     # specify one (the persist layer fills the default, 24h). Not used by the pure packing
     # engine - carried through so import can store it on the Sample.

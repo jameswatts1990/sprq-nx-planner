@@ -15,10 +15,10 @@ export interface BatchSheetWellOut {
   sample_external_id: string | null;
   barcodes: string[];
   adaptive_loading: string | null;
-  ccs_kinetics: string | null;
+  base_kinetics: string | null;
   full_resolution_base_q: string | null;
   target_oplc: number | null;
-  volume: number | null; // "Volume to Load" / library volume taken for complex
+  actual_oplc: number | null; // the achieved on-plate loading concentration, if recorded
   // Complex-loading dilution volumes for the SOP 7.3 worksheet (optional, from import).
   cleaned_complex_volume: number | null;
   loading_buffer_volume: number | null;

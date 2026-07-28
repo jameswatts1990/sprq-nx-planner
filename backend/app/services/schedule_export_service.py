@@ -30,6 +30,7 @@ from app.engine.tracker_columns import (
     K_CELL_LOCATION,
     K_DATE_RUN_STARTED,
     K_INSTRUMENT,
+    K_LOADING_CONC,
     K_POOL_ID,
     K_PORTION,
     K_PRIORITY,
@@ -136,9 +137,9 @@ def _row_values(cell_use: CellUse, cycle: Cycle, serial: str) -> dict[str, str]:
         K_TRACTION_RUN_ID: (cycle.run_batch.run_name if cycle.run_batch else None)
         or (f"#{cycle.run_batch.id}" if cycle.run_batch else f"#c{cycle.id}"),
         K_INSTRUMENT: serial,
-        # Plate ID and Loading Conc. columns are left blank: the app no longer stores a
-        # separate plate id or actual-OPLC value (only the Target OPLC), so those sheet
-        # columns fall under the present-but-blank P1 scope like the other unstored fields.
+        # Plate ID is left blank (the app doesn't store a separate plate id). The Loading
+        # Conc. column carries the sample's actual (achieved) OPLC when recorded; Target OPLC
+        # stays its own column.
         K_TRACTION_ID: (sample.external_id or "") if sample else "",
         K_SANGER: _fmt_sanger(sample.sanger_ids if sample else None),
         K_CELL_LOCATION: _cell_location(cell_use, cycle.plate_index),
@@ -146,10 +147,11 @@ def _row_values(cell_use: CellUse, cycle: Cycle, serial: str) -> dict[str, str]:
         # differ from other wells in the same run (see CellUse.run_time_hours).
         K_RUN_TIME: _fmt_number(cell_use.run_time_hours),
         K_TARGET_OPLC: _fmt_number(sample.target_oplc) if sample else "",
+        K_LOADING_CONC: _fmt_number(sample.actual_oplc) if sample else "",
         # Barcodes live in the "Complex Batch ID" column (see tracker_columns). Prefer the
         # per-use snapshot; fall back to the sample's own barcodes if the snapshot is empty.
         K_BARCODES: ", ".join(_effective_barcodes(cell_use)),
-        K_CCS_KINETICS: (sample.ccs_kinetics or "") if sample else "",
+        K_CCS_KINETICS: (sample.base_kinetics or "") if sample else "",
         K_STATUS: sheet_status(sample.status if sample else None, cycle.status),
         K_PRIORITY: (sample.priority or "") if sample else "",
     }

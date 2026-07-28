@@ -274,7 +274,7 @@ export function CellDetailPage() {
                       <td>{u.sample_target_oplc ?? "—"}</td>
                       <td>{u.sample_adaptive_loading ?? "—"}</td>
                       <td>{u.sample_full_resolution_base_q ?? "—"}</td>
-                      <td>{u.sample_ccs_kinetics ?? "—"}</td>
+                      <td>{u.sample_base_kinetics ?? "—"}</td>
                       <td>{u.instrument_serial ?? "—"}</td>
                       <td>{formatDateTime(u.started_at)}</td>
                       <td>{formatDateTime(u.completed_at)}</td>

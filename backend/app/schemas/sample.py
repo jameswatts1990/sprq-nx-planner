@@ -2,10 +2,11 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field, field_validator
 
+from app.engine.constants import normalize_priority
 from app.engine.normalize import parse_bool_field
 
 # Boolean settings surfaced as True/False in the UI and template.
-_BOOL_FIELDS = ("adaptive_loading", "full_resolution_base_q", "ccs_kinetics")
+_BOOL_FIELDS = ("adaptive_loading", "full_resolution_base_q", "base_kinetics")
 
 
 class _SampleFieldsBase(BaseModel):
@@ -19,7 +20,7 @@ class _SampleFieldsBase(BaseModel):
     sanger_ids: list[str] = []
     parent_sample: str | None = None
     target_oplc: float | None = None
-    volume: float | None = None
+    actual_oplc: float | None = None
     # Loading-dilution volumes that pre-fill the batch sheet's SOP 7.3 worksheet (all optional).
     cleaned_complex_volume: float | None = None
     loading_buffer_volume: float | None = None
@@ -27,7 +28,7 @@ class _SampleFieldsBase(BaseModel):
     adaptive_loading: str | None = None
     full_resolution_base_q: str | None = None
     priority: str | None = None
-    ccs_kinetics: str | None = None
+    base_kinetics: str | None = None
     # Desired movie / acquisition time (h). Accepted loosely (12/24/30); the service
     # normalizes anything else to the 24h default (engine.normalize.coerce_movie_hours).
     movie_time_hours: int | None = None
@@ -41,6 +42,15 @@ class _SampleFieldsBase(BaseModel):
         if not ok:
             raise ValueError("must be True or False")
         return normalized
+
+    @field_validator("priority", mode="before")
+    @classmethod
+    def _normalize_priority(cls, value: object) -> str | None:
+        """Coerce a submitted priority to a canonical label (High/Medium/Standard). A blank
+        or unrecognized value becomes None, so the create path fills the configured default."""
+        if value is None:
+            return None
+        return normalize_priority(value)
 
 
 class SampleCreate(_SampleFieldsBase):
@@ -61,14 +71,14 @@ class SampleOut(BaseModel):
     parent_sample: str | None
     sanger_ids: list[str]
     target_oplc: float | None
-    volume: float | None
+    actual_oplc: float | None
     cleaned_complex_volume: float | None
     loading_buffer_volume: float | None
     control_dilution_3_volume: float | None
     adaptive_loading: str | None
     full_resolution_base_q: str | None
     priority: str | None
-    ccs_kinetics: str | None
+    base_kinetics: str | None
     movie_time_hours: int | None
     status: str
     # QC disposition tag ("repeatable"/"recoverable") when a Cell QC action returned this

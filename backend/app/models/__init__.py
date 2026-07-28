@@ -5,9 +5,11 @@ from app.models.importing import ImportBatch
 from app.models.instrument import Instrument
 from app.models.sample import Sample, SampleBarcode
 from app.models.schedule import CellUse, CellUseBarcode, Cycle, RunBatch
+from app.models.settings import AppSetting
 from app.models.topup import SampleTopup
 
 __all__ = [
+    "AppSetting",
     "AuditLog",
     "Cell",
     "CellTray",

@@ -31,10 +31,10 @@ SORTABLE_FIELDS = (
     "parent_sample",
     "sanger_ids",
     "target_oplc",
-    "volume",
+    "actual_oplc",
     "adaptive_loading",
     "full_resolution_base_q",
-    "ccs_kinetics",
+    "base_kinetics",
 )
 
 
@@ -57,10 +57,10 @@ _SIMPLE_SORT_KEYS = {
     "parent_sample": lambda s: _lower_or_none(s.parent_sample),
     "sanger_ids": lambda s: (s.sanger_ids[0].lower() if s.sanger_ids else None),
     "target_oplc": lambda s: s.target_oplc,
-    "volume": lambda s: s.volume,
+    "actual_oplc": lambda s: s.actual_oplc,
     "adaptive_loading": lambda s: _lower_or_none(s.adaptive_loading),
     "full_resolution_base_q": lambda s: _lower_or_none(s.full_resolution_base_q),
-    "ccs_kinetics": lambda s: _lower_or_none(s.ccs_kinetics),
+    "base_kinetics": lambda s: _lower_or_none(s.base_kinetics),
 }
 
 
@@ -170,14 +170,14 @@ def create_sample(req: SampleCreate, db: SessionDep, actor: ActorDep) -> SampleO
             sanger_ids=req.sanger_ids,
             parent_sample=req.parent_sample,
             target_oplc=req.target_oplc,
-            volume=req.volume,
+            actual_oplc=req.actual_oplc,
             cleaned_complex_volume=req.cleaned_complex_volume,
             loading_buffer_volume=req.loading_buffer_volume,
             control_dilution_3_volume=req.control_dilution_3_volume,
             adaptive_loading=req.adaptive_loading,
             full_resolution_base_q=req.full_resolution_base_q,
             priority=req.priority,
-            ccs_kinetics=req.ccs_kinetics,
+            base_kinetics=req.base_kinetics,
             movie_time_hours=req.movie_time_hours,
         )
     except DuplicateSampleError as err:
@@ -253,28 +253,28 @@ def update_sample(sample_id: int, req: SampleUpdate, db: SessionDep, actor: Acto
             sanger_ids=req.sanger_ids,
             parent_sample=req.parent_sample,
             target_oplc=req.target_oplc,
-            volume=req.volume,
+            actual_oplc=req.actual_oplc,
             cleaned_complex_volume=req.cleaned_complex_volume,
             loading_buffer_volume=req.loading_buffer_volume,
             control_dilution_3_volume=req.control_dilution_3_volume,
             adaptive_loading=req.adaptive_loading,
             full_resolution_base_q=req.full_resolution_base_q,
             priority=req.priority,
-            ccs_kinetics=req.ccs_kinetics,
+            base_kinetics=req.base_kinetics,
             movie_time_hours=req.movie_time_hours,
         )
     else:
         update_placed_sample_metadata(
             sample,
             target_oplc=req.target_oplc,
-            volume=req.volume,
+            actual_oplc=req.actual_oplc,
             cleaned_complex_volume=req.cleaned_complex_volume,
             loading_buffer_volume=req.loading_buffer_volume,
             control_dilution_3_volume=req.control_dilution_3_volume,
             adaptive_loading=req.adaptive_loading,
             full_resolution_base_q=req.full_resolution_base_q,
             priority=req.priority,
-            ccs_kinetics=req.ccs_kinetics,
+            base_kinetics=req.base_kinetics,
         )
     db.add(AuditLog(actor=actor, action="update_sample", entity_type="sample", entity_id=sample.id, details_json={}))
     db.commit()

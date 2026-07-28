@@ -502,7 +502,7 @@ def serialize_cell_detail(cell: Cell) -> CellDetailOut:
                 sample_target_oplc=cu.sample.target_oplc if cu.sample else None,
                 sample_adaptive_loading=cu.sample.adaptive_loading if cu.sample else None,
                 sample_full_resolution_base_q=cu.sample.full_resolution_base_q if cu.sample else None,
-                sample_ccs_kinetics=cu.sample.ccs_kinetics if cu.sample else None,
+                sample_base_kinetics=cu.sample.base_kinetics if cu.sample else None,
                 barcodes=cu.barcode_list,
                 instrument_serial=(run_batch.instrument.serial_number if run_batch and run_batch.instrument else None),
                 started_at=cu.started_at,

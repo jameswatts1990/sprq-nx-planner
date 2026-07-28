@@ -71,10 +71,10 @@ def test_export_fills_p1_columns_for_a_loaded_run(client):
     assert row[11] == "24"  # Run Time (hr)
     assert row[16] == "300"  # Target Loading Concentration
     assert row[17] == "bc2044, bc2052"  # Complex Batch ID (barcodes)
-    assert row[30] == ""  # Loading Conc. — no longer stored (only Target OPLC is kept)
+    assert row[30] == ""  # Loading Conc. (actual OPLC) — blank: this sample recorded none
     assert row[35] == "True"  # CCS kinetics — "Yes" normalized to canonical True/False
     assert row[50] == "Loaded"  # Status
-    assert row[51] == "High"  # Prioity
+    assert row[51] == "High (1)"  # Prioity — "High" coerced to the canonical label on import
 
 
 def _place_running(client, external_id: str, run_name: str, past: str) -> None:

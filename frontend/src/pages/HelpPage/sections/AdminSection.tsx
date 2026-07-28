@@ -6,10 +6,21 @@ export function AdminSection() {
   return (
     <div className={styles.copy}>
       <p>
-        <b>What this tab is for:</b> raw database inspection and cleanup tools, intended for development use only.
-        These tools operate directly on tables and rows, bypassing the app&apos;s normal scheduling rules — they
-        are not part of the shipped/live product and are expected to be removed or disabled before a real
-        production launch.
+        <b>What this tab is for:</b> the <b>Sample defaults</b> panel (a normal, safe setting), plus raw database
+        inspection and cleanup tools intended for development use only. The database tools operate directly on tables
+        and rows, bypassing the app&apos;s normal scheduling rules — they are not part of the shipped/live product and
+        are expected to be removed or disabled before a real production launch.
+      </p>
+
+      <p className={styles.subheading}>Sample defaults</p>
+      <p>
+        At the top of the tab, the <b>Sample defaults</b> panel sets the default loading options given to a new
+        sample: <b>Adaptive Loading</b>, <b>Full-Resolution Base Q</b>, <b>Include Base Kinetics</b> (each True or
+        False) and <b>Priority</b> (Standard / Medium / High). Pick a value per field and press <b>Save defaults</b>.
+        These defaults pre-fill the Backlog&apos;s <b>Add sample</b> form and fill in any of these four fields left
+        blank when a sample is imported — so an import that doesn&apos;t specify, say, adaptive loading gets your
+        chosen default rather than a blank. Existing samples are never changed; only samples created afterwards use
+        the new defaults. Unlike the database tools below, this goes through the app&apos;s normal validated path.
       </p>
 
       <Note tone="warn" icon="!">

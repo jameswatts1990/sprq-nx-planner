@@ -150,7 +150,7 @@ export function ScheduleSection() {
         instrument runs the next day, is on the sheet too (both plates are loaded in the one session). Each well shows
         its cell code, use number and 108-hour reuse deadline, the sample to load and its barcode(s), and the per-cell
         run settings (movie / run time, adaptive loading, include base kinetics, full-resolution baseQ, Target OPLC,
-        volume). Because run time is per-cell, each well shows its own movie time. A final <b>Notes</b> column prints
+        Actual OPLC). Because run time is per-cell, each well shows its own movie time. A final <b>Notes</b> column prints
         any note you&apos;ve added to a sample on its cell (see <b>Sample notes</b> under QC actions below). Use the
         page&apos;s <b>Print / Save as PDF</b> button, which opens your browser&apos;s normal print dialog (choose a
         physical printer, or &quot;Save as PDF&quot;). The sheet prints <b>landscape, one run per page</b>, so each
@@ -165,8 +165,8 @@ export function ScheduleSection() {
         well, Traction ID and Target OPLC. If the sample has its complex, loading-buffer and control-dilution
         volumes — whether carried across when you upload from the scheduler sheet, or filled in on the sample&apos;s
         edit form — those boxes are pre-filled too; any the app doesn&apos;t have are left blank to write in at the
-        bench, along with the final
-        volume and the OPLC you actually achieved. The <b>7.4 · Plate loading</b> checklist (one per
+        bench, along with the final volume. The achieved <b>Actual OPLC</b> is pre-filled when it&apos;s been recorded
+        on the sample, otherwise left blank to write in. The <b>7.4 · Plate loading</b> checklist (one per
         plate) has a space to note the plate&apos;s QR / serial number, tick boxes for the plate-prep steps
         (vortexed, spun down, foil pierced) and a per-well tick for &quot;23 µL loaded&quot; and &quot;sealed&quot;.
         These are for writing on the printout by hand — the values aren&apos;t stored back in the app.
@@ -449,7 +449,7 @@ export function ScheduleSection() {
       </p>
       <p>
         <b>Editing the sample:</b> next to the Sample ID a small <b>✎</b> button opens the quick edit form for that
-        sample&apos;s loading parameters (<b>Target OPLC</b>, <b>Volume</b>, the complex-loading volumes{" "}
+        sample&apos;s loading parameters (<b>Target OPLC</b>, <b>Actual OPLC</b>, the complex-loading volumes{" "}
         <b>Cleaned Complex</b>, <b>Loading Buffer</b> and <b>Control Dilution 3</b> that pre-fill the batch
         sheet&apos;s dilution worksheet, <b>Adaptive Loading</b>, <b>Full-Resolution Base Q</b>, <b>Priority</b> and{" "}
         <b>Include Base Kinetics</b>) without going back to the Backlog. Once a sample is placed on the grid its{" "}

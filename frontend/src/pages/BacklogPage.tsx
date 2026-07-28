@@ -54,10 +54,10 @@ const SAMPLE_SORT_ACCESSORS: Record<SampleSortBy, (s: SampleOut) => string | num
   parent_sample: (s) => s.parent_sample,
   sanger_ids: (s) => s.sanger_ids[0] ?? null,
   target_oplc: (s) => s.target_oplc,
-  volume: (s) => s.volume,
+  actual_oplc: (s) => s.actual_oplc,
   adaptive_loading: (s) => s.adaptive_loading,
   full_resolution_base_q: (s) => s.full_resolution_base_q,
-  ccs_kinetics: (s) => s.ccs_kinetics,
+  base_kinetics: (s) => s.base_kinetics,
 };
 
 /** Column keys for the client-sorted Top-up table (fully loaded, no pagination). */
@@ -114,8 +114,8 @@ function buildSampleColumns({ renderHeader, backNav, onEdit, onCancel, cancelPen
       header: () => renderHeader("Target OPLC", "target_oplc"),
       cell: (info) => info.getValue() ?? "—",
     }),
-    columnHelper.accessor("volume", {
-      header: () => renderHeader("Volume", "volume"),
+    columnHelper.accessor("actual_oplc", {
+      header: () => renderHeader("Actual OPLC", "actual_oplc"),
       cell: (info) => info.getValue() ?? "—",
     }),
     columnHelper.accessor("adaptive_loading", {
@@ -126,8 +126,8 @@ function buildSampleColumns({ renderHeader, backNav, onEdit, onCancel, cancelPen
       header: () => renderHeader("Full res. base Q", "full_resolution_base_q"),
       cell: (info) => info.getValue() ?? "—",
     }),
-    columnHelper.accessor("ccs_kinetics", {
-      header: () => renderHeader("Include base kinetics", "ccs_kinetics"),
+    columnHelper.accessor("base_kinetics", {
+      header: () => renderHeader("Include base kinetics", "base_kinetics"),
       cell: (info) => info.getValue() ?? "—",
     }),
     columnHelper.accessor("created_at", {

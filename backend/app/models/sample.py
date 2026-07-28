@@ -22,7 +22,9 @@ class Sample(Base):
     parent_sample: Mapped[str | None] = mapped_column(String(255), nullable=True)
     sanger_ids: Mapped[list[str]] = mapped_column(JSON, default=list)
     target_oplc: Mapped[float | None] = mapped_column(Float, nullable=True)
-    volume: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # Actual (achieved) on-plate loading concentration, distinct from the planned target_oplc.
+    # Round-trips with the tracker sheet's "Loading Conc. (pM)" column.
+    actual_oplc: Mapped[float | None] = mapped_column(Float, nullable=True)
     # The complex-loading dilution volumes taken from the scheduler sheet (all optional).
     # They pre-fill the batch sheet's SOP 7.3 dilution worksheet and are editable on the
     # sample add/edit form (and the placed-sample slot popover) like every other optional
@@ -33,7 +35,7 @@ class Sample(Base):
     adaptive_loading: Mapped[str | None] = mapped_column(String(20), nullable=True)
     full_resolution_base_q: Mapped[str | None] = mapped_column(String(20), nullable=True)
     priority: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    ccs_kinetics: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    base_kinetics: Mapped[str | None] = mapped_column(String(20), nullable=True)
     # Desired movie / acquisition time (h), one of 12/24/30. Nullable for rows created
     # before this field existed; a null reads as the 24h default everywhere it's used (the
     # backlog card, and the manual-placement run-time default in placement_service). New

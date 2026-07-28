@@ -26,14 +26,14 @@ function formatDateTime(iso: string | null): string {
  * (its barcodes/identity are frozen at placement). Mirrors the Schedule slot popover's set. */
 const PLACED_EDITABLE_KEYS = new Set([
   "target_oplc",
-  "volume",
+  "actual_oplc",
   "cleaned_complex_volume",
   "loading_buffer_volume",
   "control_dilution_3_volume",
   "adaptive_loading",
   "full_resolution_base_q",
   "priority",
-  "ccs_kinetics",
+  "base_kinetics",
 ]);
 
 /** Finished samples are history, not a plan - the backend rejects edits to them, so no
@@ -135,8 +135,8 @@ export function SampleDetailPage() {
               <span className={styles.value}>{sample.target_oplc ?? "—"}</span>
             </div>
             <div>
-              <span className={styles.label}>Volume</span>
-              <span className={styles.value}>{sample.volume ?? "—"}</span>
+              <span className={styles.label}>Actual OPLC</span>
+              <span className={styles.value}>{sample.actual_oplc ?? "—"}</span>
             </div>
             <div>
               <span className={styles.label}>Cleaned complex vol</span>
@@ -160,7 +160,7 @@ export function SampleDetailPage() {
             </div>
             <div>
               <span className={styles.label}>Include base kinetics</span>
-              <span className={styles.value}>{sample.ccs_kinetics ?? "—"}</span>
+              <span className={styles.value}>{sample.base_kinetics ?? "—"}</span>
             </div>
             <div>
               <span className={styles.label}>Movie time</span>

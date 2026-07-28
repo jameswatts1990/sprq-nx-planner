@@ -43,14 +43,14 @@ export interface SlotDetailPopoverProps {
  * too — see update_placed_sample_metadata). Keys match the importable-field set. */
 const PLACED_EDITABLE_KEYS = new Set([
   "target_oplc",
-  "volume",
+  "actual_oplc",
   "cleaned_complex_volume",
   "loading_buffer_volume",
   "control_dilution_3_volume",
   "adaptive_loading",
   "full_resolution_base_q",
   "priority",
-  "ccs_kinetics",
+  "base_kinetics",
 ]);
 
 /** Cell-use statuses whose sample is done/gone, so its record is read-only history. Used as

@@ -21,10 +21,10 @@ class BatchSheetWellOut(BaseModel):
     sample_external_id: str | None
     barcodes: list[str]
     adaptive_loading: str | None
-    ccs_kinetics: str | None
+    base_kinetics: str | None
     full_resolution_base_q: str | None
     target_oplc: float | None
-    volume: float | None  # "Volume to Load" / library volume taken for complex
+    actual_oplc: float | None  # the achieved on-plate loading concentration, if recorded
     # Complex-loading dilution volumes for the SOP 7.3 worksheet (optional, from import).
     cleaned_complex_volume: float | None
     loading_buffer_volume: float | None

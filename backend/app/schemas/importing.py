@@ -49,6 +49,9 @@ class ImportFieldOut(BaseModel):
     kind: str
     required: bool
     example: str
+    # For kind="select": the fixed set of accepted values, rendered as a dropdown on the
+    # manual add/edit form (empty for every other field kind).
+    choices: list[str] = []
     # True for fields that can be mapped/imported but aren't offered on the manual add/edit
     # form (the value only comes in via import and is shown only on the batch sheet).
     import_only: bool = False

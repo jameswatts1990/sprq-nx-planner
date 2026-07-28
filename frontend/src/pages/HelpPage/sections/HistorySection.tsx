@@ -73,7 +73,7 @@ export function HistorySection() {
       <p>
         <b>What it&apos;s for:</b> every sample that has finished, either <b>completed</b> (green) or <b>failed</b>{" "}
         (red). Search by Container ID, barcode, or parent sample. Each row shows the sample&apos;s <b>Container ID</b>,
-        status, barcodes, parent sample, Target OPLC, volume, priority, and last-updated time. Click <i>any</i> column
+        status, barcodes, parent sample, Target OPLC, Actual OPLC, priority, and last-updated time. Click <i>any</i> column
         header to sort the list by that field (click again to reverse); it starts with the most recently updated
         first, and long lists are paged with the same <b>Previous</b>/<b>Next</b> control. Click a row to expand it
         and see that sample&apos;s individual cell uses — the run (links to the run), which plate (1 or 2) it ran on,
@@ -85,7 +85,7 @@ export function HistorySection() {
       <p>
         <b>What it&apos;s for:</b> a single sample (container) on its own page, reached by clicking a <b>container ID</b>{" "}
         anywhere in the app — a cell card, a cell&apos;s use history. It shows the sample&apos;s full metadata (parent
-        sample, priority, Target OPLC, volume, movie time, loading options, barcodes, Sanger IDs, created/updated times) and a{" "}
+        sample, priority, Target OPLC, Actual OPLC, movie time, loading options, barcodes, Sanger IDs, created/updated times) and a{" "}
         <b>Cell uses</b> table of every cell it has been placed on — the run (links to the run), plate, cell (links to
         the cell), well, use status, start/complete times, and notes. Unlike the Samples list above, which only lists
         finished samples, this page works for a sample of any status, so it&apos;s the durable place a container ID

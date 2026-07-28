@@ -127,7 +127,7 @@ export function HistorySamplesPage() {
                     <th>{sortableHeader("Barcodes", "barcode")}</th>
                     <th>{sortableHeader("Parent sample", "parent_sample")}</th>
                     <th>{sortableHeader("Target OPLC", "target_oplc")}</th>
-                    <th>{sortableHeader("Volume", "volume")}</th>
+                    <th>{sortableHeader("Actual OPLC", "actual_oplc")}</th>
                     <th>{sortableHeader("Priority", "priority")}</th>
                     <th>{sortableHeader("Updated", "updated_at")}</th>
                   </tr>
@@ -182,7 +182,7 @@ const SampleRow = memo(function SampleRow({ sample, expanded, onToggle }: Sample
         </td>
         <td>{sample.parent_sample ?? "—"}</td>
         <td>{sample.target_oplc ?? "—"}</td>
-        <td>{sample.volume ?? "—"}</td>
+        <td>{sample.actual_oplc ?? "—"}</td>
         <td>{sample.priority ?? "—"}</td>
         <td>{formatDateTime(sample.updated_at)}</td>
       </tr>

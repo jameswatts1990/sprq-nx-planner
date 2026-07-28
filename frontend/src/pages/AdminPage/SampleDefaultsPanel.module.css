@@ -1,0 +1,73 @@
+.panel {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.title {
+  font-size: var(--fs-xl);
+  margin: 0;
+}
+.helper {
+  font-size: var(--fs-md);
+  color: var(--grey);
+  margin: 0;
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-md);
+}
+.table th {
+  text-align: left;
+  font-size: var(--fs-xs);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--grey);
+  font-weight: 700;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--line);
+}
+.table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line-soft);
+  vertical-align: middle;
+}
+.fieldLabel {
+  font-weight: 600;
+}
+.fieldHint {
+  display: block;
+  font-weight: 400;
+  color: var(--grey);
+  font-size: var(--fs-sm);
+}
+.select {
+  width: 100%;
+  max-width: 240px;
+  font-family: var(--sans);
+  font-size: var(--fs-base);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 7px 9px;
+  background: var(--card);
+  color: var(--ink);
+}
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+.savedNote {
+  font-size: var(--fs-md);
+  color: var(--grey);
+}

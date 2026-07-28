@@ -19,7 +19,7 @@ function baseUse(overrides: Partial<CellUseHistoryOut> = {}): CellUseHistoryOut 
     sample_target_oplc: null,
     sample_adaptive_loading: null,
     sample_full_resolution_base_q: null,
-    sample_ccs_kinetics: null,
+    sample_base_kinetics: null,
     barcodes: [],
     instrument_serial: "84047",
     started_at: null,

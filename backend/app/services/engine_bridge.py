@@ -28,7 +28,6 @@ def to_parsed_samples(samples: list[Sample]) -> list[ParsedSample]:
             barcodes=s.barcode_list,
             parent=s.parent_sample or "",
             sanger=s.sanger_ids or [],
-            volume=s.volume,
             priority=s.priority or "",
             # Carried so Auto Schedule can honour the per-sample movie time - both as the run
             # duration it schedules and for the 12h->cell 1 / 30h->cell 4 placement rule (see

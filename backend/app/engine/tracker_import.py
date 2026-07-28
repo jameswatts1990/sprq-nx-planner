@@ -20,9 +20,11 @@ from app.engine.normalize import (
     _parse_sanger,
     parse_bool_field,
 )
+from app.engine.constants import normalize_priority
 from app.engine.tracker_columns import (
     K_BARCODES,
     K_CCS_KINETICS,
+    K_LOADING_CONC,
     K_PRIORITY,
     K_SANGER,
     K_STATUS,
@@ -89,15 +91,17 @@ def normalize_tracker(text: str | None) -> NormalizeResult:
             continue
 
         sanger_raw = get(K_SANGER)
-        ccs_kinetics, _ = parse_bool_field(get(K_CCS_KINETICS))
+        base_kinetics, _ = parse_bool_field(get(K_CCS_KINETICS))
         samples.append(
             ParsedSample(
                 id=raw_id or f"Sample {n + 1}",
                 barcodes=barcodes,
                 sanger=_parse_sanger(sanger_raw) if sanger_raw else [],
                 target_oplc=_parse_float_or_none(get(K_TARGET_OPLC)),
-                priority=get(K_PRIORITY),
-                ccs_kinetics=ccs_kinetics,
+                # The tracker's "Loading Conc. (pM)" is the achieved (actual) loading conc.
+                actual_oplc=_parse_float_or_none(get(K_LOADING_CONC)),
+                priority=normalize_priority(get(K_PRIORITY)) or "",
+                base_kinetics=base_kinetics,
                 key=f"{raw_id}#{n}",
             )
         )

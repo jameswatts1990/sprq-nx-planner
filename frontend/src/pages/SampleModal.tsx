@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { ApiError } from "@/api/client";
 import { importsApi } from "@/api/imports";
 import { samplesApi } from "@/api/samples";
+import { settingsApi } from "@/api/settings";
 import { Button } from "@/components/ui/Button";
 import { Modal, ModalActions } from "@/components/ui/Modal";
 import { Note } from "@/components/ui/Note";
@@ -30,7 +31,7 @@ function valuesFromSample(sample: SampleOut): Record<string, string> {
     sanger: sample.sanger_ids.join(", "),
     parent_sample: sample.parent_sample ?? "",
     target_oplc: sample.target_oplc != null ? String(sample.target_oplc) : "",
-    volume: sample.volume != null ? String(sample.volume) : "",
+    actual_oplc: sample.actual_oplc != null ? String(sample.actual_oplc) : "",
     cleaned_complex_volume:
       sample.cleaned_complex_volume != null ? String(sample.cleaned_complex_volume) : "",
     loading_buffer_volume:
@@ -40,7 +41,7 @@ function valuesFromSample(sample: SampleOut): Record<string, string> {
     adaptive_loading: sample.adaptive_loading ?? "",
     full_resolution_base_q: sample.full_resolution_base_q ?? "",
     priority: sample.priority ?? "",
-    ccs_kinetics: sample.ccs_kinetics ?? "",
+    base_kinetics: sample.base_kinetics ?? "",
     movie_time_hours: sample.movie_time_hours != null ? String(sample.movie_time_hours) : "",
   };
 }
@@ -72,6 +73,7 @@ export function SampleModal({
 }) {
   const isEdit = sample != null;
   const isRestricted = editableKeys != null;
+  const isAdd = !isEdit && !isRestricted;
   const queryClient = useQueryClient();
   const [values, setValues] = useState<Record<string, string>>(() =>
     sample ? valuesFromSample(sample) : {},
@@ -80,6 +82,29 @@ export function SampleModal({
 
   const fieldsQuery = useQuery({ queryKey: ["import-fields"], queryFn: () => importsApi.fields() });
   const fields = fieldsQuery.data ?? [];
+
+  // On a fresh "Add to backlog", pre-fill the four defaultable loading options from the
+  // admin-configured sample defaults so the user sees them before saving (they can still
+  // change any of them). Only seeds once, and never overrides something the user typed first.
+  const defaultsQuery = useQuery({
+    queryKey: ["sample-defaults"],
+    queryFn: () => settingsApi.getSampleDefaults(),
+    enabled: isAdd,
+  });
+  const seededRef = useRef(false);
+  useEffect(() => {
+    if (isAdd && !seededRef.current && defaultsQuery.data) {
+      seededRef.current = true;
+      const d = defaultsQuery.data;
+      setValues((prev) => ({
+        adaptive_loading: d.adaptive_loading,
+        full_resolution_base_q: d.full_resolution_base_q,
+        base_kinetics: d.base_kinetics,
+        priority: d.priority,
+        ...prev, // anything the user already typed wins
+      }));
+    }
+  }, [isAdd, defaultsQuery.data]);
 
   const mutation = useMutation({
     mutationFn: (body: SampleCreate | SampleUpdate) =>
@@ -118,14 +143,14 @@ export function SampleModal({
       sanger_ids: splitList(values.sanger ?? ""),
       parent_sample: str("parent_sample"),
       target_oplc: num("target_oplc"),
-      volume: num("volume"),
+      actual_oplc: num("actual_oplc"),
       cleaned_complex_volume: num("cleaned_complex_volume"),
       loading_buffer_volume: num("loading_buffer_volume"),
       control_dilution_3_volume: num("control_dilution_3_volume"),
       adaptive_loading: str("adaptive_loading"),
       full_resolution_base_q: str("full_resolution_base_q"),
       priority: str("priority"),
-      ccs_kinetics: str("ccs_kinetics"),
+      base_kinetics: str("base_kinetics"),
       movie_time_hours: num("movie_time_hours"),
     };
 
@@ -194,6 +219,20 @@ export function SampleModal({
                   <option value="">—</option>
                   <option value="True">True</option>
                   <option value="False">False</option>
+                </select>
+              ) : f.kind === "select" ? (
+                <select
+                  className={styles.input}
+                  value={values[f.key] ?? ""}
+                  disabled={locked}
+                  onChange={(e) => set(f.key, e.target.value)}
+                >
+                  <option value="">—</option>
+                  {(f.choices ?? []).map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
                 </select>
               ) : (
                 <input

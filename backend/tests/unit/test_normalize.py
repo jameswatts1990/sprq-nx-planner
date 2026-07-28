@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from app.engine.constants import normalize_priority
 from app.engine.normalize import normalize_samples
 
 FIXTURE = Path(__file__).parent.parent / "fixtures" / "example_samples.csv"
@@ -30,11 +31,11 @@ def test_normalize_example_csv_produces_eight_samples_with_expected_fields():
     assert s1597.parent == "TRAC-2-25402"
     assert s1597.sanger == ["DTOL16756088", "AEGISDNA16711039"]
     assert s1597.target_oplc == 268.0
-    assert s1597.volume == 24.0
+    assert s1597.actual_oplc == 24.0
 
     s1598 = by_id["BNCH-1598"]
     assert s1598.barcodes == ["bc2029", "bc2030", "bc2040", "bc2057"]
-    assert s1598.volume == 13.19
+    assert s1598.actual_oplc == 13.19
 
     # non-JSON sanger value falls back to a single-element list of the raw string
     s1599 = by_id["BNCH-1599"]
@@ -76,3 +77,15 @@ def test_normalize_zero_oplc_is_treated_as_none_matching_js_falsy_quirk():
     by_id = {s.id: s for s in result.samples}
     assert by_id["A"].target_oplc is None
     assert by_id["B"].target_oplc == 150.0
+
+
+def test_normalize_priority_coerces_to_canonical_labels():
+    assert normalize_priority("high") == "High (1)"
+    assert normalize_priority("Medium") == "Medium (2)"
+    assert normalize_priority("standard") == "Standard (3)"
+    assert normalize_priority("STANDARD (3)") == "Standard (3)"
+    assert normalize_priority("low") == "Standard (3)"  # a lab synonym for lowest urgency
+    # Blank or unrecognized -> None (the persist layer then applies the configured default).
+    assert normalize_priority("") is None
+    assert normalize_priority(None) is None
+    assert normalize_priority("whenever") is None

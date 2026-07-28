@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from app.engine.constants import CANONICAL_PRIORITIES
 from app.engine.tracker_columns import normalize_header
 
 # Field keys. These match ParsedSample attribute names where they differ from the DB
@@ -26,11 +27,13 @@ K_BARCODES = "barcodes"
 K_SANGER = "sanger"
 K_PARENT_SAMPLE = "parent_sample"
 K_TARGET_OPLC = "target_oplc"
-K_VOLUME = "volume"
+# The actual (achieved) on-plate loading concentration, distinct from the planned Target
+# OPLC. Round-trips with the tracker sheet's "Loading Conc. (pM)" column.
+K_ACTUAL_OPLC = "actual_oplc"
 K_ADAPTIVE_LOADING = "adaptive_loading"
 K_FULL_RES_BASE_Q = "full_resolution_base_q"
 K_PRIORITY = "priority"
-K_CCS_KINETICS = "ccs_kinetics"
+K_BASE_KINETICS = "base_kinetics"
 K_MOVIE_TIME = "movie_time_hours"
 # Loading-dilution volumes (all optional) that pre-fill the batch sheet's SOP 7.3 worksheet.
 # Importable, and also editable on the manual add/edit form like every other optional field.
@@ -44,9 +47,12 @@ class ImportField:
     key: str
     label: str
     example: str
-    kind: str = "text"  # text | number | barcodes | sanger | boolean
+    kind: str = "text"  # text | number | barcodes | sanger | boolean | select
     required: bool = False
     aliases: tuple[str, ...] = field(default_factory=tuple)
+    # For kind="select": the fixed set of values the field accepts. Rendered as a dropdown
+    # on the manual add/edit form (and drives the admin default picker for the same field).
+    choices: tuple[str, ...] = field(default_factory=tuple)
     # True for fields that can be mapped/imported from a file but aren't offered on the manual
     # "Add / edit sample" form — the value only ever comes in via an import and is shown only
     # on the batch sheet. The mapping-review UI still lists them; SampleModal filters them out.
@@ -69,14 +75,17 @@ IMPORTABLE_FIELDS: list[ImportField] = [
         K_TARGET_OPLC, "Target OPLC (pM)", "300", kind="number",
         aliases=("target oplc", "target loading concentration"),
     ),
-    ImportField(K_VOLUME, "Volume to Load (uL)", "12", kind="number",
-                aliases=("volume to load", "library volume", "volume")),
+    ImportField(
+        K_ACTUAL_OPLC, "Actual OPLC (pM)", "285", kind="number",
+        aliases=("actual oplc", "loading conc", "loading concentration", "actual loading concentration"),
+    ),
     ImportField(K_ADAPTIVE_LOADING, "Adaptive Loading", "True", kind="boolean",
                 aliases=("adaptive loading",)),
     ImportField(K_FULL_RES_BASE_Q, "Full-Resolution Base Q", "False", kind="boolean",
                 aliases=("full resolution", "full-resolution")),
-    ImportField(K_PRIORITY, "Priority", "High", aliases=("priority", "prioity")),
-    ImportField(K_CCS_KINETICS, "Include Base Kinetics", "True", kind="boolean",
+    ImportField(K_PRIORITY, "Priority", "High (1)", kind="select", choices=CANONICAL_PRIORITIES,
+                aliases=("priority", "prioity")),
+    ImportField(K_BASE_KINETICS, "Include Base Kinetics", "False", kind="boolean",
                 aliases=("include base kinetics", "base kinetics", "kinetics")),
     ImportField(
         K_MOVIE_TIME, "Movie time (h)", "24", kind="number",

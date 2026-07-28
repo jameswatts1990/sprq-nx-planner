@@ -13,6 +13,7 @@ from app.api import (
     instruments,
     samples,
     schedule_export,
+    settings as settings_api,
     stats,
     topups,
 )
@@ -40,6 +41,7 @@ app.include_router(topups.router)
 app.include_router(instruments.router)
 app.include_router(stats.router)
 app.include_router(audit.router)
+app.include_router(settings_api.router)
 app.include_router(admin.router)
 
 

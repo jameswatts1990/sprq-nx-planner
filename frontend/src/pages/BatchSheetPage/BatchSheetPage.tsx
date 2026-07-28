@@ -64,11 +64,11 @@ function WellRow({ well }: { well: BatchSheetWellOut }) {
       <td className={styles.settingsCell}>
         <span>Movie {well.run_time_hours}h</span>
         <span>Adaptive {well.adaptive_loading ?? "—"}</span>
-        <span>Kinetics {well.ccs_kinetics ?? "—"}</span>
+        <span>Kinetics {well.base_kinetics ?? "—"}</span>
         <span>baseQ {well.full_resolution_base_q ?? "—"}</span>
       </td>
       <td>{well.target_oplc ?? "—"}</td>
-      <td>{well.volume ?? "—"}</td>
+      <td>{well.actual_oplc ?? "—"}</td>
       <td className={styles.notesCell}>{well.notes ? well.notes : "—"}</td>
     </tr>
   );
@@ -81,9 +81,9 @@ function WorksheetVolumeCell({ value }: { value: number | null }) {
 }
 
 /** SOP 7.3 — Final complex loading dilution, per plate. One row per well; the app pre-fills
- * what it knows (well, Traction ID, target OPLC, and — when the scheduler sheet supplied them
- * — the complex / loading-buffer / control-dilution volumes) and leaves the remaining dilution
- * volumes and achieved OPLC as blank cells to hand-write at the bench. */
+ * what it knows (well, Traction ID, target OPLC, the achieved/actual OPLC when recorded, and
+ * — when the scheduler sheet supplied them — the complex / loading-buffer / control-dilution
+ * volumes) and leaves the remaining dilution volumes as blank cells to hand-write at the bench. */
 function DilutionWorksheet({ plate }: { plate: BatchSheetPlateOut }) {
   return (
     <div className={styles.worksheetCol}>
@@ -125,8 +125,10 @@ function DilutionWorksheet({ plate }: { plate: BatchSheetPlateOut }) {
               <WorksheetVolumeCell value={w.cleaned_complex_volume} />
               <WorksheetVolumeCell value={w.loading_buffer_volume} />
               <WorksheetVolumeCell value={w.control_dilution_3_volume} />
+              {/* Final vol: hand-written at the bench. */}
               <td className={styles.entryCell} />
-              <td className={styles.entryCell} />
+              {/* Actual OPLC: pre-filled when recorded, otherwise a blank box to write in. */}
+              <WorksheetVolumeCell value={w.actual_oplc} />
               <td className={styles.entryCell} />
             </tr>
           ))}
@@ -224,7 +226,7 @@ function RunSection({ run }: { run: BatchSheetRunOut }) {
             <th>Barcodes</th>
             <th>Settings</th>
             <th>Target OPLC</th>
-            <th>Volume</th>
+            <th>Actual OPLC</th>
             <th>Notes</th>
           </tr>
         </thead>

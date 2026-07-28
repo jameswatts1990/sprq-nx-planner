@@ -71,8 +71,8 @@ def test_normalize_tracker_maps_p1_fields_and_skips_non_backlog_and_separators()
     assert s.barcodes == ["bc2074"]
     assert s.sanger == ["DTOL1", "DTOL2"]
     assert s.target_oplc == 300.0
-    assert s.priority == "High"
-    assert s.ccs_kinetics == "True"  # "Yes" normalized to canonical True/False
+    assert s.priority == "High (1)"  # coerced to the canonical label
+    assert s.base_kinetics == "True"  # "Yes" normalized to canonical True/False
 
     assert by_id["TRAC-2-26279"].barcodes == ["bc2094", "bc2095"]
 

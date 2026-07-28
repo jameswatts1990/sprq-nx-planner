@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.engine.normalize import coerce_movie_hours
 from app.models.sample import SAMPLE_TERMINAL_STATUSES, Sample, SampleBarcode
+from app.services.settings_service import get_sample_defaults
 
 
 class DuplicateSampleError(Exception):
@@ -25,19 +26,23 @@ def create_backlog_sample(
     sanger_ids: list[str] | None = None,
     parent_sample: str | None = None,
     target_oplc: float | None = None,
-    volume: float | None = None,
+    actual_oplc: float | None = None,
     cleaned_complex_volume: float | None = None,
     loading_buffer_volume: float | None = None,
     control_dilution_3_volume: float | None = None,
     adaptive_loading: str | None = None,
     full_resolution_base_q: str | None = None,
     priority: str | None = None,
-    ccs_kinetics: str | None = None,
+    base_kinetics: str | None = None,
     movie_time_hours: int | None = None,
     import_batch_id: int | None = None,
 ) -> Sample:
     """Insert one backlog Sample + its barcodes. Does NOT commit — the caller owns the
-    transaction. Raises DuplicateSampleError if an active sample already has this external_id."""
+    transaction. Raises DuplicateSampleError if an active sample already has this external_id.
+
+    The four defaultable loading options (adaptive_loading, full_resolution_base_q,
+    base_kinetics, priority) fall back to the admin-configured sample defaults when left
+    unspecified — an explicitly provided value (including an explicit "False") always wins."""
     existing = db.scalars(
         select(Sample).where(
             Sample.external_id == external_id,
@@ -47,20 +52,23 @@ def create_backlog_sample(
     if existing is not None:
         raise DuplicateSampleError(existing)
 
+    defaults = get_sample_defaults(db)
     sample = Sample(
         import_batch_id=import_batch_id,
         external_id=external_id,
         parent_sample=parent_sample or None,
         sanger_ids=sanger_ids or [],
         target_oplc=target_oplc,
-        volume=volume,
+        actual_oplc=actual_oplc,
         cleaned_complex_volume=cleaned_complex_volume,
         loading_buffer_volume=loading_buffer_volume,
         control_dilution_3_volume=control_dilution_3_volume,
-        adaptive_loading=adaptive_loading or None,
-        full_resolution_base_q=full_resolution_base_q or None,
-        priority=priority or None,
-        ccs_kinetics=ccs_kinetics or None,
+        adaptive_loading=adaptive_loading if adaptive_loading is not None else defaults["adaptive_loading"],
+        full_resolution_base_q=full_resolution_base_q
+        if full_resolution_base_q is not None
+        else defaults["full_resolution_base_q"],
+        priority=priority or defaults["priority"],
+        base_kinetics=base_kinetics if base_kinetics is not None else defaults["base_kinetics"],
         movie_time_hours=coerce_movie_hours(movie_time_hours),
         status="backlog",
     )
@@ -79,30 +87,31 @@ def update_backlog_sample(
     sanger_ids: list[str] | None = None,
     parent_sample: str | None = None,
     target_oplc: float | None = None,
-    volume: float | None = None,
+    actual_oplc: float | None = None,
     cleaned_complex_volume: float | None = None,
     loading_buffer_volume: float | None = None,
     control_dilution_3_volume: float | None = None,
     adaptive_loading: str | None = None,
     full_resolution_base_q: str | None = None,
     priority: str | None = None,
-    ccs_kinetics: str | None = None,
+    base_kinetics: str | None = None,
     movie_time_hours: int | None = None,
 ) -> Sample:
     """Overwrite an existing backlog Sample's editable fields and replace its barcode set.
     The sample's identity (external_id / Container ID) is intentionally left untouched.
-    Does NOT commit — the caller owns the transaction."""
+    Does NOT commit — the caller owns the transaction. Edits store exactly what's given
+    (no default-filling — defaults only apply to brand-new samples)."""
     sample.parent_sample = parent_sample or None
     sample.sanger_ids = sanger_ids or []
     sample.target_oplc = target_oplc
-    sample.volume = volume
+    sample.actual_oplc = actual_oplc
     sample.cleaned_complex_volume = cleaned_complex_volume
     sample.loading_buffer_volume = loading_buffer_volume
     sample.control_dilution_3_volume = control_dilution_3_volume
     sample.adaptive_loading = adaptive_loading or None
     sample.full_resolution_base_q = full_resolution_base_q or None
     sample.priority = priority or None
-    sample.ccs_kinetics = ccs_kinetics or None
+    sample.base_kinetics = base_kinetics or None
     sample.movie_time_hours = coerce_movie_hours(movie_time_hours)
 
     # Replace barcodes. Clear + flush deletes the old rows first, so re-adding an unchanged
@@ -119,14 +128,14 @@ def update_placed_sample_metadata(
     sample: Sample,
     *,
     target_oplc: float | None = None,
-    volume: float | None = None,
+    actual_oplc: float | None = None,
     cleaned_complex_volume: float | None = None,
     loading_buffer_volume: float | None = None,
     control_dilution_3_volume: float | None = None,
     adaptive_loading: str | None = None,
     full_resolution_base_q: str | None = None,
     priority: str | None = None,
-    ccs_kinetics: str | None = None,
+    base_kinetics: str | None = None,
 ) -> Sample:
     """Update only the loading/annotation parameters that stay editable once a sample has
     left the backlog and been placed on the grid (status scheduled/in_progress). The
@@ -138,12 +147,12 @@ def update_placed_sample_metadata(
     diverge from what the cell already carries. Sets attributes on the tracked ORM object
     only; the caller owns the flush/commit (no barcode rows to reconcile, so no `db` needed)."""
     sample.target_oplc = target_oplc
-    sample.volume = volume
+    sample.actual_oplc = actual_oplc
     sample.cleaned_complex_volume = cleaned_complex_volume
     sample.loading_buffer_volume = loading_buffer_volume
     sample.control_dilution_3_volume = control_dilution_3_volume
     sample.adaptive_loading = adaptive_loading or None
     sample.full_resolution_base_q = full_resolution_base_q or None
     sample.priority = priority or None
-    sample.ccs_kinetics = ccs_kinetics or None
+    sample.base_kinetics = base_kinetics or None
     return sample

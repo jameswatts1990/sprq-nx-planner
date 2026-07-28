@@ -28,9 +28,8 @@ export function ImportSection() {
           Sanger IDs are combined). It then takes you straight to the mapping step with a note saying how many rows
           became how many containers, plus a warning for any group that didn&apos;t add up to a whole cell (those
           are left out). A Plate ID column, if present, is ignored — the planner doesn&apos;t track it. The
-          complex-loading volumes on the sheet — the library volume taken for complex, cleaned-complex, loading-buffer
-          and Control Dilution 3 volumes — are carried across automatically and later pre-fill the batch sheet&apos;s
-          loading-dilution worksheet.
+          complex-loading dilution volumes on the sheet — cleaned-complex, loading-buffer and Control Dilution 3 —
+          are carried across automatically and later pre-fill the batch sheet&apos;s loading-dilution worksheet.
         </dd>
         <dt>Download template</dt>
         <dd>Saves a blank CSV with the right column headers and one example row — fill it in and upload it back.</dd>

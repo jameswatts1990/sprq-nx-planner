@@ -36,9 +36,12 @@ export interface ImportResult {
 export interface ImportField {
   key: string;
   label: string;
-  kind: "text" | "number" | "barcodes" | "sanger" | "boolean";
+  kind: "text" | "number" | "barcodes" | "sanger" | "boolean" | "select";
   required: boolean;
   example: string;
+  /** For kind="select": the fixed set of accepted values, rendered as a dropdown on the
+   * manual add/edit form (empty for every other field kind). */
+  choices?: string[];
   /** True for fields that can be mapped/imported but aren't offered on the manual add/edit
    * form (value comes in via import only, shown only on the batch sheet). */
   import_only?: boolean;

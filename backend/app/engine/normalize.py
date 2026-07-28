@@ -12,12 +12,13 @@ import json
 import re
 from dataclasses import dataclass, field
 
-from app.engine.constants import DEFAULT_MOVIE_HOURS, MOVIE_HOURS_CHOICES
+from app.engine.constants import DEFAULT_MOVIE_HOURS, MOVIE_HOURS_CHOICES, normalize_priority
 from app.engine.csv_parse import parse_csv, split_barcodes
 from app.engine.import_fields import (
+    K_ACTUAL_OPLC,
     K_ADAPTIVE_LOADING,
     K_BARCODES,
-    K_CCS_KINETICS,
+    K_BASE_KINETICS,
     K_CLEANED_COMPLEX_VOL,
     K_CONTROL_DIL3_VOL,
     K_EXTERNAL_ID,
@@ -28,7 +29,6 @@ from app.engine.import_fields import (
     K_PRIORITY,
     K_SANGER,
     K_TARGET_OPLC,
-    K_VOLUME,
     suggest_column_map,
 )
 from app.engine.types import ParsedSample
@@ -169,14 +169,16 @@ def normalize_with_map(data_rows: list[list[str]], column_map: dict[str, int]) -
                 parent=cell(r, K_PARENT_SAMPLE).strip(),
                 sanger=_parse_sanger(sanger_raw) if sanger_raw.strip() else [],
                 target_oplc=_parse_float_or_none(cell(r, K_TARGET_OPLC)),
-                volume=_parse_float_or_none(cell(r, K_VOLUME)),
+                actual_oplc=_parse_float_or_none(cell(r, K_ACTUAL_OPLC)),
                 cleaned_complex_volume=_parse_float_or_none(cell(r, K_CLEANED_COMPLEX_VOL)),
                 loading_buffer_volume=_parse_float_or_none(cell(r, K_LOADING_BUFFER_VOL)),
                 control_dilution_3_volume=_parse_float_or_none(cell(r, K_CONTROL_DIL3_VOL)),
                 adaptive_loading=boolean(K_ADAPTIVE_LOADING, "Adaptive Loading"),
                 full_resolution_base_q=boolean(K_FULL_RES_BASE_Q, "Full-Resolution Base Q"),
-                priority=cell(r, K_PRIORITY).strip(),
-                ccs_kinetics=boolean(K_CCS_KINETICS, "Include Base Kinetics"),
+                # Coerced to a canonical label (High/Medium/Standard); an unrecognized or
+                # blank value becomes "" here so the persist layer fills the configured default.
+                priority=normalize_priority(cell(r, K_PRIORITY)) or "",
+                base_kinetics=boolean(K_BASE_KINETICS, "Include Base Kinetics"),
                 movie_time=_parse_movie_time(cell(r, K_MOVIE_TIME)),
                 key=f"{sample_id}#{n}",
             )

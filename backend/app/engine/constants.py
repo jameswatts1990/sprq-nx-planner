@@ -34,6 +34,40 @@ DAY_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
 DAY_START_HOUR = 12  # default run start hour when a caller doesn't supply one explicitly
 
+# --- sample priority: the user-selectable canonical set ---------------------------------
+# Priority is stored as a "Label (N)" string where N is the scheduling rank (lower = higher
+# priority; see engine.packing.priority_rank). These three are the only values a user can
+# pick or import; rank 0 is reserved for the system-set return-to-backlog labels
+# (Aborted/Repeatable/Recoverable in engine.packing) and is never user-selectable.
+PRIORITY_HIGH = "High (1)"
+PRIORITY_MEDIUM = "Medium (2)"
+PRIORITY_STANDARD = "Standard (3)"
+# Ordered highest-urgency first — drives the form/admin dropdowns and the import template.
+CANONICAL_PRIORITIES: tuple[str, ...] = (PRIORITY_HIGH, PRIORITY_MEDIUM, PRIORITY_STANDARD)
+
+# Free-text spellings a lab sheet or a user might type, mapped to the canonical label. Keys
+# are compared lower-cased/trimmed. Anything not here reads as "unspecified" (-> the
+# configured default is applied when the sample is created).
+_PRIORITY_ALIASES: dict[str, str] = {
+    "high": PRIORITY_HIGH, "high (1)": PRIORITY_HIGH, "h": PRIORITY_HIGH, "1": PRIORITY_HIGH,
+    "urgent": PRIORITY_HIGH,
+    "medium": PRIORITY_MEDIUM, "med": PRIORITY_MEDIUM, "medium (2)": PRIORITY_MEDIUM,
+    "m": PRIORITY_MEDIUM, "2": PRIORITY_MEDIUM,
+    "standard": PRIORITY_STANDARD, "standard (3)": PRIORITY_STANDARD, "std": PRIORITY_STANDARD,
+    "normal": PRIORITY_STANDARD, "low": PRIORITY_STANDARD, "3": PRIORITY_STANDARD,
+}
+
+
+def normalize_priority(raw: object) -> str | None:
+    """Coerce a free-text priority to one of CANONICAL_PRIORITIES, or None when it's blank
+    or unrecognized (the caller then applies the configured default). Case-insensitive."""
+    if raw is None:
+        return None
+    s = str(raw).strip()
+    if not s:
+        return None
+    return _PRIORITY_ALIASES.get(s.lower())
+
 
 def within_tray_pos(well: str) -> int:
     """The A/B/C/D position (0-3) of a well within its 4-well tray box - a cell keeps this

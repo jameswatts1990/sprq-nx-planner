@@ -6,7 +6,7 @@ from app.services.import_service import template_csv
 
 DEFAULT_HEADER = [
     "Container", "Parent Sample", "Sanger Sample IDs", "Parent Sample ID",
-    "Barcodes", "Volume to Load", "Target OPLC",
+    "Barcodes", "Actual OPLC", "Target OPLC",
 ]
 
 
@@ -16,7 +16,7 @@ def test_suggest_map_default_lims_header():
     assert m["barcodes"] == 4
     assert m["sanger"] == 2
     assert m["parent_sample"] == 1
-    assert m["volume"] == 5
+    assert m["actual_oplc"] == 5
     assert m["target_oplc"] == 6
 
 
@@ -57,7 +57,7 @@ def test_template_round_trips_through_the_mapper():
     assert s.id == "TRAC-2-26256"
     assert s.barcodes == ["bc2074", "bc2075"]
     assert s.sanger == ["DTOL16944651"]
-    assert s.priority == "High"
+    assert s.priority == "High (1)"  # template example "High (1)" round-trips as the canonical label
 
 
 def test_tracker_layout_and_importable_fields_stay_independent():

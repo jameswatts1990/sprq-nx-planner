@@ -12,10 +12,10 @@ export type SampleSortBy =
   | "parent_sample"
   | "sanger_ids"
   | "target_oplc"
-  | "volume"
+  | "actual_oplc"
   | "adaptive_loading"
   | "full_resolution_base_q"
-  | "ccs_kinetics";
+  | "base_kinetics";
 export type SampleSortDir = "asc" | "desc";
 
 export interface ListSamplesParams {
