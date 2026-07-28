@@ -79,6 +79,13 @@
   background: var(--magenta-tint, rgba(210, 20, 130, 0.08));
   outline: 1px solid var(--magenta);
 }
+/* First row of a second (or later) run when several share one gantt: a hairline divider so
+   overlapping runs read as distinct blocks. */
+.groupStart {
+  margin-top: 5px;
+  padding-top: 6px;
+  border-top: 1px dashed var(--line);
+}
 .rowLabel {
   display: flex;
   align-items: center;

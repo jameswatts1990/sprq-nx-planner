@@ -1,9 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 
 import { ApiError } from "@/api/client";
+import { cyclesApi } from "@/api/cycles";
 import { instrumentsApi } from "@/api/instruments";
+import { RunStageGantt } from "@/components/scheduler/RunStageGantt";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
@@ -13,6 +15,7 @@ import { Note } from "@/components/ui/Note";
 import { StatTile, StatTiles } from "@/components/shared/StatTile";
 import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
 import type { InstrumentOut, InstrumentStatsOut } from "@/types/instrument";
+import type { RunOut } from "@/types/schedule";
 import { formatShortDateTimeUTC, formatShortDateUTC, parseDateOnly } from "@/utils/calendarDates";
 import { INSTRUMENT_STATUS_LABEL, INSTRUMENT_STATUS_TONE, instrumentStatus } from "@/utils/instrumentStatus";
 
@@ -41,6 +44,35 @@ export function InstrumentsPage() {
     queryKey: ["instrument-stats"],
     queryFn: () => instrumentsApi.stats(),
   });
+
+  // Active-run gantts on each card. A run in progress loaded at most ~a couple of days ago
+  // (load → next-day reuse plate → up to a 30h movie + PPA tail), so a short load-date window
+  // around now is enough to fetch the candidates; is_locked then narrows to the runs whose
+  // window actually contains "now". One query for every card, grouped by serial below.
+  const runsWindow = useMemo(() => {
+    const from = new Date();
+    from.setUTCDate(from.getUTCDate() - 4);
+    const to = new Date();
+    to.setUTCDate(to.getUTCDate() + 1);
+    return { from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) };
+  }, []);
+  const activeRunsQuery = useQuery({
+    // Keyed under ["cycles", …] so invalidateScheduleRelated refreshes it; a slow refetch keeps
+    // the set honest as runs start/finish (the gantt's own live line ticks independently).
+    queryKey: ["cycles", "active", runsWindow.from, runsWindow.to],
+    queryFn: () => cyclesApi.list({ date_from: runsWindow.from, date_to: runsWindow.to }),
+    refetchInterval: 60_000,
+  });
+  const activeRunsBySerial = useMemo(() => {
+    const map = new Map<string, RunOut[]>();
+    for (const run of activeRunsQuery.data ?? []) {
+      if (!run.is_locked) continue; // in-progress only (excludes planned/aborted/completed)
+      const list = map.get(run.instrument_serial) ?? [];
+      list.push(run);
+      map.set(run.instrument_serial, list);
+    }
+    return map;
+  }, [activeRunsQuery.data]);
 
   const [addOpen, setAddOpen] = useState(false);
   const [editing, setEditing] = useState<InstrumentOut | null>(null);
@@ -90,6 +122,7 @@ export function InstrumentsPage() {
               key={instrument.id}
               instrument={instrument}
               stats={statsById.get(instrument.id)}
+              activeRuns={activeRunsBySerial.get(instrument.serial_number) ?? []}
               onEdit={() => setEditing(instrument)}
               onDown={() => setDowning(instrument)}
               onConfirm={(kind) => setConfirming({ instrument, kind })}
@@ -154,12 +187,14 @@ function statusBadge(instrument: InstrumentOut): ReactNode {
 interface InstrumentCardProps {
   instrument: InstrumentOut;
   stats: InstrumentStatsOut | undefined;
+  /** Runs in progress on this instrument right now — rendered as one shared live gantt. */
+  activeRuns: RunOut[];
   onEdit: () => void;
   onDown: () => void;
   onConfirm: (kind: ConfirmKind) => void;
 }
 
-function InstrumentCard({ instrument, stats, onEdit, onDown, onConfirm }: InstrumentCardProps) {
+function InstrumentCard({ instrument, stats, activeRuns, onEdit, onDown, onConfirm }: InstrumentCardProps) {
   const hasHistory = !!stats && (stats.total_runs > 0 || stats.cell_total_count > 0);
 
   return (
@@ -211,6 +246,15 @@ function InstrumentCard({ instrument, stats, onEdit, onDown, onConfirm }: Instru
           />
           <StatTile label="Next run" value={stats?.next_run_date ? shortDate(stats.next_run_date) : "—"} />
         </StatTiles>
+
+        {activeRuns.length > 0 && (
+          <div className={styles.gantt}>
+            <div className={styles.ganttHeading}>
+              {activeRuns.length > 1 ? `${activeRuns.length} runs in progress` : "Run in progress"}
+            </div>
+            <RunStageGantt runs={activeRuns} />
+          </div>
+        )}
 
         <div className={styles.actions}>
           <Button size="sm" variant="ghost" onClick={onEdit}>

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 
 import type { RunOut } from "@/types/schedule";
 import { cellPositionLabel } from "@/utils/plateWell";
-import { computeRunTimeline, PPA_H, PREP_H, type StageTiming } from "@/utils/stageTimings";
+import { computeTimeline, PPA_H, PREP_H, type StageTiming } from "@/utils/stageTimings";
 import { classForUseIndex } from "@/utils/useIndexClass";
 
 import styles from "./RunStageGantt.module.css";
@@ -52,14 +52,25 @@ function buildAxisTicks(loadMs: number, spanH: number): AxisTick[] {
   return ticks;
 }
 
-function GanttRow({ t, spanH, current }: { t: StageTiming; spanH: number; current: boolean }) {
+function GanttRow({
+  t,
+  spanH,
+  current,
+  newGroup,
+}: {
+  t: StageTiming;
+  spanH: number;
+  current: boolean;
+  /** First row of a new run in a multi-run gantt — gets a divider above it. */
+  newGroup: boolean;
+}) {
   const s = t.stage;
   // The physical cell's position label ("▣2"), same as the grid card's ticket stub.
   const cell = cellPositionLabel(s.tray_position, s.cell_home_well ?? s.well);
   const useClass = classForUseIndex(s.use_number);
   const pct = (h: number) => `${(h / spanH) * 100}%`;
   return (
-    <div className={`${styles.row} ${current ? styles.current : ""}`}>
+    <div className={`${styles.row} ${current ? styles.current : ""} ${newGroup ? styles.groupStart : ""}`}>
       <div className={styles.rowLabel} title={`Cell ${s.cell_ref} · Use ${s.use_number}`}>
         <span className={`${styles.stub} ${styles[useClass]}`}>{cell}</span>
         <span className={styles.sample}>{s.sample_external_id ?? "—"}</span>
@@ -88,22 +99,27 @@ function GanttRow({ t, spanH, current }: { t: StageTiming; spanH: number; curren
 }
 
 export interface RunStageGanttProps {
-  run: RunOut;
-  /** The placement whose row is highlighted (the popover's own slot). */
-  currentCellUseId: number;
+  /** One or more runs to lay out on a single shared timeline. Multiple runs (e.g. two runs
+   * loaded on one instrument that overlap in time — up to 8 cells) share one axis and are
+   * grouped by run, earliest first. */
+  runs: RunOut[];
+  /** The placement whose row is highlighted (the slot-detail popover's own slot); omit when
+   * no single row is "current" (the instrument card shows every active run equally). */
+  currentCellUseId?: number;
 }
 
 /**
- * A compact, estimated gantt of a run's wells: one row per loaded well, each showing three
- * stages on a shared axis — a slate prep lead-in, the Use-coloured movie, then a darker slate
- * PPA / post-primary-analysis tail — over a clock-time axis, with the current placement's row
- * highlighted. When "now" falls inside the run, a live green line (a spinning glyph on top)
- * sweeps across all the bars to show where the run is up to. Timings are the PacBio
- * approximate-timing estimates (see utils/stageTimings) - illustrative, not the instrument's
- * exact schedule. Read-only; used in the slot-detail popover.
+ * A compact, estimated gantt of loaded wells across one or more runs: one row per well, each
+ * showing three stages on a shared axis — a slate prep lead-in, the Use-coloured movie, then a
+ * darker slate PPA / post-primary-analysis tail — over a clock-time axis. Multiple runs share
+ * the axis and are separated by a divider so overlapping runs read clearly. When "now" falls
+ * inside the span, a live green line (a spinning glyph on top) sweeps across all the bars to
+ * show where sequencing is up to. Timings are the PacBio approximate-timing estimates (see
+ * utils/stageTimings) - illustrative, not the instrument's exact schedule. Read-only; used in
+ * the slot-detail popover (a single run) and on the Instruments cards (all active runs).
  */
-export function RunStageGantt({ run, currentCellUseId }: RunStageGanttProps) {
-  const { loadMs, spanH, timings } = computeRunTimeline(run);
+export function RunStageGantt({ runs, currentCellUseId }: RunStageGanttProps) {
+  const { loadMs, spanH, timings } = computeTimeline(runs);
 
   // Live "now" marker. A slow tick keeps the line's position current to the minute; the spinning
   // glyph (not this interval) is what signals "live". Hooks run unconditionally, so this sits
@@ -143,8 +159,14 @@ export function RunStageGantt({ run, currentCellUseId }: RunStageGanttProps) {
         </span>
       </div>
       <div className={styles.rows}>
-        {timings.map((t) => (
-          <GanttRow key={t.stage.cell_use_id} t={t} spanH={spanH} current={t.stage.cell_use_id === currentCellUseId} />
+        {timings.map((t, i) => (
+          <GanttRow
+            key={t.stage.cell_use_id}
+            t={t}
+            spanH={spanH}
+            current={t.stage.cell_use_id === currentCellUseId}
+            newGroup={i > 0 && t.runId !== timings[i - 1].runId}
+          />
         ))}
         {live && (
           <div className={styles.liveOverlay} aria-hidden>

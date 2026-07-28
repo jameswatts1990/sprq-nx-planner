@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { PlateOut, RunOut, StageOut } from "@/types/schedule";
 
-import { computeRunTimeline, PPA_H, PREP_H, WELL_STAGGER_H } from "./stageTimings";
+import { computeRunTimeline, computeTimeline, PPA_H, PREP_H, WELL_STAGGER_H } from "./stageTimings";
 
 function stage(slotIndex: number, runTimeHours: 12 | 24 | 30, cellUseId: number): StageOut {
   return {
@@ -91,5 +91,30 @@ describe("computeRunTimeline", () => {
     expect(s.movieStartH).toBe(24 + PREP_H);
     expect(s.movieEndH).toBe(24 + PREP_H + 12);
     expect(s.ppaEndH).toBe(24 + PREP_H + 12 + PPA_H);
+  });
+});
+
+describe("computeTimeline (multiple runs)", () => {
+  it("lays overlapping runs on one shared axis, grouped earliest-run-first", () => {
+    // Two runs on one instrument: run B loads 6h after run A, so they overlap (A still
+    // sequencing when B starts). Together they'd be up to 8 cells on one gantt.
+    const runA: RunOut = { ...run([plate(1, "2026-08-03T12:00:00+00:00", [stage(0, 24, 10)])]), run_id: 1 };
+    const runB: RunOut = { ...run([plate(1, "2026-08-03T18:00:00+00:00", [stage(0, 24, 20)])]), run_id: 2 };
+
+    // Pass out of order to prove ordering is by load time, not input order.
+    const { loadMs, spanH, timings } = computeTimeline([runB, runA]);
+
+    // Shared time zero is the earliest load across both runs (run A at 12:00).
+    expect(loadMs).toBe(Date.parse("2026-08-03T12:00:00+00:00"));
+    // Rows grouped by run, earliest-loading run first.
+    expect(timings.map((t) => t.runId)).toEqual([1, 2]);
+
+    const a = timings.find((t) => t.stage.cell_use_id === 10)!;
+    const b = timings.find((t) => t.stage.cell_use_id === 20)!;
+    expect(a.prepStartH).toBe(0);
+    expect(b.prepStartH).toBe(6); // run B's 6h-later load shifts its whole block right
+    expect(b.movieEndH).toBe(6 + PREP_H + 24);
+    // The span runs to the latest PPA tail across both runs (run B's).
+    expect(spanH).toBe(6 + PREP_H + 24 + PPA_H);
   });
 });

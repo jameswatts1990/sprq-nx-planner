@@ -25,7 +25,9 @@ const HOUR_MS = 3_600_000;
 
 export interface StageTiming {
   stage: StageOut;
-  /** Hours from the run's load time (T); well 1 of plate 1 preps at 0. */
+  /** The run this well belongs to - lets a multi-run gantt group/divide its rows by run. */
+  runId: number;
+  /** Hours from the timeline's load time (T = the earliest load across the runs shown). */
   prepStartH: number;
   movieStartH: number;
   movieEndH: number;
@@ -40,52 +42,67 @@ export interface StageTiming {
 }
 
 export interface RunTimeline {
-  /** T: the run's load time (plate 1's planned start) as epoch ms. */
+  /** T: the timeline's load time as epoch ms — the earliest plate start across the runs shown. */
   loadMs: number;
-  /** Total span in hours from T to the last movie end — the gantt's axis length. */
+  /** Total span in hours from T to the last PPA end — the gantt's axis length. */
   spanH: number;
   timings: StageTiming[];
 }
 
 /**
- * Build the estimated timeline for every loaded well of a run. Time zero is the run's load
- * time (plate 1's `planned_start_at`); a later plate (a reuse Plate 2 on another day, or a
- * second tray) keeps its own real start offset so the gantt spans the whole run. Stages are
- * returned sorted by grid slot so the rows read Plate 1 (A–D) then Plate 2 (A–D).
+ * Build one estimated timeline across any number of runs on a single shared axis. Time zero is
+ * the earliest plate start across all the runs shown, and every plate keeps its own real start
+ * offset (a reuse Plate 2 on another day, a second tray, or a whole second run loaded while the
+ * first is still sequencing) so overlapping runs line up on the same clock. Rows are grouped by
+ * run (earliest-loading run first), and within a run by grid slot so each run reads Plate 1
+ * (A–D) then Plate 2 (A–D). Passing a single run degenerates to that run's own timeline.
  */
-export function computeRunTimeline(run: RunOut): RunTimeline {
-  const plate1 = run.plates.find((p) => p.plate_index === 1);
-  const allStarts = run.plates.map((p) => Date.parse(p.planned_start_at));
-  const loadMs = plate1 ? Date.parse(plate1.planned_start_at) : allStarts.length ? Math.min(...allStarts) : 0;
+export function computeTimeline(runs: RunOut[]): RunTimeline {
+  const allStarts = runs.flatMap((r) => r.plates.map((p) => Date.parse(p.planned_start_at)));
+  const loadMs = allStarts.length ? Math.min(...allStarts) : 0;
+
+  const earliestStart = (r: RunOut) =>
+    r.plates.length ? Math.min(...r.plates.map((p) => Date.parse(p.planned_start_at))) : Number.MAX_SAFE_INTEGER;
+  const orderedRuns = [...runs].sort((a, b) => earliestStart(a) - earliestStart(b) || a.run_id - b.run_id);
 
   const timings: StageTiming[] = [];
-  for (const plate of run.plates) {
-    const plateOffsetH = (Date.parse(plate.planned_start_at) - loadMs) / HOUR_MS;
-    for (const stage of plate.stages) {
-      const withinPos = stage.slot_index % 4; // A/B/C/D position inside the plate's tray
-      const prepStartH = plateOffsetH + withinPos * WELL_STAGGER_H;
-      const movieStartH = prepStartH + PREP_H;
-      const movieEndH = movieStartH + stage.run_time_hours;
-      const ppaStartH = movieEndH;
-      const ppaEndH = ppaStartH + PPA_H;
-      timings.push({
-        stage,
-        prepStartH,
-        movieStartH,
-        movieEndH,
-        ppaStartH,
-        ppaEndH,
-        prepStartMs: loadMs + prepStartH * HOUR_MS,
-        movieStartMs: loadMs + movieStartH * HOUR_MS,
-        movieEndMs: loadMs + movieEndH * HOUR_MS,
-        ppaStartMs: loadMs + ppaStartH * HOUR_MS,
-        ppaEndMs: loadMs + ppaEndH * HOUR_MS,
-      });
+  for (const run of orderedRuns) {
+    const runTimings: StageTiming[] = [];
+    for (const plate of run.plates) {
+      const plateOffsetH = (Date.parse(plate.planned_start_at) - loadMs) / HOUR_MS;
+      for (const stage of plate.stages) {
+        const withinPos = stage.slot_index % 4; // A/B/C/D position inside the plate's tray
+        const prepStartH = plateOffsetH + withinPos * WELL_STAGGER_H;
+        const movieStartH = prepStartH + PREP_H;
+        const movieEndH = movieStartH + stage.run_time_hours;
+        const ppaStartH = movieEndH;
+        const ppaEndH = ppaStartH + PPA_H;
+        runTimings.push({
+          stage,
+          runId: run.run_id,
+          prepStartH,
+          movieStartH,
+          movieEndH,
+          ppaStartH,
+          ppaEndH,
+          prepStartMs: loadMs + prepStartH * HOUR_MS,
+          movieStartMs: loadMs + movieStartH * HOUR_MS,
+          movieEndMs: loadMs + movieEndH * HOUR_MS,
+          ppaStartMs: loadMs + ppaStartH * HOUR_MS,
+          ppaEndMs: loadMs + ppaEndH * HOUR_MS,
+        });
+      }
     }
+    runTimings.sort(
+      (a, b) => a.stage.slot_index - b.stage.slot_index || a.stage.cell_use_id - b.stage.cell_use_id,
+    );
+    timings.push(...runTimings);
   }
-  timings.sort(
-    (a, b) => a.stage.slot_index - b.stage.slot_index || a.stage.cell_use_id - b.stage.cell_use_id,
-  );
   const spanH = timings.reduce((m, t) => Math.max(m, t.ppaEndH), 0);
   return { loadMs, spanH, timings };
+}
+
+/** Single-run convenience wrapper around {@link computeTimeline} (the slot-detail popover). */
+export function computeRunTimeline(run: RunOut): RunTimeline {
+  return computeTimeline([run]);
 }

@@ -66,6 +66,19 @@
   text-decoration: underline;
 }
 
+/* Live gantt of the runs currently in progress on this instrument (shares RunStageGantt with
+   the slot-detail popover). The gantt brings its own panel border, so this just spaces it. */
+.gantt {
+  margin-top: 14px;
+}
+.ganttHeading {
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--grey);
+}
+
 .actions {
   display: flex;
   gap: 8px;

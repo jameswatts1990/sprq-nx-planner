@@ -244,7 +244,7 @@ export function SlotDetailPopover({ stage, run, onClose, onOpenQc }: SlotDetailP
       )}
 
       {/* Estimated stage-times gantt for the whole run, this placement's row highlighted. */}
-      <RunStageGantt run={run} currentCellUseId={stage.cell_use_id} />
+      <RunStageGantt runs={[run]} currentCellUseId={stage.cell_use_id} />
 
       {showWindowMeter && <WindowMeter windowHours={cell!.window_hours_elapsed as number} />}
 
