@@ -265,12 +265,6 @@ export const SchedulerSlotView = memo(
               </span>
             </button>
           )}
-          {(linkSource || linked) && (
-            <span
-              className={linkSource ? styles.linkBadgeSource : styles.linkBadgePeer}
-              aria-hidden="true"
-            />
-          )}
         </>
       ) : blocked ? (
         <span

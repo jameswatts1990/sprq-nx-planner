@@ -8,6 +8,7 @@ import { CELL_QC_FLAG_LABEL, CELL_QC_FLAG_TONE } from "@/utils/cellQcFlag";
 import { CELL_STATUS_LABEL, CELL_STATUS_TONE } from "@/utils/cellStatus";
 import { runLabel } from "@/utils/runLabel";
 import { useSampleBackNav } from "@/utils/sampleBackNav";
+import { classForUseIndex } from "@/utils/useIndexClass";
 import { USE_STATUS_TONE } from "@/utils/useStatusTone";
 
 import styles from "./CellStatusCard.module.css";
@@ -40,8 +41,21 @@ export const CellStatusCard = memo(function CellStatusCard({ cell }: CellStatusC
           {cell.code}
         </Link>
         <Badge tone={CELL_STATUS_TONE[cell.status]}>{CELL_STATUS_LABEL[cell.status]}</Badge>
-        <span className={styles.uses}>
-          {cell.uses_consumed} / {cell.max_uses} uses
+        <span
+          className={styles.uses}
+          role="img"
+          aria-label={`${cell.uses_consumed} of ${cell.max_uses} uses spent`}
+          title={`${cell.uses_consumed} of ${cell.max_uses} uses spent`}
+        >
+          {Array.from({ length: cell.max_uses }, (_, i) => {
+            const filled = i < cell.uses_consumed;
+            return (
+              <span
+                key={i}
+                className={`${styles.pip} ${filled ? styles[classForUseIndex(i + 1)] : styles.pipEmpty}`}
+              />
+            );
+          })}
         </span>
       </div>
       <div className={styles.body}>
@@ -77,8 +91,9 @@ export const CellStatusCard = memo(function CellStatusCard({ cell }: CellStatusC
         {cell.uses.length > 0 && (
           <div className={styles.uses2}>
             <span className={styles.usesLabel}>Samples &amp; runs</span>
-            {cell.uses.map((u) => (
+            {cell.uses.map((u, i) => (
               <div key={u.id} className={styles.useRow}>
+                <span className={`${styles.useIdx} ${styles[classForUseIndex(i + 1)]}`}>U{i + 1}</span>
                 <Badge tone={USE_STATUS_TONE[u.status] ?? "default"}>{u.status}</Badge>
                 {u.sample_id !== null && u.sample_external_id !== null ? (
                   <Link to={`/samples/${u.sample_id}`} state={backNav} className={styles.useSample}>

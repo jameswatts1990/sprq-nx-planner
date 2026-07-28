@@ -711,14 +711,14 @@ export function ScheduleSection() {
           <span>
             <b>Cell-link highlight:</b> resting the pointer on a loaded slot for about a second and a half
             highlights every other slot elsewhere in the schedule holding the <i>same physical cell</i> — a solid
-            ring with a filled dot on the slot you&apos;re hovering or have pinned.
+            ring around the slot you&apos;re hovering or have pinned.
           </span>
         </div>
         <div className={styles.legendRow}>
           <div className={styles.ghostExampleSwatch}>
             <SchedulerSlotView stage={STAGE_EXAMPLE_PEER} slotIndex={4} linked />
           </div>
-          <span>Another use of that same physical cell, wherever it lands on the calendar — a dashed ring, hollow dot.</span>
+          <span>Another use of that same physical cell, wherever it lands on the calendar — a dashed ring.</span>
         </div>
         <div className={styles.legendRow}>
           <div className={styles.ghostExampleSwatch}>

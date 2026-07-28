@@ -76,10 +76,12 @@ export function CellsSection() {
       <p>
         <b>Each cell card shows:</b> the cell code (e.g. <b>C02-T123</b> — cells are <i>numbered</i> 1–4 by their fixed
         position in the physical tray, and <b>T123</b> is that tray&apos;s id, so a tray&apos;s four cells read{" "}
-        <b>C01-T123</b> … <b>C04-T123</b>; click it to open the cell&apos;s full detail), a status badge, uses spent,
+        <b>C01-T123</b> … <b>C04-T123</b>; click it to open the cell&apos;s full detail), a status badge, uses spent
+        (shown as coloured pips — one per possible use, filled left-to-right in the Use&nbsp;1/2/3 colours),
         which instrument and well it&apos;s currently in, its <b>tray</b>, its burned barcodes, a <b>QC badge</b>
         (Unreported / Awaiting credit) when the cell has an open PacBio-credit case, and a 108-hour window meter. A{" "}
-        <b>Samples &amp; runs</b> list at the foot of each card shows every sample the cell has carried — its
+        <b>Samples &amp; runs</b> list at the foot of each card shows every sample the cell has carried, each tagged{" "}
+        <b>U1</b>/<b>U2</b>/<b>U3</b> for which use it was — its
         use status (so you can tell an already-run use from one still <i>scheduled</i>), its <b>container ID</b>, and
         the <b>run</b> it ran on.
       </p>

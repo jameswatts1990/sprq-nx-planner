@@ -338,11 +338,6 @@
     background-position: -250.2px -276.8px;
   }
 }
-/* The cross-time cell-link dot sits top-right; nudge it clear of the stub when one is shown. */
-.hasStub .linkBadgeSource,
-.hasStub .linkBadgePeer {
-  right: 30px;
-}
 /* Waiting/reusable-cell ghost: a tinted placeholder in the same slot a real placement
    would occupy, colour-coded by the use number it's waiting to become. --ghost-opacity is
    set inline per-day by waitingCells.ts's fade calculation (1 = just eligible/full colour,
@@ -587,23 +582,6 @@
   opacity: var(--highlight-dim-opacity);
   filter: grayscale(0.35);
 }
-.linkBadgeSource,
-.linkBadgePeer {
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  border: 1.5px solid var(--highlight);
-}
-.linkBadgeSource {
-  background: var(--highlight);
-}
-.linkBadgePeer {
-  background: transparent;
-}
-
 /* QC alert: a QC problem on this use or its cell, surfaced directly on the grid so it's
    visible without opening the slot - independent of (and layered on top of) the Use
    1/2/3 tint, which is left alone so it still reads as which physical cell this is.

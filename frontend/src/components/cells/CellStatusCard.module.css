@@ -9,11 +9,12 @@
   /* Explicit property list rather than the `all` shorthand: only the two properties the
      hover state actually changes are transitioned, so a grid of ~100 of these cards isn't
      asking the compositor to watch every animatable property on each one. */
-  transition: border-color 0.14s ease, box-shadow 0.14s ease;
+  transition: border-color 0.14s ease, box-shadow 0.14s ease, transform 0.14s ease;
 }
 .card:hover {
   border-color: var(--line-hover);
   box-shadow: var(--shadow);
+  transform: translateY(-1px);
 }
 .head {
   padding: 11px 14px;
@@ -33,11 +34,33 @@
 .cid:hover {
   color: var(--magenta);
 }
+/* Uses count as a mini pip meter: one pip per possible use, filled left-to-right in the
+   app-wide u1/u2/u3 (magenta/blue/teal) use-index palette; remaining uses are hollow.
+   The accessible "n of m uses spent" text lives on the wrapping span's aria-label/title. */
 .uses {
   margin-left: auto;
-  font-size: 11.5px;
-  font-weight: 700;
-  color: var(--grey);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.pip {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  box-sizing: border-box;
+}
+.pipEmpty {
+  border: 1.5px solid var(--line-hover);
+  background: transparent;
+}
+.pip.u1 {
+  background: var(--magenta);
+}
+.pip.u2 {
+  background: var(--blue);
+}
+.pip.u3 {
+  background: var(--teal);
 }
 .body {
   padding: 10px 12px;
@@ -91,6 +114,30 @@
   gap: 6px;
   font-size: var(--fs-sm);
   flex-wrap: wrap;
+}
+/* Leading U1/U2/U3 chip tying each reuse to the app-wide use-index palette
+   (same tint/deep pairs as BarcodeChips). */
+.useIdx {
+  font-family: var(--mono);
+  font-size: var(--fs-2xs);
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--magenta-tint);
+  color: var(--magenta-deep);
+}
+.useIdx.u1 {
+  background: var(--magenta-tint);
+  color: var(--magenta-deep);
+}
+.useIdx.u2 {
+  background: var(--blue-tint);
+  color: var(--blue-deep);
+}
+.useIdx.u3 {
+  background: var(--teal-tint);
+  color: var(--teal-deep);
 }
 .useSample {
   font-family: var(--mono);
