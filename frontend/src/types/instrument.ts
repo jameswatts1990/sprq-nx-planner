@@ -38,4 +38,12 @@ export interface InstrumentStatsOut {
   last_run_date: string | null; // ISO date
   total_runs: number;
   next_run_date: string | null; // ISO date
+  // Live per-cell state right now (see backend cell_timing.instrument_activity). Capacity facts:
+  // cells_sequencing <= 4, cells_in_ppa <= 2; prep_locked = a fresh load can't start yet because
+  // cells are still breaking out (awaiting prep / prepping).
+  cells_awaiting_prep: number;
+  cells_prepping: number;
+  cells_sequencing: number;
+  cells_in_ppa: number;
+  prep_locked: boolean;
 }

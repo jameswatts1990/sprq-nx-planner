@@ -66,6 +66,53 @@
   text-decoration: underline;
 }
 
+/* Live "what's it doing now" line: a pulsing green dot + the per-cell phase counts, with an
+   amber prep-locked chip when a fresh tray can't yet be loaded. */
+.liveState {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  font-size: var(--fs-md);
+  font-weight: 700;
+  color: var(--ink);
+}
+.liveDot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--green);
+  flex: none;
+  box-shadow: 0 0 0 0 rgba(47, 168, 79, 0.5);
+  animation: instrLivePulse 1.8s ease-out infinite;
+}
+@keyframes instrLivePulse {
+  70% {
+    box-shadow: 0 0 0 6px rgba(47, 168, 79, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(47, 168, 79, 0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .liveDot {
+    animation: none;
+  }
+}
+.liveText {
+  color: var(--grey);
+}
+.liveLock {
+  font-size: var(--fs-xs);
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--amber);
+  background: var(--amber-tint);
+  border-radius: 999px;
+  padding: 1px 7px;
+}
+
 /* Live gantt of the runs currently in progress on this instrument (shares RunStageGantt with
    the slot-detail popover). The gantt brings its own panel border, so this just spaces it. */
 .gantt {

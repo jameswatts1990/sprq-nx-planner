@@ -1,0 +1,110 @@
+.wrap {
+  margin-top: 11px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 8px 11px 6px;
+  background: var(--card);
+}
+.cap {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 15px; /* headroom for the marker dots that sit above the track */
+}
+.title {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--grey);
+}
+.sub {
+  font-size: 9px;
+  color: var(--faint);
+}
+.track {
+  position: relative;
+  height: 12px;
+  background: var(--line-soft);
+  border-radius: 4px;
+}
+/* A use's breakout instant: a thin coloured tick through the track, with a boxed use number
+   floating above it. Colour follows the Use 1/2/3 palette via --mk. */
+.marker {
+  position: absolute;
+  top: -1px;
+  bottom: -1px;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--mk, var(--grey));
+}
+.marker.u1 {
+  --mk: var(--magenta);
+}
+.marker.u2 {
+  --mk: var(--blue);
+}
+.marker.u3 {
+  --mk: var(--teal);
+}
+.dot {
+  position: absolute;
+  top: -15px;
+  left: 50%;
+  transform: translateX(-50%);
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  border-radius: 4px;
+  background: var(--mk);
+  color: #fff;
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 0 2px var(--card);
+}
+.deadline {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 0;
+  border-left: 2px dashed var(--red);
+}
+.dcap {
+  position: absolute;
+  top: -14px;
+  transform: translateX(-50%);
+  font-family: var(--mono);
+  font-size: 8.5px;
+  font-weight: 800;
+  color: var(--red);
+  white-space: nowrap;
+}
+.now {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--green);
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.75);
+}
+.axis {
+  position: relative;
+  height: 12px;
+  margin-top: 5px;
+}
+.tick {
+  position: absolute;
+  transform: translateX(-50%);
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--faint);
+  white-space: nowrap;
+}

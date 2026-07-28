@@ -58,9 +58,11 @@ export function InstrumentsSection() {
         <b>stage-times gantt</b> — the same chart as the Schedule&apos;s slot popover. Each loaded well is a row with
         its three stages (a slate <b>prep</b> lead-in, the Use-coloured <b>movie</b>, then a darker slate <b>PPA</b>{" "}
         tail) laid out over a shared clock-time axis, and a green <b>live line</b> (with a spinning marker) sweeps down
-        through every bar to show where sequencing has got to. If <b>two runs overlap</b> on the instrument they share
-        the one chart — up to eight cells — separated by a divider so each run reads clearly. The timings are
-        approximate PacBio estimates, not the instrument&apos;s exact schedule.
+        through every bar to show where sequencing has got to. Since the instrument can only run <b>two cells&apos; PPA
+        at once</b>, later cells show a short hatched <b>&quot;waiting for PPA&quot;</b> gap before their PPA begins. If{" "}
+        <b>two runs overlap</b> on the instrument they share the one chart — up to eight cells — separated by a divider
+        so each run reads clearly. The timings are approximate PacBio estimates, not the instrument&apos;s exact
+        schedule.
       </p>
 
       <p className={styles.subheading}>Status badge</p>

@@ -1,5 +1,4 @@
 import { CellStatusCard } from "@/components/cells/CellStatusCard";
-import { WindowMeter } from "@/components/cells/WindowMeter";
 
 import styles from "../HelpPage.module.css";
 import { EXAMPLE_CELL_UNREPORTED } from "./helpFixtures";
@@ -41,7 +40,10 @@ export function CellsSection() {
         <b>▲/▼</b> button next to it flips the direction. <b>Group</b> arranges them into labelled sections — by{" "}
         <b>Tray</b> (the default, so a physical tray&apos;s four cells sit together in position order, its header
         linking to that tray&apos;s filtered view and flagging its soonest window expiry), by <b>Instrument</b>, by <b>Status</b>, or{" "}
-        <b>No grouping</b> for one flat grid.
+        <b>No grouping</b> for one flat grid. When grouped by tray, each tray&apos;s four cells are framed together as
+        the <b>physical tray</b> they&apos;re loaded on, with any unloaded position shown as an empty well. An{" "}
+        <b>Expand all</b> toggle opens every card&apos;s details at once; otherwise a card reveals its details when you
+        hover or keyboard-focus it.
       </p>
 
       <p className={styles.subheading}>Trays</p>
@@ -74,16 +76,22 @@ export function CellsSection() {
 
       <p className={styles.subheading}>Cell cards &amp; the 108-hour window</p>
       <p>
-        <b>Each cell card shows:</b> the cell code (e.g. <b>C02-T123</b> — cells are <i>numbered</i> 1–4 by their fixed
-        position in the physical tray, and <b>T123</b> is that tray&apos;s id, so a tray&apos;s four cells read{" "}
-        <b>C01-T123</b> … <b>C04-T123</b>; click it to open the cell&apos;s full detail), a status badge, uses spent
-        (shown as coloured pips — one per possible use, filled left-to-right in the Use&nbsp;1/2/3 colours),
-        which instrument and well it&apos;s currently in, its <b>tray</b>, its burned barcodes, a <b>QC badge</b>
-        (Unreported / Awaiting credit) when the cell has an open PacBio-credit case, and a 108-hour window meter. A{" "}
-        <b>Samples &amp; runs</b> list at the foot of each card shows every sample the cell has carried, each tagged{" "}
-        <b>U1</b>/<b>U2</b>/<b>U3</b> for which use it was — its
-        use status (so you can tell an already-run use from one still <i>scheduled</i>), its <b>container ID</b>, and
-        the <b>run</b> it ran on.
+        <b>At a glance, each cell card shows three things:</b> a <b>108-hour window ring</b> on the left whose centre
+        reads the <b>hours left</b> before the cell&apos;s reuse window closes — the ring fills as time passes and shifts
+        green → amber (under ~a day left) → red (over); the <b>cell code</b> and <b>status badge</b> with an{" "}
+        <b>n / 3 uses</b> count in the middle (e.g. <b>C02-T123</b> — cells are <i>numbered</i> 1–4 by their fixed tray
+        position, and <b>T123</b> is that tray&apos;s id; click the code for the cell&apos;s full detail); and a
+        colour-coded <b>foil stub</b> on the right edge naming the physical cell (<b>▣1</b>–<b>▣4</b>) and its current
+        use number, tinted magenta / blue / teal for use 1 / 2 / 3. Terminally done cells (exhausted, retired, stopped)
+        show a neutral ring with no countdown.
+      </p>
+      <p>
+        <b>Hover a card</b> (or flip <b>Expand all</b>) to open its details: which instrument and well it&apos;s in, its{" "}
+        <b>tray</b>, its burned barcodes, a <b>QC badge</b> (Unreported / Awaiting credit) when the cell has an open
+        PacBio-credit case, a <b>Cell life</b> timeline plotting when each use broke out across the 108-hour window, and
+        a <b>Samples &amp; runs</b> list <i>grouped by run</i> — each run name heads its own line with the sample(s) it
+        carried beneath, each tagged <b>[1]</b>/<b>[2]</b>/<b>[3]</b> for which use it was, its use status (so you can
+        tell an already-run use from one still <i>scheduled</i>), and its <b>container ID</b>.
       </p>
       <p>
         <b>Everything on the card links through:</b> the cell code to its detail page, the instrument to that
@@ -99,15 +107,10 @@ export function CellsSection() {
           </div>
           <span>
             <b>The 108-hour window</b> is the lifetime a multi-use cell has from its first use to the start of its
-            third use; the meter fills toward 108 h and turns over-limit if breached. Exhausted, retired, and stopped
-            cells don&apos;t show a meter.
+            third use. The window <b>ring</b> reads the hours left in that budget and turns amber as it runs low, red
+            once breached; exhausted, retired, and stopped cells show a neutral ring with no countdown. Hover the
+            example card to open its details.
           </span>
-        </div>
-        <div className={styles.legendRow}>
-          <div className={styles.ghostExampleSwatch}>
-            <WindowMeter windowHours={112} />
-          </div>
-          <span>The same meter once the 108-hour budget is breached - the fill turns red past the limit.</span>
         </div>
       </div>
       <p>

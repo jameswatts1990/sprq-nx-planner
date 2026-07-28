@@ -32,6 +32,11 @@
   --amber-tint: #fbf0de;
   --tray-card-bg: #fafafb;
   --tray-card-border: #e2e4ea;
+  /* Higher-contrast recessed frame for the Cells page's per-tray box (holds a tray's 4 cell
+     cards). Darker than --bg so the white cards read as sitting IN the physical tray - a step
+     up in contrast from the very subtle --tray-card-* pair above. */
+  --tray-frame: #e6e8ef;
+  --tray-frame-border: #c3c7d1;
   /* Text hyperlinks - the brand magenta (see the global `a` / `.link` rules in base.css).
      Kept as a semantic alias so link colour lives in one place. */
   --link: var(--magenta);

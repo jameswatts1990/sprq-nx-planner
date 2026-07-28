@@ -52,3 +52,12 @@ class InstrumentStatsOut(BaseModel):
     last_run_date: date | None
     total_runs: int
     next_run_date: date | None
+    # Live instrument state right now (services/cell_timing.instrument_activity): how many
+    # resident cells are in each phase, and whether the instrument is prep-locked (a fresh load
+    # can't start while cells are still breaking out). Capacity facts: sequencing <= 4, in_ppa
+    # <= 2. See docs/pacbio-sprq-nx-scheduling-reference.md, "Per-cell breakout, PPA capacity...".
+    cells_awaiting_prep: int = 0
+    cells_prepping: int = 0
+    cells_sequencing: int = 0
+    cells_in_ppa: int = 0
+    prep_locked: bool = False

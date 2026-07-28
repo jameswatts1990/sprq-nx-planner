@@ -1,0 +1,31 @@
+.box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 3px;
+  border: 1.5px solid var(--line-hover);
+  border-radius: 3px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--grey);
+  background: var(--card);
+}
+.u1 {
+  border-color: var(--magenta);
+  color: var(--magenta-deep);
+  background: var(--magenta-tint);
+}
+.u2 {
+  border-color: var(--blue);
+  color: var(--blue-deep);
+  background: var(--blue-tint);
+}
+.u3 {
+  border-color: var(--teal);
+  color: var(--teal-deep);
+  background: var(--teal-tint);
+}

@@ -1,0 +1,33 @@
+.ring {
+  position: relative;
+  width: 76px;
+  height: 76px;
+  flex: none;
+}
+.center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.num {
+  font-family: var(--mono);
+  font-weight: 800;
+  font-size: 17px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+.num.over {
+  color: var(--red);
+  font-size: 13px;
+}
+.sub {
+  font-size: 8.5px;
+  color: var(--faint);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-top: 3px;
+}

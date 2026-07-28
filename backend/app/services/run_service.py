@@ -3,7 +3,7 @@ to CellUse/Sample, and always recomputes Cell status from derive_cell_state() ra
 than trusting a stale stored value."""
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.models.schedule import CellUse, Cycle, RunBatch
 from app.models.audit import AuditLog
 from app.services.cell_service import recompute_status, run_has_started
+from app.services.cell_timing import run_breakout_offsets
 from app.timeutil import ensure_aware, utcnow
 
 # Legal plate/run status transitions. "Unlock" (running -> planned) is the only way back to
@@ -24,39 +25,49 @@ ALLOWED_CYCLE_TRANSITIONS = {
 }
 
 
-def _apply_cycle_status(cycle: Cycle, status: str, at: datetime) -> None:
+def _apply_cycle_status(cycle: Cycle, status: str, at: datetime, offsets: dict[int, float]) -> None:
     """Apply one plate's status transition and its cascade down to cell_uses / samples /
     the cell's 108h-window anchor (first_use_started_at). No commit/audit - update_run_status
     wraps this across all of a run's plates (both are loaded in one session, so they move
-    together)."""
+    together).
+
+    ``offsets`` maps cell_use id -> hours after the run's load time that cell actually breaks
+    out (from cell_timing.run_breakout_offsets): the instrument staggers a tray's cells ~2h apart
+    and a same-session second tray ~28h later, so each cell's recorded start and its 108h reuse
+    window anchor at *its own* breakout, not one shared tray timestamp (see
+    docs/pacbio-sprq-nx-scheduling-reference.md, "Per-cell breakout, PPA capacity...")."""
+
+    def breakout(cu: CellUse) -> datetime:
+        return at + timedelta(hours=offsets.get(cu.id, 0.0))
+
     cycle.status = status
     if status == "running":
         cycle.actual_start_at = cycle.actual_start_at or at
         for cu in cycle.cell_uses:
             if cu.status == "planned":
                 cu.status = "started"
-                cu.started_at = cu.started_at or at
+                cu.started_at = cu.started_at or breakout(cu)
             if cu.sample is not None and cu.sample.status not in ("completed", "failed"):
                 cu.sample.status = "in_progress"
             if cu.cell.first_use_started_at is None:
-                cu.cell.first_use_started_at = at
+                cu.cell.first_use_started_at = cu.started_at or breakout(cu)
     elif status == "completed":
         cycle.actual_end_at = cycle.actual_end_at or at
         for cu in cycle.cell_uses:
             if cu.status in ("planned", "started"):
                 cu.status = "completed"
-                cu.started_at = cu.started_at or at
+                cu.started_at = cu.started_at or breakout(cu)
                 cu.completed_at = at
             if cu.sample is not None and cu.sample.status not in ("completed", "failed"):
                 cu.sample.status = "completed"
             if cu.cell.first_use_started_at is None:
-                cu.cell.first_use_started_at = cu.started_at or at
+                cu.cell.first_use_started_at = cu.started_at or breakout(cu)
     elif status == "aborted":
         cycle.actual_end_at = cycle.actual_end_at or at
         for cu in cycle.cell_uses:
             if cu.status in ("planned", "started"):
                 cu.status = "aborted"
-                cu.started_at = cu.started_at or at
+                cu.started_at = cu.started_at or breakout(cu)
                 cu.completed_at = at
                 # Aborted is a run/instrument problem, not the sample's - straight back to
                 # backlog for a fresh attempt. Gated to uses actually transitioning here: a
@@ -66,7 +77,7 @@ def _apply_cycle_status(cycle: Cycle, status: str, at: datetime) -> None:
                 if cu.sample is not None and cu.sample.status not in ("completed", "failed"):
                     cu.sample.status = "backlog"
             if cu.cell.first_use_started_at is None:
-                cu.cell.first_use_started_at = cu.started_at or at
+                cu.cell.first_use_started_at = cu.started_at or breakout(cu)
     elif status == "planned":
         # Unlock: undo the running-cascade. Only reachable from "running", so no recorded
         # completed/aborted outcome is ever discarded.
@@ -105,9 +116,12 @@ def update_run_status(
         # transition (Unlock included) so a name already given isn't silently discarded.
         run_batch.run_name = run_name.strip() or None
 
+    # Per-cell breakout offsets (hours after load) so each cell's start/108h window anchors at
+    # its own staggered breakout, not one shared tray timestamp - computed once over the whole run.
+    offsets = run_breakout_offsets(run_batch)
     for c in cycles:
         if c.status != status:
-            _apply_cycle_status(c, status, at)
+            _apply_cycle_status(c, status, at, offsets)
 
     for c in cycles:
         for cu in c.cell_uses:
@@ -150,15 +164,18 @@ def update_cell_use_status(
         "sample_status": cell_use.sample.status if cell_use.sample is not None else None,
     }
     cell_use.status = status
+    # Anchor this use's start / 108h window at its own staggered breakout (load + ~2h·position,
+    # a second tray ~28h later), consistent with the whole-run Confirm-loaded path above.
+    breakout = at + timedelta(hours=run_breakout_offsets(cell_use.cycle.run_batch).get(cell_use.id, 0.0))
 
     if status == "started":
-        cell_use.started_at = cell_use.started_at or at
+        cell_use.started_at = cell_use.started_at or breakout
         if cell_use.cell.first_use_started_at is None:
-            cell_use.cell.first_use_started_at = at
+            cell_use.cell.first_use_started_at = cell_use.started_at or breakout
         if cell_use.sample is not None and cell_use.sample.status not in ("completed", "failed"):
             cell_use.sample.status = "in_progress"
     elif status in ("completed", "failed", "aborted"):
-        cell_use.started_at = cell_use.started_at or at
+        cell_use.started_at = cell_use.started_at or breakout
         cell_use.completed_at = at
         if notes:
             cell_use.outcome_notes = notes
@@ -174,7 +191,7 @@ def update_cell_use_status(
                 # which deliberately doesn't count "aborted" toward the PacBio credit flow).
                 cell_use.sample.status = "backlog"
         if cell_use.cell.first_use_started_at is None:
-            cell_use.cell.first_use_started_at = cell_use.started_at or at
+            cell_use.cell.first_use_started_at = cell_use.started_at or breakout
 
     recompute_status(cell_use.cell, at)
 

@@ -91,6 +91,9 @@ export function CellsPage() {
   const [sortBy, setSortBy] = useState<CellSortKey>("code");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [groupBy, setGroupBy] = useState<CellGroupKey>("tray");
+  // Open every card's detail panel at once. Off by default (cards stay compact and reveal
+  // their detail on hover/focus); the toggle pins them all open for scanning a whole page.
+  const [expandAll, setExpandAll] = useState(false);
   const queryClient = useQueryClient();
 
   // When the sort key changes, seed the direction from that key's natural default (newest-
@@ -275,6 +278,15 @@ export function CellsPage() {
             ))}
           </select>
         </label>
+        <button
+          type="button"
+          className={styles.chip}
+          aria-pressed={expandAll}
+          onClick={() => setExpandAll((v) => !v)}
+          title="Show or hide every card's details at once"
+        >
+          {expandAll ? "Collapse all" : "Expand all"}
+        </button>
       </div>
 
       {query.isLoading && <div className={styles.status}>Loading cells…</div>}
@@ -290,21 +302,31 @@ export function CellsPage() {
         (groupBy === "none" ? (
           <div className={styles.grid}>
             {groups[0]?.cells.map((cell) => (
-              <CellStatusCard key={cell.id} cell={cell} />
+              <CellStatusCard key={cell.id} cell={cell} expanded={expandAll} />
             ))}
           </div>
         ) : (
           <div className={styles.groups}>
-            {groups.map((g) => (
-              <section key={g.id} className={styles.group}>
-                <GroupHeader groupBy={groupBy} cells={g.cells} />
-                <div className={styles.grid}>
-                  {g.cells.map((cell) => (
-                    <CellStatusCard key={cell.id} cell={cell} />
-                  ))}
-                </div>
-              </section>
-            ))}
+            {groups.map((g) => {
+              // A real physical tray (not the "no-tray" catch-all) is framed as the SMRT-cell
+              // tray it is - its four wells shown in position order, with empties for any
+              // unloaded position. Every other grouping is a plain grid.
+              const isTrayBox = groupBy === "tray" && g.id.startsWith("tray-");
+              return (
+                <section key={g.id} className={isTrayBox ? styles.trayCard : styles.group}>
+                  <GroupHeader groupBy={groupBy} cells={g.cells} />
+                  {isTrayBox ? (
+                    <TraySlots cells={g.cells} expanded={expandAll} />
+                  ) : (
+                    <div className={styles.grid}>
+                      {g.cells.map((cell) => (
+                        <CellStatusCard key={cell.id} cell={cell} expanded={expandAll} />
+                      ))}
+                    </div>
+                  )}
+                </section>
+              );
+            })}
           </div>
         ))}
 
@@ -387,6 +409,46 @@ function GroupHeader({ groupBy, cells }: GroupHeaderProps) {
         </span>
       )}
       <span className={styles.groupCount}>{countLabel}</span>
+    </div>
+  );
+}
+
+interface TraySlotsProps {
+  cells: CellOut[];
+  expanded: boolean;
+}
+
+/** A tray's cells laid out as the physical 4-well SMRT-cell tray: each loaded cell sits in
+ * its own position (1-4) and any unloaded position shows as an empty well, so the box reads
+ * as the real tray these cells are on. Falls back to a plain grid for a legacy tray whose
+ * cells have no recorded positions. */
+function TraySlots({ cells, expanded }: TraySlotsProps) {
+  const size = cells[0]?.tray_size || 4;
+  const allPositioned = cells.every((c) => c.tray_position != null);
+  if (!allPositioned) {
+    return (
+      <div className={styles.grid}>
+        {cells.map((cell) => (
+          <CellStatusCard key={cell.id} cell={cell} expanded={expanded} />
+        ))}
+      </div>
+    );
+  }
+  const byPosition = new Map<number, CellOut>();
+  for (const c of cells) byPosition.set(c.tray_position as number, c);
+  return (
+    <div className={styles.trayBody}>
+      {Array.from({ length: size }, (_, i) => i + 1).map((pos) => {
+        const cell = byPosition.get(pos);
+        return cell ? (
+          <CellStatusCard key={cell.id} cell={cell} expanded={expanded} />
+        ) : (
+          <div key={`empty-${pos}`} className={styles.slotEmpty}>
+            <span className={styles.slotPos}>▣{pos}</span>
+            <span className={styles.slotLbl}>empty</span>
+          </div>
+        );
+      })}
     </div>
   );
 }

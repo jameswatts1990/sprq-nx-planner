@@ -1,0 +1,205 @@
+/* Ported from SchedulerSlotView.module.css's ticket-stub/holographic-seal, adapted for the
+   Cells page card: full-height right-edge strip, use-coloured base + iridescent foil, the
+   readable "▣n" over a boxed use number, and the tray-id microprint. The foil is PAUSED at
+   rest (a static seal) and only animates on hover - a Cells page can show ~100 stubs, so a
+   wall of shimmer would be too much. Positions itself against the nearest positioned ancestor
+   (the card's .top, which reserves space with padding-right). */
+.stub {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 34px;
+  border: none;
+  border-radius: 0 var(--r) var(--r) 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  overflow: hidden;
+  isolation: isolate;
+}
+.u0 {
+  background: var(--grey);
+}
+.u1 {
+  background: var(--magenta);
+}
+.u2 {
+  background: var(--blue);
+}
+.u3 {
+  background: var(--teal);
+}
+
+.sheen {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: repeating-linear-gradient(
+    115deg,
+    rgba(255, 255, 255, 0) 0px,
+    rgba(255, 255, 255, 0.5) 3.5px,
+    rgba(255, 70, 200, 0.36) 7px,
+    rgba(255, 190, 90, 0.32) 11px,
+    rgba(120, 255, 150, 0.34) 15px,
+    rgba(90, 200, 255, 0.36) 19px,
+    rgba(190, 120, 255, 0.34) 22.5px,
+    rgba(255, 255, 255, 0) 26px
+  );
+  background-repeat: no-repeat;
+  background-size: 600px 600px;
+  background-position: -300px -300px;
+  filter: hue-rotate(var(--seal-hue, 0deg)) saturate(1) brightness(1);
+  mix-blend-mode: screen;
+  opacity: 0.7;
+  pointer-events: none;
+  animation: cellSealShift 6s linear infinite;
+  animation-play-state: paused;
+  transition: opacity 260ms ease, filter 260ms ease;
+}
+.sheen::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    128deg,
+    rgba(255, 255, 255, 0) 0px,
+    rgba(255, 255, 255, 0.32) 2px,
+    rgba(120, 220, 255, 0.3) 4.5px,
+    rgba(190, 120, 255, 0.3) 7px,
+    rgba(160, 255, 200, 0.3) 9.5px,
+    rgba(255, 255, 255, 0) 13px
+  );
+  background-repeat: no-repeat;
+  background-size: 600px 600px;
+  background-position: -300px -300px;
+  mix-blend-mode: screen;
+  opacity: 0.55;
+  animation: cellSealShiftFine 4.4s linear infinite;
+  animation-play-state: paused;
+}
+.sheen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    115deg,
+    rgba(255, 255, 255, 0) 0px,
+    rgba(255, 255, 255, 0) 74px,
+    rgba(255, 255, 255, 0.6) 92px,
+    rgba(255, 255, 255, 0) 110px
+  );
+  background-repeat: no-repeat;
+  background-size: 600px 600px;
+  background-position: -300px -300px;
+  mix-blend-mode: screen;
+  opacity: 0.3;
+  animation: cellSealGlint 5s linear infinite;
+  animation-play-state: paused;
+  transition: opacity 260ms ease;
+}
+/* Only shimmer on hover - the foil "tilts into the light" and starts drifting. */
+.stub:hover .sheen,
+.stub:hover .sheen::before,
+.stub:hover .sheen::after {
+  animation-play-state: running;
+}
+.stub:hover .sheen {
+  opacity: 0.95;
+  filter: hue-rotate(var(--seal-hue, 0deg)) saturate(1.55) brightness(1.28) contrast(1.12);
+}
+.stub:hover .sheen::after {
+  opacity: 0.7;
+}
+
+.micro {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 3px;
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  color: #fff;
+  text-shadow: 0 0 1px rgba(0, 0, 0, 0.85), 0 0 2px rgba(0, 0, 0, 0.55);
+  white-space: nowrap;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+}
+.label {
+  position: absolute;
+  top: 4px;
+  left: 0;
+  right: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  text-shadow: 0 1px 1.5px rgba(0, 0, 0, 0.4);
+}
+.cell {
+  font-family: var(--mono);
+  font-weight: 800;
+  font-size: 11px;
+  line-height: 1;
+}
+.glyph {
+  font-size: 1.4em;
+  padding-right: 0.1em;
+  vertical-align: -0.08em;
+}
+.useBox {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 2px;
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.22);
+  font-family: var(--mono);
+  font-weight: 800;
+  font-size: 9.5px;
+  line-height: 1;
+}
+
+@keyframes cellSealShift {
+  0% {
+    background-position: -300px -300px;
+  }
+  100% {
+    background-position: -276.4px -289px;
+  }
+}
+@keyframes cellSealShiftFine {
+  0% {
+    background-position: -300px -300px;
+  }
+  100% {
+    background-position: -310.2px -308px;
+  }
+}
+@keyframes cellSealGlint {
+  0% {
+    background-position: -300px -300px;
+  }
+  100% {
+    background-position: -200.3px -253.5px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .stub:hover .sheen,
+  .stub:hover .sheen::before,
+  .stub:hover .sheen::after {
+    animation-play-state: paused;
+  }
+}

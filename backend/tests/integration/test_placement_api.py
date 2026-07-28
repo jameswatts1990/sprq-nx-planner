@@ -180,6 +180,44 @@ def test_place_sample_rejects_new_cell_when_its_tray_box_is_fully_populated_with
         assert cell["uses_consumed"] == 1
 
 
+def test_confirm_loaded_staggers_each_cells_108h_window_by_breakout(client, db_session):
+    """A tray's cells break out ~2h apart, so their 108h reuse windows must ladder: each cell's
+    first_use_started_at anchors at its own breakout (load + 2h*position), not one shared tray
+    timestamp - the reported "all cells given the same expiry window" bug."""
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1\nA2,bc2\nA3,bc3"})
+    (mon,) = _weekdays(1)
+
+    r1 = _place(client, _sid(client, "A1"), mon, 0)
+    assert r1.status_code == 201, r1.text
+    tray_id = client.get(f"/api/cells/{_stages(r1.json())[0]['cell_id']}").json()["tray_id"]
+
+    def _sibling(well):
+        items = client.get("/api/cells", params={"tray_id": tray_id}).json()["items"]
+        return next(c["id"] for c in items if c["current_well"] == well)
+
+    # Three fresh cells of one tray, loaded the same day (positions A/B/C -> slots 0/1/2).
+    r2 = _place(client, _sid(client, "A2"), mon, 1, {"mode": "existing", "cell_id": _sibling("B01")})
+    assert r2.status_code == 201, r2.text
+    r3 = _place(client, _sid(client, "A3"), mon, 2, {"mode": "existing", "cell_id": _sibling("C01")})
+    assert r3.status_code == 201, r3.text
+
+    run = r3.json()
+    by_slot = {s["slot_index"]: s["cell_id"] for s in _stages(run)}
+    cycle_id = run["plates"][0]["plate_id"]
+
+    # Confirm loaded -> the running cascade anchors each cell at its own staggered breakout.
+    lock = client.patch(f"/api/cycles/{cycle_id}", json={"status": "running"})
+    assert lock.status_code == 200, lock.text
+
+    from app.models.cell import Cell
+
+    db_session.expire_all()
+    anchors = {slot: db_session.get(Cell, by_slot[slot]).first_use_started_at for slot in (0, 1, 2)}
+    # Cells at positions A/B/C break out 0/2/4h apart, so their windows ladder (cell A first).
+    assert (anchors[1] - anchors[0]).total_seconds() == 2 * 3600
+    assert (anchors[2] - anchors[0]).total_seconds() == 4 * 3600
+
+
 def test_place_onto_a_date_the_resident_tray_has_expired_mints_a_successor_tray(client):
     """Reported bug: dragging a sample onto a slot on a date the carousel position's current
     tray has already aged out of its 108h reuse window did nothing (a silent 409). The whole

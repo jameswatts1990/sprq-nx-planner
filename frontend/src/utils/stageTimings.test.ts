@@ -118,3 +118,49 @@ describe("computeTimeline (multiple runs)", () => {
     expect(spanH).toBe(6 + PREP_H + 24 + PPA_H);
   });
 });
+
+describe("sequencing lanes (second tray waits for the first to free the instrument)", () => {
+  it("breaks tray 1 out 2h apart and tray 2 only once a lane frees (~28h), per the adaptive-loading slide", () => {
+    // One same-session 8-cell run: Plate 1 (slots 0-3) and a parallel Plate 2 (slots 4-7) loaded
+    // together. All four sequencing lanes are held by Plate 1 until its movies end.
+    const start = "2026-08-03T12:00:00+00:00";
+    const r = run([
+      plate(1, start, [stage(0, 24, 100), stage(1, 24, 101), stage(2, 24, 102), stage(3, 24, 103)]),
+      plate(2, start, [stage(4, 24, 104), stage(5, 24, 105), stage(6, 24, 106), stage(7, 24, 107)]),
+    ]);
+    const { timings } = computeRunTimeline(r);
+    const breakout = (id: number) => timings.find((t) => t.stage.cell_use_id === id)!.prepStartH;
+
+    // Tray 1: 2h adaptive-loading stagger from load.
+    expect([breakout(100), breakout(101), breakout(102), breakout(103)]).toEqual([0, 2, 4, 6]);
+    // Tray 2: each cell waits for its lane (tray-1 movie ends at 28/30/32/34), so it breaks out
+    // ~28h after load, not 2h after tray 1 - the slide's second-tray cadence.
+    expect([breakout(104), breakout(105), breakout(106), breakout(107)]).toEqual([28, 30, 32, 34]);
+    // Movie (acquiring) starts PREP_H after breakout.
+    expect(timings.find((t) => t.stage.cell_use_id === 104)!.movieStartH).toBe(28 + PREP_H);
+  });
+});
+
+describe("PPA capacity (only 2 cells in PPA at once)", () => {
+  it("delays cells 3 & 4 until a PPA lane frees, giving the reference ~14h PPA span", () => {
+    // A full tray of four 24h cells, 2h-staggered. Movies end at 28/30/32/34h.
+    const r = run([
+      plate(1, "2026-08-03T12:00:00+00:00", [stage(0, 24, 10), stage(1, 24, 11), stage(2, 24, 12), stage(3, 24, 13)]),
+    ]);
+    const { timings, spanH } = computeRunTimeline(r);
+    const byId = (id: number) => timings.find((t) => t.stage.cell_use_id === id)!;
+
+    // Cells 1 & 2 start PPA the moment their movie ends (both lanes free).
+    expect(byId(10).ppaStartH).toBe(28);
+    expect(byId(11).ppaStartH).toBe(30);
+    // Cell 3's movie ends at 32 but both lanes are busy until 34 (cell 1 frees) - it waits ~2h.
+    expect(byId(12).movieEndH).toBe(32);
+    expect(byId(12).ppaStartH).toBe(34);
+    // Cell 4's movie ends at 34; the next lane frees at 36 (cell 2) - it waits ~2h too.
+    expect(byId(13).movieEndH).toBe(34);
+    expect(byId(13).ppaStartH).toBe(36);
+    // Total PPA runs 28h → 42h = ~14h across the tray, matching the reference slide.
+    expect(byId(13).ppaEndH).toBe(42);
+    expect(spanH).toBe(42);
+  });
+});

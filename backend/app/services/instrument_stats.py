@@ -16,12 +16,14 @@ from app.models.cell_tray import CellTray
 from app.models.instrument import Instrument
 from app.models.schedule import RunBatch
 from app.schemas.instrument import InstrumentStatsOut
-from app.services.instrument_lock import currently_locked_run, run_lock_until
-from app.timeutil import utcnow
+from app.services.cell_timing import instrument_activity
+from app.services.instrument_lock import _candidate_runs, run_lock_until
+from app.timeutil import ensure_aware, utcnow
 
 
 def instrument_stats(db: Session) -> list[InstrumentStatsOut]:
-    today = utcnow().date()
+    now = utcnow()
+    today = now.date()
     instruments = db.scalars(select(Instrument).order_by(Instrument.serial_number)).all()
 
     # --- cells / open trays: a cell belongs to an instrument via its physical tray
@@ -57,12 +59,25 @@ def instrument_stats(db: Session) -> list[InstrumentStatsOut]:
         ]
         next_run_date = min(future) if future else None
 
-        locked_run = currently_locked_run(db, inst.id)
+        # Runs whose [earliest plate start, lock_until) window contains "now" - the runs actually
+        # on the instrument right now. Deriving both the "currently running" label and the live
+        # per-cell activity from this one set keeps the card self-consistent (no "idle" headline
+        # over a "1 sequencing" line).
+        active_now = [
+            run
+            for run in _candidate_runs(db, inst.id, on_or_before=today)
+            if (starts := [ensure_aware(c.planned_start_at) for c in run.cycles if c.cell_uses])
+            and min(starts) <= now < run_lock_until(db, run, cycles=run.cycles)
+        ]
         running_run_name = None
         free_at = None
-        if locked_run is not None:
-            running_run_name = locked_run.run_name or f"#{locked_run.id}"
-            free_at = run_lock_until(db, locked_run, cycles=locked_run.cycles)
+        if active_now:
+            latest = max(active_now, key=lambda r: min(ensure_aware(c.planned_start_at) for c in r.cycles if c.cell_uses))
+            running_run_name = latest.run_name or f"#{latest.id}"
+            free_at = run_lock_until(db, latest, cycles=latest.cycles)
+
+        # Live per-cell state now (prep-pending / prepping / sequencing / PPA), across those runs.
+        activity = instrument_activity(active_now, now)
 
         out.append(
             InstrumentStatsOut(
@@ -76,6 +91,11 @@ def instrument_stats(db: Session) -> list[InstrumentStatsOut]:
                 last_run_date=last_run_date,
                 total_runs=len(inst_runs),
                 next_run_date=next_run_date,
+                cells_awaiting_prep=activity.awaiting_prep,
+                cells_prepping=activity.prepping,
+                cells_sequencing=activity.sequencing,
+                cells_in_ppa=activity.in_ppa,
+                prep_locked=activity.prep_locked,
             )
         )
     return out

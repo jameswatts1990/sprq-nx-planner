@@ -182,6 +182,17 @@ function statusBadge(instrument: InstrumentOut): ReactNode {
   return <Badge tone={INSTRUMENT_STATUS_TONE[status]}>{INSTRUMENT_STATUS_LABEL[status]}</Badge>;
 }
 
+/** A plain-language summary of what the instrument is doing right now, from the live per-cell
+ * counts (cell_timing.instrument_activity). "" when nothing is loaded/active. */
+function liveStateLabel(s: InstrumentStatsOut): string {
+  const parts: string[] = [];
+  if (s.cells_sequencing) parts.push(`${s.cells_sequencing} sequencing`);
+  if (s.cells_in_ppa) parts.push(`${s.cells_in_ppa} in PPA`);
+  if (s.cells_prepping) parts.push(`${s.cells_prepping} prepping`);
+  if (s.cells_awaiting_prep) parts.push(`${s.cells_awaiting_prep} awaiting prep`);
+  return parts.join(" · ");
+}
+
 // --- card -----------------------------------------------------------------
 
 interface InstrumentCardProps {
@@ -246,6 +257,18 @@ function InstrumentCard({ instrument, stats, activeRuns, onEdit, onDown, onConfi
           />
           <StatTile label="Next run" value={stats?.next_run_date ? shortDate(stats.next_run_date) : "—"} />
         </StatTiles>
+
+        {stats && liveStateLabel(stats) && (
+          <div className={styles.liveState}>
+            <span className={styles.liveDot} aria-hidden="true" />
+            <span className={styles.liveText}>{liveStateLabel(stats)}</span>
+            {stats.prep_locked && (
+              <span className={styles.liveLock} title="A fresh tray can't be loaded until every cell has broken out">
+                prep-locked
+              </span>
+            )}
+          </div>
+        )}
 
         {activeRuns.length > 0 && (
           <div className={styles.gantt}>

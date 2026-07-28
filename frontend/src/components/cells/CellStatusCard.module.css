@@ -1,70 +1,114 @@
 .card {
+  position: relative;
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: var(--r);
   box-shadow: var(--shadow-sm);
-  overflow: hidden;
-  display: block;
-  color: inherit;
-  /* Explicit property list rather than the `all` shorthand: only the two properties the
-     hover state actually changes are transitioned, so a grid of ~100 of these cards isn't
-     asking the compositor to watch every animatable property on each one. */
-  transition: border-color 0.14s ease, box-shadow 0.14s ease, transform 0.14s ease;
+  /* Explicit list (not `all`): only the two resting-hover properties transition, so a grid of
+     ~100 cards isn't asking the compositor to watch every animatable property on each one. */
+  transition: border-color 0.14s ease, box-shadow 0.14s ease;
 }
 .card:hover {
   border-color: var(--line-hover);
   box-shadow: var(--shadow);
-  transform: translateY(-1px);
 }
-.head {
-  padding: 11px 14px;
+
+/* header: window ring (left) + code/status/uses (middle) + right-edge foil stub (absolute) */
+.top {
+  position: relative;
   display: flex;
+  gap: 13px;
   align-items: center;
-  gap: 9px;
-  border-bottom: 1px solid var(--line-soft);
-  flex-wrap: wrap;
+  padding: 13px 14px;
+  padding-right: 42px; /* reserve the right strip for the absolute .stub */
 }
-.cid {
+.meta {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start; /* keep the status pill hugging its text, not stretched full-width */
+  gap: 5px;
+  min-width: 0;
+}
+.code {
+  font-family: var(--mono);
   font-weight: 800;
   font-size: var(--fs-2xl);
-  font-family: var(--mono);
   color: inherit;
   text-decoration: none;
 }
-.cid:hover {
+.code:hover {
   color: var(--magenta);
 }
-/* Uses count as a mini pip meter: one pip per possible use, filled left-to-right in the
-   app-wide u1/u2/u3 (magenta/blue/teal) use-index palette; remaining uses are hollow.
-   The accessible "n of m uses spent" text lives on the wrapping span's aria-label/title. */
 .uses {
-  margin-left: auto;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  color: var(--grey);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.hint {
+  color: var(--faint);
+  font-weight: 700;
   display: inline-flex;
   align-items: center;
   gap: 4px;
 }
-.pip {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  box-sizing: border-box;
+.cx {
+  display: inline-block;
+  transition: transform 0.2s ease;
 }
-.pipEmpty {
-  border: 1.5px solid var(--line-hover);
-  background: transparent;
+.card:not(.expanded):hover .cx,
+.card:not(.expanded):focus-within .cx,
+.card.expanded .cx {
+  transform: rotate(90deg);
 }
-.pip.u1 {
-  background: var(--magenta);
+
+/* Detail panel. Two modes so revealing a card never disturbs its neighbours:
+   - Expand-all (page toggle) → grows in-flow.
+   - single hover/focus → drops as an absolute popover, zero layout impact on the row/trays. */
+.det {
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition: max-height 0.28s ease, opacity 0.16s ease;
 }
-.pip.u2 {
-  background: var(--blue);
+.card.expanded .det {
+  max-height: 1600px;
+  opacity: 1;
 }
-.pip.u3 {
-  background: var(--teal);
+.card:not(.expanded):hover .det,
+.card:not(.expanded):focus-within .det {
+  position: absolute;
+  top: calc(100% - 1px);
+  left: -1px;
+  right: -1px;
+  z-index: 40;
+  max-height: none;
+  opacity: 1;
+  overflow: visible;
+  background: var(--card);
+  border: 1px solid var(--line-hover);
+  border-top: none;
+  border-radius: 0 0 var(--r) var(--r);
+  box-shadow: var(--shadow);
 }
-.body {
-  padding: 10px 12px;
+.card:not(.expanded):hover,
+.card:not(.expanded):focus-within {
+  z-index: 30;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
 }
+.inner {
+  padding: 2px 14px 13px;
+  border-top: 1px solid var(--line-soft);
+}
+.inner .row:first-of-type {
+  padding-top: 8px;
+}
+
 .row {
   font-size: var(--fs-sm);
   color: var(--grey);
@@ -73,7 +117,6 @@
   gap: 8px;
   padding: 3px 0;
 }
-.row b,
 .row > a {
   color: var(--ink);
   font-family: var(--mono);
@@ -87,19 +130,21 @@
 .burned {
   font-size: var(--fs-xs);
   color: var(--grey);
-  margin: 9px 0 0;
+  margin: 8px 0 0;
   display: flex;
   gap: 5px;
   flex-wrap: wrap;
   align-items: center;
 }
+
+/* Samples & runs, grouped by run (run name as its own header line, samples nested under). */
 .uses2 {
-  margin-top: 10px;
+  margin-top: 11px;
   padding-top: 9px;
   border-top: 1px solid var(--line-soft);
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 9px;
 }
 .usesLabel {
   font-size: var(--fs-2xs);
@@ -108,36 +153,34 @@
   color: var(--grey);
   font-weight: 700;
 }
+.runGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.runName {
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  font-weight: 800;
+  color: var(--ink);
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 3px 7px;
+  background: var(--line-soft);
+  border-radius: 5px;
+}
+.runName:hover {
+  color: var(--magenta);
+}
 .useRow {
   display: flex;
   align-items: center;
   gap: 6px;
   font-size: var(--fs-sm);
   flex-wrap: wrap;
-}
-/* Leading U1/U2/U3 chip tying each reuse to the app-wide use-index palette
-   (same tint/deep pairs as BarcodeChips). */
-.useIdx {
-  font-family: var(--mono);
-  font-size: var(--fs-2xs);
-  font-weight: 800;
-  letter-spacing: 0.02em;
-  padding: 1px 5px;
-  border-radius: 4px;
-  background: var(--magenta-tint);
-  color: var(--magenta-deep);
-}
-.useIdx.u1 {
-  background: var(--magenta-tint);
-  color: var(--magenta-deep);
-}
-.useIdx.u2 {
-  background: var(--blue-tint);
-  color: var(--blue-deep);
-}
-.useIdx.u3 {
-  background: var(--teal-tint);
-  color: var(--teal-deep);
+  padding-left: 7px;
 }
 .useSample {
   font-family: var(--mono);
@@ -152,16 +195,4 @@
 .useSampleMuted {
   font-family: var(--mono);
   color: var(--grey);
-}
-.useSep {
-  color: var(--line);
-}
-.useRun {
-  font-family: var(--mono);
-  color: var(--grey);
-  text-decoration: none;
-}
-.useRun:hover {
-  color: var(--magenta);
-  text-decoration: underline;
 }

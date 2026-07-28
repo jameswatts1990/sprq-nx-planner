@@ -118,6 +118,23 @@
   border-radius: 4px;
   overflow: hidden;
 }
+/* Prep-pending: the cell is loaded but idle, waiting for a sequencing lane / its stagger slot
+   (e.g. a second tray waiting ~28h for the first to free the instrument). A faint dotted rail. */
+.prepPending {
+  position: absolute;
+  top: 5px;
+  bottom: 5px;
+  border-radius: 2px;
+  min-width: 1px;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--faint) 0,
+    var(--faint) 1px,
+    transparent 1px,
+    transparent 4px
+  );
+  opacity: 0.6;
+}
 /* Prep: a quiet slate lead-in before the movie (sample loading / setup). */
 .prep {
   position: absolute;
@@ -136,6 +153,22 @@
   justify-content: center;
   background: var(--bar, var(--grey));
   min-width: 2px;
+}
+/* PPA wait: the gap between a cell's movie end and its PPA start when both PPA lanes are busy
+   (only 2 cells can be in PPA at once). Hatched in the PPA colour to read as "PPA, queued". */
+.ppaWait {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  min-width: 1px;
+  background: repeating-linear-gradient(
+    45deg,
+    var(--c-ppa) 0,
+    var(--c-ppa) 2px,
+    transparent 2px,
+    transparent 5px
+  );
+  opacity: 0.55;
 }
 /* PPA: a deeper slate tail after the movie (post-primary analysis). */
 .ppa {

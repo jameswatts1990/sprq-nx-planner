@@ -470,10 +470,13 @@ export function ScheduleSection() {
         into its three stages in sequence — a slate <b>prep</b> lead-in, the sequencing <b>movie</b> (coloured by the
         cell&apos;s use: magenta 1 / blue 2 / teal 3), then a darker slate <b>PPA</b> (post-primary analysis) tail —
         staggered across the run, with <i>this</i> placement&apos;s row highlighted, so you can see where your sample
-        sits in the run&apos;s flow. The axis along the bottom is marked in <b>clock time</b> (e.g. 12:00, 18:00), and
-        if the run is happening <i>right now</i> a green <b>live line</b> — topped with a spinning marker — sweeps down
-        through every bar to show where the run has got to. These are approximate PacBio timings anchored at the
-        run&apos;s load time, an estimate rather than the instrument&apos;s exact schedule.
+        sits in the run&apos;s flow. Because the instrument can only run <b>two cells&apos; PPA at once</b>, a cell
+        whose movie finishes while both PPA lanes are busy shows a short <b>hatched &quot;waiting for PPA&quot;</b> gap
+        before its PPA starts — so the 3rd and 4th cells of a tray finish a little later. The axis along the bottom is
+        marked in <b>clock time</b> (e.g. 12:00, 18:00), and if the run is happening <i>right now</i> a green{" "}
+        <b>live line</b> — topped with a spinning marker — sweeps down through every bar to show where the run has got
+        to. These are approximate PacBio timings anchored at the run&apos;s load time, an estimate rather than the
+        instrument&apos;s exact schedule.
       </p>
       <p>
         <b>Run time:</b> the popover shows this cell&apos;s own movie / run time, and while the run is still planned

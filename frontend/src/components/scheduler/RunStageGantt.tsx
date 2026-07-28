@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 
 import type { RunOut } from "@/types/schedule";
 import { cellPositionLabel } from "@/utils/plateWell";
-import { computeTimeline, PPA_H, PREP_H, type StageTiming } from "@/utils/stageTimings";
+import { computeTimeline, PPA_H, PPA_SERVERS, PREP_H, type StageTiming } from "@/utils/stageTimings";
 import { classForUseIndex } from "@/utils/useIndexClass";
 
 import styles from "./RunStageGantt.module.css";
@@ -76,10 +76,17 @@ function GanttRow({
         <span className={styles.sample}>{s.sample_external_id ?? "—"}</span>
       </div>
       <div className={styles.track}>
+        {t.prepStartH - t.prepPendingStartH > 0.01 && (
+          <div
+            className={styles.prepPending}
+            style={{ left: pct(t.prepPendingStartH), width: pct(t.prepStartH - t.prepPendingStartH) }}
+            title={`Loaded, waiting to break out — the instrument is busy (breaks out ${hhmm(t.prepStartMs)})`}
+          />
+        )}
         <div
           className={styles.prep}
           style={{ left: pct(t.prepStartH), width: pct(t.movieStartH - t.prepStartH) }}
-          title={`Prep ~${PREP_H} h · from ${hhmm(t.prepStartMs)}`}
+          title={`Prep (breakout) ~${PREP_H} h · from ${hhmm(t.prepStartMs)}`}
         />
         <div
           className={`${styles.movie} ${styles[useClass]}`}
@@ -88,6 +95,13 @@ function GanttRow({
         >
           <span className={styles.movieLabel}>{s.run_time_hours} h</span>
         </div>
+        {t.ppaStartH - t.movieEndH > 0.01 && (
+          <div
+            className={styles.ppaWait}
+            style={{ left: pct(t.movieEndH), width: pct(t.ppaStartH - t.movieEndH) }}
+            title={`Waiting for a PPA lane — only ${PPA_SERVERS} cells can be in PPA at once (PPA from ${hhmm(t.ppaStartMs)})`}
+          />
+        )}
         <div
           className={styles.ppa}
           style={{ left: pct(t.ppaStartH), width: pct(t.ppaEndH - t.ppaStartH) }}

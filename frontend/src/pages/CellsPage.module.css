@@ -148,6 +148,45 @@
   flex-direction: column;
   gap: 22px;
 }
+/* A physical-tray box: frames one tray's four cell cards as the SMRT-cell tray they're loaded
+   on. A higher-contrast recessed surface (see --tray-frame) so the white cards read as sitting
+   inside it. No overflow clipping, so a card's hover detail popover can drop past the frame. */
+.trayCard {
+  background: var(--tray-frame);
+  border: 1px solid var(--tray-frame-border);
+  border-radius: 16px;
+  padding: 12px 14px 14px;
+  box-shadow: inset 0 1px 5px rgba(20, 20, 30, 0.08);
+}
+.trayBody {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+/* An unloaded well in the tray - reads as a physical slot with no cell in it. */
+.slotEmpty {
+  border: 1.5px dashed var(--line);
+  border-radius: var(--r);
+  min-height: 104px;
+  background: repeating-linear-gradient(135deg, #fff, #fff 8px, #fafafb 8px, #fafafb 16px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  color: var(--faint);
+}
+.slotPos {
+  font-family: var(--mono);
+  font-weight: 800;
+  font-size: 12px;
+}
+.slotLbl {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
 .groupHeader {
   display: flex;
   align-items: baseline;
