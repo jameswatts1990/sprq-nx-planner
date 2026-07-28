@@ -31,7 +31,9 @@ def auto_fill_endpoint(req: AutoFillRequest, db: SessionDep, actor: ActorDep) ->
     for run_id in result.run_ids:
         run_batch = db.get(RunBatch, run_id, options=RUN_LOAD_OPTIONS)
         if run_batch is not None:
-            runs.append(run_out(db, run_batch))
+            # with_effective_start so each auto-scheduled run carries when its cells really break
+            # out given the machine's other resident runs (consecutive-day auto-fills can queue).
+            runs.append(run_out(db, run_batch, with_effective_start=True))
 
     return AutoFillResponse(
         placed_sample_ids=result.placed_sample_ids,

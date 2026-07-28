@@ -23,7 +23,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.engine.constants import LOCK_BUFFER_HOURS
 from app.models.schedule import Cycle, RunBatch
-from app.services.cell_timing import run_is_acquiring, run_load_at
+from app.services.cell_timing import instrument_timeline, run_is_acquiring, run_load_at
 from app.timeutil import ensure_aware, utcnow
 
 # Longest span is a reuse run: Plate 1 loaded on day D, Plate 2 acquiring ~D+1 with a 30h
@@ -90,6 +90,23 @@ def latest_lock_until(db: Session, instrument_id: int, before_date: date) -> dat
     if not runs:
         return None
     return max(run_lock_until(db, r) for r in runs)
+
+
+def effective_run_start(db: Session, run_batch: RunBatch) -> datetime | None:
+    """The lane-model *effective start* of ``run_batch``: when its earliest cell actually breaks
+    out once the other runs resident on its instrument are accounted for (cross-run sequencing
+    contention - see cell_timing.instrument_timeline). Equals the run's own load time when the
+    machine has a free sequencing server; later when it's busy. Derived per-call, never stored;
+    None if nothing is loaded.
+
+    This is the "user loads at 12:00, cells really break out at 18:00" figure surfaced as a
+    placement advisory - distinct from run_lock_until (the coarse loading-lock that gates a
+    brand-new load and drives grid continuation). We compute it over the same 3-day resident
+    window _candidate_runs uses, plus the run itself in case it isn't already in that set."""
+    resident = _candidate_runs(db, run_batch.instrument_id, on_or_before=run_batch.load_date)
+    if run_batch.id not in {r.id for r in resident}:
+        resident = [*resident, run_batch]
+    return instrument_timeline(resident).get(run_batch.id)
 
 
 def resolve_new_run_start(

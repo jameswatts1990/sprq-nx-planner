@@ -15,8 +15,8 @@ from app.models.cell import Cell
 from app.models.schedule import CellUse, Cycle, RunBatch
 from app.schemas.run import PlateOut, RunOut, StageOut
 from app.services.cell_service import has_barcode_clash, has_failed_use, use_sort_key, window_hours_elapsed
-from app.services.cell_timing import run_is_acquiring
-from app.services.instrument_lock import run_lock_until
+from app.services.cell_timing import run_is_acquiring, run_load_at
+from app.services.instrument_lock import effective_run_start, run_lock_until
 from app.timeutil import ensure_aware, utcnow
 
 # The eager-load set every run_out caller must use. From the run's cycles (plates) down to
@@ -117,7 +117,11 @@ def _run_status(cycles: list[Cycle]) -> str:
     return "planned"
 
 
-def run_out(db: Session, run_batch: RunBatch) -> RunOut:
+def run_out(db: Session, run_batch: RunBatch, *, with_effective_start: bool = False) -> RunOut:
+    """Serialize a run. Pass ``with_effective_start=True`` on placement/move/auto-fill responses to
+    attach the lane-model effective start (when the run's cells really break out given the machine's
+    other resident runs) - kept OFF the grid feed by default, as it needs a per-run resident-set
+    query we don't want to fire for every grid row."""
     instrument = run_batch.instrument
     serial = instrument.serial_number if instrument else "?"
     # Drop any orphaned EMPTY cycle (no cell_uses at all): nothing is loaded, so it must not
@@ -147,6 +151,16 @@ def run_out(db: Session, run_batch: RunBatch) -> RunOut:
         lock_until = now  # empty run: nothing loaded -> no lock, never a continuation
         is_locked = False
 
+    effective_start_at = None
+    starts_later_than_requested = False
+    if with_effective_start and cycles:
+        eff = effective_run_start(db, run_batch)
+        load_at = run_load_at(run_batch)
+        if eff is not None and load_at is not None:
+            effective_start_at = eff
+            # > ~1 min later than the chosen load counts as "queues" (guards float/rounding noise).
+            starts_later_than_requested = (eff - load_at).total_seconds() > 60
+
     return RunOut(
         run_id=run_batch.id,
         instrument_serial=serial,
@@ -155,5 +169,7 @@ def run_out(db: Session, run_batch: RunBatch) -> RunOut:
         status=status,
         lock_until=lock_until,
         is_locked=is_locked,
+        effective_start_at=effective_start_at,
+        starts_later_than_requested=starts_later_than_requested,
         plates=plates,
     )

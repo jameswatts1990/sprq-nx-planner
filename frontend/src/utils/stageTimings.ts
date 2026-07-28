@@ -66,33 +66,38 @@ export interface RunTimeline {
 interface Seed {
   stage: StageOut;
   runId: number;
-  /** Hours from T to this cell's load group's base (its plate's planned_start_at). */
+  /** Hours from T to this cell's load group's base (its plate's effective anchor). */
   groupBaseH: number;
-  /** Group key: cells loaded together (same plate start) share the SEQ_LANES sequencing lanes. */
+  /** Group key = one loading session (run + plate start): its cells share the 2h prep stagger. */
   groupKey: string;
-  /** Physical position 0-3 (= slot_index % 4) — which of the 4 lanes this cell holds. */
-  lane: number;
 }
 
 /**
- * Assign breakout / movie times within one load group (cells sharing the 4 sequencing lanes).
- * Cells are taken in slot order; each breaks out at the later of (a) its 2h adaptive-loading slot
- * after the previous cell and (b) when its lane frees (the cell that last held that position
- * finishes its movie). A cell holds its lane from breakout through movie end.
+ * Schedule every cell across all the given runs on ONE shared set of `SEQ_LANES` (4) sequencing
+ * servers — the instrument's real limit, shared *across runs*. A cell takes the earliest-free
+ * server and holds it from breakout to movie end, so a run loaded while the machine is busy has
+ * its cells pushed to when a server frees (cross-run contention). The 2h adaptive-loading prep
+ * stagger is per load group (`groupKey` = one loading session), so separate loads don't chain
+ * their prep off each other. Mirrors backend `cell_timing.compute_timings`; PPA is applied after
+ * by the global 2-server pass (`schedulePpa`).
  */
-function layoutGroup(seeds: Seed[], loadMs: number): StageTiming[] {
-  const ordered = [...seeds].sort((a, b) => a.stage.slot_index - b.stage.slot_index || a.stage.cell_use_id - b.stage.cell_use_id);
-  const base = ordered.length ? Math.min(...ordered.map((s) => s.groupBaseH)) : 0;
-  const laneFreeH = new Array<number>(SEQ_LANES).fill(base);
-  let prevBreakoutH: number | null = null;
+function schedule4Server(seeds: Seed[], loadMs: number): StageTiming[] {
+  const ordered = [...seeds].sort(
+    (a, b) => a.groupBaseH - b.groupBaseH || a.stage.slot_index - b.stage.slot_index || a.stage.cell_use_id - b.stage.cell_use_id,
+  );
+  const base0 = ordered.length ? Math.min(...ordered.map((s) => s.groupBaseH)) : 0;
+  const servers = new Array<number>(SEQ_LANES).fill(base0); // earliest-free time of each of the 4 servers
+  const prevBreakoutH = new Map<string, number>(); // last breakout per load group -> the 2h prep-stagger floor
   const out: StageTiming[] = [];
   for (const s of ordered) {
-    const cadenceFloorH = prevBreakoutH === null ? s.groupBaseH : prevBreakoutH + WELL_STAGGER_H;
-    const prepStartH = Math.max(laneFreeH[s.lane], cadenceFloorH);
+    const staggerFloorH = prevBreakoutH.has(s.groupKey) ? prevBreakoutH.get(s.groupKey)! + WELL_STAGGER_H : s.groupBaseH;
+    let i = 0;
+    for (let j = 1; j < servers.length; j++) if (servers[j] < servers[i]) i = j; // earliest-free server
+    const prepStartH = Math.max(staggerFloorH, servers[i]);
     const movieStartH = prepStartH + PREP_H;
     const movieEndH = movieStartH + s.stage.run_time_hours;
-    laneFreeH[s.lane] = movieEndH;
-    prevBreakoutH = prepStartH;
+    servers[i] = movieEndH;
+    prevBreakoutH.set(s.groupKey, prepStartH);
     out.push({
       stage: s.stage,
       runId: s.runId,
@@ -126,39 +131,48 @@ function plateAnchorMs(plate: PlateOut): number {
 
 /**
  * Build one estimated timeline across any number of runs on a single shared axis. Time zero is
- * the earliest plate start across all the runs shown. Within each run, cells are grouped by load
- * (plate `planned_start_at`) — cells loaded together share the instrument's 4 sequencing lanes,
- * so a same-session second tray waits ~28h; a reuse plate on a later day is its own group with
- * fresh lanes off its own start. Rows are grouped by run (earliest-loading run first), and within
- * a run by grid slot. Passing a single run degenerates to that run's own timeline.
+ * the earliest plate anchor across all the runs shown. Every cell across every run is scheduled
+ * through ONE shared set of 4 sequencing servers (see `schedule4Server`): cells loaded together
+ * share the 2h prep stagger, and a run loaded while the instrument is busy has its cells pushed
+ * to when a server frees — so passing an instrument's whole resident run set shows real cross-run
+ * contention (a same-session second tray waits ~28h; a fresh run loaded over a busy machine waits
+ * for a lane). Rows are grouped by run (earliest-loading run first), within a run by grid slot.
+ * Passing a single run degenerates to that run's own timeline.
  */
 export function computeTimeline(runs: RunOut[]): RunTimeline {
   const allStarts = runs.flatMap((r) => r.plates.map((p) => plateAnchorMs(p)));
   const loadMs = allStarts.length ? Math.min(...allStarts) : 0;
 
-  const earliestStart = (r: RunOut) =>
-    r.plates.length ? Math.min(...r.plates.map((p) => plateAnchorMs(p))) : Number.MAX_SAFE_INTEGER;
-  const orderedRuns = [...runs].sort((a, b) => earliestStart(a) - earliestStart(b) || a.run_id - b.run_id);
-
-  const timings: StageTiming[] = [];
-  for (const run of orderedRuns) {
-    // Seed every loaded cell with its load group + lane, then lay out each group independently.
-    const groups = new Map<string, Seed[]>();
+  // Seed every loaded cell across every run, then schedule them all through the shared servers.
+  // groupKey = `${run}:${plate start}` ties the 2h prep stagger to one loading session while the
+  // sequencing servers stay shared across the whole instrument.
+  const seeds: Seed[] = [];
+  for (const run of runs) {
     for (const plate of run.plates) {
       const groupBaseH = (plateAnchorMs(plate) - loadMs) / HOUR_MS;
       for (const stage of plate.stages) {
-        const seed: Seed = { stage, runId: run.run_id, groupBaseH, groupKey: plate.planned_start_at, lane: stage.slot_index % 4 };
-        const list = groups.get(seed.groupKey);
-        if (list) list.push(seed);
-        else groups.set(seed.groupKey, [seed]);
+        seeds.push({ stage, runId: run.run_id, groupBaseH, groupKey: `${run.run_id}:${plate.planned_start_at}` });
       }
     }
-    const runTimings = [...groups.values()].flatMap((seeds) => layoutGroup(seeds, loadMs));
-    // Display order: by grid slot within the run (Plate 1 A-D, then Plate 2 A-D).
-    runTimings.sort((a, b) => a.stage.slot_index - b.stage.slot_index || a.stage.cell_use_id - b.stage.cell_use_id);
-    timings.push(...runTimings);
   }
+  const timings = schedule4Server(seeds, loadMs);
   schedulePpa(timings, loadMs);
+
+  // Display order: rows grouped by run (earliest-loading run first), within a run by grid slot,
+  // so the gantt's per-run divider (newGroup) reads cleanly.
+  const earliestStart = (r: RunOut) =>
+    r.plates.length ? Math.min(...r.plates.map((p) => plateAnchorMs(p))) : Number.MAX_SAFE_INTEGER;
+  const runOrder = new Map<number, number>();
+  [...runs]
+    .sort((a, b) => earliestStart(a) - earliestStart(b) || a.run_id - b.run_id)
+    .forEach((r, i) => runOrder.set(r.run_id, i));
+  timings.sort(
+    (a, b) =>
+      (runOrder.get(a.runId) ?? 0) - (runOrder.get(b.runId) ?? 0) ||
+      a.stage.slot_index - b.stage.slot_index ||
+      a.stage.cell_use_id - b.stage.cell_use_id,
+  );
+
   const spanH = timings.reduce((m, t) => Math.max(m, t.ppaEndH), 0);
   return { loadMs, spanH, timings };
 }

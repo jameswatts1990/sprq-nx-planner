@@ -104,6 +104,14 @@ class RunOut(BaseModel):
     status: str
     lock_until: datetime  # the instrument is held until the last plate's acquisition finishes + buffer
     is_locked: bool  # "now" falls within the run's load->last-acquisition window and it isn't aborted/completed
+    # Derived, never stored (cell_timing.instrument_timeline): when this run's cells actually break
+    # out once the instrument's OTHER resident runs' sequencing-lane occupancy is accounted for. The
+    # user's chosen load time still stands (plates[0].planned_start_at); if the machine is busy the
+    # cells simply queue, and effective_start_at says until when. Only populated on placement/move/
+    # auto-fill responses (None on the grid feed, to avoid a per-row query). starts_later_than_requested
+    # is true when effective_start_at is meaningfully later than the load - the cue to alert the user.
+    effective_start_at: datetime | None = None
+    starts_later_than_requested: bool = False
     plates: list[PlateOut] = []
 
 

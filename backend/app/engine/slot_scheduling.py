@@ -109,7 +109,7 @@ def fill_slots(
     # Loading more than half a slot's wells (i.e. tray 2) commits that instrument to the
     # full movie plus a settle buffer before it can start its next run - long enough to
     # spill into the immediately following calendar day(s) (mirrors
-    # instrument_lock.cycle_lock_until, which persistence checks for real via
+    # instrument_lock.run_lock_until, which persistence checks for real via
     # get_or_create_run). A half-tray (<=4 well) run only locks for the short settle
     # buffer and never blocks the next day. This tracks, per instrument, the earliest
     # run_date a brand-new run created by this batch may start; any slot before that

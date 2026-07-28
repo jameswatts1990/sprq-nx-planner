@@ -8,13 +8,25 @@ import type { NoteTone } from "@/components/ui/Note";
 import type { GridSelection } from "@/components/scheduler/useGridSelection";
 import type { SlotSelection } from "@/components/scheduler/useSlotSelection";
 import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
-import type { SlotIndex, StageOut } from "@/types/schedule";
+import type { RunOut, SlotIndex, StageOut } from "@/types/schedule";
 import type { GridCellRef, RunDesignState } from "@/types/schedulerGrid";
+import { formatShortDateTimeUTC, formatTimeUTC } from "@/utils/calendarDates";
 
 export interface AccordionNote {
   tone: NoteTone;
   icon: string;
   text: string;
+}
+
+/** A one-line advisory when a just-placed/moved run's cells will actually break out LATER than the
+ * load time the user chose, because the instrument is busy (cross-run sequencing contention - see
+ * cell_timing.instrument_timeline). The load isn't blocked or moved; this just tells the user when
+ * sequencing really starts. null when the run starts when requested. */
+function placementAdvisoryText(run: RunOut): string | null {
+  if (!run.starts_later_than_requested || !run.effective_start_at) return null;
+  const plate1 = run.plates.find((p) => p.plate_index === 1) ?? run.plates[0];
+  const loaded = plate1 ? formatTimeUTC(plate1.planned_start_at) : "your chosen time";
+  return `${run.instrument_serial} is busy — this run loads at ${loaded}, but its cells won't start sequencing until ${formatShortDateTimeUTC(run.effective_start_at)}.`;
 }
 
 export interface UseScheduleActionsArgs {
@@ -48,6 +60,9 @@ export function useScheduleActions({
 
   const [runDesignNote, setRunDesignNote] = useState<AccordionNote | null>(null);
   const [removeSlotsError, setRemoveSlotsError] = useState<string | null>(null);
+  // A transient advisory shown after a drop/move onto a busy instrument: "loaded 12:00, cells
+  // really start 18:00". Distinct from removeSlotsError (a red failure) - this is informational.
+  const [placementAdvisory, setPlacementAdvisory] = useState<string | null>(null);
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
 
   const removeSlots = useMutation({
@@ -158,11 +173,13 @@ export function useScheduleActions({
         start_hour: v.start_hour,
         start_minute: v.start_minute,
       }),
-    onSuccess: () => {
+    onSuccess: (run) => {
       invalidateScheduleRelated(queryClient);
       setRemoveSlotsError(null);
+      setPlacementAdvisory(placementAdvisoryText(run));
     },
     onError: (err) => {
+      setPlacementAdvisory(null);
       setRemoveSlotsError(err instanceof ApiError ? err.message : "Failed to place sample.");
     },
   });
@@ -182,11 +199,13 @@ export function useScheduleActions({
         slot_index: v.slot_index,
         run_time_hours: runDesign.run_time_hours,
       }),
-    onSuccess: () => {
+    onSuccess: (run) => {
       invalidateScheduleRelated(queryClient);
       setRemoveSlotsError(null);
+      setPlacementAdvisory(placementAdvisoryText(run));
     },
     onError: (err) => {
+      setPlacementAdvisory(null);
       setRemoveSlotsError(err instanceof ApiError ? err.message : "Failed to move sample.");
     },
   });
@@ -215,6 +234,10 @@ export function useScheduleActions({
       // Auto-disposal is the expected outcome of the Max-uses cap, not a problem - report
       // it for transparency but don't let it flip the note to a warning tone.
       if (res.disposed_cell_ids.length > 0) parts.push(`${res.disposed_cell_ids.length} cell(s) disposed`);
+      // Runs whose cells will break out later than their load because the instrument is busy
+      // (cross-run lane contention) - informational, like disposals, not a warning.
+      const queued = res.runs.filter((r) => r.starts_later_than_requested).length;
+      if (queued > 0) parts.push(`${queued} run(s) start later (instrument busy)`);
       const clean =
         res.unplaced_sample_ids.length === 0 && res.window_flags.length === 0 && res.barcode_conflicts.length === 0;
       setRunDesignNote({
@@ -247,12 +270,15 @@ export function useScheduleActions({
   const resetFeedback = useCallback(() => {
     setRunDesignNote(null);
     setRemoveSlotsError(null);
+    setPlacementAdvisory(null);
     setClearConfirmOpen(false);
   }, []);
 
   return {
     runDesignNote,
     removeSlotsError,
+    placementAdvisory,
+    setPlacementAdvisory,
     clearConfirmOpen,
     setClearConfirmOpen,
     removeSlots,

@@ -52,6 +52,8 @@ function run(plates: PlateOut[]): RunOut {
     status: "planned",
     lock_until: plates[0].planned_start_at,
     is_locked: false,
+    effective_start_at: null,
+    starts_later_than_requested: false,
     plates,
   };
 }
@@ -95,6 +97,25 @@ describe("computeRunTimeline", () => {
 });
 
 describe("computeTimeline (multiple runs)", () => {
+  it("pushes a second run's cells to when the first frees a sequencing server (cross-run)", () => {
+    // Run A fills all 4 servers (a full tray, movies end 28/30/32/34). Run B is a separate run
+    // loaded 5h later on the same instrument — its cell can't break out at +5h, only at 28h.
+    const start = "2026-08-03T12:00:00+00:00";
+    const runA: RunOut = {
+      ...run([plate(1, start, [stage(0, 24, 100), stage(1, 24, 101), stage(2, 24, 102), stage(3, 24, 103)])]),
+      run_id: 1,
+    };
+    const runB: RunOut = { ...run([plate(1, "2026-08-03T17:00:00+00:00", [stage(0, 24, 200)])]), run_id: 2 };
+    const { timings } = computeTimeline([runA, runB]);
+
+    // Run A's own tray is unaffected (all 4 servers free at load).
+    expect([100, 101, 102, 103].map((id) => timings.find((t) => t.stage.cell_use_id === id)!.prepStartH)).toEqual([0, 2, 4, 6]);
+    // Run B, loaded +5h onto the full machine, is pushed to the first server free (28h).
+    const b = timings.find((t) => t.stage.cell_use_id === 200)!;
+    expect(b.prepStartH).toBe(28);
+    expect(b.movieStartH).toBe(28 + PREP_H);
+  });
+
   it("lays overlapping runs on one shared axis, grouped earliest-run-first", () => {
     // Two runs on one instrument: run B loads 6h after run A, so they overlap (A still
     // sequencing when B starts). Together they'd be up to 8 cells on one gantt.

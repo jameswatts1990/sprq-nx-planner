@@ -1,7 +1,11 @@
 """cell_timing.compute_timings: the canonical per-cell instrument timeline (breakout -> movie ->
 PPA) mirrored by the frontend gantt. Verifies the two capacity limits the PacBio adaptive-loading
-slide implies: 4 sequencing lanes (a second tray waits ~28h) and 2 PPA lanes (cells 3 & 4 wait)."""
-from app.services.cell_timing import PPA_H, PREP_H, CellInput, compute_timings
+slide implies: 4 sequencing lanes (a second tray waits ~28h) and 2 PPA lanes (cells 3 & 4 wait).
+The sequencing servers are shared ACROSS runs, so a run loaded onto a busy machine waits too."""
+from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
+
+from app.services.cell_timing import PPA_H, PREP_H, CellInput, compute_timings, instrument_timeline
 
 
 def _tray(group_key: str, base_h: float, slots: list[int], run_time_h: float = 24.0) -> list[CellInput]:
@@ -38,9 +42,48 @@ def test_ppa_limited_to_two_lanes_delays_cells_3_and_4():
 
 
 def test_reuse_plate_on_a_later_day_is_its_own_lane_group():
-    # Plate 1 today (base 0), a reuse plate a day later (base 24) with its own fresh lanes.
+    # Plate 1 today (base 0, ONE cell so 3 servers stay free), a reuse plate a day later (base 24).
     cells = _tray("day1", 0.0, [0]) + _tray("day2", 24.0, [4])
     t = compute_timings(cells)
     assert t[0].breakout_h == 0
-    # The reuse cell breaks out at its own day's start (not pulled to ~28h by tray-1's lanes).
+    # The reuse cell finds a free server at its own day's start (not pulled to ~28h): only 1 of 4
+    # servers was busy, so cross-run/plate contention doesn't bite here.
     assert t[4].breakout_h == 24
+
+
+def test_a_second_run_loaded_while_the_machine_is_full_waits_for_a_server():
+    # Run A fills all 4 sequencing servers (a full tray; movies end 28/30/32/34). Run B is a
+    # SEPARATE run loaded 5h later on the same instrument - its cells can't break out at +5h, only
+    # when A frees a server. This is the cross-run contention the effective-start advisory keys off.
+    cells = (
+        [CellInput(key=f"a{s}", slot_index=s, run_time_h=24.0, group_base_h=0.0, group_key="A") for s in (0, 1, 2, 3)]
+        + [CellInput(key=f"b{s}", slot_index=s, run_time_h=24.0, group_base_h=5.0, group_key="B") for s in (0, 1, 2, 3)]
+    )
+    t = compute_timings(cells)
+    assert [t[f"a{s}"].breakout_h for s in (0, 1, 2, 3)] == [0, 2, 4, 6]
+    # Run B pushed to when A's servers free (28/30/32/34), despite its own +5h load time.
+    assert [t[f"b{s}"].breakout_h for s in (0, 1, 2, 3)] == [28, 30, 32, 34]
+
+
+def _cu(cu_id: int, home_well: str, run_time: int = 24):
+    return SimpleNamespace(id=cu_id, well=home_well, run_time_hours=run_time, cell=SimpleNamespace(home_well=home_well))
+
+
+def _cycle(plate_index: int, start: datetime, cell_uses: list):
+    return SimpleNamespace(plate_index=plate_index, planned_start_at=start, actual_start_at=None, cell_uses=cell_uses)
+
+
+def _run(run_id: int, cycles: list):
+    return SimpleNamespace(id=run_id, cycles=cycles)
+
+
+def test_instrument_timeline_pushes_a_busy_runs_effective_start():
+    noon = datetime(2026, 8, 3, 12, tzinfo=timezone.utc)
+    # Run A: a full 4-cell tray at noon (fills all 4 servers). Run B: one fresh cell 5h later.
+    run_a = _run(1, [_cycle(1, noon, [_cu(i, w) for i, w in enumerate(["A01", "B01", "C01", "D01"], start=1)])])
+    run_b = _run(2, [_cycle(1, noon + timedelta(hours=5), [_cu(10, "A01")])])
+    eff = instrument_timeline([run_a, run_b])
+    # Run A starts at its own load; Run B's effective start is pushed to when A frees a server (~+28h),
+    # not its requested +5h - this is what the placement advisory reports to the user.
+    assert eff[1] == noon
+    assert eff[2] == noon + timedelta(hours=28)

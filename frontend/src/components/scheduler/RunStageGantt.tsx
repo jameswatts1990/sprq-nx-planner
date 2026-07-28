@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import type { RunOut } from "@/types/schedule";
+import type { RunOut, StageOut } from "@/types/schedule";
 import { cellPositionLabel } from "@/utils/plateWell";
 import { computeTimeline, PPA_H, PPA_SERVERS, PREP_H, type StageTiming } from "@/utils/stageTimings";
 import { classForUseIndex } from "@/utils/useIndexClass";
@@ -57,23 +57,41 @@ function GanttRow({
   spanH,
   current,
   newGroup,
+  onSelectStage,
 }: {
   t: StageTiming;
   spanH: number;
   current: boolean;
   /** First row of a new run in a multi-run gantt — gets a divider above it. */
   newGroup: boolean;
+  /** When set, the row's sample ID becomes a button that opens that stage's detail (see
+   * RunStageGanttProps.onSelectStage). Omitted rows (current row, or no sample) stay plain text. */
+  onSelectStage?: (stage: StageOut) => void;
 }) {
   const s = t.stage;
   // The physical cell's position label ("▣2"), same as the grid card's ticket stub.
   const cell = cellPositionLabel(s.tray_position, s.cell_home_well ?? s.well);
   const useClass = classForUseIndex(s.use_number);
   const pct = (h: number) => `${(h / spanH) * 100}%`;
+  // The current row is the one the popover already shows, so clicking it is a no-op — keep it
+  // plain text. Every other row with a real sample becomes a jump-to-that-placement button.
+  const clickable = !!onSelectStage && !current && s.sample_id != null;
   return (
     <div className={`${styles.row} ${current ? styles.current : ""} ${newGroup ? styles.groupStart : ""}`}>
       <div className={styles.rowLabel} title={`Cell ${s.cell_ref} · Use ${s.use_number}`}>
         <span className={`${styles.stub} ${styles[useClass]}`}>{cell}</span>
-        <span className={styles.sample}>{s.sample_external_id ?? "—"}</span>
+        {clickable ? (
+          <button
+            type="button"
+            className={`${styles.sample} ${styles.sampleBtn}`}
+            onClick={() => onSelectStage(s)}
+            title={`Open ${s.sample_external_id ?? "this placement"}`}
+          >
+            {s.sample_external_id ?? "—"}
+          </button>
+        ) : (
+          <span className={styles.sample}>{s.sample_external_id ?? "—"}</span>
+        )}
       </div>
       <div className={styles.track}>
         {t.prepStartH - t.prepPendingStartH > 0.01 && (
@@ -120,6 +138,10 @@ export interface RunStageGanttProps {
   /** The placement whose row is highlighted (the slot-detail popover's own slot); omit when
    * no single row is "current" (the instrument card shows every active run equally). */
   currentCellUseId?: number;
+  /** When set, each row's sample ID becomes a button that calls this with that row's stage —
+   * the slot-detail popover uses it to jump straight to another cell's placement. Omit to keep
+   * the gantt read-only (the Instruments cards). */
+  onSelectStage?: (stage: StageOut) => void;
 }
 
 /**
@@ -132,7 +154,7 @@ export interface RunStageGanttProps {
  * utils/stageTimings) - illustrative, not the instrument's exact schedule. Read-only; used in
  * the slot-detail popover (a single run) and on the Instruments cards (all active runs).
  */
-export function RunStageGantt({ runs, currentCellUseId }: RunStageGanttProps) {
+export function RunStageGantt({ runs, currentCellUseId, onSelectStage }: RunStageGanttProps) {
   const { loadMs, spanH, timings } = computeTimeline(runs);
 
   // Live "now" marker. A slow tick keeps the line's position current to the minute; the spinning
@@ -180,6 +202,7 @@ export function RunStageGantt({ runs, currentCellUseId }: RunStageGanttProps) {
             spanH={spanH}
             current={t.stage.cell_use_id === currentCellUseId}
             newGroup={i > 0 && t.runId !== timings[i - 1].runId}
+            onSelectStage={onSelectStage}
           />
         ))}
         {live && (

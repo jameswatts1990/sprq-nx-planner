@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { ApiError } from "@/api/client";
@@ -7,6 +7,7 @@ import { cellsApi } from "@/api/cells";
 import { cellUsesApi } from "@/api/cellUses";
 import { samplesApi } from "@/api/samples";
 import { WindowMeter } from "@/components/cells/WindowMeter";
+import { allStages } from "@/components/scheduler/groupCyclesByInstrumentAndDay";
 import { RunStageGantt } from "@/components/scheduler/RunStageGantt";
 import { BarcodeChips } from "@/components/shared/BarcodeChips";
 import { Button } from "@/components/ui/Button";
@@ -56,13 +57,78 @@ const PLACED_EDITABLE_KEYS = new Set([
  * a cheap, no-fetch gate on whether the Sample value is shown as an edit link. */
 const SAMPLE_LOCKED_USE_STATUSES = ["completed", "failed", "cancelled"];
 
+/** Prev/next navigation across the run's cells, threaded into the popover body's title. */
+interface SlotNav {
+  /** Position within the run, 1-based, and the run's total navigable cells (for "2 of 4"). */
+  position: number;
+  total: number;
+  hasPrev: boolean;
+  hasNext: boolean;
+  onPrev: () => void;
+  onNext: () => void;
+  /** Jump straight to a given cell's placement (the gantt row buttons call this). */
+  onSelectStage: (stage: StageOut) => void;
+}
+
+/** Wraps the placement detail with left/right navigation across the run's cells. A run holds up
+ * to 8 cells; rather than closing this popover and hunting for the next card on the grid, a
+ * scheduler can step through them in place (title arrows) or jump to any of them by clicking its
+ * row in the estimated-stage-times gantt. Cells are ordered by grid slot, matching the gantt.
+ * The body is keyed by cell-use id so its per-placement state (notes, run time, edit form) resets
+ * cleanly on each move. */
+export function SlotDetailPopover({ stage, run, onClose, onOpenQc }: SlotDetailPopoverProps) {
+  // Every filled cell of the run, in the gantt's display order (grid slot, then use id).
+  const stages = useMemo(
+    () =>
+      [...allStages(run)].sort(
+        (a, b) => a.slot_index - b.slot_index || a.cell_use_id - b.cell_use_id,
+      ),
+    [run],
+  );
+  const [currentUseId, setCurrentUseId] = useState(stage.cell_use_id);
+  const idx = stages.findIndex((s) => s.cell_use_id === currentUseId);
+  // Fall back to the click-time stage if the current id ever falls out of the run (shouldn't
+  // happen while the popover is open, but keeps the body rendering rather than crashing).
+  const current = idx >= 0 ? stages[idx] : stage;
+  const safeIdx = idx >= 0 ? idx : 0;
+  const hasPrev = safeIdx > 0;
+  const hasNext = safeIdx < stages.length - 1;
+
+  const nav: SlotNav = {
+    position: safeIdx + 1,
+    total: stages.length,
+    hasPrev,
+    hasNext,
+    onPrev: () => hasPrev && setCurrentUseId(stages[safeIdx - 1].cell_use_id),
+    onNext: () => hasNext && setCurrentUseId(stages[safeIdx + 1].cell_use_id),
+    onSelectStage: (s) => setCurrentUseId(s.cell_use_id),
+  };
+
+  return (
+    <SlotDetailBody
+      key={current.cell_use_id}
+      stage={current}
+      run={run}
+      onClose={onClose}
+      onOpenQc={onOpenQc}
+      nav={nav}
+    />
+  );
+}
+
 /** Detail for one filled slot: cell code, the cell's burned barcodes, the sample, its
  * per-cell run time and a free-text note. A cell is physically fixed to its tray/well
  * position for life, so this popover never reassigns it in place - reallocating a sample
  * means dragging it. Cell QC (Fail / Fail-and-Stop / Retire) lives in the shared Cell QC
  * modal, reachable from here via the "Cell QC" button (and from the card's ticket-stub / the tray
  * overview); it isn't duplicated inline any more. Built on Modal. */
-export function SlotDetailPopover({ stage, run, onClose, onOpenQc }: SlotDetailPopoverProps) {
+function SlotDetailBody({
+  stage,
+  run,
+  onClose,
+  onOpenQc,
+  nav,
+}: SlotDetailPopoverProps & { nav: SlotNav }) {
   const queryClient = useQueryClient();
   const backNav = useSampleBackNav();
   // Editable placement note. `savedNotes` tracks the last persisted value so the Save button
@@ -142,9 +208,41 @@ export function SlotDetailPopover({ stage, run, onClose, onOpenQc }: SlotDetailP
     // Titled by the SAMPLE (Container ID) - the card-body popover is about this placement,
     // so it reads differently from the cell-stub popover (CellInfoPopover), which stays
     // titled by the physical cell code. The cell it ran on is shown as a subtitle for context.
-    <Modal onClose={onClose} title={stage.sample_external_id ?? "Placement"}>
+    <Modal
+      onClose={onClose}
+      title={
+        nav.hasPrev || nav.hasNext ? (
+          <span className={styles.titleNav}>
+            <button
+              type="button"
+              className={`btn icon sm ${styles.navBtn}`}
+              onClick={nav.onPrev}
+              disabled={!nav.hasPrev}
+              aria-label="Previous cell in this run"
+              title="Previous cell in this run"
+            >
+              <span aria-hidden="true">‹</span>
+            </button>
+            <span className={styles.titleId}>{stage.sample_external_id ?? "Placement"}</span>
+            <button
+              type="button"
+              className={`btn icon sm ${styles.navBtn}`}
+              onClick={nav.onNext}
+              disabled={!nav.hasNext}
+              aria-label="Next cell in this run"
+              title="Next cell in this run"
+            >
+              <span aria-hidden="true">›</span>
+            </button>
+          </span>
+        ) : (
+          (stage.sample_external_id ?? "Placement")
+        )
+      }
+    >
       <div className={styles.subtitle}>
         on cell {stage.cell_ref} · {plateWellFromSlot(stage.slot_index, { full: true })}
+        {nav.total > 1 && ` · cell ${nav.position} of ${nav.total} in this run`}
       </div>
       {isCancelled && (
         <Note tone="warn" icon="!">
@@ -243,8 +341,9 @@ export function SlotDetailPopover({ stage, run, onClose, onOpenQc }: SlotDetailP
         </Note>
       )}
 
-      {/* Estimated stage-times gantt for the whole run, this placement's row highlighted. */}
-      <RunStageGantt runs={[run]} currentCellUseId={stage.cell_use_id} />
+      {/* Estimated stage-times gantt for the whole run, this placement's row highlighted. Each
+          other row's sample ID is a button that jumps this popover to that cell's placement. */}
+      <RunStageGantt runs={[run]} currentCellUseId={stage.cell_use_id} onSelectStage={nav.onSelectStage} />
 
       {showWindowMeter && <WindowMeter windowHours={cell!.window_hours_elapsed as number} />}
 

@@ -21,6 +21,30 @@
   color: var(--ink);
   text-align: right;
 }
+/* Title with prev/next cell navigation: a chevron button either side of the sample ID, so a
+   scheduler can step through the run's cells without leaving the popover. */
+.titleNav {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.titleId {
+  min-width: 0;
+}
+/* Shape/border/hover/focus/disabled come from the shared `btn icon sm` variant (base.css);
+   only the understated grey glyph + a slightly larger chevron are component-specific. */
+.navBtn {
+  color: var(--grey);
+  font-size: 18px;
+  line-height: 1;
+}
+.navBtn:not(:disabled):hover {
+  color: var(--ink);
+}
+.navBtn:focus-visible {
+  outline: 2px solid var(--magenta-deep);
+  outline-offset: 1px;
+}
 /* The cell/well context line under the sample-titled heading. */
 .subtitle {
   font-size: var(--fs-sm);

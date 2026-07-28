@@ -293,7 +293,7 @@ def auto_fill(
 
     # Process in chronological order per instrument (not pack/cell order) rather than
     # fill.assignments' own order. A full-tray run's lock can span into the next calendar
-    # day (see instrument_lock.cycle_lock_until), and that "tray 2 loaded" state is read
+    # day (see instrument_lock.run_lock_until), and that "tray 2 loaded" state is read
     # back from the CellUse rows just persisted for the earlier day - so the earlier day's
     # cell uses must already be committed before the later day's run is created, or the
     # lock goes undetected. The pre-scan above can't foresee a lock this batch is about to

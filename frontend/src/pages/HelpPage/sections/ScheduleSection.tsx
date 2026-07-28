@@ -245,7 +245,9 @@ export function ScheduleSection() {
           <b>08:00 to 20:00</b>. Auto Schedule gives every run it creates this time, and it&apos;s the starting point
           the dial shows when you drag a sample by hand (see below). A cell&apos;s reuse follows automatically — it
           starts once the previous movie finishes and the cells are washed — so a later load time, or a longer movie,
-          pushes the reuse&apos;s start later too.
+          pushes the reuse&apos;s start later too. If the instrument is already busy when you load, your chosen time is
+          still recorded — the app simply tells you when the cells will <em>actually</em> start sequencing once a
+          sequencing lane frees up (it never silently moves your time).
         </dd>
         <dt>Optimise for</dt>
         <dd>
@@ -297,7 +299,9 @@ export function ScheduleSection() {
           <b>brand-new run</b> (the first sample on that instrument and day), a radial <b>load-time dial</b> pops up so
           you can set when the run loads and starts sequencing (08:00–20:00) — it opens on your Run design load time;
           click an hour, or press <b>Esc</b> to cancel without scheduling. Dropping onto a day that already has a run
-          places straight away at that run&apos;s time.
+          places straight away at that run&apos;s time. If the instrument is busy with other runs, the sample is still
+          placed at your chosen time and a short amber note tells you when its cells will actually start sequencing —
+          they queue until one of the machine&apos;s four sequencing lanes frees.
         </li>
         <li>
           <b>Auto-fill:</b> click empty day cells to select them (Shift-click to select a rectangle, Ctrl/Cmd-click
@@ -461,6 +465,14 @@ export function ScheduleSection() {
         by the <b>sample</b> (its Container ID), with the cell it ran on shown just beneath — so it reads clearly apart
         from the cell-stub popover (which stays titled by the physical cell). The <b>Sample ID</b> is a link to that
         sample&apos;s own page, and the <b>Run</b> value links to that run&apos;s page.
+      </p>
+      <p>
+        <b>Stepping through the run&apos;s cells:</b> when a run has more than one cell, the popover title shows{" "}
+        <b>‹ ›</b> arrows either side of the sample ID — use them to move to the previous / next cell of the same run
+        without closing the popover and hunting for its card on the grid. The line beneath the title shows which cell
+        you&apos;re on (e.g. <i>cell 2 of 4 in this run</i>). You can also jump straight to any cell by clicking its{" "}
+        <b>sample ID in the estimated-stage-times gantt</b> lower down — the row you&apos;re already viewing stays
+        highlighted and isn&apos;t a link.
       </p>
       <p>
         <b>Editing the sample:</b> next to the Sample ID a small <b>✎</b> button opens the quick edit form for that

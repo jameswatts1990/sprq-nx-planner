@@ -114,6 +114,13 @@ export interface RunOut {
   lock_until: string; // ISO datetime
   /** "now" falls within the run's load -> last-acquisition window and it isn't aborted/completed. */
   is_locked: boolean;
+  /** Derived (never stored): when this run's cells actually break out once the instrument's OTHER
+   * resident runs' sequencing-lane occupancy is accounted for. Only populated on placement / move /
+   * auto-fill responses (null on the grid feed). If it's meaningfully later than the chosen load
+   * time, the load was accepted but the cells queue — surfaced to the user as an advisory. */
+  effective_start_at: string | null;
+  /** True when effective_start_at is meaningfully later than the run's own load time. */
+  starts_later_than_requested: boolean;
   /** 1-2 plates. Plate 1 first; a second plate is a fresh parallel tray or a reuse. */
   plates: PlateOut[];
 }

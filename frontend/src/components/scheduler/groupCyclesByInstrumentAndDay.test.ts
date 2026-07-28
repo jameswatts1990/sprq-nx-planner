@@ -54,6 +54,8 @@ function baseRun(overrides: Partial<RunOut> = {}, stages: StageOut[] = []): RunO
     status: "planned",
     lock_until: "2026-07-20T15:00:00Z",
     is_locked: false,
+    effective_start_at: null,
+    starts_later_than_requested: false,
     plates: [basePlate(stages)],
     ...overrides,
   };

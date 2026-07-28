@@ -73,8 +73,10 @@ export function InstrumentsSection() {
         through every bar to show where sequencing has got to. Since the instrument can only run <b>two cells&apos; PPA
         at once</b>, later cells show a short hatched <b>&quot;waiting for PPA&quot;</b> gap before their PPA begins. If{" "}
         <b>two runs overlap</b> on the instrument they share the one chart — up to eight cells — separated by a divider
-        so each run reads clearly. The timings are approximate PacBio estimates, not the instrument&apos;s exact
-        schedule.
+        so each run reads clearly. Because the machine can only <b>sequence four cells at a time</b>, a run that loads
+        while an earlier one is still going shows its cells <b>waiting</b> (a long prep lead-in) until a sequencing lane
+        frees — the same reason a freshly-dropped sample on a busy instrument is flagged as starting later. The timings
+        are approximate PacBio estimates, not the instrument&apos;s exact schedule.
       </p>
 
       <p className={styles.subheading}>Status badge</p>

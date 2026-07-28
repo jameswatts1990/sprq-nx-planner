@@ -568,6 +568,11 @@ export function SchedulePage() {
               {actions.removeSlotsError}
             </Note>
           )}
+          {actions.placementAdvisory && (
+            <Note tone="warn" icon="⏱">
+              {actions.placementAdvisory}
+            </Note>
+          )}
 
           <div className={styles.gridArea} ref={gridAreaRef} data-barcodes={showBarcodes ? undefined : "hidden"}>
             <SectionHeading title="Weekly schedule" legend={<UseLegend />} progress={weekProgress} />

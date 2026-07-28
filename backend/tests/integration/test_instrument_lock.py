@@ -100,31 +100,32 @@ def test_tray_2_only_run_also_only_locks_for_the_short_setup_window(client):
     assert r2.status_code == 201, r2.text
 
 
-def test_new_run_on_the_lock_end_day_starts_when_the_instrument_frees(client):
-    """A prior run's lock that clears *during* a day doesn't close that day: the instrument
-    frees up, so a new run can be loaded then - it just starts when the lock ends, not at the
-    earlier requested time. This is the everyday reuse-run case a user hits (load Plate 1 +
-    reuse Plate 2 in one session, then load the next tray the day the first run's movie
-    finishes). See instrument_lock.resolve_new_run_start."""
+def test_new_run_keeps_its_requested_start_when_the_loading_lock_clears_midday(client):
+    """A prior run's loading-lock that clears *during* a day no longer silently BUMPS a new run's
+    start - the user's chosen load time is recorded as-is (D1). And because Monday here used only
+    2 of the 4 sequencing servers, the lane model says the Tuesday run genuinely CAN start at noon
+    (the old bump to 18:00 was over-conservative), so no 'starts later' advisory fires. See
+    placement_service.get_or_create_run / instrument_lock.effective_run_start."""
     client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1\nA2,bc2\nA3,bc3"})
     mon, tue = _weekdays(2)
 
-    # Tray 1 (slot 0) and tray 2 (slot 4) both loaded on Monday at noon - commits the
-    # instrument to the full movie: locked until noon + 24h + 6h = Tuesday 18:00.
+    # Tray 1 (slot 0) and tray 2 (slot 4) both loaded on Monday at noon: the coarse loading-lock
+    # would have said "locked until Tue 18:00", but only 2 sequencing servers are actually used.
     r1 = _place(client, _sid(client, "A1"), mon, slot_index=0, run_time_hours=24)
     assert r1.status_code == 201, r1.text
     cell_id_1 = _stages(r1.json())[0]["cell_id"]
     r2 = _place(client, _sid(client, "A2"), mon, slot_index=4, run_time_hours=24)
     assert r2.status_code == 201, r2.text
 
-    # Tuesday's default noon start is before that lock, but the lock clears on Tuesday
-    # itself - so the load succeeds and the new run starts at 18:00 when the instrument frees.
-    # Both of Monday's tray boxes are still loaded, so reuse tray 1's own cell for its Use 2
-    # (see open_new_tray()'s box guard) rather than opening a third tray.
+    # Tuesday's default noon start is KEPT (not bumped to 18:00); the run reads as starting when
+    # requested. Both of Monday's tray boxes are still loaded, so reuse tray 1's own cell for its
+    # Use 2 (see open_new_tray()'s box guard) rather than opening a third tray.
     r3 = _place(client, _sid(client, "A3"), tue, run_time_hours=24, cell_choice={"mode": "existing", "cell_id": cell_id_1})
     assert r3.status_code == 201, r3.text
-    started_at = next(p for p in r3.json()["plates"] if p["acquire_date"] == tue)["planned_start_at"]
-    assert started_at.startswith(tue) and "18:00" in started_at, started_at
+    body = r3.json()
+    started_at = next(p for p in body["plates"] if p["acquire_date"] == tue)["planned_start_at"]
+    assert started_at.startswith(tue) and "12:00" in started_at, started_at
+    assert body["starts_later_than_requested"] is False
 
 
 def test_new_run_rejected_on_a_day_the_lock_spans_in_full(client):
@@ -176,19 +177,50 @@ def test_lock_lookback_finds_a_two_tray_run_from_two_days_earlier(client):
     r2 = _place(client, _sid(client, "A2"), mon, slot_index=4, run_time_hours=30, start_hour=20)
     assert r2.status_code == 201, r2.text
 
-    # Wednesday's requested 07:00 start is before the lock's 08:00 clear, but the lock ends
-    # on Wednesday itself - so the load succeeds and the run is bumped to start at 08:00 when
-    # the instrument frees. That the bump happens at all confirms the lookback reached back
-    # two calendar days to find Monday's run (isn't limited to "yesterday only"). Both tray
-    # boxes are already loaded from Monday, so reuse tray 1's own cell for its Use 2 (see
-    # open_new_tray()'s box guard) rather than opening a third tray.
-    bumped = _place(
+    # Wednesday's requested 07:00 start is KEPT as-is (D1: no silent bump to the old 08:00
+    # lock-clear). Monday's 30h run used only 2 of the 4 sequencing servers, so Wednesday
+    # genuinely has spare capacity and the run starts when asked. The load still SUCCEEDING (not
+    # 409'd) confirms the 3-day lookback reached back two calendar days to find Monday's run.
+    # Both tray boxes are already loaded, so reuse tray 1's own cell for its Use 2.
+    r3 = _place(
         client, _sid(client, "A3"), wed, run_time_hours=24, start_hour=7, cell_choice={"mode": "existing", "cell_id": cell_id_1}
     )
-    assert bumped.status_code == 201, bumped.text
-    # The new run's own plate starts at the lock's 08:00 end, not the requested 07:00.
-    reuse_plate = next(p for p in bumped.json()["plates"] if p["acquire_date"] == wed)
-    assert reuse_plate["planned_start_at"].startswith(wed) and "08:00" in reuse_plate["planned_start_at"]
+    assert r3.status_code == 201, r3.text
+    reuse_plate = next(p for p in r3.json()["plates"] if p["acquire_date"] == wed)
+    assert reuse_plate["planned_start_at"].startswith(wed) and "07:00" in reuse_plate["planned_start_at"]
+    assert r3.json()["starts_later_than_requested"] is False
+
+
+def test_loading_onto_a_full_machine_keeps_the_time_but_advises_a_later_effective_start(client):
+    """The heart of the lane-aware feature: load a run onto an instrument whose 4 sequencing
+    servers are ALL busy, and the app records the user's chosen load time but tells them the cells
+    won't actually break out until a server frees (starts_later_than_requested + effective_start_at).
+    No blocking, no silent bump - just the honest effective start (cell_timing.instrument_timeline)."""
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,b1\nA2,b2\nA3,b3\nA4,b4\nA5,b5"})
+    mon, tue = _weekdays(2)
+
+    # Fill all 4 sequencing servers on Monday: a full tray of four 24h cells at noon (movies end
+    # 28/30/32/34h from load). Slot 0 opens the tray; slots 1-3 fill its own sibling cells.
+    r0 = _place(client, _sid(client, "A1"), mon, slot_index=0, run_time_hours=24)
+    assert r0.status_code == 201, r0.text
+    tray_id = _stages(r0.json())[0]["tray_id"]
+    cell_id_1 = _stages(r0.json())[0]["cell_id"]
+    for i, (ext, well) in enumerate([("A2", "B01"), ("A3", "C01"), ("A4", "D01")], start=1):
+        sib = _sibling_cell_id(client, tray_id, well)
+        r = _place(client, _sid(client, ext), mon, slot_index=i, run_time_hours=24, cell_choice={"mode": "existing", "cell_id": sib})
+        assert r.status_code == 201, r.text
+
+    # Tuesday noon: reuse cell A (its Use 2). Every server is busy until 28h+ (cell A's own frees
+    # ~Tue 16:00), so the cells can't break out at noon - the response KEEPS the chosen noon load
+    # but flags a later effective start. No block, no silent bump: just the honest timing.
+    r = _place(client, _sid(client, "A5"), tue, slot_index=0, run_time_hours=24, cell_choice={"mode": "existing", "cell_id": cell_id_1})
+    assert r.status_code == 201, r.text
+    body = r.json()
+    started_at = next(p for p in body["plates"] if p["acquire_date"] == tue)["planned_start_at"]
+    assert started_at.startswith(tue) and "12:00" in started_at, started_at  # chosen load time kept
+    assert body["starts_later_than_requested"] is True
+    assert body["effective_start_at"] is not None
+    assert body["effective_start_at"] > started_at  # cells actually break out later (a server frees ~Tue 16:00)
 
 
 def test_loading_into_existing_run_never_blocked_by_its_own_lock(client):

@@ -18,7 +18,6 @@ lockstep with the frontend constants of the same names.
 """
 from __future__ import annotations
 
-from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
@@ -54,26 +53,36 @@ class CellTiming:
 
 
 def compute_timings(cells: list[CellInput]) -> dict[object, CellTiming]:
-    """Lay out every cell on one shared hours-from-T axis. Returns {key: CellTiming}."""
-    groups: dict[object, list[CellInput]] = defaultdict(list)
-    for c in cells:
-        groups[c.group_key].append(c)
+    """Lay out every input cell on one shared hours-from-T axis, returning {key: CellTiming}.
 
+    Sequencing is a **4-server (SEQ_LANES) instrument resource shared across EVERY cell in the
+    input**: a cell holds one server from its breakout until its movie ends, and takes the
+    earliest-free server. Feed one run's cells (``_run_cell_inputs``) and you get that run in
+    isolation; feed an instrument's whole resident set (``instrument_timeline``) and cells from
+    *different runs* contend for the same 4 servers — that's how a run loaded while the machine
+    is busy has its cells pushed to when a server frees. The 2h adaptive-loading **prep stagger**
+    is per load group (``group_key`` = one loading session), so separate loads don't chain their
+    prep off each other. PPA is the global 2-server pass (``_schedule_ppa``).
+
+    Reproduces the pre-cross-run within-run result as a special case (a single 8-cell parallel
+    run still yields breakouts [0,2,4,6] then [28,30,32,34]); a real reuse plate is unchanged
+    because it already loads after Plate 1's movie frees the servers (see reuse_plate_window)."""
+    ordered = sorted(cells, key=lambda c: (c.group_base_h, c.slot_index, str(c.key)))
     result: dict[object, CellTiming] = {}
-    for gcells in groups.values():
-        ordered = sorted(gcells, key=lambda c: (c.slot_index, str(c.key)))
-        base = min((c.group_base_h for c in ordered), default=0.0)
-        lane_free = [base] * SEQ_LANES
-        prev_breakout: float | None = None
-        for c in ordered:
-            lane = c.slot_index % SEQ_LANES
-            cadence_floor = c.group_base_h if prev_breakout is None else prev_breakout + STAGGER_H
-            breakout = max(lane_free[lane], cadence_floor)
-            movie_start = breakout + PREP_H
-            movie_end = movie_start + c.run_time_h
-            lane_free[lane] = movie_end
-            prev_breakout = breakout
-            result[c.key] = CellTiming(c.key, breakout, movie_start, movie_end)
+    if not ordered:
+        return result
+    base0 = min(c.group_base_h for c in ordered)
+    servers = [base0] * SEQ_LANES  # earliest-free time of each of the 4 sequencing servers
+    prev_breakout: dict[object, float] = {}  # last breakout per load group -> the 2h prep-stagger floor
+    for c in ordered:
+        stagger_floor = c.group_base_h if c.group_key not in prev_breakout else prev_breakout[c.group_key] + STAGGER_H
+        i = min(range(SEQ_LANES), key=lambda j: servers[j])  # earliest-free sequencing server
+        breakout = max(stagger_floor, servers[i])
+        movie_start = breakout + PREP_H
+        movie_end = movie_start + c.run_time_h
+        servers[i] = movie_end
+        prev_breakout[c.group_key] = breakout
+        result[c.key] = CellTiming(c.key, breakout, movie_start, movie_end)
 
     _schedule_ppa(result.values())
     return result
@@ -130,6 +139,50 @@ def _run_cell_inputs(run_batch) -> list[CellInput]:
                 )
             )
     return cells
+
+
+def instrument_timeline(run_batches) -> dict[int, datetime]:
+    """Cross-run sequencing schedule for one instrument: every cell across ``run_batches`` contends
+    for the same 4 sequencing servers (see ``compute_timings``). Returns each run's **effective
+    start** — the absolute time its earliest cell actually breaks out once the machine's *other*
+    resident runs are accounted for — keyed by run id. A run whose cells find free servers starts
+    at its own load; one loaded while the instrument is busy is pushed to when a server frees.
+
+    Anchored on the earliest effective plate anchor (``_plate_anchor``) across the runs, so a
+    confirmed-loaded run is timed off its real load and a still-planned one off its plan. The
+    caller decides which runs are "resident" together (e.g. those overlapping a new run's load)."""
+    runs = [r for r in run_batches if any(c.cell_uses for c in r.cycles)]
+    if not runs:
+        return {}
+    t0 = min(_plate_anchor(c) for r in runs for c in r.cycles if c.cell_uses)
+    cells: list[CellInput] = []
+    run_of: dict[object, int] = {}
+    for r in runs:
+        for cyc in r.cycles:
+            if not cyc.cell_uses:
+                continue
+            base_h = (_plate_anchor(cyc) - t0).total_seconds() / 3600.0
+            for cu in cyc.cell_uses:
+                pos = within_tray_pos(cu.cell.home_well or cu.well or "")
+                slot = (cyc.plate_index - 1) * SEQ_LANES + pos
+                cells.append(
+                    CellInput(
+                        key=cu.id,
+                        slot_index=slot,
+                        run_time_h=float(cu.run_time_hours),
+                        group_base_h=base_h,
+                        # (run, plate-start) so different runs are separate prep-stagger groups but
+                        # still share the 4 sequencing servers across the whole instrument.
+                        group_key=(r.id, cyc.planned_start_at),
+                    )
+                )
+                run_of[cu.id] = r.id
+    timings = compute_timings(cells)
+    eff_h: dict[int, float] = {}
+    for key, t in timings.items():
+        rid = run_of[key]
+        eff_h[rid] = min(eff_h[rid], t.breakout_h) if rid in eff_h else t.breakout_h
+    return {rid: t0 + timedelta(hours=h) for rid, h in eff_h.items()}
 
 
 def run_breakout_offsets(run_batch) -> dict[int, float]:

@@ -89,7 +89,9 @@ def create_cell_use(req: PlaceSampleRequest, db: SessionDep, actor: ActorDep) ->
     except PlacementError as exc:
         raise HTTPException(exc.status_code, exc.detail) from exc
     run_batch = db.get(RunBatch, run_batch.id, options=RUN_LOAD_OPTIONS)
-    return run_out(db, run_batch)
+    # with_effective_start: attach when this run's cells will really break out if the instrument is
+    # busy, so the UI can alert "loaded 12:00, cells start ~18:00" instead of silently implying now.
+    return run_out(db, run_batch, with_effective_start=True)
 
 
 @router.post("/{cell_use_id}/move", response_model=RunOut)
@@ -110,7 +112,7 @@ def move_cell_use(cell_use_id: int, req: MoveSampleRequest, db: SessionDep, acto
     except PlacementError as exc:
         raise HTTPException(exc.status_code, exc.detail) from exc
     run_batch = db.get(RunBatch, run_batch.id, options=RUN_LOAD_OPTIONS)
-    return run_out(db, run_batch)
+    return run_out(db, run_batch, with_effective_start=True)
 
 
 @router.post("/{cell_use_id}/swap", response_model=list[RunOut])

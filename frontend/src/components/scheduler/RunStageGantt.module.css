@@ -111,6 +111,26 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Clickable sample ID (slot-detail popover only): a bare-button that reads as a link and jumps
+   the popover to that cell's placement. Inherits .sample's ellipsis/weight; adds link affordance. */
+.sampleBtn {
+  min-width: 0;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  color: var(--link);
+}
+.sampleBtn:hover {
+  text-decoration: underline;
+}
+.sampleBtn:focus-visible {
+  outline: 2px solid var(--magenta-deep);
+  outline-offset: 1px;
+  border-radius: 3px;
+}
 .track {
   position: relative;
   height: 14px;
