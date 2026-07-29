@@ -9,6 +9,9 @@
      display is always on and the same size. Matches a typical single-run panel; a busier run
      (two runs on one machine) simply grows past it. */
   min-height: 197px;
+  /* A floor on width so the serial, uses box, and four stage columns never crush together on a
+     narrow card — the physical Revio display never shrinks below a legible size. */
+  min-width: 350px;
   margin-bottom: 16px;
   padding: 14px 16px 12px;
   border-radius: var(--r-md, 10px);
