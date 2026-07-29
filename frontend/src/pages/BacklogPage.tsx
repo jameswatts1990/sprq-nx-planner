@@ -189,8 +189,11 @@ export function BacklogPage() {
   const [priority, setPriority] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
-  const [sortBy, setSortBy] = useState<SampleSortBy>("created_at");
-  const [sortDir, setSortDir] = useState<SampleSortDir>("desc");
+  // Defaults to priority order (High first, ascending rank - see utils/priority.ts) rather
+  // than created_at, so the most urgent backlog samples surface without the user having to
+  // sort themselves; matches the Recoverable Samples section's default (useClientSort below).
+  const [sortBy, setSortBy] = useState<SampleSortBy>("priority");
+  const [sortDir, setSortDir] = useState<SampleSortDir>("asc");
   const [addOpen, setAddOpen] = useState(false);
   const [editSample, setEditSample] = useState<SampleOut | null>(null);
   const q = useDebouncedValue(qInput, 350);

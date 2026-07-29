@@ -1,5 +1,5 @@
 import { forwardRef, memo } from "react";
-import type { CSSProperties, HTMLAttributes } from "react";
+import type { CSSProperties, HTMLAttributes, MouseEvent } from "react";
 
 import { BarcodeChips } from "@/components/shared/BarcodeChips";
 import { DuplicateBadge } from "@/components/shared/DuplicateBadge";
@@ -54,6 +54,29 @@ export interface SchedulerSlotViewProps extends HTMLAttributes<HTMLDivElement> {
  * forwardRef + spread props let SchedulerSlot attach the droppable/draggable node ref
  * and listeners directly to this box.
  */
+/** Max degrees of tilt in either axis - kept small so the effect reads as a subtle premium
+ * finish, not a gimmick, on a card this size. */
+const MAX_TILT_DEG = 4;
+
+/** Sets the card's --tilt-x/--tilt-y custom properties directly on the DOM node (bypassing
+ * React state) so a grid of hundreds of slots doesn't re-render on every mousemove pixel -
+ * only the one card under the cursor ever does any work. Position is clamped to the card's
+ * own box so a stray mousemove just outside its rounded corners can't drive the tilt to an
+ * exaggerated angle. */
+function applySlotTilt(e: MouseEvent<HTMLDivElement>) {
+  const el = e.currentTarget;
+  const rect = el.getBoundingClientRect();
+  const px = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+  const py = Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height));
+  el.style.setProperty("--tilt-x", `${((0.5 - py) * 2 * MAX_TILT_DEG).toFixed(2)}deg`);
+  el.style.setProperty("--tilt-y", `${((px - 0.5) * 2 * MAX_TILT_DEG).toFixed(2)}deg`);
+}
+
+function resetSlotTilt(e: MouseEvent<HTMLDivElement>) {
+  e.currentTarget.style.setProperty("--tilt-x", "0deg");
+  e.currentTarget.style.setProperty("--tilt-y", "0deg");
+}
+
 export const SchedulerSlotView = memo(
   forwardRef<HTMLDivElement, SchedulerSlotViewProps>(function SchedulerSlotView(
     {
@@ -71,6 +94,8 @@ export const SchedulerSlotView = memo(
       onOpenCell,
       className,
       style,
+      onMouseMove,
+      onMouseLeave,
       ...rest
     },
     ref,
@@ -198,11 +223,29 @@ export const SchedulerSlotView = memo(
     mergedStyle = { ...mergedStyle, ["--window-opacity" as string]: expiryFadeOpacity(hoursRemaining) };
   }
 
+  // The mouse-follow tilt is only for actual placed cards, not the empty "+"/locked/blocked
+  // grid structure - composed with (not replacing) any onMouseMove/onMouseLeave the caller
+  // already wired up (e.g. DraggableSlot/ClickableSlot's cross-time cell-link hover).
+  const handleMouseMove = showStage
+    ? (e: MouseEvent<HTMLDivElement>) => {
+        applySlotTilt(e);
+        onMouseMove?.(e);
+      }
+    : onMouseMove;
+  const handleMouseLeave = showStage
+    ? (e: MouseEvent<HTMLDivElement>) => {
+        resetSlotTilt(e);
+        onMouseLeave?.(e);
+      }
+    : onMouseLeave;
+
   return (
     <div
       ref={ref}
       className={classes.join(" ")}
       style={mergedStyle}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
       {...(showStage ? { [CELL_LINK_SLOT_ATTR]: "" } : {})}
       {...rest}
     >

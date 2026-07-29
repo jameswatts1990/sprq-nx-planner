@@ -164,8 +164,11 @@ export function BacklogAccordion({ onOpenAutoschedule }: BacklogAccordionProps =
   const [priority, setPriority] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
-  const [sortBy, setSortBy] = useState<SampleSortBy>("created_at");
-  const [sortDir, setSortDir] = useState<SampleSortDir>("desc");
+  // Defaults to priority order (High first, ascending rank - see utils/priority.ts) rather
+  // than created_at, so the most urgent backlog samples surface without the user having to
+  // sort themselves; matches the Backlog tab's default and its Recoverable section.
+  const [sortBy, setSortBy] = useState<SampleSortBy>("priority");
+  const [sortDir, setSortDir] = useState<SampleSortDir>("asc");
   const [open, setOpen] = useState<boolean>(readOpenPref);
   // The Add/Edit sample modal (reused from the Backlog tab): `addOpen` for a brand-new
   // sample via the trailing "+" card, `editSample` for the ✎ button on a card. The modal

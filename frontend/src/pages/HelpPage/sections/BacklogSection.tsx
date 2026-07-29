@@ -43,7 +43,9 @@ export function BacklogSection() {
         direction. An arrow (▲/▼) on the header shows the active sort and direction. Empty cells (shown as —) always
         sit at the bottom, whichever direction you choose, so a blank never floats to the top. Priority sorts by rank
         (High before Standard), not alphabetically; samples that share a priority are then ordered by Container ID —
-        the same order the scheduler processes them in.
+        the same order the scheduler processes them in. The backlog opens sorted this way by default — <b>Priority,
+        High to low</b> — both here and in the Schedule tab&apos;s Backlog panel, so the most urgent samples surface
+        first without having to sort yourself.
       </p>
       <p>
         <b>Priority</b> shows as a coloured badge so the most urgent samples stand out at a glance, both here and

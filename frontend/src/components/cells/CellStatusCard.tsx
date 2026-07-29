@@ -28,30 +28,6 @@ export interface CellStatusCardProps {
  * idle face for these instead of a misleading "hours left". */
 const IDLE_STATUSES = new Set(["exhausted", "retired", "stopped"]);
 
-/** Max degrees of tilt in either axis - kept small so the effect reads as a subtle premium
- * finish, not a gimmick. */
-const MAX_TILT_DEG = 5;
-
-/** Sets the card's --tilt-x/--tilt-y custom properties directly on the DOM node (bypassing
- * React state) so a grid of ~100 cards doesn't re-render on every mousemove pixel - only the
- * one card under the cursor ever does any work. Position is clamped to the card's own box so
- * hovering into the hover-popover detail panel below it (which overflows the card's resting
- * height) can't drive the tilt to an exaggerated angle. */
-function handleCardTilt(e: React.MouseEvent<HTMLElement>) {
-  const el = e.currentTarget;
-  const rect = el.getBoundingClientRect();
-  const px = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
-  const py = Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height));
-  el.style.setProperty("--tilt-x", `${((0.5 - py) * 2 * MAX_TILT_DEG).toFixed(2)}deg`);
-  el.style.setProperty("--tilt-y", `${((px - 0.5) * 2 * MAX_TILT_DEG).toFixed(2)}deg`);
-}
-
-function resetCardTilt(e: React.MouseEvent<HTMLElement>) {
-  const el = e.currentTarget;
-  el.style.setProperty("--tilt-x", "0deg");
-  el.style.setProperty("--tilt-y", "0deg");
-}
-
 interface RunGroup {
   runBatchId: number;
   runName: string | null;
@@ -103,11 +79,7 @@ export const CellStatusCard = memo(function CellStatusCard({ cell, expanded = fa
   const runGroups = groupByRun(cell.uses);
 
   return (
-    <article
-      className={`${styles.card} ${expanded ? styles.expanded : ""}`}
-      onMouseMove={handleCardTilt}
-      onMouseLeave={resetCardTilt}
-    >
+    <article className={`${styles.card} ${expanded ? styles.expanded : ""}`}>
       <div className={styles.top}>
         <WindowRing hoursElapsed={ringHours} idleCenter={idleCenter} idleSub={idleSub} />
         <div className={styles.meta}>

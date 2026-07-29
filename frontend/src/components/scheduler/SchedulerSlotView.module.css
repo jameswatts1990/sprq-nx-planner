@@ -54,9 +54,21 @@
   box-shadow: var(--shadow-sm);
   cursor: grab;
   background: var(--card);
+  --tilt-x: 0deg;
+  --tilt-y: 0deg;
+  transform: perspective(700px) rotateX(var(--tilt-x)) rotateY(var(--tilt-y));
+  /* Only smooths the snap back to flat on mouseleave - the tilt itself is set live via the
+     --tilt-x/--tilt-y custom properties from mousemove JS (SchedulerSlotView.applySlotTilt),
+     which would otherwise fight a slower transition and feel laggy under the cursor. */
+  transition: transform 0.15s ease-out;
 }
 .filled:active {
   cursor: grabbing;
+}
+@media (prefers-reduced-motion: reduce) {
+  .filled {
+    transform: none;
+  }
 }
 .u1.filled {
   background: var(--magenta-tint);

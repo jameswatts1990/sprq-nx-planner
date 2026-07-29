@@ -4,23 +4,13 @@
   border: 1px solid var(--line);
   border-radius: var(--r);
   box-shadow: var(--shadow-sm);
-  --tilt-x: 0deg;
-  --tilt-y: 0deg;
-  transform: perspective(900px) rotateX(var(--tilt-x)) rotateY(var(--tilt-y));
-  /* Explicit list (not `all`): only these resting-state properties transition, so a grid of
-     ~100 cards isn't asking the compositor to watch every animatable property on each one.
-     The tilt itself is set via the --tilt-x/--tilt-y custom properties from mousemove JS, not
-     by this transition - it only smooths the snap back to flat on mouseleave. */
-  transition: border-color 0.14s ease, box-shadow 0.14s ease, transform 0.15s ease-out;
+  /* Explicit list (not `all`): only the two resting-hover properties transition, so a grid of
+     ~100 cards isn't asking the compositor to watch every animatable property on each one. */
+  transition: border-color 0.14s ease, box-shadow 0.14s ease;
 }
 .card:hover {
   border-color: var(--line-hover);
   box-shadow: var(--shadow);
-}
-@media (prefers-reduced-motion: reduce) {
-  .card {
-    transform: none;
-  }
 }
 
 /* header: window ring (left) + code/status/uses (middle) + right-edge foil stub (absolute) */
