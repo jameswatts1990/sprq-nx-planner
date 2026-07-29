@@ -84,6 +84,13 @@ export function BacklogSection() {
         <Badge tone="danger">⚠ N aborted</Badge> badge appears next to the sample count here and in the Schedule
         tab&apos;s Backlog panel header so it&apos;s never missed.
       </p>
+      <p>
+        Whenever any backlog sample is rated <b>High</b> priority or above (Aborted / Recoverable / Repeatable all
+        rank above High), an amber{" "}
+        <Badge tone="warning">⚠ N high priority+ unscheduled</Badge> badge appears next to the sample count here and
+        in the Schedule tab&apos;s Backlog panel header — a reminder that urgent samples are still waiting to be
+        placed, even while the panel is collapsed.
+      </p>
 
       <p className={styles.subheading}>Actions</p>
       <p>

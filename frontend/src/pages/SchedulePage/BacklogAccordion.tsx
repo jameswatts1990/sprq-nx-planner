@@ -17,7 +17,13 @@ import { Button } from "@/components/ui/Button";
 import { Note } from "@/components/ui/Note";
 import type { SampleOut } from "@/types/sample";
 import { useDebouncedValue } from "@/utils/useDebouncedValue";
-import { ABORTED_PRIORITY, priorityLabel, priorityTone } from "@/utils/priority";
+import {
+  ABORTED_PRIORITY,
+  RECOVERABLE_PRIORITY,
+  REPEATABLE_PRIORITY,
+  priorityLabel,
+  priorityTone,
+} from "@/utils/priority";
 import { useSampleBackNav } from "@/utils/sampleBackNav";
 
 import { SampleModal } from "../SampleModal";
@@ -59,6 +65,12 @@ function writeOpenPref(open: boolean): void {
     /* ignore - persistence is a convenience, not a requirement */
   }
 }
+/** Priority values counted as "High priority or higher" for the header alert below -
+ * rank 1 (High) plus every rank-0 label (Aborted/Recoverable/Repeatable all sort ahead of
+ * High, see utils/priority.ts). Passed as a comma-list to the /api/samples `priority` filter,
+ * which already accepts one (see backend app/api/samples.py list_samples). */
+const HIGH_OR_ABOVE_PRIORITIES = [RECOVERABLE_PRIORITY, REPEATABLE_PRIORITY, ABORTED_PRIORITY, "High (1)"].join(",");
+
 const PAGE_SIZE_OPTIONS = [25, 50, 100, 200];
 const SORT_OPTIONS: { value: SampleSortBy; label: string }[] = [
   { value: "created_at", label: "Created" },
@@ -179,6 +191,16 @@ export function BacklogAccordion({ onOpenAutoschedule }: BacklogAccordionProps =
     queryFn: () => samplesApi.list({ status: "backlog", priority: ABORTED_PRIORITY, page: 1, page_size: 1 }),
   });
   const abortedCount = abortedQuery.data?.total ?? 0;
+
+  // Same lightweight count-only pattern as abortedQuery, so this stays visible (and live)
+  // even while the tray is collapsed - the whole point is to flag urgent backlog samples
+  // without the scheduler having to expand it first.
+  const highPriorityQuery = useQuery({
+    queryKey: ["samples", { status: "backlog", priority: HIGH_OR_ABOVE_PRIORITIES, page: 1, page_size: 1 }],
+    queryFn: () =>
+      samplesApi.list({ status: "backlog", priority: HIGH_OR_ABOVE_PRIORITIES, page: 1, page_size: 1 }),
+  });
+  const highPriorityCount = highPriorityQuery.data?.total ?? 0;
 
   const query = useQuery({
     queryKey: ["samples", { status: "backlog", q, priority, sortBy, sortDir, page, page_size: pageSize }],
@@ -332,6 +354,13 @@ export function BacklogAccordion({ onOpenAutoschedule }: BacklogAccordionProps =
       badge={
         <span className={styles.badgeGroup}>
           {abortedCount > 0 && <Badge tone="danger">⚠ {abortedCount} aborted</Badge>}
+          {highPriorityCount > 0 && (
+            <span title="Backlog samples rated High priority or above (Aborted/Recoverable/Repeatable rank above High) that haven't been placed on the schedule yet">
+              <Badge tone="warning">
+                ⚠ {highPriorityCount} high priority+ unscheduled
+              </Badge>
+            </span>
+          )}
           {`${total} sample${total === 1 ? "" : "s"}`}
         </span>
       }
