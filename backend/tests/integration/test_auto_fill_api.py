@@ -874,3 +874,83 @@ def test_auto_fill_places_12h_on_cell_1_and_30h_on_cell_4(client):
     assert stages["H30"]["tray_position"] == 4
     assert stages["H30"]["well"] == "D01"
     assert stages["H30"]["run_time_hours"] == 30
+
+
+def test_auto_fill_reports_unplaced_external_ids(client):
+    """A bare unplaced COUNT left a user unable to find an affected sample anywhere (reported
+    2026-07-29) - unplaced_external_ids names the actual Container IDs so they can be found
+    (in the Backlog, or via the Samples page's all-status search)."""
+    client.post("/api/imports", json={"raw_text": TEN_DISJOINT})
+    (mon,) = _weekdays(1)  # one day on offer -> 8 wells, only 8 of the 10 samples fit
+
+    resp = _auto_fill(client, [{"instrument_serial": "84047", "load_date": mon}])
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+
+    assert len(body["placed_sample_ids"]) == 8
+    assert len(body["unplaced_sample_ids"]) == 2
+    assert len(body["unplaced_external_ids"]) == 2
+
+    backlog = client.get("/api/samples", params={"status": "backlog", "page_size": 200}).json()["items"]
+    still_backlog = {s["external_id"] for s in backlog}
+    assert set(body["unplaced_external_ids"]) == still_backlog
+
+
+def test_auto_fill_clears_qc_disposition_on_placement(client, db_session):
+    """A repeatable/recoverable-tagged backlog sample (returned there by a Cell QC verdict)
+    must have that tag cleared once it's genuinely rescheduled, mirroring place_sample's own
+    `sample.qc_disposition = None` on scheduling - Auto Schedule's bulk placement update used
+    to leave it stuck (reported 2026-07-29), unlike a manual drag-drop placement."""
+    from app.models.sample import Sample
+
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nQC1,bcqc1"})
+    (mon,) = _weekdays(1)
+    sid = _sid(client, "QC1")
+
+    sample = db_session.get(Sample, sid)
+    sample.qc_disposition = "repeatable"
+    sample.priority = "Repeatable (0)"
+    db_session.commit()
+
+    resp = _auto_fill(client, [{"instrument_serial": "84047", "load_date": mon}])
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["placed_sample_ids"] == [sid]
+
+    placed = next(s for s in client.get("/api/samples", params={"page_size": 200}).json()["items"] if s["id"] == sid)
+    assert placed["status"] == "scheduled"
+    assert placed["qc_disposition"] is None
+
+
+def test_recalculate_clears_qc_disposition_on_placement(client, db_session):
+    """Same fix, via the Recalculate endpoint - recalculate_instrument's re-pack reuses
+    auto_fill()'s own bulk placement update, so it must clear qc_disposition too."""
+    from app.models.sample import Sample
+
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nQC2,bcqc2"})
+    (mon,) = _weekdays(1)
+    sid = _sid(client, "QC2")
+
+    r = client.post(
+        "/api/cell-uses",
+        json={
+            "sample_id": sid,
+            "instrument_serial": "84047",
+            "load_date": mon,
+            "slot_index": 0,
+            "cell_choice": {"mode": "new"},
+            "run_time_hours": 24,
+        },
+    )
+    assert r.status_code == 201, r.text
+
+    sample = db_session.get(Sample, sid)
+    sample.qc_disposition = "recoverable"
+    db_session.commit()
+
+    rec = client.post("/api/auto-fill/recalculate", json={"instrument_serial": "84047"})
+    assert rec.status_code == 200, rec.text
+    assert rec.json()["placed_sample_ids"] == [sid]
+
+    placed = next(s for s in client.get("/api/samples", params={"page_size": 200}).json()["items"] if s["id"] == sid)
+    assert placed["status"] == "scheduled"
+    assert placed["qc_disposition"] is None

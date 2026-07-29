@@ -89,6 +89,9 @@ export interface AutoFillBarcodeConflict {
 export interface AutoFillResponse {
   placed_sample_ids: number[];
   unplaced_sample_ids: number[];
+  /** Container IDs (Sample.external_id) parallel to unplaced_sample_ids, so a caller can name
+   * which samples landed back in the Backlog instead of showing a bare count. */
+  unplaced_external_ids: string[];
   skipped_cells: GridCellRef[];
   window_flags: AutoFillWindowFlag[];
   barcode_conflicts: AutoFillBarcodeConflict[];

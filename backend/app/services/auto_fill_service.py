@@ -521,7 +521,13 @@ def auto_fill(
             sample_acquire_dates[a.sample.sample_id] = acquire_date
 
     if placed_sample_ids:
-        db.execute(update(Sample).where(Sample.id.in_(placed_sample_ids)).values(status="scheduled"))
+        # Also clear any Cell-QC "recoverable"/"repeatable" tag, mirroring place_sample's own
+        # scheduling side effect (placement_service.place_sample) - otherwise a sample swept up
+        # here by Auto Schedule/Recalculate keeps a stale tag even though it's genuinely
+        # scheduled again.
+        db.execute(
+            update(Sample).where(Sample.id.in_(placed_sample_ids)).values(status="scheduled", qc_disposition=None)
+        )
 
     # A run can now mix movie times well-by-well (a 12h cell 1 beside a 30h cell 4), so each
     # touched plate's representative movie_hours / planned_end_at must be re-derived as the

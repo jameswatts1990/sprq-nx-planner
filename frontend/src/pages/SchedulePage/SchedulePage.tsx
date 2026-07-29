@@ -596,6 +596,11 @@ export function SchedulePage() {
               {actions.placementAdvisory}
             </Note>
           )}
+          {actions.recalculateNote && (
+            <Note tone={actions.recalculateNote.tone} icon={actions.recalculateNote.icon}>
+              {actions.recalculateNote.text}
+            </Note>
+          )}
 
           <div className={styles.gridArea} ref={gridAreaRef} data-barcodes={showBarcodes ? undefined : "hidden"}>
             <SectionHeading title="Weekly schedule" legend={<UseLegend />} progress={weekProgress} />

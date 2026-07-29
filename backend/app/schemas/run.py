@@ -236,6 +236,11 @@ class RecalculateRequest(BaseModel):
 class AutoFillResponse(BaseModel):
     placed_sample_ids: list[int]
     unplaced_sample_ids: list[int]
+    # Container IDs (Sample.external_id) parallel to unplaced_sample_ids, so the caller can
+    # tell the user WHICH samples landed back in the Backlog without a separate lookup - a bare
+    # count left a user unable to find an affected sample anywhere (see auto_fill.py's
+    # _to_response and useScheduleActions.ts).
+    unplaced_external_ids: list[str] = []
     skipped_cells: list[GridCellRef]
     window_flags: list[WindowFlagOut]
     barcode_conflicts: list[BarcodeConflictOut]

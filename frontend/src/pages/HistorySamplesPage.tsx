@@ -14,6 +14,7 @@ import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Note } from "@/components/ui/Note";
 import type { SampleCellUseOut, SampleOut } from "@/types/sample";
 import { runLabel } from "@/utils/runLabel";
+import { SAMPLE_STATUS_LABEL, SAMPLE_STATUS_TONE } from "@/utils/sampleStatus";
 import { useClientSort } from "@/utils/useClientSort";
 import { USE_STATUS_TONE } from "@/utils/useStatusTone";
 import { useDebouncedValue } from "@/utils/useDebouncedValue";
@@ -72,11 +73,17 @@ export function HistorySamplesPage() {
     [sortBy, sortDir, toggleSort],
   );
 
+  // A typed/pasted search looks across every status (backlog/scheduled/in_progress/completed/
+  // failed/cancelled) - the failsafe "where is this sample right now" lookup - while browsing
+  // with an empty box keeps this page's own default scope (completed & failed history).
+  const searching = q.length > 0;
+  const status = searching ? undefined : "completed,failed";
+
   const query = useQuery({
-    queryKey: ["samples", { status: "completed,failed", q, sortBy, sortDir, page, page_size: PAGE_SIZE }],
+    queryKey: ["samples", { status, q, sortBy, sortDir, page, page_size: PAGE_SIZE }],
     queryFn: () =>
       samplesApi.list({
-        status: "completed,failed",
+        status,
         q: q || undefined,
         sort_by: sortBy,
         sort_dir: sortDir,
@@ -93,7 +100,7 @@ export function HistorySamplesPage() {
     <div className={styles.page}>
       <Card>
         <CardHeader badge={`${total} sample${total === 1 ? "" : "s"}`}>
-          <h2>Completed &amp; failed samples</h2>
+          <h2>{searching ? `All samples matching "${q}"` : "Completed & failed samples"}</h2>
         </CardHeader>
         <CardBody>
           <input
@@ -106,6 +113,12 @@ export function HistorySamplesPage() {
               setPage(1);
             }}
           />
+          {searching && (
+            <div className={styles.status}>
+              Searching every sample status (Backlog, Scheduled, In progress, Completed, Failed, Cancelled) — clear the
+              search to go back to just completed &amp; failed history.
+            </div>
+          )}
 
           {query.isLoading && <div className={styles.status}>Loading samples…</div>}
           {query.isError && (
@@ -114,7 +127,9 @@ export function HistorySamplesPage() {
             </Note>
           )}
           {!query.isLoading && !query.isError && items.length === 0 && (
-            <div className={styles.status}>No completed or failed samples found.</div>
+            <div className={styles.status}>
+              {searching ? "No samples found." : "No completed or failed samples found."}
+            </div>
           )}
 
           {items.length > 0 && (
@@ -157,10 +172,11 @@ interface SampleRowProps {
   onToggle: (id: number) => void;
 }
 
-/** Keeps this view simple (per spec, lower priority): rather than a separate sample
- * detail page, each row expands inline and lazily fetches samplesApi.get(id) to show
- * the sample's cell_uses. Memoized so a search keystroke re-renders only the row whose
- * expanded state changed, not all 25 (each row also owns a lazy detail useQuery). */
+/** Each row expands inline (lazily fetching samplesApi.get(id)) for a quick peek at the
+ * sample's cell_uses without leaving the list; the Container ID also links to the full,
+ * durable /samples/:id page (SampleDetailPage) for every field and history. Memoized so a
+ * search keystroke re-renders only the row whose expanded state changed, not all 25 (each row
+ * also owns a lazy detail useQuery). */
 const SampleRow = memo(function SampleRow({ sample, expanded, onToggle }: SampleRowProps) {
   const detailQuery = useQuery({
     queryKey: ["sample", sample.id],
@@ -175,11 +191,13 @@ const SampleRow = memo(function SampleRow({ sample, expanded, onToggle }: Sample
       <tr className={styles.row} onClick={() => onToggle(sample.id)}>
         <td className={styles.toggleCell}>{expanded ? "▼" : "▶"}</td>
         <td>
-          {sample.external_id}{" "}
+          <Link to={`/samples/${sample.id}`} className="link" onClick={(e) => e.stopPropagation()}>
+            {sample.external_id}
+          </Link>{" "}
           <DuplicateBadge index={sample.duplicate_index} total={sample.duplicate_total} />
         </td>
         <td>
-          <Badge tone={sample.status === "completed" ? "success" : "danger"}>{sample.status}</Badge>
+          <Badge tone={SAMPLE_STATUS_TONE[sample.status]}>{SAMPLE_STATUS_LABEL[sample.status]}</Badge>
         </td>
         <td>
           <BarcodeChips barcodes={sample.barcodes} />
@@ -201,7 +219,7 @@ const SampleRow = memo(function SampleRow({ sample, expanded, onToggle }: Sample
             )}
             {detailQuery.data &&
               (detailQuery.data.cell_uses.length === 0 ? (
-                <div className={styles.status}>No cell uses recorded.</div>
+                <div className={styles.status}>This sample has not been placed on any cell yet.</div>
               ) : (
                 <table className={styles.innerTable}>
                   <thead>

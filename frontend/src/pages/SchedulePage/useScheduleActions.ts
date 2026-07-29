@@ -29,6 +29,18 @@ function placementAdvisoryText(run: RunOut): string | null {
   return `${run.instrument_serial} is busy — this run loads at ${loaded}, but its cells won't start sequencing until ${formatShortDateTimeUTC(run.effective_start_at)}.`;
 }
 
+/** "3 unplaced (TRAC-2-26296, TRAC-2-26301, TRAC-2-26305 and 1 more)" - names WHICH samples
+ * landed back in the Backlog instead of just a count, so a user isn't left hunting for them
+ * (see the Samples page's all-status search, HistorySamplesPage.tsx). Truncated to the first
+ * 3 Container IDs to keep the note short. */
+function unplacedNote(count: number, externalIds: string[]): string {
+  if (count === 0) return "";
+  const shown = externalIds.slice(0, 3);
+  const rest = externalIds.length - shown.length;
+  const names = shown.length > 0 ? ` (${shown.join(", ")}${rest > 0 ? ` and ${rest} more` : ""})` : "";
+  return `${count} unplaced${names}`;
+}
+
 export interface UseScheduleActionsArgs {
   selection: GridSelection;
   slotSelection: SlotSelection;
@@ -66,6 +78,12 @@ export function useScheduleActions({
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
   // Instrument serial pending/undergoing a "Recalculate" confirm, or null when the modal is closed.
   const [recalculateTarget, setRecalculateTarget] = useState<string | null>(null);
+  // Recalculate's own result note - kept separate from runDesignNote, which only ever renders
+  // inside the Autoschedule drawer. Recalculate is triggered from an instrument row's own
+  // confirm modal, not the drawer, so a note stuffed into runDesignNote here would be computed
+  // and then never actually shown unless the user happened to already have the drawer open.
+  // Rendered directly on the schedule page instead (see SchedulePage.tsx).
+  const [recalculateNote, setRecalculateNote] = useState<AccordionNote | null>(null);
 
   const removeSlots = useMutation({
     // One atomic request, not one DELETE per stage: the backend removes every stage in a
@@ -229,7 +247,9 @@ export function useScheduleActions({
       invalidateScheduleRelated(queryClient);
       selection.clear();
       const parts = [`${res.placed_sample_ids.length} placed`];
-      if (res.unplaced_sample_ids.length > 0) parts.push(`${res.unplaced_sample_ids.length} unplaced`);
+      if (res.unplaced_sample_ids.length > 0) {
+        parts.push(unplacedNote(res.unplaced_sample_ids.length, res.unplaced_external_ids));
+      }
       if (res.skipped_cells.length > 0) parts.push(`${res.skipped_cells.length} cell(s) skipped`);
       if (res.window_flags.length > 0) parts.push(`${res.window_flags.length} window flag(s)`);
       if (res.barcode_conflicts.length > 0) parts.push(`${res.barcode_conflicts.length} barcode conflict(s)`);
@@ -268,7 +288,9 @@ export function useScheduleActions({
       invalidateScheduleRelated(queryClient);
       setRecalculateTarget(null);
       const parts = [`${res.placed_sample_ids.length} placed`];
-      if (res.unplaced_sample_ids.length > 0) parts.push(`${res.unplaced_sample_ids.length} unplaced`);
+      if (res.unplaced_sample_ids.length > 0) {
+        parts.push(unplacedNote(res.unplaced_sample_ids.length, res.unplaced_external_ids));
+      }
       if (res.barcode_conflicts.length > 0) parts.push(`${res.barcode_conflicts.length} barcode conflict(s)`);
       if (res.disposed_cell_ids.length > 0) parts.push(`${res.disposed_cell_ids.length} cell(s) disposed`);
       // A day change is a bigger deal than an ordinary cell/tray reassignment (it can affect
@@ -281,14 +303,14 @@ export function useScheduleActions({
         res.unplaced_sample_ids.length === 0 &&
         res.barcode_conflicts.length === 0 &&
         res.day_changed_sample_ids.length === 0;
-      setRunDesignNote({
+      setRecalculateNote({
         tone: clean ? "good" : "warn",
         icon: clean ? "✓" : "!",
         text: `${instrumentSerial} recalculated: ${parts.join(" · ")}`,
       });
     },
     onError: (err) => {
-      setRunDesignNote({
+      setRecalculateNote({
         tone: "bad",
         icon: "!",
         text: err instanceof ApiError ? err.message : "Failed to recalculate.",
@@ -297,7 +319,7 @@ export function useScheduleActions({
   });
 
   const onRequestRecalculate = useCallback((instrumentSerial: string) => {
-    setRunDesignNote(null);
+    setRecalculateNote(null);
     recalculate.reset();
     setRecalculateTarget(instrumentSerial);
   }, [recalculate]);
@@ -320,6 +342,7 @@ export function useScheduleActions({
     setPlacementAdvisory(null);
     setClearConfirmOpen(false);
     setRecalculateTarget(null);
+    setRecalculateNote(null);
   }, []);
 
   return {
@@ -331,6 +354,7 @@ export function useScheduleActions({
     setClearConfirmOpen,
     recalculateTarget,
     setRecalculateTarget,
+    recalculateNote,
     removeSlots,
     dragRemove,
     swap,

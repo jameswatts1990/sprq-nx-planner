@@ -170,9 +170,12 @@ export function ScheduleSection() {
         instead of opening a new tray, it can push a sample onto a <b>later day it wasn&apos;t on before</b> — never
         earlier, and never touching a different instrument — whenever that lets fewer physical cells be used. In{" "}
         <b>2 plates per run</b> mode that later use often shows up as <b>Plate 2 of the very same run</b> its first
-        use is in (see <i>Runs, plates &amp; wells</i> below), not a whole separate run card. Afterwards a note
-        reports how many samples were placed, how many (if any) moved to a different day, and how many, if any,
-        couldn&apos;t be placed at all — they stay safely in the backlog, never lost.
+        use is in (see <i>Runs, plates &amp; wells</i> below), not a whole separate run card. Afterwards a note —
+        shown directly on the schedule page, next to the weekly grid — reports how many samples were placed, how
+        many (if any) moved to a different day, and how many, if any, couldn&apos;t be placed at all, naming their
+        Container IDs: they stay safely in the Backlog, never lost, and can always be found from there or by
+        pasting the Container ID into the Samples tab&apos;s search (which looks across every status, not just
+        finished samples).
       </p>
 
       <p className={styles.subheading}>Print Batch Sheet</p>
@@ -456,8 +459,11 @@ export function ScheduleSection() {
         <i>backlog</i> sample onto an occupied slot, by contrast, does nothing — it never overwrites what&apos;s there.
       </p>
       <p>
-        <b>Auto-schedule result</b> summarises the outcome, e.g. &quot;12 placed · 3 unplaced · 1 cell(s) skipped ·
-        2 window flag(s) · 1 barcode conflict(s) · 4 cell(s) disposed&quot;. &quot;Cell(s) disposed&quot; is the
+        <b>Auto-schedule result</b> summarises the outcome, e.g. &quot;12 placed · 3 unplaced (TRAC-2-26296,
+        TRAC-2-26301, TRAC-2-26305) · 1 cell(s) skipped · 2 window flag(s) · 1 barcode conflict(s) · 4 cell(s)
+        disposed&quot; — any unplaced samples are named by Container ID (up to the first three, then &quot;and N
+        more&quot;) so you know exactly which ones are still sitting in the Backlog, rather than just a count.
+        &quot;Cell(s) disposed&quot; is the
         expected result of the Max-uses cap — the cells of any tray whose every cell reached the use limit, binned
         together as one physical tray — reported for transparency, not a warning:
       </p>

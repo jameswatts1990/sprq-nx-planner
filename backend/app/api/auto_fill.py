@@ -1,6 +1,8 @@
 from fastapi import APIRouter, HTTPException
+from sqlalchemy import select
 
 from app.api.deps import ActorDep, SessionDep
+from app.models.sample import Sample
 from app.models.schedule import RunBatch
 from app.schemas.run import (
     AutoFillRequest,
@@ -27,9 +29,16 @@ def _to_response(db: SessionDep, result: AutoFillResult) -> AutoFillResponse:
             # out given the machine's other resident runs (consecutive-day auto-fills can queue).
             runs.append(run_out(db, run_batch, with_effective_start=True))
 
+    unplaced_external_ids: list[str] = []
+    if result.unplaced_sample_ids:
+        unplaced_external_ids = list(
+            db.scalars(select(Sample.external_id).where(Sample.id.in_(result.unplaced_sample_ids))).all()
+        )
+
     return AutoFillResponse(
         placed_sample_ids=result.placed_sample_ids,
         unplaced_sample_ids=result.unplaced_sample_ids,
+        unplaced_external_ids=unplaced_external_ids,
         skipped_cells=[GridCellRef(instrument_serial=s, load_date=d) for s, d in result.skipped_cells],
         window_flags=[WindowFlagOut(cell_ref=ref, span_hours=span) for ref, span in result.window_flags],
         barcode_conflicts=[

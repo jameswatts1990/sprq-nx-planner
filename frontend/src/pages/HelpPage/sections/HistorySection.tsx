@@ -71,26 +71,36 @@ export function HistorySection() {
 
       <p className={styles.subheading}>History → Samples</p>
       <p>
-        <b>What it&apos;s for:</b> every sample that has finished, either <b>completed</b> (green) or <b>failed</b>{" "}
-        (red). Search by Container ID, barcode, or parent sample. Each row shows the sample&apos;s <b>Container ID</b>,
-        status, barcodes, parent sample, Target OPLC, Actual OPLC, priority, and last-updated time. A <b>1/3</b> badge
-        by a Container ID marks a duplicate — the same sample run across multiple cells (counted across every status,
-        including completed). Click <i>any</i> column
-        header to sort the list by that field (click again to reverse); it starts with the most recently updated
-        first, and long lists are paged with the same <b>Previous</b>/<b>Next</b> control. Click a row to expand it
-        and see that sample&apos;s individual cell uses — the run (links to the run), which plate (1 or 2) it ran on,
-        the cell (links to the cell) and well, the use status as a colour-coded badge, start/complete times, and
-        notes. That inner cell-uses table has clickable, sortable headers too.
+        <b>What it&apos;s for:</b> by default, every sample that has finished, either <b>completed</b> (green) or{" "}
+        <b>failed</b> (red). Search by Container ID, barcode, or parent sample. Each row shows the sample&apos;s{" "}
+        <b>Container ID</b> (click it to open its full detail page), status, barcodes, parent sample, Target OPLC,
+        Actual OPLC, priority, and last-updated time. A <b>1/3</b> badge by a Container ID marks a duplicate — the
+        same sample run across multiple cells (counted across every status, including completed). Click <i>any</i>{" "}
+        column header to sort the list by that field (click again to reverse); it starts with the most recently
+        updated first, and long lists are paged with the same <b>Previous</b>/<b>Next</b> control. Click a row to
+        expand it and see that sample&apos;s individual cell uses — the run (links to the run), which plate (1 or 2)
+        it ran on, the cell (links to the cell) and well, the use status as a colour-coded badge, start/complete
+        times, and notes. That inner cell-uses table has clickable, sortable headers too.
+      </p>
+      <p>
+        <b>Search everywhere (the failsafe):</b> typing or pasting anything into the search box switches the list to
+        search <i>every</i> status at once — Backlog, Scheduled, In progress, Completed, Failed, and Cancelled —
+        not just finished samples. This is the fastest way to find out where a specific sample actually is right
+        now: paste its Container ID and every matching row shows up with its current status badge. A row still in
+        the <b>Backlog</b> badge means it hasn&apos;t been scheduled yet (expanding it says so plainly, rather than
+        looking like an error); a <b>Scheduled</b>/<b>In progress</b> row&apos;s expanded cell-uses table links
+        straight to the run and cell it&apos;s sitting on. Clear the search box to go back to the completed/failed
+        history view.
       </p>
 
       <p className={styles.subheading}>Sample detail page</p>
       <p>
         <b>What it&apos;s for:</b> a single sample (container) on its own page, reached by clicking a <b>container ID</b>{" "}
-        anywhere in the app — a cell card, a cell&apos;s use history. It shows the sample&apos;s full metadata (parent
-        sample, priority, Target OPLC, Actual OPLC, movie time, loading options, barcodes, Sanger IDs, created/updated times) and a{" "}
-        <b>Cell uses</b> table of every cell it has been placed on — the run (links to the run), plate, cell (links to
-        the cell), well, use status, start/complete times, and notes. Unlike the Samples list above, which only lists
-        finished samples, this page works for a sample of any status, so it&apos;s the durable place a container ID
+        anywhere in the app — a cell card, a cell&apos;s use history, or a row in the Samples list above. It shows
+        the sample&apos;s full metadata (parent sample, priority, Target OPLC, Actual OPLC, movie time, loading
+        options, barcodes, Sanger IDs, created/updated times) and a <b>Cell uses</b> table of every cell it has been
+        placed on — the run (links to the run), plate, cell (links to the cell), well, use status, start/complete
+        times, and notes. This page works for a sample of any status, so it&apos;s the durable place a container ID
         always links to.
       </p>
       <p>
