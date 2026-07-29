@@ -266,6 +266,12 @@ function SlotDetailBody({
           {stage.barcode_clash ? " — and its new cell had already burned a clashing barcode." : "."}
         </Note>
       )}
+      {stage.duplicate_cell_reuse && (
+        <Note tone="info" icon="i">
+          This cell was already used by <b>another copy of the same Container ID</b>. Reusing it is fine — it&apos;s
+          the same underlying sample either way, so there&apos;s no cross-sample contamination risk.
+        </Note>
+      )}
       <div className={styles.details}>
         <div className={styles.row}>
           <span className={styles.label}>Sample</span>

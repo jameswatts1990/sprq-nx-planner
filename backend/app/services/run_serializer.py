@@ -15,16 +15,25 @@ from app.models.cell import Cell
 from app.models.schedule import CellUse, Cycle, RunBatch
 from app.schemas.run import PlateOut, RunOut, StageOut
 from app.serializers import duplicate_groups
-from app.services.cell_service import has_barcode_clash, has_failed_use, use_sort_key, window_hours_elapsed
+from app.services.cell_service import (
+    has_barcode_clash,
+    has_failed_use,
+    is_duplicate_cell_reuse,
+    use_sort_key,
+    window_hours_elapsed,
+)
 from app.services.cell_timing import run_is_acquiring, run_load_at
 from app.services.instrument_lock import effective_run_start, run_lock_until
 from app.timeutil import ensure_aware, utcnow
 
 # The eager-load set every run_out caller must use. From the run's cycles (plates) down to
 # each stage's cell/sample/barcodes, plus each stage's cell's *full* sibling-use list and
-# each sibling's cycle: _use_number() sorts a cell's uses by acquire_date (via use_run_date
-# -> cycle.acquire_date), and has_failed_use() scans the cell's use statuses. Without the
-# Cell.cell_uses->cycle chain both lazy-load per stage, turning one grid fetch into an N+1.
+# each sibling's cycle/sample: _use_number() sorts a cell's uses by acquire_date (via
+# use_run_date -> cycle.acquire_date), has_failed_use() scans the cell's use statuses, and
+# has_barcode_clash()/is_duplicate_cell_reuse() need each sibling's own Sample.external_id to
+# tell a genuine cross-sample barcode clash apart from another copy of the same duplicate
+# Container ID. Without the Cell.cell_uses chain, each of these lazy-loads per stage, turning
+# one grid fetch into an N+1.
 RUN_LOAD_OPTIONS = [
     selectinload(RunBatch.instrument),
     selectinload(RunBatch.cycles)
@@ -32,6 +41,11 @@ RUN_LOAD_OPTIONS = [
     .selectinload(CellUse.cell)
     .selectinload(Cell.cell_uses)
     .selectinload(CellUse.cycle),
+    selectinload(RunBatch.cycles)
+    .selectinload(Cycle.cell_uses)
+    .selectinload(CellUse.cell)
+    .selectinload(Cell.cell_uses)
+    .selectinload(CellUse.sample),
     selectinload(RunBatch.cycles).selectinload(Cycle.cell_uses).selectinload(CellUse.sample),
     selectinload(RunBatch.cycles).selectinload(Cycle.cell_uses).selectinload(CellUse.barcodes),
 ]
@@ -81,6 +95,7 @@ def _stage_out(
         sample_external_id=cell_use.sample.external_id if cell_use.sample else None,
         duplicate_index=dup_index,
         duplicate_total=dup_total,
+        duplicate_cell_reuse=is_duplicate_cell_reuse(cell_use),
         barcodes=cell_use.barcode_list,
         cell_use_status=cell_use.status,
         cell_status=cell_use.cell.status if cell_use.cell else "open",

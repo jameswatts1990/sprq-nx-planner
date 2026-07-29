@@ -155,6 +155,19 @@ export function ScheduleSection() {
         </li>
       </ul>
 
+      <p className={styles.subheading}>Recalculate</p>
+      <p>
+        The small <b>↻</b> button next to an instrument&apos;s REVIO number <b>re-derives every one of that
+        instrument&apos;s not-yet-loaded placements from scratch</b>, reuse-before-new, exactly as if you&apos;d cleared
+        them and let Auto Schedule place them again under today&apos;s rules. It&apos;s for the rare case where a
+        schedule was worked out under a rule that&apos;s since been corrected, and needs re-packing to actually
+        benefit from the fix — day-to-day scheduling never needs it. A confirmation dialog explains what it will do
+        before anything changes; <b>confirmed/loaded runs are always left exactly as they are</b>, and it reaches
+        every planned run on that instrument, not just the week you happen to be viewing. Afterwards a note reports
+        how many samples were placed (and how many, if any, couldn&apos;t be — they stay safely in the backlog,
+        never lost).
+      </p>
+
       <p className={styles.subheading}>Print Batch Sheet</p>
       <p>
         <b>Print Batch Sheet</b> opens a printable loading sheet for the Revios. Pick the <b>load day</b> and tick which
@@ -349,14 +362,17 @@ export function ScheduleSection() {
         <i>Placing samples</i> above.
       </p>
       <p>
-        <b>A barcode clash can&apos;t push cells out of tray order.</b> A cell can never run the same barcode twice, so if
-        a sample&apos;s barcode was already burned on the cell that would naturally back its slot, RunNx skips that cell.
-        Usually it just reaches for the next usable cell — but if doing so would leave the plate loading its cells{" "}
-        <i>out of tray order</i> (e.g. <i>▣2</i> in an earlier slot than <i>▣1</i>, something the instrument never does on
-        a tray whose cells are all at the same use), the drop is <b>refused</b> with a note naming the sample whose barcode
-        forced it. Move that sample to a different slot or day (or onto a fresh cell) and try again. (Cells legitimately
-        loading out of position because one is further through its uses — nearer its 108-hour deadline — is fine and is
-        never blocked.)
+        <b>A barcode clash can&apos;t push cells out of tray order.</b> A cell can never run the same barcode twice for
+        two <i>different</i> samples, so if a sample&apos;s barcode was already burned on the cell that would naturally
+        back its slot by another sample, RunNx skips that cell. Usually it just reaches for the next usable cell — but
+        if doing so would leave the plate loading its cells <i>out of tray order</i> (e.g. <i>▣2</i> in an earlier slot
+        than <i>▣1</i>, something the instrument never does on a tray whose cells are all at the same use), the drop
+        is <b>refused</b> with a note naming the sample whose barcode forced it. Move that sample to a different slot
+        or day (or onto a fresh cell) and try again. (Cells legitimately loading out of position because one is
+        further through its uses — nearer its 108-hour deadline — is fine and is never blocked.) A <b>duplicate</b>
+        sample (same Container ID as an earlier copy) is the one exception: it&apos;s allowed to reuse a cell that
+        earlier copy already used, since it&apos;s the same underlying sample either way — see the ↻ badge under{" "}
+        <i>Duplicate samples</i> in the Colour &amp; Status Legend.
       </p>
       <p>
         <b>Dropping onto a day the tray has already expired loads a fresh one — automatically.</b> A cell can only be

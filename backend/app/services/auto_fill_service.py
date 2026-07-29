@@ -9,10 +9,11 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 
 from sqlalchemy import select, update
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.engine.constants import (
     CELL_LIFETIME_H,
+    CELL_MAX_USES,
     CELLS_PER_TRAY,
     DAY_START_HOUR,
     DEFAULT_MOVIE_HOURS,
@@ -35,8 +36,19 @@ from app.services.placement_service import (
     get_or_create_run,
     planned_window,
     recompute_cycle_timing,
+    remove_samples,
 )
 from app.timeutil import ensure_aware, utcnow
+
+
+@dataclass(frozen=True)
+class _CellRef:
+    """Local (instrument, day) ref for recalculate_instrument's internal use - the same
+    duck-typed shape `auto_fill`'s `cells` param already expects (schemas.run.GridCellRef at
+    the API layer), kept here instead of importing the schema into a service module."""
+
+    instrument_serial: str
+    load_date: date
 
 
 @dataclass
@@ -61,6 +73,7 @@ def auto_fill(
     start_hour: int = DAY_START_HOUR,
     start_minute: int = 0,
     actor: str | None = None,
+    sample_ids: list[int] | None = None,
 ):
     # Movie times (12/24/30) the user ticked in the Autoschedule panel - only backlog samples
     # of these lengths are scheduled this batch. Each placed well then runs for its OWN
@@ -146,7 +159,13 @@ def auto_fill(
     # Only the ticked movie times are scheduled; the rest stay in the backlog (a sample with no
     # movie time reads as the 24h default). Filtered-out samples are NOT reported as "unplaced"
     # - they were never offered to this batch - since unplaced is derived from `samples` below.
-    samples = [s for s in load_backlog_samples(db) if (s.movie_time_hours or DEFAULT_MOVIE_HOURS) in movie_set]
+    # `sample_ids`, when given, additionally restricts the pool to exactly those backlog
+    # samples (used by recalculate_instrument, which must only ever re-pack the specific
+    # samples it just unscheduled from one instrument - never invite the wider backlog to
+    # compete for the freed slots).
+    samples = [
+        s for s in load_backlog_samples(db, sample_ids) if (s.movie_time_hours or DEFAULT_MOVIE_HOURS) in movie_set
+    ]
     parsed = to_parsed_samples(samples)
     prior_cells, cells_by_id = load_prior_cells(db, [])
     # Cells cannot move between instruments: a prior cell pinned to an instrument that
@@ -545,4 +564,67 @@ def auto_fill(
         barcode_conflicts=pack.conflict_pairs,
         run_ids=list(run_ids),
         disposed_cell_ids=disposed_cell_ids,
+    )
+
+
+def recalculate_instrument(db: Session, *, instrument_serial: str, actor: str | None = None) -> AutoFillResult:
+    """Re-derive every not-yet-loaded (planned) placement on one instrument from scratch,
+    using the exact same reuse-before-new engine Auto Schedule already uses (pack_cells +
+    fill_slots) - the "Recalculate" action next to an instrument's name in the weekly grid.
+    For cases the engine packed under an older or since-corrected rule (e.g. before the
+    barcode-clash guard learned to exempt a duplicate Container ID's own earlier copy - see
+    docs/pacbio-sprq-nx-scheduling-reference.md) and needs re-packing under the current one,
+    without the user manually clearing and replacing each sample by hand.
+
+    Scope is deliberately narrow: only the samples already scheduled on THIS instrument's
+    planned (unconfirmed) runs are re-packed - never the wider backlog, so recalculating one
+    instrument can't reach across and reassign an unrelated sample sitting on a different
+    instrument, or one that's genuinely still unscheduled. A LOADED/confirmed run is never
+    touched: its cells are physically already on the instrument in reality, so there is
+    nothing to recompute - this mirrors every other mutation in this module, which only ever
+    acts on a `planned` cycle.
+
+    Bulk-unschedules the affected placements back to the backlog first (the same atomic
+    remove_samples() "Clear schedule" already uses, so a partial failure can't strand a
+    half-cleared day), then re-runs auto_fill() restricted to exactly those sample ids across
+    exactly the (instrument, day) slots just freed - full 3-use depth, every movie time, both
+    trays, "fewest" (deepen reuse before opening a new cell), so recalculate itself never
+    strands a sample behind a restrictive dial it didn't choose. Any sample that no longer
+    fits (e.g. a barcode conflict introduced by something scheduled elsewhere in the
+    meantime) is left safely in the backlog and reported as unplaced, never dropped."""
+    instrument = db.scalar(select(Instrument).where(Instrument.serial_number == instrument_serial))
+    if instrument is None:
+        raise PlacementError(400, f"Unknown instrument serial '{instrument_serial}'.")
+
+    planned_cycles = (
+        db.scalars(
+            select(Cycle)
+            .join(Cycle.run_batch)
+            .where(RunBatch.instrument_id == instrument.id, Cycle.status == "planned")
+            .options(selectinload(Cycle.run_batch), selectinload(Cycle.cell_uses))
+        )
+        .unique()
+        .all()
+    )
+
+    live_uses = [cu for c in planned_cycles for cu in c.cell_uses if cu.status != "cancelled"]
+    if not live_uses:
+        return AutoFillResult()  # nothing planned on this instrument right now - no-op
+
+    load_dates = sorted({c.run_batch.load_date for c in planned_cycles})
+    cell_use_ids = [cu.id for cu in live_uses]
+    sample_ids = [cu.sample_id for cu in live_uses if cu.sample_id is not None]
+
+    remove_samples(db, cell_use_ids, actor)
+
+    cells = [_CellRef(instrument_serial=instrument_serial, load_date=d) for d in load_dates]
+    return auto_fill(
+        db,
+        cells=cells,
+        max_uses=CELL_MAX_USES,
+        movie_times=[12, 24, 30],
+        objective="fewest",
+        cells_per_day=len(WELLS),
+        sample_ids=sample_ids,
+        actor=actor,
     )

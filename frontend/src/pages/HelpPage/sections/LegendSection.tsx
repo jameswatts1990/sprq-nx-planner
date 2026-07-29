@@ -194,6 +194,17 @@ export function LegendSection() {
           colours above, which count acquisitions of one physical cell.
         </span>
       </div>
+      <div className={styles.legendRow}>
+        <span className={styles.legendSwatchLabel}>
+          <DuplicateBadge index={2} total={3} selfReuse />
+        </span>
+        <span>
+          On the weekly schedule only: the ↻ means this copy is sharing a physical cell with an
+          earlier copy of the same Container ID. That&apos;s allowed and expected - it&apos;s the
+          same underlying sample either way, so there&apos;s no risk of one sample&apos;s reads
+          being mixed up with another&apos;s. Opening the slot shows the same explanation.
+        </span>
+      </div>
 
       <p className={styles.subheading}>Use colours (schedule barcode chips)</p>
       <div className={styles.legendRow}>

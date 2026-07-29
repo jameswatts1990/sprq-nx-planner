@@ -63,6 +63,60 @@ def derive_cell_state(cell: Cell, uses: list[CellUse] | None = None) -> tuple[in
     return uses_consumed, remaining, burned
 
 
+def barcode_owners(cell: Cell, uses: list[CellUse] | None = None) -> dict[str, set[str]]:
+    """barcode -> the set of Container IDs (Sample.external_id) that have burned it on this
+    cell across its active uses. Lets a clash check tell "a different sample happens to share
+    this barcode" (a real cross-contamination risk) apart from "another copy of the exact same
+    Container ID already used this cell" (the same physical material either way - see
+    foreign_barcode_clash)."""
+    uses = active_uses(cell) if uses is None else uses
+    owners: dict[str, set[str]] = {}
+    for cu in uses:
+        ext = cu.sample.external_id if cu.sample else None
+        if ext is None:
+            continue
+        for b in cu.barcode_list:
+            owners.setdefault(b, set()).add(ext)
+    return owners
+
+
+def foreign_barcode_clash(owners: dict[str, set[str]], external_id: str | None, barcodes: list[str]) -> bool:
+    """True if any of `barcodes` was burned on a cell by a DIFFERENT Container ID than
+    `external_id` - the real reuse-carryover risk the barcode guard exists to prevent (see
+    docs/pacbio-sprq-nx-scheduling-reference.md's barcode-carryover rule). A barcode only ever
+    burned by `external_id` itself - another copy of the same duplicate Container ID (see
+    "duplicate Container ID" sample support) - is NOT a clash: reusing a cell with the
+    identical physical sample can't misattribute reads to a foreign sample, so there's nothing
+    for the carryover guard to protect against (lab owner decision, 2026-07-29). `external_id`
+    of None (a legacy cell_use with no linked sample) can never claim this exemption - treated
+    as foreign to every burned barcode, matching the guard's pre-existing behaviour."""
+    for b in barcodes:
+        owners_of_b = owners.get(b)
+        if not owners_of_b:
+            continue
+        if external_id is None or owners_of_b - {external_id}:
+            return True
+    return False
+
+
+def is_duplicate_cell_reuse(cell_use: CellUse) -> bool:
+    """True if this use's cell was already used by another CellUse of the exact same
+    Container ID (a sibling duplicate sharing a barcode) - an intentionally ALLOWED reuse (see
+    foreign_barcode_clash), surfaced on the placement so it's transparent at a glance rather
+    than a silent rule exception. Distinct from has_barcode_clash, which flags the opposite
+    (and genuinely unexpected) case: a clash with a DIFFERENT sample."""
+    cell = cell_use.cell
+    if cell is None or cell_use.sample is None:
+        return False
+    mine = cell_use.barcode_list
+    if not mine:
+        return False
+    others = [u for u in active_uses(cell) if u.id != cell_use.id]
+    owners = barcode_owners(cell, others)
+    external_id = cell_use.sample.external_id
+    return any(external_id in owners.get(b, set()) for b in mine)
+
+
 def use_run_date(cell_use: CellUse) -> date | None:
     """The calendar day a specific use is/was acquired, via its Cycle (the Plate) -
     ``Cycle.acquire_date``. The only correct way to order a cell's uses chronologically.
@@ -347,20 +401,25 @@ def has_failed_use(cell: Cell) -> bool:
 
 
 def has_barcode_clash(cell_use: CellUse) -> bool:
-    """Whether this use shares a burned barcode with another active use of the same cell -
-    a reuse carryover risk. In normal placement this can't happen (guarded at place time);
-    it only arises when a Cell QC tray re-zip shifts a sample onto a cell that already burned
-    a clashing barcode (services/qc_service.py), which is exactly what we want to flag."""
+    """Whether this use shares a burned barcode with another active use of the same cell
+    carrying a DIFFERENT Container ID - a genuine reuse carryover risk. In normal placement
+    this can't happen (guarded at place time); it only arises when a Cell QC tray re-zip
+    shifts a sample onto a cell that already burned a clashing barcode belonging to a
+    different sample (services/qc_service.py), which is exactly what we want to flag.
+
+    Two uses of the identical Container ID sharing a barcode (see is_duplicate_cell_reuse)
+    are deliberately excluded here - that's the same physical material either way, not a
+    cross-sample clash, so it must not paint the QC "barcode clash" danger badge."""
     cell = cell_use.cell
     if cell is None:
         return False
-    mine = set(cell_use.barcode_list)
+    mine = cell_use.barcode_list
     if not mine:
         return False
-    for other in active_uses(cell):
-        if other.id != cell_use.id and mine & set(other.barcode_list):
-            return True
-    return False
+    my_ext = cell_use.sample.external_id if cell_use.sample else None
+    others = [u for u in active_uses(cell) if u.id != cell_use.id]
+    owners = barcode_owners(cell, others)
+    return foreign_barcode_clash(owners, my_ext, mine)
 
 
 def needs_qc_report(cell: Cell) -> bool:

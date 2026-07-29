@@ -60,6 +60,24 @@ def disjoint(set_a: set[str], arr_b: list[str]) -> bool:
     return not any(b in set_a for b in arr_b)
 
 
+def _foreign_clash(cell: PackedCell, sample: ParsedSample) -> bool:
+    """True if any of `sample`'s barcodes was burned on `cell` by a DIFFERENT Container ID -
+    the real reuse-carryover risk (see docs/pacbio-sprq-nx-scheduling-reference.md). A barcode
+    this exact Container ID (`sample.id`, an external_id) already burned on the cell itself -
+    an earlier duplicate copy of the same sample - is not a clash: it's the same physical
+    material either way, so there's no cross-sample misattribution risk (lab owner decision,
+    2026-07-29). `cell.barcode_owners` has no entry for a barcode nobody has recorded an owner
+    for (a hand-built prior cell with no owner data) - treated as foreign, the same
+    unconditional block this guard always had before duplicates existed."""
+    for b in sample.barcodes:
+        if b not in cell.barcodes:
+            continue
+        owners = cell.barcode_owners.get(b)
+        if not owners or owners - {sample.id}:
+            return True
+    return False
+
+
 def cell_allowed_positions(c: PackedCell) -> frozenset[int]:
     """The carousel cell positions (within_tray_pos, 0-3) still open to this whole cell,
     given Auto Schedule's movie-time rule (see engine/constants.movie_allowed_positions).
@@ -172,6 +190,7 @@ def pack_cells(
                 cell_id=pc.cell_id,
                 pinned_instrument_serial=pc.pinned_instrument_serial,
                 pinned_well=pc.pinned_well,
+                barcode_owners={b: set(exts) for b, exts in pc.barcode_owners.items()},
             )
         )
 
@@ -203,7 +222,7 @@ def pack_cells(
             c
             for c in cells
             if (len(c.uses) < _prior_allowance(c) if c.prior else len(c.uses) < cap)
-            and disjoint(c.barcodes, s.barcodes)
+            and not _foreign_clash(c, s)
             # Auto Schedule's movie-time cell rule: this sample can only share a cell whose
             # remaining allowed positions overlap its own (e.g. a 12h sample never lands on a
             # cell pinned to - or already holding a use pinned to - anything but cell 1). For
@@ -224,6 +243,8 @@ def pack_cells(
             c = cands[0]
             c.uses.append(s)
             c.barcodes.update(s.barcodes)
+            for b in s.barcodes:
+                c.barcode_owners.setdefault(b, set()).add(s.id)
             continue
 
         if cap < 1:
@@ -240,6 +261,7 @@ def pack_cells(
                 remaining=CELL_MAX_USES,
                 barcodes=set(s.barcodes),
                 uses=[s],
+                barcode_owners={b: {s.id} for b in s.barcodes},
             )
         )
 

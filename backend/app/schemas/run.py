@@ -44,6 +44,11 @@ class StageOut(BaseModel):
     # 1-based position. Both null for a one-off — the grid card shows the "1/3" badge only when set.
     duplicate_index: int | None = None
     duplicate_total: int | None = None
+    # True when this cell was already used by another copy of the exact same Container ID
+    # (a sibling duplicate sharing a barcode) - an intentionally ALLOWED reuse (see
+    # cell_service.foreign_barcode_clash / docs/pacbio-sprq-nx-scheduling-reference.md), shown
+    # so it's transparent at a glance rather than a silent exception to the barcode-clash rule.
+    duplicate_cell_reuse: bool = False
     barcodes: list[str]
     # This specific use's own status (planned/started/completed/failed/cancelled) and the
     # physical cell's overall status (open/exhausted/window_expired/retired/stopped) - lets
@@ -217,6 +222,15 @@ class AutoFillRequest(BaseModel):
     cells_per_day: Literal[4, 8] = 8
     start_hour: int = Field(default=DAY_START_HOUR, ge=0, le=23)
     start_minute: int = Field(default=0, ge=0, le=59)
+
+
+class RecalculateRequest(BaseModel):
+    """"Recalculate" next to an instrument's name in the weekly grid: re-pack every one of
+    that instrument's not-yet-loaded (planned) placements from scratch with the current
+    engine rules, when a schedule was built under a since-corrected rule (see
+    services.auto_fill_service.recalculate_instrument)."""
+
+    instrument_serial: str
 
 
 class AutoFillResponse(BaseModel):

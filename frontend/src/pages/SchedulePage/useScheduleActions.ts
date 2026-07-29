@@ -64,6 +64,8 @@ export function useScheduleActions({
   // really start 18:00". Distinct from removeSlotsError (a red failure) - this is informational.
   const [placementAdvisory, setPlacementAdvisory] = useState<string | null>(null);
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
+  // Instrument serial pending/undergoing a "Recalculate" confirm, or null when the modal is closed.
+  const [recalculateTarget, setRecalculateTarget] = useState<string | null>(null);
 
   const removeSlots = useMutation({
     // One atomic request, not one DELETE per stage: the backend removes every stage in a
@@ -255,6 +257,42 @@ export function useScheduleActions({
     },
   });
 
+  // "Recalculate" next to an instrument's name: re-pack every not-yet-loaded placement on
+  // that one instrument from scratch under the current engine rules (see
+  // auto_fill_service.recalculate_instrument) - for a schedule built under a since-corrected
+  // rule. recalculateTarget holds the instrument serial pending confirmation (or mid-flight);
+  // null closes the modal.
+  const recalculate = useMutation({
+    mutationFn: (instrumentSerial: string) => schedulerApi.recalculate({ instrument_serial: instrumentSerial }),
+    onSuccess: (res, instrumentSerial) => {
+      invalidateScheduleRelated(queryClient);
+      setRecalculateTarget(null);
+      const parts = [`${res.placed_sample_ids.length} placed`];
+      if (res.unplaced_sample_ids.length > 0) parts.push(`${res.unplaced_sample_ids.length} unplaced`);
+      if (res.barcode_conflicts.length > 0) parts.push(`${res.barcode_conflicts.length} barcode conflict(s)`);
+      if (res.disposed_cell_ids.length > 0) parts.push(`${res.disposed_cell_ids.length} cell(s) disposed`);
+      const clean = res.unplaced_sample_ids.length === 0 && res.barcode_conflicts.length === 0;
+      setRunDesignNote({
+        tone: clean ? "good" : "warn",
+        icon: clean ? "✓" : "!",
+        text: `${instrumentSerial} recalculated: ${parts.join(" · ")}`,
+      });
+    },
+    onError: (err) => {
+      setRunDesignNote({
+        tone: "bad",
+        icon: "!",
+        text: err instanceof ApiError ? err.message : "Failed to recalculate.",
+      });
+    },
+  });
+
+  const onRequestRecalculate = useCallback((instrumentSerial: string) => {
+    setRunDesignNote(null);
+    recalculate.reset();
+    setRecalculateTarget(instrumentSerial);
+  }, [recalculate]);
+
   const onRequestClearSchedule = useCallback(() => {
     setRunDesignNote(null);
     clearSchedule.reset();
@@ -272,6 +310,7 @@ export function useScheduleActions({
     setRemoveSlotsError(null);
     setPlacementAdvisory(null);
     setClearConfirmOpen(false);
+    setRecalculateTarget(null);
   }, []);
 
   return {
@@ -281,6 +320,8 @@ export function useScheduleActions({
     setPlacementAdvisory,
     clearConfirmOpen,
     setClearConfirmOpen,
+    recalculateTarget,
+    setRecalculateTarget,
     removeSlots,
     dragRemove,
     swap,
@@ -288,7 +329,9 @@ export function useScheduleActions({
     move,
     clearSchedule,
     autoFill,
+    recalculate,
     onRequestClearSchedule,
+    onRequestRecalculate,
     onAutoSchedule,
     resetFeedback,
   };

@@ -69,6 +69,61 @@ def test_pack_excludes_prior_cell_when_sample_shares_a_burned_barcode():
     assert [u.id for u in fresh_cell.uses] == ["S1"]
 
 
+def test_pack_allows_prior_cell_reuse_for_the_same_duplicate_container_id():
+    # P1 already burned bc1, but the owner data says it was S1 itself (an earlier duplicate
+    # copy of the same Container ID) that burned it - reusing P1 for another copy of S1 is
+    # allowed: it's the same physical material either way, no cross-sample contamination
+    # risk (see docs/pacbio-sprq-nx-scheduling-reference.md's barcode-carryover exception).
+    prior = [
+        PriorCellInput(
+            barcodes_text="bc1", barcode_owners={"bc1": frozenset({"S1"})}, uses_consumed=1, cell_id=42
+        )
+    ]
+    samples = [ParsedSample(id="S1", barcodes=["bc1"], key="S1#0")]
+
+    result = pack_cells(samples, max_uses=3, objective="fewest", prior_cells=prior)
+
+    prior_cell = next(c for c in result.all_cells if c.prior)
+    assert [u.id for u in prior_cell.uses] == ["S1"]
+    assert result.unplaced == []
+
+
+def test_pack_still_blocks_a_different_sample_sharing_a_barcode_even_with_owner_data():
+    # Same prior cell/owner data as above, but the new sample is a genuinely DIFFERENT
+    # Container ID sharing the identical barcode - a real foreign clash, still blocked.
+    prior = [
+        PriorCellInput(
+            barcodes_text="bc1", barcode_owners={"bc1": frozenset({"S1"})}, uses_consumed=1, cell_id=42
+        )
+    ]
+    samples = [ParsedSample(id="S2", barcodes=["bc1"], key="S2#0")]
+
+    result = pack_cells(samples, max_uses=3, objective="fewest", prior_cells=prior)
+
+    prior_cell = next(c for c in result.all_cells if c.prior)
+    assert prior_cell.uses == []
+    fresh_cell = next(c for c in result.cells if not c.prior)
+    assert [u.id for u in fresh_cell.uses] == ["S2"]
+
+
+def test_pack_lets_duplicate_container_id_copies_share_a_fresh_cell():
+    # Two copies of the SAME Container ID (same external_id, same barcode - the "duplicate"
+    # sample feature), no prior cells at all: the second copy must be able to deepen the
+    # very fresh cell the first copy just opened, not be forced onto a brand-new one - this
+    # exercises the fresh-cell owner-seeding path (a freshly opened cell's own first use has
+    # to register its owner too, or its second use looks "unowned" and is wrongly blocked).
+    samples = [
+        ParsedSample(id="DUP", barcodes=["bc1"], key="dup#0"),
+        ParsedSample(id="DUP", barcodes=["bc1"], key="dup#1"),
+    ]
+
+    result = pack_cells(samples, max_uses=3, objective="fewest")
+
+    assert len(result.cells) == 1
+    assert [u.key for u in result.cells[0].uses] == ["dup#0", "dup#1"]
+    assert result.unplaced == []
+
+
 def test_pack_carries_pinned_well_through_from_prior_cell_input():
     # A cell is physically fixed to one well for life (see engine/slot_scheduling.py's
     # pin enforcement) - pack_cells must pass PriorCellInput.pinned_well through onto

@@ -2,31 +2,23 @@ from fastapi import APIRouter, HTTPException
 
 from app.api.deps import ActorDep, SessionDep
 from app.models.schedule import RunBatch
-from app.schemas.run import AutoFillRequest, AutoFillResponse, BarcodeConflictOut, GridCellRef, RunOut, WindowFlagOut
-from app.services.auto_fill_service import auto_fill
+from app.schemas.run import (
+    AutoFillRequest,
+    AutoFillResponse,
+    BarcodeConflictOut,
+    GridCellRef,
+    RecalculateRequest,
+    RunOut,
+    WindowFlagOut,
+)
+from app.services.auto_fill_service import AutoFillResult, auto_fill, recalculate_instrument
 from app.services.placement_service import PlacementError
 from app.services.run_serializer import RUN_LOAD_OPTIONS, run_out
 
 router = APIRouter(prefix="/api/auto-fill", tags=["auto-fill"])
 
 
-@router.post("", response_model=AutoFillResponse)
-def auto_fill_endpoint(req: AutoFillRequest, db: SessionDep, actor: ActorDep) -> AutoFillResponse:
-    try:
-        result = auto_fill(
-            db,
-            cells=req.cells,
-            max_uses=req.max_uses,
-            movie_times=req.movie_times,
-            objective=req.objective,
-            cells_per_day=req.cells_per_day,
-            start_hour=req.start_hour,
-            start_minute=req.start_minute,
-            actor=actor,
-        )
-    except PlacementError as exc:
-        raise HTTPException(exc.status_code, exc.detail) from exc
-
+def _to_response(db: SessionDep, result: AutoFillResult) -> AutoFillResponse:
     runs: list[RunOut] = []
     for run_id in result.run_ids:
         run_batch = db.get(RunBatch, run_id, options=RUN_LOAD_OPTIONS)
@@ -47,3 +39,35 @@ def auto_fill_endpoint(req: AutoFillRequest, db: SessionDep, actor: ActorDep) ->
         runs=runs,
         disposed_cell_ids=result.disposed_cell_ids,
     )
+
+
+@router.post("", response_model=AutoFillResponse)
+def auto_fill_endpoint(req: AutoFillRequest, db: SessionDep, actor: ActorDep) -> AutoFillResponse:
+    try:
+        result = auto_fill(
+            db,
+            cells=req.cells,
+            max_uses=req.max_uses,
+            movie_times=req.movie_times,
+            objective=req.objective,
+            cells_per_day=req.cells_per_day,
+            start_hour=req.start_hour,
+            start_minute=req.start_minute,
+            actor=actor,
+        )
+    except PlacementError as exc:
+        raise HTTPException(exc.status_code, exc.detail) from exc
+
+    return _to_response(db, result)
+
+
+@router.post("/recalculate", response_model=AutoFillResponse)
+def recalculate_endpoint(req: RecalculateRequest, db: SessionDep, actor: ActorDep) -> AutoFillResponse:
+    """"Recalculate" next to an instrument's name in the weekly grid - see
+    auto_fill_service.recalculate_instrument for what it does and doesn't touch."""
+    try:
+        result = recalculate_instrument(db, instrument_serial=req.instrument_serial, actor=actor)
+    except PlacementError as exc:
+        raise HTTPException(exc.status_code, exc.detail) from exc
+
+    return _to_response(db, result)

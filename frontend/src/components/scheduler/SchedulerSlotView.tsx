@@ -213,7 +213,11 @@ export const SchedulerSlotView = memo(
           </div>
           <div className={styles.cellref}>
             {stage!.cell_ref}
-            <DuplicateBadge index={stage!.duplicate_index} total={stage!.duplicate_total} />
+            <DuplicateBadge
+              index={stage!.duplicate_index}
+              total={stage!.duplicate_total}
+              selfReuse={stage!.duplicate_cell_reuse}
+            />
           </div>
           {qcAlert && (
             <div

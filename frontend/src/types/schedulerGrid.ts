@@ -64,6 +64,13 @@ export interface AutoFillRequest {
   start_minute?: number;
 }
 
+/** "Recalculate" next to an instrument's name in the weekly grid: re-pack every one of that
+ * instrument's not-yet-loaded (planned) placements from scratch with the current engine
+ * rules. Response shape matches AutoFillResponse - a recalculate is just a scoped auto-fill. */
+export interface RecalculateRequest {
+  instrument_serial: string;
+}
+
 export interface AutoFillWindowFlag {
   cell_ref: string;
   span_hours: number;

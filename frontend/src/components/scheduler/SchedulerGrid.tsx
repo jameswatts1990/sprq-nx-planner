@@ -48,6 +48,8 @@ export interface SchedulerGridProps {
   /** Projected on-instrument tray map per instrument serial (see
    * instrumentTrayMap.computeInstrumentTrayMaps), shown beneath each serial. */
   trayMaps: Map<string, InstrumentTrayMap>;
+  /** "Recalculate" next to an instrument's name - opens the confirm modal for that serial. */
+  onRecalculate: (serial: string) => void;
 }
 
 function SchedulerDayHeader({
@@ -124,6 +126,7 @@ export function SchedulerGrid({
   waitingGrouped,
   blockedGrouped,
   trayMaps,
+  onRecalculate,
 }: SchedulerGridProps) {
   function isDown(serial: string, date: string): boolean {
     const downFrom = instrumentMeta.get(serial)?.downFrom ?? null;
@@ -227,6 +230,7 @@ export function SchedulerGrid({
               waitingCellsByDate={waitingGrouped.get(serial) ?? EMPTY_WAITING_BY_DATE}
               blockedWellsByDate={blockedGrouped.get(serial) ?? EMPTY_BLOCKED_BY_DATE}
               trayMap={trayMaps.get(serial)}
+              onRecalculate={onRecalculate}
             />
           ))}
         </tbody>

@@ -11,7 +11,7 @@ from app.models.cell import Cell
 from app.models.cell_tray import CellTray
 from app.models.sample import Sample
 from app.models.schedule import CellUse, Cycle, RunBatch
-from app.services.cell_service import current_location, derive_cell_state
+from app.services.cell_service import barcode_owners, current_location, derive_cell_state
 
 
 def load_backlog_samples(db: Session, sample_ids: list[int] | None = None) -> list[Sample]:
@@ -50,6 +50,10 @@ def load_prior_cells(db: Session, excluded_cell_ids: list[int]) -> tuple[list[Pr
             .selectinload(CellUse.cycle)
             .selectinload(Cycle.run_batch)
             .selectinload(RunBatch.instrument),
+            # Needed for barcode_owners() below, which reads each use's Sample.external_id to
+            # tell a genuine cross-sample barcode clash apart from another copy of the exact
+            # same Container ID (see docs/pacbio-sprq-nx-scheduling-reference.md).
+            selectinload(Cell.cell_uses).selectinload(CellUse.sample),
             # A zero-use tray sibling has no CellUse history to derive a location from -
             # current_location() falls back to its tray's instrument, so that relationship
             # needs to be loaded too (see cell_service.current_location()).
@@ -64,9 +68,11 @@ def load_prior_cells(db: Session, excluded_cell_ids: list[int]) -> tuple[list[Pr
         if remaining <= 0:
             continue
         pinned_serial, pinned_well = current_location(cell)
+        owners = barcode_owners(cell)
         prior_inputs.append(
             PriorCellInput(
                 barcodes_text=" ".join(burned),
+                barcode_owners={b: frozenset(exts) for b, exts in owners.items()},
                 uses_consumed=uses_consumed,
                 cell_id=cell.id,
                 first_use_started_at=cell.first_use_started_at,

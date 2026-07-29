@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { ApiError } from "@/api/client";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { cellsApi } from "@/api/cells";
 import { cyclesApi } from "@/api/cycles";
 import { instrumentsApi } from "@/api/instruments";
@@ -421,7 +422,16 @@ export function SchedulePage() {
   // selection, so their mousedown must not wipe it out from under their own click.
   useEffect(() => {
     if (!selection.hasSelection && !slotSelection.hasSelection) return;
-    if (detail || cellInfo || qcTarget || printSheetOpen || actions.clearConfirmOpen || dnd.pendingPlacement || autoscheduleOpen)
+    if (
+      detail ||
+      cellInfo ||
+      qcTarget ||
+      printSheetOpen ||
+      actions.clearConfirmOpen ||
+      actions.recalculateTarget ||
+      dnd.pendingPlacement ||
+      autoscheduleOpen
+    )
       return;
     function onMouseDown(e: MouseEvent) {
       const target = e.target as Node;
@@ -434,7 +444,18 @@ export function SchedulePage() {
     return () => window.removeEventListener("mousedown", onMouseDown);
     // selection/slotSelection are stable (memoized in their hooks), so depending on the
     // whole objects re-subscribes only on a real selection change, same as before.
-  }, [selection, slotSelection, detail, cellInfo, qcTarget, printSheetOpen, actions.clearConfirmOpen, dnd.pendingPlacement, autoscheduleOpen]);
+  }, [
+    selection,
+    slotSelection,
+    detail,
+    cellInfo,
+    qcTarget,
+    printSheetOpen,
+    actions.clearConfirmOpen,
+    actions.recalculateTarget,
+    dnd.pendingPlacement,
+    autoscheduleOpen,
+  ]);
 
   // Delete/Backspace removes the selected samples from the schedule, as long as focus
   // isn't in a text field (so it doesn't hijack editing elsewhere on the page).
@@ -612,6 +633,7 @@ export function SchedulePage() {
                 waitingGrouped={waitingGrouped}
                 blockedGrouped={blockedGrouped}
                 trayMaps={trayMaps}
+                onRecalculate={actions.onRequestRecalculate}
               />
             )}
           </div>
@@ -656,6 +678,30 @@ export function SchedulePage() {
           onCancel={() => actions.setClearConfirmOpen(false)}
           onConfirm={() => actions.clearSchedule.mutate()}
         />
+      )}
+
+      {actions.recalculateTarget && (
+        <ConfirmModal
+          title={`Recalculate ${actions.recalculateTarget}'s schedule?`}
+          confirmLabel="Recalculate"
+          pendingLabel="Recalculating…"
+          pending={actions.recalculate.isPending}
+          error={
+            actions.recalculate.error instanceof ApiError
+              ? actions.recalculate.error.message
+              : actions.recalculate.error
+                ? "Failed to recalculate."
+                : undefined
+          }
+          onCancel={() => actions.setRecalculateTarget(null)}
+          onConfirm={() => actions.recalculate.mutate(actions.recalculateTarget!)}
+        >
+          <p>
+            This re-packs every <b>not-yet-loaded</b> placement on <b>{actions.recalculateTarget}</b> from scratch —
+            reuse-before-new, using today&apos;s engine rules — and may move samples onto different cells or trays
+            than they&apos;re on now. Confirmed/loaded runs are left as-is. This can&apos;t be undone.
+          </p>
+        </ConfirmModal>
       )}
 
       {printSheetOpen && (

@@ -1,5 +1,6 @@
 import { memo, type KeyboardEvent, type MouseEvent } from "react";
 
+import { Button } from "@/components/ui/Button";
 import type { RunOut, StageOut } from "@/types/schedule";
 import { isWeekendUTC, parseDateOnly } from "@/utils/calendarDates";
 
@@ -41,6 +42,8 @@ export interface SchedulerGridRowProps {
   /** Projected on-instrument tray map (as of the latest scheduled day this week), shown
    * beneath the serial. Undefined when the instrument has no tray-linked cells at all. */
   trayMap: InstrumentTrayMapData | undefined;
+  /** "Recalculate" next to the serial - opens the confirm modal for this instrument. */
+  onRecalculate: (serial: string) => void;
 }
 
 /** One instrument row: sticky-left <th> serial, then one SchedulerDayCell per day.
@@ -65,6 +68,7 @@ export const SchedulerGridRow = memo(function SchedulerGridRow({
   waitingCellsByDate,
   blockedWellsByDate,
   trayMap,
+  onRecalculate,
 }: SchedulerGridRowProps) {
   // Everything each day-cell needs, derived once per day. continuation is the only costly
   // bit (it scans cyclesByDate) and used to be computed twice per day - here it's computed
@@ -118,7 +122,22 @@ export const SchedulerGridRow = memo(function SchedulerGridRow({
         }
       >
         <div className={styles.ml}>Revio</div>
-        <div className={styles.mid}>{name || serial}</div>
+        <div className={styles.mid}>
+          {name || serial}
+          <Button
+            icon
+            size="sm"
+            aria-label={`Recalculate ${name || serial}'s schedule`}
+            title="Recalculate: re-pack this instrument's not-yet-loaded placements from scratch under the current engine rules"
+            className={styles.recalculateBtn}
+            onClick={(e: MouseEvent<HTMLButtonElement>) => {
+              e.stopPropagation();
+              onRecalculate(serial);
+            }}
+          >
+            ↻
+          </Button>
+        </div>
         {name && <div className={styles.serialSub}>{serial}</div>}
         <InstrumentTrayMap map={trayMap} />
       </th>

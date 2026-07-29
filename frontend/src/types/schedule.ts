@@ -59,6 +59,13 @@ export interface StageOut {
    * 1-based position. Both null/absent for a one-off — the grid card shows "1/3" only when set. */
   duplicate_index?: number | null;
   duplicate_total?: number | null;
+  /** True when this cell was already used by another copy of the exact same Container ID (a
+   * sibling duplicate sharing a barcode) - an intentionally ALLOWED reuse, not a clash: reusing
+   * a cell with the identical sample can't misattribute reads to a foreign sample, so there's
+   * no cross-contamination risk the barcode-clash rule exists to prevent. Shown so it's
+   * transparent at a glance rather than a silent exception. See docs/pacbio-sprq-nx-scheduling-
+   * reference.md's barcode-carryover rule. */
+  duplicate_cell_reuse?: boolean;
   barcodes: string[];
   /** This specific use's own status (planned/started/completed/failed/cancelled). */
   cell_use_status: string;

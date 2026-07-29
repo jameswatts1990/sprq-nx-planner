@@ -34,10 +34,12 @@ from app.models.sample import Sample
 from app.models.schedule import CellUse, CellUseBarcode, Cycle, RunBatch
 from app.services import instrument_lock
 from app.services.cell_service import (
+    barcode_owners,
     cleanup_tray_if_fully_unused,
     current_location,
     derive_cell_state,
     first_use_planned_start_at,
+    foreign_barcode_clash,
     open_new_tray,
     recompute_status,
     run_has_started,
@@ -363,6 +365,7 @@ def _resolve_cell_choice(
     well: str,
     barcodes: list[str],
     acquire_date: date,
+    external_id: str | None = None,
 ) -> Cell:
     """Shared "which cell hosts this sample" resolution, shared by place_sample and
     move_sample's cell-reassignment path: mode "new" opens a fresh tray at plate position
@@ -374,7 +377,12 @@ def _resolve_cell_choice(
     A grid slot is a plate LOADING position, not a cell, so there is no "must stay in its own
     well" check any more: the sample lands in the slot it was dropped onto (`well`), and which
     physical cell it runs on is what this resolves. `well` is the dropped plate position
-    (WELLS[slot_index]) - used to open a fresh tray in mode "new"."""
+    (WELLS[slot_index]) - used to open a fresh tray in mode "new".
+
+    `external_id` (the sample's Container ID) lets the barcode-clash check exempt a cell this
+    exact Container ID already burned this same barcode onto - another copy of a duplicate
+    sample - from the clash it would otherwise raise for a genuinely different, foreign
+    sample sharing that barcode (see cell_service.foreign_barcode_clash)."""
     mode = cell_choice.get("mode")
     if mode == "existing":
         cell_id = cell_choice.get("cell_id")
@@ -386,6 +394,7 @@ def _resolve_cell_choice(
             options=[
                 selectinload(Cell.cell_uses).selectinload(CellUse.barcodes),
                 selectinload(Cell.cell_uses).selectinload(CellUse.cycle).selectinload(Cycle.run_batch),
+                selectinload(Cell.cell_uses).selectinload(CellUse.sample),
                 selectinload(Cell.tray).selectinload(CellTray.instrument),
             ],
         )
@@ -393,10 +402,10 @@ def _resolve_cell_choice(
             raise PlacementError(404, f"Cell {cell_id} not found.")
         if cell.status != "open":
             raise PlacementError(409, f"Cell {cell.code} is not open (status: {cell.status}).")
-        _consumed, remaining, burned = derive_cell_state(cell)
+        _consumed, remaining, _burned = derive_cell_state(cell)
         if remaining <= 0:
             raise PlacementError(409, f"Cell {cell.code} has no remaining uses.")
-        if any(bc in set(burned) for bc in barcodes):
+        if foreign_barcode_clash(barcode_owners(cell), external_id, barcodes):
             raise PlacementError(409, f"barcode conflict: sample shares a burned barcode with cell {cell.code}.")
         current_serial, _current_well = current_location(cell)
         if current_serial is not None and current_serial != instrument_serial:
@@ -466,17 +475,19 @@ def _reuse_eligible(
     run_time_hours: float,
     start_hour: int,
     start_minute: int,
+    external_id: str | None = None,
 ) -> bool:
     """Bool predicate for the auto-deriver, mirroring _resolve_cell_choice's "existing cell"
-    guards (open, capacity left, barcode-disjoint, same instrument, not inserting ahead of an
-    already-started later use) PLUS the 108h window check. Well/position pinning is enforced by
-    how candidates are gathered in derive_best_cell, so it isn't re-checked here."""
+    guards (open, capacity left, barcode-disjoint unless it's the same Container ID reusing
+    its own earlier burn, same instrument, not inserting ahead of an already-started later
+    use) PLUS the 108h window check. Well/position pinning is enforced by how candidates are
+    gathered in derive_best_cell, so it isn't re-checked here."""
     if cell.status != "open":
         return False
-    _consumed, remaining, burned = derive_cell_state(cell)
+    _consumed, remaining, _burned = derive_cell_state(cell)
     if remaining <= 0:
         return False
-    if any(bc in set(burned) for bc in sample_barcodes):
+    if foreign_barcode_clash(barcode_owners(cell), external_id, sample_barcodes):
         return False
     serial, _well = current_location(cell)
     if serial is not None and serial != instrument_serial:
@@ -503,6 +514,7 @@ def _pick_next_reuse_cell(
     run_time_hours: float,
     start_hour: int,
     start_minute: int,
+    external_id: str | None = None,
 ) -> Cell | None:
     """From candidate cells physically resident at a drop's instrument+carousel position,
     return the one the instrument reaches for next: reuse-before-new, the *most-used* open cell
@@ -534,6 +546,7 @@ def _pick_next_reuse_cell(
             run_time_hours=run_time_hours,
             start_hour=start_hour,
             start_minute=start_minute,
+            external_id=external_id,
         ):
             return cell
     return None
@@ -550,6 +563,7 @@ def derive_best_cell(
     start_hour: int = DAY_START_HOUR,
     start_minute: int = 0,
     exclude_cell_id: int | None = None,
+    external_id: str | None = None,
 ) -> dict:
     """Pick the physical cell a manually-dropped sample should use, mirroring the instrument's
     own allocation: a grid slot is a plate LOADING position, not a cell, so a drop reaches for
@@ -576,7 +590,12 @@ def derive_best_cell(
     at the destination, never allowed to re-adopt its own cell into a foreign well - which,
     for a reused (most-used) cell, would otherwise be re-picked here and stored at the new
     well, reintroducing exactly the loading-well ≠ home-well divergence this is meant to
-    prevent (see the "Plate vs cell" refinement in docs/pacbio-sprq-nx-scheduling-reference.md)."""
+    prevent (see the "Plate vs cell" refinement in docs/pacbio-sprq-nx-scheduling-reference.md).
+
+    `external_id` (the sample's Container ID) is threaded down to the barcode-clash check so
+    another copy of the same duplicate Container ID can reuse a cell it already burned this
+    barcode onto - only a genuinely different sample sharing that barcode still blocks reuse
+    (see cell_service.foreign_barcode_clash)."""
     box = _plate_box(slot_index)
 
     # (1) Intra-run Plate-2 reuse: rerun THIS run's Plate-1 cells as a sequential Plate 2.
@@ -600,7 +619,7 @@ def derive_best_cell(
                 best = _pick_next_reuse_cell(
                     db, cands, instrument=instrument, load_date=load_date, slot_index=slot_index,
                     sample_barcodes=sample_barcodes, run_time_hours=run_time_hours,
-                    start_hour=start_hour, start_minute=start_minute,
+                    start_hour=start_hour, start_minute=start_minute, external_id=external_id,
                 )
                 if best is not None:
                     return {"mode": "existing", "cell_id": best.id}
@@ -623,7 +642,7 @@ def derive_best_cell(
     best = _pick_next_reuse_cell(
         db, cands, instrument=instrument, load_date=load_date, slot_index=slot_index,
         sample_barcodes=sample_barcodes, run_time_hours=run_time_hours,
-        start_hour=start_hour, start_minute=start_minute,
+        start_hour=start_hour, start_minute=start_minute, external_id=external_id,
     )
     if best is not None:
         return {"mode": "existing", "cell_id": best.id}
@@ -667,6 +686,7 @@ def _assert_no_barcode_forced_inversion(db: Session, cycle_id: int) -> None:
         .where(CellUse.cycle_id == cycle_id, CellUse.status != "cancelled")
         .options(
             selectinload(CellUse.cell).selectinload(Cell.cell_uses).selectinload(CellUse.barcodes),
+            selectinload(CellUse.cell).selectinload(Cell.cell_uses).selectinload(CellUse.sample),
             selectinload(CellUse.barcodes),
             selectinload(CellUse.sample),
         )
@@ -687,9 +707,12 @@ def _assert_no_barcode_forced_inversion(db: Session, cycle_id: int) -> None:
             if derive_cell_state(earlier.cell)[0] != derive_cell_state(later.cell)[0]:
                 continue
             # Barcode-forced? i.e. could `earlier`'s sample NOT have taken `later`'s (lower,
-            # earlier-loading) cell, because it shares a burned barcode with it.
-            later_burned = set(derive_cell_state(later.cell)[2])
-            if not any(bc in later_burned for bc in earlier.barcode_list):
+            # earlier-loading) cell, because it shares a burned barcode with it - genuinely, a
+            # burn from a DIFFERENT Container ID, not just another copy of `earlier`'s own
+            # duplicate sample (which is allowed to reuse `later`'s cell - see
+            # cell_service.foreign_barcode_clash - so that case was never actually forced off).
+            earlier_ext = earlier.sample.external_id if earlier.sample else None
+            if not foreign_barcode_clash(barcode_owners(later.cell), earlier_ext, earlier.barcode_list):
                 continue
             # The `earlier`-slot sample is always the culprit: it was bumped onto the
             # higher-position cell precisely because it clashes with the lower one (`later`'s
@@ -760,6 +783,7 @@ def place_sample(
             run_time_hours=run_time_hours,
             start_hour=start_hour,
             start_minute=start_minute,
+            external_id=sample.external_id,
         )
     mode = cell_choice.get("mode")
 
@@ -786,6 +810,7 @@ def place_sample(
             well=well,
             barcodes=sample_barcodes,
             acquire_date=acquire_date,
+            external_id=sample.external_id,
         )
     elif mode == "new":
         plate_index, acquire_date = _plate_target(
@@ -1080,9 +1105,11 @@ def move_sample(
         options=[
             selectinload(CellUse.cycle).selectinload(Cycle.run_batch),
             selectinload(CellUse.barcodes),
+            selectinload(CellUse.sample),
             selectinload(CellUse.cell).selectinload(Cell.cell_uses).selectinload(CellUse.cycle).selectinload(
                 Cycle.run_batch
             ).selectinload(RunBatch.instrument),
+            selectinload(CellUse.cell).selectinload(Cell.cell_uses).selectinload(CellUse.sample),
         ],
     )
     if cell_use is None:
@@ -1158,6 +1185,7 @@ def move_sample(
             start_hour=start_hour,
             start_minute=start_minute,
             exclude_cell_id=cell.id,
+            external_id=cell_use.sample.external_id if cell_use.sample else None,
         )
 
     if reassign_to_new_cell:
@@ -1306,6 +1334,7 @@ def _move_sample_to_new_cell(
         well=well,
         barcodes=barcodes,
         acquire_date=acquire_date,
+        external_id=cell_use.sample.external_id if cell_use.sample else None,
     )
 
     old_cycle_id = old_cycle.id
@@ -1383,7 +1412,9 @@ def swap_samples(db: Session, *, cell_use_id_a: int, cell_use_id_b: int, actor: 
     options = [
         selectinload(CellUse.cycle).selectinload(Cycle.run_batch),
         selectinload(CellUse.cell).selectinload(Cell.cell_uses).selectinload(CellUse.barcodes),
+        selectinload(CellUse.cell).selectinload(Cell.cell_uses).selectinload(CellUse.sample),
         selectinload(CellUse.barcodes),
+        selectinload(CellUse.sample),
     ]
     use_a = db.get(CellUse, cell_use_id_a, options=options)
     use_b = db.get(CellUse, cell_use_id_b, options=options)
@@ -1403,32 +1434,29 @@ def swap_samples(db: Session, *, cell_use_id_a: int, cell_use_id_b: int, actor: 
     cell_a, cell_b = use_a.cell, use_b.cell
     sample_a_id, sample_b_id = use_a.sample_id, use_b.sample_id
     sample_a_barcodes, sample_b_barcodes = use_a.barcode_list, use_b.barcode_list
+    sample_a_ext = use_a.sample.external_id if use_a.sample else None
+    sample_b_ext = use_b.sample.external_id if use_b.sample else None
 
     if cell_a.id != cell_b.id:
         # Barcode clash is only a real concern crossing cells - two uses of the *same*
         # physical cell already share one burned-barcode set, so a same-cell swap can
-        # never introduce a new clash.
-        def burned_excluding(cell: Cell, exclude_use_id: int) -> set[str]:
-            burned: set[str] = set()
-            for cu in cell.cell_uses:
-                if cu.id == exclude_use_id or cu.status == "cancelled":
-                    continue
-                burned.update(cu.barcode_list)
-            return burned
+        # never introduce a new clash. A clash against a burn from the SAME Container ID
+        # (another copy of a duplicate sample) is allowed - see cell_service.foreign_barcode_clash.
+        def owners_excluding(cell: Cell, exclude_use_id: int) -> dict[str, set[str]]:
+            uses = [cu for cu in cell.cell_uses if cu.id != exclude_use_id and cu.status != "cancelled"]
+            return barcode_owners(cell, uses)
 
-        clash_b_on_a = burned_excluding(cell_a, use_a.id) & set(sample_b_barcodes)
-        if clash_b_on_a:
+        if foreign_barcode_clash(owners_excluding(cell_a, use_a.id), sample_b_ext, sample_b_barcodes):
             raise PlacementError(
                 409,
-                f"barcode conflict: moving this sample onto cell {cell_a.code} clashes with "
-                f"barcode(s) {', '.join(sorted(clash_b_on_a))} already burned there.",
+                f"barcode conflict: moving this sample onto cell {cell_a.code} clashes with a "
+                f"barcode already burned there by a different sample.",
             )
-        clash_a_on_b = burned_excluding(cell_b, use_b.id) & set(sample_a_barcodes)
-        if clash_a_on_b:
+        if foreign_barcode_clash(owners_excluding(cell_b, use_b.id), sample_a_ext, sample_a_barcodes):
             raise PlacementError(
                 409,
-                f"barcode conflict: moving this sample onto cell {cell_b.code} clashes with "
-                f"barcode(s) {', '.join(sorted(clash_a_on_b))} already burned there.",
+                f"barcode conflict: moving this sample onto cell {cell_b.code} clashes with a "
+                f"barcode already burned there by a different sample.",
             )
 
     use_a.sample_id, use_b.sample_id = sample_b_id, sample_a_id
