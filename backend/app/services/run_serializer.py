@@ -67,6 +67,7 @@ def _stage_out(cell_use: CellUse, plate_index: int) -> StageOut:
         cell_ref=cell_use.cell.code if cell_use.cell else "?",
         cell_home_well=cell_use.cell.home_well if cell_use.cell else None,
         use_number=_use_number(cell_use),
+        cell_max_uses=cell_use.cell.max_uses if cell_use.cell else 3,
         run_time_hours=cell_use.run_time_hours,
         sample_id=cell_use.sample_id,
         sample_external_id=cell_use.sample.external_id if cell_use.sample else None,

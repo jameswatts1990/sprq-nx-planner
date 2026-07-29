@@ -13,6 +13,7 @@ function stage(slotIndex: number, runTimeHours: 12 | 24 | 30, cellUseId: number)
     cell_ref: `CELL-${cellUseId}`,
     cell_home_well: "A01",
     use_number: 1,
+    cell_max_uses: 3,
     run_time_hours: runTimeHours,
     sample_id: cellUseId,
     sample_external_id: `S${cellUseId}`,

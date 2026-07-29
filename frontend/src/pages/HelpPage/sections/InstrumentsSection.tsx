@@ -33,6 +33,35 @@ export function InstrumentsSection() {
         out but still shown; a retired one is hidden entirely.
       </p>
 
+      <p className={styles.subheading}>The Revio screen</p>
+      <p>
+        While a run is in progress, the card shows a dark <b>Revio screen</b> panel that mirrors the instrument&apos;s
+        own touchscreen, so you can read what the machine is doing at a glance without walking over to it. It only
+        appears when something is loaded — an idle instrument shows no screen, same as the real one.
+      </p>
+      <ul>
+        <li>
+          <b>Serial number</b> — the instrument&apos;s own identity, in large type, exactly as its screen shows it.
+        </li>
+        <li>
+          <b>Remaining SMRT Cell uses</b> — one box per cell currently on stages (not yet complete), each showing how
+          many uses that cell has <em>left</em> after the one it&apos;s doing now, coloured by its use (magenta = Use 1,
+          blue = Use 2, teal = Use 3). Hover a box for the cell code and sample.
+        </li>
+        <li>
+          <b>Use within</b> — a live countdown to when the <em>next</em> cell on a stage hits its 108-hour reuse
+          deadline. It&apos;s the soonest deadline across the loaded cells, so it tells you how long you have before a
+          cell must be reused or it&apos;s wasted.
+        </li>
+        <li>
+          <b>Stage columns</b> — each run in progress is a row, labelled by its run name, with its cells shown as
+          squares under the four stages a cell moves through: <b>Pending</b> (loaded, not started — a hollow square),{" "}
+          <b>Loading</b> (breaking out / prep), <b>Sequencing</b> (its movie, with a soft glow), and <b>Complete</b>{" "}
+          (movie finished — dimmed). The time on the right of each row is how long until that run finishes and frees the
+          instrument. These use the same approximate PacBio timings as the gantt below.
+        </li>
+      </ul>
+
       <p className={styles.subheading}>The figures on each card</p>
       <ul>
         <li>

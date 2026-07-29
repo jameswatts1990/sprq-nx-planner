@@ -5,6 +5,7 @@ import { Link } from "react-router-dom";
 import { ApiError } from "@/api/client";
 import { cyclesApi } from "@/api/cycles";
 import { instrumentsApi } from "@/api/instruments";
+import { RevioScreen } from "@/components/scheduler/RevioScreen";
 import { RunStageGantt } from "@/components/scheduler/RunStageGantt";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -123,6 +124,7 @@ export function InstrumentsPage() {
               instrument={instrument}
               stats={statsById.get(instrument.id)}
               activeRuns={activeRunsBySerial.get(instrument.serial_number) ?? []}
+              activeRunsUpdatedAt={activeRunsQuery.dataUpdatedAt}
               onEdit={() => setEditing(instrument)}
               onDown={() => setDowning(instrument)}
               onConfirm={(kind) => setConfirming({ instrument, kind })}
@@ -200,12 +202,15 @@ interface InstrumentCardProps {
   stats: InstrumentStatsOut | undefined;
   /** Runs in progress on this instrument right now — rendered as one shared live gantt. */
   activeRuns: RunOut[];
+  /** When activeRuns was last fetched (dataUpdatedAt) — the baseline the Revio screen's live
+   * 108h "Use within" countdown ticks down from. */
+  activeRunsUpdatedAt: number;
   onEdit: () => void;
   onDown: () => void;
   onConfirm: (kind: ConfirmKind) => void;
 }
 
-function InstrumentCard({ instrument, stats, activeRuns, onEdit, onDown, onConfirm }: InstrumentCardProps) {
+function InstrumentCard({ instrument, stats, activeRuns, activeRunsUpdatedAt, onEdit, onDown, onConfirm }: InstrumentCardProps) {
   const hasHistory = !!stats && (stats.total_runs > 0 || stats.cell_total_count > 0);
 
   return (
@@ -225,6 +230,14 @@ function InstrumentCard({ instrument, stats, activeRuns, onEdit, onDown, onConfi
               that date until it&apos;s back online.
             </Note>
           </div>
+        )}
+
+        {activeRuns.length > 0 && (
+          <RevioScreen
+            serial={instrument.serial_number}
+            runs={activeRuns}
+            dataUpdatedAt={activeRunsUpdatedAt}
+          />
         )}
 
         <StatTiles>

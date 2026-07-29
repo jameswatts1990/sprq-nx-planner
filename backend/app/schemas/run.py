@@ -29,6 +29,10 @@ class StageOut(BaseModel):
     # sits in a different plate slot. Null for a legacy/bootstrap cell with no tray.
     cell_home_well: str | None
     use_number: int  # 1-based position of this cell_use among its cell's loads - drives the Use 1/2/3 colour
+    # The physical cell's own use cap (usually 3, the vendor cap; lower only if QC reduced it).
+    # With use_number, gives the cell's remaining uses (cell_max_uses - use_number) - what the
+    # Instruments tab's Revio-screen panel shows in its "Remaining SMRT Cell uses" boxes.
+    cell_max_uses: int = 3
     # This well's own movie / run time in hours (12/24/30). Per-cell: different wells of one
     # run may differ, editable from the slot-detail popover. The plate-level PlateOut.movie_hours
     # is the longest of these (see PlateOut.movie_hours).

@@ -107,6 +107,7 @@ export const STAGE_EXAMPLE_SOURCE: StageOut = {
   cell_ref: "C02-T7",
   cell_home_well: "A01",
   use_number: 1,
+  cell_max_uses: 3,
   run_time_hours: 24,
   sample_id: 1,
   sample_external_id: "SAMPLE-101",

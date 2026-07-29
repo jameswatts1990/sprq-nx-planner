@@ -1,0 +1,175 @@
+/* A replica of the physical Revio/SPRQ-Nx touchscreen for one instrument, shown on its card
+   above the stat tiles while a run is in progress. Deliberately always-dark (it mimics the
+   machine's own black screen) rather than theming with the app, so it reads as "the instrument"
+   at a glance. The magenta framing and Use 1/2/3 colours come from the shared brand tokens. */
+.screen {
+  --pip: 11px;
+  margin-bottom: 16px;
+  padding: 14px 16px 12px;
+  border-radius: var(--r-md, 10px);
+  background: radial-gradient(120% 140% at 0% 0%, #17171c 0%, #0b0b0e 60%);
+  border: 1px solid #2a2a31;
+  color: #f2f2f5;
+  overflow: hidden;
+}
+
+/* Top strip: the serial in large type on the left, the remaining-uses box on the right — wraps
+   to stack on a narrow card. */
+.top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px 16px;
+  flex-wrap: wrap;
+}
+.serialWrap {
+  min-width: 0;
+}
+.serial {
+  font-family: var(--mono);
+  font-size: 34px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  color: #ffffff;
+}
+
+/* "Remaining SMRT Cell uses" panel — a magenta-framed box mirroring the machine's own. */
+.uses {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1px solid var(--magenta);
+  border-radius: 8px;
+  background: rgba(230, 0, 126, 0.06);
+}
+.usesTitle {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #d9d9df;
+}
+.useBoxes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  justify-content: flex-end;
+}
+.useBox {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 28px;
+  padding: 0 4px;
+  border: 1.5px solid var(--use, #8a8a92);
+  border-radius: 7px;
+  font-family: var(--mono);
+  font-size: 15px;
+  font-weight: 800;
+  color: #ffffff;
+  background: color-mix(in srgb, var(--use) 16%, transparent);
+}
+.useWithin {
+  font-size: 12px;
+  color: #c7c7cf;
+}
+.useWithin b {
+  font-family: var(--mono);
+  font-weight: 800;
+  color: #ffffff;
+}
+
+/* One block per run in progress. */
+.runs {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 14px;
+}
+.run {
+  padding-top: 10px;
+  border-top: 1px solid #24242b;
+}
+.run:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+.runHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.runName {
+  font-size: 15px;
+  font-weight: 700;
+  color: #ffffff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.runTime {
+  flex: none;
+  font-family: var(--mono);
+  font-size: 15px;
+  font-weight: 800;
+  color: #e6e6ec;
+}
+
+/* The four stage columns (Pending / Loading / Sequencing / Complete). */
+.stages {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+.stage {
+  min-width: 0;
+}
+.stageLabel {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #9a9aa4;
+  margin-bottom: 5px;
+}
+.pips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-height: var(--pip);
+}
+.pip {
+  width: var(--pip);
+  height: var(--pip);
+  border-radius: 3px;
+  background: var(--use, #6c6c74);
+  flex: none;
+}
+/* Pending: not broken out yet → hollow outline. Complete: dimmed so the eye lands on live work. */
+.p_pending {
+  background: transparent;
+  border: 1.5px solid var(--use, #6c6c74);
+}
+.p_complete {
+  opacity: 0.4;
+}
+/* Sequencing: the active movie → a soft glow so "what's running now" stands out. */
+.p_sequencing {
+  box-shadow: 0 0 5px color-mix(in srgb, var(--use) 70%, transparent);
+}
+
+/* Use 1/2/3 identity colour (magenta / blue / teal), shared with the rest of the app. */
+.u1 {
+  --use: var(--magenta);
+}
+.u2 {
+  --use: var(--blue);
+}
+.u3 {
+  --use: var(--teal);
+}

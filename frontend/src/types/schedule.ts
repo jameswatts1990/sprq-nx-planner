@@ -44,6 +44,10 @@ export interface StageOut {
   cell_home_well: string | null;
   /** 1-based position of this cell_use among its cell's loads - drives the Use 1/2/3 colour. */
   use_number: number;
+  /** The physical cell's own use cap (usually 3; lower only if QC reduced it). With use_number
+   * this gives the cell's remaining uses (cell_max_uses - use_number) shown on the Revio-screen
+   * panel's "Remaining SMRT Cell uses" boxes. */
+  cell_max_uses: number;
   /** This well's own movie / run time (h). Per-cell: set from the Run Design dial on
    * placement/auto-schedule, editable per-cell in the slot-detail popover. Different wells of
    * one run may differ; PlateOut.movie_hours is the longest of its plate's wells. */
