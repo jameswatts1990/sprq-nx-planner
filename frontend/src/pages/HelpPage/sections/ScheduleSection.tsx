@@ -168,9 +168,11 @@ export function ScheduleSection() {
         before anything changes; <b>confirmed/loaded runs are always left exactly as they are</b>, and it reaches
         every planned run on that instrument, not just the week you happen to be viewing. To actually reuse a cell
         instead of opening a new tray, it can push a sample onto a <b>later day it wasn&apos;t on before</b> — never
-        earlier, and never touching a different instrument — whenever that lets fewer physical cells be used.
-        Afterwards a note reports how many samples were placed, how many (if any) moved to a different day, and how
-        many, if any, couldn&apos;t be placed at all — they stay safely in the backlog, never lost.
+        earlier, and never touching a different instrument — whenever that lets fewer physical cells be used. In{" "}
+        <b>2 plates per run</b> mode that later use often shows up as <b>Plate 2 of the very same run</b> its first
+        use is in (see <i>Runs, plates &amp; wells</i> below), not a whole separate run card. Afterwards a note
+        reports how many samples were placed, how many (if any) moved to a different day, and how many, if any,
+        couldn&apos;t be placed at all — they stay safely in the backlog, never lost.
       </p>
 
       <p className={styles.subheading}>Print Batch Sheet</p>
@@ -284,14 +286,15 @@ export function ScheduleSection() {
         </dd>
         <dt>Plates per run (1 plate / 2 plates)</dt>
         <dd>
-          How many trays auto-fill loads per day. <b>1 plate</b> (4 wells) loads one tray per day (Plate 1 only);{" "}
-          <b>2 plates</b> (default, 8 wells) can load both tray positions in a day. Note this is about a run&apos;s
-          loading positions, not a physical SMRT-cell shipping tray. Either way <b>each day is its own run</b>: a
-          cell reused a later day shows up as a <b>separate run that day</b>, reading its next use number — e.g. cell
-          1 loads Monday as Use 1, then reruns Tuesday as Use 2 — never a second plate stacked onto the load day. On
-          top of that, <b>2 plates</b> lets a single day&apos;s run load a second, different tray in parallel (both
-          Use 1, acquiring the same day). This only limits what auto-fill proposes; dragging a sample onto Plate 2 by
-          hand is unaffected.
+          How many trays auto-fill loads per day. <b>1 plate</b> (4 wells) loads one tray per day (Plate 1 only) —
+          a cell reused a later day always shows up as its own <b>separate run</b> that day, reading its next use
+          number, since a 1-plate run never opens a Plate 2 at all. <b>2 plates</b> (default, 8 wells) can load
+          both tray positions in a day, and in this mode a reused cell&apos;s <b>next use bundles into the SAME
+          run as its first</b>, as Plate 2 — e.g. cell 1 loads Monday as Use 1 (Plate 1), then reuses the same day&apos;s
+          run as Plate 2 (Use 2), sequencing Tuesday once the instrument gets to it. A third use (or a day where
+          Plate 2 is already a genuinely different, fresh second tray loaded that same day) starts its own separate
+          run instead, since a run holds at most 2 plates. This only limits what auto-fill proposes; dragging a
+          sample onto Plate 2 by hand is unaffected.
         </dd>
       </dl>
       <RunDesignExample />
@@ -699,10 +702,12 @@ export function ScheduleSection() {
           A <b>reuse run</b> reruns Plate 1&apos;s cells as Plate 2 on a <i>later</i> weekday (Use 2, after the
           instrument&apos;s on-board wash). Plate 2&apos;s header shows the day it acquires and a small{" "}
           <b>reuse</b> tag, and the whole thing is still one run you loaded once — you don&apos;t reload anything for
-          Plate 2. <b>Auto Schedule no longer produces this shape</b>: it schedules each day as its own run, so a
-          cell it reuses appears as a <i>separate</i> run on the reuse day (reading Use 2) rather than a second plate
-          stacked on the load day. You&apos;ll see the Plate 2 reuse form only from a hand drop that reuses a cell
-          already loaded in that day&apos;s run.
+          Plate 2. This is what a hand drop that reuses a cell already loaded in that day&apos;s run produces, and
+          — in <b>2 plates per run</b> mode — what Auto Schedule and Recalculate now produce too, whenever reusing
+          a cell means fewer physical trays overall: the grid shows one run you loaded once, and the cell stub
+          (Use 1 / Use 2) tells you what the machine is actually doing with it. In <b>1 plate per run</b> mode a
+          reused cell always becomes its own separate run on the reuse day instead, since a 1-plate run never opens
+          a Plate 2 to bundle into.
         </li>
       </ul>
       <p>

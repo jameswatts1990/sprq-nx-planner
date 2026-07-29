@@ -559,6 +559,83 @@ def test_auto_fill_disposes_a_tray_once_all_its_cells_reach_the_dial(client, db_
         assert cell.id in body["disposed_cell_ids"]
 
 
+def test_recalculate_bundles_a_reused_cells_second_use_into_the_same_run_as_plate_2(client, db_session):
+    """Reported 2026-07-29: 8 disjoint samples all originally forced onto ONE single day (two
+    trays, all Use 1, since that day alone can't reuse a cell same-day) - "fewest" plus the
+    day-window-extension fix above SHOULD consolidate them onto far fewer physical cells, but
+    naively doing that as separate one-plate-per-day runs doesn't match how the lab actually
+    works: the operator loads a run (grid day axis) and the cell stub shows what the machine
+    does with it - a cell's own SECOND use can and should render as Plate 2 of the SAME run its
+    first use created (a later acquire_date, same RunBatch, mirroring the intra-run reuse
+    Plate 2 manual placement already uses), not a whole separate run. Only a cell's THIRD use
+    needs an actually separate run (a run holds at most 2 plates)."""
+    client.post(
+        "/api/imports",
+        json={"raw_text": "sample,barcodes\n" + "\n".join(f"S{i},bcs{i}" for i in range(1, 9))},
+    )
+    (mon,) = _weekdays(1)
+
+    resp = _auto_fill(client, [{"instrument_serial": "84309", "load_date": mon}], objective="fewest", max_uses=3)
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert len(body["placed_sample_ids"]) == 8
+    assert len(body["runs"]) == 1
+    # Before recalculate: the single available day forces 8 distinct fresh cells (2 full
+    # trays), all Use 1 - reproduces the reported starting shape.
+    assert db_session.query(Cell).count() == 8
+
+    rec = client.post("/api/auto-fill/recalculate", json={"instrument_serial": "84309"})
+    assert rec.status_code == 200, rec.text
+    body2 = rec.json()
+    assert len(body2["placed_sample_ids"]) == 8
+    assert len(body2["unplaced_sample_ids"]) == 0
+
+    # Consolidated onto far fewer physical cells instead of 8 - "fewest"/reuse-before-new
+    # finally able to bite once the day window is wide enough. Only 3 of the 4 cells in the
+    # one tray opened ever get a real use; the 4th is the eagerly-created, still-unused
+    # sibling (see cell_service.open_new_tray's tray-of-4 population), not a second tray.
+    tray_cells = db_session.query(Cell).all()
+    assert len(tray_cells) == 4
+    used_cells = [c for c in tray_cells if c.cell_uses]
+    assert len(used_cells) == 3
+
+    runs_by_load_date = {r["load_date"]: r for r in body2["runs"]}
+    assert len(runs_by_load_date) == 2  # one run bundles Use 1 + Use 2; a separate run for Use 3
+    first_run = runs_by_load_date[mon]
+    assert len(first_run["plates"]) == 2, "Plate 1 (Use 1) and Plate 2 (Use 2) bundled into ONE run"
+    plate1 = next(p for p in first_run["plates"] if p["plate_index"] == 1)
+    plate2 = next(p for p in first_run["plates"] if p["plate_index"] == 2)
+    assert plate1["acquire_date"] == mon
+    assert plate1["is_reuse"] is False
+    assert all(s["use_number"] == 1 for s in plate1["stages"])
+    # Plate 2 acquires a LATER day (the machine doesn't get to it until the shared 4-lane
+    # sequencer frees up) but is still part of THIS SAME run - the operator loaded both
+    # plates in one session even though the instrument sequences them a day apart.
+    assert plate2["acquire_date"] > mon
+    assert plate2["is_reuse"] is True
+    assert all(s["use_number"] == 2 for s in plate2["stages"])
+    # Plate 2 reuses the EXACT SAME wells as Plate 1 (the same physical cells), not a
+    # different carousel box.
+    assert {s["well"] for s in plate1["stages"]} == {s["well"] for s in plate2["stages"]}
+    assert {s["cell_id"] for s in plate1["stages"]} == {s["cell_id"] for s in plate2["stages"]}
+
+    # A cell's third use can't fit in the same run (a run holds at most 2 plates) - it
+    # becomes its own separate, later run.
+    third_run = next(r for r in body2["runs"] if r["load_date"] != mon)
+    assert len(third_run["plates"]) == 1
+    assert all(s["use_number"] == 3 for s in third_run["plates"][0]["stages"])
+
+    # Samples that moved to a later acquire day than their original single-day placement are
+    # flagged distinctly (those that landed on Use 2 or Use 3); the ones that kept Plate 1's
+    # own day are not.
+    plate1_sample_ids = {s["sample_id"] for s in plate1["stages"]}
+    moved_sample_ids = {s["sample_id"] for s in plate2["stages"]} | {
+        s["sample_id"] for s in third_run["plates"][0]["stages"]
+    }
+    assert set(body2["day_changed_sample_ids"]) == moved_sample_ids
+    assert plate1_sample_ids.isdisjoint(moved_sample_ids)
+
+
 def test_auto_fill_leaves_a_partly_used_tray_open(client, db_session):
     """The whole-tray rule's other side: a tray is disposed ONLY once every one of its
     cells has reached the dial. With just 3 samples, max_uses=2, cells_per_day=4 (one

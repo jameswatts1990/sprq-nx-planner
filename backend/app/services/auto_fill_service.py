@@ -60,11 +60,13 @@ class AutoFillResult:
     barcode_conflicts: list[ConflictPair] = field(default_factory=list)
     run_ids: list[int] = field(default_factory=list)  # RunBatch (run) ids the batch created/touched
     disposed_cell_ids: list[int] = field(default_factory=list)  # cells auto-disposed after the run (dial cap / unused sibling)
-    # sample_id -> the load_date it actually landed on this batch. Populated for every real
-    # placement (both auto_fill and recalculate_instrument); recalculate_instrument uses it to
-    # diff against each sample's PRE-recalculate day and derive day_changed_sample_ids below -
-    # internal plumbing, not returned over the API (see AutoFillResponse).
-    sample_load_dates: dict[int, date] = field(default_factory=dict)
+    # sample_id -> the day it actually ACQUIRES (sequences) this batch - not the run's own
+    # load_date, which can differ for a bundled Plate 2 reuse (see the persist loop below).
+    # Populated for every real placement (both auto_fill and recalculate_instrument);
+    # recalculate_instrument uses it to diff against each sample's PRE-recalculate acquire day
+    # and derive day_changed_sample_ids below - internal plumbing, not returned over the API
+    # (see AutoFillResponse).
+    sample_acquire_dates: dict[int, date] = field(default_factory=dict)
     # Populated only by recalculate_instrument: samples that landed on a DIFFERENT calendar day
     # than they were on before the recalculate (as opposed to merely a different cell/tray on the
     # same day). Always empty for an ordinary auto_fill() call, since a backlog sample has no
@@ -208,19 +210,74 @@ def auto_fill(
     ref_to_cell: dict[str, Cell] = {pc.id: cells_by_id[pc.cell_id] for pc in pack.cells if pc.prior}
 
     # --- persist ---
-    # Each acquisition DAY is its own load session -> its own run (RunBatch keyed
-    # (instrument, load_date)), in BOTH plate modes. Plate 1 = tray-1 wells (A01-D01),
-    # Plate 2 = tray-2 wells (A02-D02); a cell reused a LATER day forms a SEPARATE run that
-    # day, carrying that cell on its next use (the Use 1/2/3 grid colour shows the reuse) -
-    # never a second plate stacked onto the load day's run. This replaced an earlier
-    # one-tray-only shape that paired a cell's use 1 + use 2 into a single TWO-plate run on
-    # the load day: it rendered as "2 plates on Monday" even though only one physical tray is
-    # ever loaded per day, contradicting a "1 plate per run" choice (reported by the lab
-    # owner). Two-plate mode already worked this way; one-plate mode now matches it. See
-    # docs/pacbio-sprq-nx-scheduling-reference.md's "Plate vs cell" / load-lock sections.
-    plate_index_of: dict[int, int] = {
-        id(a): (2 if a.well in WELLS[CELLS_PER_TRAY:] else 1) for a in fill.assignments
+    # Per-cell chronological use order within this batch - also drives the intra-run reuse
+    # bundling below.
+    uses_by_cell_ref: dict[str, list] = defaultdict(list)
+    for a in fill.assignments:
+        uses_by_cell_ref[a.cell.id].append(a)
+    for uses in uses_by_cell_ref.values():
+        uses.sort(key=lambda x: x.run_date)
+    use_index_by_assignment: dict[int, int] = {
+        id(u): i for uses in uses_by_cell_ref.values() for i, u in enumerate(uses)
     }
+    first_use_date_by_cell: dict[str, date] = {
+        cell_ref: uses[0].run_date for cell_ref, uses in uses_by_cell_ref.items()
+    }
+
+    # One RunBatch per (instrument, load_date), one or two Cycles ("plates") - matching the
+    # real workflow: the OPERATOR loads a run (grid's day axis), the CELL STUB shows what the
+    # machine actually does with it (Use 1/2/3), and those two things can legitimately
+    # diverge. A cell's own SECOND use is bundled into the SAME run as its first, as Plate 2
+    # (acquire_date > load_date - the machine doesn't get to it until the shared 4-lane
+    # sequencer frees up, by which point Plate 1's own cells have finished their first
+    # acquisition) - mirroring the intra-run reuse Plate 2 manual placement already uses
+    # (placement_service._plate_target/_cell_used_in_run). This ONLY applies in 2-plate mode
+    # (cells_per_day == len(WELLS)): 1-plate mode never opens a Plate 2 at all, so it's
+    # unaffected (and can't regress the "2 plates on Monday contradicts 1 plate per run" bug
+    # this shape used to cause - see docs/pacbio-sprq-nx-scheduling-reference.md). A cell's
+    # THIRD use (if reached) always starts its own separate run - a run holds at most 2
+    # plates - as does any cell whose own first use already landed in Plate 2's box (its
+    # origin run has no Plate 1 slot of its own to pair with), or a day whose Plate 2 is
+    # already the home of a genuinely different, fresh second tray (loaded in Plate 2's own
+    # wells, A02-D02, the SAME day - two distinct physical trays touched down together).
+    # `plate2_kind` tracks, per origin (instrument, load_date), which of those two mutually
+    # exclusive things Plate 2 is being used for so a later cell can't collide with an
+    # earlier one's choice; assignments are walked in chronological (run_date) order so a
+    # day's own fresh-tray claim (if any) is always resolved before a later reuse tries to
+    # bundle into it.
+    load_date_of: dict[int, date] = {}
+    plate_index_of: dict[int, int] = {}
+    acquire_date_of: dict[int, date] = {}
+    plate2_kind: dict[tuple[str, date], str] = {}  # (instrument_serial, origin load_date) -> "fresh" | "reuse"
+    for a in sorted(fill.assignments, key=lambda a: (a.instrument_serial, a.run_date)):
+        cell_ref = a.cell.id
+        origin_date = first_use_date_by_cell[cell_ref]
+        use_idx = use_index_by_assignment[id(a)]
+        in_plate1_box = a.well in WELLS[:CELLS_PER_TRAY]
+        origin_key = (a.instrument_serial, origin_date)
+
+        if use_idx == 0:
+            load_date_of[id(a)] = a.run_date
+            acquire_date_of[id(a)] = a.run_date
+            if in_plate1_box:
+                plate_index_of[id(a)] = 1
+            else:
+                plate_index_of[id(a)] = 2
+                plate2_kind[origin_key] = "fresh"
+        elif (
+            use_idx == 1
+            and cells_per_day == len(WELLS)
+            and in_plate1_box
+            and plate2_kind.get(origin_key, "reuse") == "reuse"
+        ):
+            load_date_of[id(a)] = origin_date
+            plate_index_of[id(a)] = 2
+            acquire_date_of[id(a)] = a.run_date
+            plate2_kind[origin_key] = "reuse"
+        else:
+            load_date_of[id(a)] = a.run_date
+            acquire_date_of[id(a)] = a.run_date
+            plate_index_of[id(a)] = 1 if in_plate1_box else 2
 
     # Per-well planned start. A cell's first use in this batch starts at the run's load hour
     # (a fresh cell, or a prior cell whose earlier use already finished - the instrument is
@@ -231,14 +288,12 @@ def auto_fill(
     # very day the packer reserved for the reuse (which is weekday- and lock-aware); a chain
     # long enough to spill past that day (e.g. a 30h x 3-use cell) falls back to the load hour,
     # matching the packer's own day rather than silently floating the run to a later column.
-    # (Previously this chaining lived in get_or_create_run's intra-run Plate 2 branch, which
-    # only ran for the paired one-tray shape and never chained a 3rd use - see above.)
+    # This is only actually consumed below for a reuse that DIDN'T get bundled into Plate 2
+    # (get_or_create_run derives a bundled Plate 2's real start itself, via reuse_plate_window,
+    # off Plate 1's own real end - see below) - computed unconditionally anyway since it's
+    # cheap and every assignment needs SOME start_hour/start_minute to pass through.
     assign_start: dict[int, datetime] = {}
-    uses_by_cell_ref: dict[str, list] = defaultdict(list)
-    for a in fill.assignments:
-        uses_by_cell_ref[a.cell.id].append(a)
     for uses in uses_by_cell_ref.values():
-        uses.sort(key=lambda x: x.run_date)
         prev_end: datetime | None = None
         for a in uses:
             # planned_window's start ([0]) doesn't depend on the movie length; the movie only
@@ -253,25 +308,27 @@ def auto_fill(
             assign_start[id(a)] = start
             prev_end = start + timedelta(hours=_movie(a.sample))
 
-    # A cycle (one plate of one day's run) starts at the latest start among its wells - all
-    # equal in practice (a day's wells are one reuse-generation), but the max keeps a mixed
-    # fresh+reuse day (not produced by the current packer, but cheap to guard) from ever
-    # starting a reused well before its cells are physically free.
+    # A cycle (one plate of one run) starts at the latest start among its wells - all equal in
+    # practice (a plate's wells are one reuse-generation), but the max keeps a mixed
+    # fresh+reuse plate (not produced by the current packer, but cheap to guard) from ever
+    # starting a reused well before its cells are physically free. Keyed by the (possibly
+    # redirected) load_date/plate_index a bundled reuse actually lands under, not its own
+    # acquire day.
     cycle_start: dict[tuple[str, date, int], datetime] = {}
     for a in fill.assignments:
-        key = (a.instrument_serial, a.run_date, plate_index_of[id(a)])
+        key = (a.instrument_serial, load_date_of[id(a)], plate_index_of[id(a)])
         s = assign_start[id(a)]
         if key not in cycle_start or s > cycle_start[key]:
             cycle_start[key] = s
 
-    # A cycle (one plate of one day) stays busy until its LONGEST well finishes, so its
-    # representative movie length is the max movie time across its wells - used to gate the
-    # new run's instrument lock at creation. Each well still records its own movie on its
-    # CellUse; recompute_cycle_timing at the end re-derives movie_hours from those, so this
-    # only has to be a safe upper bound for the lock gate, never the final stored value.
+    # A cycle (one plate) stays busy until its LONGEST well finishes, so its representative
+    # movie length is the max movie time across its wells - used to gate the new run's
+    # instrument lock at creation. Each well still records its own movie on its CellUse;
+    # recompute_cycle_timing at the end re-derives movie_hours from those, so this only has to
+    # be a safe upper bound for the lock gate, never the final stored value.
     cycle_movie: dict[tuple[str, date, int], int] = {}
     for a in fill.assignments:
-        key = (a.instrument_serial, a.run_date, plate_index_of[id(a)])
+        key = (a.instrument_serial, load_date_of[id(a)], plate_index_of[id(a)])
         m = _movie(a.sample)
         if key not in cycle_movie or m > cycle_movie[key]:
             cycle_movie[key] = m
@@ -281,7 +338,7 @@ def auto_fill(
     skipped_keys: set[tuple[str, date]] = set()  # (instrument, load_date) runs whose creation was locked out
     touched_cells: set[Cell] = set()
     placed_sample_ids: list[int] = []
-    sample_load_dates: dict[int, date] = {}  # sample_id -> the load_date it actually landed on (see AutoFillResult)
+    sample_acquire_dates: dict[int, date] = {}  # sample_id -> the day it actually acquires (see AutoFillResult)
     # fill_slots plans every slot as 8 fully-free wells (SlotInput's own documented
     # invariant) - true for a brand-new run, but no longer true once the occupied-check
     # above started letting a cancelled-only cycle through (its one cancelled CellUse
@@ -333,7 +390,8 @@ def auto_fill(
     # (same as an already-locked day is skipped above) instead of letting it raise mid-loop
     # and roll back every other day already placed.
     for a in sorted(fill.assignments, key=lambda a: (a.instrument_serial, a.run_date)):
-        load_date = a.run_date  # each acquisition day is its own run/load session (see above)
+        load_date = load_date_of[id(a)]
+        acquire_date = acquire_date_of[id(a)]
         plate_index = plate_index_of[id(a)]
         run_key = (a.instrument_serial, load_date)
         if run_key in skipped_keys:
@@ -348,10 +406,12 @@ def auto_fill(
                     instrument=instruments[a.instrument_serial],
                     load_date=load_date,
                     plate_index=plate_index,
-                    # Reuse is now a separate later-day run (load_date == acquire_date), so the
-                    # intra-run reuse_plate_window branch never fires here; the reuse's chained
-                    # start is carried explicitly via cyc_start (computed above).
-                    acquire_date=load_date,
+                    # A bundled reuse (acquire_date > load_date, Plate 1 already real in this
+                    # run_batch) makes get_or_create_run derive the real chained start itself
+                    # via reuse_plate_window, off Plate 1's own real timing - cyc_start below
+                    # is then ignored. Everything else (Plate 1, or a fresh parallel Plate 2)
+                    # uses cyc_start as its own chained/load-hour start, same as before.
+                    acquire_date=acquire_date,
                     run_time_hours=cycle_movie[plate_key],
                     start_hour=cyc_start.hour,
                     start_minute=cyc_start.minute,
@@ -455,7 +515,10 @@ def auto_fill(
         touched_cells.add(db_cell)
         if a.sample.sample_id is not None:
             placed_sample_ids.append(a.sample.sample_id)
-            sample_load_dates[a.sample.sample_id] = load_date
+            # The day this sample actually ACQUIRES (sequences), not the run's own load_date -
+            # for a bundled Plate 2 these differ, and it's the acquire day that matters to a
+            # lab user (see AutoFillResult.sample_acquire_dates / day_changed_sample_ids).
+            sample_acquire_dates[a.sample.sample_id] = acquire_date
 
     if placed_sample_ids:
         db.execute(update(Sample).where(Sample.id.in_(placed_sample_ids)).values(status="scheduled"))
@@ -528,7 +591,7 @@ def auto_fill(
 
     last_date_by_ref: dict[str, date] = {}
     for a in fill.assignments:
-        if (a.instrument_serial, a.run_date) in skipped_keys:  # each run's load day is its acquire day now
+        if (a.instrument_serial, load_date_of[id(a)]) in skipped_keys:  # its run's creation may have been skipped
             continue
         cur = last_date_by_ref.get(a.cell.id)
         if cur is None or a.run_date > cur:
@@ -578,7 +641,7 @@ def auto_fill(
         barcode_conflicts=pack.conflict_pairs,
         run_ids=list(run_ids),
         disposed_cell_ids=disposed_cell_ids,
-        sample_load_dates=sample_load_dates,
+        sample_acquire_dates=sample_acquire_dates,
     )
 
 
@@ -646,8 +709,11 @@ def recalculate_instrument(db: Session, *, instrument_serial: str, actor: str | 
     if not live_uses:
         return AutoFillResult()  # nothing planned on this instrument right now - no-op
 
+    # The day each sample actually acquired BEFORE this recalculate (a plate's own
+    # acquire_date, not its run's load_date - they can already differ pre-recalculate for a
+    # manually-placed intra-run reuse Plate 2).
     before_day_by_sample: dict[int, date] = {
-        cu.sample_id: c.run_batch.load_date
+        cu.sample_id: c.acquire_date
         for c in planned_cycles
         for cu in c.cell_uses
         if cu.status != "cancelled" and cu.sample_id is not None
@@ -681,6 +747,6 @@ def recalculate_instrument(db: Session, *, instrument_serial: str, actor: str | 
     result.day_changed_sample_ids = [
         sid
         for sid, before in before_day_by_sample.items()
-        if sid in result.sample_load_dates and result.sample_load_dates[sid] != before
+        if sid in result.sample_acquire_dates and result.sample_acquire_dates[sid] != before
     ]
     return result
