@@ -118,6 +118,7 @@ export const STAGE_EXAMPLE_SOURCE: StageOut = {
   tray_position: 2,
   tray_id: 7,
   window_hours_elapsed: 60,
+  reuse_not_ready_hours: null,
   notes: null,
 };
 export const STAGE_EXAMPLE_PEER: StageOut = {

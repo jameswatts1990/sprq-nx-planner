@@ -73,6 +73,14 @@ class StageOut(BaseModel):
     # grid slot's expiry shading, per-cell (see docs/pacbio-sprq-nx-scheduling-reference.md
     # #2 - there is no shared tray-level clock, only this cell's own 108h deadline).
     window_hours_elapsed: float | None
+    # Advisory only, never blocks a placement - hours by which this use's own start preceded
+    # its cell's real physical readiness (the immediately-prior use's movie end + the on-board
+    # reuse wash). None when this is the cell's first use, or the start was already safely
+    # at/after readiness. A distinct clock from window_hours_elapsed's 108h lifetime check -
+    # see docs/pacbio-sprq-nx-scheduling-reference.md's "Deliberate simplifications". Only
+    # populated on placement/move/auto-fill responses (see run_serializer.run_out's
+    # with_effective_start), None on the plain grid feed.
+    reuse_not_ready_hours: float | None = None
     # Free-text note the user attached to this sample-on-this-cell placement, shown (and
     # editable) in the slot-detail popover. Distinct from the QC outcome_notes field.
     notes: str | None = None
@@ -243,6 +251,12 @@ class AutoFillResponse(BaseModel):
     unplaced_external_ids: list[str] = []
     skipped_cells: list[GridCellRef]
     window_flags: list[WindowFlagOut]
+    # Advisory only, never blocks a placement - a distinct clock from window_flags' 108h
+    # lifetime check: cells whose chained reuse start, within this batch, fell short of their
+    # own prior use's real movie end + REUSE_PREP_H wash. See auto_fill_service.AutoFillResult
+    # .reuse_timing_flags and docs/pacbio-sprq-nx-scheduling-reference.md's "Deliberate
+    # simplifications".
+    reuse_timing_flags: list[WindowFlagOut] = []
     barcode_conflicts: list[BarcodeConflictOut]
     runs: list[RunOut]
     disposed_cell_ids: list[int] = []

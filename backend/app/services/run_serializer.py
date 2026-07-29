@@ -19,6 +19,7 @@ from app.services.cell_service import (
     has_barcode_clash,
     has_failed_use,
     is_duplicate_cell_reuse,
+    reuse_not_ready_hours,
     use_sort_key,
     window_hours_elapsed,
 )
@@ -74,7 +75,11 @@ def _slot_index(plate_index: int, well: str) -> int:
 
 
 def _stage_out(
-    cell_use: CellUse, plate_index: int, dup_groups: dict[str, list[int]] | None = None
+    cell_use: CellUse,
+    plate_index: int,
+    dup_groups: dict[str, list[int]] | None = None,
+    *,
+    with_reuse_timing: bool = False,
 ) -> StageOut:
     dup_index = dup_total = None
     if dup_groups is not None and cell_use.sample is not None:
@@ -103,13 +108,24 @@ def _stage_out(
         tray_position=cell_use.cell.tray_position if cell_use.cell else None,
         tray_id=cell_use.cell.tray_id if cell_use.cell else None,
         window_hours_elapsed=window_hours_elapsed(cell_use.cell) if cell_use.cell else None,
+        # Advisory only, and only computed on placement/move/auto-fill responses
+        # (with_reuse_timing, same gate as effective_start_at below) - a non-first use's real
+        # readiness check needs its prior use's own cross-run timing, which isn't in the grid
+        # feed's eager-load set and would otherwise turn every grid fetch into a per-cell N+1.
+        reuse_not_ready_hours=reuse_not_ready_hours(cell_use) if with_reuse_timing and cell_use.cell else None,
         notes=cell_use.notes,
         reassigned=cell_use.reassigned_from_cell_id is not None,
         barcode_clash=has_barcode_clash(cell_use),
     )
 
 
-def _plate_out(run_batch: RunBatch, cycle: Cycle, dup_groups: dict[str, list[int]] | None = None) -> PlateOut:
+def _plate_out(
+    run_batch: RunBatch,
+    cycle: Cycle,
+    dup_groups: dict[str, list[int]] | None = None,
+    *,
+    with_reuse_timing: bool = False,
+) -> PlateOut:
     return PlateOut(
         plate_id=cycle.id,
         plate_index=cycle.plate_index,
@@ -128,7 +144,7 @@ def _plate_out(run_batch: RunBatch, cycle: Cycle, dup_groups: dict[str, list[int
         actual_start_at=ensure_aware(cycle.actual_start_at) if cycle.actual_start_at else None,
         actual_end_at=ensure_aware(cycle.actual_end_at) if cycle.actual_end_at else None,
         stages=[
-            _stage_out(cu, cycle.plate_index, dup_groups)
+            _stage_out(cu, cycle.plate_index, dup_groups, with_reuse_timing=with_reuse_timing)
             for cu in sorted(cycle.cell_uses, key=lambda x: x.well)
         ],
     )
@@ -150,7 +166,9 @@ def run_out(db: Session, run_batch: RunBatch, *, with_effective_start: bool = Fa
     """Serialize a run. Pass ``with_effective_start=True`` on placement/move/auto-fill responses to
     attach the lane-model effective start (when the run's cells really break out given the machine's
     other resident runs) - kept OFF the grid feed by default, as it needs a per-run resident-set
-    query we don't want to fire for every grid row."""
+    query we don't want to fire for every grid row. Same flag also gates each stage's
+    ``reuse_not_ready_hours`` (StageOut) - a non-first use's prior-use timing isn't in the grid
+    feed's eager-load set either, same per-row-query concern."""
     instrument = run_batch.instrument
     serial = instrument.serial_number if instrument else "?"
     # Drop any orphaned EMPTY cycle (no cell_uses at all): nothing is loaded, so it must not
@@ -174,7 +192,7 @@ def run_out(db: Session, run_batch: RunBatch, *, with_effective_start: bool = Fa
     }
     dup_groups = duplicate_groups(db, ext_ids)
 
-    plates = [_plate_out(run_batch, c, dup_groups) for c in cycles]
+    plates = [_plate_out(run_batch, c, dup_groups, with_reuse_timing=with_effective_start) for c in cycles]
     status = _run_status(cycles)
 
     now = utcnow()

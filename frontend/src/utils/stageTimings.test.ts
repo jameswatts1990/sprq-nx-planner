@@ -24,6 +24,7 @@ function stage(slotIndex: number, runTimeHours: 12 | 24 | 30, cellUseId: number)
     tray_position: (slotIndex % 4) + 1,
     tray_id: 1,
     window_hours_elapsed: null,
+    reuse_not_ready_hours: null,
     notes: null,
   };
 }

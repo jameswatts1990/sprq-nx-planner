@@ -85,6 +85,12 @@ export interface StageOut {
    * slot's expiry shading. Per-cell, not per-tray - see docs/pacbio-sprq-nx-scheduling-
    * reference.md #2 (no shared tray-level clock). */
   window_hours_elapsed: number | null;
+  /** Advisory only, never blocks a placement - hours by which this use's own start preceded
+   * its cell's real physical readiness (the prior use's movie end + the on-board reuse wash).
+   * null when this is the cell's first use, or the start was already safely at/after
+   * readiness. A distinct clock from window_hours_elapsed's 108h lifetime check. Only
+   * populated on placement/move/auto-fill responses, null on the plain grid feed. */
+  reuse_not_ready_hours: number | null;
   /** Free-text note the user attached to this sample-on-this-cell placement, shown and
    * editable in the slot-detail popover. Distinct from the QC outcome note. */
   notes: string | null;

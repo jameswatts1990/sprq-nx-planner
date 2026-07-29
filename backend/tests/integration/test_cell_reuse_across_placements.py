@@ -5,6 +5,8 @@ burned barcode is correctly barred from it (409).
 """
 from datetime import date, timedelta
 
+import pytest
+
 
 def _weekdays(n: int) -> list[str]:
     """The next n weekdays, always anchored at the next real Monday (never "today") -
@@ -108,3 +110,37 @@ def test_reusing_a_cell_on_a_different_instrument_than_its_current_one_is_reject
     r2 = _place(client, _sid(client, "T2"), mon, 0, {"mode": "existing", "cell_id": cell_id}, instrument="84098")
     assert r2.status_code == 409, r2.text
     assert "instrument" in r2.json()["detail"].lower()
+
+
+def test_reuse_before_cell_is_physically_ready_is_flagged_but_not_blocked(client):
+    """Advisory only (docs/pacbio-sprq-nx-scheduling-reference.md's "Deliberate
+    simplifications"): explicitly reusing a cell sooner than its prior use's real movie end +
+    REUSE_PREP_H wash still succeeds - it's flagged on the returned stage, never rejected."""
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nR1,bc10\nR2,bc11"})
+    mon, tue, _wed = _weekdays(3)
+
+    r1 = _place(client, _sid(client, "R1"), mon, 0, {"mode": "new"}, run_time_hours=24, start_hour=12)
+    assert r1.status_code == 201, r1.text
+    cell_id = _stages(r1.json())[0]["cell_id"]
+
+    # Monday noon + 4h prep + 24h movie -> real ready at Tuesday 16:00, +0.75h wash = 16:45.
+    # An 08:00 Tuesday reuse lands well before that.
+    r2 = _place(client, _sid(client, "R2"), tue, 0, {"mode": "existing", "cell_id": cell_id}, start_hour=8)
+    assert r2.status_code == 201, r2.text  # advisory only - never blocked
+    stage = next(s for s in _stages(r2.json()) if s["cell_id"] == cell_id and s["sample_external_id"] == "R2")
+    assert stage["reuse_not_ready_hours"] == pytest.approx(8.75, abs=0.05)
+
+
+def test_reuse_safely_after_cell_is_ready_has_no_flag(client):
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nR3,bc12\nR4,bc13"})
+    mon, tue, _wed = _weekdays(3)
+
+    r1 = _place(client, _sid(client, "R3"), mon, 0, {"mode": "new"}, run_time_hours=24, start_hour=12)
+    assert r1.status_code == 201, r1.text
+    cell_id = _stages(r1.json())[0]["cell_id"]
+
+    # Real ready at Tuesday 16:45 (see above) - a 20:00 Tuesday reuse lands safely after.
+    r2 = _place(client, _sid(client, "R4"), tue, 0, {"mode": "existing", "cell_id": cell_id}, start_hour=20)
+    assert r2.status_code == 201, r2.text
+    stage = next(s for s in _stages(r2.json()) if s["cell_id"] == cell_id and s["sample_external_id"] == "R4")
+    assert stage["reuse_not_ready_hours"] is None

@@ -698,6 +698,40 @@ def test_auto_fill_chains_a_reuse_start_off_the_prior_movie_end(client):
     assert _hhmm(mon_plate["planned_start_at"]) == "12:00"  # Use 1 at the load hour
     assert tue_plate["acquire_date"] == week[1]
     assert _hhmm(tue_plate["planned_start_at"]) == "18:45"  # after Mon's 30h movie ends (18:00) + wash
+    # The chained start landed on the SAME day fill_slots already reserved for this reuse, so
+    # nothing was flagged - this is the "clean" companion to the flagged case below.
+    assert resp.json()["reuse_timing_flags"] == []
+
+
+def test_auto_fill_flags_a_reuse_that_cant_physically_be_ready_yet(client):
+    """Reproduces the reported bug (2026-07-29): fill_slots' calendar-day-only rule plans each
+    reuse onto the immediate next offered weekday, but a long movie's real chain (movie +
+    REUSE_PREP_H wash, compounding hop to hop) can drift past that day. 3 disjoint 30h samples
+    on ONE cell (max_uses=3, cells_per_day=4, "fewest" deepens the one fresh cell rather than
+    opening more): Use 1 Monday noon, Use 2 correctly chains to Tuesday 18:45 (see the clean
+    case above), but Use 3's real chain from there (Tue 18:45 + 30.75h) lands Thursday 01:30 -
+    a full day later than Wednesday, the immediate next offered weekday fill_slots actually
+    assigns it. Advisory only: the placement still succeeds (never blocked), just flagged."""
+    client.post(
+        "/api/imports",
+        json={"raw_text": "sample,barcodes,movie_time_hours\nU1,bcu1,30\nU2,bcu2,30\nU3,bcu3,30"},
+    )
+    week = _next_working_week()
+
+    resp = _auto_fill(
+        client,
+        [{"instrument_serial": "84047", "load_date": d} for d in week],
+        objective="fewest",
+        movie_times=[30],
+        max_uses=3,
+        cells_per_day=4,
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert len(body["placed_sample_ids"]) == 3  # all 3 uses still placed - advisory only, never blocked
+
+    assert len(body["reuse_timing_flags"]) == 1
+    assert body["reuse_timing_flags"][0]["span_hours"] == pytest.approx(13.5, abs=0.05)
 
 
 def test_clear_via_bulk_remove_leaves_no_orphaned_lock(client, db_session):

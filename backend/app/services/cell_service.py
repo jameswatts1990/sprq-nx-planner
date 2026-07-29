@@ -11,13 +11,14 @@ from datetime import date, datetime, time, timedelta, timezone
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from app.engine.constants import CELL_LIFETIME_H, CELL_MAX_USES, CELLS_PER_TRAY, DAY_START_HOUR, WELLS
+from app.engine.constants import CELL_LIFETIME_H, CELL_MAX_USES, CELLS_PER_TRAY, DAY_START_HOUR, REUSE_PREP_H, WELLS
 from app.models.audit import AuditLog
 from app.models.cell import Cell
 from app.models.cell_tray import CellTray
 from app.models.instrument import Instrument
 from app.models.schedule import CellUse, CellUseBarcode, Cycle, RunBatch
 from app.schemas.cell import CellBootstrapRequest, CellDetailOut, CellOut, CellUseHistoryOut, CellUseSummaryOut
+from app.services.cell_timing import cell_use_movie_end_at
 from app.timeutil import ensure_aware, utcnow
 
 
@@ -171,6 +172,53 @@ def current_location(cell: Cell, uses: list[CellUse] | None = None) -> tuple[str
     else:
         well = None
     return instrument_serial, well
+
+
+def _ready_after(prior_use: CellUse) -> datetime | None:
+    """The prior use's real movie end plus the on-board reuse wash (REUSE_PREP_H) - the one
+    place +REUSE_PREP_H is applied to a movie end, shared by cell_ready_at and
+    reuse_not_ready_hours below."""
+    movie_end = cell_use_movie_end_at(prior_use)
+    return movie_end + timedelta(hours=REUSE_PREP_H) if movie_end is not None else None
+
+
+def cell_ready_at(cell: Cell) -> datetime | None:
+    """When `cell` is physically free for its NEXT use - its most recent active use's real movie
+    end (cell_timing.cell_use_movie_end_at, lane-aware) plus REUSE_PREP_H. None when the cell has
+    no uses yet (nothing to wait for - immediately available) or its last use's run isn't loaded.
+    Advisory only (see docs/pacbio-sprq-nx-scheduling-reference.md's "Deliberate
+    simplifications") - nothing gates a placement on this, it only feeds reuse_not_ready_hours."""
+    uses = active_uses(cell)
+    if not uses:
+        return None
+    return _ready_after(max(uses, key=use_sort_key))
+
+
+def reuse_not_ready_hours(cell_use: CellUse) -> float | None:
+    """Advisory only: hours by which `cell_use`'s own start preceded its cell's real physical
+    readiness (the immediately-prior active use's movie end + REUSE_PREP_H wash). None when this
+    is the cell's first use, the prior use's run isn't loaded, or the start was already safely
+    at/after readiness - only a genuine shortfall is reported. Anchored on the real confirmed
+    start once known (Cycle.actual_start_at), else planned - same actual-beats-planned
+    precedence as cell_timing._plate_anchor.
+
+    A `failed` (not cancelled) prior use still counts via active_uses() - the instrument was
+    still physically occupied for that use's full duration even though the run failed, so it
+    still governs when the cell is next free."""
+    cell = cell_use.cell
+    if cell is None:
+        return None
+    ordered = sorted(active_uses(cell), key=use_sort_key)
+    idx = next((i for i, u in enumerate(ordered) if u.id == cell_use.id), None)
+    if idx is None or idx == 0:
+        return None
+    ready_at = _ready_after(ordered[idx - 1])
+    cycle = cell_use.cycle
+    if ready_at is None or cycle is None:
+        return None
+    start = ensure_aware(cycle.actual_start_at or cycle.planned_start_at)
+    shortfall = (ready_at - start).total_seconds() / 3600
+    return shortfall if shortfall > 0 else None
 
 
 def _cell_resident_on(cell: Cell, on_date: date) -> bool:

@@ -100,9 +100,14 @@ export function HistorySamplesPage() {
     <div className={styles.page}>
       <Card>
         <CardHeader badge={`${total} sample${total === 1 ? "" : "s"}`}>
-          <h2>{searching ? `All samples matching "${q}"` : "Completed & failed samples"}</h2>
+          <h2>Samples</h2>
         </CardHeader>
         <CardBody>
+          <p className={styles.intro}>
+            Browse completed &amp; failed history below, or search any Container ID, barcode, or parent sample to
+            find a sample wherever it is right now — Backlog, Scheduled, In progress, Completed, Failed, or
+            Cancelled.
+          </p>
           <input
             type="search"
             className={styles.search}
@@ -113,12 +118,11 @@ export function HistorySamplesPage() {
               setPage(1);
             }}
           />
-          {searching && (
-            <div className={styles.status}>
-              Searching every sample status (Backlog, Scheduled, In progress, Completed, Failed, Cancelled) — clear the
-              search to go back to just completed &amp; failed history.
-            </div>
-          )}
+          <div className={styles.scopeLine}>
+            {searching
+              ? `Searching every sample status for "${q}" — clear the search to go back to completed & failed history.`
+              : "Showing completed & failed history. Type above to search every sample status instead."}
+          </div>
 
           {query.isLoading && <div className={styles.status}>Loading samples…</div>}
           {query.isError && (

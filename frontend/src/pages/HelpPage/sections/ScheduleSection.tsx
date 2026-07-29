@@ -336,7 +336,9 @@ export function ScheduleSection() {
           click an hour, or press <b>Esc</b> to cancel without scheduling. Dropping onto a day that already has a run
           places straight away at that run&apos;s time. If the instrument is busy with other runs, the sample is still
           placed at your chosen time and a short amber note tells you when its cells will actually start sequencing —
-          they queue until one of the machine&apos;s four sequencing lanes frees.
+          they queue until one of the machine&apos;s four sequencing lanes frees. Reusing a cell sooner than its own
+          wash-and-movie math says it can physically be ready shows a similar heads-up note — the placement still
+          stands, it&apos;s just flagged so you can double-check the timing before confirming that run is loaded.
         </li>
         <li>
           <b>Auto-fill:</b> click empty day cells to select them (Shift-click to select a rectangle, Ctrl/Cmd-click
@@ -460,10 +462,10 @@ export function ScheduleSection() {
       </p>
       <p>
         <b>Auto-schedule result</b> summarises the outcome, e.g. &quot;12 placed · 3 unplaced (TRAC-2-26296,
-        TRAC-2-26301, TRAC-2-26305) · 1 cell(s) skipped · 2 window flag(s) · 1 barcode conflict(s) · 4 cell(s)
-        disposed&quot; — any unplaced samples are named by Container ID (up to the first three, then &quot;and N
-        more&quot;) so you know exactly which ones are still sitting in the Backlog, rather than just a count.
-        &quot;Cell(s) disposed&quot; is the
+        TRAC-2-26301, TRAC-2-26305) · 1 cell(s) skipped · 2 window flag(s) · 1 reuse-timing flag(s) · 1 barcode
+        conflict(s) · 4 cell(s) disposed&quot; — any unplaced samples are named by Container ID (up to the first
+        three, then &quot;and N more&quot;) so you know exactly which ones are still sitting in the Backlog, rather
+        than just a count. &quot;Cell(s) disposed&quot; is the
         expected result of the Max-uses cap — the cells of any tray whose every cell reached the use limit, binned
         together as one physical tray — reported for transparency, not a warning:
       </p>
@@ -472,9 +474,14 @@ export function ScheduleSection() {
           Everything placed cleanly.
         </Note>
         <Note tone="warn" icon="!">
-          Some samples couldn&apos;t be placed, a cell&apos;s 108-hour window would be at risk, or a{" "}
-          <b>barcode conflict</b> was found (two backlog samples in this batch share a barcode — they&apos;re kept
-          off the same cell automatically, but review them before placing either).
+          Some samples couldn&apos;t be placed, a cell&apos;s 108-hour window would be at risk, a{" "}
+          <b>reuse-timing flag</b> was raised, or a <b>barcode conflict</b> was found (two backlog samples in this
+          batch share a barcode — they&apos;re kept off the same cell automatically, but review them before placing
+          either). A <b>reuse-timing flag</b> means a scheduled reuse lands earlier than the cell&apos;s own
+          wash-and-movie math says it can physically be ready (the instrument needs the prior run&apos;s movie to
+          finish, plus a short wash, before it can reload that cell) — a different clock from the 108-hour window.
+          This is a heads-up, not a block: the placement still stands, so double-check the day/time before
+          confirming that run is loaded.
         </Note>
         <Note tone="bad" icon="!">
           The auto-fill failed.

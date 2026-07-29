@@ -57,6 +57,12 @@ class AutoFillResult:
     unplaced_sample_ids: list[int] = field(default_factory=list)
     skipped_cells: list[tuple[str, date]] = field(default_factory=list)
     window_flags: list[tuple[str, float]] = field(default_factory=list)
+    # Advisory only (never blocks a placement): (cell_code, worst-shortfall-hours) for a cell
+    # whose chained reuse start, within this batch, fell short of its own prior use's real movie
+    # end + REUSE_PREP_H wash - see the assign_start loop below. A distinct clock from
+    # window_flags' 108h lifetime check (see docs/pacbio-sprq-nx-scheduling-reference.md's
+    # "Deliberate simplifications").
+    reuse_timing_flags: list[tuple[str, float]] = field(default_factory=list)
     barcode_conflicts: list[ConflictPair] = field(default_factory=list)
     run_ids: list[int] = field(default_factory=list)  # RunBatch (run) ids the batch created/touched
     disposed_cell_ids: list[int] = field(default_factory=list)  # cells auto-disposed after the run (dial cap / unused sibling)
@@ -292,8 +298,13 @@ def auto_fill(
     # (get_or_create_run derives a bundled Plate 2's real start itself, via reuse_plate_window,
     # off Plate 1's own real end - see below) - computed unconditionally anyway since it's
     # cheap and every assignment needs SOME start_hour/start_minute to pass through.
+    # Advisory only (see AutoFillResult.reuse_timing_flags): cell_ref -> worst hours by which a
+    # chained reuse's actual start (base_start, once the correctly-chained time doesn't land on
+    # the packer's reserved day - see below) fell short of that cell's own prior use's real
+    # movie end + REUSE_PREP_H wash. Never rejects or reroutes the placement itself.
+    reuse_wait_shortfall: dict[str, float] = {}
     assign_start: dict[int, datetime] = {}
-    for uses in uses_by_cell_ref.values():
+    for cell_ref, uses in uses_by_cell_ref.items():
         prev_end: datetime | None = None
         for a in uses:
             # planned_window's start ([0]) doesn't depend on the movie length; the movie only
@@ -305,6 +316,9 @@ def auto_fill(
                 chained = prev_end + timedelta(hours=REUSE_PREP_H)
                 if base_start <= chained and chained.date() == a.run_date:
                     start = chained
+                elif start < chained:
+                    shortfall = (chained - start).total_seconds() / 3600
+                    reuse_wait_shortfall[cell_ref] = max(shortfall, reuse_wait_shortfall.get(cell_ref, 0.0))
             assign_start[id(a)] = start
             prev_end = start + timedelta(hours=_movie(a.sample))
 
@@ -619,6 +633,14 @@ def auto_fill(
         if span_h > CELL_LIFETIME_H:
             _bump(db_cell.code, span_h)
 
+    # Advisory only, a distinct clock from the 108h window_flags above (see
+    # AutoFillResult.reuse_timing_flags and the assign_start loop that populates
+    # reuse_wait_shortfall): resolve each flagged cell_ref to its real Cell code the same way
+    # window_flags does, falling back to the raw ref if this batch never persisted that cell.
+    reuse_timing_flags = [
+        (ref_to_cell[ref].code if ref in ref_to_cell else ref, hours) for ref, hours in reuse_wait_shortfall.items()
+    ]
+
     placed_set = set(placed_sample_ids)
     unplaced_sample_ids = [s.id for s in samples if s.id not in placed_set]
 
@@ -644,6 +666,7 @@ def auto_fill(
         unplaced_sample_ids=unplaced_sample_ids,
         skipped_cells=skipped,
         window_flags=[(code, span) for code, span in flag_span.items()],
+        reuse_timing_flags=reuse_timing_flags,
         barcode_conflicts=pack.conflict_pairs,
         run_ids=list(run_ids),
         disposed_cell_ids=disposed_cell_ids,

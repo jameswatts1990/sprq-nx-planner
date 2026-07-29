@@ -18,15 +18,31 @@ export interface AccordionNote {
   text: string;
 }
 
-/** A one-line advisory when a just-placed/moved run's cells will actually break out LATER than the
- * load time the user chose, because the instrument is busy (cross-run sequencing contention - see
- * cell_timing.instrument_timeline). The load isn't blocked or moved; this just tells the user when
- * sequencing really starts. null when the run starts when requested. */
+/** One or two advisory sentences for a just-placed/moved run, combining two independent,
+ * non-blocking checks - both only ever populated on a placement/move/auto-fill response (see
+ * RunOut.effective_start_at and StageOut.reuse_not_ready_hours), never on the plain grid feed,
+ * so this must run off the mutation's own response rather than any later-refetched data. null
+ * when neither applies. */
 function placementAdvisoryText(run: RunOut): string | null {
-  if (!run.starts_later_than_requested || !run.effective_start_at) return null;
-  const plate1 = run.plates.find((p) => p.plate_index === 1) ?? run.plates[0];
-  const loaded = plate1 ? formatTimeUTC(plate1.planned_start_at) : "your chosen time";
-  return `${run.instrument_serial} is busy — this run loads at ${loaded}, but its cells won't start sequencing until ${formatShortDateTimeUTC(run.effective_start_at)}.`;
+  const parts: string[] = [];
+  if (run.starts_later_than_requested && run.effective_start_at) {
+    const plate1 = run.plates.find((p) => p.plate_index === 1) ?? run.plates[0];
+    const loaded = plate1 ? formatTimeUTC(plate1.planned_start_at) : "your chosen time";
+    parts.push(
+      `${run.instrument_serial} is busy — this run loads at ${loaded}, but its cells won't start sequencing until ${formatShortDateTimeUTC(run.effective_start_at)}.`,
+    );
+  }
+  // Advisory only, never blocks a placement - a distinct clock from the instrument-busy check
+  // above (see docs/pacbio-sprq-nx-scheduling-reference.md's "Deliberate simplifications").
+  // Worst shortfall across this run's stages, mirroring how starts_later_than_requested is
+  // itself already a run-level (not stage-level) rollup.
+  const shortfall = Math.max(0, ...run.plates.flatMap((p) => p.stages.map((s) => s.reuse_not_ready_hours ?? 0)));
+  if (shortfall > 0) {
+    parts.push(
+      `A reused cell in this run is scheduled about ${shortfall.toFixed(1)}h before its own wash-and-movie math says it can physically be ready.`,
+    );
+  }
+  return parts.length > 0 ? parts.join(" ") : null;
 }
 
 /** "3 unplaced (TRAC-2-26296, TRAC-2-26301, TRAC-2-26305 and 1 more)" - names WHICH samples
@@ -252,6 +268,12 @@ export function useScheduleActions({
       }
       if (res.skipped_cells.length > 0) parts.push(`${res.skipped_cells.length} cell(s) skipped`);
       if (res.window_flags.length > 0) parts.push(`${res.window_flags.length} window flag(s)`);
+      // Advisory only, never blocks a placement - a distinct clock from window_flags' 108h
+      // lifetime check (see docs/pacbio-sprq-nx-scheduling-reference.md's "Deliberate
+      // simplifications").
+      if (res.reuse_timing_flags.length > 0) {
+        parts.push(`${res.reuse_timing_flags.length} reuse-timing flag(s)`);
+      }
       if (res.barcode_conflicts.length > 0) parts.push(`${res.barcode_conflicts.length} barcode conflict(s)`);
       // Auto-disposal is the expected outcome of the Max-uses cap, not a problem - report
       // it for transparency but don't let it flip the note to a warning tone.
@@ -261,7 +283,10 @@ export function useScheduleActions({
       const queued = res.runs.filter((r) => r.starts_later_than_requested).length;
       if (queued > 0) parts.push(`${queued} run(s) start later (instrument busy)`);
       const clean =
-        res.unplaced_sample_ids.length === 0 && res.window_flags.length === 0 && res.barcode_conflicts.length === 0;
+        res.unplaced_sample_ids.length === 0 &&
+        res.window_flags.length === 0 &&
+        res.reuse_timing_flags.length === 0 &&
+        res.barcode_conflicts.length === 0;
       setRunDesignNote({
         tone: clean ? "good" : "warn",
         icon: clean ? "✓" : "!",
@@ -291,6 +316,13 @@ export function useScheduleActions({
       if (res.unplaced_sample_ids.length > 0) {
         parts.push(unplacedNote(res.unplaced_sample_ids.length, res.unplaced_external_ids));
       }
+      // Recalculate re-packs across a wider day range than an ordinary Auto Schedule call, so
+      // it's the flow most likely to hit deep cross-run reuse - surface both timing flags here
+      // too (window_flags previously wasn't shown on this mutation at all).
+      if (res.window_flags.length > 0) parts.push(`${res.window_flags.length} window flag(s)`);
+      if (res.reuse_timing_flags.length > 0) {
+        parts.push(`${res.reuse_timing_flags.length} reuse-timing flag(s)`);
+      }
       if (res.barcode_conflicts.length > 0) parts.push(`${res.barcode_conflicts.length} barcode conflict(s)`);
       if (res.disposed_cell_ids.length > 0) parts.push(`${res.disposed_cell_ids.length} cell(s) disposed`);
       // A day change is a bigger deal than an ordinary cell/tray reassignment (it can affect
@@ -301,6 +333,8 @@ export function useScheduleActions({
       }
       const clean =
         res.unplaced_sample_ids.length === 0 &&
+        res.window_flags.length === 0 &&
+        res.reuse_timing_flags.length === 0 &&
         res.barcode_conflicts.length === 0 &&
         res.day_changed_sample_ids.length === 0;
       setRecalculateNote({

@@ -5,7 +5,15 @@ The sequencing servers are shared ACROSS runs, so a run loaded onto a busy machi
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
-from app.services.cell_timing import PPA_H, PREP_H, CellInput, compute_timings, instrument_timeline, run_load_lock_end
+from app.services.cell_timing import (
+    PPA_H,
+    PREP_H,
+    CellInput,
+    cell_use_movie_end_at,
+    compute_timings,
+    instrument_timeline,
+    run_load_lock_end,
+)
 
 
 def _tray(group_key: str, base_h: float, slots: list[int], run_time_h: float = 24.0) -> list[CellInput]:
@@ -104,3 +112,37 @@ def test_instrument_timeline_pushes_a_busy_runs_effective_start():
     # not its requested +5h - this is what the placement advisory reports to the user.
     assert eff[1] == noon
     assert eff[2] == noon + timedelta(hours=28)
+
+
+def _wire(cell_use_or_uses, cycle, run_batch):
+    """Back-wire the SimpleNamespace fixtures' cycle/run_batch references cell_use_timing needs
+    (cell_use.cycle.run_batch) - _cu/_cycle/_run above don't set these since the pure
+    compute_timings tests never needed them."""
+    cycle.run_batch = run_batch
+    uses = cell_use_or_uses if isinstance(cell_use_or_uses, list) else [cell_use_or_uses]
+    for cu in uses:
+        cu.cycle = cycle
+
+
+def test_cell_use_movie_end_at_matches_compute_timings_for_a_single_cell():
+    noon = datetime(2026, 8, 3, 12, tzinfo=timezone.utc)
+    cu = _cu(1, "A01")
+    cycle = _cycle(1, noon, [cu])
+    _wire(cu, cycle, _run(1, [cycle]))
+    assert cell_use_movie_end_at(cu) == noon + timedelta(hours=PREP_H + 24)
+
+
+def test_cell_use_movie_end_at_reflects_stagger_within_a_tray():
+    noon = datetime(2026, 8, 3, 12, tzinfo=timezone.utc)
+    uses = [_cu(i, w) for i, w in enumerate(["A01", "B01", "C01", "D01"], start=1)]
+    cycle = _cycle(1, noon, uses)
+    _wire(uses, cycle, _run(1, [cycle]))
+    # breakout 0/2/4/6 + PREP_H(4) + 24h movie -> movie ends 28/30/32/34, proving position D
+    # (the last to break out) is ready meaningfully later than a flat plate-start assumption.
+    assert [cell_use_movie_end_at(u) for u in uses] == [noon + timedelta(hours=h) for h in (28, 30, 32, 34)]
+
+
+def test_cell_use_movie_end_at_none_when_run_not_loaded():
+    cu = _cu(1, "A01")
+    cu.cycle = None
+    assert cell_use_movie_end_at(cu) is None

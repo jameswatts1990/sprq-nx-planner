@@ -219,6 +219,33 @@ def run_acquisition_end(run_batch) -> datetime | None:
     return load_at + timedelta(hours=max((t.ppa_end_h for t in timings.values()), default=0.0))
 
 
+def cell_use_timing(cell_use) -> CellTiming | None:
+    """The specific ``CellTiming`` (breakout/movie/PPA hour-offsets) for ONE cell_use within its
+    own run's per-cell layout - the one place a single cell_use's own movie_end_h can be read off
+    ``compute_timings`` without max()-reducing across the whole run (contrast
+    ``run_acquisition_end``/``run_load_lock_end``). None if its run isn't loaded (mirrors
+    ``run_load_at``'s own None case)."""
+    run_batch = cell_use.cycle.run_batch if cell_use.cycle else None
+    if run_batch is None:
+        return None
+    return compute_timings(_run_cell_inputs(run_batch)).get(cell_use.id)
+
+
+def cell_use_movie_end_at(cell_use) -> datetime | None:
+    """Absolute wall-clock time THIS cell_use's own movie finishes - ``movie_end_h`` converted via
+    its run's effective load anchor (``run_load_at``: real confirm-load once running, else
+    planned). None when nothing is loaded yet. Used to derive when a reused cell is physically
+    free for its next use (see ``cell_service.cell_ready_at``/``reuse_not_ready_hours``) - an
+    advisory-only check (docs/pacbio-sprq-nx-scheduling-reference.md's "Deliberate
+    simplifications"), never a placement gate."""
+    run_batch = cell_use.cycle.run_batch if cell_use.cycle else None
+    load_at = run_load_at(run_batch) if run_batch else None
+    timing = cell_use_timing(cell_use)
+    if load_at is None or timing is None:
+        return None
+    return load_at + timedelta(hours=timing.movie_end_h)
+
+
 def run_load_lock_end(run_batch) -> datetime | None:
     """When the instrument frees to **load a new run** after this one = the instant this run's
     LAST cell finishes prep (breakout + PREP_H), i.e. the end of the last purple "Prep" bar in the

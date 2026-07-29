@@ -1,6 +1,12 @@
 .page {
   padding-top: 22px;
 }
+.intro {
+  color: var(--grey);
+  font-size: var(--fs-base);
+  margin: 0 0 14px;
+  max-width: 640px;
+}
 .search {
   width: 100%;
   max-width: 420px;
@@ -9,7 +15,12 @@
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
   padding: 8px 12px;
-  margin-bottom: 16px;
+  margin-bottom: 8px;
+}
+.scopeLine {
+  color: var(--grey);
+  font-size: var(--fs-sm);
+  margin: 0 0 16px;
 }
 .status {
   color: var(--grey);

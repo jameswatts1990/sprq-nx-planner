@@ -94,6 +94,10 @@ export interface AutoFillResponse {
   unplaced_external_ids: string[];
   skipped_cells: GridCellRef[];
   window_flags: AutoFillWindowFlag[];
+  /** Advisory only, never blocks a placement - a distinct clock from window_flags' 108h
+   * lifetime check: cells whose chained reuse start, within this batch, fell short of their
+   * own prior use's real movie end + the on-board reuse wash. */
+  reuse_timing_flags: AutoFillWindowFlag[];
   barcode_conflicts: AutoFillBarcodeConflict[];
   runs: RunOut[]; // every run touched
   disposed_cell_ids: number[]; // cells of trays auto-disposed after the run (whole tray, once every cell hit the dial)
