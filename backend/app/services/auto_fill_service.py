@@ -60,6 +60,18 @@ class AutoFillResult:
     barcode_conflicts: list[ConflictPair] = field(default_factory=list)
     run_ids: list[int] = field(default_factory=list)  # RunBatch (run) ids the batch created/touched
     disposed_cell_ids: list[int] = field(default_factory=list)  # cells auto-disposed after the run (dial cap / unused sibling)
+    # sample_id -> the load_date it actually landed on this batch. Populated for every real
+    # placement (both auto_fill and recalculate_instrument); recalculate_instrument uses it to
+    # diff against each sample's PRE-recalculate day and derive day_changed_sample_ids below -
+    # internal plumbing, not returned over the API (see AutoFillResponse).
+    sample_load_dates: dict[int, date] = field(default_factory=dict)
+    # Populated only by recalculate_instrument: samples that landed on a DIFFERENT calendar day
+    # than they were on before the recalculate (as opposed to merely a different cell/tray on the
+    # same day). Always empty for an ordinary auto_fill() call, since a backlog sample has no
+    # "before" day to diff against. Surfaced distinctly because a day change has real lab-
+    # operational impact (collaborator commitments, staffing) that a cell/tray reassignment
+    # doesn't - see docs/pacbio-sprq-nx-scheduling-reference.md's "Recalculate" section.
+    day_changed_sample_ids: list[int] = field(default_factory=list)
 
 
 def auto_fill(
@@ -269,6 +281,7 @@ def auto_fill(
     skipped_keys: set[tuple[str, date]] = set()  # (instrument, load_date) runs whose creation was locked out
     touched_cells: set[Cell] = set()
     placed_sample_ids: list[int] = []
+    sample_load_dates: dict[int, date] = {}  # sample_id -> the load_date it actually landed on (see AutoFillResult)
     # fill_slots plans every slot as 8 fully-free wells (SlotInput's own documented
     # invariant) - true for a brand-new run, but no longer true once the occupied-check
     # above started letting a cancelled-only cycle through (its one cancelled CellUse
@@ -442,6 +455,7 @@ def auto_fill(
         touched_cells.add(db_cell)
         if a.sample.sample_id is not None:
             placed_sample_ids.append(a.sample.sample_id)
+            sample_load_dates[a.sample.sample_id] = load_date
 
     if placed_sample_ids:
         db.execute(update(Sample).where(Sample.id.in_(placed_sample_ids)).values(status="scheduled"))
@@ -564,6 +578,7 @@ def auto_fill(
         barcode_conflicts=pack.conflict_pairs,
         run_ids=list(run_ids),
         disposed_cell_ids=disposed_cell_ids,
+        sample_load_dates=sample_load_dates,
     )
 
 
@@ -586,12 +601,32 @@ def recalculate_instrument(db: Session, *, instrument_serial: str, actor: str | 
 
     Bulk-unschedules the affected placements back to the backlog first (the same atomic
     remove_samples() "Clear schedule" already uses, so a partial failure can't strand a
-    half-cleared day), then re-runs auto_fill() restricted to exactly those sample ids across
-    exactly the (instrument, day) slots just freed - full 3-use depth, every movie time, both
-    trays, "fewest" (deepen reuse before opening a new cell), so recalculate itself never
-    strands a sample behind a restrictive dial it didn't choose. Any sample that no longer
-    fits (e.g. a barcode conflict introduced by something scheduled elsewhere in the
-    meantime) is left safely in the backlog and reported as unplaced, never dropped."""
+    half-cleared day), then re-runs auto_fill() restricted to exactly those sample ids - full
+    3-use depth, every movie time, both trays, "fewest" (deepen reuse before opening a new
+    cell), so recalculate itself never strands a sample behind a restrictive dial it didn't
+    choose. Any sample that no longer fits (e.g. a barcode conflict introduced by something
+    scheduled elsewhere in the meantime) is left safely in the backlog and reported as
+    unplaced, never dropped.
+
+    The day-slots offered to auto_fill() are the instrument's existing planned load_dates,
+    EXTENDED forward (weekdays only) until at least CELL_MAX_USES distinct days are on offer
+    (never truncated - an instrument already spanning more days keeps every one of them).
+    Without this, "full 3-use depth" above is only actually reachable when the pre-existing
+    footprint already happened to span >=3 days: pack_cells() caps every fresh cell's depth at
+    `min(max_uses, available_days)` (see engine/packing.py), and available_days is just the
+    count of days auto_fill() is handed - so a schedule that (before this recalculate) sat
+    entirely on ONE day silently capped every cell to Use 1 and forced open as many distinct
+    physical trays as wells were needed that day, even though "fewest" was explicitly
+    requested (reported 2026-07-29: 8 same-day placements opened two fresh trays instead of
+    reusing one tray's 4 cells twice each across two days). Extending forward is safe: a
+    candidate day auto_fill() can't actually use (already occupied, instrument-locked, or
+    past a maintenance down_from) is skipped by its own pre-scan exactly as today, it just
+    never gets to help if never offered.
+
+    Since this can now genuinely move a sample onto a day it wasn't on before (not just a
+    different cell/tray), day_changed_sample_ids on the returned result flags exactly which
+    samples that happened to - surfaced separately from an ordinary cell/tray reassignment
+    because a day change has real lab-operational impact a cell swap doesn't."""
     instrument = db.scalar(select(Instrument).where(Instrument.serial_number == instrument_serial))
     if instrument is None:
         raise PlacementError(400, f"Unknown instrument serial '{instrument_serial}'.")
@@ -611,14 +646,29 @@ def recalculate_instrument(db: Session, *, instrument_serial: str, actor: str | 
     if not live_uses:
         return AutoFillResult()  # nothing planned on this instrument right now - no-op
 
+    before_day_by_sample: dict[int, date] = {
+        cu.sample_id: c.run_batch.load_date
+        for c in planned_cycles
+        for cu in c.cell_uses
+        if cu.status != "cancelled" and cu.sample_id is not None
+    }
     load_dates = sorted({c.run_batch.load_date for c in planned_cycles})
     cell_use_ids = [cu.id for cu in live_uses]
     sample_ids = [cu.sample_id for cu in live_uses if cu.sample_id is not None]
 
+    # Extend forward (weekdays only) until at least CELL_MAX_USES distinct days are on offer -
+    # never fewer than the existing footprint, never more days than the depth could ever use.
+    extended_dates = list(load_dates)
+    cursor = extended_dates[-1]
+    while len(extended_dates) < CELL_MAX_USES:
+        cursor += timedelta(days=1)
+        if cursor.weekday() < 5:
+            extended_dates.append(cursor)
+
     remove_samples(db, cell_use_ids, actor)
 
-    cells = [_CellRef(instrument_serial=instrument_serial, load_date=d) for d in load_dates]
-    return auto_fill(
+    cells = [_CellRef(instrument_serial=instrument_serial, load_date=d) for d in extended_dates]
+    result = auto_fill(
         db,
         cells=cells,
         max_uses=CELL_MAX_USES,
@@ -628,3 +678,9 @@ def recalculate_instrument(db: Session, *, instrument_serial: str, actor: str | 
         sample_ids=sample_ids,
         actor=actor,
     )
+    result.day_changed_sample_ids = [
+        sid
+        for sid, before in before_day_by_sample.items()
+        if sid in result.sample_load_dates and result.sample_load_dates[sid] != before
+    ]
+    return result

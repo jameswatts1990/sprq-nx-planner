@@ -698,8 +698,9 @@ export function SchedulePage() {
         >
           <p>
             This re-packs every <b>not-yet-loaded</b> placement on <b>{actions.recalculateTarget}</b> from scratch —
-            reuse-before-new, using today&apos;s engine rules — and may move samples onto different cells or trays
-            than they&apos;re on now. Confirmed/loaded runs are left as-is. This can&apos;t be undone.
+            reuse-before-new, using today&apos;s engine rules — and may move samples onto different cells, trays, or
+            even a different day than they&apos;re on now, when that lets fewer physical cells be used. Confirmed/
+            loaded runs are left as-is. This can&apos;t be undone.
           </p>
         </ConfirmModal>
       )}

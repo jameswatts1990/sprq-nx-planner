@@ -166,9 +166,11 @@ export function ScheduleSection() {
         schedule was worked out under a rule that&apos;s since been corrected, and needs re-packing to actually
         benefit from the fix — day-to-day scheduling never needs it. A confirmation dialog explains what it will do
         before anything changes; <b>confirmed/loaded runs are always left exactly as they are</b>, and it reaches
-        every planned run on that instrument, not just the week you happen to be viewing. Afterwards a note reports
-        how many samples were placed (and how many, if any, couldn&apos;t be — they stay safely in the backlog,
-        never lost).
+        every planned run on that instrument, not just the week you happen to be viewing. To actually reuse a cell
+        instead of opening a new tray, it can push a sample onto a <b>later day it wasn&apos;t on before</b> — never
+        earlier, and never touching a different instrument — whenever that lets fewer physical cells be used.
+        Afterwards a note reports how many samples were placed, how many (if any) moved to a different day, and how
+        many, if any, couldn&apos;t be placed at all — they stay safely in the backlog, never lost.
       </p>
 
       <p className={styles.subheading}>Print Batch Sheet</p>

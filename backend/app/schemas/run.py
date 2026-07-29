@@ -241,3 +241,7 @@ class AutoFillResponse(BaseModel):
     barcode_conflicts: list[BarcodeConflictOut]
     runs: list[RunOut]
     disposed_cell_ids: list[int] = []
+    # Populated only by Recalculate: samples that landed on a different calendar day than
+    # before, distinct from an ordinary cell/tray reassignment - see
+    # auto_fill_service.recalculate_instrument and docs/pacbio-sprq-nx-scheduling-reference.md.
+    day_changed_sample_ids: list[int] = []

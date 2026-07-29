@@ -38,6 +38,7 @@ def _to_response(db: SessionDep, result: AutoFillResult) -> AutoFillResponse:
         ],
         runs=runs,
         disposed_cell_ids=result.disposed_cell_ids,
+        day_changed_sample_ids=result.day_changed_sample_ids,
     )
 
 

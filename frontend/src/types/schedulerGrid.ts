@@ -94,6 +94,10 @@ export interface AutoFillResponse {
   barcode_conflicts: AutoFillBarcodeConflict[];
   runs: RunOut[]; // every run touched
   disposed_cell_ids: number[]; // cells of trays auto-disposed after the run (whole tray, once every cell hit the dial)
+  /** Populated only by Recalculate: samples that landed on a different calendar day than
+   * before (not just a different cell/tray) - always empty for an ordinary Auto Schedule call,
+   * since a backlog sample has no "before" day to diff against. */
+  day_changed_sample_ids: number[];
 }
 
 /** The Run Design dials, held in page state and threaded into place/auto-fill. */

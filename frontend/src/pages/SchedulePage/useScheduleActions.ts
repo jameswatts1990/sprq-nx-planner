@@ -271,7 +271,16 @@ export function useScheduleActions({
       if (res.unplaced_sample_ids.length > 0) parts.push(`${res.unplaced_sample_ids.length} unplaced`);
       if (res.barcode_conflicts.length > 0) parts.push(`${res.barcode_conflicts.length} barcode conflict(s)`);
       if (res.disposed_cell_ids.length > 0) parts.push(`${res.disposed_cell_ids.length} cell(s) disposed`);
-      const clean = res.unplaced_sample_ids.length === 0 && res.barcode_conflicts.length === 0;
+      // A day change is a bigger deal than an ordinary cell/tray reassignment (it can affect
+      // staffing/collaborator commitments), so call it out on its own rather than folding it
+      // into "placed" - see docs/pacbio-sprq-nx-scheduling-reference.md's "Recalculate" section.
+      if (res.day_changed_sample_ids.length > 0) {
+        parts.push(`${res.day_changed_sample_ids.length} sample(s) moved to a different day`);
+      }
+      const clean =
+        res.unplaced_sample_ids.length === 0 &&
+        res.barcode_conflicts.length === 0 &&
+        res.day_changed_sample_ids.length === 0;
       setRunDesignNote({
         tone: clean ? "good" : "warn",
         icon: clean ? "✓" : "!",

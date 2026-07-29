@@ -35,6 +35,13 @@ def _stages(run):
     return [s for p in run["plates"] for s in p["stages"]]
 
 
+def _stage_for(run, sample_id):
+    """The one stage belonging to `sample_id` in `run` - unlike `_stages(run)[0]`, safe to use
+    even when the run's response bundles more than one plate (e.g. two same-day placements
+    share one run, so the naive first-stage would silently pick up the OTHER sample's own)."""
+    return next(s for s in _stages(run) if s["sample_id"] == sample_id)
+
+
 def _place(client, sample_id, run_date, slot_index, cell_choice, instrument="84047"):
     return client.post("/api/cell-uses", json={
         "sample_id": sample_id, "instrument_serial": instrument, "load_date": run_date,
@@ -118,6 +125,45 @@ def test_recalculate_consolidates_duplicate_copies_forced_onto_separate_trays(cl
     assert len({s["cell_id"] for s in dup_stages}) == 1  # now sharing one physical cell
     reused = next(s for s in dup_stages if s["use_number"] == 2)
     assert reused["duplicate_cell_reuse"] is True
+
+
+def test_recalculate_extends_into_a_new_day_when_the_existing_footprint_is_too_narrow_to_consolidate(client):
+    """Reproduces the reported bug's shape (2026-07-29): two copies of one Container ID both
+    forced onto the SAME single day (two separate fresh trays in the two different carousel
+    boxes, since a cell can't be reused twice in one day) - recalculate's day-scope used to
+    only ever offer back that one pre-existing day, so available_days=1 capped every fresh
+    cell to Use 1 and it could never consolidate them no matter how "fewest" was set. It must
+    now extend forward into a new day so one physical cell can be reused across the two,
+    exactly like the already-two-day case above - and report the moved copy's day change."""
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nDUP,bc1\nDUP,bc1"})
+    (mon,) = _weekdays(1)
+    dup_ids = _sids(client, "DUP")
+
+    r1 = _place(client, dup_ids[0], mon, 0, {"mode": "new"})  # Plate 1 box, Monday
+    assert r1.status_code == 201, r1.text
+    cell1 = _stage_for(r1.json(), dup_ids[0])["cell_id"]
+
+    r2 = _place(client, dup_ids[1], mon, 4, {"mode": "new"})  # Plate 2 box, SAME day - no collision
+    assert r2.status_code == 201, r2.text
+    cell2 = _stage_for(r2.json(), dup_ids[1])["cell_id"]
+    assert cell2 != cell1  # forced onto two separate physical trays on the one day available
+
+    rec = client.post("/api/auto-fill/recalculate", json={"instrument_serial": "84047"})
+    assert rec.status_code == 200, rec.text
+    body = rec.json()
+    assert set(body["placed_sample_ids"]) == set(dup_ids)
+    assert body["unplaced_sample_ids"] == []
+
+    all_stages = [s for run in body["runs"] for p in run["plates"] for s in p["stages"]]
+    dup_stages = [s for s in all_stages if s["sample_id"] in dup_ids]
+    assert len({s["cell_id"] for s in dup_stages}) == 1  # now sharing one physical cell, across two days
+    reused = next(s for s in dup_stages if s["use_number"] == 2)
+    assert reused["duplicate_cell_reuse"] is True
+
+    # The first copy keeps its original Monday day; only the second had to move to a new day
+    # (Tuesday) to make the consolidation possible - flagged distinctly from a mere cell/tray
+    # reassignment since a day change has real lab-operational impact.
+    assert body["day_changed_sample_ids"] == [dup_ids[1]]
 
 
 def test_recalculate_is_a_no_op_when_nothing_is_planned(client):
