@@ -81,9 +81,11 @@ function build(cells: CellOut[]) {
 
 describe("computeInstrumentTrayMaps", () => {
   it("shows a single used tray in the Plate 1 position with uses remaining and expiry", () => {
+    // Confirmed loads: the backend already bakes each cell's ~2h breakout stagger into
+    // first_use_started_at (cell 1 at load, cell 2 at load+2h), so the map reads them as-is.
     const cells = trayCells(1, "01", [
       { uses_consumed: 2, uses_remaining: 1, last_use_run_date: "2026-07-21", first_use_started_at: "2026-07-20T12:00:00Z" },
-      { uses_consumed: 1, uses_remaining: 2, last_use_run_date: "2026-07-20", first_use_started_at: "2026-07-20T12:00:00Z" },
+      { uses_consumed: 1, uses_remaining: 2, last_use_run_date: "2026-07-20", first_use_started_at: "2026-07-20T14:00:00Z" },
     ]);
     const map = build(cells).get(SERIAL)!;
 
@@ -97,10 +99,11 @@ describe("computeInstrumentTrayMaps", () => {
     expect(tray.positions.map((p) => p.cellNumber)).toEqual([1, 2, 3, 4]);
     expect(tray.positions[0]).toMatchObject({ usesRemaining: 1, status: "open" });
     expect(tray.positions[1]).toMatchObject({ usesRemaining: 2 });
-    // Cell 1 (position 0) breaks out at the load anchor: 2026-07-20T12:00Z + 108h = 2026-07-25T00:00Z.
+    // Cell 1 broke out at its confirmed anchor 2026-07-20T12:00Z + 108h = 2026-07-25T00:00Z.
     expect(tray.positions[0].expiryAt).toBe("2026-07-25T00:00:00.000Z");
     expect(tray.positions[0].provisional).toBe(false);
-    // Cell 2 breaks out 2h later (the intra-tray stagger), so it expires 2h later too.
+    // Cell 2's confirmed anchor is already 2h later (backend stagger), so it expires 2h later too -
+    // NOT re-staggered by the map on top of the anchor.
     expect(tray.positions[1].expiryAt).toBe("2026-07-25T02:00:00.000Z");
     // Never-used C/D siblings have no anchor -> no expiry.
     expect(tray.positions[2].expiryAt).toBeNull();
@@ -130,6 +133,30 @@ describe("computeInstrumentTrayMaps", () => {
     expect(usesRemainingAt(cell1, Date.parse("2026-07-20T14:00:00Z"))).toBe(2);
   });
 
+  it("only staggers a use's breakout when it is still planned, not once it has started", () => {
+    // Cell 2 (offset +2h). Its started Use 1 already carries the backend stagger in started_at, so
+    // its breakout_anchor_at is used as-is; a still-planned Use 2 quotes the shared plate start, so
+    // the +2h estimate is applied to it here.
+    const cells = trayCells(1, "01", [
+      {}, // cell 1
+      {
+        uses_consumed: 1,
+        uses_remaining: 2,
+        first_use_started_at: "2026-07-20T14:00:00Z", // load 12:00 + cell-2 stagger
+        last_use_run_date: "2026-07-24",
+        uses: [
+          { id: 1, run_batch_id: 1, run_name: "R1", sample_id: 1, sample_external_id: "s1", well: "B01", status: "completed", run_started: true, breakout_anchor_at: "2026-07-20T14:00:00Z" },
+          { id: 2, run_batch_id: 2, run_name: "R2", sample_id: 2, sample_external_id: "s2", well: "B01", status: "planned", run_started: false, breakout_anchor_at: "2026-07-24T12:00:00Z" },
+        ],
+      },
+    ]);
+    const cell2 = build(cells).get(SERIAL)!.carousel[0]!.positions[1];
+    expect(cell2.useBreakoutsMs).toEqual([
+      Date.parse("2026-07-20T14:00:00Z"), // started: anchor as-is, no extra offset
+      Date.parse("2026-07-24T14:00:00Z"), // planned: shared plate start + 2h stagger estimate
+    ]);
+  });
+
   it("places a *02 tray in the Plate 2 carousel position", () => {
     const cells = trayCells(2, "02", [{ uses_consumed: 1, uses_remaining: 2, last_use_run_date: "2026-07-20", first_use_started_at: "2026-07-20T12:00:00Z" }]);
     const map = build(cells).get(SERIAL)!;
@@ -137,19 +164,47 @@ describe("computeInstrumentTrayMaps", () => {
     expect(map.carousel[1]!.trayId).toBe(2);
   });
 
-  it("staggers each cell's expiry: 2h apart within a tray, +24h for the Plate 2 tray", () => {
-    const shared = { uses_consumed: 1, uses_remaining: 2, last_use_run_date: "2026-07-20", first_use_started_at: "2026-07-20T12:00:00Z" };
-    const p1 = trayCells(1, "01", [shared, shared, shared, shared]);
-    const p2 = trayCells(2, "02", [shared, shared, shared, shared]);
+  it("reads a confirmed load's already-staggered per-cell anchors as-is (no double stagger)", () => {
+    // A confirmed run: the backend has already anchored each cell at load + its breakout offset
+    // (cell 1 +0h, cell 2 +2h, … ; the Plate-2 tray ~+24h). The map must pass those through, NOT
+    // add the stagger a second time - that was the "staggered twice after the backend fix" bug (v0.33.1).
+    const used = (h: number, day = 20) => ({
+      uses_consumed: 1,
+      uses_remaining: 2,
+      last_use_run_date: "2026-07-20",
+      first_use_started_at: `2026-07-${day}T${String(12 + h).padStart(2, "0")}:00:00Z`,
+    });
+    const p1 = trayCells(1, "01", [used(0), used(2), used(4), used(6)]);
+    const p2 = trayCells(2, "02", [used(0, 21), used(2, 21), used(4, 21), used(6, 21)]);
     const map = build([...p1, ...p2]).get(SERIAL)!;
-    // Plate 1 tray: cells 1-4 break out at T+0/+2/+4/+6, so expiry = load + offset + 108h.
+    // Plate 1 tray: expiry = each cell's own confirmed anchor + 108h.
     expect(map.carousel[0]!.positions.map((p) => p.expiryAt)).toEqual([
       "2026-07-25T00:00:00.000Z",
       "2026-07-25T02:00:00.000Z",
       "2026-07-25T04:00:00.000Z",
       "2026-07-25T06:00:00.000Z",
     ]);
-    // Plate 2 tray shares the same load anchor but its cells break out ~24h later.
+    // Plate 2 tray's cells were confirmed ~24h later, so their windows close a day on.
+    expect(map.carousel[1]!.positions[0].expiryAt).toBe("2026-07-26T00:00:00.000Z");
+    expect(map.carousel[1]!.positions[3].expiryAt).toBe("2026-07-26T06:00:00.000Z");
+  });
+
+  it("staggers a still-PLANNED tray's expiry on the fly (2h apart; +24h for Plate 2)", () => {
+    // Before Confirm-loaded there is no per-cell anchor yet - all four cells quote the single
+    // shared plate planned_start_at - so the map itself applies the breakout ladder as a
+    // provisional estimate (this is what breakoutOffsetH is still for).
+    const planned = { uses_consumed: 0, uses_remaining: 3, last_use_run_date: null, first_use_started_at: null, first_use_planned_start_at: "2026-07-20T12:00:00Z" };
+    const p1 = trayCells(1, "01", [planned, planned, planned, planned]);
+    const p2 = trayCells(2, "02", [planned, planned, planned, planned]);
+    const map = build([...p1, ...p2]).get(SERIAL)!;
+    expect(map.carousel[0]!.positions.map((p) => p.expiryAt)).toEqual([
+      "2026-07-25T00:00:00.000Z",
+      "2026-07-25T02:00:00.000Z",
+      "2026-07-25T04:00:00.000Z",
+      "2026-07-25T06:00:00.000Z",
+    ]);
+    expect(map.carousel[0]!.positions.every((p) => p.provisional)).toBe(true);
+    // Plate 2 tray shares the same planned load anchor but its cells break out ~24h later.
     expect(map.carousel[1]!.positions[0].expiryAt).toBe("2026-07-26T00:00:00.000Z");
     expect(map.carousel[1]!.positions[3].expiryAt).toBe("2026-07-26T06:00:00.000Z");
   });

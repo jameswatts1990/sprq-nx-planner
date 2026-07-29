@@ -153,25 +153,33 @@ function cellNumberOf(cell: CellOut): number {
 }
 
 function positionView(cell: CellOut, carousel: 0 | 1): TrayPositionView {
-  // Real 108h clock once confirmed loaded (first_use_started_at); a planned but unconfirmed
-  // first use is only a provisional estimate - same anchor precedence as waitingCells.
-  const anchor = cell.first_use_started_at ?? cell.first_use_planned_start_at;
   const cellNumber = cellNumberOf(cell);
-  // Stagger the shared load anchor by this cell's physical breakout order so each cell in a tray
-  // gets its own precise 108h clock (2h apart within a tray; +24h for the Plate-2 tray) instead
-  // of the single fuzzy date all four used to share.
-  const offsetMs = breakoutOffsetH(carousel, cellNumber) * 3_600_000;
-  const breakoutMs = anchor ? new Date(anchor).getTime() + offsetMs : null;
+  // The instrument breaks a tray's 4 cells out ~2h apart (a Plate-2 tray a further ~24h later),
+  // so each cell's 108h clock starts at its OWN breakout, not the shared load time. WHERE that
+  // breakout instant comes from depends on whether the load is confirmed:
+  //   - CONFIRMED (first_use_started_at, and a started use's started_at): the backend already
+  //     bakes the per-cell stagger into that timestamp at Confirm-loaded (run_service.py -
+  //     load + run_breakout_offsets[cell]), so it is the real, already-staggered anchor and must
+  //     be used as-is. Adding breakoutOffsetH again here would stagger it a SECOND time.
+  //   - PLANNED-only (first_use_planned_start_at, a not-yet-started use): still the single shared
+  //     plate timestamp all four cells quote, so it is staggered here as a provisional estimate.
+  // (This mirrors waitingCells / CellLifeGantt, which already read the confirmed anchor directly.)
+  const plannedOffsetMs = breakoutOffsetH(carousel, cellNumber) * 3_600_000;
+  const confirmed = cell.first_use_started_at;
+  const anchor = confirmed ?? cell.first_use_planned_start_at;
+  const breakoutMs = anchor ? new Date(anchor).getTime() + (confirmed ? 0 : plannedOffsetMs) : null;
   const breakoutAt = breakoutMs !== null ? new Date(breakoutMs).toISOString() : null;
   const expiryAt = breakoutMs !== null ? new Date(breakoutMs + CELL_LIFETIME_H * 3_600_000).toISOString() : null;
-  // Each still-live use breaks out at its own run anchor + this cell's fixed stagger offset. A
-  // cancelled use (a permanent Stop marker) never ran, so it's excluded, matching how the
-  // backend's uses_remaining counts capacity. Only meaningful while the cell is still open.
+  // Each still-live use's breakout instant. A cancelled use (a permanent Stop marker) never ran,
+  // so it's excluded, matching how the backend's uses_remaining counts capacity. Only meaningful
+  // while the cell is still open. As above: a *started* use's breakout_anchor_at is its real,
+  // already-staggered started_at (use as-is); a still-planned use quotes the shared plate
+  // planned_start_at, so only that provisional estimate gets the stagger applied here.
   const useBreakoutsMs =
     cell.status === "open"
       ? cell.uses
           .filter((u) => u.status !== "cancelled" && u.breakout_anchor_at !== null)
-          .map((u) => new Date(u.breakout_anchor_at as string).getTime() + offsetMs)
+          .map((u) => new Date(u.breakout_anchor_at as string).getTime() + (u.run_started ? 0 : plannedOffsetMs))
           .sort((a, b) => a - b)
       : [];
   return {
