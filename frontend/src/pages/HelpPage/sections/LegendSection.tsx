@@ -2,6 +2,7 @@ import { SchedulerSlotView } from "@/components/scheduler/SchedulerSlotView";
 import { CellStatusCard } from "@/components/cells/CellStatusCard";
 import { TraySiblingList } from "@/components/cells/TraySiblingList";
 import { WindowMeter } from "@/components/cells/WindowMeter";
+import { DuplicateBadge } from "@/components/shared/DuplicateBadge";
 import { UseLegend } from "@/components/shared/SectionHeading";
 import { Badge } from "@/components/ui/Badge";
 import { Note, type NoteTone } from "@/components/ui/Note";
@@ -11,8 +12,6 @@ import { CELL_QC_FLAG_LABEL, CELL_QC_FLAG_TONE } from "@/utils/cellQcFlag";
 import type { CellQcFlag } from "@/utils/cellQcFlag";
 import { CELL_STATUS_LABEL, CELL_STATUS_TONE } from "@/utils/cellStatus";
 import { CYCLE_STATUS_TONE } from "@/utils/cycleStatus";
-import { INSTRUMENT_STATUSES, INSTRUMENT_STATUS_LABEL, INSTRUMENT_STATUS_TONE } from "@/utils/instrumentStatus";
-import type { InstrumentStatus } from "@/utils/instrumentStatus";
 import { priorityTone } from "@/utils/priority";
 import { SAMPLE_STATUS_LABEL, SAMPLE_STATUS_TONE } from "@/utils/sampleStatus";
 import { USE_STATUS_TONE } from "@/utils/useStatusTone";
@@ -62,13 +61,6 @@ const SAMPLE_STATUS_MEANING: Record<SampleStatus, string> = {
   completed: "The sample finished sequencing successfully.",
   failed: "The sample did not complete successfully.",
   cancelled: "Removed before it ever ran - cancelled from the backlog, or a placement blocked by a Cell QC action.",
-};
-
-const INSTRUMENT_STATUS_MEANING: Record<InstrumentStatus, string> = {
-  ready: "Available - nothing sequencing on it right now.",
-  running: "A run is confirmed loaded and sequencing on it.",
-  down: "Marked down for maintenance from a chosen date; takes no new runs until it's brought back online.",
-  inactive: "Retired - hidden from the Schedule and instrument dropdowns, but all its history is kept.",
 };
 
 const CELL_QC_FLAG_MEANING: Record<CellQcFlag, string> = {
@@ -142,18 +134,6 @@ export function LegendSection() {
         ))}
       </div>
 
-      <p className={styles.subheading}>Instrument status (Instruments)</p>
-      <div className={styles.legendGrid}>
-        {INSTRUMENT_STATUSES.map((s) => (
-          <div className={styles.legendRow} key={s}>
-            <span className={styles.legendSwatchLabel}>
-              <Badge tone={INSTRUMENT_STATUS_TONE[s]}>{INSTRUMENT_STATUS_LABEL[s]}</Badge>
-            </span>
-            <span>{INSTRUMENT_STATUS_MEANING[s]}</span>
-          </div>
-        ))}
-      </div>
-
       <p className={styles.subheading}>Run status (History, Schedule)</p>
       <div className={styles.legendGrid}>
         {CYCLE_STATUSES.map((s) => (
@@ -200,6 +180,19 @@ export function LegendSection() {
             <span>{p.meaning}</span>
           </div>
         ))}
+      </div>
+
+      <p className={styles.subheading}>Duplicate samples (Backlog, Schedule, History, Sample detail)</p>
+      <div className={styles.legendRow}>
+        <span className={styles.legendSwatchLabel}>
+          <DuplicateBadge index={1} total={3} />
+        </span>
+        <span>
+          The same Container ID appears on more than one sample - the same sample deliberately run
+          across multiple SMRT cells. &ldquo;1/3&rdquo; means this is copy 1 of 3 (counted across
+          every status, including completed runs). Distinct from the cell &ldquo;Use 1/2/3&rdquo;
+          colours above, which count acquisitions of one physical cell.
+        </span>
       </div>
 
       <p className={styles.subheading}>Use colours (schedule barcode chips)</p>

@@ -34,7 +34,13 @@ export interface ListSamplesParams {
 
 export const samplesApi = {
   list: (params: ListSamplesParams = {}) => api.get<Page<SampleOut>>(`/api/samples${buildQuery(params)}`),
-  create: (body: SampleCreate) => api.post<SampleOut>("/api/samples", body),
+  /** Add a backlog sample. A Container ID seen before returns 409 (detail.code
+   * "duplicate_container") unless allowDuplicate is set — the confirm seam for the manual path. */
+  create: (body: SampleCreate, allowDuplicate = false) =>
+    api.post<SampleOut>(
+      `/api/samples${buildQuery({ allow_duplicate: allowDuplicate ? true : undefined })}`,
+      body,
+    ),
   update: (id: number, body: SampleUpdate) => api.patch<SampleOut>(`/api/samples/${id}`, body),
   listPriorities: (status?: string) =>
     api.get<string[]>(`/api/samples/priorities${buildQuery({ status })}`),

@@ -6,16 +6,23 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.engine.normalize import coerce_movie_hours
-from app.models.sample import SAMPLE_TERMINAL_STATUSES, Sample, SampleBarcode
+from app.models.sample import Sample, SampleBarcode
 from app.services.settings_service import get_sample_defaults
 
 
-class DuplicateSampleError(Exception):
-    """Raised when an active (non-terminal) sample already exists with the same external_id."""
-
-    def __init__(self, existing: Sample) -> None:
-        self.existing = existing
-        super().__init__(f"Already active as sample #{existing.id} (status={existing.status})")
+def existing_samples_with_id(db: Session, external_id: str) -> list[Sample]:
+    """Every sample that already carries this Container ID, oldest first — across ALL statuses
+    (including completed/cancelled). Duplicates are intentionally allowed (the same sample can be
+    run across multiple cells), so this powers the "seen N times" warning/confirm rather than a
+    hard rejection. Excludes nothing by status because a container that ran and completed before
+    is still meaningful history to flag when it reappears."""
+    return list(
+        db.scalars(
+            select(Sample)
+            .where(Sample.external_id == external_id)
+            .order_by(Sample.created_at, Sample.id)
+        ).all()
+    )
 
 
 def create_backlog_sample(
@@ -37,20 +44,15 @@ def create_backlog_sample(
     import_batch_id: int | None = None,
 ) -> Sample:
     """Insert one backlog Sample + its barcodes. Does NOT commit — the caller owns the
-    transaction. Raises DuplicateSampleError if an active sample already has this external_id.
+    transaction.
 
     The four defaultable loading options (adaptive_loading, full_resolution_base_q,
     base_kinetics, priority) fall back to the admin-configured sample defaults when left
-    unspecified — an explicitly provided value (including an explicit "False") always wins."""
-    existing = db.scalars(
-        select(Sample).where(
-            Sample.external_id == external_id,
-            Sample.status.notin_(SAMPLE_TERMINAL_STATUSES),
-        )
-    ).first()
-    if existing is not None:
-        raise DuplicateSampleError(existing)
+    unspecified — an explicitly provided value (including an explicit "False") always wins.
 
+    A matching Container ID is NOT rejected: the same sample is deliberately run across multiple
+    cells, so each copy is its own backlog row. Callers surface a "seen N times" warning/confirm
+    via existing_samples_with_id() instead of blocking here."""
     defaults = get_sample_defaults(db)
     sample = Sample(
         import_batch_id=import_batch_id,

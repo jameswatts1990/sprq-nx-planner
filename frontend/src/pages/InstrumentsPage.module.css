@@ -34,24 +34,11 @@
   gap: 14px;
 }
 
-/* Card header: friendly name over the serial microprint (mirrors the schedule row label). */
-.nameWrap {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.name {
-  font-size: var(--fs-2xl);
-  font-weight: 800;
-}
-.serial {
-  font-family: var(--mono);
-  font-size: var(--fs-xs);
-  letter-spacing: 0.04em;
-  color: var(--grey);
-}
-.inactive .name {
-  color: var(--grey);
+/* Retired instrument: dim the whole card. The card header (name + serial + status badge) is
+   gone — the Revio screen panel now carries the serial, friendly name and state (incl. a
+   "Retired" note), so there's nothing left to grey individually. */
+.inactive {
+  opacity: 0.65;
 }
 
 .downNote {

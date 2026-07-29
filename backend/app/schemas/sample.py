@@ -87,6 +87,12 @@ class SampleOut(BaseModel):
     import_batch_id: int | None
     created_at: datetime
     updated_at: datetime
+    # Duplicate marker: when this Container ID appears on more than one sample (across ALL
+    # statuses, incl. completed), duplicate_total is that count and duplicate_index is this
+    # copy's 1-based position (ordered oldest-first). Both null for a one-off sample — the UI
+    # renders the "1/3" badge only when duplicate_total is set.
+    duplicate_index: int | None = None
+    duplicate_total: int | None = None
 
 
 class SampleCellUseOut(BaseModel):

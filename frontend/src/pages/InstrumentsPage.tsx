@@ -7,9 +7,8 @@ import { cyclesApi } from "@/api/cycles";
 import { instrumentsApi } from "@/api/instruments";
 import { RevioScreen } from "@/components/scheduler/RevioScreen";
 import { RunStageGantt } from "@/components/scheduler/RunStageGantt";
-import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { Card, CardBody, CardHeader } from "@/components/ui/Card";
+import { Card, CardBody } from "@/components/ui/Card";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { Modal, ModalActions } from "@/components/ui/Modal";
 import { Note } from "@/components/ui/Note";
@@ -18,7 +17,7 @@ import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
 import type { InstrumentOut, InstrumentStatsOut } from "@/types/instrument";
 import type { RunOut } from "@/types/schedule";
 import { formatShortDateTimeUTC, formatShortDateUTC, parseDateOnly } from "@/utils/calendarDates";
-import { INSTRUMENT_STATUS_LABEL, INSTRUMENT_STATUS_TONE, instrumentStatus } from "@/utils/instrumentStatus";
+import { instrumentStatus } from "@/utils/instrumentStatus";
 
 import styles from "./InstrumentsPage.module.css";
 
@@ -46,13 +45,14 @@ export function InstrumentsPage() {
     queryFn: () => instrumentsApi.stats(),
   });
 
-  // Active-run gantts on each card. A run in progress loaded at most ~a couple of days ago
-  // (load → next-day reuse plate → up to a 30h movie + PPA tail), so a short load-date window
-  // around now is enough to fetch the candidates; is_locked then narrows to the runs whose
-  // window actually contains "now". One query for every card, grouped by serial below.
+  // Runs feeding each card's Revio screen. A run in progress loaded at most ~a couple of days ago
+  // (load → next-day reuse plate → up to a 30h movie + PPA tail); is_locked narrows those to the
+  // runs whose window contains "now". The window also reaches ~2 weeks back so an *idle* machine
+  // can still show its most recent finished run(s), like the physical screen retains them. One
+  // query for every card, grouped by serial below.
   const runsWindow = useMemo(() => {
     const from = new Date();
-    from.setUTCDate(from.getUTCDate() - 4);
+    from.setUTCDate(from.getUTCDate() - 14);
     const to = new Date();
     to.setUTCDate(to.getUTCDate() + 1);
     return { from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) };
@@ -60,7 +60,7 @@ export function InstrumentsPage() {
   const activeRunsQuery = useQuery({
     // Keyed under ["cycles", …] so invalidateScheduleRelated refreshes it; a slow refetch keeps
     // the set honest as runs start/finish (the gantt's own live line ticks independently).
-    queryKey: ["cycles", "active", runsWindow.from, runsWindow.to],
+    queryKey: ["cycles", "instr-screen", runsWindow.from, runsWindow.to],
     queryFn: () => cyclesApi.list({ date_from: runsWindow.from, date_to: runsWindow.to }),
     refetchInterval: 60_000,
   });
@@ -68,6 +68,25 @@ export function InstrumentsPage() {
     const map = new Map<string, RunOut[]>();
     for (const run of activeRunsQuery.data ?? []) {
       if (!run.is_locked) continue; // in-progress only (excludes planned/aborted/completed)
+      const list = map.get(run.instrument_serial) ?? [];
+      list.push(run);
+      map.set(run.instrument_serial, list);
+    }
+    return map;
+  }, [activeRunsQuery.data]);
+  // The most recent finished run(s) per instrument, so an idle card retains its last run on screen
+  // instead of blanking. Only runs that actually loaded count (status != "planned"): a future
+  // planned run hasn't been on the machine yet, so it must not read as a "recent run".
+  const recentRunsBySerial = useMemo(() => {
+    const ran = (activeRunsQuery.data ?? []).filter((r) => r.plates.length > 0 && r.status !== "planned");
+    const latestLoad = new Map<string, string>();
+    for (const run of ran) {
+      const prev = latestLoad.get(run.instrument_serial);
+      if (!prev || run.load_date > prev) latestLoad.set(run.instrument_serial, run.load_date);
+    }
+    const map = new Map<string, RunOut[]>();
+    for (const run of ran) {
+      if (run.load_date !== latestLoad.get(run.instrument_serial)) continue;
       const list = map.get(run.instrument_serial) ?? [];
       list.push(run);
       map.set(run.instrument_serial, list);
@@ -124,6 +143,7 @@ export function InstrumentsPage() {
               instrument={instrument}
               stats={statsById.get(instrument.id)}
               activeRuns={activeRunsBySerial.get(instrument.serial_number) ?? []}
+              recentRuns={recentRunsBySerial.get(instrument.serial_number) ?? []}
               activeRunsUpdatedAt={activeRunsQuery.dataUpdatedAt}
               onEdit={() => setEditing(instrument)}
               onDown={() => setDowning(instrument)}
@@ -177,12 +197,7 @@ export function InstrumentsPage() {
   );
 }
 
-// --- status ---------------------------------------------------------------
-
-function statusBadge(instrument: InstrumentOut): ReactNode {
-  const status = instrumentStatus(instrument);
-  return <Badge tone={INSTRUMENT_STATUS_TONE[status]}>{INSTRUMENT_STATUS_LABEL[status]}</Badge>;
-}
+// --- live state ------------------------------------------------------------
 
 /** A plain-language summary of what the instrument is doing right now, from the live per-cell
  * counts (cell_timing.instrument_activity). "" when nothing is loaded/active. */
@@ -202,6 +217,8 @@ interface InstrumentCardProps {
   stats: InstrumentStatsOut | undefined;
   /** Runs in progress on this instrument right now — rendered as one shared live gantt. */
   activeRuns: RunOut[];
+  /** The most recent finished run(s), retained on the Revio screen when the machine is idle. */
+  recentRuns: RunOut[];
   /** When activeRuns was last fetched (dataUpdatedAt) — the baseline the Revio screen's live
    * 108h "Use within" countdown ticks down from. */
   activeRunsUpdatedAt: number;
@@ -210,17 +227,15 @@ interface InstrumentCardProps {
   onConfirm: (kind: ConfirmKind) => void;
 }
 
-function InstrumentCard({ instrument, stats, activeRuns, activeRunsUpdatedAt, onEdit, onDown, onConfirm }: InstrumentCardProps) {
+function InstrumentCard({ instrument, stats, activeRuns, recentRuns, activeRunsUpdatedAt, onEdit, onDown, onConfirm }: InstrumentCardProps) {
   const hasHistory = !!stats && (stats.total_runs > 0 || stats.cell_total_count > 0);
+  // Live runs when the machine is busy; otherwise retain its most recent finished run(s) on the
+  // screen (like the physical display), so an idle card shows its last run rather than a blank.
+  const running = activeRuns.length > 0;
+  const screenRuns = running ? activeRuns : recentRuns;
 
   return (
     <Card className={instrument.active ? undefined : styles.inactive}>
-      <CardHeader badge={statusBadge(instrument)}>
-        <div className={styles.nameWrap}>
-          <span className={styles.name}>{instrument.name || instrument.serial_number}</span>
-          {instrument.name && <span className={styles.serial}>{instrument.serial_number}</span>}
-        </div>
-      </CardHeader>
       <CardBody>
         {instrument.down_from && (
           <div className={styles.downNote}>
@@ -232,13 +247,14 @@ function InstrumentCard({ instrument, stats, activeRuns, activeRunsUpdatedAt, on
           </div>
         )}
 
-        {activeRuns.length > 0 && (
-          <RevioScreen
-            serial={instrument.serial_number}
-            runs={activeRuns}
-            dataUpdatedAt={activeRunsUpdatedAt}
-          />
-        )}
+        <RevioScreen
+          serial={instrument.serial_number}
+          name={instrument.name}
+          status={instrumentStatus(instrument)}
+          idle={!running}
+          runs={screenRuns}
+          dataUpdatedAt={activeRunsUpdatedAt}
+        />
 
         <StatTiles>
           <StatTile

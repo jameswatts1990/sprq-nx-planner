@@ -54,6 +54,11 @@ export interface StageOut {
   run_time_hours: RunTimeHours;
   sample_id: number | null;
   sample_external_id: string | null;
+  /** Duplicate marker for the sample in this slot: when its Container ID is carried by more
+   * than one sample (any status), duplicate_total is the count and duplicate_index this copy's
+   * 1-based position. Both null/absent for a one-off — the grid card shows "1/3" only when set. */
+  duplicate_index?: number | null;
+  duplicate_total?: number | null;
   barcodes: string[];
   /** This specific use's own status (planned/started/completed/failed/cancelled). */
   cell_use_status: string;

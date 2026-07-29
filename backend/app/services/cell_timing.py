@@ -219,6 +219,25 @@ def run_acquisition_end(run_batch) -> datetime | None:
     return load_at + timedelta(hours=max((t.ppa_end_h for t in timings.values()), default=0.0))
 
 
+def run_load_lock_end(run_batch) -> datetime | None:
+    """When the instrument frees to **load a new run** after this one = the instant this run's
+    LAST cell finishes prep (breakout + PREP_H), i.e. the end of the last purple "Prep" bar in the
+    adaptive-loading slide (docs/pacbio-sprq-nx-scheduling-reference.md, capacity fact #3's
+    "awaiting-prep ⇒ locked"). Dynamic in the cell count via the same per-cell model as the gantt:
+    one tray's four cells finish prep at load+4/6/8/10h (4h prep, 2h-staggered); a second tray's
+    cells are *prep-pending* until the first frees the 4 sequencing lanes (~28h), finishing prep at
+    ~32-38h. None when nothing is loaded.
+
+    Distinct from ``run_acquisition_end`` (last PPA end, the full "still on the instrument" window):
+    the loading bay frees when every cell has broken out, long before the movies + PPA finish. This
+    is the single source of truth for ``instrument_lock.run_lock_until``."""
+    load_at = run_load_at(run_batch)
+    if load_at is None:
+        return None
+    timings = compute_timings(_run_cell_inputs(run_batch))
+    return load_at + timedelta(hours=max((t.movie_start_h for t in timings.values()), default=0.0))
+
+
 def run_is_acquiring(run_batch, at: datetime) -> bool:
     """True when ``at`` falls in this run's ``[load, last-PPA-end)`` acquisition window - i.e. the
     run physically has cells on the instrument doing something at ``at``. The single source of

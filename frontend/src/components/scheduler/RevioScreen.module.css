@@ -4,6 +4,11 @@
    at a glance. The magenta framing and Use 1/2/3 colours come from the shared brand tokens. */
 .screen {
   --pip: 11px;
+  box-sizing: border-box;
+  /* A fixed floor so an idle screen is the same height as a running one — the physical Revio
+     display is always on and the same size. Matches a typical single-run panel; a busier run
+     (two runs on one machine) simply grows past it. */
+  min-height: 197px;
   margin-bottom: 16px;
   padding: 14px 16px 12px;
   border-radius: var(--r-md, 10px);
@@ -11,6 +16,39 @@
   border: 1px solid #2a2a31;
   color: #f2f2f5;
   overflow: hidden;
+}
+
+/* Idle: nothing loaded — the serial sits at the top and a quiet status note is centred in the
+   otherwise-black screen (no uses box or stage rows), so it fills the same height as a run. */
+.screenIdle {
+  display: flex;
+  flex-direction: column;
+}
+.idleFill {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.idleTag {
+  align-self: center; /* centre against the serial when it sits in the top strip */
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #8a8a92;
+}
+.idleWarn {
+  color: var(--amber, #d98a00);
+}
+
+/* Friendly name (e.g. "Revio A"): a small light line under the big serial — kept from the old
+   card header, which this panel replaces. */
+.name {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: #b6b6be;
+  margin-top: 2px;
 }
 
 /* Top strip: the serial in large type on the left, the remaining-uses box on the right — wraps
@@ -32,6 +70,31 @@
   line-height: 1;
   letter-spacing: 0.01em;
   color: #ffffff;
+}
+
+/* Top-right stack: the lock-timer badge above the "Remaining SMRT Cell uses" box. */
+.topRight {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+/* Lock timer: how long the instrument stays busy before it frees — a light stroked padlock and
+   an "Xh Ym" countdown in a subtle pill, mirroring the machine's own lock badge. */
+.lockBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 7px;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #e6e6ec;
+}
+.lockBadge svg {
+  opacity: 0.85;
 }
 
 /* "Remaining SMRT Cell uses" panel — a magenta-framed box mirroring the machine's own. */
@@ -118,6 +181,15 @@
   font-size: 15px;
   font-weight: 800;
   color: #e6e6ec;
+}
+/* A finished run retained on an idle screen: no countdown, just a quiet "done". */
+.runDone {
+  flex: none;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #6f6f78;
 }
 
 /* The four stage columns (Pending / Loading / Sequencing / Complete). */

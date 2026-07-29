@@ -34,6 +34,18 @@ function expectedLoadingBuffer(complexRaw: string): number | null {
   return Number((LOADING_TOTAL_UL - c).toFixed(2));
 }
 
+/** The shape of the 409 body the create endpoint returns for a seen-before Container ID. */
+type DuplicateDetail = { detail: { code: "duplicate_container"; message: string; seen_count: number } };
+function isDuplicateDetail(body: unknown): body is DuplicateDetail {
+  return (
+    typeof body === "object" &&
+    body !== null &&
+    "detail" in body &&
+    typeof (body as { detail: unknown }).detail === "object" &&
+    (body as { detail: { code?: unknown } }).detail?.code === "duplicate_container"
+  );
+}
+
 /** Split a free-text list (commas/semicolons/whitespace), trim, drop blanks, de-dupe. */
 function splitList(raw: string): string[] {
   const parts = raw.split(/[,;/\s]+/).map((p) => p.trim()).filter(Boolean);
@@ -104,6 +116,10 @@ export function SampleModal({
     return exp != null && Number(sample.loading_buffer_volume) === exp;
   });
   const [clientError, setClientError] = useState<string | null>(null);
+  // Set when a create hits the duplicate-container 409: holds the "seen N times" prompt so the
+  // form can offer an "Add anyway" confirm instead of a dead-end error.
+  const [duplicatePrompt, setDuplicatePrompt] = useState<string | null>(null);
+  const pendingBodyRef = useRef<SampleCreate | null>(null);
 
   const fieldsQuery = useQuery({ queryKey: ["import-fields"], queryFn: () => importsApi.fields() });
   const fields = fieldsQuery.data ?? [];
@@ -132,16 +148,28 @@ export function SampleModal({
   }, [isAdd, defaultsQuery.data]);
 
   const mutation = useMutation({
-    mutationFn: (body: SampleCreate | SampleUpdate) =>
-      sample ? samplesApi.update(sample.id, body) : samplesApi.create(body as SampleCreate),
+    mutationFn: ({ body, allowDuplicate }: { body: SampleCreate | SampleUpdate; allowDuplicate?: boolean }) =>
+      sample
+        ? samplesApi.update(sample.id, body)
+        : samplesApi.create(body as SampleCreate, allowDuplicate ?? false),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["samples"] });
       onSaved?.();
       onClose();
     },
+    onError: (err) => {
+      // A duplicate Container ID isn't a hard error — it's a confirm. Capture the "seen N times"
+      // message so handleSubmit can offer "Add anyway" (re-submit with allowDuplicate).
+      if (err instanceof ApiError && err.status === 409 && isDuplicateDetail(err.body)) {
+        setDuplicatePrompt(err.body.detail.message);
+      }
+    },
   });
 
   function set(key: string, v: string) {
+    // Editing the Container ID invalidates a pending duplicate confirm — the ID it warned about
+    // no longer matches, so drop back to a normal submit rather than "Add anyway" on a stale body.
+    if (key === "external_id" && duplicatePrompt) setDuplicatePrompt(null);
     setValues((prev) => {
       const next = { ...prev, [key]: v };
       // Keep Loading buffer topped up to 25 − complex while it's still auto-derived. Editing
@@ -173,6 +201,7 @@ export function SampleModal({
 
   function handleSubmit() {
     setClientError(null);
+    setDuplicatePrompt(null);
     const externalId = (values.external_id ?? "").trim();
     const barcodes = splitList(values.barcodes ?? "");
     if (!isEdit && !externalId) return setClientError("Container ID is required.");
@@ -204,11 +233,27 @@ export function SampleModal({
       movie_time_hours: num("movie_time_hours"),
     };
 
-    mutation.mutate(isEdit ? editable : { external_id: externalId, ...editable });
+    if (isEdit) {
+      mutation.mutate({ body: editable });
+      return;
+    }
+    const createBody: SampleCreate = { external_id: externalId, ...editable };
+    pendingBodyRef.current = createBody;
+    mutation.mutate({ body: createBody });
   }
 
+  /** Re-submit the just-attempted create, this time confirming the duplicate. */
+  function confirmDuplicate() {
+    if (!pendingBodyRef.current) return;
+    setDuplicatePrompt(null);
+    mutation.mutate({ body: pendingBodyRef.current, allowDuplicate: true });
+  }
+
+  // A duplicate 409 is handled by the confirm banner, not the generic error line.
   const errorMsg =
-    clientError ??
+    duplicatePrompt != null
+      ? null
+      : clientError ??
     (mutation.isError
       ? mutation.error instanceof ApiError
         ? mutation.error.message
@@ -341,19 +386,33 @@ export function SampleModal({
         </div>
       )}
 
+      {duplicatePrompt && (
+        <div className={styles.error}>
+          <Note tone="warn" icon="!">
+            {duplicatePrompt} Duplicates are allowed — the same sample can be run across multiple cells.
+          </Note>
+        </div>
+      )}
+
       <ModalActions>
         <Button variant="ghost" onClick={onClose} disabled={mutation.isPending}>
           Cancel
         </Button>
-        <Button variant="primary" onClick={handleSubmit} disabled={mutation.isPending}>
-          {isEdit
-            ? mutation.isPending
-              ? "Saving…"
-              : "Save changes"
-            : mutation.isPending
-              ? "Adding…"
-              : "Add to backlog"}
-        </Button>
+        {duplicatePrompt ? (
+          <Button variant="primary" onClick={confirmDuplicate} disabled={mutation.isPending}>
+            {mutation.isPending ? "Adding…" : "Add anyway"}
+          </Button>
+        ) : (
+          <Button variant="primary" onClick={handleSubmit} disabled={mutation.isPending}>
+            {isEdit
+              ? mutation.isPending
+                ? "Saving…"
+                : "Save changes"
+              : mutation.isPending
+                ? "Adding…"
+                : "Add to backlog"}
+          </Button>
+        )}
       </ModalActions>
     </Modal>
   );

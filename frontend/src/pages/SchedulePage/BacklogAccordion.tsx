@@ -7,6 +7,7 @@ import { ApiError } from "@/api/client";
 import type { SampleSortBy, SampleSortDir } from "@/api/samples";
 import { samplesApi } from "@/api/samples";
 import { BarcodeChips } from "@/components/shared/BarcodeChips";
+import { DuplicateBadge } from "@/components/shared/DuplicateBadge";
 import { sampleDragId } from "@/components/scheduler/gridKeys";
 import type { SampleDragData } from "@/components/scheduler/useSchedulerDnd";
 import { Accordion } from "@/components/ui/Accordion";
@@ -112,6 +113,7 @@ function DraggableSampleCard({ sample, onEdit }: { sample: SampleOut; onEdit: (s
       </button>
       <div className={styles.cardHead}>
         <span className={styles.ext}>{sample.external_id}</span>
+        <DuplicateBadge index={sample.duplicate_index} total={sample.duplicate_total} />
         {sample.parent_sample && <span className={styles.parent}>{sample.parent_sample}</span>}
         <Badge tone={priorityTone(sample.priority)}>{priorityLabel(sample.priority)}</Badge>
         <span className={styles.movie} title="Movie / acquisition time">

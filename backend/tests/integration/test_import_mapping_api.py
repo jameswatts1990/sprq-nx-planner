@@ -22,11 +22,30 @@ def test_create_sample_barcodes_split_from_free_text_and_deduped(client):
     assert resp.json()["barcodes"] == ["bc1", "bc2"]
 
 
-def test_create_sample_duplicate_active_id_is_409(client):
+def test_create_sample_duplicate_id_needs_confirmation_then_succeeds(client):
+    """Manual add of a Container ID that's been seen before is confirmed, not rejected: the
+    first attempt returns a 409 the UI turns into an 'Add anyway?' prompt (with a seen count),
+    and re-submitting with allow_duplicate=true creates the copy."""
     client.post("/api/samples", json={"external_id": "TRAC-2-30003", "barcodes": ["bc1"]})
+
     dup = client.post("/api/samples", json={"external_id": "TRAC-2-30003", "barcodes": ["bc9"]})
     assert dup.status_code == 409
-    assert "already active" in dup.json()["detail"].lower()
+    detail = dup.json()["detail"]
+    assert detail["code"] == "duplicate_container"
+    assert detail["seen_count"] == 1
+
+    confirmed = client.post(
+        "/api/samples?allow_duplicate=true",
+        json={"external_id": "TRAC-2-30003", "barcodes": ["bc9"]},
+    )
+    assert confirmed.status_code == 201, confirmed.text
+    assert confirmed.json()["duplicate_total"] is None  # single-create response carries no marker
+
+    # The list view now shows both copies with the 1/2 ordinal.
+    backlog = client.get("/api/samples", params={"status": "backlog", "q": "TRAC-2-30003"}).json()
+    copies = [s for s in backlog["items"] if s["external_id"] == "TRAC-2-30003"]
+    assert {s["duplicate_index"] for s in copies} == {1, 2}
+    assert {s["duplicate_total"] for s in copies} == {2}
 
 
 def test_fields_and_template_endpoints(client):

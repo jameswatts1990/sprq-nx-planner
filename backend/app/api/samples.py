@@ -11,10 +11,10 @@ from app.models.audit import AuditLog
 from app.models.sample import SAMPLE_STATUSES, Sample, SampleBarcode
 from app.schemas.common import Page
 from app.schemas.sample import SampleCreate, SampleDetailOut, SampleOut, SampleUpdate
-from app.serializers import sample_detail_out, sample_out
+from app.serializers import duplicate_groups, duplicate_marker, sample_detail_out, sample_out
 from app.services.sample_service import (
-    DuplicateSampleError,
     create_backlog_sample,
+    existing_samples_with_id,
     update_backlog_sample,
     update_placed_sample_metadata,
 )
@@ -150,37 +150,64 @@ def list_samples(
     total = len(all_matching)
     start = (page - 1) * page_size
     page_items = all_matching[start : start + page_size]
-    return Page[SampleOut](items=[sample_out(s) for s in page_items], total=total)
+    # Stamp the "1/3" duplicate ordinal for the visible page in one grouped query.
+    groups = duplicate_groups(db, {s.external_id for s in page_items})
+    items = []
+    for s in page_items:
+        dup_index, dup_total = duplicate_marker(s, groups)
+        items.append(sample_out(s, duplicate_index=dup_index, duplicate_total=dup_total))
+    return Page[SampleOut](items=items, total=total)
 
 
 @router.post("", response_model=SampleOut, status_code=201)
-def create_sample(req: SampleCreate, db: SessionDep, actor: ActorDep) -> SampleOut:
-    """Manually add one sample to the backlog (same landing spot as CSV import)."""
+def create_sample(
+    req: SampleCreate, db: SessionDep, actor: ActorDep, allow_duplicate: bool = False
+) -> SampleOut:
+    """Manually add one sample to the backlog (same landing spot as CSV import).
+
+    Duplicates are allowed (the same sample can be run across multiple cells), but unlike
+    CSV import — which only warns after the fact — the manual path *confirms* first: if this
+    Container ID has been seen before (any status, incl. completed) and `allow_duplicate` is
+    false, it returns a 409 the UI turns into an "Add another copy anyway?" prompt. Re-submitting
+    with `allow_duplicate=true` creates the copy."""
     external_id = req.external_id.strip()
     if not external_id:
         raise HTTPException(422, "Container ID is required")
     barcodes = split_barcodes(" ".join(req.barcodes))
     if not barcodes:
         raise HTTPException(422, "At least one barcode is required")
-    try:
-        sample = create_backlog_sample(
-            db,
-            external_id=external_id,
-            barcodes=barcodes,
-            sanger_ids=req.sanger_ids,
-            parent_sample=req.parent_sample,
-            target_oplc=req.target_oplc,
-            actual_oplc=req.actual_oplc,
-            cleaned_complex_volume=req.cleaned_complex_volume,
-            loading_buffer_volume=req.loading_buffer_volume,
-            adaptive_loading=req.adaptive_loading,
-            full_resolution_base_q=req.full_resolution_base_q,
-            priority=req.priority,
-            base_kinetics=req.base_kinetics,
-            movie_time_hours=req.movie_time_hours,
-        )
-    except DuplicateSampleError as err:
-        raise HTTPException(409, str(err)) from err
+
+    if not allow_duplicate:
+        existing = existing_samples_with_id(db, external_id)
+        if existing:
+            n = len(existing)
+            raise HTTPException(
+                409,
+                detail={
+                    "code": "duplicate_container",
+                    "message": f"Container ID '{external_id}' has been seen {n} time{'s' if n != 1 else ''} "
+                    f"before (including completed samples). Add another copy anyway?",
+                    "seen_count": n,
+                    "statuses": [s.status for s in existing],
+                },
+            )
+
+    sample = create_backlog_sample(
+        db,
+        external_id=external_id,
+        barcodes=barcodes,
+        sanger_ids=req.sanger_ids,
+        parent_sample=req.parent_sample,
+        target_oplc=req.target_oplc,
+        actual_oplc=req.actual_oplc,
+        cleaned_complex_volume=req.cleaned_complex_volume,
+        loading_buffer_volume=req.loading_buffer_volume,
+        adaptive_loading=req.adaptive_loading,
+        full_resolution_base_q=req.full_resolution_base_q,
+        priority=req.priority,
+        base_kinetics=req.base_kinetics,
+        movie_time_hours=req.movie_time_hours,
+    )
     db.add(AuditLog(actor=actor, action="create_sample", entity_type="sample", entity_id=sample.id, details_json={}))
     db.commit()
     db.refresh(sample)
@@ -218,7 +245,7 @@ def get_sample(sample_id: int, db: SessionDep) -> SampleDetailOut:
     )
     if sample is None:
         raise HTTPException(404, "Sample not found")
-    return sample_detail_out(sample)
+    return sample_detail_out(sample, db)
 
 
 # A sample that has finished its lifecycle - its schedule is history, not a plan, so it's

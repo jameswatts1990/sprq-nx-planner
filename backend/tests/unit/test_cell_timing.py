@@ -5,7 +5,7 @@ The sequencing servers are shared ACROSS runs, so a run loaded onto a busy machi
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
-from app.services.cell_timing import PPA_H, PREP_H, CellInput, compute_timings, instrument_timeline
+from app.services.cell_timing import PPA_H, PREP_H, CellInput, compute_timings, instrument_timeline, run_load_lock_end
 
 
 def _tray(group_key: str, base_h: float, slots: list[int], run_time_h: float = 24.0) -> list[CellInput]:
@@ -75,6 +75,23 @@ def _cycle(plate_index: int, start: datetime, cell_uses: list):
 
 def _run(run_id: int, cycles: list):
     return SimpleNamespace(id=run_id, cycles=cycles)
+
+
+def test_run_load_lock_end_climbs_with_cell_count_last_cell_prep_done():
+    """The instrument's load-lock = when its LAST cell finishes prep (breakout + PREP_H), dynamic
+    in the cell count — the ladder from the adaptive-loading slide's purple bars. One tray: 4/6/8/
+    10h (4h prep, 2h-staggered). A second tray's cells wait for a sequencing lane (~28h): 32-38h."""
+    noon = datetime(2026, 8, 3, 12, tzinfo=timezone.utc)
+    wells = ["A01", "B01", "C01", "D01", "A02", "B02", "C02", "D02"]
+
+    def lock_hours(n: int) -> float:
+        cycles = [_cycle(1, noon, [_cu(i, w) for i, w in enumerate(wells[: min(n, 4)], start=1)])]
+        if n > 4:
+            cycles.append(_cycle(2, noon, [_cu(i, w) for i, w in enumerate(wells[4:n], start=5)]))
+        return (run_load_lock_end(_run(1, cycles)) - noon).total_seconds() / 3600.0
+
+    assert [lock_hours(n) for n in (1, 2, 3, 4)] == [4, 6, 8, 10]
+    assert [lock_hours(n) for n in (5, 6, 7, 8)] == [32, 34, 36, 38]
 
 
 def test_instrument_timeline_pushes_a_busy_runs_effective_start():

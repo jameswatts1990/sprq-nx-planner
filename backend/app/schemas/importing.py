@@ -21,6 +21,16 @@ class RejectedRow(BaseModel):
     reason: str
 
 
+class DuplicateNote(BaseModel):
+    """A Container ID that this import created more than one copy of, and/or that was already
+    known before the import. Surfaced (not blocked) so the user can Undo if it was unintended.
+    Duplicates are a supported workflow — the same sample run across multiple cells."""
+
+    external_id: str
+    created_now: int  # copies created by THIS import
+    total_seen: int  # total samples with this Container ID now (incl. prior + completed)
+
+
 class SkippedRowOut(BaseModel):
     """A row that parsed but wasn't imported (e.g. no barcodes) — an actionable troubleshooting entry."""
 
@@ -33,10 +43,16 @@ class ImportResult(BaseModel):
     row_count: int
     imported_count: int
     skipped_count: int
+    # How many imported rows share a Container ID with another sample (in this file or already
+    # in the system). Duplicates are no longer rejected — this is now a "heads up" count, not a
+    # drop count — so `rejected` carries only genuinely bad rows, not duplicates.
     duplicate_count: int
     warnings: list[str]
     rejected: list[RejectedRow]
     skipped: list[SkippedRowOut] = []
+    # Per-Container-ID summary of what was duplicated, powering the result panel's duplicate
+    # notice + Undo recommendation. Only IDs with total_seen > 1 appear.
+    duplicates: list[DuplicateNote] = []
     samples: list[SampleOut]
 
 
@@ -76,6 +92,9 @@ class ImportPreviewResult(BaseModel):
     sample_rows: list[list[str]]
     row_count: int
     unmatched_required: list[str]
+    # Container IDs that repeat WITHIN this file (id -> count), so the mapping-review step can
+    # warn before committing. Duplicates are allowed, but an unintended repeat is worth flagging early.
+    within_file_duplicates: list[DuplicateNote] = []
 
 
 # --- scheduler-sheet conversion (pool rows -> standard import CSV) ------------------------

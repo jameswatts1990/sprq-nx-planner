@@ -234,11 +234,13 @@ export function SchedulePage() {
   );
   // The physical-tray map for each instrument's left-column header: the tray resident at the
   // start of the viewed week per carousel position, plus any successor trays loaded later that
-  // week (see instrumentTrayMaps.ts). Reuses the same tray founding/eviction/vacated maps the
-  // grid ghosts do, so tray residency agrees exactly.
+  // week (see instrumentTrayMaps.ts). Reuses the same tray founding/eviction maps the grid
+  // ghosts do, so tray residency agrees exactly. Unlike the ghosts it does NOT drop a fully-
+  // terminal tray (no vacatedTrayIds) - a used-up tray stays a depleted resident until a
+  // successor evicts it, since it's still physically in the bay.
   const trayMaps = useMemo(
-    () => computeInstrumentTrayMaps(allTrayCells, win.days, trayFoundingDates, trayEvictionDates, vacatedTrayIds),
-    [allTrayCells, win.days, trayFoundingDates, trayEvictionDates, vacatedTrayIds],
+    () => computeInstrumentTrayMaps(allTrayCells, win.days, trayFoundingDates, trayEvictionDates),
+    [allTrayCells, win.days, trayFoundingDates, trayEvictionDates],
   );
   // `runs` is fetched a few days wider than the visible window (see lookbackDateFrom
   // above), purely so continuation markers can see runs loaded just before it. Anything

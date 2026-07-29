@@ -1,17 +1,16 @@
-"""Derives an instrument's run-lock window from its plates. A run loading a single plate
-(one tray, <=4 wells) commits the instrument only for a short loading/setup window - the
-operator can still walk up and load a second plate, or a different instrument's run, once it
-settles (this is what enables the 4-cells/day utilisation cadence). A run with two plates
-commits the instrument for the full acquisition span: for a same-day parallel run that's the
-movie + buffer that day; for a reuse run (Plate 2 acquires a later day, after the on-board
-wash) it stretches through Plate 2's day - which the old per-(instrument, day) model got
-wrong, under-locking a reuse as two separate short windows on two RunBatches.
+"""Derives an instrument's load-lock window: when it frees to *start a new run*. That is the
+instant the run's LAST cell finishes prep (breakout + prep) - dynamic in the cell count, from the
+per-cell timing model (cell_timing.run_load_lock_end): one tray's cells finish prep at
+load+4/6/8/10h (4h prep, 2h-staggered), a second tray's at ~32-38h (its cells can't prep until the
+first frees the 4 sequencing lanes ~28h in). It is NOT a flat buffer and NOT the full movie/PPA
+span - the loading bay frees once prep is done, while the cells keep sequencing for ~30h. This is
+what enables the utilisation cadence (load the next tray / another run while this one sequences).
 
 A locked instrument still accepts placements into an *existing* run (see
 placement_service.place_sample) - only a brand-new run's start time is checked against a
 prior run's lock (see get_or_create_run), so loading the next run while the current one is
 sequencing is never blocked. See docs/pacbio-sprq-nx-scheduling-reference.md's "Instrument
-load-lock timing" section for the vendor timing this is derived from.
+load-lock timing" section (and capacity fact #3) for the vendor timing this is derived from.
 """
 from __future__ import annotations
 
@@ -21,42 +20,34 @@ from datetime import date, datetime, timedelta
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from app.engine.constants import LOCK_BUFFER_HOURS
 from app.models.schedule import Cycle, RunBatch
-from app.services.cell_timing import instrument_timeline, run_is_acquiring, run_load_at
+from app.services.cell_timing import instrument_timeline, run_is_acquiring, run_load_at, run_load_lock_end
 from app.timeutil import ensure_aware, utcnow
 
-# Longest span is a reuse run: Plate 1 loaded on day D, Plate 2 acquiring ~D+1 with a 30h
-# movie ending ~D+2, +6h buffer. So a run loaded up to ~3 days before a check date can still
-# hold the instrument then; look back that far when scanning for an active lock.
+# A run's load-lock ends when its last cell finishes prep - within ~38h of load even for a full
+# two-tray run, and a reuse run's Plate 2 preps on ~D+1. So a run loaded up to ~3 days before a
+# check date could still hold the instrument then; look back that far when scanning for a lock
+# (kept at 3 for a comfortable margin now that locks are shorter than the old movie-span rule).
 LOOKBACK_DAYS = 3
 
 
 def run_lock_until(db: Session, run_batch: RunBatch, *, cycles: Iterable[Cycle] | None = None) -> datetime:
-    """When the instrument frees up after this run.
+    """When the instrument frees to START a new run after this one = the instant this run's LAST
+    cell finishes prep, from the per-cell timing model (cell_timing.run_load_lock_end). Dynamic in
+    the cell count, NOT a flat buffer: one tray -> load+4/6/8/10h (4h prep, 2h-staggered); a second
+    tray's cells wait for a sequencing lane (~28h) -> ~32-38h. Anchored on the run's real load
+    (actual confirm-load time, else planned - cell_timing._plate_anchor), so it reflects when the
+    run actually started. See docs/pacbio-sprq-nx-scheduling-reference.md, "Instrument load-lock
+    timing" + capacity fact #3.
 
-    - One plate (a single tray, <=4 wells): the short LOCK_BUFFER_HOURS loading/setup window
-      from that plate's start, regardless of movie_hours - the operator can load the other
-      bay or another run's tray once it settles.
-    - Two plates: committed through the *last* plate's movie end plus the next run's own
-      LOCK_BUFFER_HOURS setup. Both plates start the same day for a parallel run; Plate 2
-      starts a later day for a reuse run, so the lock correctly spans into that day.
+    A run with no loaded cells (orphaned empty plates a partial/racy bulk removal could leave
+    behind) holds the instrument for nothing -> frees now, so a stale empty plate can't keep
+    projecting a lock onto later days after a Clear (see run_serializer.run_out).
 
-    Pass `cycles` (a reliably-loaded RunBatch.cycles) to read the plates in memory - only
-    where the collection is known fresh (post-commit/serialization); omit it and it uses
-    run_batch.cycles directly.
-
-    Cycles with no cell_uses (orphaned empty plates a partial/racy bulk removal could leave
-    behind) load nothing, so they hold the instrument for nothing and are ignored here - else
-    an empty plate's planned_start would keep projecting a stale lock onto later days after a
-    Clear (see run_serializer.run_out and docs/pacbio-sprq-nx-scheduling-reference.md)."""
-    plates = [c for c in (list(cycles) if cycles is not None else list(run_batch.cycles)) if c.cell_uses]
-    if not plates:
-        return utcnow()
-    if len(plates) <= 1:
-        return ensure_aware(plates[0].planned_start_at) + timedelta(hours=LOCK_BUFFER_HOURS)
-    last_end = max(ensure_aware(c.planned_start_at) + timedelta(hours=c.movie_hours) for c in plates)
-    return last_end + timedelta(hours=LOCK_BUFFER_HOURS)
+    The ``cycles`` kwarg is accepted for call-site compatibility; the timing model reads
+    ``run_batch.cycles`` directly (eager-loaded wherever this is called), so it needn't be passed."""
+    end = run_load_lock_end(run_batch)
+    return end if end is not None else utcnow()
 
 
 def _candidate_runs(db: Session, instrument_id: int, *, on_or_before: date) -> list[RunBatch]:
@@ -100,8 +91,8 @@ def effective_run_start(db: Session, run_batch: RunBatch) -> datetime | None:
     None if nothing is loaded.
 
     This is the "user loads at 12:00, cells really break out at 18:00" figure surfaced as a
-    placement advisory - distinct from run_lock_until (the coarse loading-lock that gates a
-    brand-new load and drives grid continuation). We compute it over the same 3-day resident
+    placement advisory - distinct from run_lock_until (the loading-lock — last cell's prep done —
+    that gates a brand-new load and drives grid continuation). We compute it over the same 3-day resident
     window _candidate_runs uses, plus the run itself in case it isn't already in that set."""
     resident = _candidate_runs(db, run_batch.instrument_id, on_or_before=run_batch.load_date)
     if run_batch.id not in {r.id for r in resident}:
@@ -143,8 +134,8 @@ def acquiring_runs(db: Session, instrument_id: int, at: datetime | None = None) 
     live gantts share.
 
     Distinct from the loading-lock (run_lock_until / latest_lock_until) that gates when a *new*
-    run may be loaded - a single tray's loading bay frees after LOCK_BUFFER_HOURS while its cells
-    keep sequencing for ~30h, so the two windows genuinely differ. _candidate_runs already drops
+    run may be loaded - a single tray's loading bay frees once its cells finish prep (~4-10h) while
+    they keep sequencing for ~30h, so the two windows genuinely differ. _candidate_runs already drops
     aborted/completed runs and orphaned empty cycles."""
     at = at or utcnow()
     return [r for r in _candidate_runs(db, instrument_id, on_or_before=at.date()) if run_is_acquiring(r, at)]

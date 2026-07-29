@@ -65,6 +65,14 @@ def _move(client, cell_use_id, run_date, slot_index=0, instrument="84047", run_t
     return client.post(f"/api/cell-uses/{cell_use_id}/move", json=payload)
 
 
+def _sibling_cell_id(client, tray_id, well):
+    """An unused sibling cell (current_well == well) of an already-open tray - a "new" placement
+    can't land at a well its own tray already occupies, so a same-box, different-well placement
+    reuses this sibling instead."""
+    items = client.get("/api/cells", params={"tray_id": tray_id, "page_size": 10}).json()["items"]
+    return next(c["id"] for c in items if c["current_well"] == well)
+
+
 def _bootstrap(client, instrument_serial="84047", uses_consumed=0, burned_barcodes=None):
     payload = {
         "uses_consumed": uses_consumed,
@@ -298,15 +306,22 @@ def test_move_dropping_back_onto_its_own_slot_is_a_no_op(client):
 
 
 def test_move_into_a_run_locked_by_a_prior_run_on_destination_instrument_is_rejected(client):
-    client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1\nA2,bc2\nA3,bc3"})
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,b1\nA2,b2\nA3,b3\nA4,b4\nA5,b5\nA6,b6"})
     mon, tue = _weekdays(2)
 
-    # Lock up 84098 with an unrelated run starting Monday - a 30h movie at 20:00 with both
-    # trays loaded commits it until Mon 20:00 + 30h + 6h = Wed 08:00, so all of Tuesday is
-    # inside the lock (a lock that merely cleared mid-Tuesday would leave Tuesday loadable -
-    # see test_new_run_on_the_lock_end_day_starts_when_the_instrument_frees).
-    _place(client, _sid(client, "A1"), mon, slot_index=0, instrument="84098", run_time_hours=30, start_hour=20)
-    _place(client, _sid(client, "A3"), mon, slot_index=4, instrument="84098", run_time_hours=30, start_hour=20)
+    # Lock up 84098 with an unrelated run starting Monday - a full first tray + a second-tray cell,
+    # 30h, at 20:00. Its last cell finishes prep ~38h in = Mon 20:00 + 38h = Wed ~10:00, so all of
+    # Tuesday is inside the loading lock (a lock that merely cleared mid-Tuesday would leave Tuesday
+    # loadable - see the placement tests). It takes a second tray for the ladder to span a full day.
+    r0 = _place(client, _sid(client, "A1"), mon, slot_index=0, instrument="84098", run_time_hours=30, start_hour=20)
+    tray_id = _stages(r0.json())[0]["tray_id"]
+    for i, (ext, well) in enumerate([("A3", "B01"), ("A4", "C01"), ("A5", "D01")], start=1):
+        sib = _sibling_cell_id(client, tray_id, well)
+        _place(
+            client, _sid(client, ext), mon, slot_index=i, instrument="84098", run_time_hours=30, start_hour=20,
+            cell_choice={"mode": "existing", "cell_id": sib},
+        )
+    _place(client, _sid(client, "A6"), mon, slot_index=4, instrument="84098", run_time_hours=30, start_hour=20)
 
     # A2 starts on 84047 Monday, then we try to move it onto 84098's Tuesday - fully occupied
     # by 84098's own Monday run.

@@ -14,6 +14,7 @@ from app.engine.constants import CELLS_PER_TRAY, within_tray_pos
 from app.models.cell import Cell
 from app.models.schedule import CellUse, Cycle, RunBatch
 from app.schemas.run import PlateOut, RunOut, StageOut
+from app.serializers import duplicate_groups
 from app.services.cell_service import has_barcode_clash, has_failed_use, use_sort_key, window_hours_elapsed
 from app.services.cell_timing import run_is_acquiring, run_load_at
 from app.services.instrument_lock import effective_run_start, run_lock_until
@@ -58,7 +59,14 @@ def _slot_index(plate_index: int, well: str) -> int:
     return (plate_index - 1) * CELLS_PER_TRAY + within_tray_pos(well)
 
 
-def _stage_out(cell_use: CellUse, plate_index: int) -> StageOut:
+def _stage_out(
+    cell_use: CellUse, plate_index: int, dup_groups: dict[str, list[int]] | None = None
+) -> StageOut:
+    dup_index = dup_total = None
+    if dup_groups is not None and cell_use.sample is not None:
+        group = dup_groups.get(cell_use.sample.external_id)
+        if group and len(group) > 1 and cell_use.sample_id in group:
+            dup_index, dup_total = group.index(cell_use.sample_id) + 1, len(group)
     return StageOut(
         slot_index=_slot_index(plate_index, cell_use.well),
         well=cell_use.well,
@@ -71,6 +79,8 @@ def _stage_out(cell_use: CellUse, plate_index: int) -> StageOut:
         run_time_hours=cell_use.run_time_hours,
         sample_id=cell_use.sample_id,
         sample_external_id=cell_use.sample.external_id if cell_use.sample else None,
+        duplicate_index=dup_index,
+        duplicate_total=dup_total,
         barcodes=cell_use.barcode_list,
         cell_use_status=cell_use.status,
         cell_status=cell_use.cell.status if cell_use.cell else "open",
@@ -84,7 +94,7 @@ def _stage_out(cell_use: CellUse, plate_index: int) -> StageOut:
     )
 
 
-def _plate_out(run_batch: RunBatch, cycle: Cycle) -> PlateOut:
+def _plate_out(run_batch: RunBatch, cycle: Cycle, dup_groups: dict[str, list[int]] | None = None) -> PlateOut:
     return PlateOut(
         plate_id=cycle.id,
         plate_index=cycle.plate_index,
@@ -102,7 +112,10 @@ def _plate_out(run_batch: RunBatch, cycle: Cycle) -> PlateOut:
         planned_end_at=ensure_aware(cycle.planned_end_at),
         actual_start_at=ensure_aware(cycle.actual_start_at) if cycle.actual_start_at else None,
         actual_end_at=ensure_aware(cycle.actual_end_at) if cycle.actual_end_at else None,
-        stages=[_stage_out(cu, cycle.plate_index) for cu in sorted(cycle.cell_uses, key=lambda x: x.well)],
+        stages=[
+            _stage_out(cu, cycle.plate_index, dup_groups)
+            for cu in sorted(cycle.cell_uses, key=lambda x: x.well)
+        ],
     )
 
 
@@ -135,7 +148,18 @@ def run_out(db: Session, run_batch: RunBatch, *, with_effective_start: bool = Fa
     # new orphans; this guard also neutralises any already in the DB.
     cycles = sorted((c for c in run_batch.cycles if c.cell_uses), key=lambda c: c.plate_index)
 
-    plates = [_plate_out(run_batch, c) for c in cycles]
+    # Duplicate-marker groups for every sample placed in this run, in one query (see
+    # serializers.duplicate_groups) — spans ALL statuses so "1/3" stays stable as siblings
+    # get scheduled off the backlog or complete.
+    ext_ids = {
+        cu.sample.external_id
+        for c in cycles
+        for cu in c.cell_uses
+        if cu.sample is not None
+    }
+    dup_groups = duplicate_groups(db, ext_ids)
+
+    plates = [_plate_out(run_batch, c, dup_groups) for c in cycles]
     status = _run_status(cycles)
 
     now = utcnow()

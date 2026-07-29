@@ -121,6 +121,12 @@ export function ScheduleSection() {
           or retired.
         </li>
         <li>
+          A tray whose cells are <b>all used up or expired</b> doesn&apos;t disappear — it stays in its position shown{" "}
+          <b>fully greyed out</b> (every cell reading <b>0</b> uses left), because the physical tray is still sitting in
+          the instrument until you swap it. It clears from the map only once a <b>fresh tray is loaded</b> into that
+          position (which then shows in <i>&quot;loaded later&quot;</i>, below).
+        </li>
+        <li>
           A dashed <b>&quot;load tray&quot;</b> box means that carousel position has <b>no tray loaded</b> — it&apos;s
           free for a fresh tray.
         </li>
@@ -290,6 +296,11 @@ export function ScheduleSection() {
         sample&apos;s barcodes, priority, or other details without leaving the grid. The last item in the list is always
         a dashed <b>+ Add sample</b> card; click it to add a brand-new sample straight to the backlog with that same
         form. Either way the tray refreshes on save.
+      </p>
+      <p>
+        A backlog card or placed grid slot showing a <b>1/3</b> badge is a <b>duplicate</b> — the same Container ID
+        entered more than once so it can be run across multiple cells. Each copy drags onto its own slot
+        independently; &ldquo;1/3&rdquo; means copy 1 of 3.
       </p>
 
       <p className={styles.subheading}>Placing samples</p>

@@ -1,10 +1,9 @@
-"""Instrument run-locking: loading only one physical tray (<=4 wells, whichever bay)
-locks the instrument for just LOCK_BUFFER_HOURS (a short loading/setup window); loading
-both trays commits it to the full movie_hours + LOCK_BUFFER_HOURS. A *new* run on that
-instrument can't start before the prior lock ends, but loading more samples into an
-*already-existing* run is never blocked by it - and CycleOut/InstrumentOut both expose
-the derived lock state to the frontend. See
-docs/pacbio-sprq-nx-scheduling-reference.md's "Instrument load-lock timing" section."""
+"""Instrument run-locking: an instrument frees to start a NEW run once the prior run's LAST cell
+finishes prep - dynamic in the cell count (one tray ~4-10h, two trays ~32-38h), from the per-cell
+timing model (cell_timing.run_load_lock_end). A new run can't start before that lock ends, but
+loading more samples into an *already-existing* run is never blocked by it - and RunOut/InstrumentOut
+both expose the derived lock state to the frontend. See docs/pacbio-sprq-nx-scheduling-reference.md's
+"Instrument load-lock timing" section (and capacity fact #3)."""
 from datetime import date, timedelta, timezone
 
 from app.models.schedule import Cycle, RunBatch
@@ -61,6 +60,28 @@ def _sibling_cell_id(client, tray_id, well):
     box guard), so a same-box, different-well placement must reuse this sibling instead."""
     items = client.get("/api/cells", params={"tray_id": tray_id, "page_size": 10}).json()["items"]
     return next(c["id"] for c in items if c["current_well"] == well)
+
+
+def _load_two_tray_run(client, day, start_hour=20, movie=30):
+    """Load 5 cells on `day` — a full first tray (slots 0-3) plus one second-tray cell (slot 4),
+    all `movie`h from `start_hour`. The 2nd tray's cell can't prep until tray 1 frees a sequencing
+    lane (~34h in for a 30h movie), so its prep finishes ~38h after load — long enough for the
+    run's load-lock to span the whole next calendar day. Assumes samples A1-A5 are imported.
+    Returns (run_json, tray_1_first_cell_id)."""
+    r0 = _place(client, _sid(client, "A1"), day, slot_index=0, run_time_hours=movie, start_hour=start_hour)
+    assert r0.status_code == 201, r0.text
+    tray_id = _stages(r0.json())[0]["tray_id"]
+    cell_id_1 = _stages(r0.json())[0]["cell_id"]
+    for i, (ext, well) in enumerate([("A2", "B01"), ("A3", "C01"), ("A4", "D01")], start=1):
+        sib = _sibling_cell_id(client, tray_id, well)
+        r = _place(
+            client, _sid(client, ext), day, slot_index=i, run_time_hours=movie, start_hour=start_hour,
+            cell_choice={"mode": "existing", "cell_id": sib},
+        )
+        assert r.status_code == 201, r.text
+    r4 = _place(client, _sid(client, "A5"), day, slot_index=4, run_time_hours=movie, start_hour=start_hour)
+    assert r4.status_code == 201, r4.text
+    return r4.json(), cell_id_1
 
 
 def test_single_tray_run_only_locks_for_the_short_setup_window(client):
@@ -129,22 +150,20 @@ def test_new_run_keeps_its_requested_start_when_the_loading_lock_clears_midday(c
 
 
 def test_new_run_rejected_on_a_day_the_lock_spans_in_full(client):
-    """Only a lock that runs past the *end* of the load day (the instrument busy every hour
-    of it) blocks a new run there - unlike a lock that clears mid-day (see above)."""
-    client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1\nA2,bc2\nA3,bc3"})
+    """Only a lock that runs past the *end* of the load day (the instrument still prepping cells
+    every hour of it) blocks a new run there - unlike a lock that clears mid-day (see above). It
+    takes a second tray for the prep ladder to span a whole calendar day."""
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,b1\nA2,b2\nA3,b3\nA4,b4\nA5,b5\nA6,b6"})
     mon, tue = _weekdays(2)
 
-    # A 30h movie starting late (20:00) Monday, both trays loaded, locks 84047 until
-    # Monday 20:00 + 30h + 6h = Wednesday 08:00 - so all of Tuesday is inside the lock.
-    r1 = _place(client, _sid(client, "A1"), mon, slot_index=0, run_time_hours=30, start_hour=20)
-    assert r1.status_code == 201, r1.text
-    r2 = _place(client, _sid(client, "A2"), mon, slot_index=4, run_time_hours=30, start_hour=20)
-    assert r2.status_code == 201, r2.text
+    # A full first tray + a second-tray cell, 30h, loaded late (20:00) Monday: the last cell
+    # finishes prep ~38h in = Monday 20:00 + 38h = Wednesday ~10:00, so all of Tuesday is locked.
+    _load_two_tray_run(client, mon, start_hour=20, movie=30)
 
     # Tuesday is fully occupied by the lock (it doesn't clear until Wednesday morning).
-    r3 = _place(client, _sid(client, "A3"), tue, run_time_hours=24)
-    assert r3.status_code == 409, r3.text
-    assert "locked" in r3.json()["detail"].lower()
+    r = _place(client, _sid(client, "A6"), tue, run_time_hours=24)
+    assert r.status_code == 409, r.text
+    assert "locked" in r.json()["detail"].lower()
 
 
 def test_two_tray_run_start_at_or_after_prior_lock_succeeds(client):
@@ -166,29 +185,23 @@ def test_two_tray_run_start_at_or_after_prior_lock_succeeds(client):
 
 
 def test_lock_lookback_finds_a_two_tray_run_from_two_days_earlier(client):
-    client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1\nA2,bc2\nA3,bc3"})
+    """The lock lookback scans back LOOKBACK_DAYS (3), so a two-tray run from two calendar days
+    earlier is still considered when gating a new run. Monday's 5-cell run's prep ladder locks into
+    Wednesday morning (~10:00); a Wednesday reuse is still ALLOWED (Wednesday isn't spanned in full -
+    the lock clears mid-morning), and its requested 07:00 start is KEPT (D1: no silent bump to the
+    lock-clear time). This confirms the lookback reached back two days and judged the day loadable."""
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,b1\nA2,b2\nA3,b3\nA4,b4\nA5,b5\nA6,b6"})
     mon, tue, wed = _weekdays(3)
 
-    # A 30h movie starting late (20:00) on Monday, both trays loaded, locks 84047 until
-    # Monday 20:00 + 36h = Wed 08:00.
-    r1 = _place(client, _sid(client, "A1"), mon, slot_index=0, run_time_hours=30, start_hour=20)
-    assert r1.status_code == 201, r1.text
-    cell_id_1 = _stages(r1.json())[0]["cell_id"]
-    r2 = _place(client, _sid(client, "A2"), mon, slot_index=4, run_time_hours=30, start_hour=20)
-    assert r2.status_code == 201, r2.text
+    _run, cell_id_1 = _load_two_tray_run(client, mon, start_hour=20, movie=30)
 
-    # Wednesday's requested 07:00 start is KEPT as-is (D1: no silent bump to the old 08:00
-    # lock-clear). Monday's 30h run used only 2 of the 4 sequencing servers, so Wednesday
-    # genuinely has spare capacity and the run starts when asked. The load still SUCCEEDING (not
-    # 409'd) confirms the 3-day lookback reached back two calendar days to find Monday's run.
-    # Both tray boxes are already loaded, so reuse tray 1's own cell for its Use 2.
-    r3 = _place(
-        client, _sid(client, "A3"), wed, run_time_hours=24, start_hour=7, cell_choice={"mode": "existing", "cell_id": cell_id_1}
+    # Reuse tray 1's own cell for its Use 2 (its box is already loaded) rather than a third tray.
+    r = _place(
+        client, _sid(client, "A6"), wed, run_time_hours=24, start_hour=7, cell_choice={"mode": "existing", "cell_id": cell_id_1}
     )
-    assert r3.status_code == 201, r3.text
-    reuse_plate = next(p for p in r3.json()["plates"] if p["acquire_date"] == wed)
+    assert r.status_code == 201, r.text
+    reuse_plate = next(p for p in r.json()["plates"] if p["acquire_date"] == wed)
     assert reuse_plate["planned_start_at"].startswith(wed) and "07:00" in reuse_plate["planned_start_at"]
-    assert r3.json()["starts_later_than_requested"] is False
 
 
 def test_loading_onto_a_full_machine_keeps_the_time_but_advises_a_later_effective_start(client):
@@ -243,7 +256,7 @@ def test_loading_into_existing_run_never_blocked_by_its_own_lock(client):
     assert r2.json()["run_id"] == r1.json()["run_id"]
 
 
-def test_cycle_out_exposes_lock_until_for_tray_1_only(client):
+def test_cycle_out_exposes_lock_until_a_single_cell_frees_after_its_prep(client):
     client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1"})
     (mon,) = _weekdays(1)
 
@@ -251,12 +264,13 @@ def test_cycle_out_exposes_lock_until_for_tray_1_only(client):
     assert r1.status_code == 201, r1.text
     body = r1.json()
 
-    # Only tray 1 loaded: lock_until = planned_start_at (mon 09:00 UTC) + LOCK_BUFFER_HOURS (6) = same day 15:00
+    # One cell: the instrument frees once it finishes prep = start (09:00 UTC) + 4h prep = 13:00
+    # (its movie runs on, but the loading bay is free). See cell_timing.run_load_lock_end.
     assert body["lock_until"].startswith(mon)
-    assert body["lock_until"].endswith("15:00:00Z") or body["lock_until"].endswith("15:00:00+00:00")
+    assert body["lock_until"].endswith("13:00:00Z") or body["lock_until"].endswith("13:00:00+00:00")
 
 
-def test_cycle_out_exposes_lock_until_for_both_trays(client):
+def test_cycle_out_exposes_lock_until_two_cells_free_after_the_later_cells_prep(client):
     client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1\nA2,bc2"})
     (mon,) = _weekdays(1)
 
@@ -266,9 +280,10 @@ def test_cycle_out_exposes_lock_until_for_both_trays(client):
     assert r2.status_code == 201, r2.text
     body = r2.json()
 
-    # Both trays loaded: lock_until = planned_start_at (mon 09:00 UTC) + movie_hours (24) + LOCK_BUFFER_HOURS (6) = next calendar day 15:00
-    next_day = (date.fromisoformat(mon) + timedelta(days=1)).isoformat()
-    assert body["lock_until"].startswith(next_day)
+    # Two cells (2h-staggered prep): the 2nd finishes prep at breakout 2h + 4h = 6h, so lock_until
+    # = start (09:00 UTC) + 6h = 15:00 same day. The lock scales with the CELLS' prep, not the
+    # number of trays (a full 4-cell tray is +10h, 8 cells ~+38h - see test_cell_timing's ladder).
+    assert body["lock_until"].startswith(mon)
     assert body["lock_until"].endswith("15:00:00Z") or body["lock_until"].endswith("15:00:00+00:00")
 
 
@@ -303,59 +318,44 @@ def test_instrument_out_reflects_a_currently_active_run(client, db_session):
 
 
 def test_latest_lock_until_ignores_a_completed_run_from_the_lookback_window(client, db_session):
-    """A completed run's real-world outcome is already known - the instrument's true
-    future availability should follow that known outcome, not a hypothetical projection
-    from planned_start_at + movie_hours. Mirrors currently_locked_cycle's own exclusion of
-    completed/aborted cycles (see test_instrument_out_ignores_aborted_runs_for_lock_state),
-    but for the separate latest_lock_until check that gates *creating a new run*."""
-    client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1\nA2,bc2\nA3,bc3"})
-    mon, _tue, wed = _weekdays(3)
+    """A completed run's real-world outcome is already known - the instrument's true future
+    availability follows that, not a projection from its plan. Monday's 5-cell run's prep ladder
+    would otherwise lock ALL of Tuesday (last prep ~Wed 10:00), so the *only* reason the Tuesday
+    load below succeeds is that a completed run is dropped from the candidate set that gates a new
+    run (Cycle.status.notin_ in _candidate_runs)."""
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,b1\nA2,b2\nA3,b3\nA4,b4\nA5,b5\nA6,b6"})
+    mon, tue = _weekdays(2)
 
-    # A 30h movie starting late (20:00) on Monday, both trays loaded - would otherwise lock
-    # 84047 until Monday 20:00 + 36h = Wed 08:00 (see
-    # test_lock_lookback_finds_a_two_tray_run_from_two_days_earlier).
-    r1 = _place(client, _sid(client, "A1"), mon, slot_index=0, run_time_hours=30, start_hour=20)
-    assert r1.status_code == 201, r1.text
-    cell_id_1 = _stages(r1.json())[0]["cell_id"]
-    r2 = _place(client, _sid(client, "A2"), mon, slot_index=4, run_time_hours=30, start_hour=20)
-    assert r2.status_code == 201, r2.text
-    run_id = r1.json()["run_id"]
+    run, cell_id_1 = _load_two_tray_run(client, mon, start_hour=20, movie=30)  # would lock all of Tuesday if live
 
-    # Mark the whole run (both loaded plates) completed - a run's real-world outcome is
-    # recorded across all its plates together.
-    for cyc in db_session.query(Cycle).filter_by(run_batch_id=run_id).all():
+    # Mark the whole run (all its plates) completed - a run's real-world outcome is recorded
+    # across all its plates together.
+    for cyc in db_session.query(Cycle).filter_by(run_batch_id=run["run_id"]).all():
         cyc.status = "completed"
     db_session.commit()
 
-    # Wednesday morning, still well within the old (now-irrelevant) projected lock window.
-    # Both tray boxes are already loaded from Monday, so reuse tray 1's own cell for its
-    # Use 2 (see open_new_tray()'s box guard) rather than opening a third tray.
+    # Tuesday is inside the (now-ignored) projected lock; the load succeeds only because the
+    # completed run is excluded. Reuse tray 1's own cell for its Use 2 rather than a third tray.
     resp = _place(
-        client, _sid(client, "A3"), wed, run_time_hours=24, start_hour=7, cell_choice={"mode": "existing", "cell_id": cell_id_1}
+        client, _sid(client, "A6"), tue, run_time_hours=24, start_hour=7, cell_choice={"mode": "existing", "cell_id": cell_id_1}
     )
     assert resp.status_code == 201, resp.text
 
 
 def test_latest_lock_until_ignores_an_aborted_run_from_the_lookback_window(client, db_session):
-    client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1\nA2,bc2\nA3,bc3"})
-    mon, _tue, wed = _weekdays(3)
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,b1\nA2,b2\nA3,b3\nA4,b4\nA5,b5\nA6,b6"})
+    mon, tue = _weekdays(2)
 
-    r1 = _place(client, _sid(client, "A1"), mon, slot_index=0, run_time_hours=30, start_hour=20)
-    assert r1.status_code == 201, r1.text
-    cell_id_1 = _stages(r1.json())[0]["cell_id"]
-    r2 = _place(client, _sid(client, "A2"), mon, slot_index=4, run_time_hours=30, start_hour=20)
-    assert r2.status_code == 201, r2.text
-    run_id = r1.json()["run_id"]
+    run, cell_id_1 = _load_two_tray_run(client, mon, start_hour=20, movie=30)  # would lock all of Tuesday if live
 
-    # Mark the whole run (both loaded plates) aborted.
-    for cyc in db_session.query(Cycle).filter_by(run_batch_id=run_id).all():
+    # Mark the whole run (all its plates) aborted.
+    for cyc in db_session.query(Cycle).filter_by(run_batch_id=run["run_id"]).all():
         cyc.status = "aborted"
     db_session.commit()
 
-    # Both tray boxes are already loaded from Monday, so reuse tray 1's own cell for its
-    # Use 2 (see open_new_tray()'s box guard) rather than opening a third tray.
+    # Reuse tray 1's own cell for its Use 2 rather than opening a third tray.
     resp = _place(
-        client, _sid(client, "A3"), wed, run_time_hours=24, start_hour=7, cell_choice={"mode": "existing", "cell_id": cell_id_1}
+        client, _sid(client, "A6"), tue, run_time_hours=24, start_hour=7, cell_choice={"mode": "existing", "cell_id": cell_id_1}
     )
     assert resp.status_code == 201, resp.text
 

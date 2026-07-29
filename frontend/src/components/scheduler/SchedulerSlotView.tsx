@@ -2,6 +2,7 @@ import { forwardRef, memo } from "react";
 import type { CSSProperties, HTMLAttributes } from "react";
 
 import { BarcodeChips } from "@/components/shared/BarcodeChips";
+import { DuplicateBadge } from "@/components/shared/DuplicateBadge";
 import type { SlotIndex, StageOut } from "@/types/schedule";
 import { classForUseIndex } from "@/utils/useIndexClass";
 import { cellPositionLabel, plateWellFromSlot } from "@/utils/plateWell";
@@ -210,7 +211,10 @@ export const SchedulerSlotView = memo(
           <div className={styles.ext} title={stage!.sample_external_id ?? stage!.cell_ref}>
             {stage!.sample_external_id ?? "—"}
           </div>
-          <div className={styles.cellref}>{stage!.cell_ref}</div>
+          <div className={styles.cellref}>
+            {stage!.cell_ref}
+            <DuplicateBadge index={stage!.duplicate_index} total={stage!.duplicate_total} />
+          </div>
           {qcAlert && (
             <div
               className={

@@ -39,6 +39,11 @@ class StageOut(BaseModel):
     run_time_hours: int
     sample_id: int | None
     sample_external_id: str | None
+    # Duplicate marker for the sample in this slot: when its Container ID appears on more than
+    # one sample (any status), duplicate_total is the count and duplicate_index this copy's
+    # 1-based position. Both null for a one-off — the grid card shows the "1/3" badge only when set.
+    duplicate_index: int | None = None
+    duplicate_total: int | None = None
     barcodes: list[str]
     # This specific use's own status (planned/started/completed/failed/cancelled) and the
     # physical cell's overall status (open/exhausted/window_expired/retired/stopped) - lets

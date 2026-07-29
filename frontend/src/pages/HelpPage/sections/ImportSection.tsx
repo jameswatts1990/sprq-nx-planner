@@ -55,7 +55,9 @@ export function ImportSection() {
         live preview of the first rows shows exactly what will be imported, and the mapping updates it as you change
         a dropdown. Fields marked <span aria-hidden>*</span> are required — <b>Container ID</b> and{" "}
         <b>Barcodes</b> must be mapped before the <b>Import</b> button enables. Rows with no barcode are skipped, and
-        a note tells you how many. Use <b>Back</b> to return to the text without losing it.
+        a note tells you how many. If the same Container ID appears more than once in the file, a note flags it here
+        too — fine when you mean to run a sample across several cells, worth a second look otherwise. Use <b>Back</b>{" "}
+        to return to the text without losing it.
       </p>
       <p>
         A few fields — the complex-loading volumes (<i>cleaned-complex</i> and <i>loading-buffer</i>) — are optional
@@ -74,15 +76,22 @@ export function ImportSection() {
         <dt>Imported</dt>
         <dd>New samples added to the Backlog.</dd>
         <dt>Duplicates</dt>
-        <dd>Rows whose Container ID already matched an active sample, so they were not added again.</dd>
+        <dd>
+          Container IDs that appear more than once — repeated within this file, or already in the
+          system (any status, including completed). <b>Duplicates are no longer blocked:</b> every
+          copy is imported, because the same sample is often run across multiple SMRT cells. This
+          number is a heads-up, not a drop count.
+        </dd>
         <dt>Skipped</dt>
         <dd>Rows that parsed but weren&apos;t imported — usually because they had no barcode.</dd>
       </dl>
       <p>
         Two tables make skipped and duplicate rows <b>actionable</b>: the <b>Skipped rows</b> table lists each
         sample ID and why it was skipped (e.g. &quot;No barcodes&quot;) so you can fix the source and re-import, and
-        the <b>Duplicates</b> table lists each Container ID that already existed. Use <b>Import another file</b> to
-        start over, or <b>View backlog</b> to jump to the newly imported samples.
+        the <b>Duplicated Container IDs</b> table lists each repeated ID with how many copies this import created and
+        how many now exist in total. If a duplicate wasn&apos;t intended, <b>undo the import</b> (below) and
+        re-import a corrected file. Duplicated samples are marked with a <b>1/3</b> badge everywhere they appear.
+        Use <b>Import another file</b> to start over, or <b>View backlog</b> to jump to the newly imported samples.
       </p>
       <div className={styles.noteExamples}>
         <Note tone="warn" icon="!">

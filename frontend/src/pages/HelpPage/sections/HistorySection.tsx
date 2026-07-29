@@ -73,7 +73,9 @@ export function HistorySection() {
       <p>
         <b>What it&apos;s for:</b> every sample that has finished, either <b>completed</b> (green) or <b>failed</b>{" "}
         (red). Search by Container ID, barcode, or parent sample. Each row shows the sample&apos;s <b>Container ID</b>,
-        status, barcodes, parent sample, Target OPLC, Actual OPLC, priority, and last-updated time. Click <i>any</i> column
+        status, barcodes, parent sample, Target OPLC, Actual OPLC, priority, and last-updated time. A <b>1/3</b> badge
+        by a Container ID marks a duplicate — the same sample run across multiple cells (counted across every status,
+        including completed). Click <i>any</i> column
         header to sort the list by that field (click again to reverse); it starts with the most recently updated
         first, and long lists are paged with the same <b>Previous</b>/<b>Next</b> control. Click a row to expand it
         and see that sample&apos;s individual cell uses — the run (links to the run), which plate (1 or 2) it ran on,

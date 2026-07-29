@@ -29,6 +29,12 @@ export interface SampleOut {
   import_batch_id: number | null;
   created_at: string;
   updated_at: string;
+  /** Duplicate marker: when this Container ID is carried by more than one sample (across all
+   * statuses, incl. completed), duplicate_total is that count and duplicate_index this copy's
+   * 1-based position (oldest first). Both null/absent for a one-off — the "1/3" badge renders
+   * only when duplicate_total is set. */
+  duplicate_index?: number | null;
+  duplicate_total?: number | null;
 }
 
 export interface SampleCreate {

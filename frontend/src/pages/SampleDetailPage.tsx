@@ -5,6 +5,7 @@ import { Link, useLocation, useParams } from "react-router-dom";
 import { ApiError } from "@/api/client";
 import { samplesApi } from "@/api/samples";
 import { BarcodeChips } from "@/components/shared/BarcodeChips";
+import { DuplicateBadge } from "@/components/shared/DuplicateBadge";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
@@ -113,7 +114,10 @@ export function SampleDetailPage() {
             </span>
           }
         >
-          <h2>{sample.external_id}</h2>
+          <h2>
+            {sample.external_id}{" "}
+            <DuplicateBadge index={sample.duplicate_index} total={sample.duplicate_total} />
+          </h2>
         </CardHeader>
         <CardBody>
           <div className={styles.headerGrid}>

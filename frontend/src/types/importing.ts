@@ -20,15 +20,29 @@ export interface SkippedRow {
   reason: string;
 }
 
+/** A Container ID this import created more than one copy of, and/or that was already known
+ * (any status, incl. completed). Surfaced as a heads-up (with an Undo recommendation), not a
+ * rejection — duplicates are a supported workflow. */
+export interface DuplicateNote {
+  external_id: string;
+  /** Copies created by this import. */
+  created_now: number;
+  /** Total samples carrying this Container ID now (prior + this import). */
+  total_seen: number;
+}
+
 export interface ImportResult {
   import_batch_id: number;
   row_count: number;
   imported_count: number;
   skipped_count: number;
+  /** How many imported rows share a Container ID with another sample (heads-up count). */
   duplicate_count: number;
   warnings: string[];
   rejected: RejectedRow[];
   skipped: SkippedRow[];
+  /** Per-Container-ID duplicate summary (only IDs seen more than once). */
+  duplicates: DuplicateNote[];
   samples: SampleOut[];
 }
 
@@ -64,6 +78,9 @@ export interface ImportPreviewResult {
   sample_rows: string[][];
   row_count: number;
   unmatched_required: string[];
+  /** Container IDs that repeat within the pasted file (best-effort, from the auto-suggested ID
+   * column), so the mapping-review step can warn before committing. */
+  within_file_duplicates: DuplicateNote[];
 }
 
 /** Convert a scheduler sheet (as CSV text) into the standard import CSV by pooling rows. */

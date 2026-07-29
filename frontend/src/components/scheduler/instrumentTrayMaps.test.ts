@@ -9,7 +9,7 @@ import {
   usesRemainingAt,
   type TrayPositionView,
 } from "./instrumentTrayMaps";
-import { computeTrayEvictionDates, computeTrayFoundingDates, computeVacatedTrayIds } from "./waitingCells";
+import { computeTrayEvictionDates, computeTrayFoundingDates } from "./waitingCells";
 
 const WEEK = ["2026-07-20", "2026-07-21", "2026-07-22", "2026-07-23", "2026-07-24"];
 const SERIAL = "84047";
@@ -70,13 +70,12 @@ function trayCells(trayId: number, col: "01" | "02", overridesByPos: Partial<Cel
 function derive(cells: CellOut[]) {
   const founding = computeTrayFoundingDates(cells);
   const eviction = computeTrayEvictionDates(cells, founding);
-  const vacated = computeVacatedTrayIds(cells);
-  return { founding, eviction, vacated };
+  return { founding, eviction };
 }
 
 function build(cells: CellOut[]) {
-  const { founding, eviction, vacated } = derive(cells);
-  return computeInstrumentTrayMaps(cells, WEEK, founding, eviction, vacated);
+  const { founding, eviction } = derive(cells);
+  return computeInstrumentTrayMaps(cells, WEEK, founding, eviction);
 }
 
 describe("computeInstrumentTrayMaps", () => {
@@ -243,10 +242,10 @@ describe("computeInstrumentTrayMaps", () => {
     expect(map.futureTrays).toEqual([{ trayId: 2, carousel: 0, foundingDate: "2026-07-23" }]);
   });
 
-  it("promotes a mid-week tray into the slot when nothing usable is resident at the week's start", () => {
-    // Every cell of tray 1 is exhausted -> vacated (physically gone), so nothing is shown in the
-    // slot at the week's start; tray 2, founded Wed, is then this position's only usable tray, so
-    // it fills the slot rather than being relegated to the "loaded later" turnover group.
+  it("keeps a fully-depleted tray in the slot and lists a mid-week successor as 'loaded later'", () => {
+    // Every cell of tray 1 is exhausted, but the physical tray is still in the bay, so it stays a
+    // depleted resident at the week's start; tray 2, founded Wed, is a genuine turnover successor
+    // and belongs in the "loaded later" group beneath it - never promoted over the depleted tray.
     const oldTray = trayCells(1, "01", [0, 1, 2, 3].map(() => ({
       uses_consumed: 3,
       uses_remaining: 0,
@@ -259,8 +258,9 @@ describe("computeInstrumentTrayMaps", () => {
     ]);
     const map = build([...oldTray, ...newTray]).get(SERIAL)!;
 
-    expect(map.carousel[0]!.trayId).toBe(2);
-    expect(map.futureTrays).toEqual([]);
+    expect(map.carousel[0]!.trayId).toBe(1);
+    expect(map.carousel[0]!.positions.every((p) => p.usesRemaining === 0)).toBe(true);
+    expect(map.futureTrays).toEqual([{ trayId: 2, carousel: 0, foundingDate: "2026-07-23" }]);
   });
 
   it("shows a tray first loaded mid-week in its slot, not 'loaded later', when it's the position's only tray", () => {
@@ -275,7 +275,10 @@ describe("computeInstrumentTrayMaps", () => {
     expect(map.futureTrays).toEqual([]);
   });
 
-  it("treats a fully-vacated tray with no successor as an empty carousel position", () => {
+  it("keeps a fully-depleted tray with no successor as a depleted resident, not an empty slot", () => {
+    // All cells terminal (used up or retired) and no successor tray: the physical tray is still in
+    // the bay until an operator swaps it, so it stays in the slot rendered fully depleted (every
+    // position reads 0 usable uses) rather than vanishing to a "load tray" placeholder.
     const cells = trayCells(1, "01", [
       { uses_consumed: 3, uses_remaining: 0, status: "exhausted", last_use_run_date: "2026-07-20", first_use_started_at: "2026-07-20T12:00:00Z" },
       { uses_consumed: 3, uses_remaining: 0, status: "exhausted", last_use_run_date: "2026-07-20", first_use_started_at: "2026-07-20T12:00:00Z" },
@@ -283,7 +286,8 @@ describe("computeInstrumentTrayMaps", () => {
       { uses_consumed: 0, uses_remaining: 0, status: "retired", last_use_run_date: null },
     ]);
     const map = build(cells).get(SERIAL)!;
-    expect(map.carousel[0]).toBeNull();
+    expect(map.carousel[0]!.trayId).toBe(1);
+    expect(map.carousel[0]!.positions.map((p) => p.usesRemaining)).toEqual([0, 0, 0, 0]);
     expect(map.futureTrays).toEqual([]);
   });
 

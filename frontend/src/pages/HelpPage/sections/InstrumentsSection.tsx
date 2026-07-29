@@ -35,13 +35,17 @@ export function InstrumentsSection() {
 
       <p className={styles.subheading}>The Revio screen</p>
       <p>
-        While a run is in progress, the card shows a dark <b>Revio screen</b> panel that mirrors the instrument&apos;s
-        own touchscreen, so you can read what the machine is doing at a glance without walking over to it. It only
-        appears when something is loaded — an idle instrument shows no screen, same as the real one.
+        Each card shows a dark <b>Revio screen</b> panel that mirrors the instrument&apos;s own touchscreen, so you can
+        read what the machine is doing at a glance without walking over to it. It leads with the instrument&apos;s name
+        (or serial). When a run is in progress it fills in with the boxes and stage columns below; when the machine is
+        free it goes <b>idle</b> but, like the real screen, <b>keeps its most recent run on display</b> — every cell in
+        the <b>Complete</b> column and a small &quot;idle&quot; note — until the next run loads. A machine that has
+        never run just shows &quot;idle · no cells loaded&quot;.
       </p>
       <ul>
         <li>
-          <b>Serial number</b> — the instrument&apos;s own identity, in large type, exactly as its screen shows it.
+          <b>Name</b> — the instrument&apos;s friendly name in large type (its serial if it has no name, with the name
+          as a small subtitle otherwise), exactly as its screen shows it.
         </li>
         <li>
           <b>Remaining SMRT Cell uses</b> — one box per cell currently on stages (not yet complete), each showing how
@@ -54,11 +58,20 @@ export function InstrumentsSection() {
           cell must be reused or it&apos;s wasted.
         </li>
         <li>
+          <b>Lock timer</b> (🔒) — above the uses box, a live countdown to when the instrument frees up to{" "}
+          <b>start the next run</b>: the moment its <b>last cell finishes prep</b> (after which the cells just
+          sequence, and the bay is free to load again). It scales with the number of cells — roughly <b>4h</b> for one
+          cell up to <b>10h</b> for a full tray of four (prep is 4h, staggered 2h per cell), and up to <b>~38h</b> for
+          a second tray, whose cells can&apos;t start prep until the first tray frees the sequencing lanes. It
+          disappears once every cell has finished prep.
+        </li>
+        <li>
           <b>Stage columns</b> — each run in progress is a row, labelled by its run name, with its cells shown as
           squares under the four stages a cell moves through: <b>Pending</b> (loaded, not started — a hollow square),{" "}
           <b>Loading</b> (breaking out / prep), <b>Sequencing</b> (its movie, with a soft glow), and <b>Complete</b>{" "}
           (movie finished — dimmed). The time on the right of each row is how long until that run finishes and frees the
-          instrument. These use the same approximate PacBio timings as the gantt below.
+          instrument, or <b>&quot;done&quot;</b> once it has. These use the same approximate PacBio timings as the gantt
+          below.
         </li>
       </ul>
 
@@ -108,10 +121,12 @@ export function InstrumentsSection() {
         are approximate PacBio estimates, not the instrument&apos;s exact schedule.
       </p>
 
-      <p className={styles.subheading}>Status badge</p>
+      <p className={styles.subheading}>Status at a glance</p>
       <p>
-        Each card shows one status at a glance: <b>Ready</b> (available), <b>Running</b> (a run is sequencing on it
-        now), <b>Down</b> (marked down for maintenance), or <b>Inactive</b> (retired).
+        The Revio screen itself now shows each instrument&apos;s state, so the card no longer needs a separate title
+        bar: a screen with stage columns means a run is <b>in progress</b>; an idle screen reads <b>&quot;Idle · no
+        cells loaded&quot;</b> when it&apos;s free, <b>&quot;Down for maintenance&quot;</b> (in amber) when it&apos;s
+        marked down, or <b>&quot;Retired&quot;</b> when it&apos;s been taken out of service (its whole card also dims).
       </p>
     </div>
   );

@@ -213,17 +213,24 @@ function positionView(cell: CellOut, carousel: 0 | 1): TrayPositionView {
  * begins, and surfaces anything loaded later as an explicit "later this week" list rather than
  * silently swapping the resident tray for a not-yet-loaded successor.
  *
+ * A tray whose 4 cells have ALL gone terminal (used up / expired / retired) is deliberately NOT
+ * dropped here - it stays in its carousel slot, rendered fully depleted (its cells project to
+ * "spent"/"expired" and read 0 uses), because the physical tray is still sitting in the bay
+ * until an operator swaps it. This is the one place the overview parts ways with the grid's
+ * ghost logic (which treats a fully-terminal tray as gone, freeing its wells to load onto) -
+ * hence no `vacatedTrayIds` here: only a *successor* tray founded in the same carousel position
+ * evicts the depleted one from the slot (via `trayEvictionDates`), and that successor then shows
+ * in the "loaded later" group rather than blanking out what's physically still loaded.
+ *
  * `allCells` should be the wide open+terminal+stopped universe (SchedulePage's three cell
- * queries), and `trayFoundingDates`/`trayEvictionDates`/`vacatedTrayIds` the same maps
- * SchedulePage already derives from it - reused here so residency agrees exactly with the
- * grid's ghost/eviction logic.
+ * queries), and `trayFoundingDates`/`trayEvictionDates` the same maps SchedulePage already
+ * derives from it - reused here so residency agrees exactly with the grid's eviction logic.
  */
 export function computeInstrumentTrayMaps(
   allCells: CellOut[],
   days: string[],
   trayFoundingDates: Map<number, string>,
   trayEvictionDates: Map<number, string>,
-  vacatedTrayIds: Set<number>,
 ): Map<string, InstrumentTrayMap> {
   // Bucket every tray-linked cell by instrument, then tray.
   const byInstrument = new Map<string, Map<number, CellOut[]>>();
@@ -258,9 +265,9 @@ export function computeInstrumentTrayMaps(
     const midWeek: [TrayCand[], TrayCand[]] = [[], []];
 
     for (const [trayId, siblings] of byTray) {
-      // A fully-vacated tray (every sibling terminal/stopped) with no successor is gone - the
-      // physical tray has effectively left; the position reads as empty/loadable.
-      if (vacatedTrayIds.has(trayId)) continue;
+      // A fully-terminal tray (every sibling used up / expired / retired) is intentionally kept,
+      // not skipped: it stays a depleted resident until a successor evicts it (see the header
+      // docstring). Residency below is decided purely by founding/eviction tenure.
 
       // All 4 siblings share one carousel position; read it off the first with a known well.
       const wellCell = siblings.find((c) => c.current_well);

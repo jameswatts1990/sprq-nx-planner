@@ -1,10 +1,44 @@
 from __future__ import annotations
 
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
 from app.models.sample import Sample
 from app.schemas.sample import SampleCellUseOut, SampleDetailOut, SampleOut
 
 
-def sample_out(sample: Sample) -> SampleOut:
+def duplicate_groups(db: Session, external_ids: set[str]) -> dict[str, list[int]]:
+    """Map each given Container ID to the ids of every sample carrying it, oldest-first — across
+    ALL statuses (incl. completed/cancelled). Lets a serializer stamp the "1/3" ordinal: a
+    sample's total = len(group), its index = group.index(sample.id) + 1. One query for a whole
+    page/grid; empty input returns {}."""
+    if not external_ids:
+        return {}
+    groups: dict[str, list[int]] = {}
+    for ext, sid in db.execute(
+        select(Sample.external_id, Sample.id)
+        .where(Sample.external_id.in_(external_ids))
+        .order_by(Sample.external_id, Sample.created_at, Sample.id)
+    ).all():
+        groups.setdefault(ext, []).append(sid)
+    return groups
+
+
+def duplicate_marker(sample: Sample, groups: dict[str, list[int]]) -> tuple[int | None, int | None]:
+    """(index, total) for a sample given a duplicate_groups() map, or (None, None) when it's a
+    one-off (or not in the map). Only groups of >1 yield a marker."""
+    group = groups.get(sample.external_id)
+    if not group or len(group) <= 1:
+        return None, None
+    return group.index(sample.id) + 1, len(group)
+
+
+def sample_out(
+    sample: Sample,
+    *,
+    duplicate_index: int | None = None,
+    duplicate_total: int | None = None,
+) -> SampleOut:
     return SampleOut(
         id=sample.id,
         external_id=sample.external_id,
@@ -25,11 +59,16 @@ def sample_out(sample: Sample) -> SampleOut:
         import_batch_id=sample.import_batch_id,
         created_at=sample.created_at,
         updated_at=sample.updated_at,
+        duplicate_index=duplicate_index,
+        duplicate_total=duplicate_total,
     )
 
 
-def sample_detail_out(sample: Sample) -> SampleDetailOut:
-    base = sample_out(sample)
+def sample_detail_out(sample: Sample, db: Session | None = None) -> SampleDetailOut:
+    dup_index, dup_total = (None, None)
+    if db is not None:
+        dup_index, dup_total = duplicate_marker(sample, duplicate_groups(db, {sample.external_id}))
+    base = sample_out(sample, duplicate_index=dup_index, duplicate_total=dup_total)
     cell_uses: list[SampleCellUseOut] = []
     for cu in sorted(sample.cell_uses, key=lambda x: x.id):
         run_batch = cu.cycle.run_batch if cu.cycle else None

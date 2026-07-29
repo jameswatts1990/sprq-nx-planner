@@ -4,7 +4,7 @@ import csv
 import io
 from typing import NamedTuple
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.engine.csv_parse import parse_csv
@@ -22,6 +22,7 @@ from app.models.audit import AuditLog
 from app.models.importing import ImportBatch
 from app.models.sample import Sample
 from app.schemas.importing import (
+    DuplicateNote,
     ImportFieldOut,
     ImportPreviewResult,
     ImportRequest,
@@ -34,7 +35,7 @@ from app.schemas.importing import (
     UndoImportResult,
 )
 from app.serializers import sample_out
-from app.services.sample_service import DuplicateSampleError, create_backlog_sample
+from app.services.sample_service import create_backlog_sample
 
 PREVIEW_ROW_LIMIT = 8
 
@@ -80,37 +81,59 @@ def import_samples(db: Session, req: ImportRequest) -> ImportResult:
     db.add(batch)
     db.flush()
 
+    # How many copies of each Container ID already existed BEFORE this import (any status,
+    # incl. completed) — captured up front so total_seen can distinguish prior history from
+    # this batch's own copies. Duplicates are created, never rejected.
+    incoming_ids = {parsed.id for parsed in normalized.samples}
+    prior_counts: dict[str, int] = {}
+    if incoming_ids:
+        for ext, cnt in db.execute(
+            select(Sample.external_id, func.count())
+            .where(Sample.external_id.in_(incoming_ids))
+            .group_by(Sample.external_id)
+        ).all():
+            prior_counts[ext] = cnt
+
     created = []
     rejected: list[RejectedRow] = []
-    duplicate_count = 0
+    created_counts: dict[str, int] = {}
 
     for parsed in normalized.samples:
-        try:
-            sample = create_backlog_sample(
-                db,
-                external_id=parsed.id,
-                barcodes=parsed.barcodes,
-                sanger_ids=parsed.sanger,
-                parent_sample=parsed.parent,
-                target_oplc=parsed.target_oplc,
-                actual_oplc=parsed.actual_oplc,
-                cleaned_complex_volume=parsed.cleaned_complex_volume,
-                loading_buffer_volume=parsed.loading_buffer_volume,
-                adaptive_loading=parsed.adaptive_loading,
-                full_resolution_base_q=parsed.full_resolution_base_q,
-                priority=parsed.priority,
-                base_kinetics=parsed.base_kinetics,
-                movie_time_hours=parsed.movie_time,
-                import_batch_id=batch.id,
-            )
-        except DuplicateSampleError as err:
-            duplicate_count += 1
-            rejected.append(RejectedRow(external_id=parsed.id, reason=str(err)))
-            continue
+        sample = create_backlog_sample(
+            db,
+            external_id=parsed.id,
+            barcodes=parsed.barcodes,
+            sanger_ids=parsed.sanger,
+            parent_sample=parsed.parent,
+            target_oplc=parsed.target_oplc,
+            actual_oplc=parsed.actual_oplc,
+            cleaned_complex_volume=parsed.cleaned_complex_volume,
+            loading_buffer_volume=parsed.loading_buffer_volume,
+            adaptive_loading=parsed.adaptive_loading,
+            full_resolution_base_q=parsed.full_resolution_base_q,
+            priority=parsed.priority,
+            base_kinetics=parsed.base_kinetics,
+            movie_time_hours=parsed.movie_time,
+            import_batch_id=batch.id,
+        )
         created.append(sample)
+        created_counts[parsed.id] = created_counts.get(parsed.id, 0) + 1
+
+    # A Container ID is a "duplicate" worth flagging if this import made >1 copy of it OR it was
+    # already known before. total_seen = prior copies + copies created now.
+    duplicates = [
+        DuplicateNote(
+            external_id=ext,
+            created_now=created_counts[ext],
+            total_seen=prior_counts.get(ext, 0) + created_counts[ext],
+        )
+        for ext in created_counts
+        if prior_counts.get(ext, 0) + created_counts[ext] > 1
+    ]
+    duplicates.sort(key=lambda d: d.external_id)
 
     batch.imported_count = len(created)
-    batch.duplicate_count = duplicate_count
+    batch.duplicate_count = len(duplicates)
 
     db.commit()
     for s in created:
@@ -125,6 +148,7 @@ def import_samples(db: Session, req: ImportRequest) -> ImportResult:
         warnings=normalized.warnings,
         rejected=rejected,
         skipped=[SkippedRowOut(identifier=s.identifier, reason=s.reason) for s in normalized.skipped],
+        duplicates=duplicates,
         samples=[sample_out(s) for s in created],
     )
 
@@ -158,7 +182,29 @@ def preview_import(raw_text: str, has_header: bool = True) -> ImportPreviewResul
         sample_rows=data[:PREVIEW_ROW_LIMIT],
         row_count=len(data),
         unmatched_required=unmatched,
+        within_file_duplicates=_within_file_duplicates(data, suggested.get(K_EXTERNAL_ID)),
     )
+
+
+def _within_file_duplicates(data: list[list[str]], ext_col: int | None) -> list[DuplicateNote]:
+    """Container IDs that repeat within the pasted rows, using the auto-suggested Container ID
+    column. Best-effort: if the user later remaps that column the review UI can recompute, but
+    this gives an early heads-up straight after paste. Empty when no ID column is detected."""
+    if ext_col is None:
+        return []
+    counts: dict[str, int] = {}
+    for row in data:
+        if ext_col < len(row):
+            ext = row[ext_col].strip()
+            if ext:
+                counts[ext] = counts.get(ext, 0) + 1
+    notes = [
+        DuplicateNote(external_id=ext, created_now=n, total_seen=n)
+        for ext, n in counts.items()
+        if n > 1
+    ]
+    notes.sort(key=lambda d: d.external_id)
+    return notes
 
 
 def scheduler_convert(raw_text: str) -> SchedulerConvertResult:

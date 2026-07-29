@@ -295,6 +295,15 @@ export function ImportPage() {
                 {skippedInPreview} of the first {preview.sample_rows.length} rows have no barcode and will be skipped.
               </Note>
             )}
+            {preview.within_file_duplicates.length > 0 && (
+              <Note tone="warn" icon="!">
+                This file repeats {preview.within_file_duplicates.length} Container ID
+                {preview.within_file_duplicates.length === 1 ? "" : "s"} (
+                {preview.within_file_duplicates.map((d) => `${d.external_id} ×${d.created_now}`).join(", ")}
+                ). Each will be imported as a separate copy — fine if you&apos;re running the same sample
+                across multiple cells; otherwise fix the file before importing.
+              </Note>
+            )}
 
             {mappedFields.length > 0 && preview.sample_rows.length > 0 && (
               <div className={styles.previewWrap}>
@@ -644,9 +653,41 @@ function ImportResultPanel({ result }: { result: ImportResult }) {
           </>
         )}
 
+        {result.duplicates.length > 0 && (
+          <>
+            <div className={styles.notesList}>
+              <Note tone="warn" icon="!">
+                Some Container IDs appear more than once (in this file, or already in the system
+                including completed samples). Each copy was still imported — the same sample can be
+                run across multiple cells. If this wasn&apos;t intended, use <b>Undo last import</b>{" "}
+                below and re-import.
+              </Note>
+            </div>
+            <p className={styles.subheading}>Duplicated Container IDs</p>
+            <table className={styles.rejectedTable}>
+              <thead>
+                <tr>
+                  <th>Container ID</th>
+                  <th>Copies this import</th>
+                  <th>Seen total (incl. completed)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {result.duplicates.map((d, i) => (
+                  <tr key={i}>
+                    <td>{d.external_id}</td>
+                    <td>{d.created_now}</td>
+                    <td>{d.total_seen}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
+        )}
+
         {result.rejected.length > 0 && (
           <>
-            <p className={styles.subheading}>Duplicates (already in the system)</p>
+            <p className={styles.subheading}>Rejected rows</p>
             <table className={styles.rejectedTable}>
               <thead>
                 <tr>

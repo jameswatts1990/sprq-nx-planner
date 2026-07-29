@@ -10,6 +10,7 @@ import type { SampleSortBy, SampleSortDir } from "@/api/samples";
 import { samplesApi } from "@/api/samples";
 import { topupsApi } from "@/api/topups";
 import { BarcodeChips } from "@/components/shared/BarcodeChips";
+import { DuplicateBadge } from "@/components/shared/DuplicateBadge";
 import { Pagination } from "@/components/shared/Pagination";
 import { SortableColumnHeader } from "@/components/shared/SortableColumnHeader";
 import { Badge } from "@/components/ui/Badge";
@@ -86,9 +87,15 @@ function buildSampleColumns({ renderHeader, backNav, onEdit, onCancel, cancelPen
     columnHelper.accessor("external_id", {
       header: () => renderHeader("Container ID", "external_id"),
       cell: (info) => (
-        <Link to={`/samples/${info.row.original.id}`} state={backNav} className="link">
-          {info.getValue()}
-        </Link>
+        <span className={styles.badgeGroup}>
+          <Link to={`/samples/${info.row.original.id}`} state={backNav} className="link">
+            {info.getValue()}
+          </Link>
+          <DuplicateBadge
+            index={info.row.original.duplicate_index}
+            total={info.row.original.duplicate_total}
+          />
+        </span>
       ),
     }),
     columnHelper.accessor("barcodes", {

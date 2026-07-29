@@ -34,6 +34,9 @@ export function BacklogSection() {
         loading, Full res. base Q, Include base kinetics, and Created (when it was imported). <b>Target OPLC</b> is the
         planned loading concentration; <b>Actual OPLC</b> is the concentration actually achieved on the plate. A dash
         (—) means that field is empty for the sample. Click a <b>Container ID</b> to open that sample&apos;s detail page.
+        A <b>1/3</b> badge beside a Container ID means it&apos;s a <b>duplicate</b> — the same sample entered more than
+        once so it can be run across multiple cells; &ldquo;1/3&rdquo; is copy 1 of 3 (counted across every status,
+        including completed).
       </p>
       <p>
         <b>Sorting:</b> click <i>any</i> column header to sort by that field; click it again to reverse the
@@ -90,8 +93,10 @@ export function BacklogSection() {
         three True/False settings (Adaptive Loading, Full-Resolution Base Q, Include Base Kinetics) and Priority
         (Standard / Medium / High) are chosen from a dropdown, and start on the defaults set in the Admin tab&apos;s{" "}
         <b>Sample defaults</b> panel — change any of them before saving. The new sample lands in the backlog exactly
-        like an imported one. If the Container ID already belongs to an active sample, the form says so and nothing
-        is added.
+        like an imported one. If the Container ID has been seen before (any status, including completed), the form
+        doesn&apos;t reject it — it tells you how many times it&apos;s been seen and offers <b>Add anyway</b> to create
+        another copy (for running the same sample across multiple cells). Click Add anyway to confirm, or change the
+        Container ID if it was a mistake.
       </p>
       <p>
         <b>Edit</b> (on each row) opens the same form to correct a backlog sample&apos;s details — barcodes, Sanger

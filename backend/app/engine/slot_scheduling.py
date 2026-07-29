@@ -106,15 +106,14 @@ def fill_slots(
             return True
         return owner.total_uses >= CELL_MAX_USES and next_idx[owner_id] >= len(owner.uses)
 
-    # Loading more than half a slot's wells (i.e. tray 2) commits that instrument to the
-    # full movie plus a settle buffer before it can start its next run - long enough to
-    # spill into the immediately following calendar day(s) (mirrors
-    # instrument_lock.run_lock_until, which persistence checks for real via
-    # get_or_create_run). A half-tray (<=4 well) run only locks for the short settle
-    # buffer and never blocks the next day. This tracks, per instrument, the earliest
-    # run_date a brand-new run created by this batch may start; any slot before that
-    # date is skipped entirely, so the plan this function produces never proposes a day
-    # the persistence layer would go on to reject.
+    # Per instrument, the earliest run_date a brand-new run created by this batch may start, so a
+    # slot before it is skipped and the plan never proposes a day the persistence layer would
+    # reject. The authoritative lock (instrument_lock.run_lock_until, checked for real by
+    # get_or_create_run) is now the per-cell "last cell finishes prep" time; here we only need DAY
+    # granularity, so lock_hours below is a deliberately coarse day-level proxy (a <=4-well touch
+    # clears within its own day -> gap 1; a >4-well touch spills to the next-but-one day -> gap 2).
+    # It stays safe under the per-cell rule: a day is only ever rejected when a lock spans it in
+    # full, which this proxy never under-counts for the common 24/30h movie case.
     instrument_open_from: dict[str, object] = {}
 
     assignments: list[SlotAssignment] = []

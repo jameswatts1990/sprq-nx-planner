@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import type { RunOut } from "@/types/schedule";
+import type { InstrumentStatus } from "@/utils/instrumentStatus";
 import { computeTimeline, type StageTiming } from "@/utils/stageTimings";
 import { classForUseIndex } from "@/utils/useIndexClass";
 import { CELL_LIFETIME_H } from "@/utils/windowFade";
@@ -8,6 +9,15 @@ import { CELL_LIFETIME_H } from "@/utils/windowFade";
 import styles from "./RevioScreen.module.css";
 
 const HOUR_MS = 3_600_000;
+
+/** The idle-screen note per status: an online-but-empty machine reads "idle", while down /
+ * retired ones say so, since the card header (which used to carry a status badge) is gone. */
+const IDLE_LABEL: Record<InstrumentStatus, string> = {
+  ready: "Idle · no cells loaded",
+  running: "Idle · no cells loaded", // unreachable (a running machine renders its rows), a safe fallback
+  down: "Down for maintenance",
+  inactive: "Retired",
+};
 
 /** The four columns the physical Revio touchscreen groups a run's cells into, in order. Mapped
  * from the app's per-cell timing model (utils/stageTimings): a cell is Pending until it breaks
@@ -43,6 +53,25 @@ function formatCountdown(ms: number): string {
   return `${m}m`;
 }
 
+/** "36h 22m" — total hours (not rolled into days), the format the machine's lock badge uses. */
+function formatLockTime(ms: number): string {
+  const totalMin = Math.round(ms / 60_000);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  return h > 0 ? `${h}h ${String(m).padStart(2, "0")}m` : `${m}m`;
+}
+
+/** The Revio's own padlock glyph for the lock-timer badge — a stroke icon so it inherits the
+ * screen's light text colour (an emoji lock would read as a coloured sticker on the black panel). */
+function LockIcon() {
+  return (
+    <svg width="0.9em" height="0.9em" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="5" y="11" width="14" height="9" rx="2" />
+      <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+    </svg>
+  );
+}
+
 interface ResidentCell {
   cellId: number;
   cellRef: string;
@@ -63,7 +92,16 @@ interface RunSummary {
 export interface RevioScreenProps {
   /** The instrument's serial (shown large, like the physical machine's own screen). */
   serial: string;
-  /** The runs in progress on this instrument right now — one row each. */
+  /** Optional friendly label (e.g. "Revio A") — shown small under the serial, since this panel
+   * now stands in for the card header that used to carry it. */
+  name?: string | null;
+  /** The instrument's at-a-glance status — drives the idle-screen note (down / retired / idle). */
+  status: InstrumentStatus;
+  /** True when no run is in progress: the passed `runs` are then the *most recent* (finished)
+   * run(s), retained on screen like the physical machine, rather than live ones. */
+  idle: boolean;
+  /** Runs to show — the runs in progress right now, or (when `idle`) the most recent finished
+   * run(s) retained on screen. One row each. */
   runs: RunOut[];
   /** When the runs were last fetched (React Query dataUpdatedAt): the baseline the live 108h
    * "Use within" countdown ticks down from, since window_hours_elapsed is a snapshot. */
@@ -79,7 +117,12 @@ export interface RevioScreenProps {
  * Always dark (it mimics the physical black screen) regardless of the app theme. Renders nothing
  * when no run is in progress — an idle machine shows no screen, same as the real instrument.
  */
-export function RevioScreen({ serial, runs, dataUpdatedAt }: RevioScreenProps) {
+export function RevioScreen({ serial, name, status, idle, runs, dataUpdatedAt }: RevioScreenProps) {
+  // The machine leads with its friendly name (e.g. "Yoda") when it has one, else the serial;
+  // the serial then reads as a small subtitle so it's never lost (the card header that used to
+  // carry both is gone).
+  const bigLabel = name || serial;
+  const serialSub = name && name !== serial ? serial : null;
   // Live "now": a slow tick keeps the countdowns and stage buckets current without a refetch.
   const [nowMs, setNowMs] = useState(() => Date.now());
   useEffect(() => {
@@ -156,32 +199,69 @@ export function RevioScreen({ serial, runs, dataUpdatedAt }: RevioScreenProps) {
     return soonest;
   }, [timings, nowH, dataUpdatedAt]);
 
-  if (timings.length === 0) return null;
+  // Nothing loaded → the machine's screen sits idle (still shown, same size, like the always-on
+  // physical display), just the serial and a quiet status note — no uses box or stage rows.
+  if (timings.length === 0) {
+    return (
+      <div className={`${styles.screen} ${styles.screenIdle}`}>
+        <div className={styles.serialWrap}>
+          <span className={styles.serial}>{bigLabel}</span>
+          {serialSub && <span className={styles.name}>{serialSub}</span>}
+        </div>
+        <div className={styles.idleFill}>
+          <span className={`${styles.idleTag} ${status === "down" ? styles.idleWarn : ""}`}>{IDLE_LABEL[status]}</span>
+        </div>
+      </div>
+    );
+  }
+
+  // Instrument load-lock: free to START a new run once the LAST cell finishes prep — the end of
+  // the purple "Prep" bars in the PacBio adaptive-loading slide, and the "awaiting-prep ⇒ locked"
+  // rule in docs/pacbio-sprq-nx-scheduling-reference.md. Fully dynamic in the run's cell count via
+  // the shared timing model — each cell's movieStartMs IS its prep-done instant — so the lock is
+  // just the latest of those: 1 cell ~4h, a full tray of 4 ~10h (4h prep, 2h-staggered), up to
+  // ~38h for 8 (the 2nd tray can't prep until the 1st frees the 4 sequencing lanes ~28h in). NOT
+  // a flat buffer, and NOT the acquisition/PPA end. ≤ 0 (all prep done / idle) hides the badge.
+  const prepDoneMs = timings.reduce((m, t) => Math.max(m, t.movieStartMs), 0);
+  const lockRemaining = prepDoneMs - nowMs;
 
   return (
     <div className={styles.screen}>
       <div className={styles.top}>
         <div className={styles.serialWrap}>
-          <span className={styles.serial}>{serial}</span>
+          <span className={styles.serial}>{bigLabel}</span>
+          {serialSub && <span className={styles.name}>{serialSub}</span>}
         </div>
-        {resident.length > 0 && (
-          <div className={styles.uses}>
-            <span className={styles.usesTitle}>Remaining SMRT Cell uses</span>
-            <div className={styles.useBoxes}>
-              {resident.map((c) => (
-                <span
-                  key={c.cellId}
-                  className={`${styles.useBox} ${styles[classForUseIndex(c.useNumber)]}`}
-                  title={`Cell ${c.cellRef} · use ${c.useNumber} · ${c.usesLeft} use${c.usesLeft === 1 ? "" : "s"} left${c.sample ? ` · ${c.sample}` : ""}`}
-                >
-                  {c.usesLeft}
-                </span>
-              ))}
-            </div>
-            {nextDeadlineMs != null && (
-              <span className={styles.useWithin}>
-                Use within: <b>{formatCountdown(nextDeadlineMs - nowMs)}</b>
+        {idle ? (
+          // Idle but retaining its last run(s): a quiet "Idle" chip where the live uses box sits.
+          <span className={`${styles.idleTag} ${status === "down" ? styles.idleWarn : ""}`}>{IDLE_LABEL[status]}</span>
+        ) : (
+          <div className={styles.topRight}>
+            {lockRemaining > 0 && (
+              <span className={styles.lockBadge} title={`Instrument busy — frees in ${formatLockTime(lockRemaining)}`}>
+                <LockIcon /> {formatLockTime(lockRemaining)}
               </span>
+            )}
+            {resident.length > 0 && (
+              <div className={styles.uses}>
+                <span className={styles.usesTitle}>Remaining SMRT Cell uses</span>
+                <div className={styles.useBoxes}>
+                  {resident.map((c) => (
+                    <span
+                      key={c.cellId}
+                      className={`${styles.useBox} ${styles[classForUseIndex(c.useNumber)]}`}
+                      title={`Cell ${c.cellRef} · use ${c.useNumber} · ${c.usesLeft} use${c.usesLeft === 1 ? "" : "s"} left${c.sample ? ` · ${c.sample}` : ""}`}
+                    >
+                      {c.usesLeft}
+                    </span>
+                  ))}
+                </div>
+                {nextDeadlineMs != null && (
+                  <span className={styles.useWithin}>
+                    Use within: <b>{formatCountdown(nextDeadlineMs - nowMs)}</b>
+                  </span>
+                )}
+              </div>
             )}
           </div>
         )}
@@ -197,7 +277,11 @@ export function RevioScreen({ serial, runs, dataUpdatedAt }: RevioScreenProps) {
                 <span className={styles.runName} title={run.name}>
                   {run.name}
                 </span>
-                {running && <span className={styles.runTime}>{formatCountdown(remaining)}</span>}
+                {running ? (
+                  <span className={styles.runTime}>{formatCountdown(remaining)}</span>
+                ) : (
+                  <span className={styles.runDone}>done</span>
+                )}
               </div>
               <div className={styles.stages}>
                 {PHASES.map((phase) => {

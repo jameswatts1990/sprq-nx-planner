@@ -6,6 +6,7 @@ import { ApiError } from "@/api/client";
 import type { SampleSortBy, SampleSortDir } from "@/api/samples";
 import { samplesApi } from "@/api/samples";
 import { BarcodeChips } from "@/components/shared/BarcodeChips";
+import { DuplicateBadge } from "@/components/shared/DuplicateBadge";
 import { Pagination } from "@/components/shared/Pagination";
 import { SortableColumnHeader } from "@/components/shared/SortableColumnHeader";
 import { Badge } from "@/components/ui/Badge";
@@ -173,7 +174,10 @@ const SampleRow = memo(function SampleRow({ sample, expanded, onToggle }: Sample
     <>
       <tr className={styles.row} onClick={() => onToggle(sample.id)}>
         <td className={styles.toggleCell}>{expanded ? "▼" : "▶"}</td>
-        <td>{sample.external_id}</td>
+        <td>
+          {sample.external_id}{" "}
+          <DuplicateBadge index={sample.duplicate_index} total={sample.duplicate_total} />
+        </td>
         <td>
           <Badge tone={sample.status === "completed" ? "success" : "danger"}>{sample.status}</Badge>
         </td>
