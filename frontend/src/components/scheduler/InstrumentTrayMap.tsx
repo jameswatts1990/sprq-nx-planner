@@ -129,9 +129,17 @@ function NowSpinner() {
 
 function positionTitle(p: TrayPositionView, state: CellExpiryState, refMs: number, live: boolean): string {
   // Match the badge: the live view counts only uses broken out by now; the default view shows
-  // the committed-plan figure. Spell out which basis so the number is never ambiguous.
+  // the committed-plan figure. Spell out which basis so the number is never ambiguous. In the
+  // live view that "broken out so far" basis applies both to an open cell and to a terminal cell
+  // still holding a committed use that hasn't broken out yet (remaining > 0).
   const remaining = live ? usesRemainingAt(p, refMs) : p.usesRemaining;
-  const basis = p.status === "open" ? (live ? " (broken out so far)" : " (after this week's plan)") : "";
+  const basis = live
+    ? p.status === "open" || remaining > 0
+      ? " (broken out so far)"
+      : ""
+    : p.status === "open"
+      ? " (after this week's plan)"
+      : "";
   const parts = [
     `Cell ${p.cellNumber} · ${p.code}`,
     CELL_STATUS_LABEL[p.status],
@@ -152,7 +160,7 @@ function positionTitle(p: TrayPositionView, state: CellExpiryState, refMs: numbe
  * deadline or QC-stopped; scheduled (blue) = clock not started yet; spent (grey) = used up; fresh
  * = open but never on a clock. */
 function TrayPositionCell({ p, refMs, live }: { p: TrayPositionView; refMs: number; live: boolean }) {
-  const state = cellExpiryState(p, refMs);
+  const state = cellExpiryState(p, refMs, live);
   const detail = inlineDetail(p, state, refMs);
   // Live "now" view: count only uses that have actually broken out by now, so a cell reads its
   // real remaining capacity at this instant. Default (end-of-week) view keeps the committed-plan

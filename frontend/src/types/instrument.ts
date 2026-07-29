@@ -31,6 +31,7 @@ export interface InstrumentStatsOut {
   id: number;
   serial_number: string;
   running_run_name: string | null;
+  running_run_id: number | null; // id behind running_run_name, for the History run-detail link
   free_at: string | null; // ISO datetime
   open_tray_count: number;
   cell_open_count: number;

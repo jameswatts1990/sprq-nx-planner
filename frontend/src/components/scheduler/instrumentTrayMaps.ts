@@ -71,11 +71,28 @@ export interface TrayPositionView {
 export type CellExpiryState = "ok" | "soon" | "expired" | "scheduled" | "spent" | "fresh";
 
 /** Classify a position at reference instant `refMs`. Reference-time-aware so one dataset drives
- * both the end-of-week projection (default) and the live "now" reading (on hover). */
-export function cellExpiryState(p: TrayPositionView, refMs: number): CellExpiryState {
-  if (p.status === "exhausted" || p.status === "retired") return "spent";
-  if (p.status !== "open") return "expired"; // window_expired / stopped - capacity lost
-  if (!p.expiryAt) return "fresh"; // open, nothing on the clock yet
+ * both the end-of-week projection (default) and the live "now" reading (on hover, `live`).
+ *
+ * A terminal cell reads used-up/expired by default. But in the live view it may not have
+ * physically broken out all its committed uses yet (a staggered later cell in today's run, or a
+ * disposal the plan has scheduled for later this week) - while a committed use is still unbroken
+ * the cell physically still holds it, so reconstruct its real in-window state instead of a flat
+ * "spent". Once every committed use has broken out by `refMs` it reads used-up/expired as before,
+ * so the default end-of-week view is unchanged (`live` off, or all uses broken out by then). */
+export function cellExpiryState(p: TrayPositionView, refMs: number, live = false): CellExpiryState {
+  if (p.status !== "open") {
+    // Only an *exhausted* cell (its capacity consumed by the committed plan) can still be
+    // physically holding an un-broken-out use in the live view - a staggered later use, or a
+    // disposal the plan scheduled ahead. window_expired / stopped / retired are dead for a real
+    // reason (window closed, QC-stopped, written off), so they never read as live here.
+    const stillHoldsUnbrokenUse = live && p.status === "exhausted" && usesRemainingAt(p, refMs) > 0;
+    if (!stillHoldsUnbrokenUse) {
+      if (p.status === "exhausted" || p.status === "retired") return "spent";
+      return "expired"; // window_expired / stopped - capacity lost
+    }
+    // else: fall through to the window logic below, reading it as the live cell it still is.
+  }
+  if (!p.expiryAt) return "fresh"; // nothing on the clock yet
   const breakoutMs = p.breakoutAt ? Date.parse(p.breakoutAt) : null;
   if (breakoutMs !== null && refMs < breakoutMs) return "scheduled"; // not broken out yet
   const expiryMs = Date.parse(p.expiryAt);
@@ -83,16 +100,22 @@ export function cellExpiryState(p: TrayPositionView, refMs: number): CellExpiryS
   return (expiryMs - refMs) / 3_600_000 < EXPIRY_SOON_HOURS ? "soon" : "ok";
 }
 
-/** Uses still available on this cell *as of `refMs`* - capacity minus the uses whose physical
- * breakout has already happened by then. At the end-of-week reference this converges on the
- * committed-plan figure (`usesRemaining`, all scheduled uses counted); at a live "now" earlier
- * in the week it reads higher, since a use scheduled for later this week hasn't broken out yet.
- * A terminal/stopped cell always reads 0 (its remainder can no longer be run), matching
- * `usesRemaining`. */
+/** Uses physically on this cell *as of `refMs`* - the count that have not yet broken out by then.
+ * At the end-of-week reference this converges on the committed-plan figure (`usesRemaining`, all
+ * scheduled uses counted); at a live "now" earlier in the week it reads higher, since a use
+ * scheduled for later this week hasn't broken out yet.
+ *
+ * An OPEN cell counts down from its full capacity (`maxUses` - uses broken out), since it can
+ * still take new work up to the cap. A TERMINAL cell won't take more work, so what it still
+ * physically holds is only its own committed uses that haven't broken out yet: a staggered later
+ * use, or a whole-tray disposal scheduled ahead. Each of those still sits unbroken in the cell,
+ * so right now it genuinely still has that use - even though by end of week (all broken out) it
+ * reads 0, matching the committed-plan `usesRemaining`. A terminal cell with nothing left to
+ * break out (or none scheduled) reads 0. */
 export function usesRemainingAt(p: TrayPositionView, refMs: number): number {
-  if (p.status !== "open") return 0;
   const brokenOut = p.useBreakoutsMs.filter((ms) => ms <= refMs).length;
-  return Math.max(0, p.maxUses - brokenOut);
+  if (p.status === "open") return Math.max(0, p.maxUses - brokenOut);
+  return Math.max(0, p.useBreakoutsMs.length - brokenOut);
 }
 
 /** One physical SMRT-cell tray (4 cells) resident in a carousel position. */
@@ -170,18 +193,19 @@ function positionView(cell: CellOut, carousel: 0 | 1): TrayPositionView {
   const breakoutMs = anchor ? new Date(anchor).getTime() + (confirmed ? 0 : plannedOffsetMs) : null;
   const breakoutAt = breakoutMs !== null ? new Date(breakoutMs).toISOString() : null;
   const expiryAt = breakoutMs !== null ? new Date(breakoutMs + CELL_LIFETIME_H * 3_600_000).toISOString() : null;
-  // Each still-live use's breakout instant. A cancelled use (a permanent Stop marker) never ran,
-  // so it's excluded, matching how the backend's uses_remaining counts capacity. Only meaningful
-  // while the cell is still open. As above: a *started* use's breakout_anchor_at is its real,
-  // already-staggered started_at (use as-is); a still-planned use quotes the shared plate
-  // planned_start_at, so only that provisional estimate gets the stagger applied here.
-  const useBreakoutsMs =
-    cell.status === "open"
-      ? cell.uses
-          .filter((u) => u.status !== "cancelled" && u.breakout_anchor_at !== null)
-          .map((u) => new Date(u.breakout_anchor_at as string).getTime() + (u.run_started ? 0 : plannedOffsetMs))
-          .sort((a, b) => a - b)
-      : [];
+  // Each committed use's breakout instant. A cancelled use (a permanent Stop marker) never ran,
+  // so it's excluded, matching how the backend's uses_remaining counts capacity. Computed for
+  // terminal cells too, not just open ones: a cell can be marked exhausted the moment its whole
+  // week is *scheduled*, before those uses have physically broken out (a tray disposed at the
+  // max-uses dial, or the last of a staggered breakout ladder), and the live "now" view needs
+  // these instants to tell which of a terminal cell's uses have actually happened yet. As above:
+  // a *started* use's breakout_anchor_at is its real, already-staggered started_at (use as-is);
+  // a still-planned use quotes the shared plate planned_start_at, so only that provisional
+  // estimate gets the stagger applied here.
+  const useBreakoutsMs = cell.uses
+    .filter((u) => u.status !== "cancelled" && u.breakout_anchor_at !== null)
+    .map((u) => new Date(u.breakout_anchor_at as string).getTime() + (u.run_started ? 0 : plannedOffsetMs))
+    .sort((a, b) => a - b);
   return {
     cellId: cell.id,
     code: cell.code,

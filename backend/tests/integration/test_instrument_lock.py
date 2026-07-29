@@ -417,6 +417,7 @@ def test_run_reads_as_running_through_its_whole_acquisition_window_not_just_the_
 
     stats = next(s for s in client.get("/api/instruments/stats").json() if s["serial_number"] == "84047")
     assert stats["running_run_name"] == f"#{run_id}"
+    assert stats["running_run_id"] == run_id  # links the headline to the run's History detail
     assert stats["cells_sequencing"] == 1  # 10h in: past 4h prep, inside the 24h movie
 
 

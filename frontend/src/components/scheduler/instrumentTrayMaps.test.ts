@@ -353,6 +353,28 @@ describe("cellExpiryState", () => {
     expect(cellExpiryState(pos({ status: "window_expired" }), REF)).toBe("expired");
     expect(cellExpiryState(pos({ status: "stopped" }), REF)).toBe("expired");
   });
+
+  it("in the live view reads an exhausted cell as in-window until its committed uses break out", () => {
+    // Exhausted by the committed plan, breakout Mon noon (window closes +108h), with a second
+    // committed use still pending on Wed. Only the live view reconstructs the physical state.
+    const terminal = pos({
+      status: "exhausted",
+      breakoutAt: "2026-07-20T12:00:00.000Z",
+      expiryAt: "2026-07-25T00:00:00.000Z",
+      useBreakoutsMs: [Date.parse("2026-07-20T12:00:00Z"), Date.parse("2026-07-22T12:00:00Z")],
+    });
+    const monPM = Date.parse("2026-07-21T00:00:00Z"); // Mon use broken out, Wed use still pending
+    expect(cellExpiryState(terminal, monPM)).toBe("spent"); // default view: still used-up
+    expect(cellExpiryState(terminal, monPM, true)).toBe("ok"); // live: still physically holds a use
+    // Once every committed use has broken out, the live view reads used-up again.
+    expect(cellExpiryState(terminal, Date.parse("2026-07-24T23:59:59Z"), true)).toBe("spent");
+  });
+
+  it("never repaints a window_expired or stopped cell as live, even with an un-broken-out use", () => {
+    const pending = { useBreakoutsMs: [Date.parse("2026-07-30T12:00:00Z")], breakoutAt: "2026-07-30T12:00:00.000Z" };
+    expect(cellExpiryState(pos({ status: "window_expired", ...pending }), REF, true)).toBe("expired");
+    expect(cellExpiryState(pos({ status: "stopped", ...pending }), REF, true)).toBe("expired");
+  });
 });
 
 describe("usesRemainingAt", () => {
@@ -372,10 +394,24 @@ describe("usesRemainingAt", () => {
     expect(usesRemainingAt(twoUses, Date.parse("2026-07-24T23:59:59Z"))).toBe(1);
   });
 
-  it("reads 0 for a terminal/stopped cell regardless of the reference", () => {
+  it("reads 0 for a terminal cell with no committed uses left to break out", () => {
     const early = Date.parse("2026-07-20T00:00:00Z");
     expect(usesRemainingAt(pos({ status: "exhausted", useBreakoutsMs: [] }), early)).toBe(0);
     expect(usesRemainingAt(pos({ status: "stopped", useBreakoutsMs: [] }), early)).toBe(0);
+  });
+
+  it("counts a terminal cell's committed uses not yet broken out (staggered / disposed-ahead)", () => {
+    // Exhausted by the committed plan (its whole week is scheduled, hitting the cap), but on the
+    // live "now" reading only the uses actually broken out by then are spent - a later staggered
+    // use still sits physically in the cell, so it reads down to 0 as each use breaks out.
+    const terminal = pos({
+      status: "exhausted",
+      usesRemaining: 0, // committed-plan figure (used up by end of week)
+      useBreakoutsMs: [Date.parse("2026-07-20T12:00:00Z"), Date.parse("2026-07-22T12:00:00Z")],
+    });
+    expect(usesRemainingAt(terminal, Date.parse("2026-07-20T00:00:00Z"))).toBe(2); // neither broken out
+    expect(usesRemainingAt(terminal, Date.parse("2026-07-21T00:00:00Z"))).toBe(1); // only the first
+    expect(usesRemainingAt(terminal, Date.parse("2026-07-24T23:59:59Z"))).toBe(0); // both broken out
   });
 });
 

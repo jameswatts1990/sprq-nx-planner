@@ -68,10 +68,12 @@ def instrument_stats(db: Session) -> list[InstrumentStatsOut]:
         # line, and the gantt below shows exactly these runs).
         active_now = acquiring_runs(db, inst.id, now)
         running_run_name = None
+        running_run_id = None
         free_at = None
         if active_now:
             latest = max(active_now, key=lambda r: run_load_at(r) or now)
             running_run_name = latest.run_name or f"#{latest.id}"
+            running_run_id = latest.id
             free_at = run_acquisition_end(latest)
 
         # Live per-cell state now (prep-pending / prepping / sequencing / PPA), across those runs.
@@ -82,6 +84,7 @@ def instrument_stats(db: Session) -> list[InstrumentStatsOut]:
                 id=inst.id,
                 serial_number=inst.serial_number,
                 running_run_name=running_run_name,
+                running_run_id=running_run_id,
                 free_at=free_at,
                 open_tray_count=len(open_trays_by_instr.get(inst.id, ())),
                 cell_open_count=cell_open_by_instr.get(inst.id, 0),

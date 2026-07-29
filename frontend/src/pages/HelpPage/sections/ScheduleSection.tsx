@@ -122,9 +122,12 @@ export function ScheduleSection() {
         </li>
         <li>
           A tray whose cells are <b>all used up or expired</b> doesn&apos;t disappear — it stays in its position shown{" "}
-          <b>fully greyed out</b> (every cell reading <b>0</b> uses left), because the physical tray is still sitting in
-          the instrument until you swap it. It clears from the map only once a <b>fresh tray is loaded</b> into that
-          position (which then shows in <i>&quot;loaded later&quot;</i>, below).
+          <b>fully greyed out</b> (every cell reading <b>0</b> uses left <i>by end of week</i>), because the physical tray
+          is still sitting in the instrument until you swap it. It clears from the map only once a <b>fresh tray is
+          loaded</b> into that position (which then shows in <i>&quot;loaded later&quot;</i>, below).{" "}
+          <b>Hover for the NOW view</b> and a used-up cell still comes back to life if its final use hasn&apos;t
+          physically broken out yet — on today&apos;s run the cells break out a couple of hours apart, so right now only
+          the ones already broken out read as spent; the rest still show the use they&apos;re holding.
         </li>
         <li>
           A dashed <b>&quot;load tray&quot;</b> box means that carousel position has <b>no tray loaded</b> — it&apos;s

@@ -45,6 +45,9 @@ class InstrumentStatsOut(BaseModel):
     id: int
     serial_number: str
     running_run_name: str | None
+    # The id of the run behind running_run_name, so the Instruments card can link the headline
+    # straight to that run's History detail page. None when nothing is acquiring right now.
+    running_run_id: int | None
     free_at: datetime | None
     open_tray_count: int
     cell_open_count: int

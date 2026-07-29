@@ -79,7 +79,8 @@ export function InstrumentsSection() {
       <ul>
         <li>
           <b>Currently running</b> — the run on the instrument right now (its name or number) and when it finishes and
-          the instrument frees up; &quot;idle&quot; when nothing is loaded. A run counts as running the whole time its
+          the instrument frees up; &quot;idle&quot; when nothing is loaded. The run name is a link — click it to open that
+          run&apos;s full detail in the History tab. A run counts as running the whole time its
           cells are on the instrument — from load, through prep and sequencing, right until the last cell&apos;s PPA
           finishes — measured from when it was <em>actually</em> loaded (the time entered at Confirm loaded), not just
           the first hour or two.

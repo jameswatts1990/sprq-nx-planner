@@ -259,7 +259,15 @@ function InstrumentCard({ instrument, stats, activeRuns, recentRuns, activeRunsU
         <StatTiles>
           <StatTile
             label="Currently running"
-            value={stats?.running_run_name ?? "—"}
+            value={
+              stats?.running_run_name && stats.running_run_id != null ? (
+                <Link className={styles.statLink} to={`/history/runs/${stats.running_run_id}`}>
+                  {stats.running_run_name}
+                </Link>
+              ) : (
+                (stats?.running_run_name ?? "—")
+              )
+            }
             hint={stats?.free_at ? `frees ${formatShortDateTimeUTC(stats.free_at)}` : stats?.running_run_name ? undefined : "idle"}
           />
           <StatTile
