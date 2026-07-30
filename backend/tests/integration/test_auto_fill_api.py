@@ -636,6 +636,58 @@ def test_recalculate_bundles_a_reused_cells_second_use_into_the_same_run_as_plat
     assert plate1_sample_ids.isdisjoint(moved_sample_ids)
 
 
+def test_auto_fill_never_bundles_two_different_trays_into_one_plate_2(client, db_session):
+    """Reproduces the reported bug (2026-07-29): plate2_kind was a bare "fresh"/"reuse" flag
+    per (instrument, day), with no tray identity - so two DIFFERENT physical trays (real,
+    already-open Cell rows, e.g. from the tray-turnover-on-expiry path where an aged-out
+    predecessor coexists with a fresh successor in the same carousel box) whose own reuse
+    both happen to land on the same origin day could get merged into ONE Plate 2 Cycle,
+    showing mismatched use-numbers across its wells. Seeded directly here (two real, open
+    Cell rows on two different CellTrays, both pinned within Plate 1's box) rather than via
+    calendar-timing gymnastics to reach the real turnover path.
+
+    Note: both cells' own FIRST use still lands on the same day's Plate 1 here - fill_slots
+    places each physical cell's wells independently and doesn't group by tray at all, which
+    is a separate, pre-existing characteristic this fix doesn't touch (only reachable via the
+    rare cross-tray-box-sharing scenario, not the everyday case). What THIS fix guarantees is
+    narrower and is what's asserted below: a Plate 2 (a reuse *bundle*) never merges cells
+    from more than one physical tray."""
+    instrument_id = next(i for i in client.get("/api/instruments").json() if i["serial_number"] == "84047")["id"]
+    tray_a = CellTray(instrument_id=instrument_id)
+    tray_b = CellTray(instrument_id=instrument_id)
+    db_session.add_all([tray_a, tray_b])
+    db_session.flush()
+    cell_a = Cell(code="TRAY-A-B01", max_uses=3, status="open", tray_id=tray_a.id, tray_position=2, home_well="B01")
+    cell_b = Cell(code="TRAY-B-C01", max_uses=3, status="open", tray_id=tray_b.id, tray_position=3, home_well="C01")
+    db_session.add_all([cell_a, cell_b])
+    db_session.commit()
+
+    client.post(
+        "/api/imports", json={"raw_text": "sample,barcodes\n" + "\n".join(f"R{i},bcr{i}" for i in range(1, 5))}
+    )
+    week = _next_working_week()
+
+    resp = _auto_fill(
+        client,
+        [{"instrument_serial": "84047", "load_date": d} for d in week],
+        objective="fewest",
+        max_uses=2,
+        cells_per_day=8,
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert len(body["placed_sample_ids"]) == 4
+    assert len(body["unplaced_sample_ids"]) == 0
+
+    cells_by_id = {c.id: c for c in db_session.query(Cell).all()}
+    for run in body["runs"]:
+        for plate in run["plates"]:
+            if plate["plate_index"] != 2:
+                continue  # Plate 1 well-assignment is a separate, out-of-scope concern here
+            tray_ids = {cells_by_id[s["cell_id"]].tray_id for s in plate["stages"]}
+            assert len(tray_ids) == 1, f"Plate 2 mixed trays {tray_ids}: {plate}"
+
+
 def test_auto_fill_leaves_a_partly_used_tray_open(client, db_session):
     """The whole-tray rule's other side: a tray is disposed ONLY once every one of its
     cells has reached the dial. With just 3 samples, max_uses=2, cells_per_day=4 (one

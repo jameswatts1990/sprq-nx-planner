@@ -132,29 +132,3 @@ export interface DragSampleRef {
   barcodes: string[];
 }
 
-/** Captured on drag-end and used to open the CellChoicePicker before committing. */
-export interface PendingPlacement {
-  sample: DragSampleRef;
-  instrument_serial: string;
-  load_date: string;
-  slot_index: SlotIndex;
-  /** Present when moving a sample from an existing filled slot: remove this use first. */
-  moveFromCellUseId?: number;
-  /** The dragged slot's own cell - only present alongside moveFromCellUseId. Lets the
-   * picker check whether this cell is pinned to a different well elsewhere (it can't
-   * move there itself, so the sample needs a different cell instead - see
-   * cellChoiceGate.ts's wellConflict). */
-  moveFromCellId?: number;
-  /** The dragged slot's own instrument - only present alongside moveFromCellUseId. A move
-   * that crosses instruments can never keep the same physical cell (see
-   * docs/pacbio-sprq-nx-scheduling-reference.md's "a cell can never move between
-   * instruments" invariant), even when the destination happens to reuse the same well
-   * label - so this is compared against `instrument_serial` (the destination) to decide
-   * wellConflict alongside the well-string comparison. */
-  fromInstrumentSerial?: string;
-  /** Set when a backlog sample was dropped directly onto a waiting-cell ghost placeholder
-   * (see waitingCells.ts) - that drop target already identifies exactly one cell, so the
-   * CellChoicePicker uses it without asking, rather than opening for a choice among
-   * every compatible cell. */
-  preselectedCellId?: number;
-}

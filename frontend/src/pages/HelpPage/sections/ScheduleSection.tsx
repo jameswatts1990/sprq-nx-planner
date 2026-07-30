@@ -443,7 +443,18 @@ export function ScheduleSection() {
         to retire a tray early and load a brand-new one into the same position — even though its cells still have
         capacity — use the tray <b>Discard current tray</b> (<b>↻</b>) button (see Locking a run below). It moves
         that day&apos;s samples and any later uses onto fresh cells, restarting at <b>Use 1</b>. There&apos;s no per-drop cell picker:
-        the slot is a loading position, and the instrument decides the cell.
+        the slot is a loading position, and the instrument decides the cell — but the seal popover offers two ways to
+        override that choice after the fact, without dragging the sample anywhere:
+      </p>
+      <p>
+        <b>Use a new cell instead</b> (shown only on a reuse well) drops that reuse and re-places the sample fresh at
+        the same slot — a separate tray that runs the same day, rather than the next-day reuse the engine picked.{" "}
+        <b>Choose a specific cell…</b> opens a searchable list of every open cell on the instrument, so you can force
+        an exact one — most usefully to put a run&apos;s Plate 2 onto the <i>exact same</i> physical cells as its
+        Plate 1, if the auto-derived choice picked a different one for a well (a barcode clash or a closed 108-hour
+        window on the usual cell, for instance). It suggests that plate&apos;s own tray first. Either way, RunNx still
+        never lets one plate end up split across two physical trays — an invalid pick is rejected with a clear error
+        rather than silently applied.
       </p>
       <p>
         <b>Dragging an already-placed sample to a new slot moves it</b> — to any open slot on any instrument and

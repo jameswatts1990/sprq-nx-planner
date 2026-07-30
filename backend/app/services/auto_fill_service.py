@@ -251,10 +251,38 @@ def auto_fill(
     # earlier one's choice; assignments are walked in chronological (run_date) order so a
     # day's own fresh-tray claim (if any) is always resolved before a later reuse tries to
     # bundle into it.
+    def _tray_ref(cell_ref: str, well: str, instrument_serial: str) -> tuple[str, object]:
+        """A comparable "same physical tray" identity for `cell_ref`, resolvable at this point
+        in the persist loop - i.e. before a fresh cell's real Cell/tray_id exists. Used to stop
+        a Plate 2 bundle claiming cells from more than one physical tray (a Plate is one
+        carousel box, which can only ever hold one tray - see placement_service._established_
+        tray_id): plate2_kind alone only tracked "fresh" vs "reuse" per (instrument, day), with
+        no tray identity, so a SECOND, unrelated tray's own reuse could satisfy `== "reuse"`
+        and get bundled into a Plate 2 a different tray already established there, purely
+        because both cells' own first-batch use happened to land on the same day.
+        - A PRIOR cell already resolved in ref_to_cell uses its REAL Cell.tray_id when it has
+          one - siblings of one physical tray always compare equal, required for the existing,
+          correct intra-tray Plate1+Plate2 bundling to keep working.
+        - A cell with no entry in ref_to_cell is genuinely fresh: stand in with (instrument,
+          box_start) - open_new_tray's own box-collision guard (and this function's own
+          opened_boxes/well_claimant cache below) already guarantees a box resolves to exactly
+          one real tray for this whole batch, so this is exact, not a guess.
+        - A legacy prior cell with no tray_id: a per-cell-ref sentinel matching nothing else -
+          conservative (can still bundle its own reuse, can never be mistaken for a different
+          cell)."""
+        db_cell = ref_to_cell.get(cell_ref)
+        if db_cell is not None and db_cell.tray_id is not None:
+            return ("tray", db_cell.tray_id)
+        if db_cell is None:
+            box_start = (WELLS.index(well) // CELLS_PER_TRAY) * CELLS_PER_TRAY
+            return ("box", (instrument_serial, box_start))
+        return ("cell", cell_ref)
+
     load_date_of: dict[int, date] = {}
     plate_index_of: dict[int, int] = {}
     acquire_date_of: dict[int, date] = {}
     plate2_kind: dict[tuple[str, date], str] = {}  # (instrument_serial, origin load_date) -> "fresh" | "reuse"
+    plate2_tray_ref: dict[tuple[str, date], tuple[str, object]] = {}  # same key -> _tray_ref already bundled there
     for a in sorted(fill.assignments, key=lambda a: (a.instrument_serial, a.run_date)):
         cell_ref = a.cell.id
         origin_date = first_use_date_by_cell[cell_ref]
@@ -275,11 +303,16 @@ def auto_fill(
             and cells_per_day == len(WELLS)
             and in_plate1_box
             and plate2_kind.get(origin_key, "reuse") == "reuse"
+            and (
+                origin_key not in plate2_tray_ref
+                or plate2_tray_ref[origin_key] == _tray_ref(cell_ref, a.well, a.instrument_serial)
+            )
         ):
             load_date_of[id(a)] = origin_date
             plate_index_of[id(a)] = 2
             acquire_date_of[id(a)] = a.run_date
             plate2_kind[origin_key] = "reuse"
+            plate2_tray_ref[origin_key] = _tray_ref(cell_ref, a.well, a.instrument_serial)
         else:
             load_date_of[id(a)] = a.run_date
             acquire_date_of[id(a)] = a.run_date

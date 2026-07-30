@@ -208,6 +208,41 @@ def _plate_target(
     return plate_index, load_date
 
 
+def _load_existing_cycle(db: Session, *, instrument_id: int, load_date: date, plate_index: int) -> Cycle | None:
+    """Read-only lookup of an already-created Plate (Cycle) in the run keyed by (instrument_id,
+    load_date) - None if the run, or this plate_index within it, doesn't exist yet. Never
+    creates anything (unlike get_or_create_run) - used to inspect what a placement would be
+    joining, before any write."""
+    run_batch = db.scalar(
+        select(RunBatch)
+        .where(RunBatch.instrument_id == instrument_id, RunBatch.load_date == load_date)
+        .options(selectinload(RunBatch.cycles).selectinload(Cycle.cell_uses).selectinload(CellUse.cell))
+    )
+    if run_batch is None:
+        return None
+    return next((c for c in run_batch.cycles if c.plate_index == plate_index), None)
+
+
+def _established_tray_id(cycle: Cycle | None) -> int | None:
+    """Which physical tray (Cell.tray_id) `cycle` is already committed to, from the tray_id
+    shared by its already-placed, non-cancelled cell_uses' cells. None if the cycle doesn't
+    exist yet, has no live cell_uses, or every cell is a legacy/bootstrap cell with no tray_id
+    (nothing fixed to check new candidates against - mirrors _cell_box's existing precedent of
+    exempting tray-less cells from box/position invariants). A Plate is physically one carousel
+    box, which can only ever hold one physical tray at a time - so every well of one Cycle must
+    resolve to the same tray_id, never a mix (see docs/pacbio-sprq-nx-scheduling-reference.md).
+    Deterministic (lowest tray_id) if pre-existing data is already split across trays - this
+    does not retroactively repair that, only prevents a NEW split from being introduced."""
+    if cycle is None:
+        return None
+    tray_ids = {
+        cu.cell.tray_id
+        for cu in cycle.cell_uses
+        if cu.status != "cancelled" and cu.cell is not None and cu.cell.tray_id is not None
+    }
+    return min(tray_ids) if tray_ids else None
+
+
 def get_or_create_run(
     db: Session,
     *,
@@ -365,24 +400,33 @@ def _resolve_cell_choice(
     well: str,
     barcodes: list[str],
     acquire_date: date,
+    load_date: date,
+    plate_index: int,
     external_id: str | None = None,
 ) -> Cell:
     """Shared "which cell hosts this sample" resolution, shared by place_sample and
     move_sample's cell-reassignment path: mode "new" opens a fresh tray at plate position
     `well`; mode "existing" validates the chosen cell is open, has capacity, has no
     burned-barcode clash with these barcodes, is on this same instrument (a physical cell
-    never crosses instruments), and - see the chronological-order check below - isn't
-    displacing an already-started later use of the same cell.
+    never crosses instruments), belongs to the SAME physical tray as any cell already placed
+    on this plate (see _established_tray_id - a plate is one carousel box, which can only
+    ever hold one tray), and - see the chronological-order check below - isn't displacing an
+    already-started later use of the same cell.
 
     A grid slot is a plate LOADING position, not a cell, so there is no "must stay in its own
     well" check any more: the sample lands in the slot it was dropped onto (`well`), and which
     physical cell it runs on is what this resolves. `well` is the dropped plate position
-    (WELLS[slot_index]) - used to open a fresh tray in mode "new".
+    (WELLS[slot_index]) - used to open a fresh tray in mode "new". `load_date`/`plate_index`
+    identify which Plate (Cycle) this placement is joining, purely to look up its already-
+    established tray, if any - see _load_existing_cycle.
 
     `external_id` (the sample's Container ID) lets the barcode-clash check exempt a cell this
     exact Container ID already burned this same barcode onto - another copy of a duplicate
     sample - from the clash it would otherwise raise for a genuinely different, foreign
     sample sharing that barcode (see cell_service.foreign_barcode_clash)."""
+    target_cycle = _load_existing_cycle(db, instrument_id=instrument_id, load_date=load_date, plate_index=plate_index)
+    committed_tray_id = _established_tray_id(target_cycle)
+
     mode = cell_choice.get("mode")
     if mode == "existing":
         cell_id = cell_choice.get("cell_id")
@@ -414,6 +458,12 @@ def _resolve_cell_choice(
                 f"Cell {cell.code} is already in use on instrument {current_serial}; "
                 f"cannot place it on {instrument_serial}.",
             )
+        if committed_tray_id is not None and cell.tray_id != committed_tray_id:
+            raise PlacementError(
+                409,
+                f"This plate is already loaded from tray T{committed_tray_id}; cell {cell.code} "
+                "belongs to a different tray and can't be added to the same plate.",
+            )
         # A cell's next use may already be scheduled for a later day than `acquire_date` (see
         # waitingCells.ts's pendingReuseStatus ghost, the "Scheduled" placeholder the grid
         # lets a sample be dropped onto ahead of that later use). Inserting this use only
@@ -437,6 +487,18 @@ def _resolve_cell_choice(
                 )
         return cell
     elif mode == "new":
+        # Only guard tray cohesion when the target WELL is actually free - a same-well retry
+        # is a plain slot collision, reported below (via the (cycle_id, well) unique
+        # constraint at the caller's insert) with its own, more specific message.
+        well_taken = target_cycle is not None and any(
+            cu.status != "cancelled" and cu.well == well for cu in target_cycle.cell_uses
+        )
+        if committed_tray_id is not None and not well_taken:
+            raise PlacementError(
+                409,
+                f"This plate is already loaded from tray T{committed_tray_id}; opening a "
+                "brand-new tray here would split it across two physical trays.",
+            )
         try:
             # founding_date lets open_new_tray treat an expired resident tray as physically
             # removed, so a reassignment onto a date the old tray has aged out mints a fresh
@@ -595,34 +657,58 @@ def derive_best_cell(
     `external_id` (the sample's Container ID) is threaded down to the barcode-clash check so
     another copy of the same duplicate Container ID can reuse a cell it already burned this
     barcode onto - only a genuinely different sample sharing that barcode still blocks reuse
-    (see cell_service.foreign_barcode_clash)."""
+    (see cell_service.foreign_barcode_clash).
+
+    (0) **Tray cohesion** - tried first, for both Plate 1 and Plate 2 slots: a Plate is
+    physically one carousel box, which can only ever hold one physical tray, so once this
+    plate already holds >=1 cell, every further well it gains must come from that SAME tray
+    (see _established_tray_id). No global/cross-run reuse and no fresh tray are even
+    considered in that case - if none of that tray's remaining open cells can take this
+    sample, the placement is refused outright rather than silently substituting a foreign
+    tray (the exact bug this guards against - see docs/pacbio-sprq-nx-scheduling-
+    reference.md)."""
     box = _plate_box(slot_index)
+    plate_index = 1 if slot_index < PLATE_SIZE else 2
+    target_cycle = _load_existing_cycle(db, instrument_id=instrument.id, load_date=load_date, plate_index=plate_index)
+    committed_tray_id = _established_tray_id(target_cycle)
+
+    if committed_tray_id is not None:
+        already_in_cycle = {cu.cell_id for cu in target_cycle.cell_uses if cu.status != "cancelled"}
+        tray_cells = db.scalars(select(Cell).where(Cell.tray_id == committed_tray_id, Cell.status == "open")).all()
+        cands = [c for c in tray_cells if c.id != exclude_cell_id and c.id not in already_in_cycle]
+        best = _pick_next_reuse_cell(
+            db, cands, instrument=instrument, load_date=load_date, slot_index=slot_index,
+            sample_barcodes=sample_barcodes, run_time_hours=run_time_hours,
+            start_hour=start_hour, start_minute=start_minute, external_id=external_id,
+        )
+        if best is not None:
+            return {"mode": "existing", "cell_id": best.id}
+        raise PlacementError(
+            409,
+            f"Can't place here: this plate is already loaded from tray T{committed_tray_id} and "
+            "none of its remaining cells can take this sample (capacity, barcode clash, or its "
+            "108h reuse window). Try a different slot/day, or free a cell on that tray first.",
+        )
 
     # (1) Intra-run Plate-2 reuse: rerun THIS run's Plate-1 cells as a sequential Plate 2.
     if slot_index >= PLATE_SIZE:
-        run_batch = db.scalar(
-            select(RunBatch)
-            .where(RunBatch.instrument_id == instrument.id, RunBatch.load_date == load_date)
-            .options(selectinload(RunBatch.cycles).selectinload(Cycle.cell_uses).selectinload(CellUse.cell))
-        )
-        if run_batch is not None:
-            plate1 = next((c for c in run_batch.cycles if c.plate_index == 1), None)
-            if plate1 is not None:
-                cands = [
-                    cu.cell
-                    for cu in plate1.cell_uses
-                    if cu.status != "cancelled"
-                    and cu.cell is not None
-                    and cu.cell.status == "open"
-                    and cu.cell.id != exclude_cell_id
-                ]
-                best = _pick_next_reuse_cell(
-                    db, cands, instrument=instrument, load_date=load_date, slot_index=slot_index,
-                    sample_barcodes=sample_barcodes, run_time_hours=run_time_hours,
-                    start_hour=start_hour, start_minute=start_minute, external_id=external_id,
-                )
-                if best is not None:
-                    return {"mode": "existing", "cell_id": best.id}
+        plate1 = _load_existing_cycle(db, instrument_id=instrument.id, load_date=load_date, plate_index=1)
+        if plate1 is not None:
+            cands = [
+                cu.cell
+                for cu in plate1.cell_uses
+                if cu.status != "cancelled"
+                and cu.cell is not None
+                and cu.cell.status == "open"
+                and cu.cell.id != exclude_cell_id
+            ]
+            best = _pick_next_reuse_cell(
+                db, cands, instrument=instrument, load_date=load_date, slot_index=slot_index,
+                sample_barcodes=sample_barcodes, run_time_hours=run_time_hours,
+                start_hour=start_hour, start_minute=start_minute, external_id=external_id,
+            )
+            if best is not None:
+                return {"mode": "existing", "cell_id": best.id}
 
     # (2) Cross-run reuse: the next-in-order open cell resident in this carousel position.
     prior, by_id = load_prior_cells(db, [])
@@ -810,6 +896,8 @@ def place_sample(
             well=well,
             barcodes=sample_barcodes,
             acquire_date=acquire_date,
+            load_date=load_date,
+            plate_index=plate_index,
             external_id=sample.external_id,
         )
     elif mode == "new":
@@ -834,6 +922,18 @@ def place_sample(
         raise PlacementError(409, f"Run is locked (status: {cycle.status}); cannot place into it.")
 
     if mode == "new":
+        # Only guard tray cohesion when the target WELL is actually free - a same-well retry
+        # (this exact well already taken) is a plain slot collision, reported below via the
+        # (cycle_id, well) unique constraint with its own, more specific message; that
+        # pre-existing check must still win here, not get preempted by this newer one.
+        well_taken = any(cu.status != "cancelled" and cu.well == well for cu in cycle.cell_uses)
+        committed_tray_id = _established_tray_id(cycle)
+        if committed_tray_id is not None and not well_taken:
+            raise PlacementError(
+                409,
+                f"Can't open a new tray here: this plate is already loaded from tray "
+                f"T{committed_tray_id}.",
+            )
         try:
             # acquire_date lets an expired resident tray be treated as physically removed, so a
             # plain drop onto a date it has aged out mints a fresh successor tray in its
@@ -1334,6 +1434,8 @@ def _move_sample_to_new_cell(
         well=well,
         barcodes=barcodes,
         acquire_date=acquire_date,
+        load_date=load_date,
+        plate_index=plate_index,
         external_id=cell_use.sample.external_id if cell_use.sample else None,
     )
 

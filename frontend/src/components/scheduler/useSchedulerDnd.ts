@@ -10,7 +10,7 @@ import {
 import { useCallback, useState } from "react";
 
 import type { SlotIndex } from "@/types/schedule";
-import type { DragSampleRef, PendingPlacement } from "@/types/schedulerGrid";
+import type { DragSampleRef } from "@/types/schedulerGrid";
 
 import { gridCoordinateGetter } from "./gridKeyboardCoordinates";
 
@@ -60,9 +60,6 @@ export interface SchedulerDnd {
   onDragEnd: (event: DragEndEvent) => void;
   /** The sample currently being dragged (for a DragOverlay chip). */
   activeSample: DragSampleRef | null;
-  /** Set when a drop lands on an empty slot - opens the CellChoicePicker. */
-  pendingPlacement: PendingPlacement | null;
-  setPendingPlacement: (p: PendingPlacement | null) => void;
   /** slotKey of a slot with an in-flight place/remove, for the "placing…" shimmer. */
   placingSlotKey: string | null;
   setPlacingSlotKey: (k: string | null) => void;
@@ -71,9 +68,8 @@ export interface SchedulerDnd {
 /**
  * Owns the DndContext wiring: pointer + 2D-grid keyboard sensors, pointerWithin
  * collision detection (the 4 slot boxes are small and adjacent, so we want whichever
- * slot the pointer is actually inside), and the two transient bits of drag state -
- * `pendingPlacement` (drop captured, awaiting the CellChoicePicker) and
- * `placingSlotKey` (a slot mid-mutation). Instantiated once in SchedulePage.
+ * slot the pointer is actually inside), and `placingSlotKey` (a slot mid-mutation).
+ * Instantiated once in SchedulePage.
  *
  * @param onRemoveOutside Called with a placed sample's cell_use_id when it's dragged off
  * its slot and dropped somewhere that isn't a valid drop target (e.g. off the grid
@@ -94,7 +90,6 @@ export function useSchedulerDnd(
   onMove: (cellUseId: number, instrumentSerial: string, loadDate: string, slotIndex: SlotIndex) => void,
 ): SchedulerDnd {
   const [activeSample, setActiveSample] = useState<DragSampleRef | null>(null);
-  const [pendingPlacement, setPendingPlacement] = useState<PendingPlacement | null>(null);
   const [placingSlotKey, setPlacingSlotKey] = useState<string | null>(null);
 
   // A small distance activation constraint so a click on a filled slot still opens its
@@ -166,8 +161,6 @@ export function useSchedulerDnd(
     onDragStart,
     onDragEnd,
     activeSample,
-    pendingPlacement,
-    setPendingPlacement,
     placingSlotKey,
     setPlacingSlotKey,
   };

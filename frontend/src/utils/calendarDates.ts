@@ -2,7 +2,7 @@ const DAY_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 /** The default loading start hour (UTC), mirroring the backend's DAY_START_HOUR. Single
  * frontend source for both the reuse-window "day start" comparison (waitingCells) and the
- * CellChoicePicker's default loading time, so they can't drift apart. */
+ * radial load-time dial's default, so they can't drift apart. */
 export const DAY_START_HOUR = 12;
 
 /**

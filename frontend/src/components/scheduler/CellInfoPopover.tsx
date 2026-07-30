@@ -16,6 +16,7 @@ import type { RunOut, StageOut } from "@/types/schedule";
 import { CELL_STATUS_LABEL, CELL_STATUS_TONE } from "@/utils/cellStatus";
 import { plateWellFromSlot, plateWellFromWell } from "@/utils/plateWell";
 
+import { CellChoicePicker } from "./CellChoicePicker";
 import styles from "./SlotDetailPopover.module.css";
 
 export interface CellInfoPopoverProps {
@@ -54,6 +55,10 @@ export function CellInfoPopover({ stage, run, onClose, onOpenQc }: CellInfoPopov
   const plate = run.plates.find((p) => p.stages.some((s) => s.cell_use_id === stage.cell_use_id));
   const isReuse = plate?.is_reuse ?? false;
   const canOverride = isReuse && run.status === "planned" && stage.cell_use_status === "planned" && stage.sample_id !== null;
+  // Broader than canOverride - available for any planned placement, reuse or not, not just
+  // the auto-derived reuse case "Use a new cell instead" already covers.
+  const canChooseCell = run.status === "planned" && stage.cell_use_status === "planned" && stage.sample_id !== null;
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   // "Use a new cell instead": drop the reuse and re-place the sample fresh at the same slot.
   // Deliberately a remove + place, NOT a move: a move would re-point the well into the
@@ -87,6 +92,36 @@ export function CellInfoPopover({ stage, run, onClose, onOpenQc }: CellInfoPopov
     onError: () => {
       // Refresh regardless: if the remove landed but the place didn't, the grid must stop
       // showing the old reuse placement (the sample is now in the backlog).
+      invalidateScheduleRelated(queryClient);
+    },
+  });
+
+  // "Choose a specific cell": the manual override for when the auto-derived choice isn't
+  // what's wanted - same remove-then-place shape as useNewCell above, just with an explicit
+  // cell_id instead of {mode:"new"}. The backend still enforces that a plate can never end
+  // up split across two physical trays (see placement_service._established_tray_id), so this
+  // can guide a correct fix (e.g. forcing Plate 2 onto Plate 1's exact cells) but can't be
+  // used to recreate that bug - an invalid pick surfaces as a clear error below, same as any
+  // other placement rejection.
+  const chooseCell = useMutation({
+    mutationFn: async (cellId: number) => {
+      await cellUsesApi.remove(stage.cell_use_id);
+      setRemoved(true);
+      return cellUsesApi.place({
+        sample_id: stage.sample_id as number,
+        instrument_serial: run.instrument_serial,
+        load_date: run.load_date,
+        slot_index: stage.slot_index,
+        run_time_hours: stage.run_time_hours,
+        cell_choice: { mode: "existing", cell_id: cellId },
+      });
+    },
+    onSuccess: () => {
+      invalidateScheduleRelated(queryClient);
+      setPickerOpen(false);
+      onClose();
+    },
+    onError: () => {
       invalidateScheduleRelated(queryClient);
     },
   });
@@ -181,8 +216,24 @@ export function CellInfoPopover({ stage, run, onClose, onOpenQc }: CellInfoPopov
         </Note>
       )}
 
+      {chooseCell.isError && (
+        <Note tone="bad" icon="!">
+          {removed ? (
+            <>
+              The old placement was dropped, but placing onto that cell failed
+              {chooseCell.error instanceof ApiError ? ` (${chooseCell.error.message})` : ""} — the sample is now back
+              in the Backlog. Re-place it from there.
+            </>
+          ) : chooseCell.error instanceof ApiError ? (
+            chooseCell.error.message
+          ) : (
+            "Couldn't switch to that cell."
+          )}
+        </Note>
+      )}
+
       <ModalActions>
-        <Button variant="ghost" onClick={onClose} disabled={useNewCell.isPending}>
+        <Button variant="ghost" onClick={onClose} disabled={useNewCell.isPending || chooseCell.isPending}>
           Close
         </Button>
         <Link to={`/cells/${stage.cell_id}`} className={`btn ghost ${styles.viewCellLink}`}>
@@ -194,16 +245,31 @@ export function CellInfoPopover({ stage, run, onClose, onOpenQc }: CellInfoPopov
             onClose();
             onOpenQc(stage.cell_id, stage.cell_use_id);
           }}
-          disabled={useNewCell.isPending}
+          disabled={useNewCell.isPending || chooseCell.isPending}
         >
           QC…
         </Button>
+        {canChooseCell && (
+          <Button variant="ghost" onClick={() => setPickerOpen(true)} disabled={useNewCell.isPending || chooseCell.isPending}>
+            Choose a specific cell…
+          </Button>
+        )}
         {canOverride && (
           <Button variant="primary" onClick={() => useNewCell.mutate()} disabled={useNewCell.isPending}>
             {useNewCell.isPending ? "Switching…" : "Use a new cell instead"}
           </Button>
         )}
       </ModalActions>
+
+      {pickerOpen && (
+        <CellChoicePicker
+          instrumentSerial={run.instrument_serial}
+          suggestedTrayId={cell?.tray_id ?? null}
+          pending={chooseCell.isPending}
+          onSelect={(cellId) => chooseCell.mutate(cellId)}
+          onClose={() => setPickerOpen(false)}
+        />
+      )}
     </Modal>
   );
 }

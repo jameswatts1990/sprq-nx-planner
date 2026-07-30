@@ -56,11 +56,21 @@
   background: var(--card);
   --tilt-x: 0deg;
   --tilt-y: 0deg;
-  transform: perspective(700px) rotateX(var(--tilt-x)) rotateY(var(--tilt-y));
+  --tilt-scale: 1;
+  transform: perspective(700px) scale3d(var(--tilt-scale), var(--tilt-scale), 1) rotateX(var(--tilt-x))
+    rotateY(var(--tilt-y));
   /* Only smooths the snap back to flat on mouseleave - the tilt itself is set live via the
      --tilt-x/--tilt-y custom properties from mousemove JS (SchedulerSlotView.applySlotTilt),
      which would otherwise fight a slower transition and feel laggy under the cursor. */
-  transition: transform 0.15s ease-out;
+  transition: transform 0.15s ease-out, box-shadow 0.15s ease-out;
+}
+/* Hover lift: scale up a touch and deepen the shadow so the card reads as physically
+   floating off the grid while it tilts, rather than just rotating in place. Raised
+   above sibling slots so the enlarged card isn't visually clipped by its neighbours. */
+.filled:hover {
+  --tilt-scale: 1.1;
+  box-shadow: 0 20px 34px -10px rgba(15, 15, 25, 0.32), 0 8px 14px -6px rgba(15, 15, 25, 0.2);
+  z-index: 5;
 }
 .filled:active {
   cursor: grabbing;

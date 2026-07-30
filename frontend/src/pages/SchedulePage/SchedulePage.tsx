@@ -380,9 +380,9 @@ export function SchedulePage() {
         setPendingLoadTime({ sample_id: sampleId, instrument_serial: instrumentSerial, load_date: loadDate, slot_index: slotIndex });
         return;
       }
-      // A plain auto-place has no picker to show, so drive the "placing…" shimmer directly
-      // (the CellChoicePicker path does the same via setPlacingSlotKey) - otherwise the
-      // dropped slot sits blank until the backend derives the cell and the grid refetches.
+      // A plain auto-place has no picker to show, so drive the "placing…" shimmer directly -
+      // otherwise the dropped slot sits blank until the backend derives the cell and the
+      // grid refetches.
       dnd.setPlacingSlotKey(slotKey(instrumentSerial, loadDate, slotIndex));
       actions.autoPlace.mutate(
         {
@@ -429,7 +429,6 @@ export function SchedulePage() {
       printSheetOpen ||
       actions.clearConfirmOpen ||
       actions.recalculateTarget ||
-      dnd.pendingPlacement ||
       autoscheduleOpen
     )
       return;
@@ -453,7 +452,6 @@ export function SchedulePage() {
     printSheetOpen,
     actions.clearConfirmOpen,
     actions.recalculateTarget,
-    dnd.pendingPlacement,
     autoscheduleOpen,
   ]);
 
