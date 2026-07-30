@@ -70,20 +70,39 @@
   white-space: nowrap;
 }
 .lockTag {
+  font-family: var(--sans);
   font-size: 9px;
   font-weight: 800;
   letter-spacing: 0.05em;
   color: #fff;
-  background: var(--teal-deep);
+  background: var(--magenta);
+  border: none;
   border-radius: 4px;
   padding: 2px 6px;
 }
+/* The LOADED pill doubles as the unload control while a run is running (see
+   SchedulerDayCell.tsx) - hover/focus swaps its label to "Unload" so it reads as an action,
+   distinct from the padlock icon (which stays a pure status indicator, never clickable). */
+.lockTagAction {
+  cursor: pointer;
+}
+.lockTagAction:hover:not(:disabled),
+.lockTagAction:focus-visible:not(:disabled) {
+  background: var(--magenta-deep);
+}
+.lockTagAction:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
 /* Padlock marker shown on every day the instrument is locked (the run's own load day and
-   any later day still held by its lock/continuation) - hover/focus reveals the release
-   time via the title tooltip, replacing the old inline "locked until" text. */
+   any later day still held by its lock/continuation) - hover/focus reveals the release time
+   via the title tooltip. Monochrome (currentColor) rather than the old lock emoji, so it
+   reads as a neutral status glyph, not a coloured icon, in both the magenta LOADED pill's
+   row and the amber carry-over marker's row. */
 .lockIcon {
-  font-size: 11px;
-  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  color: var(--grey);
   cursor: default;
 }
 

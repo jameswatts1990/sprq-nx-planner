@@ -695,14 +695,15 @@ export function ScheduleSection() {
           Plate 1), marking it running/LOADED so it can no longer be edited by accident. A small dialog lets you
           give the run a name (e.g. your lab&apos;s own run id, such as Sanger&apos;s <b>TRACTION-RUN-1234</b>{" "}
           format) — optional, and it overrides the plain run number everywhere this run is shown afterward (Run
-          detail, History, Cells use history). Leave it blank to keep the plain number. <b>Unlock</b> never clears a
+          detail, History, Cells use history). Leave it blank to keep the plain number. <b>Unloading</b> never clears a
           name once it&apos;s set; re-confirming lets you change it. The same dialog also lets you <b>amend the load
           time</b> — the <b>Revio Loaded at:</b> field prefills with the planned time; if the cells actually went on the
           instrument at a different time, type the real one as <b>hh:mm</b> and the run&apos;s schedule (and any reuse
           plate chained off it) shifts to match.
         </li>
         <li>
-          A <b>LOADED</b> tag marks a locked run; <b>Unlock</b> returns it to planned so you can edit it again.
+          A <b>LOADED</b> tag marks a locked run — hover or focus it and it swaps to <b>Unload</b>; click it to
+          return the run to planned so you can edit it again.
         </li>
         <li>
           The <b>↻</b> button in a tray&apos;s top-right corner is <b>Discard current tray</b> — use it when you

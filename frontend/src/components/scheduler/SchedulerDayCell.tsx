@@ -63,6 +63,20 @@ export interface SchedulerDayCellProps {
   blockedWells: Set<string>;
 }
 
+/** Monochrome padlock - inherits its colour from the surrounding text (`currentColor`) rather
+ * than a fixed-colour emoji glyph, so it reads consistently in both the teal-on-white LOADED
+ * pill and the amber carry-over marker. Hover/focus (via the wrapping element's title) shows
+ * the exact release time. */
+function LockIcon({ label }: { label: string }) {
+  return (
+    <span className={styles.lockIcon} role="img" aria-label={label} title={label}>
+      <svg viewBox="0 0 16 16" width="11" height="11" fill="currentColor" aria-hidden="true">
+        <path d="M4 7V5a4 4 0 1 1 8 0v2h.5A1.5 1.5 0 0 1 14 8.5v5A1.5 1.5 0 0 1 12.5 15h-9A1.5 1.5 0 0 1 2 13.5v-5A1.5 1.5 0 0 1 3.5 7H4Zm1.5 0h5V5a2.5 2.5 0 0 0-5 0v2Z" />
+      </svg>
+    </span>
+  );
+}
+
 /**
  * One (instrument, load-day) grid cell. Weekends render closed/non-interactive. Otherwise a
  * run's two plate blocks (Plate 1 = slots 0-3, Plate 2 = slots 4-7), always both shown in
@@ -109,6 +123,10 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
       setConfirmingLoad(false);
     },
   });
+
+  // Hovering/focusing the LOADED pill swaps its label to "Unload" so the single control
+  // reads as an action, not just a status - see the pill's button below.
+  const [hoveringLoadedPill, setHoveringLoadedPill] = useState(false);
 
   const [confirmingLoad, setConfirmingLoad] = useState(false);
   const [runName, setRunName] = useState("");
@@ -264,30 +282,29 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
             })()}
             {locked ? (
               <>
-                <span
-                  className={styles.lockTag}
-                  title={run.run_name ? `Run name: ${run.run_name}` : undefined}
-                >
-                  {run.status === "running" ? "LOADED" : run.status.toUpperCase()}
-                </span>
-                <span
-                  className={styles.lockIcon}
-                  role="img"
-                  aria-label={`Locked until ${formatShortDateTimeUTC(run.lock_until)}`}
-                  title={`Locked until ${formatShortDateTimeUTC(run.lock_until)}`}
-                >
-                  🔒
-                </span>
-                {run.status === "running" && (
+                {run.status === "running" ? (
                   <button
                     type="button"
-                    className={styles.ctrl}
+                    className={`${styles.lockTag} ${styles.lockTagAction}`}
+                    title={run.run_name ? `Run name: ${run.run_name} — click to unload and edit` : "Click to unload and edit"}
                     disabled={statusMutation.isPending}
                     onClick={() => statusMutation.mutate({ status: "planned" })}
+                    onMouseEnter={() => setHoveringLoadedPill(true)}
+                    onMouseLeave={() => setHoveringLoadedPill(false)}
+                    onFocus={() => setHoveringLoadedPill(true)}
+                    onBlur={() => setHoveringLoadedPill(false)}
                   >
-                    {statusMutation.isPending ? "…" : "Unlock"}
+                    {statusMutation.isPending ? "…" : hoveringLoadedPill ? "Unload" : "LOADED"}
                   </button>
+                ) : (
+                  <span
+                    className={styles.lockTag}
+                    title={run.run_name ? `Run name: ${run.run_name}` : undefined}
+                  >
+                    {run.status.toUpperCase()}
+                  </span>
                 )}
+                <LockIcon label={`Locked until ${formatShortDateTimeUTC(run.lock_until)}`} />
               </>
             ) : (
               filledCount >= 1 && (
@@ -319,24 +336,10 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
                 Plate {continuationPlate.plate_index} loads {runLabel(continuation.run)} @{" "}
                 {formatTimeUTC(continuationPlate.planned_start_at)}
               </span>
-              <span
-                className={styles.lockIcon}
-                role="img"
-                aria-label={`Locked until ${formatShortDateTimeUTC(continuation.run.lock_until)}`}
-                title={`Locked until ${formatShortDateTimeUTC(continuation.run.lock_until)}`}
-              >
-                🔒
-              </span>
+              <LockIcon label={`Locked until ${formatShortDateTimeUTC(continuation.run.lock_until)}`} />
             </>
           ) : (
-            <span
-              className={styles.lockIcon}
-              role="img"
-              aria-label={`Locked until ${formatShortDateTimeUTC(continuation.run.lock_until)}`}
-              title={`Locked until ${formatShortDateTimeUTC(continuation.run.lock_until)}`}
-            >
-              🔒
-            </span>
+            <LockIcon label={`Locked until ${formatShortDateTimeUTC(continuation.run.lock_until)}`} />
           )
         )}
       </div>
