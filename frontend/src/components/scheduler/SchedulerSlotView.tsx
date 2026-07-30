@@ -56,7 +56,7 @@ export interface SchedulerSlotViewProps extends HTMLAttributes<HTMLDivElement> {
  */
 /** Max degrees of tilt in either axis - kept small so the effect reads as a subtle premium
  * finish, not a gimmick, on a card this size. */
-const MAX_TILT_DEG = 4;
+const MAX_TILT_DEG = 8;
 
 /** Sets the card's --tilt-x/--tilt-y custom properties directly on the DOM node (bypassing
  * React state) so a grid of hundreds of slots doesn't re-render on every mousemove pixel -

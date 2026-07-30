@@ -68,7 +68,7 @@
    floating off the grid while it tilts, rather than just rotating in place. Raised
    above sibling slots so the enlarged card isn't visually clipped by its neighbours. */
 .filled:hover {
-  --tilt-scale: 1.1;
+  --tilt-scale: 1.06;
   box-shadow: 0 20px 34px -10px rgba(15, 15, 25, 0.32), 0 8px 14px -6px rgba(15, 15, 25, 0.2);
   z-index: 5;
 }

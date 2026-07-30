@@ -15,7 +15,7 @@ CELL_MAX_USES = 3
 # split below (instrument deck position, not a SMRT Cell shipping tray).
 CELLS_PER_TRAY = 4
 FIRST_PREP_H = 2
-REUSE_PREP_H = 0.75
+REUSE_PREP_H = 0.3
 
 # A sample's desired movie / acquisition time (h). One of these three (matching the
 # per-cell run-time choices); anything missing or out of range falls back to
