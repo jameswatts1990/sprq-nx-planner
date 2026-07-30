@@ -49,9 +49,10 @@ export function HistorySection() {
       <p>
         <b>Run detail page</b> shows the run&apos;s instrument, load date, when it loads &amp; starts sequencing,
         status, and whether it&apos;s <b>Active now</b>, then a tray block per plate laid out just like the weekly
-        schedule. Each plate&apos;s header carries a <b>reuse</b> marker when it reruns Plate 1&apos;s cells, an{" "}
-        <b>→ acquire-day</b> tag when the plate sequences on a different day from loading, the planned start → end of
-        its movie, and — once the run has actually run — the <b>actual</b> start/end recorded on the instrument. Each
+        schedule. Each plate&apos;s header carries an <b>→ acquire-day</b> tag next to its title when the plate
+        sequences on a different day from loading (a reuse Plate 2 — you can tell it&apos;s a reuse because its cells&apos;
+        stubs read <b>Use 2</b>/<b>3</b>), the planned start → end of its movie, and — once the run has actually run —
+        the <b>actual</b> start/end recorded on the instrument. Each
         plate&apos;s four wells are drawn with the same colour-coded cards used on the schedule:
       </p>
       <div className={styles.ghostExampleSwatch}>

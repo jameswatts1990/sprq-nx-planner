@@ -53,6 +53,7 @@ export function TrayPanel({ trayId, cells, currentCellId, showDiscard = true }: 
   const soonest = soonestTrayExpiry(cells);
   const urgent = soonest !== null && soonest <= FADE_MIN_HOURS;
   const anyOpen = cells.some((c) => c.status === "open");
+  const reuseSkipped = cells.some((c) => c.tray_reuse_disabled);
 
   return (
     <div className={styles.panel}>
@@ -74,6 +75,7 @@ export function TrayPanel({ trayId, cells, currentCellId, showDiscard = true }: 
             {expiryText(soonest)}
           </Badge>
         )}
+        {reuseSkipped && <Badge tone="warning">Reuse skipped</Badge>}
       </div>
 
       <div className={styles.grid}>

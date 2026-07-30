@@ -45,6 +45,7 @@ function cell(overrides: Partial<CellOut> = {}): CellOut {
     tray_id: 1,
     tray_position: 1,
     tray_size: 4,
+    tray_reuse_disabled: false,
     uses: [],
     ...overrides,
   };
@@ -88,10 +89,9 @@ describe("computeInstrumentTrayMaps", () => {
     ]);
     const map = build(cells).get(SERIAL)!;
 
-    // Anchored to the week's first day, never a later scheduled day.
+    // asOfDate is the window's first day (metadata); weekEndDate is the residency/projection anchor.
     expect(map.asOfDate).toBe("2026-07-20");
     expect(map.weekEndDate).toBe("2026-07-24");
-    expect(map.futureTrays).toEqual([]);
     expect(map.carousel[1]).toBeNull(); // nothing in Plate 2 position
     const tray = map.carousel[0]!;
     expect(tray.trayId).toBe(1);
@@ -226,10 +226,11 @@ describe("computeInstrumentTrayMaps", () => {
     expect(tray.positions[0]).toMatchObject({ status: "exhausted", usesRemaining: 0 });
   });
 
-  it("keeps the current tray up top and lists a mid-week successor as a future tray (turnover)", () => {
-    // Tray 1 (open, used, resident at the week's start) ages out mid-week; tray 2 is loaded
-    // Wed into the same A01-D01 position -> tray 1 evicted Wed, so at Mon it's still current
-    // and tray 2 shows in the "loaded later" group by id only.
+  it("shows the mid-week SUCCESSOR in the slot, dropping the tray it evicted (turnover)", () => {
+    // Tray 1 (open, used, resident at the week's start) ages out mid-week; tray 2 is loaded Wed
+    // into the same A01-D01 position -> tray 1 evicted Wed and gone by Fri, so the end-of-week
+    // slot shows tray 2, not the departed tray 1. (Anchoring to the week's *start* used to leave
+    // the swapped-out tray 1 pinned here under a "by end of Friday" caption - the bug this fixes.)
     const oldTray = trayCells(1, "01", [
       { uses_consumed: 1, uses_remaining: 2, last_use_run_date: "2026-07-20", first_use_started_at: "2026-07-20T12:00:00Z" },
     ]);
@@ -238,14 +239,36 @@ describe("computeInstrumentTrayMaps", () => {
     ]);
     const map = build([...oldTray, ...newTray]).get(SERIAL)!;
 
-    expect(map.carousel[0]!.trayId).toBe(1); // the current tray, with full state
-    expect(map.futureTrays).toEqual([{ trayId: 2, carousel: 0, foundingDate: "2026-07-23" }]);
+    expect(map.carousel[0]!.trayId).toBe(2); // the successor resident by week's end, with full state
   });
 
-  it("keeps a fully-depleted tray in the slot and lists a mid-week successor as 'loaded later'", () => {
-    // Every cell of tray 1 is exhausted, but the physical tray is still in the bay, so it stays a
-    // depleted resident at the week's start; tray 2, founded Wed, is a genuine turnover successor
-    // and belongs in the "loaded later" group beneath it - never promoted over the depleted tray.
+  it("mirrors the reported bug: an expired prior-week tray is dropped for the fresh tray loaded this week", () => {
+    // Tray 158 was first used the *prior* week and every cell has expired (window closed 07-18);
+    // tray 165 is loaded this Monday into the same Plate 1 position as a still-planned first use.
+    // The end-of-week slot must show tray 165 (on the deck, in window by Fri), never the expired,
+    // physically-departed tray 158.
+    const expired158 = trayCells(158, "01", [0, 1, 2, 3].map(() => ({
+      status: "window_expired" as const,
+      uses_consumed: 3,
+      uses_remaining: 0,
+      last_use_run_date: "2026-07-15",
+      first_use_started_at: "2026-07-13T12:00:00Z",
+    })));
+    const fresh165 = trayCells(165, "01", [0, 1, 2, 3].map(() => ({
+      status: "open" as const,
+      uses_consumed: 0,
+      uses_remaining: 3,
+      first_use_planned_start_at: "2026-07-20T12:00:00Z",
+    })));
+    const map = build([...expired158, ...fresh165]).get(SERIAL)!;
+
+    expect(map.carousel[0]!.trayId).toBe(165);
+    expect(map.carousel[0]!.positions.every((p) => p.usesRemaining === 3)).toBe(true);
+  });
+
+  it("keeps a fully-depleted tray in the slot when no successor has evicted it", () => {
+    // Every cell of tray 1 is exhausted, but no successor tray has been loaded into its position,
+    // so the physical tray is still in the bay and stays a depleted resident by week's end.
     const oldTray = trayCells(1, "01", [0, 1, 2, 3].map(() => ({
       uses_consumed: 3,
       uses_remaining: 0,
@@ -253,26 +276,20 @@ describe("computeInstrumentTrayMaps", () => {
       last_use_run_date: "2026-07-20",
       first_use_started_at: "2026-07-20T12:00:00Z",
     })));
-    const newTray = trayCells(2, "01", [
-      { uses_consumed: 1, uses_remaining: 2, last_use_run_date: "2026-07-23", first_use_started_at: "2026-07-23T12:00:00Z" },
-    ]);
-    const map = build([...oldTray, ...newTray]).get(SERIAL)!;
+    const map = build(oldTray).get(SERIAL)!;
 
     expect(map.carousel[0]!.trayId).toBe(1);
     expect(map.carousel[0]!.positions.every((p) => p.usesRemaining === 0)).toBe(true);
-    expect(map.futureTrays).toEqual([{ trayId: 2, carousel: 0, foundingDate: "2026-07-23" }]);
   });
 
-  it("shows a tray first loaded mid-week in its slot, not 'loaded later', when it's the position's only tray", () => {
-    // A brand-new run scheduled on Wed with no earlier tray in that position: the tray belongs in
-    // the carousel slot, not the "loaded later" group (which is only for a genuine turnover of a
-    // tray already resident this week).
+  it("shows a tray first loaded mid-week in its slot when it's the position's only tray", () => {
+    // A brand-new run scheduled on Wed with no earlier tray in that position: it's the tray
+    // resident by week's end, so it belongs in the carousel slot.
     const cells = trayCells(3, "01", [
       { uses_consumed: 1, uses_remaining: 2, last_use_run_date: "2026-07-22", first_use_started_at: "2026-07-22T12:00:00Z" },
     ]);
     const map = build(cells).get(SERIAL)!;
     expect(map.carousel[0]!.trayId).toBe(3);
-    expect(map.futureTrays).toEqual([]);
   });
 
   it("keeps a fully-depleted tray with no successor as a depleted resident, not an empty slot", () => {
@@ -288,7 +305,6 @@ describe("computeInstrumentTrayMaps", () => {
     const map = build(cells).get(SERIAL)!;
     expect(map.carousel[0]!.trayId).toBe(1);
     expect(map.carousel[0]!.positions.map((p) => p.usesRemaining)).toEqual([0, 0, 0, 0]);
-    expect(map.futureTrays).toEqual([]);
   });
 
   it("still shows a resident, never-evicted tray whose last use predates the viewed week", () => {

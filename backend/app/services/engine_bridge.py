@@ -64,6 +64,11 @@ def load_prior_cells(db: Session, excluded_cell_ids: list[int]) -> tuple[list[Pr
     prior_inputs: list[PriorCellInput] = []
     by_id: dict[int, Cell] = {}
     for cell in cells:
+        # Tray flagged "skip reuse / planning disposal" - the lab intends to bin the whole
+        # tray, so none of its cells should be offered for a further use (see
+        # CellTray.reuse_disabled_at). Reversible: clearing the flag re-admits the tray.
+        if cell.tray is not None and cell.tray.reuse_disabled_at is not None:
+            continue
         uses_consumed, remaining, burned = derive_cell_state(cell)
         if remaining <= 0:
             continue

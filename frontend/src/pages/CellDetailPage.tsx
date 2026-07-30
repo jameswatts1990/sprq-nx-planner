@@ -5,7 +5,6 @@ import { Link, useParams } from "react-router-dom";
 import { ApiError } from "@/api/client";
 import { cellsApi } from "@/api/cells";
 import { CellQcModal } from "@/components/cells/CellQcModal";
-import { TrayPanel } from "@/components/cells/TrayPanel";
 import { WindowMeter } from "@/components/cells/WindowMeter";
 import { BarcodeChips } from "@/components/shared/BarcodeChips";
 import { Badge } from "@/components/ui/Badge";
@@ -39,11 +38,6 @@ export function CellDetailPage() {
   });
 
   const trayId = query.data?.tray_id ?? null;
-  const trayQuery = useQuery({
-    queryKey: ["cells", { tray_id: trayId }],
-    queryFn: () => cellsApi.list({ tray_id: trayId as number, page_size: 10 }),
-    enabled: trayId !== null,
-  });
 
   const [qcOpen, setQcOpen] = useState(false);
   const [caseNumber, setCaseNumber] = useState("");
@@ -189,30 +183,6 @@ export function CellDetailPage() {
           </div>
         </CardBody>
       </Card>
-
-      {trayId !== null && (
-        <Card>
-          <CardHeader>
-            <h2>
-              <Link to={`/cells?tray=${trayId}`} className="link">
-                Cell tray — Tray {trayId}
-              </Link>
-            </h2>
-          </CardHeader>
-          <CardBody>
-            <p className={styles.helper}>
-              SPRQ-Nx SMRT Cells ship in a tray of {cell.tray_size}. Once one cell in a tray is used, all{" "}
-              {cell.tray_size} are registered together - the others below are real, reusable cells even before
-              their own first use.
-            </p>
-            {trayQuery.isLoading ? (
-              <div className={styles.status}>Loading tray…</div>
-            ) : (
-              <TrayPanel trayId={trayId} cells={trayQuery.data?.items ?? []} currentCellId={cell.id} />
-            )}
-          </CardBody>
-        </Card>
-      )}
 
       <Card>
         <CardHeader>

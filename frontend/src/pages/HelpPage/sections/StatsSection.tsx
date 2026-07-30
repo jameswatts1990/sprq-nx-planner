@@ -24,7 +24,7 @@ export function StatsSection() {
         <li><b>Runs completed / Samples completed</b> — finished runs and finished cell-uses in the range.</li>
         <li><b>Avg uses / cell</b> — average number of the 3 possible uses that finished cells actually reached. Higher is better value.</li>
         <li><b>Reaching Use 3</b> — the share of finished cells that got all 3 uses before their window closed.</li>
-        <li><b>Failure rate</b> — of the cell-uses that got a verdict, the share marked <i>failed</i> (a data/cell problem, not an instrument abort).</li>
+        <li><b>Failure rate</b> — of all samples sequenced (everything that has gone on the instrument, including runs still in progress), the share marked <i>failed</i> (a data/cell problem, not an instrument abort). Samples still waiting to be loaded don&apos;t count.</li>
         <li><b>Well fill</b> — how full runs were, out of the 8 wells a run can hold.</li>
         <li><b>Awaiting credit / Credits received</b> — cells reported to PacBio still waiting for a replacement credit, and credits that have landed.</li>
       </ul>
@@ -46,7 +46,7 @@ export function StatsSection() {
       <p className={styles.subheading}>Failures &amp; credits</p>
       <p>
         <b>Run outcomes</b> breaks cell-uses into completed / failed / aborted. <b>Failure rate %</b> tracks the
-        failed share week by week. The <b>PacBio credit funnel</b> shows where failed/stopped cells are in the
+        failed share of samples sequenced week by week. The <b>PacBio credit funnel</b> shows where failed/stopped cells are in the
         replacement process: needing a report → reported → awaiting credit → received.
       </p>
 

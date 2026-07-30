@@ -75,16 +75,6 @@
 .mono {
   font-family: var(--mono);
 }
-.useActions {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-.helper {
-  font-size: var(--fs-md);
-  color: var(--grey);
-  margin: 0 0 16px;
-}
 .creditGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));

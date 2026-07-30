@@ -8,6 +8,9 @@
   border-radius: var(--r-sm);
   padding: 12px 14px;
 }
+.wide {
+  grid-column: span 2;
+}
 .statLabel {
   font-size: var(--fs-xs);
   letter-spacing: 0.05em;

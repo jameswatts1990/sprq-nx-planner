@@ -88,6 +88,9 @@ export interface CellOut {
   tray_id: number | null;
   tray_position: number | null;
   tray_size: number;
+  // Reversible "skip reuse / planning disposal" flag on this cell's physical tray - when
+  // true, autoschedule won't reuse any cell in the tray. Distinct from the sticky discard.
+  tray_reuse_disabled: boolean;
   // Compact, chronological (earliest-first) history of the samples/runs this cell has been
   // used by - powers the linked container/run list on the cell card.
   uses: CellUseSummaryOut[];
@@ -119,6 +122,17 @@ export interface TrayDiscardRequest {
 }
 
 export interface TrayDiscardOut {
+  cells: CellOut[];
+}
+
+/** Toggle a tray's reversible "skip reuse / planning disposal" flag - true to flag it
+ * (autoschedule stops reusing the whole tray), false to clear it and restore reuse. */
+export interface TraySkipReuseRequest {
+  tray_id: number;
+  disabled: boolean;
+}
+
+export interface TraySkipReuseOut {
   cells: CellOut[];
 }
 

@@ -87,6 +87,7 @@ export const CellStatusCard = memo(function CellStatusCard({ cell, expanded = fa
             {cell.code}
           </Link>
           <Badge tone={CELL_STATUS_TONE[cell.status]}>{CELL_STATUS_LABEL[cell.status]}</Badge>
+          {cell.tray_reuse_disabled && <Badge tone="warning">Reuse skipped</Badge>}
           <span className={styles.uses}>
             {cell.uses_consumed} / {cell.max_uses} uses
             <span className={styles.hint}>

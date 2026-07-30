@@ -1040,3 +1040,90 @@ def test_recalculate_clears_qc_disposition_on_placement(client, db_session):
     placed = next(s for s in client.get("/api/samples", params={"page_size": 200}).json()["items"] if s["id"] == sid)
     assert placed["status"] == "scheduled"
     assert placed["qc_disposition"] is None
+
+
+def _cells_by_tray(db_session):
+    from collections import defaultdict
+
+    out = defaultdict(list)
+    for c in db_session.query(Cell).all():
+        out[c.tray_id].append(c)
+    return out
+
+
+def _active_uses(cell):
+    return [cu for cu in cell.cell_uses if cu.status != "cancelled"]
+
+
+def test_skip_reuse_flag_keeps_autoschedule_off_a_flagged_tray(client, db_session):
+    """A part-used tray flagged "skip reuse" (planning a disposal) drops out of the
+    autoschedule reuse pool: rather than take the flagged tray's cells for a further use,
+    Auto Schedule opens fresh cells. This is the fix for the reported scenario where a
+    weekend cell on Use 2/3 kept being reused for a 3rd use the lab meant to bin. The flag
+    is advisory - it never changes cell status or cancels the tray's existing uses."""
+    week = _next_working_week()
+
+    # Monday: 4 disjoint samples -> one fresh tray of 4, each cell at Use 1 (2 uses left).
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\n" + "\n".join(f"A{i},bca{i}" for i in range(1, 5))})
+    r1 = _auto_fill(client, [{"instrument_serial": "84047", "load_date": week[0]}], objective="fewest", cells_per_day=4)
+    assert r1.status_code == 200, r1.text
+    tray_ids = {c.tray_id for c in db_session.query(Cell).all()}
+    assert len(tray_ids) == 1
+    tray_id = tray_ids.pop()
+
+    # Flag the whole tray for skip-reuse.
+    r_flag = client.post("/api/cells/skip-reuse-tray", json={"tray_id": tray_id, "disabled": True})
+    assert r_flag.status_code == 200, r_flag.text
+    flagged_cells = r_flag.json()["cells"]
+    assert len(flagged_cells) == 4 and all(c["tray_reuse_disabled"] for c in flagged_cells)
+    db_session.expire_all()
+    assert db_session.get(CellTray, tray_id).reuse_disabled_at is not None
+
+    # Tuesday: 4 more disjoint samples. "fewest" (reuse-before-new) would normally take
+    # Monday's cells for their Use 2; the flag must force fresh cells instead.
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\n" + "\n".join(f"B{i},bcb{i}" for i in range(1, 5))})
+    r2 = _auto_fill(client, [{"instrument_serial": "84047", "load_date": week[1]}], objective="fewest", cells_per_day=4)
+    assert r2.status_code == 200, r2.text
+    assert len(r2.json()["placed_sample_ids"]) == 4
+    assert len(r2.json()["unplaced_sample_ids"]) == 0
+
+    db_session.expire_all()
+    by_tray = _cells_by_tray(db_session)
+    # The flagged tray's 4 cells never got a Use 2 ...
+    assert all(len(_active_uses(c)) == 1 for c in by_tray[tray_id]), "flagged tray must not be reused"
+    # ... and a single fresh tray took Tuesday's samples (4 new Use-1 cells).
+    fresh_trays = {tid: cells for tid, cells in by_tray.items() if tid != tray_id}
+    assert len(fresh_trays) == 1
+    (fresh_cells,) = fresh_trays.values()
+    assert sum(len(_active_uses(c)) for c in fresh_cells) == 4
+
+
+def test_skip_reuse_flag_is_reversible(client, db_session):
+    """Clearing the skip-reuse flag re-admits the tray to autoschedule reuse - the endpoint
+    round-trips true -> false on CellOut, and a later day then reuses the tray again instead
+    of opening a fresh one."""
+    week = _next_working_week()
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\n" + "\n".join(f"E{i},bce{i}" for i in range(1, 5))})
+    _auto_fill(client, [{"instrument_serial": "84047", "load_date": week[0]}], objective="fewest", cells_per_day=4)
+    tray_id = db_session.query(Cell).first().tray_id
+
+    on = client.post("/api/cells/skip-reuse-tray", json={"tray_id": tray_id, "disabled": True})
+    assert on.status_code == 200 and all(c["tray_reuse_disabled"] for c in on.json()["cells"])
+    off = client.post("/api/cells/skip-reuse-tray", json={"tray_id": tray_id, "disabled": False})
+    assert off.status_code == 200 and not any(c["tray_reuse_disabled"] for c in off.json()["cells"])
+    db_session.expire_all()
+    assert db_session.get(CellTray, tray_id).reuse_disabled_at is None
+
+    # Flag cleared: Tuesday's 4 samples reuse the same tray (Use 2), so no new tray opens.
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\n" + "\n".join(f"F{i},bcf{i}" for i in range(1, 5))})
+    r = _auto_fill(client, [{"instrument_serial": "84047", "load_date": week[1]}], objective="fewest", cells_per_day=4)
+    assert r.status_code == 200, r.text
+    db_session.expire_all()
+    by_tray = _cells_by_tray(db_session)
+    assert set(by_tray) == {tray_id}, "no fresh tray - the same cells were reused"
+    assert sum(len(_active_uses(c)) for c in by_tray[tray_id]) == 8  # 4 cells x 2 uses
+
+
+def test_skip_reuse_tray_endpoint_404_for_unknown_tray(client):
+    resp = client.post("/api/cells/skip-reuse-tray", json={"tray_id": 999999, "disabled": True})
+    assert resp.status_code == 404

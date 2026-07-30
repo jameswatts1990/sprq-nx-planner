@@ -21,6 +21,8 @@ from app.schemas.cell import (
     TrayDiscardRequest,
     TrayRotateOut,
     TrayRotateRequest,
+    TraySkipReuseOut,
+    TraySkipReuseRequest,
 )
 from app.schemas.common import Page
 from app.schemas.qc import QcCommitOut, QcCommitRequest, QcPreviewOut, QcPreviewRequest, QcUndoOut
@@ -33,6 +35,7 @@ from app.services.cell_service import (
     report_cell_to_pacbio,
     rotate_tray,
     serialize_cell,
+    set_tray_reuse_disabled,
     serialize_cell_detail,
 )
 from app.services.qc_service import commit_qc, preview_qc, undo_qc
@@ -224,6 +227,16 @@ def discard_tray_endpoint(req: TrayDiscardRequest, db: SessionDep, actor: ActorD
         raise HTTPException(404, "Tray not found or has no cells")
     cells = discard_tray(db, cells, req.reason, req.actor or actor)
     return TrayDiscardOut(cells=[serialize_cell(c) for c in cells])
+
+
+@router.post("/skip-reuse-tray", response_model=TraySkipReuseOut)
+def skip_reuse_tray_endpoint(req: TraySkipReuseRequest, db: SessionDep, actor: ActorDep) -> TraySkipReuseOut:
+    tray = db.get(CellTray, req.tray_id)
+    if tray is None:
+        raise HTTPException(404, "Tray not found")
+    set_tray_reuse_disabled(db, tray, req.disabled, req.actor or actor)
+    cells = list(db.scalars(select(Cell).where(Cell.tray_id == req.tray_id).options(*_DETAIL_OPTIONS)).unique())
+    return TraySkipReuseOut(cells=[serialize_cell(c) for c in cells])
 
 
 @router.post("/rotate-tray", response_model=TrayRotateOut)

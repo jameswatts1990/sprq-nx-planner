@@ -36,6 +36,7 @@ export const EXAMPLE_CELL: CellOut = {
   tray_id: 7,
   tray_position: 2,
   tray_size: 4,
+  tray_reuse_disabled: false,
   uses: [
     {
       id: 1,

@@ -103,6 +103,10 @@ class CellOut(BaseModel):
     tray_id: int | None
     tray_position: int | None
     tray_size: int
+    # Reversible "skip reuse / planning disposal" flag on this cell's physical tray - when
+    # true, autoschedule/Recalculate won't reuse any cell in the tray (see
+    # CellTray.reuse_disabled_at). Distinct from the sticky discard above.
+    tray_reuse_disabled: bool
     # Compact history of the samples/runs this cell has been used by, chronological
     # (earliest use first). Powers the linked container/run list on the cell card.
     uses: list[CellUseSummaryOut] = []
@@ -161,6 +165,18 @@ class TrayDiscardRequest(BaseModel):
 
 
 class TrayDiscardOut(BaseModel):
+    cells: list[CellOut]
+
+
+class TraySkipReuseRequest(BaseModel):
+    tray_id: int
+    # True = flag the tray "skip reuse / planning disposal"; False = clear the flag and
+    # re-admit the tray to reuse. Reversible, advisory - see CellTray.reuse_disabled_at.
+    disabled: bool
+    actor: str | None = None
+
+
+class TraySkipReuseOut(BaseModel):
     cells: list[CellOut]
 
 

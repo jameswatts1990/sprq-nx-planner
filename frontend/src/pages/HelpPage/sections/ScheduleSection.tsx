@@ -121,10 +121,11 @@ export function ScheduleSection() {
           or retired.
         </li>
         <li>
-          A tray whose cells are <b>all used up or expired</b> doesn&apos;t disappear — it stays in its position shown{" "}
-          <b>fully greyed out</b> (every cell reading <b>0</b> uses left <i>by end of week</i>), because the physical tray
-          is still sitting in the instrument until you swap it. It clears from the map only once a <b>fresh tray is
-          loaded</b> into that position (which then shows in <i>&quot;loaded later&quot;</i>, below).{" "}
+          A tray whose cells are <b>all used up or expired</b> doesn&apos;t disappear while it&apos;s still the tray in
+          that position — it stays shown <b>fully greyed out</b> (every cell reading <b>0</b> uses left{" "}
+          <i>by end of week</i>), because the physical tray is still sitting in the instrument until you swap it. Once a{" "}
+          <b>fresh tray is loaded</b> into that position, the map shows the <b>fresh tray</b> instead — by the end of the
+          week the used-up one has physically left the instrument.{" "}
           <b>Hover for the NOW view</b> and a used-up cell still comes back to life if its final use hasn&apos;t
           physically broken out yet — on today&apos;s run the cells break out a couple of hours apart, so right now only
           the ones already broken out read as spent; the rest still show the use they&apos;re holding.
@@ -139,19 +140,20 @@ export function ScheduleSection() {
           then, and the uses-remaining number reflects the <b>whole week&apos;s plan</b>. <b>Hover the map</b> to flip
           every cell to its status <b>right now</b>: colours, countdowns <i>and</i> the uses-remaining number all switch
           to the live reading, so a cell whose later uses haven&apos;t broken out yet shows the higher count it still
-          physically has. A green <b>NOW</b> pill (with a spinning icon) marks the live view. The trays shown are still
-          those on the instrument at the start of the week, not a not-yet-loaded successor.
+          physically has. A green <b>NOW</b> pill (with a spinning icon) marks the live view. Each slot shows the tray
+          that&apos;s on the instrument <b>by the end of the week</b> — so if a position turns over mid-week, you see the
+          fresh tray, not the one that has aged out.
         </li>
         <li>
-          <b>Loaded later.</b> When a tray ages out of its 108-hour window part-way through the week and
-          the schedule loads a <b>fresh replacement</b> into the same position, that successor is listed by{" "}
-          <b>TRAY #</b> only in a muted <b>&quot;loaded later&quot;</b> group beneath the maps, with the day it loads and
-          which plate. This is how RunNx tells you a tray swap is coming: you don&apos;t confirm anything — dropping a
-          sample onto a day the current tray has expired loads a fresh tray automatically (see <i>Dropping a sample
-          onto an empty slot</i>), and the new tray simply shows up here and as a new <b>Use 1</b> on the grid.
+          <b>Mid-week tray swaps.</b> When a tray ages out of its 108-hour window part-way through the week and the
+          schedule loads a <b>fresh replacement</b> into the same position, the map shows the <b>replacement</b> — the
+          tray actually on the instrument by the end of the week — in that slot, not the one that has aged out. You
+          don&apos;t confirm anything: dropping a sample onto a day the current tray has expired loads a fresh tray
+          automatically (see <i>Dropping a sample onto an empty slot</i>), and it shows up as the position&apos;s tray
+          and as a new <b>Use 1</b> on the grid.
         </li>
         <li>
-          Click a <b>TRAY #</b> heading (top maps or the &quot;loaded later&quot; group) to open the <b>Cells</b> tab
+          Click a <b>TRAY #</b> heading to open the <b>Cells</b> tab
           filtered to that tray — its four cells, summary, and Discard action on one screen. Click an individual <b>cell</b> in a tray strip
           to open that cell&apos;s <b>detail page</b> — its full history, status, 108-hour window, and Cell QC actions
           all live there.
@@ -299,6 +301,18 @@ export function ScheduleSection() {
           run instead, since a run holds at most 2 plates. This only limits what auto-fill proposes; dragging a
           sample onto Plate 2 by hand is unaffected.
         </dd>
+        <dt>Reuse this week (skip a tray you plan to dispose)</dt>
+        <dd>
+          A list of the <b>part-used trays</b> Auto Schedule would otherwise reuse this week — each with a{" "}
+          <b>Skip reuse</b> tickbox. Tick a tray when you <b>plan to throw it away</b> rather than run its last
+          use(s): Auto Schedule (and Recalculate) then stop offering that whole tray and open <b>fresh cells</b>{" "}
+          instead. This is what to use when, say, a weekend run left a cell on its 2nd of 3 uses but you&apos;d
+          rather bin the tray than schedule that 3rd use — <b>you no longer have to load a sample and rotate/discard
+          a filled tray first</b>. It&apos;s a <b>planning</b> flag, fully <b>reversible</b>: untick it to let the
+          tray be reused again — nothing is thrown away and no cell status changes until you actually discard the
+          tray on the Cells tab. A skipped tray shows a <b>Reuse skipped</b> badge wherever its cells appear. A
+          brand-new, never-used tray isn&apos;t listed here — it&apos;s a fresh cell, not a reuse.
+        </dd>
       </dl>
       <RunDesignExample />
       <p>
@@ -392,9 +406,9 @@ export function ScheduleSection() {
         reused within its <b>108-hour window</b>. If you drop a sample onto a day that&apos;s past the window of every
         cell in that tray position — so no cell there could still run — RunNx loads a <b>brand-new tray</b> in its
         place, just as the operator would physically swap the aged-out tray for a fresh one. It happens seamlessly,
-        with no prompt: the sample lands as <b>Use 1</b> on the new tray, and the incoming tray appears in the{" "}
-        <b>&quot;loaded later&quot;</b> group of the instrument cell map (see above) so the swap is visible. The expired
-        tray&apos;s earlier runs that week are untouched.
+        with no prompt: the sample lands as <b>Use 1</b> on the new tray, and — since it&apos;s the tray on the
+        instrument by the end of the week — the incoming tray takes that position&apos;s slot in the instrument cell
+        map (see above) so the swap is visible. The expired tray&apos;s earlier runs that week are untouched.
       </p>
       <p className={styles.subheading}>The holographic cell seal</p>
       <p>
@@ -724,8 +738,9 @@ export function ScheduleSection() {
         </li>
         <li>
           A <b>reuse run</b> reruns Plate 1&apos;s cells as Plate 2 on a <i>later</i> weekday (Use 2, after the
-          instrument&apos;s on-board wash). Plate 2&apos;s header shows the day it acquires and a small{" "}
-          <b>reuse</b> tag, and the whole thing is still one run you loaded once — you don&apos;t reload anything for
+          instrument&apos;s on-board wash). Plate 2&apos;s header shows the day it acquires right next to its title —
+          there&apos;s no separate &quot;reuse&quot; label because the cell stub already goes from <b>Use 1</b> to{" "}
+          <b>Use 2</b>, which says the same thing — and the whole thing is still one run you loaded once — you don&apos;t reload anything for
           Plate 2. This is what a hand drop that reuses a cell already loaded in that day&apos;s run produces, and
           — in <b>2 plates per run</b> mode — what Auto Schedule and Recalculate now produce too, whenever reusing
           a cell means fewer physical trays overall: the grid shows one run you loaded once, and the cell stub

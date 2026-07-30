@@ -258,6 +258,7 @@ function InstrumentCard({ instrument, stats, activeRuns, recentRuns, activeRunsU
 
         <StatTiles>
           <StatTile
+            wide
             label="Currently running"
             value={
               stats?.running_run_name && stats.running_run_id != null ? (

@@ -58,8 +58,8 @@ export function CellsSection() {
         section.)
       </p>
       <p>
-        <b>Discard all cells:</b> the tray view — and a cell&apos;s own <b>Cell tray</b> card on its detail page —
-        carry a <b>Discard all cells</b> button that force-closes every cell still physically in that tray, cancelling
+        <b>Discard all cells:</b> the tray view carries a <b>Discard all cells</b> button that force-closes
+        every cell still physically in that tray, cancelling
         any not-yet-run placements for those cells (their samples return to the backlog) and marking every cell
         exhausted regardless of how many uses it has left. It&apos;s only offered while at least one cell in the tray
         is still open. Use it when a tray is being pulled from the instrument for good and its remaining capacity
@@ -72,6 +72,20 @@ export function CellsSection() {
         <b>Exhausted</b> together, exactly like a manual discard, and are never offered for reuse again. A tray still
         holding an unused or below-target cell is left alone (every cell stays open) until a later run finishes it.
         Disposed cells keep their already-scheduled runs; only the spare capacity is closed off.
+      </p>
+      <p>
+        <b>You can only dispose a whole tray, never a single cell.</b> All four cells share one physical box that goes
+        in and out of the instrument as a unit, so there is no &quot;discard one cell&quot; action. The <i>only</i> way
+        a single cell leaves service on its own — while its tray-mates stay usable — is a <b>QC Stop</b> (a
+        hardware-fault action; see <b>Cell QC</b> below), and even then the cell is marked Stopped, not thrown away.
+      </p>
+      <p>
+        <b>Reuse skipped (planning a disposal):</b> if you already know you&apos;ll bin a part-used tray but haven&apos;t
+        physically pulled it yet, you can flag it from the Schedule tab&apos;s <b>Autoschedule</b> panel (its{" "}
+        <b>Reuse this week</b> list) so Auto Schedule stops reusing it and opens fresh cells instead. A tray flagged that
+        way shows a <b>Reuse skipped</b> badge here. It&apos;s a reversible <i>plan</i> only — no cell status changes and
+        nothing is thrown away until you actually <b>Discard all cells</b>; clearing the flag lets the tray be reused
+        again.
       </p>
 
       <p className={styles.subheading}>Cell cards &amp; the 108-hour window</p>
@@ -131,15 +145,6 @@ export function CellsSection() {
           cards list replaces the plain numbers, showing elapsed hours toward the limit; otherwise plain{" "}
           <b>Window elapsed</b> and <b>Window breached</b> values are shown instead. A <b>stopped</b> or{" "}
           <b>retired</b> cell also shows a note with the reason it was taken out of service and the date it happened.
-        </li>
-        <li>
-          <b>Cell tray</b> card: SPRQ-Nx SMRT Cells ship in a physical tray of 4. The moment any one cell in a tray
-          gets a sample, all 4 are registered together, in cell-number order - this card shows the tray&apos;s cells as
-          the same cards as the main list (the one you&apos;re viewing highlighted), so you can see at a glance which are
-          still available, even before their own first use. Its heading opens the full <b>tray view</b> (this tab
-          filtered to the tray), also reachable from a cell&apos;s seal popover and the grid&apos;s instrument cell map.
-          Not shown for cells created before this feature, or via Register in-progress cell, since those have no known
-          tray.
         </li>
         <li>
           <b>Cell QC</b> opens the quality-control dialog for the cell, with three actions (each takes an optional

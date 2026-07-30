@@ -1,16 +1,16 @@
 # Agent Instructions
 
-> This file is mirrored across CLAUDE.md, AGENTS.md, and GEMINI.md so the same instructions load in any AI environment.
-
 ## RunNx Product & UX Principles
 
 RunNx exists to make PacBio Revio/SPRQ-Nx run scheduling and cell-reuse tracking fast and error-free for lab users who are not developers. Apply these five criteria to every user-facing change — bug fix or new feature — not just when explicitly reminded:
 
 - **Aligned with app goals**: prefer the fix that serves accurate, low-friction lab scheduling over a technically interesting detour. When a change touches scheduling rules, re-check `docs/pacbio-sprq-nx-scheduling-reference.md` (see below) so behaviour still matches vendor-documented instrument constraints, not just what's convenient to implement.
+- **Aligned with Revio ICS Methodology**: Scheduling emulates the behaviour of the Revio ICS - flag when going against these principles (see above) 
 - **Seamless**: a change should feel like a natural extension of the existing screen, not a bolted-on control. Reuse existing components/patterns (e.g. `ConfirmModal`, the shared `Badge`/`Note` tone maps, existing modal/drawer/table conventions) instead of inventing new ones for the same job.
 - **Efficient**: minimize clicks, scrolling, and context-switches for the common case; don't trade a rare edge case for extra friction on the everyday path. This applies to implementation too — no needless abstraction, no premature scope creep (see the general "Doing tasks" principles above).
 - **Transparent**: current state, why something is blocked/locked, and what an action will do should be obvious at a glance — via status badges, tooltips, and Help text — never a silent state change or an error the user can't act on.
 - **UX/UI first**: for any user-facing change, reason about the interaction from the lab user's perspective before writing code, and verify visually in the running app (the `run`/`verify` skills, or a manual dev-server check) rather than relying on type-checks or test suites alone to call it done.
+-**Leave Code Clean**: As changes are made, remove code if it is certified redundant. Remove unused helpers. Clean up commented code if no needed. Only leave comments that help an AI agent understand. Use human readable naming conventions. 
 
 ## RunNx App Version
 
@@ -47,7 +47,7 @@ The app is deployed on a Hetzner VM (`37.27.2.77`, reachable at `http://37.27.2.
 
 ## RunNx Scheduling Domain Reference
 
-Before making any change that draws from or affects scheduling — cell reuse, the 108-hour window, run/cycle batching, or cost/KPI modeling — read `docs/pacbio-sprq-nx-scheduling-reference.md`. It maps this app's scheduling rules onto the PacBio Revio/SPRQ-Nx technical document they were derived from, with file:line references into the current code. Re-check it (and the source PacBio deck, held outside this repo) before changing `engine/constants.py`, the window/status logic in `services/cell_service.py`, the reuse-ordering sorts in `engine/packing.py`/`engine/slot_scheduling.py`, the cost tables in `engine/kpis.py`, or the cell/tray reassignment logic in `services/placement_service.py` (`move_sample`, `_move_sample_to_new_cell`, `_resolve_cell_choice`) — several of those constants and constraints (3-use cap, single 108h deadline from first use, reuse-before-new-cell priority, cost-per-use figures, a cell's fixed tray/well position for life) are direct implementations of vendor-documented instrument behavior or this app's own physical-cell invariants, not arbitrary choices.
+Before making any change that draws from or affects scheduling — cell reuse, the 108-hour window, run/cycle batching — read `docs/pacbio-sprq-nx-scheduling-reference.md`. It maps this app's scheduling rules onto the PacBio Revio/SPRQ-Nx technical document they were derived from, with file:line references into the current code. Re-check it (and the source PacBio deck, held outside this repo) before changing `engine/constants.py`, the window/status logic in `services/cell_service.py`, the reuse-ordering sorts in `engine/packing.py`/`engine/slot_scheduling.py`, the cost tables in `engine/kpis.py`, or the cell/tray reassignment logic in `services/placement_service.py` (`move_sample`, `_move_sample_to_new_cell`, `_resolve_cell_choice`) — several of those constants and constraints (3-use cap, single 108h deadline from first use, reuse-before-new-cell priority, cost-per-use figures, a cell's fixed tray/well position for life) are direct implementations of vendor-documented instrument behavior or this app's own physical-cell invariants, not arbitrary choices.
 
 ## RunNx Help Tab Maintenance
 

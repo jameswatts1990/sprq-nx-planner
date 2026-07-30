@@ -316,7 +316,15 @@ def open_new_tray(db: Session, instrument_id: int, well: str, *, founding_date: 
     # A still-open cell blocks reloading the box only while it's genuinely resident: with a
     # founding_date, one whose 108h window has closed by then counts as physically removed
     # (turnover - see the docstring and _cell_resident_on); without one, every open cell blocks.
-    blocked = any(founding_date is None or _cell_resident_on(c, founding_date) for c in open_cells)
+    # A cell whose tray is flagged "skip reuse / planning disposal" (CellTray.reuse_disabled_at)
+    # never blocks either: the lab has declared it's binning that tray, so its box is free for a
+    # fresh tray - the same "being removed" model as an expired tray. Reversible: clearing the
+    # flag makes the tray resident (and blocking) again.
+    blocked = any(
+        (c.tray is None or c.tray.reuse_disabled_at is None)
+        and (founding_date is None or _cell_resident_on(c, founding_date))
+        for c in open_cells
+    )
     if blocked:
         raise ValueError(
             f"well {well} is already occupied by an existing physical tray (wells {box_wells}) on this instrument."
@@ -585,6 +593,7 @@ def serialize_cell(cell: Cell, as_of: datetime | None = None) -> CellOut:
         tray_id=cell.tray_id,
         tray_position=cell.tray_position,
         tray_size=CELLS_PER_TRAY,
+        tray_reuse_disabled=cell.tray is not None and cell.tray.reuse_disabled_at is not None,
         uses=uses,
     )
 
@@ -792,6 +801,29 @@ def discard_tray(db: Session, cells: list[Cell], reason: str | None, actor: str 
         db.refresh(cell)
         db.refresh(cell, attribute_names=["cell_uses"])
     return cells
+
+
+def set_tray_reuse_disabled(db: Session, tray: CellTray, disabled: bool, actor: str | None) -> CellTray:
+    """Toggle a physical tray's reversible "skip reuse / planning disposal" flag. When on,
+    load_prior_cells drops every cell in the tray from the reuse pool, so autoschedule and
+    Recalculate stop offering it - the lab intends to bin the whole tray. Advisory and
+    non-terminal: unlike discard_tray it never touches cell status or cancels uses, and
+    turning it off re-admits the tray to reuse. Whole-tray by construction (the flag lives
+    on CellTray); a single cell only leaves service on its own via a QC stop. Caller-safe
+    to call redundantly. Commits."""
+    tray.reuse_disabled_at = utcnow() if disabled else None
+    db.add(
+        AuditLog(
+            actor=actor or "unknown",
+            action="tray_skip_reuse" if disabled else "tray_resume_reuse",
+            entity_type="cell_tray",
+            entity_id=tray.id,
+            details_json={"disabled": disabled},
+        )
+    )
+    db.commit()
+    db.refresh(tray)
+    return tray
 
 
 def rotate_tray(

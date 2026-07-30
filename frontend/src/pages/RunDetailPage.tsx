@@ -149,14 +149,6 @@ export function RunDetailPage() {
               <div className={styles.trayHeader}>
                 <div className={styles.plateLabelWrap}>
                   <span className={styles.trayLabel}>Plate {plateIdx + 1}</span>
-                  {plate?.is_reuse && (
-                    <span
-                      className={styles.reuseTag}
-                      title="Reuse — this plate reruns Plate 1's cells on a later day (Use 2+); the instrument runs it itself, in one load session."
-                    >
-                      reuse
-                    </span>
-                  )}
                   {acquiresElsewhere && (
                     <span
                       className={styles.acquireTag}

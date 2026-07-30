@@ -9,6 +9,8 @@ import type {
   TrayDiscardRequest,
   TrayRotateOut,
   TrayRotateRequest,
+  TraySkipReuseOut,
+  TraySkipReuseRequest,
 } from "@/types/cell";
 import type { Page } from "@/types/common";
 import type { QcCommitOut, QcCommitRequest, QcPreviewOut, QcPreviewRequest, QcUndoOut } from "@/types/qc";
@@ -77,4 +79,9 @@ export const cellsApi = {
    * on the old (discarded) cells. 409 if a later run is confirmed loaded or a cell is
    * stopped/retired. */
   rotateTray: (req: TrayRotateRequest) => api.post<TrayRotateOut>("/api/cells/rotate-tray", req),
+  /** Toggle a tray's reversible "skip reuse / planning disposal" flag. When on, autoschedule
+   * and Recalculate stop offering any of the tray's cells for reuse; turning it off restores
+   * reuse. Advisory - never changes cell status or cancels uses (unlike discardTray). */
+  setTraySkipReuse: (req: TraySkipReuseRequest) =>
+    api.post<TraySkipReuseOut>("/api/cells/skip-reuse-tray", req),
 };

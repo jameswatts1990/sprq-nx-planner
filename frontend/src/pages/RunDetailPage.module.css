@@ -75,19 +75,6 @@
   text-transform: uppercase;
   color: var(--faint);
 }
-/* "reuse" chip - teal, matching the Use-2 family, so it reads as "a later acquisition of the
-   same cells". Mirrors the grid's .reuseTag. */
-.reuseTag {
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--teal-deep);
-  background: var(--teal-tint, #dff3f1);
-  border: 1px solid var(--teal-deep);
-  border-radius: 4px;
-  padding: 0 5px;
-}
 /* The day this plate actually sequences, shown only when it differs from the load day. */
 .acquireTag {
   font-size: 10px;

@@ -100,7 +100,7 @@ function Headline({ data }: { data: StatsResponse }) {
       <StatTile label="Samples completed" value={h.samples_completed} />
       <StatTile label="Avg uses / cell" value={h.avg_uses_per_cell.toFixed(2)} hint="of 3 max" />
       <StatTile label="Reaching Use 3" value={`${h.pct_reaching_use3}%`} />
-      <StatTile label="Failure rate" value={`${h.failure_rate}%`} />
+      <StatTile label="Failure rate" value={`${h.failure_rate}%`} hint="of samples sequenced" />
       <StatTile label="Well fill" value={`${h.well_fill_pct}%`} hint="of 8 wells/run" />
       <StatTile label="Awaiting credit" value={h.cells_awaiting_credit} />
       <StatTile label="Credits received" value={h.credits_received} />
@@ -232,7 +232,7 @@ function StatsCharts({ data }: { data: StatsResponse }) {
                 height={180}
               />
             </ChartBlock>
-            <ChartBlock title="Failure rate %" isEmpty={!failTrend.length}>
+            <ChartBlock title="Failure rate %" subtitle="failed of samples sequenced" isEmpty={!failTrend.length}>
               <TimeLine data={failTrend} valueKey="pct" name="Failure rate" color={p.red} percent />
             </ChartBlock>
             <ChartBlock

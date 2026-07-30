@@ -151,26 +151,14 @@
   text-transform: uppercase;
   color: var(--faint);
 }
-/* Plate label + its reuse/acquire tags share one row, wrapping if tight. */
+/* Plate label + its acquire date share one row - kept on a single line so the date always
+   reads as part of the plate heading. */
 .plateLabelWrap {
   display: flex;
   align-items: center;
   gap: 4px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   min-width: 0;
-}
-/* "reuse" chip on a plate that reruns Plate 1's cells on a later day (Use 2+). Teal, to
-   match the Use-2 family, so it reads as "a later acquisition of the same cells". */
-.reuseTag {
-  font-size: 8px;
-  font-weight: 800;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--teal-deep);
-  background: var(--teal-tint, #dff3f1);
-  border: 1px solid var(--teal-deep);
-  border-radius: 4px;
-  padding: 0 4px;
 }
 /* The day this plate actually sequences, shown only when it differs from the load day
    (i.e. a reuse Plate 2 the instrument runs the next weekday). */

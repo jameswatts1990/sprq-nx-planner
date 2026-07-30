@@ -1,4 +1,5 @@
 import { useState } from "react";
+import type { ReactNode } from "react";
 
 import { LoadTimePicker } from "@/components/scheduler/LoadTimePicker";
 import { Button } from "@/components/ui/Button";
@@ -34,6 +35,9 @@ export interface RunDesignFieldsProps {
   /** Opens the "are you sure" confirmation - the actual clear happens after confirming. */
   onRequestClearSchedule: () => void;
   note: { tone: NoteTone; icon: string; text: string } | null;
+  /** Optional "trays autoschedule will reuse" list (AutoscheduleReuseTrays), rendered just
+   * above the Auto schedule button. Omitted on the Help tab's static preview of these dials. */
+  reuseTraysSlot?: ReactNode;
 }
 
 const MAX_USES_OPTIONS = [
@@ -81,6 +85,7 @@ export function RunDesignFields({
   weekPlannedCount,
   onRequestClearSchedule,
   note,
+  reuseTraysSlot,
 }: RunDesignFieldsProps) {
   const [pickingLoadTime, setPickingLoadTime] = useState(false);
   return (
@@ -160,6 +165,8 @@ export function RunDesignFields({
           fullWidth
         />
       </div>
+
+      {reuseTraysSlot}
 
       <div className={styles.autoBar}>
         <Button

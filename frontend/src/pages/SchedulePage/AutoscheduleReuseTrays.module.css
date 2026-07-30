@@ -1,0 +1,90 @@
+/* Autoschedule drawer "Reuse this week" tray list. Field label matches RunDesignFields so it
+   reads as one more dial in the panel. */
+.field {
+  margin-bottom: 16px;
+}
+.fieldLabel {
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--grey);
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.hint {
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--faint);
+  font-size: 11.5px;
+}
+.empty {
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: var(--faint);
+  line-height: 1.5;
+}
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--card);
+}
+/* A flagged tray is dimmed and magenta-edged so "won't be reused" reads at a glance. */
+.skipped {
+  border-color: var(--magenta);
+  background: var(--magenta-tint);
+}
+.main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  min-width: 0;
+}
+.main input {
+  accent-color: var(--magenta);
+  margin: 0;
+  cursor: pointer;
+  flex: none;
+}
+.text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.title {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sub {
+  font-size: var(--fs-xs);
+  color: var(--grey);
+}
+.badges {
+  flex: none;
+}
+.error {
+  margin: 8px 0 0;
+  font-size: var(--fs-xs);
+  color: var(--danger, #c0392b);
+}

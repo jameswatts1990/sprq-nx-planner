@@ -127,35 +127,22 @@ export interface TrayView {
   positions: TrayPositionView[];
 }
 
-/** A tray scheduled to be LOADED later in the viewed week (a mid-week turnover successor),
- * shown by id only rather than with full cell state - it isn't on the instrument yet. */
-export interface FutureTrayView {
-  trayId: number;
-  /** The carousel position it will occupy: 0 = Plate 1, 1 = Plate 2. */
-  carousel: 0 | 1;
-  /** The weekday (YYYY-MM-DD) it's loaded - its earliest cell's first use. */
-  foundingDate: string;
-}
-
-/** The on-instrument tray map: the tray resident at the START of the viewed week per carousel
- * position (shown with full cell state), plus any successor trays scheduled to be loaded later
- * that same week (shown by id only). */
+/** The on-instrument tray map: the tray resident at the END of the viewed week per carousel
+ * position, shown with full cell state. Anchored to the week's end so the tray in each slot is
+ * the one the panel's caption and cell shading both describe ("state by end of Friday"): when a
+ * position turns over mid-week (an aged-out tray replaced by a fresh one), the slot shows the
+ * SUCCESSOR that's actually on the instrument by week's end, not the departed predecessor. */
 export interface InstrumentTrayMap {
-  /** The day the resident `carousel` state is anchored to - the first weekday of the viewed
-   * window (YYYY-MM-DD), or null when the window is empty. Drives the "as of ..." caption.
-   * Deliberately the week's *start*, never its latest scheduled day, so a not-yet-loaded
-   * successor is never surfaced as if it were the tray currently on the instrument. */
+  /** The first weekday of the viewed window (YYYY-MM-DD), or null when the window is empty -
+   * informational window metadata only; residency is anchored to `weekEndDate`, not this. */
   asOfDate: string | null;
-  /** The last visible weekday of the viewed window (YYYY-MM-DD) - the default reference the
-   * panel projects each cell's expiry state to ("stats for the end of the week"), until the
-   * user hovers to see the state as of right now. */
+  /** The last visible weekday of the viewed window (YYYY-MM-DD) - the reference each carousel
+   * slot's residency is picked at AND the default reference the panel projects each cell's
+   * expiry state to ("state by end of the week"), until the user hovers to see it as of now. */
   weekEndDate: string | null;
-  /** The resident tray (or null = empty carousel position) for Plate 1 [0] and Plate 2 [1],
-   * as of `asOfDate`. */
+  /** The tray resident on `weekEndDate` (or null = empty carousel position) for Plate 1 [0] and
+   * Plate 2 [1]. */
   carousel: [TrayView | null, TrayView | null];
-  /** Successor trays founded LATER within the viewed window (after `asOfDate`), sorted by
-   * founding day then carousel position - the "loaded later this week" group. */
-  futureTrays: FutureTrayView[];
 }
 
 /** The carousel position (0 = Plate 1, 1 = Plate 2) a well sits in - mirrors
@@ -223,28 +210,29 @@ function positionView(cell: CellOut, carousel: 0 | 1): TrayPositionView {
 }
 
 /**
- * The cell/tray map for every instrument, anchored to the START of the viewed week. For each
- * instrument's two carousel positions it picks the physical tray resident on the week's first
- * day (its tenure [founding, eviction) spans that day) and projects each of that tray's 4 cells
- * to their scheduled-forward state (uses remaining, 108h expiry, urgency) - all read straight
- * from the already-fetched CellOut, whose totals already count planned uses. Separately it
- * collects any *successor* trays founded later in the same week (a mid-week turnover, e.g. when
- * the resident tray ages out of its 108h window and a fresh one is loaded in its place) into
- * `futureTrays`, shown by id only.
+ * The cell/tray map for every instrument, anchored to the END of the viewed week. For each
+ * instrument's two carousel positions it picks the physical tray resident on the week's LAST
+ * visible day (its tenure [founding, eviction) spans that day) and projects each of that tray's
+ * 4 cells to their scheduled-forward state (uses remaining, 108h expiry, urgency) - all read
+ * straight from the already-fetched CellOut, whose totals already count planned uses.
  *
- * Anchoring to the week's start (not its latest scheduled day) is deliberate: it keeps the
- * top-of-map state a truthful picture of what's physically on the instrument as the week
- * begins, and surfaces anything loaded later as an explicit "later this week" list rather than
- * silently swapping the resident tray for a not-yet-loaded successor.
+ * Anchoring to the week's END (not its first day) is what makes the panel match its own caption:
+ * the slot's cells are shaded, and the pill reads, "state by end of <last weekday>". When a
+ * carousel position turns over within the week - the resident tray ages out of its 108h window
+ * and a fresh tray is loaded into the same position - the departed predecessor is fully expired
+ * by week's end and is no longer physically on the instrument, so it is dropped; the slot shows
+ * the SUCCESSOR that's actually resident by Friday. (Picking the week's-start tray instead left
+ * an expired, already-swapped-out tray pinned in a slot captioned "by end of week" - the bug
+ * this anchoring fixes.)
  *
  * A tray whose 4 cells have ALL gone terminal (used up / expired / retired) is deliberately NOT
- * dropped here - it stays in its carousel slot, rendered fully depleted (its cells project to
- * "spent"/"expired" and read 0 uses), because the physical tray is still sitting in the bay
- * until an operator swaps it. This is the one place the overview parts ways with the grid's
- * ghost logic (which treats a fully-terminal tray as gone, freeing its wells to load onto) -
- * hence no `vacatedTrayIds` here: only a *successor* tray founded in the same carousel position
- * evicts the depleted one from the slot (via `trayEvictionDates`), and that successor then shows
- * in the "loaded later" group rather than blanking out what's physically still loaded.
+ * dropped when it is still the position's end-of-week resident (no successor has evicted it) -
+ * it stays in its carousel slot, rendered fully depleted (its cells project to "spent"/"expired"
+ * and read 0 uses), because the physical tray is still sitting in the bay until an operator swaps
+ * it. This is the one place the overview parts ways with the grid's ghost logic (which treats a
+ * fully-terminal tray as gone, freeing its wells to load onto) - hence no `vacatedTrayIds` here:
+ * only a *successor* tray founded in the same carousel position (via `trayEvictionDates`) evicts
+ * the depleted one from the slot.
  *
  * `allCells` should be the wide open+terminal+stopped universe (SchedulePage's three cell
  * queries), and `trayFoundingDates`/`trayEvictionDates` the same maps SchedulePage already
@@ -270,23 +258,18 @@ export function computeInstrumentTrayMaps(
     else byTray.set(cell.tray_id, [cell]);
   }
 
-  // The week's first weekday anchors residency; its last bounds "later this week". An empty
-  // window (shouldn't happen in practice) falls back to today so the map still resolves.
-  const asOf = days[0] ?? todayIsoUTC();
-  const lastDay = days[days.length - 1] ?? asOf;
+  // The week's LAST visible weekday anchors residency (and the panel's caption/shading). An
+  // empty window (shouldn't happen in practice) falls back to today so the map still resolves.
+  const lastDay = days[days.length - 1] ?? days[0] ?? todayIsoUTC();
   const out = new Map<string, InstrumentTrayMap>();
 
   for (const [serial, byTray] of byInstrument) {
     const carousel: [TrayView | null, TrayView | null] = [null, null];
-    const futureTrays: FutureTrayView[] = [];
 
-    // Per carousel position, gather the tray resident at the week's START (keeping the latest-
-    // founded on the rare tie) apart from any trays FOUNDED mid-week, so we can tell a genuine
-    // turnover (a mid-week tray replacing a start-resident) from a tray that's simply this
-    // position's only tray this week (which belongs in the slot, not "loaded later").
+    // Per carousel position, the tray resident on the week's LAST day (keeping the latest-founded
+    // on the rare tie, so a mid-week successor beats the predecessor it evicted).
     type TrayCand = { trayId: number; founding: string | null; siblings: CellOut[] };
-    const startResident: [TrayCand | null, TrayCand | null] = [null, null];
-    const midWeek: [TrayCand[], TrayCand[]] = [[], []];
+    const endResident: [TrayCand | null, TrayCand | null] = [null, null];
 
     for (const [trayId, siblings] of byTray) {
       // A fully-terminal tray (every sibling used up / expired / retired) is intentionally kept,
@@ -302,57 +285,31 @@ export function computeInstrumentTrayMaps(
       const founding = trayFoundingDates.get(trayId) ?? null;
       const eviction = trayEvictionDates.get(trayId);
 
-      // Founded strictly after the anchor day, on or before the last visible day: a candidate to
-      // load mid-week. Whether it's a "loaded later" successor or simply this position's own tray
-      // is decided below, once we know whether anything is resident at the week's start.
-      if (founding !== null && founding > asOf && founding <= lastDay) {
-        midWeek[pos].push({ trayId, founding, siblings });
-        continue;
-      }
-
-      // Otherwise, is it resident on the anchor day? Tenure [founding, eviction) spans it. A
-      // never-used tray (no founding anchor) is physically loaded already, so treat it as
-      // resident. A tray founded further out than this week is neither resident nor "this week".
-      const foundedByNow = founding === null || founding <= asOf;
-      const notYetEvicted = eviction === undefined || asOf < eviction;
-      if (!foundedByNow || !notYetEvicted) continue;
+      // Resident on the last visible day? Tenure [founding, eviction) must span it. A never-used
+      // tray (no founding anchor) is physically loaded already, so treat it as resident. A tray
+      // founded further out than this week is not yet on the instrument; one already evicted by a
+      // successor before week's end has physically left, so both are excluded.
+      const foundedByEnd = founding === null || founding <= lastDay;
+      const notYetEvicted = eviction === undefined || lastDay < eviction;
+      if (!foundedByEnd || !notYetEvicted) continue;
 
       // On the rare tie (shouldn't happen - one tray per position at a time), keep the
       // latest-founded so a successor beats its predecessor.
-      const current = startResident[pos];
+      const current = endResident[pos];
       if (current !== null && (founding ?? "") <= (current.founding ?? "")) continue;
-      startResident[pos] = { trayId, founding, siblings };
+      endResident[pos] = { trayId, founding, siblings };
     }
 
-    // Resolve each position. If a tray is resident at the week's start, it fills the slot and
-    // every mid-week tray is a genuine turnover successor ("loaded later"). If the position is
-    // empty at the start, the earliest mid-week tray IS this position's tray - show it in the
-    // slot, not "loaded later" - and only any later ones are successors.
     for (const pos of [0, 1] as const) {
-      const ordered = [...midWeek[pos]].sort((a, b) =>
-        (a.founding ?? "") < (b.founding ?? "") ? -1 : (a.founding ?? "") > (b.founding ?? "") ? 1 : a.trayId - b.trayId,
-      );
-      let resident = startResident[pos];
-      let successors = ordered;
-      if (!resident && ordered.length > 0) {
-        resident = ordered[0];
-        successors = ordered.slice(1);
-      }
-      if (resident) {
-        const positions = [...resident.siblings]
-          .sort((a, b) => (a.tray_position ?? 0) - (b.tray_position ?? 0))
-          .map((c) => positionView(c, pos));
-        carousel[pos] = { trayId: resident.trayId, carousel: pos, positions };
-      }
-      for (const s of successors) {
-        futureTrays.push({ trayId: s.trayId, carousel: pos, foundingDate: s.founding as string });
-      }
+      const resident = endResident[pos];
+      if (!resident) continue;
+      const positions = [...resident.siblings]
+        .sort((a, b) => (a.tray_position ?? 0) - (b.tray_position ?? 0))
+        .map((c) => positionView(c, pos));
+      carousel[pos] = { trayId: resident.trayId, carousel: pos, positions };
     }
 
-    futureTrays.sort((a, b) =>
-      a.foundingDate < b.foundingDate ? -1 : a.foundingDate > b.foundingDate ? 1 : a.carousel - b.carousel,
-    );
-    out.set(serial, { asOfDate: days[0] ?? null, weekEndDate: days[days.length - 1] ?? null, carousel, futureTrays });
+    out.set(serial, { asOfDate: days[0] ?? null, weekEndDate: days[days.length - 1] ?? null, carousel });
   }
 
   return out;

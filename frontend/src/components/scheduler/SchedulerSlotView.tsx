@@ -54,9 +54,9 @@ export interface SchedulerSlotViewProps extends HTMLAttributes<HTMLDivElement> {
  * forwardRef + spread props let SchedulerSlot attach the droppable/draggable node ref
  * and listeners directly to this box.
  */
-/** Max degrees of tilt in either axis - kept small so the effect reads as a subtle premium
- * finish, not a gimmick, on a card this size. */
-const MAX_TILT_DEG = 8;
+/** Max degrees of tilt in either axis - enough to read as a lively 3D wiggle as the cursor
+ * moves across the card, without swinging so far it distorts the label. */
+const MAX_TILT_DEG = 12;
 
 /** Sets the card's --tilt-x/--tilt-y custom properties directly on the DOM node (bypassing
  * React state) so a grid of hundreds of slots doesn't re-render on every mousemove pixel -
@@ -165,9 +165,6 @@ export const SchedulerSlotView = memo(
         : (stage!.cell_ref?.match(/(\d+)\s*$/)?.[1]?.replace(/^0+/, "") ?? "") || String(stage!.cell_id))
     : "";
   const sealHue = showStage ? Math.round((stage!.cell_id * 137.508) % 360) : 0;
-  // The tray id, printed horizontally along the bottom edge of the seal (overflow-hidden clips
-  // any tail if the id is unusually long).
-  const sealMicrotext = sealNum;
   const classes = [styles.slot];
   if (showStage) {
     classes.push(styles.filled, styles[useClass]);
@@ -305,7 +302,7 @@ export const SchedulerSlotView = memo(
             >
               <span className={styles.stubSheen} aria-hidden="true" />
               <span className={styles.stubMicro} aria-hidden="true">
-                {sealMicrotext}
+                {sealNum}
               </span>
               <span className={styles.stubLabel}>
                 <span className={styles.stubCell}>

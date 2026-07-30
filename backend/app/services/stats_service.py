@@ -64,6 +64,12 @@ from app.timeutil import ensure_aware
 WELLS_PER_PLATE = CELLS_PER_TRAY  # well capacity per plate (a cycle is one plate / one tray now)
 # CellUse statuses that represent a run that actually happened and got a verdict.
 VERDICT_STATUSES = ("completed", "failed", "aborted")
+# CellUse statuses that represent a sample that has actually gone on the instrument -
+# the failure-rate denominator. Includes in-progress ("started") runs, so a failure isn't
+# counted against a shrunken pool while its sibling successes are still mid-run (a completed
+# verdict only lands when the whole run is marked complete). Excludes still-"planned" (not yet
+# loaded) and "cancelled" (a Stop-cell marker, never a real sequencing event).
+SEQUENCED_STATUSES = ("started", "completed", "failed", "aborted")
 TERMINAL_CELL_STATUSES = ("exhausted", "window_expired", "retired", "stopped")
 
 
@@ -146,7 +152,7 @@ def _throughput_and_failures(db, date_from, date_to, instrument_serial, instrume
     weekly_samples: dict[date, int] = defaultdict(int)
     weekly_fill: dict[date, list[int]] = defaultdict(lambda: [0, 0])  # [filled, capacity]
     weekly_failed: dict[date, int] = defaultdict(int)
-    weekly_verdicts: dict[date, int] = defaultdict(int)
+    weekly_sequenced: dict[date, int] = defaultdict(int)
     movie_mix: dict[int, int] = defaultdict(int)
     per_instr: dict[str, list[int]] = defaultdict(lambda: [0, 0])  # serial -> [runs, cell_uses]
     outcomes: dict[str, int] = defaultdict(int)
@@ -169,15 +175,16 @@ def _throughput_and_failures(db, date_from, date_to, instrument_serial, instrume
             runs_completed += 1
 
         for cu in cyc.cell_uses:
+            if cu.status in SEQUENCED_STATUSES:
+                weekly_sequenced[week] += 1
             if cu.status in VERDICT_STATUSES:
                 outcomes[cu.status] += 1
-                weekly_verdicts[week] += 1
                 if cu.status == "completed":
                     samples_completed += 1
                 if cu.status == "failed":
                     weekly_failed[week] += 1
 
-    total_verdicts = sum(outcomes.values())
+    total_sequenced = sum(weekly_sequenced.values())
     total_filled = sum(v[0] for v in weekly_fill.values())
     total_capacity = sum(v[1] for v in weekly_fill.values())
 
@@ -202,15 +209,15 @@ def _throughput_and_failures(db, date_from, date_to, instrument_serial, instrume
     failures = FailureStats(
         outcomes=[OutcomeSlice(status=s, count=outcomes.get(s, 0)) for s in VERDICT_STATUSES],
         failure_rate_trend=[
-            FailureRatePoint(week=w, failed=weekly_failed[w], total=weekly_verdicts[w])
-            for w in sorted(weekly_verdicts)
+            FailureRatePoint(week=w, failed=weekly_failed[w], total=weekly_sequenced[w])
+            for w in sorted(weekly_sequenced)
         ],
         credit_funnel=CreditFunnel(needs_report=0, reported=0, awaiting=0, received=0),  # filled later
     )
 
     headline_bits = {
         "failures": failures,
-        "failure_rate": _pct(outcomes.get("failed", 0), total_verdicts),
+        "failure_rate": _pct(outcomes.get("failed", 0), total_sequenced),
         "well_fill_pct": _pct(total_filled, total_capacity),
         "well_fill": [
             WellFillPoint(week=w, filled=weekly_fill[w][0], capacity=weekly_fill[w][1])

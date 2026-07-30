@@ -233,12 +233,13 @@ export function SchedulePage() {
     () => computeBlockedWellsByInstrumentAndDay(allTrayCells, win.days, trayFoundingDates),
     [allTrayCells, win.days, trayFoundingDates],
   );
-  // The physical-tray map for each instrument's left-column header: the tray resident at the
-  // start of the viewed week per carousel position, plus any successor trays loaded later that
-  // week (see instrumentTrayMaps.ts). Reuses the same tray founding/eviction maps the grid
-  // ghosts do, so tray residency agrees exactly. Unlike the ghosts it does NOT drop a fully-
-  // terminal tray (no vacatedTrayIds) - a used-up tray stays a depleted resident until a
-  // successor evicts it, since it's still physically in the bay.
+  // The physical-tray map for each instrument's left-column header: the tray resident by the
+  // END of the viewed week per carousel position (see instrumentTrayMaps.ts), so a mid-week
+  // turnover shows the successor actually on the deck by week's end, matching the panel's "by
+  // end of week" caption. Reuses the same tray founding/eviction maps the grid ghosts do, so
+  // tray residency agrees exactly. Unlike the ghosts it does NOT drop a fully-terminal tray (no
+  // vacatedTrayIds) - a used-up tray with no successor stays a depleted resident until an
+  // operator swaps it, since it's still physically in the bay.
   const trayMaps = useMemo(
     () => computeInstrumentTrayMaps(allTrayCells, win.days, trayFoundingDates, trayEvictionDates),
     [allTrayCells, win.days, trayFoundingDates, trayEvictionDates],
@@ -722,6 +723,7 @@ export function SchedulePage() {
           weekPlannedCount={weekPlannedStages.length}
           onRequestClearSchedule={actions.onRequestClearSchedule}
           note={actions.runDesignNote}
+          reuseCandidateCells={waitingCellsQuery.data ?? []}
           onClose={() => setAutoscheduleOpen(false)}
         />
       )}

@@ -51,32 +51,40 @@
 /* Filled chip, colour-coded by the loaded cell's use number (Use 1/2/3). */
 .filled {
   border: 1px solid var(--line);
-  box-shadow: var(--shadow-sm);
+  /* An outset ring layered into the shadow, transparent unless a QC-alert variant sets it
+     (see .qcAlert* below). Kept in the shadow stack - not an inset ring - so the alert
+     frames the whole card, over the right-edge ticket stub, and rides along with the hover
+     lift instead of vanishing under it. */
+  --qc-ring: 0 0 0 0 transparent;
+  box-shadow: var(--shadow-sm), var(--qc-ring);
   cursor: grab;
   background: var(--card);
   --tilt-x: 0deg;
   --tilt-y: 0deg;
   --tilt-scale: 1;
-  transform: perspective(700px) scale3d(var(--tilt-scale), var(--tilt-scale), 1) rotateX(var(--tilt-x))
-    rotateY(var(--tilt-y));
-  /* Only smooths the snap back to flat on mouseleave - the tilt itself is set live via the
-     --tilt-x/--tilt-y custom properties from mousemove JS (SchedulerSlotView.applySlotTilt),
-     which would otherwise fight a slower transition and feel laggy under the cursor. */
+  /* The 3D tilt/lift lives on :hover only, never at rest - a resting card carries no
+     transform and stays pixel-crisp, where an always-on perspective() would rasterise the
+     text and leave every card faintly blurry. Transitioning transform still smooths the
+     settle back to flat on mouseleave (the live tilt itself is driven per-pixel from
+     mousemove JS - see SchedulerSlotView.applySlotTilt). */
   transition: transform 0.15s ease-out, box-shadow 0.15s ease-out;
 }
-/* Hover lift: scale up a touch and deepen the shadow so the card reads as physically
-   floating off the grid while it tilts, rather than just rotating in place. Raised
-   above sibling slots so the enlarged card isn't visually clipped by its neighbours. */
+/* Hover lift: apply the mouse-follow tilt, scale up a touch and deepen the shadow so the
+   card reads as physically floating off the grid while it tilts. Raised above sibling slots
+   so the enlarged card isn't visually clipped by its neighbours. */
 .filled:hover {
   --tilt-scale: 1.06;
-  box-shadow: 0 20px 34px -10px rgba(15, 15, 25, 0.32), 0 8px 14px -6px rgba(15, 15, 25, 0.2);
+  transform: perspective(700px) scale3d(var(--tilt-scale), var(--tilt-scale), 1) rotateX(var(--tilt-x))
+    rotateY(var(--tilt-y));
+  box-shadow: 0 20px 34px -10px rgba(15, 15, 25, 0.32), 0 8px 14px -6px rgba(15, 15, 25, 0.2), var(--qc-ring);
   z-index: 5;
 }
 .filled:active {
   cursor: grabbing;
 }
 @media (prefers-reduced-motion: reduce) {
-  .filled {
+  .filled,
+  .filled:hover {
     transform: none;
   }
 }
@@ -611,7 +619,7 @@
    concern) < Stopped/Cancelled (most severe - this physical cell is permanently done). */
 .qcAlert {
   border-color: var(--red) !important;
-  box-shadow: inset 0 0 0 2px var(--red);
+  --qc-ring: 0 0 0 2px var(--red);
 }
 .qcAlertLabel {
   font-size: 9px;
@@ -624,7 +632,7 @@
    "warning" treatment on the severity scale. */
 .qcAlertWarn {
   border-color: var(--amber) !important;
-  box-shadow: inset 0 0 0 2px var(--amber);
+  --qc-ring: 0 0 0 2px var(--amber);
 }
 .qcAlertLabelWarn {
   font-size: 9px;
@@ -639,7 +647,7 @@
    sits between Aborted's amber and Stopped's red on the severity scale. */
 .qcAlertFailed {
   border-color: var(--orange) !important;
-  box-shadow: inset 0 0 0 2px var(--orange);
+  --qc-ring: 0 0 0 2px var(--orange);
 }
 .qcAlertLabelFailed {
   font-size: 9px;
@@ -657,7 +665,7 @@
    happen). */
 .qcAlertCancelled {
   border-color: var(--red) !important;
-  box-shadow: inset 0 0 0 2px var(--red);
+  --qc-ring: 0 0 0 2px var(--red);
   background-image: repeating-linear-gradient(
     135deg,
     rgba(220, 53, 69, 0.18),

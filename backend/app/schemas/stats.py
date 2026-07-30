@@ -77,7 +77,7 @@ class OutcomeSlice(BaseModel):
 class FailureRatePoint(BaseModel):
     week: date
     failed: int
-    total: int  # completed + failed + aborted (uses that got a real verdict)
+    total: int  # samples sequenced that week: started + completed + failed + aborted
 
 
 class CreditFunnel(BaseModel):

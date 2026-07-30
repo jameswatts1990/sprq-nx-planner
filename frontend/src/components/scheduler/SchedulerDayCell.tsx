@@ -336,14 +336,6 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
               <div className={styles.trayHeader}>
                 <div className={styles.plateLabelWrap}>
                   <span className={styles.trayLabel}>{plateIdx === 0 ? "Plate 1" : "Plate 2"}</span>
-                  {plate?.is_reuse && (
-                    <span
-                      className={styles.reuseTag}
-                      title="Reuse — this plate reruns Plate 1's cells on a later day (Use 2+); the instrument runs it itself, in one load session."
-                    >
-                      reuse
-                    </span>
-                  )}
                   {plate && plate.acquire_date !== loadDate && (
                     <span
                       className={styles.acquireTag}

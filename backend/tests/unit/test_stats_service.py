@@ -87,7 +87,7 @@ def test_headline_and_throughput(seeded):
     h = r.headline
     assert h.runs_completed == 2  # two completed cycles (third is planned)
     assert h.samples_completed == 5  # completed cell-uses
-    assert h.failure_rate == pytest.approx(16.7, abs=0.1)  # 1 failed / 6 verdicts
+    assert h.failure_rate == pytest.approx(16.7, abs=0.1)  # 1 failed / 6 sequenced (5 completed + 1 failed)
     # A plate (Cycle) now holds one tray of 4 wells, not the old 8 - so 6 filled / (3 plates * 4).
     assert h.well_fill_pct == pytest.approx(50.0)
     assert h.avg_uses_per_cell == pytest.approx(2.5)  # terminal cells C1(3), C3(2)
@@ -120,6 +120,29 @@ def test_reuse_failures_inventory(seeded):
     sample_funnel = {s.status: s.count for s in r.inventory.sample_funnel}
     assert sample_funnel == {"backlog": 2, "completed": 1}
     assert sum(p.imported for p in r.inventory.import_volume) == 5
+
+
+def test_failure_rate_counts_in_progress_samples_as_sequenced(session):
+    # A run mid-flight: one cell already Mark-Failed, three siblings still "started" (loaded,
+    # no verdict yet). Failure rate is over all four sequenced samples, not just the 1 verdict.
+    i47 = _instr(session, "84047")
+    cells = [Cell(code=f"X{n}", max_uses=3, status="open") for n in range(4)]
+    session.add_all(cells)
+    session.flush()
+    _run(session, i47, WEEK_A, "running", 24, [
+        (cells[0], "failed", "A01"),
+        (cells[1], "started", "B01"),
+        (cells[2], "started", "C01"),
+        (cells[3], "started", "D01"),
+    ])
+    session.commit()
+
+    r = compute_stats(session)
+    assert r.headline.failure_rate == pytest.approx(25.0)  # 1 failed / 4 sequenced
+    trend = {p.week: p for p in r.failures.failure_rate_trend}
+    assert trend[WEEK_A].failed == 1 and trend[WEEK_A].total == 4
+    # The still-planned/verdict split is unchanged: only the failed use is a verdict.
+    assert {o.status: o.count for o in r.failures.outcomes} == {"completed": 0, "failed": 1, "aborted": 0}
 
 
 def test_date_range_excludes_out_of_window_runs(seeded):

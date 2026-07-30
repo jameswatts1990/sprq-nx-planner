@@ -9,7 +9,6 @@ import {
   cellExpiryState,
   usesRemainingAt,
   type CellExpiryState,
-  type FutureTrayView,
   type InstrumentTrayMap as TrayMap,
   type TrayPositionView,
   type TrayView,
@@ -222,48 +221,18 @@ function EmptyCarousel() {
   );
 }
 
-/** The "loaded later this week" group: successor trays the schedule will bring onto this
- * instrument after the current ones age out - shown by id only (they aren't on the deck yet),
- * flagged red so a mid-week tray turnover is obvious at a glance. */
-function FutureTrays({ trays }: { trays: FutureTrayView[] }) {
-  return (
-    <div className={styles.future}>
-      <div className={styles.futureLabel} title="Fresh trays the schedule loads later this week (a current tray ages out of its 108h window and is replaced)">
-        loaded later
-      </div>
-      <div className={styles.futureList}>
-        {trays.map((t) => {
-          const when = `${shortWeekdayUTC(parseDateOnly(t.foundingDate))} ${formatShortDateUTC(parseDateOnly(t.foundingDate))}`;
-          return (
-            <Link
-              key={t.trayId}
-              className={styles.futureTray}
-              to={`/cells?tray=${t.trayId}`}
-              title={`Tray ${t.trayId} - loads into Plate ${t.carousel + 1} on ${when}`}
-            >
-              <span className={styles.futureTrayId}>TRAY #{t.trayId}</span>
-              <span className={styles.futureTrayWhen}>
-                P{t.carousel + 1} · {when}
-              </span>
-            </Link>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 export interface InstrumentTrayMapProps {
   map: TrayMap | undefined;
 }
 
 /** The at-a-glance map of physical SMRT-cell trays currently on one instrument, rendered beneath
  * the instrument serial in the schedule grid's left column. Mirrors the two-plate deck:
- * carousel[0] = Plate 1 tray, carousel[1] = Plate 2. Each cell is shaded by its own precise 108h
- * expiry (each of a tray's 4 cells breaks out ~2h apart, so they expire on a staggered ladder).
- * By default every cell's state is projected to the END of the viewed week; hovering the panel
- * flips it to a live "now" reading, flagged by a green "NOW" pill. Read-only; each tray header
- * links to that tray's own page. */
+ * carousel[0] = Plate 1 tray, carousel[1] = Plate 2. Each slot shows the tray resident by the
+ * END of the viewed week (so a mid-week turnover shows the successor, not the departed tray),
+ * and each cell is shaded by its own precise 108h expiry (each of a tray's 4 cells breaks out
+ * ~2h apart, so they expire on a staggered ladder). By default every cell's state is projected
+ * to the end of the viewed week; hovering the panel flips it to a live "now" reading, flagged by
+ * a green "NOW" pill. Read-only; each tray header links to that tray's own page. */
 export const InstrumentTrayMap = memo(function InstrumentTrayMap({ map }: InstrumentTrayMapProps) {
   const [hovering, setHovering] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
@@ -277,7 +246,7 @@ export const InstrumentTrayMap = memo(function InstrumentTrayMap({ map }: Instru
     return () => clearInterval(id);
   }, [hovering]);
 
-  if (!map || (map.carousel[0] === null && map.carousel[1] === null && map.futureTrays.length === 0)) return null;
+  if (!map || (map.carousel[0] === null && map.carousel[1] === null)) return null;
 
   // End-of-week reference = the end of the last visible weekday, so a cell whose 108h window
   // closes any time that day reads as expired "by end of week". Hover swaps in the real now.
@@ -335,7 +304,6 @@ export const InstrumentTrayMap = memo(function InstrumentTrayMap({ map }: Instru
           <EmptyCarousel />
         )}
       </div>
-      {map.futureTrays.length > 0 && <FutureTrays trays={map.futureTrays} />}
     </div>
   );
 });
