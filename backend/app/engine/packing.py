@@ -191,6 +191,7 @@ def pack_cells(
                 pinned_instrument_serial=pc.pinned_instrument_serial,
                 pinned_well=pc.pinned_well,
                 barcode_owners={b: set(exts) for b, exts in pc.barcode_owners.items()},
+                tray_id=pc.tray_id,
             )
         )
 

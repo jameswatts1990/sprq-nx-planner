@@ -114,36 +114,38 @@ def test_place_sample_rejects_well_collision(client):
     assert "occupied" in r2.json()["detail"].lower()
 
 
-def test_place_sample_rejects_new_cell_when_its_tray_box_already_has_an_open_tray(client):
-    """open_new_tray() must never mint a second physical tray over wells an existing one
-    already occupies - this is what "eager tray population" depends on for continuous
-    cell ids (see docs/pacbio-sprq-nx-scheduling-reference.md). Placing into slot 0 (well
-    A01) opens a tray spanning A01-D01 with 3 unused siblings; a later mode="new" request
-    into any other well of that same box (here slot 1, well B01) must be rejected rather
-    than silently opening a second overlapping tray."""
+def test_place_new_cell_opens_a_fresh_tray_in_the_free_bay_when_the_drop_bay_is_occupied(client):
+    """A cell tray and a sample plate are INDEPENDENT instrument positions: when the drop well's
+    own cell-tray bay is occupied by a resident tray, a mode="new" placement loads the fresh tray
+    into the OTHER free bay rather than 409ing (docs/pacbio-sprq-nx-scheduling-reference.md's
+    "Plate vs cell"). open_new_tray() still never mints a second tray over an already-occupied
+    bay - it just uses the free one. Placing into slot 0 opens a tray in bay 0 (A01-D01); a later
+    mode="new" request into slot 1 opens a fresh tray in bay 1, its cell keeping a bay-1 home well
+    (B02) while loaded into the Plate-1 display well it was dropped onto (B01)."""
     client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1\nA2,bc2"})
     mon, tue = _weekdays(2)
     r1 = _place(client, _sid(client, "A1"), mon, 0)
     assert r1.status_code == 201, r1.text
+    tray0 = client.get(f"/api/cells/{_stages(r1.json())[0]['cell_id']}").json()["tray_id"]
 
     r2 = _place(client, _sid(client, "A2"), tue, 1)
-    assert r2.status_code == 409, r2.text
-    assert "occupied by an existing physical tray" in r2.json()["detail"].lower()
+    assert r2.status_code == 201, r2.text
+    stage = _stages(r2.json())[0]
+    assert stage["well"] == "B01"  # loaded into the Plate-1 display well it was dropped onto
+    assert stage["cell_home_well"] == "B02"  # ...but the fresh tray physically sits in bay 1
+    new_cell = client.get(f"/api/cells/{stage['cell_id']}").json()
+    assert new_cell["tray_id"] != tray0  # a genuinely different physical tray, in the free bay
 
 
-def test_place_sample_rejects_new_cell_when_its_tray_box_is_fully_populated_with_real_uses(client):
-    """Regression for a reported bug: with a tray box's all 4 wells already carrying real,
-    active placements (not just unused ghost siblings) - one populated tray, exactly the
-    "Change cell" repro - a later mode="new" request targeting any well in that same box
-    must still be rejected. This used to be reachable via the now-removed change_cell(),
-    which excluded the *entire* old tray (all 4 wells, not just the one cell actually being
-    replaced) from open_new_tray()'s collision check, silently minting a second physical
-    tray on top of an already-live box whenever its other wells were still in real use -
-    see docs/pacbio-sprq-nx-scheduling-reference.md. change_cell() is gone entirely now, so
-    this exercises the one remaining "new cell" entry point (place_sample) against the
-    exact reported topology instead."""
+def test_place_new_cell_rejected_only_when_both_cell_tray_bays_are_occupied(client):
+    """A mode="new" placement is refused only when BOTH cell-tray bays already hold a live tray -
+    there is genuinely nowhere to load a fresh one. (Before the independent-tray model this 409'd
+    as soon as the drop well's own bay was full; now it falls back to the free bay - see
+    test_place_new_cell_opens_a_fresh_tray_in_the_free_bay... - so only both-bays-full blocks.)
+    Fills bay 0 (a tray with 4 real, distinct active uses this week) and bay 1 (a second tray),
+    then a further mode="new" is rejected without disturbing any existing placement."""
     client.post(
-        "/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1\nA2,bc2\nA3,bc3\nA4,bc4\nA5,bc5"}
+        "/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1\nA2,bc2\nA3,bc3\nA4,bc4\nB5,bc5\nA6,bc6"}
     )
     mon, tue, wed, thu, fri = _weekdays(5)
 
@@ -161,14 +163,16 @@ def test_place_sample_rejects_new_cell_when_its_tray_box_is_fully_populated_with
     assert r3.status_code == 201, r3.text
     r4 = _place(client, _sid(client, "A4"), thu, 3, {"mode": "existing", "cell_id": _sibling("D01")})
     assert r4.status_code == 201, r4.text
-    # every well of the A01-D01 box now has a real, distinct active placement this week -
-    # the exact reported topology.
+    # bay 0's tray is now fully in real use. Fill bay 1 with a second tray (slot 4 = well A02).
+    r5 = _place(client, _sid(client, "B5"), mon, 4)
+    assert r5.status_code == 201, r5.text
 
-    r5 = _place(client, _sid(client, "A5"), fri, 0, {"mode": "new"})
-    assert r5.status_code == 409, r5.text
-    assert "occupied by an existing physical tray" in r5.json()["detail"].lower()
+    # both bays now hold a live tray -> a further mode="new" has nowhere to go.
+    r6 = _place(client, _sid(client, "A6"), fri, 0, {"mode": "new"})
+    assert r6.status_code == 409, r6.text
+    assert "both cell-tray bays" in r6.json()["detail"].lower()
 
-    # none of the 4 real placements were disturbed by the rejected attempt
+    # none of the real placements were disturbed by the rejected attempt
     for cell_id, expected_well in [
         (_stages(r1.json())[0]["cell_id"], "A01"),
         (_stages(r2.json())[0]["cell_id"], "B01"),

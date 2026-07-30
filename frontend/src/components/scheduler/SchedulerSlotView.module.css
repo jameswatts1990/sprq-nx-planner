@@ -61,7 +61,6 @@
   background: var(--card);
   --tilt-x: 0deg;
   --tilt-y: 0deg;
-  --tilt-scale: 1;
   /* The 3D tilt/lift lives on :hover only, never at rest - a resting card carries no
      transform and stays pixel-crisp, where an always-on perspective() would rasterise the
      text and leave every card faintly blurry. Transitioning transform still smooths the
@@ -69,13 +68,13 @@
      mousemove JS - see SchedulerSlotView.applySlotTilt). */
   transition: transform 0.15s ease-out, box-shadow 0.15s ease-out;
 }
-/* Hover lift: apply the mouse-follow tilt, scale up a touch and deepen the shadow so the
-   card reads as physically floating off the grid while it tilts. Raised above sibling slots
-   so the enlarged card isn't visually clipped by its neighbours. */
+/* Hover lift: apply the mouse-follow tilt and deepen the shadow so the card reads as
+   physically floating off the grid while it tilts. Deliberately NO scale-up - magnifying the
+   card with a transform stretches a cached bitmap of its text and blurs it; the raised shadow
+   + tilt carry the "lift" instead, keeping the text sharp. Raised above sibling slots so the
+   tilted card isn't visually clipped by its neighbours. */
 .filled:hover {
-  --tilt-scale: 1.06;
-  transform: perspective(700px) scale3d(var(--tilt-scale), var(--tilt-scale), 1) rotateX(var(--tilt-x))
-    rotateY(var(--tilt-y));
+  transform: perspective(700px) rotateX(var(--tilt-x)) rotateY(var(--tilt-y));
   box-shadow: 0 20px 34px -10px rgba(15, 15, 25, 0.32), 0 8px 14px -6px rgba(15, 15, 25, 0.2), var(--qc-ring);
   z-index: 5;
 }
@@ -194,7 +193,11 @@
   mix-blend-mode: screen;
   opacity: 0.7;
   pointer-events: none;
-  animation: sealShift 6s linear infinite;
+  /* The shimmer drift runs on hover/focus ONLY (see .stub:hover below) - never at rest.
+     An always-on infinite animation on every filled card repainted a blended, filtered
+     600px layer every frame; on a full week that collapsed the grid to single-digit FPS.
+     At rest the seal is a static iridescent foil (painted once), so each cell keeps its
+     per-hue holographic identity with zero per-frame cost. */
   transition: opacity 260ms ease, filter 260ms ease;
 }
 /* Interference plane — a finer spectrum at a different angle, period and speed. Beating
@@ -219,7 +222,7 @@
   background-position: -300px -300px;
   mix-blend-mode: screen;
   opacity: 0.55;
-  animation: sealShiftFine 4.4s linear infinite;
+  /* Drift starts on hover/focus only - see .stub:hover .stubSheen::before below. */
 }
 /* Specular glint — one soft bright band per long period that sweeps across, the bright
    reflection skating over the foil. Sparse (110px period, only ~one band visible) so it
@@ -240,7 +243,7 @@
   background-position: -300px -300px;
   mix-blend-mode: screen;
   opacity: 0.3;
-  animation: sealGlint 5s linear infinite;
+  /* Glint sweep starts on hover/focus only - see .stub:hover .stubSheen::after below. */
   transition: opacity 260ms ease;
 }
 /* Microprint of the tray id — the "you can't fake this" texture of a real seal, but still
@@ -340,20 +343,38 @@
     background-position: -200.3px -253.5px;
   }
 }
-/* Hover = tilt the seal into the light. Rather than jolting the drift speed, ramp the
-   luminosity/saturation of the whole stack and bring the specular glint forward over a
-   smooth 260ms transition — the foil brightens and "catches" without any phase jump. */
-.stub:hover .stubSheen {
+/* Hover/focus = the seal comes alive. At rest it's a static foil doing no per-frame work;
+   the three drift animations start only here, on the single hovered/focused card, so idle
+   cost stays at zero no matter how full the week is. The luminosity/saturation also ramp up
+   and the specular glint comes forward over a smooth 260ms transition, so the foil "catches
+   the light" as its motion begins. */
+.stub:hover .stubSheen,
+.stub:focus-visible .stubSheen {
   opacity: 0.95;
   filter: hue-rotate(var(--seal-hue, 0deg)) saturate(1.55) brightness(1.28) contrast(1.12);
+  animation: sealShift 6s linear infinite;
 }
-.stub:hover .stubSheen::after {
+.stub:hover .stubSheen::before,
+.stub:focus-visible .stubSheen::before {
+  animation: sealShiftFine 4.4s linear infinite;
+}
+.stub:hover .stubSheen::after,
+.stub:focus-visible .stubSheen::after {
   opacity: 0.7;
+  animation: sealGlint 5s linear infinite;
 }
 @media (prefers-reduced-motion: reduce) {
+  /* Hover/focus variants listed too - they out-specify a bare .stubSheen rule, so without
+     them the shimmer would still start on hover under reduced-motion. */
   .stubSheen,
   .stubSheen::before,
-  .stubSheen::after {
+  .stubSheen::after,
+  .stub:hover .stubSheen,
+  .stub:focus-visible .stubSheen,
+  .stub:hover .stubSheen::before,
+  .stub:focus-visible .stubSheen::before,
+  .stub:hover .stubSheen::after,
+  .stub:focus-visible .stubSheen::after {
     animation: none;
   }
   /* Still a layered, uniquely hue-rotated foil — identity and depth without motion.

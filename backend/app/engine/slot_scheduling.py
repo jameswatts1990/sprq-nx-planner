@@ -17,6 +17,7 @@ from app.engine.constants import (
     ALL_CELL_POSITIONS,
     CELL_LIFETIME_H,
     CELL_MAX_USES,
+    CELLS_PER_TRAY,
     DEFAULT_MOVIE_HOURS,
     LOCK_BUFFER_HOURS,
     WELLS,
@@ -90,6 +91,26 @@ def fill_slots(
     }
     by_id: dict[str, PackedCell] = {c.id: c for c in ordered_cells}
 
+    # Tray cohesion: one sample plate (a 4-well display box) is backed by a single physical SMRT
+    # Cell tray - the lab owner's "one tray per plate load" rule (see docs/pacbio-sprq-nx-
+    # scheduling-reference.md's "Plate vs cell"). (slot, display-box 0|1) -> the tray occupying
+    # that box, so a cell reusing into a different plate box than its home box (a 1-plate run
+    # offers only box 0) can never land two different trays in one plate. A prior cell keys by its
+    # real CellTray.id; a fresh cell shares the "FRESH" sentinel (the persist layer groups a box's
+    # fresh cells into one physical tray anyway).
+    box_tray: dict[tuple[SlotInput, int], object] = {}
+
+    def _tray_key(cell: PackedCell) -> object:
+        if cell.prior:
+            return cell.tray_id if cell.tray_id is not None else ("cell", cell.id)
+        return "FRESH"
+
+    def _box_ok(cell: PackedCell, slot: SlotInput, w: str) -> bool:
+        """Tray-cohesion gate: `w`'s display box must be unclaimed, or already backed by this
+        cell's own tray, so one sample plate never mixes two physical trays."""
+        claimed = box_tray.get((slot, WELLS.index(w) // CELLS_PER_TRAY))
+        return claimed is None or claimed == _tray_key(cell)
+
     def _well_is_vacated(owner_id: str) -> bool:
         """True once `owner_id` has truly reached the end of its physical life - every
         use pack_cells ever intends to give it this batch has been placed, *and* its
@@ -105,6 +126,20 @@ def fill_slots(
         if owner is None:
             return True
         return owner.total_uses >= CELL_MAX_USES and next_idx[owner_id] >= len(owner.uses)
+
+    def _takeable(cell: PackedCell, slot: SlotInput, w: str, allowed: frozenset[int]) -> bool:
+        """Can `cell` load into a *foreign* offered well `w` this slot (the fallback path, when
+        the cell's own home well isn't available)? Three gates: the well must sit in a carousel
+        position the cell's movie-time rule allows (`allowed`); it must not still belong to a
+        *different*, not-yet-vacated cell (the over-use guard - see well_owner/_well_is_vacated);
+        and its display box must pass cohesion (_box_ok). `owner == cell.id` lets a cell re-take
+        its own well on a later day within this batch."""
+        if within_tray_pos(w) not in allowed:
+            return False
+        owner = well_owner.get((slot.instrument_serial, w))
+        if owner is not None and owner != cell.id and not _well_is_vacated(owner):
+            return False
+        return _box_ok(cell, slot, w)
 
     # Per instrument, the earliest run_date a brand-new run created by this batch may start, so a
     # slot before it is skipped and the plan never proposes a day the persistence layer would
@@ -139,38 +174,29 @@ def fill_slots(
             if last_date is not None and slot.run_date <= last_date:
                 continue
 
-            # A cell is physically fixed to one well for its whole life (see
-            # docs/pacbio-sprq-nx-scheduling-reference.md's "must stay in the same well"
-            # invariant, already enforced for manual placement/move). A
-            # pinned cell can only take *that* well here - if it isn't free this slot,
-            # skip this cell for this slot rather than grabbing a different well, which
-            # would silently relocate a physical cell that can't actually move.
-            if cell.pinned_well is not None:
-                if cell.pinned_well not in free_wells[slot]:
-                    continue
-                well = cell.pinned_well
-                free_wells[slot].remove(well)
+            # A cell keeps its tray POSITION (the well's A/B/C/D letter) for life, but NOT its
+            # plate box - it may reuse under either sample plate (see docs/pacbio-sprq-nx-
+            # scheduling-reference.md's "Plate vs cell"). A prior cell prefers its own home well
+            # when that's on offer (so 2-plate placement and tray cohesion stay byte-identical to
+            # before), else falls back to any free same-position offered well - which is how a
+            # Plate-2-box cell (home A02-D02) loads into a Plate-1 well when a 1-plate run offers
+            # only A01-D01. A fresh cell (no pin yet) takes any allowed-position free well. Every
+            # candidate must clear _takeable (movie-position rule, the well_owner over-use guard,
+            # and the one-tray-per-plate cohesion guard).
+            allowed = cell_allowed_positions(cell)
+            home = cell.pinned_well
+            # Prefer the cell's own home well: it's physically entitled to it, `free_wells`
+            # already excludes any well actually taken this slot, so the only extra gates are the
+            # movie-position rule and tray cohesion (NOT the well_owner over-use guard, which is
+            # about taking a *foreign* well - the seed can map a shared home-well letter to a
+            # different same-position cell). Else fall back to any takeable same-position free well.
+            if home is not None and home in free_wells[slot] and within_tray_pos(home) in allowed and _box_ok(cell, slot, home):
+                well = home
             else:
-                # Skip any well this slot's free list still shows as unused but that some
-                # *other*, not-yet-vacated cell already claimed earlier in this batch (see
-                # well_owner/_well_is_vacated above) - only a well nobody has claimed yet,
-                # or whose claimant has genuinely finished its physical lifetime, is truly
-                # available to a brand-new cell. It must ALSO sit in a carousel position this
-                # cell's movie-time rule allows (cell_allowed_positions): a 12h cell only
-                # cell 1's wells (A01/A02), a 30h cell only cell 4's (D01/D02); a 24h cell any.
-                allowed = cell_allowed_positions(cell)
-                well = next(
-                    (
-                        w
-                        for w in free_wells[slot]
-                        if within_tray_pos(w) in allowed
-                        and ((owner := well_owner.get((slot.instrument_serial, w))) is None or _well_is_vacated(owner))
-                    ),
-                    None,
-                )
-                if well is None:
-                    continue
-                free_wells[slot].remove(well)
+                well = next((w for w in free_wells[slot] if _takeable(cell, slot, w, allowed)), None)
+            if well is None:
+                continue
+            free_wells[slot].remove(well)
 
             sample = cell.uses[idx]
             slot_max_movie = max(slot_max_movie, sample.movie_time or DEFAULT_MOVIE_HOURS)
@@ -200,7 +226,13 @@ def fill_slots(
             # batch is confined there too, not just prior cells loaded from the DB.
             if cell.pinned_well is None:
                 cell.pinned_well = well
-                well_owner[(slot.instrument_serial, well)] = cell.id
+            # Register ownership at the ACTUAL loading well (not just the home-well seed above):
+            # a prior cell that fell back to a foreign-box well must own THAT well, or a later
+            # fresh cell could stack onto it (the over-use guard). Idempotent when a cell re-takes
+            # its own well across days. Also claim this display box for the cell's tray so no other
+            # tray can be loaded into the same sample plate (cohesion).
+            well_owner[(slot.instrument_serial, well)] = cell.id
+            box_tray[(slot, WELLS.index(well) // CELLS_PER_TRAY)] = _tray_key(cell)
             if first_placed_date[cell.id] is None:
                 first_placed_date[cell.id] = slot.run_date
             last_placed_date[cell.id] = slot.run_date

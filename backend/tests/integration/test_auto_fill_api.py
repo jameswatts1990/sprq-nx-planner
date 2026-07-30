@@ -636,6 +636,88 @@ def test_recalculate_bundles_a_reused_cells_second_use_into_the_same_run_as_plat
     assert plate1_sample_ids.isdisjoint(moved_sample_ids)
 
 
+def test_auto_fill_reuses_a_plate2_box_tray_in_a_one_plate_run(client, db_session):
+    """Stage-1 regression (reported 2026-07-30): a 1-plate Autoschedule (cells_per_day=4) placed
+    0 samples when the reusable cells physically sit in the Plate-2 box (home_well A02-D02),
+    because fill_slots offered only A01-D01 and pinned each prior cell to its exact home well.
+    A cell is pinned to its tray POSITION, not a plate box, so those cells must reuse into the
+    Plate-1 display wells. Here a real tray of 4 open cells lives in the A02-D02 box; a 1-plate
+    run must reuse it (loading A02->A01, B02->B01, ...) rather than opening a fresh tray."""
+    instrument_id = next(i for i in client.get("/api/instruments").json() if i["serial_number"] == "84047")["id"]
+    tray = CellTray(instrument_id=instrument_id)
+    db_session.add(tray)
+    db_session.flush()
+    cells = [
+        Cell(code=f"P2BOX-{w}", max_uses=3, status="open", tray_id=tray.id, tray_position=p, home_well=w)
+        for p, w in enumerate(["A02", "B02", "C02", "D02"], start=1)
+    ]
+    db_session.add_all(cells)
+    db_session.commit()
+
+    client.post(
+        "/api/imports", json={"raw_text": "sample,barcodes\n" + "\n".join(f"R{i},bcr{i}" for i in range(1, 5))}
+    )
+    monday = _next_working_week()[0]
+
+    resp = _auto_fill(
+        client,
+        [{"instrument_serial": "84047", "load_date": monday}],
+        objective="fewest",
+        max_uses=3,
+        cells_per_day=4,
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    # Before the fix this was 0 (every sample packed onto the A02-D02 cells then stranded).
+    assert len(body["placed_sample_ids"]) == 4
+    assert len(body["unplaced_sample_ids"]) == 0
+
+    stages = [s for run in body["runs"] for s in _stages(run)]
+    assert len(stages) == 4
+    # Each reused cell loads into a Plate-1 well (A01-D01) while keeping its true A02-D02 identity.
+    assert {s["well"] for s in stages} == {"A01", "B01", "C01", "D01"}
+    assert {s["cell_home_well"] for s in stages} == {"A02", "B02", "C02", "D02"}
+    # The existing tray was reused, not replaced by a fresh Plate-1 tray.
+    assert db_session.query(CellTray).count() == 1
+
+
+def test_auto_fill_opens_a_fresh_tray_in_bay1_when_bay0_is_occupied_by_a_nonreusable_tray(client):
+    """Stage 2c (fresh-tray side of Gap #7): when a 1-plate auto-fill needs a fresh cell but bay 0's
+    resident tray can't take the sample (its cells all barcode-clash it), the fresh tray loads into
+    the free bay 1 rather than stranding the sample. The sample loads into the Plate-1 display well
+    while its cell keeps a bay-1 home well (A02)."""
+    mon, tue = _next_monday_tuesday()
+
+    def _place(ext, slot, choice=None):
+        body = {
+            "sample_id": _sid(client, ext), "instrument_serial": "84047", "load_date": mon,
+            "slot_index": slot, "run_time_hours": 24,
+        }
+        if choice is not None:
+            body["cell_choice"] = choice
+        return client.post("/api/cell-uses", json=body)
+
+    # Fill bay 0 (A01-D01) with one tray on Monday: 4 cells each burning one distinct barcode.
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nS1,bc1\nS2,bc2\nS3,bc3\nS4,bc4"})
+    assert _place("S1", 0, {"mode": "new"}).status_code == 201
+    for ext, slot in [("S2", 1), ("S3", 2), ("S4", 3)]:
+        assert _place(ext, slot).status_code == 201  # auto-derive onto the same tray's siblings
+
+    # A backlog sample whose barcodes clash all 4 bay-0 cells -> can't reuse any -> needs a fresh cell.
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nY,bc1;bc2;bc3;bc4"})
+
+    resp = _auto_fill(
+        client, [{"instrument_serial": "84047", "load_date": tue}],
+        objective="fewest", max_uses=3, cells_per_day=4,
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert _sid(client, "Y") in body["placed_sample_ids"]  # placed in the free bay, not stranded
+    stage = next(s for run in body["runs"] for s in _stages(run) if s["sample_external_id"] == "Y")
+    assert stage["well"] == "A01"  # loaded into the Plate-1 display well
+    assert stage["cell_home_well"] == "A02"  # ...but the fresh tray physically sits in bay 1
+
+
 def test_auto_fill_never_bundles_two_different_trays_into_one_plate_2(client, db_session):
     """Reproduces the reported bug (2026-07-29): plate2_kind was a bare "fresh"/"reuse" flag
     per (instrument, day), with no tray identity - so two DIFFERENT physical trays (real,

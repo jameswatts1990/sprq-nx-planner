@@ -8,7 +8,7 @@ from app.engine.slot_scheduling import fill_slots
 from app.engine.types import PackedCell, ParsedSample, SlotInput
 
 
-def _cell(id_, samples, prior=False, pinned=None, pinned_well=None):
+def _cell(id_, samples, prior=False, pinned=None, pinned_well=None, tray_id=None):
     return PackedCell(
         id=id_,
         prior=prior,
@@ -19,6 +19,7 @@ def _cell(id_, samples, prior=False, pinned=None, pinned_well=None):
         uses=samples,
         pinned_instrument_serial=pinned,
         pinned_well=pinned_well,
+        tray_id=tray_id,
     )
 
 
@@ -71,6 +72,54 @@ def test_fill_slots_caps_wells_to_tray_one_when_cells_per_day_is_four():
     assert len(result.assignments) == 4
     assert {a.well for a in result.assignments} == {"A01", "B01", "C01", "D01"}
     assert len(result.unplaced) == 4
+
+
+def test_fill_slots_loads_a_plate2_box_cell_into_the_plate1_display_well_at_cells_per_day_4():
+    """The Stage-1 fix: a reusable cell whose home well is in the Plate-2 box (A02-D02) must be
+    loadable into a Plate-1 display well at its own tray position when a 1-plate run offers only
+    A01-D01 - a cell is pinned to its tray POSITION, not a plate box. Before the fix this placed
+    0 (the cell was skipped for every slot); now A02 loads into A01 (same position 0)."""
+    cell = _cell("P1", _samples(1), prior=True, pinned="84047", pinned_well="A02", tray_id=1)
+    slot = SlotInput(instrument_serial="84047", run_date=date(2026, 7, 20))
+
+    result = fill_slots([cell], [slot], cells_per_day=4)
+
+    assert len(result.assignments) == 1
+    assert result.assignments[0].well == "A01"  # loaded into Plate 1 at the same tray position
+
+
+def test_fill_slots_loads_a_plate2_box_cell_at_cell_4_into_d01_at_cells_per_day_4():
+    """Position is preserved on the cross-box fallback: a D02 (cell 4 / position 3) home cell
+    loads into D01, never a different position - locks the letter mapping."""
+    cell = _cell("P1", _samples(1), prior=True, pinned="84047", pinned_well="D02", tray_id=1)
+    slot = SlotInput(instrument_serial="84047", run_date=date(2026, 7, 20))
+
+    result = fill_slots([cell], [slot], cells_per_day=4)
+
+    assert len(result.assignments) == 1
+    assert result.assignments[0].well == "D01"
+
+
+def test_fill_slots_keeps_one_tray_per_plate_when_two_reuse_trays_could_fall_into_one_box():
+    """Tray cohesion: when two different physical trays' cells both need the single Plate-1 box
+    of a 1-plate run, only ONE tray backs that plate - the other is left unplaced (it would go to
+    a later day), never mixed into the same sample plate. Here tray 1 (positions 0,1) claims the
+    plate; tray 2 (positions 2,3) is excluded rather than filling C01/D01 alongside it."""
+    t1 = [
+        _cell("P1", _samples(1, "A"), prior=True, pinned="84047", pinned_well="A02", tray_id=1),
+        _cell("P2", _samples(1, "B"), prior=True, pinned="84047", pinned_well="B02", tray_id=1),
+    ]
+    t2 = [
+        _cell("P3", _samples(1, "C"), prior=True, pinned="84047", pinned_well="C02", tray_id=2),
+        _cell("P4", _samples(1, "D"), prior=True, pinned="84047", pinned_well="D02", tray_id=2),
+    ]
+    slot = SlotInput(instrument_serial="84047", run_date=date(2026, 7, 20))
+
+    result = fill_slots([*t1, *t2], [slot], cells_per_day=4)
+
+    assert len(result.assignments) == 2
+    assert {a.cell.tray_id for a in result.assignments} == {1}  # one tray per plate, never mixed
+    assert len(result.unplaced) == 2
 
 
 def test_fill_slots_respects_cross_instrument_pin_when_a_compatible_slot_exists():
@@ -132,10 +181,12 @@ def test_fill_slots_pins_a_fresh_cell_to_its_first_assigned_instrument():
     assert [s.id for s in result.unplaced] == ["S1", "S2"]
 
 
-def test_fill_slots_reused_cell_only_takes_its_own_pinned_well():
-    """Regression test for a real reported bug: a physically reused cell must always
-    land back in the exact well it's pinned to (its tray's home_well), never whichever
-    well happens to be free first that day - a cell can't move within its own tray."""
+def test_fill_slots_reused_cell_prefers_its_own_pinned_well_when_offered():
+    """A physically reused cell lands back in its own home well when that well is on offer -
+    it never drifts to whichever well happens to be free first (a cell keeps its tray
+    POSITION for life). It may load into a *different plate box* at the same position only
+    when its home well isn't offered (see the cross-box test below); here C01 is offered, so
+    it must take C01."""
     cell = _cell("P1", _samples(1), prior=True, pinned="84047", pinned_well="C01")
     slot = SlotInput(instrument_serial="84047", run_date=date(2026, 7, 20))
 
@@ -145,25 +196,37 @@ def test_fill_slots_reused_cell_only_takes_its_own_pinned_well():
     assert result.assignments[0].well == "C01"
 
 
-def test_fill_slots_strands_pinned_cell_when_its_well_is_taken():
-    """Companion to the well-pin test above: if another cell has already claimed the
-    pinned well for this slot, the pinned cell must be skipped for that slot (and left
-    unplaced, or placed on a later day) rather than relocated to a different well."""
-    pinned_cell = _cell("P1", _samples(1), prior=True, pinned="84047", pinned_well="A01")
-    # This unrelated fresh cell is unpinned, so it's free to take any well - it happens
-    # to land on A01 first purely because ordered_cells sorts prior cells first, so give
-    # the pinned cell a higher future_uses (irrelevant here) and instead just occupy A01
-    # via a second prior cell already pinned there.
-    other_pinned = _cell("P2", _samples(1), prior=True, pinned="84047", pinned_well="A01")
+def test_fill_slots_strands_a_second_same_position_cell_when_no_offered_well_is_free():
+    """Two cells from different trays share tray position A (home well A01). In a 1-plate run
+    (cells_per_day=4) only ONE position-A well is offered (A01), so once the first takes it the
+    second has nowhere to go at its own position and is stranded - never relocated to a
+    different position, and never mixed into the same plate as the first cell's tray. (In a
+    2-plate run the second would legitimately take A02 - a different plate/tray - see
+    test_fill_slots_two_same_position_cells_split_across_plates.)"""
+    pinned_cell = _cell("P1", _samples(1), prior=True, pinned="84047", pinned_well="A01", tray_id=1)
+    other_pinned = _cell("P2", _samples(1), prior=True, pinned="84047", pinned_well="A01", tray_id=2)
     slot = SlotInput(instrument_serial="84047", run_date=date(2026, 7, 20))
 
-    result = fill_slots([pinned_cell, other_pinned], [slot])
+    result = fill_slots([pinned_cell, other_pinned], [slot], cells_per_day=4)
 
-    # Only one of the two same-well-pinned cells can be placed this slot; the other is
-    # stranded rather than silently relocated to a different well.
     assert len(result.assignments) == 1
     assert result.assignments[0].well == "A01"
     assert len(result.unplaced) == 1
+
+
+def test_fill_slots_two_same_position_cells_split_across_plates():
+    """The 2-plate counterpart: two different trays' position-A cells both place, in different
+    plate boxes (A01 and A02) - a cell is pinned to its tray position, not to a plate box, so
+    the second isn't stranded when a second sample plate is on offer."""
+    p1 = _cell("P1", _samples(1), prior=True, pinned="84047", pinned_well="A01", tray_id=1)
+    p2 = _cell("P2", _samples(1), prior=True, pinned="84047", pinned_well="A01", tray_id=2)
+    slot = SlotInput(instrument_serial="84047", run_date=date(2026, 7, 20))
+
+    result = fill_slots([p1, p2], [slot], cells_per_day=8)
+
+    assert len(result.assignments) == 2
+    assert {a.well for a in result.assignments} == {"A01", "A02"}
+    assert len(result.unplaced) == 0
 
 
 def test_fill_slots_pins_a_fresh_cell_to_its_first_assigned_well():

@@ -65,11 +65,16 @@ class PriorCellInput:
     # stay on the same instrument it's already on. None means the cell has no uses yet
     # (or isn't a real persisted cell), so it isn't pinned anywhere.
     pinned_instrument_serial: str | None = None
-    # A cell is physically fixed to one well for its entire life (its tray's home_well,
-    # or - for a tray-less legacy cell - its last real use's well): once it has a use, it
-    # can never come back to auto-fill in a different well. None means no pin yet, same
-    # rule as pinned_instrument_serial above.
+    # A cell is physically fixed to one tray POSITION for life (its tray's home_well letter,
+    # or - for a tray-less legacy cell - its last real use's well); the well's plate-box suffix
+    # (01/02) only records where it was first loaded and does NOT bind which sample plate can
+    # reuse it (see docs/pacbio-sprq-nx-scheduling-reference.md's "Plate vs cell"). None means
+    # no pin yet, same rule as pinned_instrument_serial above.
     pinned_well: str | None = None
+    # The physical SMRT Cell tray (CellTray.id) this cell belongs to, when known. Used by
+    # fill_slots' tray-cohesion guard to keep a single sample plate backed by one tray even when
+    # a cell reuses into a different plate box than its home box. None for a tray-less legacy cell.
+    tray_id: int | None = None
 
 
 @dataclass
@@ -96,6 +101,7 @@ class PackedCell:
         pinned_instrument_serial: str | None = None,
         pinned_well: str | None = None,
         barcode_owners: dict[str, set[str]] | None = None,
+        tray_id: int | None = None,
     ) -> None:
         self.id = id
         self.prior = prior
@@ -107,6 +113,9 @@ class PackedCell:
         self.cell_id = cell_id  # DB id of the real Cell, if this represents a persisted one
         self.pinned_instrument_serial = pinned_instrument_serial
         self.pinned_well = pinned_well
+        # Physical tray (CellTray.id) for a prior cell - fill_slots' cohesion guard keeps one
+        # sample plate backed by a single tray. None for fresh or tray-less legacy cells.
+        self.tray_id = tray_id
         # barcode -> Container ID(s) that burned it on this cell so far (prior history plus
         # every use pack_cells has appended this batch) - see PriorCellInput.barcode_owners
         # and engine/packing.py's _foreign_clash.

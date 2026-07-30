@@ -156,6 +156,45 @@ def test_auto_place_cross_run_reuses_idle_cell(client):
     assert a2_stage["use_number"] == 2
 
 
+def test_auto_place_reuses_a_plate2_box_cell_into_a_plate1_slot(client):
+    """Stage 2a: a cell is pinned to its tray POSITION, not a plate box, so a plain drop onto a
+    Plate-1 slot reuses a cell whose home well is in the Plate-2 box (A02-D02) - reuse-before-new
+    across both trays, matching the auto-fill engine - rather than opening a fresh Plate-1 tray.
+    The cell loads into the Plate-1 display well while keeping its A02-D02 identity."""
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1\nZ1,bc9"})
+    mon, tue = _weekdays(2)
+    # Open a tray in the Plate-2 box (slot 4 = well A02); cell A02 used once, siblings idle.
+    r1 = _place(client, _sid(client, "A1"), mon, 4, {"mode": "new"})
+    a02_cell = _stages(r1.json())[0]["cell_id"]
+    assert client.get(f"/api/cells/{a02_cell}").json()["current_well"] == "A02"
+
+    # A plain drop onto a Plate-1 slot on a later day reuses that Plate-2-box cell into A01.
+    r2 = _auto_place(client, _sid(client, "Z1"), tue, 0)
+    assert r2.status_code == 201, r2.text
+    z_stage = _stages(r2.json())[0]
+    assert z_stage["cell_id"] == a02_cell  # reused the Plate-2-box cell, no fresh tray opened
+    assert z_stage["well"] == "A01"  # loaded into the Plate-1 display well
+    assert z_stage["cell_home_well"] == "A02"  # keeps its Plate-2-box identity
+    assert z_stage["use_number"] == 2
+
+
+def test_auto_place_second_plate1_drop_stays_cohesive_after_cross_box_reuse(client):
+    """After a Plate-1 plate is first backed by a Plate-2-box tray (cross-box reuse), a second
+    Plate-1 drop stays cohesive: it lands on that SAME physical tray (an idle sibling), never
+    mixing a second tray into one sample plate."""
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1\nZ1,bc9\nZ2,bc8"})
+    mon, tue = _weekdays(2)
+    r1 = _place(client, _sid(client, "A1"), mon, 4, {"mode": "new"})  # A02-D02 box tray
+    a02_cell = _stages(r1.json())[0]["cell_id"]
+    tray_id = client.get(f"/api/cells/{a02_cell}").json()["tray_id"]
+
+    _auto_place(client, _sid(client, "Z1"), tue, 0)  # first Plate-1 drop reuses the A02-box tray
+    r3 = _auto_place(client, _sid(client, "Z2"), tue, 1)  # second Plate-1 drop, same run
+    assert r3.status_code == 201, r3.text
+    z2_stage = next(s for s in _stages(r3.json()) if s["sample_external_id"] == "Z2")
+    assert client.get(f"/api/cells/{z2_stage['cell_id']}").json()["tray_id"] == tray_id
+
+
 def test_auto_place_reuse_picks_the_next_in_order_cell_not_the_slot_position(client):
     """A grid slot is a plate loading position, not a cell: a drop onto any Plate-2 slot reuses
     the run's *next-in-order* Plate-1 cell (most-used first, then tray order) - not the cell
