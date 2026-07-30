@@ -714,11 +714,12 @@ export function ScheduleSection() {
           <b>Confirm loaded</b> (unlock it first) — the cells are physically in the instrument by then.
         </li>
         <li>
-          <b>Locked until [date/time]</b> appears only on a day the instrument is reserved for its <i>whole</i>{" "}
-          length by an earlier run (a long movie spilling over). The day the reservation actually <i>ends</i> stays
-          open to load — the instrument frees up partway through it, so you can still schedule a run there and it
-          simply starts when the instrument is free (its start time shifts to the clear time). Only days the movie
-          covers end-to-end are closed.
+          A <b>🔒 padlock</b> appears next to the status on every day the instrument is reserved by a run — its own
+          load day and any later day still held by its lock. Hover it to see the exact date/time the instrument
+          frees up. The day the reservation actually <i>ends</i> stays open to load — the instrument frees up
+          partway through it, so you can still schedule a run there and it simply starts when the instrument is free
+          (its start time shifts to the clear time). Only days the lock covers end-to-end show the padlock with no
+          droppable slots.
         </li>
       </ul>
 
@@ -751,11 +752,12 @@ export function ScheduleSection() {
       </ul>
       <p>
         Because a reuse Plate 2 sequences on a <i>different</i> day from the load day, that later day&apos;s column
-        shows a lightweight <b>&quot;Plate 2 runs here&quot;</b> marker and is greyed out and non-droppable —{" "}
-        <b>there&apos;s no action to take there</b>; the instrument runs Plate 2 itself. Manage the run (edit it,
-        Confirm loaded, print its sheet) from its own load-day column, not the continuation day. A long movie whose
-        instrument stays reserved into a later day shows the same kind of marker as a <b>&quot;Locked until…&quot;</b>{" "}
-        note (see Locking a run below).
+        shows a lightweight <b>&quot;Plate 2 loads [run name] @ [time]&quot;</b> marker and is greyed out and
+        non-droppable — <b>there&apos;s no action to take there</b>; the instrument runs Plate 2 itself. Manage the
+        run (edit it, Confirm loaded, print its sheet) from its own load-day column, not the continuation day. Every
+        such day also carries the same <b>🔒 padlock</b> as a plain lock carry-over (see Locking a run below) —
+        hover it for the release time. A long movie whose instrument stays reserved into a later day with no plate
+        of its own acquiring shows just the padlock, with no other marker.
       </p>
       <p>
         <b>Each grid slot is a plate loading position</b> — where you drop a sample, not a fixed cell. An empty slot

@@ -78,6 +78,15 @@
   border-radius: 4px;
   padding: 2px 6px;
 }
+/* Padlock marker shown on every day the instrument is locked (the run's own load day and
+   any later day still held by its lock/continuation) - hover/focus reveals the release
+   time via the title tooltip, replacing the old inline "locked until" text. */
+.lockIcon {
+  font-size: 11px;
+  line-height: 1;
+  cursor: default;
+}
+
 /* Carried over from an earlier day's run - a distinct amber tone (not the same-day teal
    lockTag) so it reads as "inherited", not this day's own status. Never blocks selection. */
 .carryLockTag {

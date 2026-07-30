@@ -750,3 +750,33 @@ def test_patch_cycle_amends_load_time_at_confirm(client):
     assert p1["planned_start_at"][11:16] == "14:00"
     # planned_end_at follows the new start (14:00 + 24h movie -> 14:00 next day).
     assert p1["planned_end_at"][11:16] == "14:00"
+    # actual_start_at ("Load time = the time entered at Confirm-loaded") anchors on the
+    # entered 14:00, not on whatever moment the request happens to be processed.
+    assert p1["actual_start_at"][11:16] == "14:00"
+
+
+def test_patch_cycle_relock_after_unlock_uses_entered_time_not_request_time(client):
+    """Unlock then re-confirm-load with a (possibly re-entered) time - actual_start_at must
+    anchor on the "Revio Loaded at" value again, not on the moment Confirm-loaded is re-pressed
+    (this used to fall back to server now() because `at` was never derived from start_hour)."""
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1"})
+    (mon,) = _weekdays(1)
+    sid = _sid(client, "A1")
+    r1 = _place(client, sid, mon, 0, start_hour=9)
+    cycle_id = r1.json()["run_id"]
+
+    locked = client.patch(f"/api/cycles/{cycle_id}", json={"status": "running", "start_hour": 14})
+    assert locked.json()["plates"][0]["actual_start_at"][11:16] == "14:00"
+
+    unlocked = client.patch(f"/api/cycles/{cycle_id}", json={"status": "planned"})
+    assert unlocked.json()["plates"][0]["actual_start_at"] is None
+
+    relocked = client.patch(f"/api/cycles/{cycle_id}", json={"status": "running", "start_hour": 20, "start_minute": 30})
+    assert relocked.status_code == 200, relocked.text
+    p1 = relocked.json()["plates"][0]
+    assert p1["planned_start_at"][11:16] == "20:30"
+    assert p1["actual_start_at"][11:16] == "20:30"
+    # lock_until ("locked until" badge) is derived from actual_start_at + this run's per-cell
+    # prep ladder (a single cell -> +4h) - it must move with the entered time too, not sit at
+    # whatever the request's own now() + 4h would have been.
+    assert relocked.json()["lock_until"][11:16] == "00:30"

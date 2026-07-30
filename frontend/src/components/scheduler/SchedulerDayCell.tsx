@@ -178,9 +178,6 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
   // selectability the same way).
   const locked = (run !== undefined && run.status !== "planned") || (run === undefined && continuation !== undefined);
   const filledCount = run ? allStages(run).length : 0;
-  // lock_until's calendar date > this run's own load_date - the run's lock bleeds into
-  // (or past) subsequent days, worth calling out right where it started.
-  const lockExtendsPastToday = run !== undefined && run.lock_until.slice(0, 10) > loadDate;
   const slots = padStages(run);
 
   // The earlier run's plate that acquires exactly on this continuation day (a reuse Plate 2
@@ -272,7 +269,14 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
                   title={run.run_name ? `Run name: ${run.run_name}` : undefined}
                 >
                   {run.status === "running" ? "LOADED" : run.status.toUpperCase()}
-                  {lockExtendsPastToday && ` · locked until ${formatShortDateTimeUTC(run.lock_until)}`}
+                </span>
+                <span
+                  className={styles.lockIcon}
+                  role="img"
+                  aria-label={`Locked until ${formatShortDateTimeUTC(run.lock_until)}`}
+                  title={`Locked until ${formatShortDateTimeUTC(run.lock_until)}`}
+                >
+                  🔒
                 </span>
                 {run.status === "running" && (
                   <button
@@ -307,14 +311,32 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
 
         {!run && continuation && (
           continuationPlate ? (
-            <span
-              className={styles.carryLockTag}
-              title="No action here — the instrument runs this plate itself once Plate 1's movie finishes and the cells are washed (a reuse run's Plate 2 — the next working day for a normal-length movie, later for a very long one). Manage it from its own run on its load day."
-            >
-              Plate {continuationPlate.plate_index} runs here
-            </span>
+            <>
+              <span
+                className={styles.carryLockTag}
+                title="No action here — the instrument runs this plate itself once Plate 1's movie finishes and the cells are washed (a reuse run's Plate 2 — the next working day for a normal-length movie, later for a very long one). Manage it from its own run on its load day."
+              >
+                Plate {continuationPlate.plate_index} loads {runLabel(continuation.run)} @{" "}
+                {formatTimeUTC(continuationPlate.planned_start_at)}
+              </span>
+              <span
+                className={styles.lockIcon}
+                role="img"
+                aria-label={`Locked until ${formatShortDateTimeUTC(continuation.run.lock_until)}`}
+                title={`Locked until ${formatShortDateTimeUTC(continuation.run.lock_until)}`}
+              >
+                🔒
+              </span>
+            </>
           ) : (
-            <span className={styles.carryLockTag}>Locked until {formatShortDateTimeUTC(continuation.run.lock_until)}</span>
+            <span
+              className={styles.lockIcon}
+              role="img"
+              aria-label={`Locked until ${formatShortDateTimeUTC(continuation.run.lock_until)}`}
+              title={`Locked until ${formatShortDateTimeUTC(continuation.run.lock_until)}`}
+            >
+              🔒
+            </span>
           )
         )}
       </div>

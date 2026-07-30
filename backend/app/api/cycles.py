@@ -73,10 +73,19 @@ def patch_run(run_id: int, req: RunStatusUpdate, db: SessionDep, actor: ActorDep
     # Amend the load time first (if given), so a Confirm-loaded that also corrects the time
     # locks the run with the corrected schedule. update_run_load_time doesn't commit - the
     # update_run_status call below commits both changes together.
+    at = req.at
     if req.start_hour is not None:
         update_run_load_time(db, run_batch, req.start_hour, req.start_minute or 0)
+        # "Load time = the time entered at Confirm-loaded" (docs/pacbio-sprq-nx-scheduling-
+        # reference.md) - actual_start_at/first_use_started_at must anchor on the Revio Loaded
+        # at value just written above, not the moment the button happens to be pressed, unless
+        # the caller already supplied an explicit `at`.
+        if at is None:
+            plate1 = next((c for c in run_batch.cycles if c.plate_index == 1), None)
+            if plate1 is not None:
+                at = plate1.planned_start_at
     try:
-        run_batch = update_run_status(db, run_batch, req.status, req.at, req.actor or actor, req.run_name)
+        run_batch = update_run_status(db, run_batch, req.status, at, req.actor or actor, req.run_name)
     except ValueError as exc:
         raise HTTPException(409, str(exc)) from exc
     run_batch = db.get(RunBatch, run_id, options=RUN_LOAD_OPTIONS)
