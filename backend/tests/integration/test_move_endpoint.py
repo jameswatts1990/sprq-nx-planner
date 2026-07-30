@@ -191,31 +191,31 @@ def test_move_within_a_box_cannot_strand_a_fresh_cell_out_of_slot_a01(client):
     assert a01["sample_external_id"] == "T10"
 
 
-def test_move_to_a_different_carousel_position_reassigns_to_a_cell_there(client):
-    """Moving to a *different* carousel position (a Plate-1-tray cell dragged to a Plate-2
-    slot) - the cell physically can't reach the other tray box, so the sample is auto-handed
-    to a cell there (reuse-before-new): with box 2 never opened, a fresh tray opens. No
-    cell_choice needed - a plain drag just works."""
+def test_move_to_a_different_carousel_position_reuses_an_idle_sibling_of_its_own_tray(client):
+    """Moving a Plate-1 sample to a Plate-2 slot hands it to the cell the instrument reaches for
+    there (reuse-before-new). A cell is pinned to its tray POSITION, not a plate box, so - rather
+    than opening a fresh SECOND tray - the drag reuses an idle sibling of the sample's OWN tray,
+    loaded into the Plate-2 well (docs/pacbio-sprq-nx-scheduling-reference.md's "Plate vs cell").
+    No cell_choice needed - a plain drag just works."""
     client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1"})
     (mon,) = _weekdays(1)
 
     r1 = _place(client, _sid(client, "A1"), mon, slot_index=0)
     cell_use_id = _stages(r1.json())[0]["cell_use_id"]
     cell_id = _stages(r1.json())[0]["cell_id"]
+    tray_id = client.get(f"/api/cells/{cell_id}").json()["tray_id"]
 
-    # slot 4 (well A02, tray box 2) has never been opened - the drag auto-derives a fresh cell
-    # there rather than dragging cell A off its own carousel position.
     moved = _move(client, cell_use_id, mon, slot_index=4)
     assert moved.status_code == 200, moved.text
     stage = next(s for s in _stages(moved.json()) if s["sample_external_id"] == "A1")
     new_cell_id = stage["cell_id"]
-    assert new_cell_id != cell_id
+    assert new_cell_id != cell_id  # handed to a different cell...
     assert stage["slot_index"] == 4
-    assert stage["well"] == "A02"
+    assert stage["well"] == "A02"  # ...loaded into the Plate-2 well
 
-    # The old cell had no other real use anywhere, so its whole tray is cleaned up.
-    assert client.get(f"/api/cells/{cell_id}").status_code == 404
-    assert client.get(f"/api/cells/{new_cell_id}").json()["current_well"] == "A02"
+    # reuse-before-new across plate positions: the sample lands on an idle sibling of its OWN
+    # physical tray, not a freshly opened second tray.
+    assert client.get(f"/api/cells/{new_cell_id}").json()["tray_id"] == tray_id
 
 
 def test_move_across_instruments_reassigns_to_a_new_cell_when_cell_has_another_use(client):

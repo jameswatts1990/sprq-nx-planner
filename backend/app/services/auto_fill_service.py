@@ -19,6 +19,7 @@ from app.engine.constants import (
     DEFAULT_MOVIE_HOURS,
     REUSE_PREP_H,
     WELLS,
+    within_tray_pos,
 )
 from app.engine.packing import pack_cells
 from app.engine.slot_scheduling import fill_slots
@@ -533,12 +534,20 @@ def auto_fill(
                 # same loop under a different key, or drifted from the DB some other way -
                 # leave this one sample unplaced rather than roll back the whole batch.
                 try:
-                    box_cells = {c.home_well: c for c in open_new_tray(db, instrument_id, well)}
+                    # Key by tray POSITION, not home_well: open_new_tray may load the fresh tray
+                    # into the OTHER cell-tray bay (its home wells then differ from this display
+                    # box's wells - a plate can be backed by either bay), so resolve each display
+                    # well to the tray's cell at the SAME position. founding_date lets an expired
+                    # resident tray count as removed, matching the manual path.
+                    box_cells = {
+                        within_tray_pos(c.home_well): c
+                        for c in open_new_tray(db, instrument_id, well, founding_date=acquire_date)
+                    }
                 except ValueError:
                     continue
                 opened_boxes[box_key] = box_cells
             well_claimant[(instrument_id, well)] = a.cell.id
-            db_cell = box_cells[well]
+            db_cell = box_cells[within_tray_pos(well)]
             ref_to_cell[a.cell.id] = db_cell
 
         cell_use = CellUse(

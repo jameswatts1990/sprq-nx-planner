@@ -19,8 +19,9 @@ export type RunTimeHours = 12 | 24 | 30;
  *   - "fewest" ("Efficient"): reuse a cell to its Max-uses depth before opening the next,
  *     so fewer cells have a running 108h window at once. */
 export type Objective = "fewest" | "utilisation";
-/** How many of a run's 8 wells auto-fill is allowed to use per acquisition day: 4 = Plate 1
- * only (1 tray), 8 = both plates (2 trays). Surfaced in the UI as "Plates per run". */
+/** Per-day cap on how many samples auto-fill may schedule on one instrument: 4 = one sample
+ * plate, 8 = two. A cap on samples, NOT a cell-tray count - the samples run on cells drawn from
+ * whatever tray(s) are loaded (either carousel bay). Surfaced in the UI as "Plates per run". */
 export type CellsPerDay = 4 | 8;
 /** Grid POSITION within a run, 0-7: Plate 1 -> 0-3, Plate 2 -> 4-7. NOT the physical well
  * index - a reuse Plate 2 sits in the same wells (A01-D01) as Plate 1, so its stages carry

@@ -58,7 +58,7 @@ export interface AutoFillRequest {
    * samples go only on cell 1, 30 h only on cell 4 (24 h anywhere). */
   movie_times: RunTimeHours[];
   objective: Objective;
-  /** 4 = one tray (Plate 1 only), 8 = both trays (Plate 2 too). Surfaced as "Plates per run". */
+  /** Per-day sample cap: 4 = one sample plate, 8 = two (not a cell-tray count). Surfaced as "Plates per run". */
   cells_per_day: CellsPerDay;
   start_hour?: number;
   start_minute?: number;

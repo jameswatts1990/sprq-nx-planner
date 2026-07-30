@@ -11,7 +11,15 @@ from datetime import date, datetime, time, timedelta, timezone
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from app.engine.constants import CELL_LIFETIME_H, CELL_MAX_USES, CELLS_PER_TRAY, DAY_START_HOUR, REUSE_PREP_H, WELLS
+from app.engine.constants import (
+    CELL_LIFETIME_H,
+    CELL_MAX_USES,
+    CELLS_PER_TRAY,
+    DAY_START_HOUR,
+    REUSE_PREP_H,
+    WELLS,
+    within_tray_pos,
+)
 from app.models.audit import AuditLog
 from app.models.cell import Cell
 from app.models.cell_tray import CellTray
@@ -252,25 +260,27 @@ def open_new_tray(db: Session, instrument_id: int, well: str, *, founding_date: 
     with no engine changes needed since `Cell.status == "open"` is already the only
     filter load_prior_cells() applies.
 
-    `well` is the well the sample is landing in right now (e.g. "C01") - it fixes which
-    physical tray box (WELLS' own 4-well "tray 1"/"tray 2" split) this CellTray occupies,
-    and each of the 4 cells is pinned to one well in that box (Cell.home_well/tray_position,
-    in fixed A/B/C/D order) so an unused sibling can still surface a real current_well via
-    current_location() and render in the weekly grid before it's ever used.
+    `well` is the well the sample is landing in right now (e.g. "C01"). A cell tray and a sample
+    plate are INDEPENDENT instrument positions (see docs/pacbio-sprq-nx-scheduling-reference.md's
+    "Plate vs cell"), so the fresh tray loads into a free cell-tray BAY - the drop well's own bay
+    if free (the common case), else the other free bay - not necessarily the bay whose wells match
+    `well`. The 4 cells are pinned to that chosen bay's wells (Cell.home_well/tray_position, fixed
+    A/B/C/D order); the sample keeps the drop well's tray POSITION, so it loads into `well` even
+    when its cell's home_well is in the other bay (the loading-well != home-well split).
 
-    Returns the 4 cells reordered so index 0 is always the cell whose home_well == well
-    (the one being placed right now), followed by its 3 siblings in position order.
+    Returns the 4 cells reordered so index 0 is the cell whose tray POSITION matches the drop well
+    (within_tray_pos) - whose home_well equals `well` only when the tray landed in the drop well's
+    own bay - followed by its 3 siblings in position order.
 
-    Raises ValueError if this box still has a live physical tray on it - some Cell already
-    occupies one of its wells with `status == "open"` (real remaining capacity, or a never-
-    yet-used sibling still waiting to be picked up). Callers that legitimately reuse an
-    already-open box (auto_fill_service's opened_boxes cache, the frontend's waiting-cell
-    ghosts) must resolve to that existing Cell instead of calling this - see
-    docs/pacbio-sprq-nx-scheduling-reference.md's "Tray-of-4 eager population" bug history
-    for why silently minting a second physical tray here instead of raising is how a tray
-    ends up with non-continuous/duplicated cell ids. A box whose every cell has gone
-    terminal (stopped/exhausted/window_expired/retired) is *not* a collision - the physical
-    tray has genuinely left the instrument, mirroring the frontend's own
+    Raises ValueError only if BOTH cell-tray bays are occupied by live physical trays - some Cell
+    in each bay with `status == "open"` (real remaining capacity, or a never-yet-used sibling still
+    waiting to be picked up). Callers that legitimately reuse an already-open box
+    (auto_fill_service's opened_boxes cache, the frontend's waiting-cell ghosts) must resolve to
+    that existing Cell instead of calling this - see docs/pacbio-sprq-nx-scheduling-reference.md's
+    "Tray-of-4 eager population" bug history for why silently minting a second physical tray in a
+    bay instead of raising is how a tray ends up with non-continuous/duplicated cell ids. A bay
+    whose every cell has gone terminal (stopped/exhausted/window_expired/retired) is *not* occupied
+    - the physical tray has genuinely left the instrument, mirroring the frontend's own
     waitingCells.computeVacatedTrayIds - so a brand-new tray can be loaded into it again.
 
     **Tray turnover on expiry (`founding_date`).** When `founding_date` is given (the acquire
@@ -300,35 +310,53 @@ def open_new_tray(db: Session, instrument_id: int, well: str, *, founding_date: 
     while swapping in a brand-new physical cell reflects anything that can really happen;
     a box that's genuinely gone terminal is already reachable by placing a fresh backlog
     sample onto its now-empty well through the ordinary path below, unconditionally."""
-    box_start = (WELLS.index(well) // CELLS_PER_TRAY) * CELLS_PER_TRAY
-    box_wells = WELLS[box_start : box_start + CELLS_PER_TRAY]
+    drop_bay = WELLS.index(well) // CELLS_PER_TRAY
+    pos = within_tray_pos(well)  # 0-3, the tray position the sample occupies (kept for life)
+    bay_count = len(WELLS) // CELLS_PER_TRAY  # 2
 
+    # Every open cell on this instrument, so each cell-tray bay's occupancy can be tested.
     open_cells = (
         db.scalars(
             select(Cell)
             .join(Cell.tray)
-            .where(CellTray.instrument_id == instrument_id, Cell.home_well.in_(box_wells), Cell.status == "open")
+            .where(CellTray.instrument_id == instrument_id, Cell.status == "open")
             .options(selectinload(Cell.cell_uses).selectinload(CellUse.cycle))
         )
         .unique()
         .all()
     )
-    # A still-open cell blocks reloading the box only while it's genuinely resident: with a
-    # founding_date, one whose 108h window has closed by then counts as physically removed
-    # (turnover - see the docstring and _cell_resident_on); without one, every open cell blocks.
-    # A cell whose tray is flagged "skip reuse / planning disposal" (CellTray.reuse_disabled_at)
-    # never blocks either: the lab has declared it's binning that tray, so its box is free for a
-    # fresh tray - the same "being removed" model as an expired tray. Reversible: clearing the
-    # flag makes the tray resident (and blocking) again.
-    blocked = any(
-        (c.tray is None or c.tray.reuse_disabled_at is None)
-        and (founding_date is None or _cell_resident_on(c, founding_date))
-        for c in open_cells
-    )
-    if blocked:
-        raise ValueError(
-            f"well {well} is already occupied by an existing physical tray (wells {box_wells}) on this instrument."
+
+    def _bay_blocked(bay: int) -> bool:
+        # A still-open cell blocks reloading a bay only while genuinely resident: with a
+        # founding_date, one whose 108h window has closed by then counts as physically removed
+        # (turnover - see _cell_resident_on); without one, every open cell blocks. A cell whose
+        # tray is flagged "skip reuse / planning disposal" (CellTray.reuse_disabled_at) never
+        # blocks: the lab has declared it's binning that tray, so the bay is free for a fresh
+        # tray - the same "being removed" model as an expired tray. (Predicate byte-identical to
+        # the former single-box guard; only its scope is now per-bay.)
+        lo = bay * CELLS_PER_TRAY
+        bay_wells = set(WELLS[lo : lo + CELLS_PER_TRAY])
+        return any(
+            (c.tray is None or c.tray.reuse_disabled_at is None)
+            and (founding_date is None or _cell_resident_on(c, founding_date))
+            for c in open_cells
+            if c.home_well in bay_wells
         )
+
+    # A cell tray and a sample plate are independent instrument positions: a fresh tray loads into
+    # a free cell-tray BAY, not necessarily the drop well's own. Prefer the drop well's own bay
+    # (keeps the common case unchanged), else the other free bay; only both-bays-occupied is a
+    # genuine collision (see docs/pacbio-sprq-nx-scheduling-reference.md's "Plate vs cell").
+    bay_order = [drop_bay] + [b for b in range(bay_count) if b != drop_bay]
+    chosen_bay = next((b for b in bay_order if not _bay_blocked(b)), None)
+    if chosen_bay is None:
+        raise ValueError(
+            f"both cell-tray bays on this instrument are occupied by existing physical trays; "
+            f"no free bay to load a fresh tray for well {well}."
+        )
+
+    lo = chosen_bay * CELLS_PER_TRAY
+    box_wells = WELLS[lo : lo + CELLS_PER_TRAY]
 
     tray = CellTray(instrument_id=instrument_id)
     db.add(tray)
@@ -352,11 +380,15 @@ def open_new_tray(db: Session, instrument_id: int, well: str, *, founding_date: 
         # position (1-4) and tray.id are both known here, so the code no longer needs the
         # cell's own PK. See docs/pacbio-sprq-nx-scheduling-reference.md's vocabulary map.
         cell.code = f"C{position:02d}-T{tray.id}"
-        if home_well == well:
+        # Select the placed cell by tray POSITION, not home_well == well: when the tray lands in
+        # the OTHER bay than the drop well, no home_well equals `well`, but the sample still
+        # occupies the drop well's position (loaded into `well` - the loading-well != home-well
+        # split, already rendered correctly by run_serializer._slot_index).
+        if position - 1 == pos:
             placed = cell
         else:
             siblings.append(cell)
-    assert placed is not None, f"well {well!r} not found in its own tray box {box_wells!r}"
+    assert placed is not None
     return [placed, *siblings]
 
 

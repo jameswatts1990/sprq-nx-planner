@@ -291,11 +291,14 @@ export function ScheduleSection() {
         </dd>
         <dt>Plates per run (1 plate / 2 plates)</dt>
         <dd>
-          How many trays auto-fill loads per day. <b>1 plate</b> (4 wells) loads one tray per day (Plate 1 only) —
-          a cell reused a later day always shows up as its own <b>separate run</b> that day, reading its next use
-          number, since a 1-plate run never opens a Plate 2 at all. <b>2 plates</b> (default, 8 wells) can load
-          both tray positions in a day, and in this mode a reused cell&apos;s <b>next use bundles into the SAME
-          run as its first</b>, as Plate 2 — e.g. cell 1 loads Monday as Use 1 (Plate 1), then reuses the same day&apos;s
+          How many samples auto-fill schedules per day. <b>1 plate</b> (up to 4 samples) fills a single plate — its
+          samples can open a fresh tray <b>or reuse an existing one from either carousel position</b>, the reused
+          cells loading into the Plate-1 wells (the sample card shows Plate 1, while the cell&apos;s own tray still
+          appears in its physical position on the instrument overview). A cell reused a later day shows up as its
+          own <b>separate run</b> that day, reading its next use number, since a 1-plate run never opens a Plate 2
+          at all. <b>2 plates</b> (default, up to 8 samples) can load both tray positions in a day, and in this mode
+          a reused cell&apos;s <b>next use bundles into the SAME run as its first</b>, as Plate 2 — e.g. cell 1
+          loads Monday as Use 1 (Plate 1), then reuses the same day&apos;s
           run as Plate 2 (Use 2), sequencing Tuesday once the instrument gets to it. A third use (or a day where
           Plate 2 is already a genuinely different, fresh second tray loaded that same day) starts its own separate
           run instead, since a run holds at most 2 plates. This only limits what auto-fill proposes; dragging a

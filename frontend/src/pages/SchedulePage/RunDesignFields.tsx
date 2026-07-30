@@ -54,8 +54,8 @@ const OBJECTIVE_OPTIONS = [
   { value: "fewest" as Objective, label: "Efficient", hint: "reuse cells, limit expiry" },
 ];
 const PLATES_PER_RUN_OPTIONS = [
-  { value: 4 as CellsPerDay, label: "1 plate", hint: "1 tray · 4 wells" },
-  { value: 8 as CellsPerDay, label: "2 plates", hint: "2 trays · 8 wells" },
+  { value: 4 as CellsPerDay, label: "1 plate", hint: "up to 4 samples/day" },
+  { value: 8 as CellsPerDay, label: "2 plates", hint: "up to 8 samples/day" },
 ];
 
 /** Human label for a stored objective value - shared so summaries elsewhere never print
@@ -155,7 +155,7 @@ export function RunDesignFields({
 
       <div className={styles.field}>
         <div className={styles.fieldLabel}>
-          Plates per run <span className={styles.hint}>1 tray (4 wells) or 2 trays (8 wells) per run</span>
+          Plates per run <span className={styles.hint}>cap on samples scheduled per day (4 or 8)</span>
         </div>
         <SegmentedControl
           ariaLabel="Plates per run"

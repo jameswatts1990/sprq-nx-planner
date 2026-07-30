@@ -53,24 +53,6 @@ from app.timeutil import ensure_aware, utcnow
 PLATE_SIZE = len(WELLS) // 2  # 4
 
 
-def _plate_box(slot_index: int) -> int:
-    """The physical carousel position (0 = tray 1 / Plate-1 wells A01-D01, 1 = tray 2 / Plate-2
-    wells A02-D02) a grid slot loads onto. A grid slot is a plate LOADING position, not a cell -
-    which physical cell the instrument reaches for is derived separately (see derive_best_cell);
-    but the carousel position still bounds *which physical tray* a drop can reach."""
-    return 0 if slot_index < PLATE_SIZE else 1
-
-
-def _cell_box(cell: Cell) -> int | None:
-    """The carousel position a physical cell sits in, from its fixed tray identity
-    (Cell.home_well). None for a legacy/bootstrap cell with no tray - such a cell isn't bound
-    to a box and stays reusable wherever its own instrument allows."""
-    hw = cell.home_well
-    if hw is None or hw not in WELLS:
-        return None
-    return WELLS.index(hw) // PLATE_SIZE
-
-
 class PlacementError(Exception):
     def __init__(self, status_code: int, detail: str) -> None:
         super().__init__(detail)
@@ -227,9 +209,9 @@ def _established_tray_id(cycle: Cycle | None) -> int | None:
     """Which physical tray (Cell.tray_id) `cycle` is already committed to, from the tray_id
     shared by its already-placed, non-cancelled cell_uses' cells. None if the cycle doesn't
     exist yet, has no live cell_uses, or every cell is a legacy/bootstrap cell with no tray_id
-    (nothing fixed to check new candidates against - mirrors _cell_box's existing precedent of
-    exempting tray-less cells from box/position invariants). A Plate is physically one carousel
-    box, which can only ever hold one physical tray at a time - so every well of one Cycle must
+    (nothing fixed to check new candidates against - a tray-less cell is exempt from the
+    one-tray-per-plate invariant, having no tray identity to compare). A Plate is one sample
+    plate, physically backed by a single cell tray at a time - so every well of one Cycle must
     resolve to the same tray_id, never a mix (see docs/pacbio-sprq-nx-scheduling-reference.md).
     Deterministic (lowest tray_id) if pre-existing data is already split across trays - this
     does not retroactively repair that, only prevents a NEW split from being introduced."""
@@ -667,7 +649,6 @@ def derive_best_cell(
     sample, the placement is refused outright rather than silently substituting a foreign
     tray (the exact bug this guards against - see docs/pacbio-sprq-nx-scheduling-
     reference.md)."""
-    box = _plate_box(slot_index)
     plate_index = 1 if slot_index < PLATE_SIZE else 2
     target_cycle = _load_existing_cycle(db, instrument_id=instrument.id, load_date=load_date, plate_index=plate_index)
     committed_tray_id = _established_tray_id(target_cycle)
@@ -710,7 +691,12 @@ def derive_best_cell(
             if best is not None:
                 return {"mode": "existing", "cell_id": best.id}
 
-    # (2) Cross-run reuse: the next-in-order open cell resident in this carousel position.
+    # (2) Cross-run reuse: the next-in-order open cell resident on this instrument, from EITHER
+    # cell tray. A cell is pinned to its tray position, not to a plate box, so a Plate-1 drop may
+    # reuse a cell whose home well is in the Plate-2 box (loaded into the Plate-1 display well) -
+    # reuse-before-new across both trays, matching the auto-fill engine (see docs/pacbio-sprq-nx-
+    # scheduling-reference.md's "Plate vs cell"). One-tray-per-plate cohesion is still enforced by
+    # branch (0) / _established_tray_id once this plate's first cell lands - box-independently.
     prior, by_id = load_prior_cells(db, [])
     cands = []
     for pc in prior:
@@ -719,9 +705,6 @@ def derive_best_cell(
         cell = by_id[pc.cell_id]
         if cell.id == exclude_cell_id:
             continue  # move_sample: don't re-adopt the moved cell into a foreign well
-        cbox = _cell_box(cell)
-        if cbox is not None and cbox != box:
-            continue
         if _cell_used_in_run(cell, instrument.id, load_date):
             continue  # already covered by the intra-run branch above
         cands.append(cell)

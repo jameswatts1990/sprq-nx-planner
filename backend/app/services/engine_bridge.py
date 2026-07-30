@@ -83,6 +83,7 @@ def load_prior_cells(db: Session, excluded_cell_ids: list[int]) -> tuple[list[Pr
                 first_use_started_at=cell.first_use_started_at,
                 pinned_instrument_serial=pinned_serial,
                 pinned_well=pinned_well,
+                tray_id=cell.tray_id,
             )
         )
         by_id[cell.id] = cell
