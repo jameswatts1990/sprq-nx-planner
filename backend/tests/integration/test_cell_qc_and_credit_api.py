@@ -345,6 +345,36 @@ def test_credit_workflow_after_fail_and_stop(client):
     assert cell_id not in [c["id"] for c in awaiting_after["items"]]
 
 
+def test_qc_status_in_workflow_lists_every_stage_and_excludes_healthy_cells(client):
+    """The QC page's feed (qc_status=in_workflow) returns every failed/stopped cell at ANY credit
+    stage - unlike unreported/awaiting_credit, which each only match one stage - and never a
+    healthy, never-failed cell."""
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nW1,bcw1"})
+    past = _past_weekday()
+    r1 = _place(client, _sid(client, "W1"), past, 0, {"mode": "new"})
+    stage = _stages(r1.json())[0]
+    cell_id = stage["cell_id"]
+    # A never-used sibling in the same fresh tray is a healthy cell that must stay out of the feed.
+    sibling_id = next(cid for cid in _tray_cells_by_well(client, stage["tray_id"]).values() if cid != cell_id)
+    assert client.patch(f"/api/cycles/{r1.json()['run_id']}", json={"status": "running"}).status_code == 200
+    qc_commit(client, cell_id, "fail_and_stop", stage["cell_use_id"], {_sid(client, "W1"): "lost"})
+
+    def in_workflow_ids():
+        return [c["id"] for c in client.get("/api/cells", params={"qc_status": "in_workflow", "page_size": 200}).json()["items"]]
+
+    # Needs-report stage: the stopped cell is in the feed; its healthy sibling is not.
+    assert cell_id in in_workflow_ids()
+    assert sibling_id not in in_workflow_ids()
+
+    # It stays in the feed through report -> confirm -> receive (a settled tail the page still shows).
+    assert client.post(f"/api/cells/{cell_id}/report-to-pacbio", json={"case_number": "CASE-IW"}).status_code == 200
+    assert cell_id in in_workflow_ids()
+    assert client.post(f"/api/cells/{cell_id}/confirm-credit", json={}).status_code == 200
+    assert cell_id in in_workflow_ids()
+    assert client.post(f"/api/cells/{cell_id}/receive-credit", json={}).status_code == 200
+    assert cell_id in in_workflow_ids()
+
+
 def test_internal_report_link_saved_and_timestamped(client):
     client.post("/api/imports", json={"raw_text": "sample,barcodes\nIR1,bcir1"})
     past = _past_weekday()

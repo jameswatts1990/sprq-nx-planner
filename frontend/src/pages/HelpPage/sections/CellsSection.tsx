@@ -206,10 +206,12 @@ export function CellsSection() {
         <li>
           <b>PacBio report</b> — comes first, because the case number PacBio issues feeds the internal report.{" "}
           <b>Add case number</b> records the case number from the quality log you raise, and moves the cell off the{" "}
-          <b>Unreported</b> filter on the Cells page. <b>Generate email…</b> drafts an email to PacBio in your own
-          email client, prefilled with the affected well, run, instrument and date (taken from the Failed use, or the
-          most recent use if the cell was Stopped without one). Review the draft — including who it&apos;s addressed
-          to — before sending.
+          <b>Unreported</b> filter on the Cells page. <b>Generate email…</b> drafts an email to PacBio support in
+          your own email client, addressed to Pacific Biosciences (cc&apos;d to your PacBio contact) and prefilled
+          with the affected sample ID, run, instrument and date (taken from the Failed use, or the most recent use if
+          the cell was Stopped without one). It identifies the cell by its customer sample rather than our internal
+          well code, which PacBio can&apos;t match. Review the draft — including who it&apos;s addressed to — before
+          sending.
         </li>
         <li>
           <b>Internal report</b> — <b>Add link</b> saves a link to your own internal write-up of the failure (e.g. a

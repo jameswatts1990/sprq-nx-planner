@@ -42,7 +42,7 @@ from app.services.cell_service import (
 )
 from app.services.qc_service import commit_qc, preview_qc, undo_qc
 
-QC_STATUSES = ("unreported", "awaiting_credit")
+QC_STATUSES = ("unreported", "awaiting_credit", "in_workflow")
 
 router = APIRouter(prefix="/api/cells", tags=["cells"])
 
@@ -133,6 +133,11 @@ def list_cells(
         serialized = [c for c in serialized if c.needs_qc_report]
     elif qc_status == "awaiting_credit":
         serialized = [c for c in serialized if c.awaiting_credit]
+    elif qc_status == "in_workflow":
+        # Every cell that has entered the PacBio credit workflow, at any stage (needs report ..
+        # credit received) - the QC page's worklist derives each cell's stage itself. Matches
+        # CellDetailPage's showCreditCard condition; a retire-without-failure never enters it.
+        serialized = [c for c in serialized if c.has_failed_use or c.status == "stopped"]
     if tray_id is not None:
         # Position order (1-4), not the list's default newest-first - "ensure the cell
         # number stays in order" for the Cell Detail page's tray sibling listing.

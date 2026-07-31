@@ -1,0 +1,171 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.status {
+  color: var(--grey);
+  padding: 8px 2px;
+}
+
+/* One stage group (Needs report / Awaiting credit / Confirmed / Received). */
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* The collapsed "Received / settled" group header, styled as a quiet full-width toggle. */
+.receivedToggle {
+  appearance: none;
+  border: none;
+  background: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 2px;
+  cursor: pointer;
+  font-family: var(--sans);
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  color: var(--ink);
+}
+.receivedCx {
+  display: inline-block;
+  color: var(--grey);
+  transition: transform 0.15s ease;
+}
+.receivedCx[data-open="true"] {
+  transform: rotate(90deg);
+}
+
+/* One credit case in the worklist. */
+.row {
+  border: 1px solid var(--line);
+  border-radius: var(--r-md, 10px);
+  background: var(--card);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.row[data-open="true"] {
+  border-color: var(--line-hover);
+  box-shadow: var(--shadow);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.expand {
+  appearance: none;
+  border: none;
+  background: none;
+  padding: 2px 4px;
+  cursor: pointer;
+  color: var(--grey);
+  line-height: 1;
+}
+.cx {
+  display: inline-block;
+  transition: transform 0.15s ease;
+}
+.cx[data-open="true"] {
+  transform: rotate(90deg);
+}
+.code {
+  font-weight: 700;
+  color: var(--link);
+}
+.meta {
+  font-size: var(--fs-sm);
+  color: var(--link);
+}
+.date {
+  margin-left: auto;
+  font-size: var(--fs-sm);
+  color: var(--grey);
+  white-space: nowrap;
+}
+
+.ctx {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: var(--fs-sm);
+  padding-left: 30px; /* align under the cell code, past the chevron button */
+}
+.ctxLabel {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: var(--fs-2xs);
+  color: var(--grey);
+}
+.muted {
+  color: var(--faint);
+}
+.reason {
+  color: var(--grey);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.progress {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding-left: 30px;
+}
+.action {
+  flex: 1 1 320px;
+}
+
+/* Mini five-dot stage strip - same order/tint semantics as the detail page's tracker. */
+.strip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+.dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  border: 2px solid var(--line);
+  background: var(--card);
+}
+.dot[data-state="done"] {
+  background: var(--green);
+  border-color: var(--green);
+}
+.dot[data-state="current"] {
+  background: var(--magenta);
+  border-color: var(--magenta);
+  box-shadow: 0 0 0 3px var(--magenta-tint);
+}
+
+/* Expanded region: the full PacbioCreditTracker for this case. */
+.detail {
+  border-top: 1px dashed var(--line);
+  padding-top: 12px;
+  margin-top: 4px;
+}
+.detailStatus {
+  border-top: 1px dashed var(--line);
+  padding-top: 12px;
+  margin-top: 4px;
+  color: var(--grey);
+}

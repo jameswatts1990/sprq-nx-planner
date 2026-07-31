@@ -19,7 +19,7 @@ import type { QcCommitOut, QcCommitRequest, QcPreviewOut, QcPreviewRequest, QcUn
 export interface ListCellsParams {
   status?: string;
   instrument_serial?: string;
-  qc_status?: "unreported" | "awaiting_credit";
+  qc_status?: "unreported" | "awaiting_credit" | "in_workflow";
   q?: string;
   tray_id?: number;
   /** ISO datetime; when set, the API projects every time-derived field (uses, window, status)

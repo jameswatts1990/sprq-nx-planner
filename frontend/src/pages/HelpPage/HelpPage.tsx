@@ -12,6 +12,7 @@ import { HistorySection } from "./sections/HistorySection";
 import { ImportSection } from "./sections/ImportSection";
 import { InstrumentsSection } from "./sections/InstrumentsSection";
 import { LegendSection } from "./sections/LegendSection";
+import { QcSection } from "./sections/QcSection";
 import { ScheduleSection } from "./sections/ScheduleSection";
 import { StatsSection } from "./sections/StatsSection";
 
@@ -21,6 +22,7 @@ const SECTIONS = [
   { key: "backlog", title: "Backlog", Component: BacklogSection },
   { key: "schedule", title: "Schedule", Component: ScheduleSection },
   { key: "cells", title: "Cells", Component: CellsSection },
+  { key: "qc", title: "QC", Component: QcSection },
   { key: "instruments", title: "Instruments", Component: InstrumentsSection },
   { key: "history", title: "History & Samples", Component: HistorySection },
   { key: "stats", title: "Stats", Component: StatsSection },

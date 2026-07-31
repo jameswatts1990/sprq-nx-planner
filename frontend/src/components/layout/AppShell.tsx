@@ -21,6 +21,7 @@ const NAV_ITEMS = [
   { to: "/backlog", label: "Backlog" },
   { to: "/schedule", label: "Schedule" },
   { to: "/cells", label: "Cells" },
+  { to: "/qc", label: "QC" },
   { to: "/instruments", label: "Instruments" },
   { to: "/history/runs", label: "History" },
   { to: "/history/samples", label: "Samples" },
