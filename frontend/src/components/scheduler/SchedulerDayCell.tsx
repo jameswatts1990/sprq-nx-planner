@@ -63,16 +63,23 @@ export interface SchedulerDayCellProps {
   blockedWells: Set<string>;
 }
 
-/** Monochrome padlock - inherits its colour from the surrounding text (`currentColor`) rather
- * than a fixed-colour emoji glyph, so it reads consistently in both the teal-on-white LOADED
- * pill and the amber carry-over marker. Hover/focus (via the wrapping element's title) shows
- * the exact release time. */
-function LockIcon({ label }: { label: string }) {
+/** The padlock marker for a locked day - a teal rounded-rect chip (the grid's neutral
+ * "informational" tone, distinct from the magenta LOADED/Unload action and the amber
+ * carry-over marker). Collapsed to just the icon by default; hover or keyboard-focus
+ * expands it rightward to reveal the exact release time, replacing the old hover tooltip
+ * with an in-place reveal so it reads as part of the same chip. `tabIndex` makes the
+ * expand reachable by keyboard; `aria-label` carries the full text for screen readers
+ * regardless of hover state. */
+function LockChip({ until }: { until: string }) {
+  const time = formatShortDateTimeUTC(until);
   return (
-    <span className={styles.lockIcon} role="img" aria-label={label} title={label}>
-      <svg viewBox="0 0 16 16" width="11" height="11" fill="currentColor" aria-hidden="true">
+    <span className={styles.lockChip} tabIndex={0} aria-label={`Locked until ${time}`}>
+      <svg viewBox="0 0 16 16" width="10" height="10" fill="currentColor" aria-hidden="true" className={styles.lockChipIcon}>
         <path d="M4 7V5a4 4 0 1 1 8 0v2h.5A1.5 1.5 0 0 1 14 8.5v5A1.5 1.5 0 0 1 12.5 15h-9A1.5 1.5 0 0 1 2 13.5v-5A1.5 1.5 0 0 1 3.5 7H4Zm1.5 0h5V5a2.5 2.5 0 0 0-5 0v2Z" />
       </svg>
+      <span className={styles.lockChipTime} aria-hidden="true">
+        {time}
+      </span>
     </span>
   );
 }
@@ -294,7 +301,7 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
                     onFocus={() => setHoveringLoadedPill(true)}
                     onBlur={() => setHoveringLoadedPill(false)}
                   >
-                    {statusMutation.isPending ? "…" : hoveringLoadedPill ? "Unload" : "LOADED"}
+                    {statusMutation.isPending ? "…" : hoveringLoadedPill ? "UNLOAD" : "LOADED"}
                   </button>
                 ) : (
                   <span
@@ -304,7 +311,7 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
                     {run.status.toUpperCase()}
                   </span>
                 )}
-                <LockIcon label={`Locked until ${formatShortDateTimeUTC(run.lock_until)}`} />
+                <LockChip until={run.lock_until} />
               </>
             ) : (
               filledCount >= 1 && (
@@ -336,10 +343,10 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
                 Plate {continuationPlate.plate_index} loads {runLabel(continuation.run)} @{" "}
                 {formatTimeUTC(continuationPlate.planned_start_at)}
               </span>
-              <LockIcon label={`Locked until ${formatShortDateTimeUTC(continuation.run.lock_until)}`} />
+              <LockChip until={continuation.run.lock_until} />
             </>
           ) : (
-            <LockIcon label={`Locked until ${formatShortDateTimeUTC(continuation.run.lock_until)}`} />
+            <LockChip until={continuation.run.lock_until} />
           )
         )}
       </div>

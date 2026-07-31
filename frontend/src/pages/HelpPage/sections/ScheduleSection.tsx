@@ -702,8 +702,8 @@ export function ScheduleSection() {
           plate chained off it) shifts to match.
         </li>
         <li>
-          A <b>LOADED</b> tag marks a locked run — hover or focus it and it swaps to <b>Unload</b>; click it to
-          return the run to planned so you can edit it again.
+          A green <b>LOADED</b> tag marks a locked run — hover or focus it and it turns magenta and swaps to{" "}
+          <b>UNLOAD</b>; click it to return the run to planned so you can edit it again.
         </li>
         <li>
           The <b>↻</b> button in a tray&apos;s top-right corner is <b>Discard current tray</b> — use it when you
@@ -718,12 +718,12 @@ export function ScheduleSection() {
           <b>Confirm loaded</b> (unlock it first) — the cells are physically in the instrument by then.
         </li>
         <li>
-          A <b>🔒 padlock</b> appears next to the status on every day the instrument is reserved by a run — its own
-          load day and any later day still held by its lock. Hover it to see the exact date/time the instrument
-          frees up. The day the reservation actually <i>ends</i> stays open to load — the instrument frees up
-          partway through it, so you can still schedule a run there and it simply starts when the instrument is free
-          (its start time shifts to the clear time). Only days the lock covers end-to-end show the padlock with no
-          droppable slots.
+          A teal <b>🔒 padlock</b> chip appears next to the status on every day the instrument is reserved by a run —
+          its own load day and any later day still held by its lock. Hover or focus it and it expands to reveal the
+          exact date/time the instrument frees up. The day the reservation actually <i>ends</i> stays open to load —
+          the instrument frees up partway through it, so you can still schedule a run there and it simply starts
+          when the instrument is free (its start time shifts to the clear time). Only days the lock covers
+          end-to-end show the padlock with no droppable slots.
         </li>
       </ul>
 

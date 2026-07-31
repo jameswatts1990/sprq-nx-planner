@@ -75,35 +75,63 @@
   font-weight: 800;
   letter-spacing: 0.05em;
   color: #fff;
-  background: var(--magenta);
+  background: var(--green);
   border: none;
   border-radius: 4px;
   padding: 2px 6px;
 }
 /* The LOADED pill doubles as the unload control while a run is running (see
-   SchedulerDayCell.tsx) - hover/focus swaps its label to "Unload" so it reads as an action,
-   distinct from the padlock icon (which stays a pure status indicator, never clickable). */
+   SchedulerDayCell.tsx) - green at rest (matches its "good, cells are on the instrument"
+   status), hover/focus swaps both its label ("UNLOAD") and its colour to the shared
+   magenta action tone so it reads as a control the instant you reach for it, distinct
+   from the padlock chip (which stays teal and never acts as a button). */
 .lockTagAction {
   cursor: pointer;
+  transition: background 0.15s ease;
 }
 .lockTagAction:hover:not(:disabled),
 .lockTagAction:focus-visible:not(:disabled) {
-  background: var(--magenta-deep);
+  background: var(--magenta);
 }
 .lockTagAction:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
 /* Padlock marker shown on every day the instrument is locked (the run's own load day and
-   any later day still held by its lock/continuation) - hover/focus reveals the release time
-   via the title tooltip. Monochrome (currentColor) rather than the old lock emoji, so it
-   reads as a neutral status glyph, not a coloured icon, in both the magenta LOADED pill's
-   row and the amber carry-over marker's row. */
-.lockIcon {
+   any later day still held by its lock/continuation) - a teal rounded-rect chip (the grid's
+   neutral "informational" tone - see BarcodeChips/UseBox's own teal-deep use), collapsed to
+   just the icon. Hovering or keyboard-focusing it expands the chip rightward to reveal the
+   release time in place, rather than relying on a hover tooltip. */
+.lockChip {
   display: inline-flex;
   align-items: center;
-  color: var(--grey);
+  height: 16px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--teal-deep);
+  color: #fff;
+  overflow: hidden;
   cursor: default;
+}
+.lockChipIcon {
+  flex-shrink: 0;
+}
+.lockChipTime {
+  max-width: 0;
+  margin-left: 0;
+  opacity: 0;
+  font-size: 8.5px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  transition: max-width 0.2s ease, margin-left 0.2s ease, opacity 0.15s ease;
+}
+.lockChip:hover .lockChipTime,
+.lockChip:focus-visible .lockChipTime {
+  max-width: 100px;
+  margin-left: 4px;
+  opacity: 1;
 }
 
 /* Carried over from an earlier day's run - a distinct amber tone (not the same-day teal

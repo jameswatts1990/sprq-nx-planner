@@ -191,7 +191,10 @@ export function CellsSection() {
       <p className={styles.subheading}>PacBio credit</p>
       <p>
         Once a cell has a Failed use or is Stopped, a <b>PacBio credit</b> card appears on its detail page so you
-        can track the case through to a physical credit:
+        can track the case through to a physical credit. While the case is still open (no case number reported
+        yet, or reported but the credit hasn&apos;t arrived), the card moves to the <b>top</b> of the page — marked
+        with an <b>Open</b> badge — so it&apos;s the first thing you see. Once the credit is marked received, it
+        settles back below use history as a resolved record.
       </p>
       <ul>
         <li>
@@ -205,6 +208,12 @@ export function CellsSection() {
           <b>Mark credit received</b> — tick this once the credit has physically landed in the lab. Cross-reference
           by the case number shown on the card. Until this is ticked, the cell shows on the <b>Awaiting credit</b>{" "}
           filter on the Cells page.
+        </li>
+        <li>
+          <b>Generate email…</b> — drafts an email to PacBio technical support in your own email client, prefilled
+          with the affected well, run, instrument and date (taken from the Failed use, or the most recent use if
+          the cell was Stopped without one), asking how to proceed and whether a credit will be given. Review the
+          draft — including who it&apos;s addressed to — before sending.
         </li>
       </ul>
     </div>
