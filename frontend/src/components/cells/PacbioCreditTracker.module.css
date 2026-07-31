@@ -1,0 +1,137 @@
+/* Parcel-tracking-style progress tracker for the PacBio credit case. A row of five
+   connected stage nodes, each tinted by state (done / current / pending), above a
+   focused action panel for the next step. Colours drawn from the shared token palette. */
+
+.track {
+  list-style: none;
+  margin: 4px 0 20px;
+  padding: 0;
+  display: flex;
+  align-items: flex-start;
+  overflow-x: auto;
+}
+
+.step {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 92px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 5px;
+  padding: 0 4px;
+}
+
+/* Connector line running from the previous node's centre into this one, behind the nodes.
+   Green once the previous stage is done, otherwise the faint default line colour. */
+.step::before {
+  content: "";
+  position: absolute;
+  top: 21px;
+  left: -50%;
+  width: 100%;
+  height: 2px;
+  background: var(--line);
+  z-index: 0;
+}
+.step:first-child::before {
+  display: none;
+}
+.step[data-linked="on"]::before {
+  background: var(--green);
+}
+
+.node {
+  position: relative;
+  z-index: 1;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  border: 2px solid var(--line);
+  background: var(--card);
+  color: var(--faint);
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+.step[data-state="done"] .node {
+  background: var(--green);
+  border-color: var(--green);
+  color: #fff;
+}
+.step[data-state="current"] .node {
+  background: var(--magenta-tint);
+  border-color: var(--magenta);
+  color: var(--magenta-deep);
+  box-shadow: 0 0 0 4px var(--magenta-tint);
+}
+
+.stepLabel {
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: var(--ink);
+  line-height: 1.2;
+}
+.step[data-state="pending"] .stepLabel {
+  color: var(--faint);
+}
+
+.stepTime {
+  font-size: var(--fs-2xs);
+  color: var(--grey);
+  line-height: 1.2;
+}
+.step[data-state="current"] .stepTime {
+  color: var(--magenta-deep);
+  font-weight: 700;
+}
+.step[data-state="pending"] .stepTime {
+  color: var(--faint);
+}
+
+.stepMeta {
+  font-size: var(--fs-2xs);
+  color: var(--grey);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+a.stepMeta {
+  color: var(--link);
+}
+
+/* Action panel for the current stage - a recessed strip separating "what's next" from
+   the progress read-out above it. */
+.actions {
+  border-top: 1px solid var(--line-soft);
+  padding-top: 16px;
+}
+.actionLead {
+  font-size: var(--fs-base);
+  color: var(--grey);
+  margin-bottom: 10px;
+}
+.actionRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.input {
+  font-family: var(--sans);
+  font-size: var(--fs-lg);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 8px 10px;
+  min-width: 240px;
+  flex: 1 1 240px;
+}
+.input:focus {
+  outline: none;
+  border-color: var(--line-hover);
+}

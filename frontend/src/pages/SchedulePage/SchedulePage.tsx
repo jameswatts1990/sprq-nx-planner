@@ -46,7 +46,7 @@ import { PrintBatchSheetModal } from "./PrintBatchSheetModal";
 import styles from "./SchedulePage.module.css";
 import { useScheduleActions } from "./useScheduleActions";
 import { useSchedulerWindow } from "./useSchedulerWindow";
-import { ViewOptionsMenu } from "./ViewOptionsMenu";
+import { ViewOptionsMenu, type GridDensity } from "./ViewOptionsMenu";
 
 const DEFAULT_RUN_DESIGN: RunDesignState = {
   max_uses: 3,
@@ -62,20 +62,40 @@ interface DetailTarget {
   run: RunOut;
 }
 
-/** Persist the grid's "show barcodes" view toggle so a scheduler's choice survives paging,
- * navigation and reloads, mirroring how the backlog tray remembers whether it's open.
- * Shown by default; a locked-down browser (localStorage throwing) falls back to that. */
+/** Persist the grid's display-only view toggles so a scheduler's choices survive paging,
+ * navigation and reloads, mirroring how the backlog tray remembers whether it's open. Each
+ * falls back to its own default in a locked-down browser (localStorage throwing). */
 const SHOW_BARCODES_STORAGE_KEY = "runnx.schedule.showBarcodes";
-function readShowBarcodesPref(): boolean {
+const SHOW_NOTES_STORAGE_KEY = "runnx.schedule.showNotes";
+const SHOW_REMAINING_USES_STORAGE_KEY = "runnx.schedule.showRemainingUses";
+const DENSITY_STORAGE_KEY = "runnx.schedule.density";
+
+function readFlagPref(key: string, fallback: boolean): boolean {
   try {
-    return localStorage.getItem(SHOW_BARCODES_STORAGE_KEY) !== "0";
+    const raw = localStorage.getItem(key);
+    return raw === null ? fallback : raw === "1";
   } catch {
-    return true;
+    return fallback;
   }
 }
-function writeShowBarcodesPref(show: boolean): void {
+function writeFlagPref(key: string, on: boolean): void {
   try {
-    localStorage.setItem(SHOW_BARCODES_STORAGE_KEY, show ? "1" : "0");
+    localStorage.setItem(key, on ? "1" : "0");
+  } catch {
+    /* ignore - persistence is a convenience, not a requirement */
+  }
+}
+
+function readDensityPref(): GridDensity {
+  try {
+    return localStorage.getItem(DENSITY_STORAGE_KEY) === "compact" ? "compact" : "comfortable";
+  } catch {
+    return "comfortable";
+  }
+}
+function writeDensityPref(density: GridDensity): void {
+  try {
+    localStorage.setItem(DENSITY_STORAGE_KEY, density);
   } catch {
     /* ignore - persistence is a convenience, not a requirement */
   }
@@ -90,12 +110,29 @@ export function SchedulePage() {
   const [autoscheduleOpen, setAutoscheduleOpen] = useState(false);
   const [detail, setDetail] = useState<DetailTarget | null>(null);
   const [printSheetOpen, setPrintSheetOpen] = useState(false);
-  // Grid display-only toggle (see ViewOptionsMenu): whether barcode chips show on the
-  // sample cards. Hiding via a CSS scope on the grid area, not by re-rendering the grid.
-  const [showBarcodes, setShowBarcodes] = useState(readShowBarcodesPref);
+  // Grid display-only toggles (see ViewOptionsMenu): none change the plan, only how the grid
+  // is drawn. All are applied via a CSS scope on the grid area (data-* attributes below),
+  // never by re-rendering the grid. Barcodes + notes default on, remaining-uses off,
+  // comfortable density.
+  const [showBarcodes, setShowBarcodes] = useState(() => readFlagPref(SHOW_BARCODES_STORAGE_KEY, true));
   const handleChangeShowBarcodes = useCallback((show: boolean) => {
     setShowBarcodes(show);
-    writeShowBarcodesPref(show);
+    writeFlagPref(SHOW_BARCODES_STORAGE_KEY, show);
+  }, []);
+  const [showNotes, setShowNotes] = useState(() => readFlagPref(SHOW_NOTES_STORAGE_KEY, true));
+  const handleChangeShowNotes = useCallback((show: boolean) => {
+    setShowNotes(show);
+    writeFlagPref(SHOW_NOTES_STORAGE_KEY, show);
+  }, []);
+  const [showRemainingUses, setShowRemainingUses] = useState(() => readFlagPref(SHOW_REMAINING_USES_STORAGE_KEY, false));
+  const handleChangeShowRemainingUses = useCallback((show: boolean) => {
+    setShowRemainingUses(show);
+    writeFlagPref(SHOW_REMAINING_USES_STORAGE_KEY, show);
+  }, []);
+  const [density, setDensity] = useState<GridDensity>(readDensityPref);
+  const handleChangeDensity = useCallback((d: GridDensity) => {
+    setDensity(d);
+    writeDensityPref(d);
   }, []);
   // The placement whose physical-cell info popover is open (the card's "ticket stub" click).
   const [cellInfo, setCellInfo] = useState<DetailTarget | null>(null);
@@ -580,7 +617,16 @@ export function SchedulePage() {
                   </Button>
                 </div>
               )}
-              <ViewOptionsMenu showBarcodes={showBarcodes} onChangeShowBarcodes={handleChangeShowBarcodes} />
+              <ViewOptionsMenu
+                showBarcodes={showBarcodes}
+                onChangeShowBarcodes={handleChangeShowBarcodes}
+                showNotes={showNotes}
+                onChangeShowNotes={handleChangeShowNotes}
+                showRemainingUses={showRemainingUses}
+                onChangeShowRemainingUses={handleChangeShowRemainingUses}
+                density={density}
+                onChangeDensity={handleChangeDensity}
+              />
             </div>
             <BacklogAccordion onOpenAutoschedule={() => setAutoscheduleOpen(true)} />
           </div>
@@ -601,7 +647,14 @@ export function SchedulePage() {
             </Note>
           )}
 
-          <div className={styles.gridArea} ref={gridAreaRef} data-barcodes={showBarcodes ? undefined : "hidden"}>
+          <div
+            className={styles.gridArea}
+            ref={gridAreaRef}
+            data-barcodes={showBarcodes ? undefined : "hidden"}
+            data-notes={showNotes ? undefined : "hidden"}
+            data-remaining={showRemainingUses ? "shown" : undefined}
+            data-density={density === "compact" ? "compact" : undefined}
+          >
             <SectionHeading title="Weekly schedule" legend={<UseLegend />} progress={weekProgress} />
 
             {instrumentsQuery.isLoading && <div className={styles.status}>Loading instruments…</div>}

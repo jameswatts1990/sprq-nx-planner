@@ -59,6 +59,11 @@
   box-shadow: var(--shadow-sm), var(--qc-ring);
   cursor: grab;
   background: var(--card);
+  /* Own stacking context at rest so the negative-z-index "uses left" watermark stays
+     contained to this card - above its own background, below its text - instead of slipping
+     behind the grid. (Hover already makes one via z-index/transform; this covers the resting
+     state.) */
+  isolation: isolate;
   --tilt-x: 0deg;
   --tilt-y: 0deg;
   /* The 3D tilt/lift lives on :hover only, never at rest - a resting card carries no
@@ -580,6 +585,50 @@
   font-family: var(--mono);
   color: var(--grey);
 }
+/* "Has a note" marker on the cellref line (kept off the sample-name line so it can never
+   push that ellipsis). A quiet monochrome ✎, not an alert - the note text itself is on its
+   title tooltip and in the slot detail popover. Shown/hidden by the View options "Notes"
+   toggle via the grid area's data-notes attribute. */
+.noteFlag {
+  margin-left: 4px;
+  font-size: 10px;
+  line-height: 1;
+  color: var(--grey);
+  cursor: help;
+}
+/* Big faint "uses left" watermark: the cell's remaining uses (cell_max_uses - use_number),
+   set large and low-opacity behind the sample id on the card's left, tinted by the Use
+   1/2/3 colour so it reinforces which use this is without competing with the readable text.
+   Negative z-index (contained by .filled's stacking context) keeps it a true watermark,
+   under the text; the card's overflow:hidden clips the oversized digit to the card. Opt-in:
+   revealed only when the grid area carries data-remaining="shown". */
+.usesWatermark {
+  position: absolute;
+  left: 3px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: -1;
+  font-size: 44px;
+  font-weight: 900;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  /* Light enough to sit under the sample id without competing with it, but a deep-hued tint
+     (not the pale card tint) so the digit is still legible against the card's own use colour
+     rather than blending into it. */
+  opacity: 0.22;
+  color: var(--grey);
+  pointer-events: none;
+  user-select: none;
+}
+.usesWatermark.u1 {
+  color: var(--magenta-deep);
+}
+.usesWatermark.u2 {
+  color: var(--blue-deep);
+}
+.usesWatermark.u3 {
+  color: var(--teal-deep);
+}
 /* Shades a filled slot by how far its cell has travelled through its own 108h window -
    --window-opacity is set inline per-slot by SchedulerSlotView's fade calculation (same
    curve as a waiting-cell ghost's fade, see utils/windowFade.ts): ~1 (full colour) fresh
@@ -735,4 +784,31 @@
   .shimmer {
     animation: none;
   }
+}
+
+/* ── Compact density ─────────────────────────────────────────────────────────────
+   View options → Density: Compact. Opt-in, scoped by the [data-density="compact"]
+   attribute SchedulePage sets on the grid area (:global so this module can react to the
+   ancestor without prop-threading). Trims the fixed paddings/min-heights/fonts so more of
+   the week fits; the sample name still ellipsis-truncates (never wraps) and the ticket stub
+   just narrows. Nothing here runs unless the toggle is on. */
+:global([data-density="compact"]) .slot {
+  min-height: 40px;
+  padding: 3px 4px;
+  gap: 1px;
+}
+:global([data-density="compact"]) .ext {
+  font-size: 10.5px;
+}
+:global([data-density="compact"]) .cellref {
+  font-size: 9px;
+}
+:global([data-density="compact"]) .hasStub {
+  padding-right: 24px;
+}
+:global([data-density="compact"]) .stub {
+  width: 22px;
+}
+:global([data-density="compact"]) .usesWatermark {
+  font-size: 36px;
 }

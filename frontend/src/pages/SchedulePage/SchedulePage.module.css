@@ -86,6 +86,16 @@
 .gridArea[data-barcodes="hidden"] [data-barcode-chips] {
   display: none;
 }
+/* "Hide notes" - drops the ✎ note markers (shown by default). Same grid-area scope so a
+   note still shows in the slot detail popover, which renders outside the grid. */
+.gridArea[data-notes="hidden"] [data-note-indicator] {
+  display: none;
+}
+/* Remaining-uses watermark is opt-in (off by default): rendered on every filled card but
+   only revealed when the toolbar's "Cell uses left" toggle sets data-remaining="shown". */
+.gridArea:not([data-remaining="shown"]) [data-uses-watermark] {
+  display: none;
+}
 .dragChip {
   font-family: var(--sans);
   font-size: var(--fs-sm);

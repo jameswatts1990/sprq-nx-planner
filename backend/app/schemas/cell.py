@@ -94,6 +94,8 @@ class CellOut(BaseModel):
     has_failed_use: bool
     needs_qc_report: bool
     awaiting_credit: bool
+    internal_report_link: str | None
+    internal_report_at: datetime | None
     pacbio_case_number: str | None
     pacbio_reported_at: datetime | None
     pacbio_credit_confirmed_at: datetime | None
@@ -151,6 +153,11 @@ class CellUndoStopOut(BaseModel):
 
 class CellReportToPacbioRequest(BaseModel):
     case_number: str
+    actor: str | None = None
+
+
+class CellInternalReportRequest(BaseModel):
+    link: str
     actor: str | None = None
 
 

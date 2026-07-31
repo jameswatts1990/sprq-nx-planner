@@ -618,6 +618,8 @@ def serialize_cell(cell: Cell, as_of: datetime | None = None) -> CellOut:
         has_failed_use=has_failed_use(cell),
         needs_qc_report=needs_qc_report(cell),
         awaiting_credit=awaiting_credit(cell),
+        internal_report_link=cell.internal_report_link,
+        internal_report_at=cell.internal_report_at,
         pacbio_case_number=cell.pacbio_case_number,
         pacbio_reported_at=cell.pacbio_reported_at,
         pacbio_credit_confirmed_at=cell.pacbio_credit_confirmed_at,
@@ -975,6 +977,29 @@ def rotate_tray(
         db.refresh(cell)
         db.refresh(cell, attribute_names=["cell_uses"])
     return new_cells, len(moving)
+
+
+def set_cell_internal_report(db: Session, cell: Cell, link: str, actor: str | None) -> Cell:
+    """Record the lab's internal report of a cell failure - a link to the write-up (e.g. a
+    Google Sheet row / doc). Stamps internal_report_at the first time a link is saved (that
+    completes the stage); later edits update the link but keep the original raised-at time."""
+    if cell.status != "stopped" and not has_failed_use(cell):
+        raise ValueError("Cell has no failed or stopped use to report internally.")
+    cell.internal_report_link = link
+    if cell.internal_report_at is None:
+        cell.internal_report_at = utcnow()
+    db.add(
+        AuditLog(
+            actor=actor or "unknown",
+            action="set_cell_internal_report",
+            entity_type="cell",
+            entity_id=cell.id,
+            details_json={"link": link},
+        )
+    )
+    db.commit()
+    db.refresh(cell)
+    return cell
 
 
 def report_cell_to_pacbio(db: Session, cell: Cell, case_number: str, actor: str | None) -> Cell:

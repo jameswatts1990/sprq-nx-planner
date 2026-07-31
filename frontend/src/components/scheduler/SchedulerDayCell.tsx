@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { memo, useState, type KeyboardEvent, type MouseEvent } from "react";
 
 import { cellsApi } from "@/api/cells";
+import { cellUsesApi } from "@/api/cellUses";
 import { ApiError } from "@/api/client";
 import { cyclesApi } from "@/api/cycles";
 import { TraySiblingList } from "@/components/cells/TraySiblingList";
@@ -142,6 +143,19 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
   // so the operator can correct the real load time as they confirm - see cyclesApi.updateStatus
   // / update_run_load_time.
   const [loadTime, setLoadTime] = useState("12:00");
+
+  // The plate the "Clear plate" (✕) button is confirming - its plate index (1 or 2, for the
+  // modal wording) and the planned placements to return to the backlog. Null when no confirm
+  // is open. Uses the same atomic bulk-remove as the multi-select "Remove from schedule", so
+  // an emptied plate/run is fully cleaned up in one transaction (see cellUsesApi.bulkRemove).
+  const [clearingPlate, setClearingPlate] = useState<{ plateIndex: number; cellUseIds: number[] } | null>(null);
+  const clearPlateMutation = useMutation({
+    mutationFn: (cellUseIds: number[]) => cellUsesApi.bulkRemove(cellUseIds),
+    onSuccess: () => {
+      invalidateScheduleRelated(queryClient);
+      setClearingPlate(null);
+    },
+  });
 
   const [rotateTrayId, setRotateTrayId] = useState<number | null>(null);
   const rotateMutation = useMutation({
@@ -340,7 +354,7 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
                 className={styles.carryLockTag}
                 title="No action here — the instrument runs this plate itself once Plate 1's movie finishes and the cells are washed (a reuse run's Plate 2 — the next working day for a normal-length movie, later for a very long one). Manage it from its own run on its load day."
               >
-                Plate {continuationPlate.plate_index} loads {runLabel(continuation.run)} @{" "}
+                P{continuationPlate.plate_index}: {runLabel(continuation.run)} @{" "}
                 {formatTimeUTC(continuationPlate.planned_start_at)}
               </span>
               <LockChip until={continuation.run.lock_until} />
@@ -363,34 +377,61 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
           // Any filled slot in this plate carries the physical tray's id (see StageOut.tray_id) -
           // used to target every sibling cell, not just the ones with a filled slot this cycle.
           const trayId = indices.map((i) => slots[i]).find((s) => s?.tray_id != null)?.tray_id ?? null;
+          // This plate's planned placements (skipping cancelled Stop markers, which can't be
+          // removed) - the ✕ returns all of them to the backlog in one bulk-remove.
+          const plateStages = indices
+            .map((i) => slots[i])
+            .filter((s): s is StageOut => s != null && s.cell_use_status !== "cancelled");
           return (
             <div key={plateIdx} className={styles.tray}>
               <div className={styles.trayHeader}>
                 <div className={styles.plateLabelWrap}>
-                  <span className={styles.trayLabel}>{plateIdx === 0 ? "Plate 1" : "Plate 2"}</span>
-                  {plate && plate.acquire_date !== loadDate && (
-                    <span
-                      className={styles.acquireTag}
-                      title={
-                        plate.is_reuse
+                  <span
+                    className={styles.trayLabel}
+                    // A reuse Plate 2 sequences on a later day than its load day; the exact day is
+                    // surfaced on that day's own column (the "P2: <run> @ <time>" marker), so the
+                    // heading stays a plain "Plate 2" here to avoid wrapping onto a second line.
+                    title={
+                      plate && plate.acquire_date !== loadDate
+                        ? plate.is_reuse
                           ? `Runs after Plate 1's movie finishes and the cells are washed — starts ${formatShortDateTimeUTC(plate.planned_start_at)} (the reuse day reflects the movie length, so a longer movie pushes it later).`
                           : `Plate ${plate.plate_index} acquires on ${shortWeekdayUTC(parseDateOnly(plate.acquire_date))} ${formatShortDateUTC(parseDateOnly(plate.acquire_date))}`
-                      }
-                    >
-                      → {shortWeekdayUTC(parseDateOnly(plate.acquire_date))} {formatShortDateUTC(parseDateOnly(plate.acquire_date))}
-                    </span>
-                  )}
-                </div>
-                {trayId != null && !locked && (
-                  <button
-                    type="button"
-                    className={styles.rotateBtn}
-                    title="Discard current tray — this will discard the current tray in this machine after this plate is loaded"
-                    aria-label="Discard current tray — this will discard the current tray in this machine after this plate is loaded"
-                    onClick={() => setRotateTrayId(trayId)}
+                        : undefined
+                    }
                   >
-                    ↻
-                  </button>
+                    {plateIdx === 0 ? "Plate 1" : "Plate 2"}
+                  </span>
+                </div>
+                {!locked && (trayId != null || plateStages.length > 0) && (
+                  <div className={styles.trayHeaderActions}>
+                    {trayId != null && (
+                      <button
+                        type="button"
+                        className={styles.rotateBtn}
+                        title="Discard current tray — this will discard the current tray in this machine after this plate is loaded"
+                        aria-label="Discard current tray — this will discard the current tray in this machine after this plate is loaded"
+                        onClick={() => setRotateTrayId(trayId)}
+                      >
+                        ↻
+                      </button>
+                    )}
+                    {plateStages.length > 0 && (
+                      <button
+                        type="button"
+                        className={styles.clearPlateBtn}
+                        title={`Clear this plate — return its ${plateStages.length} sample${plateStages.length === 1 ? "" : "s"} to the backlog`}
+                        aria-label={`Clear this plate — return its ${plateStages.length} sample${plateStages.length === 1 ? "" : "s"} to the backlog`}
+                        onClick={() =>
+                          setClearingPlate({
+                            plateIndex: plateIdx + 1,
+                            cellUseIds: plateStages.map((s) => s.cell_use_id),
+                          })
+                        }
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
               {indices.map((i) => (
@@ -513,6 +554,31 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
               <TraySiblingList cells={trayCellsQuery.data.items} />
             </>
           )}
+        </ConfirmModal>
+      )}
+
+      {clearingPlate && (
+        <ConfirmModal
+          title={`Clear Plate ${clearingPlate.plateIndex}?`}
+          confirmLabel="Return to backlog"
+          pendingLabel="Clearing…"
+          pending={clearPlateMutation.isPending}
+          error={
+            clearPlateMutation.isError
+              ? clearPlateMutation.error instanceof ApiError
+                ? clearPlateMutation.error.message
+                : "Failed to clear plate."
+              : null
+          }
+          onCancel={() => setClearingPlate(null)}
+          onConfirm={() => clearPlateMutation.mutate(clearingPlate.cellUseIds)}
+        >
+          <p>
+            This removes {clearingPlate.cellUseIds.length} sample
+            {clearingPlate.cellUseIds.length === 1 ? "" : "s"} from Plate {clearingPlate.plateIndex} and returns{" "}
+            {clearingPlate.cellUseIds.length === 1 ? "it" : "them"} to the backlog. The cells they were placed on are
+            freed. Nothing is deleted — you can re-place the samples from the backlog at any time.
+          </p>
         </ConfirmModal>
       )}
     </td>

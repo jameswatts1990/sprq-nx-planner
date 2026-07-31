@@ -85,11 +85,28 @@ export function ScheduleSection() {
       <p className={styles.subheading}>View options</p>
       <p>
         <b>View options</b> at the far right of the date toolbar opens a small menu of display toggles that change
-        only how the grid is drawn, never the plan itself. Right now it holds one toggle — <b>Barcodes: Show / Hide</b>{" "}
-        — which shows or hides the barcode chips on every sample card in the grid, handy for a cleaner, less busy view
-        when you don&apos;t need the barcodes. It only affects the grid: barcodes still appear when you open a card&apos;s
-        detail popover. Your choice is remembered next time you open the Schedule page.
+        only how the grid is drawn, never the plan itself. They only affect the grid — a card&apos;s detail popover
+        always shows everything — and each choice is remembered next time you open the Schedule page:
       </p>
+      <ul>
+        <li>
+          <b>Barcodes: Show / Hide</b> — shows or hides the barcode chips on every sample card, for a cleaner, less
+          busy view when you don&apos;t need the barcodes.
+        </li>
+        <li>
+          <b>Notes: Show / Hide</b> — a small <b>✎</b> marker appears on any card that carries a note (shown by
+          default); hover it to read the note. Hide it if you don&apos;t want the markers on the grid.
+        </li>
+        <li>
+          <b>Cell uses left: Show / Hide</b> — off by default. When on, each filled card shows a large faint number
+          behind the sample id: how many uses that physical cell has left (its use cap minus the uses already spent).
+          A <b>0</b> means this is the cell&apos;s last use.
+        </li>
+        <li>
+          <b>Density: Comfortable / Compact</b> — Compact trims the spacing on every card so more of the week fits on
+          screen without scrolling; Comfortable is the roomier default.
+        </li>
+      </ul>
 
       <p className={styles.subheading}>Instrument cell map</p>
       <p>
@@ -718,6 +735,12 @@ export function ScheduleSection() {
           <b>Confirm loaded</b> (unlock it first) — the cells are physically in the instrument by then.
         </li>
         <li>
+          The <b>✕</b> button next to <b>↻</b> in a plate&apos;s top-right corner is <b>Clear plate</b> — it removes
+          every sample on that plate and returns them to the backlog, freeing the cells they sat on. Nothing is
+          deleted: the samples wait in the backlog and can be re-placed at any time. Like the other schedule edits,
+          it isn&apos;t available once the run is <b>Confirm loaded</b> (unlock it first).
+        </li>
+        <li>
           A teal <b>🔒 padlock</b> chip appears next to the status on every day the instrument is reserved by a run —
           its own load day and any later day still held by its lock. Hover or focus it and it expands to reveal the
           exact date/time the instrument frees up. The day the reservation actually <i>ends</i> stays open to load —
@@ -743,7 +766,9 @@ export function ScheduleSection() {
         </li>
         <li>
           A <b>reuse run</b> reruns Plate 1&apos;s cells as Plate 2 on a <i>later</i> weekday (Use 2, after the
-          instrument&apos;s on-board wash). Plate 2&apos;s header shows the day it acquires right next to its title —
+          instrument&apos;s on-board wash). The day Plate 2 actually sequences is shown on <i>that</i> day&apos;s own
+          column (the <b>&quot;P2: [run name] @ [time]&quot;</b> marker described below) — hover Plate 2&apos;s heading
+          on the load day to see it there too —
           there&apos;s no separate &quot;reuse&quot; label because the cell stub already goes from <b>Use 1</b> to{" "}
           <b>Use 2</b>, which says the same thing — and the whole thing is still one run you loaded once — you don&apos;t reload anything for
           Plate 2. This is what a hand drop that reuses a cell already loaded in that day&apos;s run produces, and
@@ -756,7 +781,7 @@ export function ScheduleSection() {
       </ul>
       <p>
         Because a reuse Plate 2 sequences on a <i>different</i> day from the load day, that later day&apos;s column
-        shows a lightweight <b>&quot;Plate 2 loads [run name] @ [time]&quot;</b> marker and is greyed out and
+        shows a lightweight <b>&quot;P2: [run name] @ [time]&quot;</b> marker and is greyed out and
         non-droppable — <b>there&apos;s no action to take there</b>; the instrument runs Plate 2 itself. Manage the
         run (edit it, Confirm loaded, print its sheet) from its own load-day column, not the continuation day. Every
         such day also carries the same <b>🔒 padlock</b> as a plain lock carry-over (see Locking a run below) —

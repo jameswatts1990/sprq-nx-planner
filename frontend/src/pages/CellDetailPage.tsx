@@ -1,18 +1,17 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import { ApiError } from "@/api/client";
 import { cellsApi } from "@/api/cells";
 import { CellQcModal } from "@/components/cells/CellQcModal";
+import { PacbioCreditTracker } from "@/components/cells/PacbioCreditTracker";
 import { WindowMeter } from "@/components/cells/WindowMeter";
 import { BarcodeChips } from "@/components/shared/BarcodeChips";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Note } from "@/components/ui/Note";
-import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
-import type { CellDetailOut } from "@/types/cell";
 import { CELL_STATUS_LABEL, CELL_STATUS_TONE } from "@/utils/cellStatus";
 import { plateWellFromPlate, plateWellFromWell } from "@/utils/plateWell";
 import { runLabel } from "@/utils/runLabel";
@@ -25,38 +24,10 @@ function formatDateTime(iso: string | null): string {
   return iso ? new Date(iso).toLocaleString() : "—";
 }
 
-/** Drafts the PacBio outreach email from the use that triggered the credit case - the
- * most recent Failed use, or (for a Stopped cell with no Failed use) the most recent use
- * overall - so the well/run/instrument/date in the email match what the lab actually saw. */
-function buildCreditEmail(cell: CellDetailOut): { subject: string; body: string } {
-  const uses = cell.use_history;
-  const relevantUse = [...uses].reverse().find((u) => u.status === "failed") ?? uses[uses.length - 1] ?? null;
-
-  const well = relevantUse ? plateWellFromPlate(relevantUse.plate_index, relevantUse.well, { qualified: true }) : "—";
-  const run = relevantUse ? runLabel({ run_id: relevantUse.run_batch_id, run_name: relevantUse.run_name }) : "—";
-  const instrument = relevantUse?.instrument_serial ?? "—";
-  const runDate = relevantUse ? formatDateTime(relevantUse.started_at ?? relevantUse.completed_at) : "—";
-
-  const subject = `SMRT Cell issue – ${cell.code}`;
-  const body = [
-    `Cell issue on well ${well}, run ${run}, ${instrument}, ${runDate}.`,
-    "",
-    "Please advise on how to proceed and if a credit will be given.",
-    "",
-    `Cell: ${cell.code}`,
-    cell.pacbio_case_number ? `Case number: ${cell.pacbio_case_number}` : null,
-  ]
-    .filter((line): line is string => line !== null)
-    .join("\n");
-
-  return { subject, body };
-}
-
 export function CellDetailPage() {
   const { cellId } = useParams<{ cellId: string }>();
   const id = Number(cellId);
   const idIsValid = Number.isFinite(id);
-  const queryClient = useQueryClient();
   const backNav = useSampleBackNav();
 
   const query = useQuery({
@@ -68,29 +39,6 @@ export function CellDetailPage() {
   const trayId = query.data?.tray_id ?? null;
 
   const [qcOpen, setQcOpen] = useState(false);
-  const [caseNumber, setCaseNumber] = useState("");
-
-  function invalidateCell() {
-    invalidateScheduleRelated(queryClient);
-  }
-
-  const reportMutation = useMutation({
-    mutationFn: (caseNum: string) => cellsApi.reportToPacbio(id, { case_number: caseNum }),
-    onSuccess: () => {
-      invalidateCell();
-      setCaseNumber("");
-    },
-  });
-
-  const confirmCreditMutation = useMutation({
-    mutationFn: () => cellsApi.confirmCredit(id),
-    onSuccess: invalidateCell,
-  });
-
-  const receiveCreditMutation = useMutation({
-    mutationFn: () => cellsApi.receiveCredit(id),
-    onSuccess: invalidateCell,
-  });
 
   if (!idIsValid) {
     return (
@@ -127,8 +75,6 @@ export function CellDetailPage() {
   // lab needs to act on next, so it jumps to the top of the page; once credit's received it's
   // a resolved historical record and settles back to its normal spot after use history.
   const isCreditCaseOpen = showCreditCard && !cell.credit_received_at;
-  const creditEmail = buildCreditEmail(cell);
-  const creditEmailHref = `mailto:?subject=${encodeURIComponent(creditEmail.subject)}&body=${encodeURIComponent(creditEmail.body)}`;
   const showWindowMeter =
     cell.status !== "exhausted" &&
     cell.status !== "retired" &&
@@ -294,99 +240,7 @@ export function CellDetailPage() {
     </Card>
   );
 
-  const creditCard = showCreditCard && (
-    <Card>
-      <CardHeader badge={isCreditCaseOpen ? <Badge tone="warning">Open</Badge> : undefined}>
-        <h2>PacBio credit</h2>
-      </CardHeader>
-      <CardBody>
-        <div className={styles.creditGrid}>
-          <div>
-            <span className={styles.label}>Case number</span>
-            <span className={styles.value}>{cell.pacbio_case_number ?? "—"}</span>
-          </div>
-          <div>
-            <span className={styles.label}>Reported to PacBio</span>
-            <span className={styles.value}>{formatDateTime(cell.pacbio_reported_at)}</span>
-          </div>
-          <div>
-            <span className={styles.label}>Credit confirmed</span>
-            <span className={styles.value}>{formatDateTime(cell.pacbio_credit_confirmed_at)}</span>
-          </div>
-          <div>
-            <span className={styles.label}>Credit received</span>
-            <span className={styles.value}>{formatDateTime(cell.credit_received_at)}</span>
-          </div>
-        </div>
-
-        {!cell.pacbio_case_number ? (
-          <div className={styles.creditActions}>
-            <input
-              type="text"
-              className={styles.caseInput}
-              value={caseNumber}
-              onChange={(e) => setCaseNumber(e.target.value)}
-              placeholder="Case number, e.g. CS-000123"
-            />
-            <Button
-              variant="primary"
-              onClick={() => reportMutation.mutate(caseNumber)}
-              disabled={!caseNumber.trim() || reportMutation.isPending}
-            >
-              {reportMutation.isPending ? "Reporting…" : "Report to PacBio"}
-            </Button>
-            <a className="btn ghost" href={creditEmailHref}>
-              Generate email…
-            </a>
-          </div>
-        ) : (
-          <div className={styles.creditActions}>
-            {!cell.pacbio_credit_confirmed_at && (
-              <Button
-                variant="ghost"
-                onClick={() => confirmCreditMutation.mutate()}
-                disabled={confirmCreditMutation.isPending}
-              >
-                {confirmCreditMutation.isPending ? "Confirming…" : "Confirm credit"}
-              </Button>
-            )}
-            {!cell.credit_received_at && (
-              <Button
-                variant="ghost"
-                onClick={() => receiveCreditMutation.mutate()}
-                disabled={receiveCreditMutation.isPending}
-              >
-                {receiveCreditMutation.isPending ? "Marking…" : "Mark credit received"}
-              </Button>
-            )}
-            <a className="btn ghost" href={creditEmailHref}>
-              Generate email…
-            </a>
-          </div>
-        )}
-
-        {reportMutation.isError && (
-          <Note tone="bad" icon="!">
-            {reportMutation.error instanceof ApiError ? reportMutation.error.message : "Failed to report to PacBio."}
-          </Note>
-        )}
-        {confirmCreditMutation.isError && (
-          <Note tone="bad" icon="!">
-            {confirmCreditMutation.error instanceof ApiError
-              ? confirmCreditMutation.error.message
-              : "Failed to confirm credit."}
-          </Note>
-        )}
-        {receiveCreditMutation.isError && (
-          <Note tone="bad" icon="!">
-            {receiveCreditMutation.error instanceof ApiError
-              ? receiveCreditMutation.error.message
-              : "Failed to mark credit received."}
-          </Note>
-        )}
-      </CardBody>
-    </Card>
-  );
+  const creditCard = showCreditCard && <PacbioCreditTracker cell={cell} />;
 
   return (
     <div className={styles.page}>

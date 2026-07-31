@@ -38,6 +38,11 @@ class Cell(Base):
 
     # QC: PacBio credit tracking. One open case per physical cell at a time, cross
     # referenced by the case number PacBio issues when a quality log is raised.
+    # The internal report is the lab's own write-up (a link to it, e.g. a Google Sheet
+    # row / doc) raised before PacBio is contacted - the first actionable step of the
+    # credit workflow after a Failure is flagged.
+    internal_report_link: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    internal_report_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     pacbio_case_number: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     pacbio_reported_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     pacbio_credit_confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

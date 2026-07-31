@@ -5,22 +5,42 @@ import { SegmentedControl } from "@/components/ui/SegmentedControl";
 
 import styles from "./ViewOptionsMenu.module.css";
 
+export type GridDensity = "comfortable" | "compact";
+
 export interface ViewOptionsMenuProps {
   /** Whether barcode chips are currently shown on the grid's sample cards. */
   showBarcodes: boolean;
   onChangeShowBarcodes: (show: boolean) => void;
+  /** Whether the note marker shows on sample cards that carry a note. */
+  showNotes: boolean;
+  onChangeShowNotes: (show: boolean) => void;
+  /** Whether the big "uses left" watermark shows behind each filled card's sample id. */
+  showRemainingUses: boolean;
+  onChangeShowRemainingUses: (show: boolean) => void;
+  /** Grid card density - comfortable (default) or compact (trims spacing to fit more). */
+  density: GridDensity;
+  onChangeDensity: (density: GridDensity) => void;
 }
 
 /**
  * The Schedule toolbar's far-right "View options" button: a small drop-down of grid
- * display toggles that don't change the plan, only how it's drawn. Today that's just
- * Show/Hide barcodes on the sample cards; it's a menu (not a lone button) so further
- * display toggles can slot in beside it without re-cluttering the toolbar.
+ * display toggles that don't change the plan, only how it's drawn - barcodes, note markers,
+ * the remaining-uses watermark, and card density. It's a menu (not a lone button) so further
+ * display toggles can slot in beside these without re-cluttering the toolbar.
  *
  * Closes on an outside click or Esc, the same lightweight pattern the page's other
  * dismissable overlays use.
  */
-export function ViewOptionsMenu({ showBarcodes, onChangeShowBarcodes }: ViewOptionsMenuProps) {
+export function ViewOptionsMenu({
+  showBarcodes,
+  onChangeShowBarcodes,
+  showNotes,
+  onChangeShowNotes,
+  showRemainingUses,
+  onChangeShowRemainingUses,
+  density,
+  onChangeDensity,
+}: ViewOptionsMenuProps) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
 
@@ -67,6 +87,48 @@ export function ViewOptionsMenu({ showBarcodes, onChangeShowBarcodes }: ViewOpti
             />
           </div>
           <p className={styles.hint}>Show or hide the barcode chips on each sample card in the grid.</p>
+
+          <div className={styles.row}>
+            <span className={styles.label}>Notes</span>
+            <SegmentedControl
+              ariaLabel="Show or hide the note marker on sample cards"
+              value={showNotes ? "show" : "hide"}
+              onChange={(v) => onChangeShowNotes(v === "show")}
+              options={[
+                { value: "show", label: "Show" },
+                { value: "hide", label: "Hide" },
+              ]}
+            />
+          </div>
+          <p className={styles.hint}>Show a small ✎ marker on cards that carry a note — hover it to read the note.</p>
+
+          <div className={styles.row}>
+            <span className={styles.label}>Cell uses left</span>
+            <SegmentedControl
+              ariaLabel="Show or hide the remaining-uses watermark on sample cards"
+              value={showRemainingUses ? "show" : "hide"}
+              onChange={(v) => onChangeShowRemainingUses(v === "show")}
+              options={[
+                { value: "show", label: "Show" },
+                { value: "hide", label: "Hide" },
+              ]}
+            />
+          </div>
+          <p className={styles.hint}>Show how many uses each cell has left as a large faint number behind the sample id.</p>
+
+          <div className={styles.row}>
+            <span className={styles.label}>Density</span>
+            <SegmentedControl
+              ariaLabel="Choose comfortable or compact card density"
+              value={density}
+              onChange={(v) => onChangeDensity(v as GridDensity)}
+              options={[
+                { value: "comfortable", label: "Comfortable" },
+                { value: "compact", label: "Compact" },
+              ]}
+            />
+          </div>
+          <p className={styles.hint}>Compact trims card spacing so more of the week fits without scrolling.</p>
         </div>
       )}
     </div>

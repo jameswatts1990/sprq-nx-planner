@@ -216,15 +216,6 @@
   flex-wrap: nowrap;
   min-width: 0;
 }
-/* The day this plate actually sequences, shown only when it differs from the load day
-   (i.e. a reuse Plate 2 the instrument runs the next weekday). */
-.acquireTag {
-  font-size: 8px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  color: var(--faint);
-  white-space: nowrap;
-}
 /* "Rotate tray" - top-right of the tray header, only shown on a not-yet-locked tray card
    (see SchedulerDayCell.tsx). Deliberately understated since it sits on every tray card;
    a neutral (not red) hover, because rotating is a routine forward action - load a fresh
@@ -246,6 +237,38 @@
   background: var(--blue-tint);
 }
 .rotateBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* The rotate (↻) and clear-plate (✕) controls sit together at the top-right of the tray
+   header. */
+.trayHeaderActions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+/* "Clear plate" - returns this plate's samples to the backlog. Same understated resting look
+   as .rotateBtn but a red hover, since it's a removal (recoverable - the samples go back to
+   the backlog, nothing is deleted), distinct from rotate's neutral forward action. */
+.clearPlateBtn {
+  font-family: var(--sans);
+  font-size: var(--fs-sm);
+  font-weight: 800;
+  line-height: 1;
+  border: none;
+  background: none;
+  color: var(--faint);
+  cursor: pointer;
+  padding: 1px 3px;
+  border-radius: 4px;
+}
+.clearPlateBtn:hover:not(:disabled) {
+  color: var(--red);
+  background: var(--red-tint);
+}
+.clearPlateBtn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
@@ -288,4 +311,25 @@
   margin-top: 6px;
   font-size: 11.5px;
   color: var(--red);
+}
+
+/* ── Compact density ─────────────────────────────────────────────────────────────
+   View options → Density: Compact (see SchedulerSlotView.module.css for the matching slot
+   trims). Scoped by the [data-density="compact"] attribute on the grid area (:global so this
+   module reacts to the ancestor without prop-threading). Tightens the run header + tray
+   spacing only; the run-id tag keeps its own ellipsis, so a long name never wraps. */
+:global([data-density="compact"]) .cell {
+  padding: 4px;
+}
+:global([data-density="compact"]) .head {
+  gap: 4px;
+  margin-bottom: 2px;
+  min-height: 0;
+}
+:global([data-density="compact"]) .slots {
+  gap: 4px;
+}
+:global([data-density="compact"]) .tray {
+  padding: 4px 4px 3px;
+  gap: 3px;
 }

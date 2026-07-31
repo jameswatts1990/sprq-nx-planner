@@ -190,30 +190,40 @@ export function CellsSection() {
 
       <p className={styles.subheading}>PacBio credit</p>
       <p>
-        Once a cell has a Failed use or is Stopped, a <b>PacBio credit</b> card appears on its detail page so you
-        can track the case through to a physical credit. While the case is still open (no case number reported
-        yet, or reported but the credit hasn&apos;t arrived), the card moves to the <b>top</b> of the page — marked
-        with an <b>Open</b> badge — so it&apos;s the first thing you see. Once the credit is marked received, it
-        settles back below use history as a resolved record.
+        Once a cell has a Failed use or is Stopped, a <b>PacBio credit</b> card appears on its detail page. It&apos;s
+        laid out like a parcel tracker: a row of five connected stages runs left to right —{" "}
+        <b>Failure → Internal report → PacBio report → Credit confirmed → Credit received</b>. Completed stages turn
+        green and show the date they happened; the next stage you need to act on is highlighted, and the action for
+        just that stage appears in the panel below the tracker. While the case is still open the card moves to the{" "}
+        <b>top</b> of the page (marked <b>Open</b>); once credit is marked received it turns to a{" "}
+        <b>Credit received</b> badge and settles back below use history as a resolved record.
       </p>
       <ul>
         <li>
-          <b>Report to PacBio</b> — enter the case number PacBio issues when you raise the quality log, then submit.
-          This is what moves the cell off the <b>Unreported</b> filter on the Cells page.
+          <b>Failure</b> — set automatically the moment the cell is failed or stopped in Cell QC. This starts the
+          credit workflow; the date shown is when the triggering use failed.
         </li>
         <li>
-          <b>Confirm credit</b> — tick this once PacBio has confirmed a credit will be issued for that case.
+          <b>Internal report</b> — <b>Add link</b> saves a link to your own internal write-up of the failure (e.g. a
+          Google Sheet row or doc) and completes this stage. <b>Generate report row</b> copies a single
+          tab-separated row to your clipboard that you can paste straight into a Google Sheet — one cell per column,
+          in this order: cell code, case number, well, run, instrument, failure date, internal report link, reported
+          date, confirmed date, received date. Once saved, a <b>View report</b> link appears under the stage.
         </li>
         <li>
-          <b>Mark credit received</b> — tick this once the credit has physically landed in the lab. Cross-reference
-          by the case number shown on the card. Until this is ticked, the cell shows on the <b>Awaiting credit</b>{" "}
-          filter on the Cells page.
-        </li>
-        <li>
-          <b>Generate email…</b> — drafts an email to PacBio technical support in your own email client, prefilled
-          with the affected well, run, instrument and date (taken from the Failed use, or the most recent use if
-          the cell was Stopped without one), asking how to proceed and whether a credit will be given. Review the
+          <b>PacBio report</b> — <b>Add case number</b> records the case number PacBio issues when you raise the
+          quality log, and moves the cell off the <b>Unreported</b> filter on the Cells page. <b>Generate email…</b>{" "}
+          drafts an email to PacBio in your own email client, prefilled with the affected well, run, instrument and
+          date (taken from the Failed use, or the most recent use if the cell was Stopped without one). Review the
           draft — including who it&apos;s addressed to — before sending.
+        </li>
+        <li>
+          <b>Credit confirmed</b> — <b>Mark as confirmed</b> once PacBio has confirmed a credit will be issued for
+          that case.
+        </li>
+        <li>
+          <b>Credit received</b> — <b>Mark as received in lab</b> once the credit has physically landed. Until this
+          is done, the cell shows on the <b>Awaiting credit</b> filter on the Cells page.
         </li>
       </ul>
     </div>

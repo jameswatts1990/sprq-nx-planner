@@ -79,6 +79,8 @@ export interface CellOut {
   has_failed_use: boolean;
   needs_qc_report: boolean;
   awaiting_credit: boolean;
+  internal_report_link: string | null;
+  internal_report_at: string | null;
   pacbio_case_number: string | null;
   pacbio_reported_at: string | null;
   pacbio_credit_confirmed_at: string | null;
@@ -114,6 +116,10 @@ export interface CellDiscardRequest {
 
 export interface CellReportToPacbioRequest {
   case_number: string;
+}
+
+export interface CellInternalReportRequest {
+  link: string;
 }
 
 export interface TrayDiscardRequest {

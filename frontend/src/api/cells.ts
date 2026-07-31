@@ -3,6 +3,7 @@ import type {
   CellBootstrapRequest,
   CellDetailOut,
   CellDiscardRequest,
+  CellInternalReportRequest,
   CellOut,
   CellReportToPacbioRequest,
   TrayDiscardOut,
@@ -65,6 +66,10 @@ export const cellsApi = {
   /** Reverse the most recent QC verdict on a cell - reopen it and restore the uses/samples
    * it touched (skipping any that have since drifted, e.g. a top-up already sent). */
   qcUndo: (id: number) => api.post<QcUndoOut>(`/api/cells/${id}/qc/undo`),
+  /** Save the lab's internal-report link (e.g. a Google Sheet row / doc). The first save
+   * stamps the internal-report timestamp, completing that stage of the credit workflow. */
+  setInternalReport: (id: number, req: CellInternalReportRequest) =>
+    api.post<CellOut>(`/api/cells/${id}/internal-report`, req),
   reportToPacbio: (id: number, req: CellReportToPacbioRequest) =>
     api.post<CellOut>(`/api/cells/${id}/report-to-pacbio`, req),
   confirmCredit: (id: number) => api.post<CellOut>(`/api/cells/${id}/confirm-credit`, {}),

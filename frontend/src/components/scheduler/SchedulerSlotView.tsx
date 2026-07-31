@@ -248,6 +248,17 @@ export const SchedulerSlotView = memo(
     >
       {showStage ? (
         <>
+          {/* Big, faint "uses left" watermark behind the card content, tinted by the same Use
+              1/2/3 colour. Opt-in (default off) - the grid area's data-remaining attribute
+              reveals it; rendered here (always, when filled) so the toggle is pure CSS. Sits
+              on a negative z-index so it reads as a watermark under the text, never over it. */}
+          <span
+            className={`${styles.usesWatermark} ${styles[useClass]}`}
+            data-uses-watermark
+            aria-hidden="true"
+          >
+            {Math.max(0, stage!.cell_max_uses - stage!.use_number)}
+          </span>
           <div className={styles.ext} title={stage!.sample_external_id ?? stage!.cell_ref}>
             {stage!.sample_external_id ?? "—"}
           </div>
@@ -258,6 +269,16 @@ export const SchedulerSlotView = memo(
               total={stage!.duplicate_total}
               selfReuse={stage!.duplicate_cell_reuse}
             />
+            {stage!.notes && (
+              <span
+                className={styles.noteFlag}
+                data-note-indicator
+                title={stage!.notes}
+                aria-label={`Note: ${stage!.notes}`}
+              >
+                ✎
+              </span>
+            )}
           </div>
           {qcAlert && (
             <div

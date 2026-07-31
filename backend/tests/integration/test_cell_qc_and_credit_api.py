@@ -345,6 +345,39 @@ def test_credit_workflow_after_fail_and_stop(client):
     assert cell_id not in [c["id"] for c in awaiting_after["items"]]
 
 
+def test_internal_report_link_saved_and_timestamped(client):
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nIR1,bcir1"})
+    past = _past_weekday()
+    r1 = _place(client, _sid(client, "IR1"), past, 0, {"mode": "new"})
+    stage = _stages(r1.json())[0]
+    cell_id = stage["cell_id"]
+    assert client.patch(f"/api/cycles/{r1.json()['run_id']}", json={"status": "running"}).status_code == 200
+    qc_commit(client, cell_id, "fail_and_stop", stage["cell_use_id"], {_sid(client, "IR1"): "lost"})
+
+    link = "https://docs.google.com/spreadsheets/d/abc#gid=0"
+    r = client.post(f"/api/cells/{cell_id}/internal-report", json={"link": link})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["internal_report_link"] == link
+    first_stamp = body["internal_report_at"]
+    assert first_stamp is not None
+
+    # Editing the link keeps the original raised-at timestamp.
+    r2 = client.post(f"/api/cells/{cell_id}/internal-report", json={"link": link + "&edited"})
+    assert r2.status_code == 200, r2.text
+    assert r2.json()["internal_report_link"] == link + "&edited"
+    assert r2.json()["internal_report_at"] == first_stamp
+
+
+def test_internal_report_rejected_without_failure(client):
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nIR2,bcir2"})
+    past = _past_weekday()
+    r1 = _place(client, _sid(client, "IR2"), past, 0, {"mode": "new"})
+    cell_id = _stages(r1.json())[0]["cell_id"]
+    r = client.post(f"/api/cells/{cell_id}/internal-report", json={"link": "https://example.com"})
+    assert r.status_code == 409, r.text
+
+
 # --------------------------------------------------------------------------------------
 # Guards; aborted (a run problem, not QC) still flows through the run lifecycle
 # --------------------------------------------------------------------------------------

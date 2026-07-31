@@ -14,6 +14,7 @@ from app.schemas.cell import (
     CellActorRequest,
     CellBootstrapRequest,
     CellDetailOut,
+    CellInternalReportRequest,
     CellOut,
     CellReportToPacbioRequest,
     CellStopRequest,
@@ -34,6 +35,7 @@ from app.services.cell_service import (
     receive_cell_credit,
     report_cell_to_pacbio,
     rotate_tray,
+    set_cell_internal_report,
     serialize_cell,
     set_tray_reuse_disabled,
     serialize_cell_detail,
@@ -249,6 +251,20 @@ def rotate_tray_endpoint(req: TrayRotateRequest, db: SessionDep, actor: ActorDep
     except ValueError as exc:
         raise HTTPException(409, str(exc)) from exc
     return TrayRotateOut(new_cells=[serialize_cell(c) for c in new_cells], moved_count=moved_count)
+
+
+@router.post("/{cell_id}/internal-report", response_model=CellOut)
+def set_cell_internal_report_endpoint(
+    cell_id: int, req: CellInternalReportRequest, db: SessionDep, actor: ActorDep
+) -> CellOut:
+    cell = db.get(Cell, cell_id, options=_DETAIL_OPTIONS)
+    if cell is None:
+        raise HTTPException(404, "Cell not found")
+    try:
+        cell = set_cell_internal_report(db, cell, req.link, req.actor or actor)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    return serialize_cell(cell)
 
 
 @router.post("/{cell_id}/report-to-pacbio", response_model=CellOut)
