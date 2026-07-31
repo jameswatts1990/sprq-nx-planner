@@ -38,6 +38,8 @@ function cell(overrides: Partial<CellOut> = {}): CellOut {
     has_failed_use: false,
     needs_qc_report: false,
     awaiting_credit: false,
+    internal_report_link: null,
+    internal_report_at: null,
     pacbio_case_number: null,
     pacbio_reported_at: null,
     pacbio_credit_confirmed_at: null,
