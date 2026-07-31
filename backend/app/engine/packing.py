@@ -271,6 +271,13 @@ def pack_cells(
         c.total_uses = (c.uses_consumed or 0) + c.future_uses
         c.cost_tier = min(3, max(1, c.total_uses))
         c.window_h = 0.0
+        # This cell's own ceiling for the batch - cap for a fresh cell, _prior_allowance()
+        # for a reuse candidate (same formula the packing loop above already gated
+        # `cands` on, safe to recompute here since neither depends on len(c.uses)). Reached
+        # means pack_cells stopped giving it work on purpose (the dial/available_days), not
+        # because compatible samples ran out - see PackedCell.batch_capacity_reached.
+        ceiling = cap if not c.prior else _prior_allowance(c)
+        c.batch_capacity_reached = c.future_uses >= ceiling
 
     return PackResult(
         cells=[c for c in cells if c.future_uses > 0],

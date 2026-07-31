@@ -83,6 +83,48 @@ class AutoFillResult:
     day_changed_sample_ids: list[int] = field(default_factory=list)
 
 
+def _dispose_tray_if_fully_used(db: Session, tray_id: int, max_uses: int, now: datetime) -> list[int]:
+    """Bin every cell of `tray_id` (mark_cell_discarded, bare - keeps this batch's own
+    just-scheduled uses intact) once EVERY cell in it has reached `max_uses` active uses -
+    the "Max uses per cell" dial enforces a per-cell TOTAL-use cap, but a SMRT-cell tray of
+    4 is one physical object (see docs/pacbio-sprq-nx-scheduling-reference.md's "Tray-of-4"
+    invariant), so disposal is tray-scoped: all-or-nothing, never per cell.
+
+    Callable from two places: inline, the moment a same-batch reload needs this exact box
+    back (see the persist loop's collision-retirement branch below - open_new_tray()'s
+    DB-level guard only ever sees a cell as available once its status has actually left
+    "open", and recompute_status() alone never does that for a dial below the physical
+    3-use cap), and again in the end-of-batch sweep further down, for any tray that
+    reached the dial but was never fought over mid-batch. Idempotent - a tray already
+    disposed, not yet fully used, or under manual QC hold (retired/stopped) is left
+    untouched - so calling it twice on the same tray_id is always safe. Returns the ids of
+    cells this call actually disposed (empty if none)."""
+    tray_cells = db.scalars(select(Cell).where(Cell.tray_id == tray_id)).all()
+    for cell in tray_cells:
+        db.refresh(cell, attribute_names=["cell_uses"])
+    # A stopped/retired cell means the tray needs manual attention - never auto-bin it.
+    if any(cell.status in ("retired", "stopped") for cell in tray_cells):
+        return []
+
+    def _active_uses(cell: Cell) -> int:
+        return len([cu for cu in cell.cell_uses if cu.status != "cancelled"])
+
+    # Not fully spent yet (some cell hasn't reached the dial) - leave the whole tray open.
+    if not all(_active_uses(cell) >= max_uses for cell in tray_cells):
+        return []
+    # Every cell reached the dial: bin the tray as one unit. Cells already terminal by
+    # natural exhaustion (dial == 3) carry no leftover capacity and need no flag or count;
+    # only cells still "open" (used to the dial with physical capacity to spare, dial < 3)
+    # are the ones actually being disposed early, so those are what we mark and report.
+    disposed: list[int] = []
+    for cell in tray_cells:
+        if cell.status != "open" or cell.discarded_at is not None:
+            continue
+        mark_cell_discarded(cell, f"Auto schedule: tray fully used to max {max_uses}", now)
+        disposed.append(cell.id)
+    return disposed
+
+
 def auto_fill(
     db: Session,
     *,
@@ -387,6 +429,11 @@ def auto_fill(
     touched_cells: set[Cell] = set()
     placed_sample_ids: list[int] = []
     sample_acquire_dates: dict[int, date] = {}  # sample_id -> the day it actually acquires (see AutoFillResult)
+    # Populated both inline (the collision-retirement branch below, the moment a same-batch
+    # reload needs a dial-exhausted tray's box back) and by the end-of-batch sweep further
+    # down (for a tray that reached the dial but was never fought over mid-batch) - see
+    # _dispose_tray_if_fully_used.
+    disposed_cell_ids: list[int] = []
     # fill_slots plans every slot as 8 fully-free wells (SlotInput's own documented
     # invariant) - true for a brand-new run, but no longer true once the occupied-check
     # above started letting a cancelled-only cycle through (its one cancelled CellUse
@@ -497,20 +544,27 @@ def auto_fill(
             box_cells = opened_boxes.get(box_key)
             if box_cells is not None and well_claimant.get((instrument_id, well)) not in (None, a.cell.id):
                 # A *different* PackedCell now needs this exact well - the engine already
-                # proved every cell in this box has genuinely reached the end of its
-                # physical life before handing the well to a new logical cell (see
-                # slot_scheduling.py's _well_is_vacated), so it's legitimate to retire the
-                # old physical tray and load a brand-new one in its place, even within
-                # this same batch. Recompute the old cells' status right now (rather than
-                # waiting for this function's own end-of-loop pass below) so
-                # open_new_tray()'s own "is this box still live" collision guard sees them
-                # as already exhausted, not stale "open" rows - if some sibling in this
-                # box *hasn't* actually finished (a real, uneven-quota edge case), that
-                # guard correctly refuses the reopen and this sample is left unplaced
-                # rather than corrupting anything. Every well in the box is cleared, not
-                # just this one, so its other siblings (already resolved earlier under
-                # the old generation) don't each independently re-trigger this same
-                # retirement once their own next assignment comes through.
+                # proved this box's cells are genuinely done with THIS batch's own plan
+                # (see slot_scheduling.py's _well_is_vacated: batch_capacity_reached, not
+                # necessarily physically exhausted), so it's legitimate to retire the old
+                # physical tray and load a brand-new one in its place, even within this
+                # same batch. Explicitly dispose it right now (rather than waiting for
+                # this function's own end-of-loop sweep below) so open_new_tray()'s own
+                # "is this box still live" collision guard sees it as already gone, not a
+                # stale "open" row - recompute_status() alone would never flip it away
+                # from "open" here, since a dial below the physical 3-use cap means the
+                # cell's real capacity isn't actually spent, only this batch's plan for it
+                # is. If some sibling in this box *hasn't* actually reached the dial (a
+                # real, uneven-quota edge case), _dispose_tray_if_fully_used leaves the
+                # whole tray untouched and open_new_tray()'s guard correctly refuses the
+                # reopen, leaving this sample unplaced rather than corrupting anything.
+                # Every well in the box is cleared below, not just this one, so its other
+                # siblings (already resolved earlier under the old generation) don't each
+                # independently re-trigger this same retirement once their own next
+                # assignment comes through.
+                old_tray_id = next(iter(box_cells.values())).tray_id
+                if old_tray_id is not None:
+                    disposed_cell_ids.extend(_dispose_tray_if_fully_used(db, old_tray_id, max_uses, now))
                 for old_cell in box_cells.values():
                     db.refresh(old_cell, attribute_names=["cell_uses"])
                     recompute_status(old_cell, now)
@@ -598,44 +652,19 @@ def auto_fill(
         db.refresh(db_cell, attribute_names=["cell_uses"])
         recompute_status(db_cell, now)
 
-    # --- auto-dispose: the "Max uses per cell" dial enforces a per-cell TOTAL-use cap, but
-    #     a SMRT-cell tray of 4 is one physical object - it loads into, and is removed from,
-    #     a single instrument carousel position as a unit, and disposal is all-or-nothing
-    #     across the whole tray, never per cell (see docs/pacbio-sprq-nx-scheduling-
-    #     reference.md's "Tray-of-4" invariant). So disposal is tray-scoped: a tray is binned
-    #     - every one of its cells marked terminal together, via mark_cell_discarded (the
-    #     *bare* variant, which sets the sticky exhausted/discarded state WITHOUT cancelling
-    #     the uses this batch just scheduled) - only once EVERY cell in it has been used to
-    #     the dial (the tray is fully spent to the chosen depth). A tray still holding an
-    #     unused or below-dial cell stays on the instrument, all cells "open", for a later
-    #     run to finish and then dispose as a unit - never a half-binned tray.
+    # --- auto-dispose: catches any tray that reached the "Max uses per cell" dial but
+    #     was never fought over mid-batch (see _dispose_tray_if_fully_used - the persist
+    #     loop's collision-retirement branch above already handles the common case where a
+    #     same-batch reload needed the box back sooner). Still needed here for a tray that
+    #     hit the dial on its last offered day, with nothing left in this batch to reuse
+    #     its well - it must still be disposed so a LATER, separate Auto Schedule call sees
+    #     an open box to reload, not a stale "open" tray with no capacity anyone can use.
     candidate_tray_ids: set[int] = {c.tray_id for c in touched_cells if c.tray_id is not None}
     for box_cells in opened_boxes.values():
         candidate_tray_ids.update(c.tray_id for c in box_cells.values() if c.tray_id is not None)
 
-    def _active_uses(cell: Cell) -> int:
-        return len([cu for cu in cell.cell_uses if cu.status != "cancelled"])
-
-    disposed_cell_ids: list[int] = []
     for tray_id in candidate_tray_ids:
-        tray_cells = db.scalars(select(Cell).where(Cell.tray_id == tray_id)).all()
-        for cell in tray_cells:
-            db.refresh(cell, attribute_names=["cell_uses"])
-        # A stopped/retired cell means the tray needs manual attention - never auto-bin it.
-        if any(cell.status in ("retired", "stopped") for cell in tray_cells):
-            continue
-        # Not fully spent yet (some cell hasn't reached the dial) - leave the whole tray open.
-        if not all(_active_uses(cell) >= max_uses for cell in tray_cells):
-            continue
-        # Every cell reached the dial: bin the tray as one unit. Cells already terminal by
-        # natural exhaustion (dial == 3) carry no leftover capacity and need no flag or count;
-        # only cells still "open" (used to the dial with physical capacity to spare, dial < 3)
-        # are the ones actually being disposed early, so those are what we mark and report.
-        for cell in tray_cells:
-            if cell.status != "open" or cell.discarded_at is not None:
-                continue
-            mark_cell_discarded(cell, f"Auto schedule: tray fully used to max {max_uses}", now)
-            disposed_cell_ids.append(cell.id)
+        disposed_cell_ids.extend(_dispose_tray_if_fully_used(db, tray_id, max_uses, now))
     if disposed_cell_ids:
         db.flush()
 

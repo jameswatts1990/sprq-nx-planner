@@ -16,7 +16,6 @@ from datetime import timedelta
 from app.engine.constants import (
     ALL_CELL_POSITIONS,
     CELL_LIFETIME_H,
-    CELL_MAX_USES,
     CELLS_PER_TRAY,
     DEFAULT_MOVIE_HOURS,
     LOCK_BUFFER_HOURS,
@@ -112,20 +111,34 @@ def fill_slots(
         return claimed is None or claimed == _tray_key(cell)
 
     def _well_is_vacated(owner_id: str) -> bool:
-        """True once `owner_id` has truly reached the end of its physical life - every
-        use pack_cells ever intends to give it this batch has been placed, *and* its
-        lifetime total (existing consumed uses plus this batch's own) has hit the hard
-        cap. Reloading a terminal well with a brand-new tray mid-batch is legitimate (see
-        cell_service.open_new_tray's own "a box whose every cell has gone terminal is not
-        a collision" rule) - but only once the current occupant is genuinely spent, never
-        merely because it isn't running on one particular day. A cell pack_cells gave
-        fewer than CELL_MAX_USES uses to (e.g. the backlog simply ran out of compatible
-        samples for it) still owns its well indefinitely - it may get reused again in a
-        *later*, separate Auto Schedule call, and that must land back in this same well."""
+        """True once `owner_id` is genuinely done for THIS batch - every use pack_cells
+        ever intended to give it has been placed, *and* it stopped there on purpose
+        (`batch_capacity_reached`: it hit its own max_uses dial, further narrowed by
+        available_days), not because the backlog simply ran out of compatible samples
+        for it. Reloading a terminal well with a brand-new tray mid-batch is legitimate
+        (see cell_service.open_new_tray's own "a box whose every cell has gone terminal
+        is not a collision" rule) - but only once the current occupant is genuinely
+        finished with its own planned depth, never merely because it isn't running on
+        one particular day.
+
+        Deliberately NOT gated on physical exhaustion (total_uses hitting the hard
+        CELL_MAX_USES=3): a dial set below 3 means a cell can be fully done with this
+        batch's own plan - and about to be auto-disposed once persisted, see
+        auto_fill_service.py's tray-scoped disposal - while still short of its real
+        lifetime capacity. Requiring the full physical cap here would silently reproduce
+        the exact starvation this field was added to fix: with cells_per_day wells and no
+        prior cells, a dial below 3 would permanently park cells_per_day cells across the
+        rest of the batch, capping the whole run at cells_per_day * max_uses regardless
+        of how many days were offered (see docs/pacbio-sprq-nx-scheduling-reference.md).
+
+        A cell pack_cells gave fewer uses than its own ceiling allowed (e.g. the backlog
+        simply ran out of compatible samples for it, `batch_capacity_reached` stays
+        False) still owns its well indefinitely - it may get reused again in a *later*,
+        separate Auto Schedule call, and that must land back in this same well."""
         owner = by_id.get(owner_id)
         if owner is None:
             return True
-        return owner.total_uses >= CELL_MAX_USES and next_idx[owner_id] >= len(owner.uses)
+        return owner.batch_capacity_reached and next_idx[owner_id] >= len(owner.uses)
 
     def _takeable(cell: PackedCell, slot: SlotInput, w: str, allowed: frozenset[int]) -> bool:
         """Can `cell` load into a *foreign* offered well `w` this slot (the fallback path, when

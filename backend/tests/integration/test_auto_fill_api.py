@@ -478,6 +478,66 @@ def test_auto_fill_reloads_a_terminal_well_with_a_new_tray_in_the_same_batch(cli
     assert max(uses_per_cell) <= 3
 
 
+def test_auto_fill_below_the_physical_cap_still_reloads_a_new_tray_mid_batch(client, db_session):
+    """Regression test for a real reported bug: "Max uses per cell" set below the
+    physical 3-use cap (e.g. 2x, "Efficient - reuse cells, limit expiry") silently
+    capped an ENTIRE week's Auto Schedule click at cells_per_day * max_uses, no matter
+    how many days were selected or how much backlog was waiting - e.g. only 8 samples
+    placed (2 days x 4 wells/day) with a full 5-day week selected and 30+ compatible
+    backlog samples left unplaced, the remaining days completely empty, even though 0
+    cells were reported skipped.
+
+    Root cause: fill_slots' _well_is_vacated only ever freed a well once a cell hit the
+    hard CELL_MAX_USES(3), never once it merely finished the depth its OWN dial (2x)
+    asked for. With no prior cells and cells_per_day=4, that meant exactly 4 physical
+    cells could ever open per batch: once they reached their 2x dial, every one of the
+    day's 4 well positions was still "spoken for" (not yet physically exhausted, only
+    done with this batch's own plan), and nothing could open a 5th cell for the rest of
+    the week - regardless of how many more days were on offer.
+
+    16 disjoint samples at max_uses=2/cells_per_day=4 across a 5-day week is exactly
+    enough for 2 clean generations of tray-of-4 (Mon+Tue's, then Wed+Thu's) - Friday is
+    left with nothing to schedule (backlog genuinely exhausted, not starved), which is
+    the clean way to prove Wed/Thu got used at all without also exercising the separate,
+    pre-existing depth-allocation gap the companion test above documents (a reloaded
+    generation not knowing how many days it actually has left)."""
+    client.post(
+        "/api/imports",
+        json={"raw_text": "sample,barcodes\n" + "\n".join(f"U{i},bcu{i}" for i in range(1, 17))},
+    )
+    week = _next_working_week()
+
+    resp = _auto_fill(
+        client,
+        [{"instrument_serial": "84047", "load_date": d} for d in week],
+        objective="fewest",
+        max_uses=2,
+        cells_per_day=4,
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+
+    assert len(body["placed_sample_ids"]) == 16
+    assert body["unplaced_sample_ids"] == []
+    # Friday never gets a run at all - nothing was left to schedule that day, distinct
+    # from a day silently skipped or starved.
+    assert sorted(r["load_date"] for r in body["runs"]) == week[:4]
+
+    cells = db_session.query(Cell).all()
+    # A first tray-of-4 (Mon+Tue) and a genuinely new second tray-of-4 (Wed+Thu) - the
+    # starvation bug never got past the first tray.
+    assert len(cells) == 8
+    uses_per_cell = sorted(len([cu for cu in c.cell_uses if cu.status != "cancelled"]) for c in cells)
+    assert uses_per_cell == [2, 2, 2, 2, 2, 2, 2, 2]
+    assert max(uses_per_cell) <= 2
+
+    # Both generations reached the 2x dial, so both get auto-disposed - a later, separate
+    # Auto Schedule call sees two open boxes to reload, not stale full trays sitting idle.
+    discarded = [c for c in cells if c.discarded_at is not None]
+    assert len(discarded) == 8
+    assert len(body["disposed_cell_ids"]) == 8
+
+
 def test_auto_fill_prioritizes_higher_priority_sample_over_wells_scarcity(client):
     """Reproduces a reported gap: auto-schedule should prioritize higher-priority
     samples when capacity is scarce. W9 is High priority but was imported last (and

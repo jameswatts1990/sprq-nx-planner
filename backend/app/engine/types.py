@@ -124,6 +124,18 @@ class PackedCell:
         self.future_uses = 0
         self.total_uses = 0
         self.cost_tier = 1
+        # True once this cell has been given every use its OWN batch-specific ceiling
+        # allows (the max_uses dial, further narrowed by available_days) - as opposed to
+        # stopping short of that ceiling because pack_cells simply ran out of compatible
+        # samples to give it. Distinct from "physically exhausted" (total_uses reaching
+        # the hard CELL_MAX_USES=3): a dial set below 3 means a cell can be fully done
+        # with this batch's plan while still short of its real lifetime capacity. Only
+        # the batch-ceiling case means fill_slots may safely hand this cell's well to a
+        # different cell later in the SAME batch (see slot_scheduling.py's
+        # _well_is_vacated) - a cell that merely ran out of compatible samples must keep
+        # its well reserved indefinitely, since it may still be reused in a later,
+        # separate Auto Schedule call and that reuse must land back in this exact well.
+        self.batch_capacity_reached = False
         # populated by schedule_cells():
         self.window_h: float = 0.0
         self.machine: str | None = None

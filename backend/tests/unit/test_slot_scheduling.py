@@ -286,15 +286,17 @@ def test_fill_slots_never_hands_a_vacated_well_to_a_different_fresh_cell():
 
 
 def test_fill_slots_reloads_a_genuinely_exhausted_well_with_a_new_cell():
-    """Companion to the regression above: once a cell's total lifetime capacity is
-    truly spent (hit the hard 3-use cap, not just "done with this batch's work"), its
-    well legitimately becomes available to a brand-new physical cell later in the same
-    batch - loading a new tray once the old one is terminal is explicitly legitimate
-    (see cell_service.open_new_tray's "a box whose every cell has gone terminal is not
-    a collision" rule). Without this, fixing the overuse bug above would over-correct
-    into never reloading a genuinely spent cell within one Auto Schedule click."""
+    """Companion to the regression above: once a cell has been given every use pack_cells
+    ever intended for it THIS batch, on purpose (batch_capacity_reached - here because it
+    hit the hard 3-use physical cap, the strictest case), its well legitimately becomes
+    available to a brand-new physical cell later in the same batch - loading a new tray
+    once the old one is terminal is explicitly legitimate (see cell_service.open_new_tray's
+    "a box whose every cell has gone terminal is not a collision" rule). Without this,
+    fixing the overuse bug above would over-correct into never reloading a genuinely spent
+    cell within one Auto Schedule click."""
     c1 = _cell("C1", _samples(3, prefix="A"))
     c1.total_uses = 3  # matches pack_cells: uses_consumed(0) + future_uses(3) - fully exhausted
+    c1.batch_capacity_reached = True  # pack_cells: future_uses(3) >= cap(3) - stopped on purpose
     c2 = _cell("C2", _samples(2, prefix="B"))
     c2.total_uses = 2
     week = [
@@ -312,6 +314,48 @@ def test_fill_slots_reloads_a_genuinely_exhausted_well_with_a_new_cell():
 
     # C1 uses up well A01 Mon-Wed (its full 3-use cap); once it's genuinely done, C2
     # legitimately takes over the same well for Thu/Fri - nothing is stranded.
+    assert wells_by_cell.get("C1") == {"A01"}
+    assert wells_by_cell.get("C2") == {"A01"}
+    assert result.unplaced == []
+
+
+def test_fill_slots_reloads_a_dial_capped_well_with_a_new_cell_even_below_the_physical_max():
+    """Regression test for a real reported bug: Auto Schedule with "Max uses per cell" set
+    below the physical 3-use cap (e.g. 2x) silently capped an ENTIRE multi-day batch at
+    cells_per_day * max_uses, no matter how many days were offered or how much backlog was
+    waiting - because the old _well_is_vacated only ever freed a well once a cell hit the
+    hard CELL_MAX_USES, never once it merely finished the depth its OWN dial asked for.
+    With no prior cells and cells_per_day=1, that meant exactly one physical cell could
+    ever be opened per batch: once it reached its 2x dial, every other well position was
+    already "spoken for" and nothing could open a second tray, regardless of how many more
+    days were on offer.
+
+    C1 here is capped at 2 uses on purpose (batch_capacity_reached=True, total_uses=2 -
+    e.g. a 2x dial), NOT because it's physically exhausted (a real cell could still take a
+    3rd use) and NOT because the backlog ran out for it - the distinguishing case from the
+    regression test above. Its well must still free up for C2 once C1's own planned depth
+    is placed, so the rest of a 5-day week isn't starved by a dial the user deliberately
+    set below 3."""
+    c1 = _cell("C1", _samples(2, prefix="A"))
+    c1.total_uses = 2  # matches pack_cells: uses_consumed(0) + future_uses(2)
+    c1.batch_capacity_reached = True  # pack_cells: future_uses(2) >= cap(2) - a 2x dial, not backlog scarcity
+    c2 = _cell("C2", _samples(2, prefix="B"))
+    c2.total_uses = 2
+    c2.batch_capacity_reached = True
+    week = [
+        SlotInput(instrument_serial="84047", run_date=date(2026, 7, 20)),  # Mon
+        SlotInput(instrument_serial="84047", run_date=date(2026, 7, 21)),  # Tue
+        SlotInput(instrument_serial="84047", run_date=date(2026, 7, 22)),  # Wed
+        SlotInput(instrument_serial="84047", run_date=date(2026, 7, 23)),  # Thu
+    ]
+    result = fill_slots([c1, c2], week, cells_per_day=1)
+
+    wells_by_cell: dict[str, set[str]] = {}
+    for a in result.assignments:
+        wells_by_cell.setdefault(a.cell.id, set()).add(a.well)
+
+    # C1 uses up well A01 Mon/Tue (its dial-capped depth, not the physical max); once it's
+    # done with its OWN planned work, C2 legitimately takes over the same well for Wed/Thu.
     assert wells_by_cell.get("C1") == {"A01"}
     assert wells_by_cell.get("C2") == {"A01"}
     assert result.unplaced == []
