@@ -1,14 +1,17 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState, type ReactNode } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { ApiError } from "@/api/client";
 import { cellsApi } from "@/api/cells";
+import { instrumentsApi } from "@/api/instruments";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
+import { Modal, ModalActions } from "@/components/ui/Modal";
 import { Note } from "@/components/ui/Note";
 import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
 import type { CellDetailOut } from "@/types/cell";
+import type { InstrumentOut } from "@/types/instrument";
 import { plateWellFromPlate } from "@/utils/plateWell";
 import { runLabel } from "@/utils/runLabel";
 
@@ -26,11 +29,209 @@ function formatDateTime(iso: string | null): string {
   return iso ? new Date(iso).toLocaleString() : "—";
 }
 
-/** Short YYYY-MM-DD for the spreadsheet export row - date-only keeps a Google Sheet column tidy. */
-function formatDate(iso: string | null): string {
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** DD-Mon-YYYY (e.g. 24-Jul-2026) for the exported "Date of Occurrence" column, matching the
+ * date format the lab's issue-tracking sheet expects. */
+function formatOccurrenceDate(iso: string | null): string {
   if (!iso) return "";
   const d = new Date(iso);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return `${String(d.getDate()).padStart(2, "0")}-${MONTHS[d.getMonth()]}-${d.getFullYear()}`;
+}
+
+interface ReportField {
+  label: string;
+  value: string;
+}
+
+/** The failed-cell issue report as an ordered list of {column header, value} pairs, matching the
+ * lab's central issue-tracking spreadsheet exactly. Verbatim constants (team, owner, N/A, the
+ * notified manager) come straight from the lab's agreed template; the variable fields are filled
+ * from the triggering use, the cell's PacBio case, and the instrument's asset/location record.
+ * Columns the sheet fills itself (Reported by, Study ID, Make/Model/Serial "auto fill") stay blank. */
+function buildReportFields(cell: CellDetailOut, instrument: InstrumentOut | undefined): ReportField[] {
+  const use = triggeringUse(cell);
+  const well = use ? plateWellFromPlate(use.plate_index, use.well, { qualified: true }) : "";
+  const run = use ? runLabel({ run_id: use.run_batch_id, run_name: use.run_name }) : "";
+  const failureAt = use?.completed_at ?? use?.started_at ?? cell.stopped_at ?? null;
+  // Use number = the triggering use's 1-based position in the (chronological) use history.
+  const useIndex = use ? cell.use_history.findIndex((u) => u.id === use.id) : -1;
+  const useNo = useIndex === -1 ? "" : `use ${useIndex + 1}`;
+  const problem = ["Failed Cell", run, well, useNo].filter(Boolean).join(" ");
+
+  return [
+    { label: "Date of Occurrence", value: formatOccurrenceDate(failureAt) },
+    { label: "Reported by (Sanger ID)", value: "" },
+    { label: "Team who identified the issue", value: "Long_Read" },
+    { label: "Issue Owner", value: "Long_Read" },
+    { label: "Project / Product Line", value: "PacBio" },
+    { label: "Stage of Process Issue Identified", value: "Sequencing" },
+    { label: "Source of Issue", value: "Consumables/Reagents" },
+    { label: "Problem Statement", value: problem },
+    { label: "Vendor/RT Support Ticket", value: cell.pacbio_case_number ?? "" },
+    { label: "Equipment Software name (if applicable)", value: "N/A" },
+    { label: "Equipment Program (If applicable)", value: "N/A" },
+    { label: "Sample ID(s) e.g. Plate or Tube Barcode ID", value: use?.sample_external_id ?? "" },
+    { label: "4 digit Study ID(s)", value: "" },
+    { label: "Equipment Owner", value: "Long_Read" },
+    { label: "Equipment Asset Number", value: instrument?.asset_number ?? "" },
+    { label: "Make of Equipment (auto fill)", value: "" },
+    { label: "Model of Equipment (auto fill)", value: "" },
+    { label: "Serial number (auto fill)", value: "" },
+    { label: "Location of equipment", value: instrument?.location ?? "" },
+    {
+      label:
+        'Select appropriate manager or equivalent. Notify using the "right click and comment function" in the selected name cell',
+      value: "James Watts",
+    },
+  ];
+}
+
+/** One tab-separated row of the report values - tabs land in separate cells when pasted into a
+ * spreadsheet, so it appends as a single new row under the sheet's existing column headers. */
+function reportRowTsv(fields: ReportField[]): string {
+  return fields.map((f) => f.value).join("\t");
+}
+
+/** A standalone CSV (header row + value row) for download - RFC-4180 quoting so commas, quotes,
+ * and newlines inside a field (e.g. the manager-notification column) survive intact. */
+function reportCsv(fields: ReportField[]): string {
+  const esc = (s: string) => `"${s.replace(/"/g, '""')}"`;
+  const headers = fields.map((f) => esc(f.label)).join(",");
+  const values = fields.map((f) => esc(f.value)).join(",");
+  return `${headers}\r\n${values}\r\n`;
+}
+
+/** Copy text to the clipboard, falling back to a hidden-textarea + execCommand when the async
+ * Clipboard API is unavailable - which it is in production, served over plain HTTP (a non-secure
+ * context, where navigator.clipboard is undefined). Returns whether the copy succeeded. */
+async function copyText(text: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    // Fall through to the legacy path below (e.g. permission denied).
+  }
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.top = "-9999px";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    const ok = document.execCommand("copy");
+    document.body.removeChild(ta);
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
+function downloadCsv(filename: string, csv: string): void {
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+type ReportResult = "copied" | "copy-failed" | "downloaded";
+
+/** The "Generate report ▾" split action: a small dropdown to either copy the report as a
+ * tab-separated row (to append to the tracking sheet) or download it as a CSV file. Either action
+ * opens a confirmation popup that also previews every column/value, so the lab can eyeball the
+ * report and - if an insecure-context copy silently failed - select and copy the text by hand. */
+function GenerateReportMenu({ fields, cellCode }: { fields: ReportField[]; cellCode: string }) {
+  const [open, setOpen] = useState(false);
+  const [result, setResult] = useState<ReportResult | null>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onMouseDown(e: MouseEvent) {
+      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
+    }
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    window.addEventListener("mousedown", onMouseDown);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("mousedown", onMouseDown);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
+  async function onCopy() {
+    setOpen(false);
+    const ok = await copyText(reportRowTsv(fields));
+    setResult(ok ? "copied" : "copy-failed");
+  }
+
+  function onDownload() {
+    setOpen(false);
+    downloadCsv(`pacbio-credit-${cellCode}.csv`, reportCsv(fields));
+    setResult("downloaded");
+  }
+
+  return (
+    <div className={styles.menuWrap} ref={wrapRef}>
+      <Button variant="ghost" onClick={() => setOpen((v) => !v)} aria-haspopup="true" aria-expanded={open}>
+        Generate report ▾
+      </Button>
+      {open && (
+        <div className={styles.menu} role="menu">
+          <button type="button" className={styles.menuItem} role="menuitem" onClick={onCopy}>
+            Copy to clipboard
+          </button>
+          <button type="button" className={styles.menuItem} role="menuitem" onClick={onDownload}>
+            Download CSV
+          </button>
+        </div>
+      )}
+      {result && (
+        <Modal onClose={() => setResult(null)} title="Issue report" maxWidth={560}>
+          {result === "copied" && (
+            <Note tone="good" icon="✓">
+              Report copied to your clipboard — paste it as a new row into the issue-tracking sheet.
+            </Note>
+          )}
+          {result === "downloaded" && (
+            <Note tone="good" icon="✓">
+              CSV downloaded — one header row and one value row, ready to open or import.
+            </Note>
+          )}
+          {result === "copy-failed" && (
+            <Note tone="bad" icon="!">
+              Couldn&apos;t copy automatically. Select the values below and copy them by hand, or use Download CSV
+              instead.
+            </Note>
+          )}
+          <dl className={styles.preview}>
+            {fields.map((f) => (
+              <div key={f.label} className={styles.previewRow}>
+                <dt className={styles.previewLabel}>{f.label}</dt>
+                <dd className={styles.previewValue}>{f.value || "—"}</dd>
+              </div>
+            ))}
+          </dl>
+          <ModalActions>
+            <Button variant="primary" onClick={() => setResult(null)}>
+              Close
+            </Button>
+          </ModalActions>
+        </Modal>
+      )}
+    </div>
+  );
 }
 
 function buildCreditEmail(cell: CellDetailOut): { subject: string; body: string } {
@@ -53,27 +254,6 @@ function buildCreditEmail(cell: CellDetailOut): { subject: string; body: string 
     .join("\n");
 
   return { subject, body };
-}
-
-/** A single tab-separated row for pasting straight into a Google Sheet (tabs land in
- * separate cells). Column order matches the Help tab so the sheet header can mirror it. */
-function buildReportRow(cell: CellDetailOut): string {
-  const use = triggeringUse(cell);
-  const well = use ? plateWellFromPlate(use.plate_index, use.well, { qualified: true }) : "";
-  const run = use ? runLabel({ run_id: use.run_batch_id, run_name: use.run_name }) : "";
-  const failureAt = use?.completed_at ?? use?.started_at ?? cell.stopped_at ?? null;
-  return [
-    cell.code,
-    cell.pacbio_case_number ?? "",
-    well,
-    run,
-    use?.instrument_serial ?? "",
-    formatDate(failureAt),
-    cell.internal_report_link ?? "",
-    formatDate(cell.pacbio_reported_at),
-    formatDate(cell.pacbio_credit_confirmed_at),
-    formatDate(cell.credit_received_at),
-  ].join("\t");
 }
 
 // Monochrome, single-weight stroke icons in the app's own style (cf. the scheduler padlock) -
@@ -145,9 +325,16 @@ export function PacbioCreditTracker({ cell }: PacbioCreditTrackerProps) {
   const queryClient = useQueryClient();
   const [caseNumber, setCaseNumber] = useState("");
   const [link, setLink] = useState("");
-  const [copied, setCopied] = useState(false);
 
   const invalidate = () => invalidateScheduleRelated(queryClient);
+
+  // Instruments carry the asset number and location the report needs; the use only stores the
+  // serial, so map serial -> instrument here. Include inactive ones - a failed cell may sit on an
+  // instrument since retired. Cached under the shared ["instruments", false] key.
+  const { data: instruments } = useQuery({
+    queryKey: ["instruments", false],
+    queryFn: () => instrumentsApi.list(false),
+  });
 
   const internalReportMutation = useMutation({
     mutationFn: (url: string) => cellsApi.setInternalReport(cell.id, { link: url }),
@@ -174,11 +361,13 @@ export function PacbioCreditTracker({ cell }: PacbioCreditTrackerProps) {
 
   const use = triggeringUse(cell);
   const failureAt = use?.completed_at ?? use?.started_at ?? cell.stopped_at ?? null;
+  const instrument = instruments?.find((i) => i.serial_number === use?.instrument_serial);
+  const reportFields = buildReportFields(cell, instrument);
 
   const stages: Stage[] = [
     { key: "failure", label: "Failure", at: failureAt, done: true, icon: <FailureIcon /> },
-    { key: "internal", label: "Internal report", at: cell.internal_report_at, done: !!cell.internal_report_at, icon: <InternalReportIcon /> },
     { key: "pacbio", label: "PacBio report", at: cell.pacbio_reported_at, done: !!cell.pacbio_reported_at, icon: <PacbioReportIcon /> },
+    { key: "internal", label: "Internal report", at: cell.internal_report_at, done: !!cell.internal_report_at, icon: <InternalReportIcon /> },
     { key: "confirmed", label: "Credit confirmed", at: cell.pacbio_credit_confirmed_at, done: !!cell.pacbio_credit_confirmed_at, icon: <ConfirmedIcon /> },
     { key: "received", label: "Credit received", at: cell.credit_received_at, done: !!cell.credit_received_at, icon: <ReceivedIcon /> },
   ];
@@ -190,13 +379,6 @@ export function PacbioCreditTracker({ cell }: PacbioCreditTrackerProps) {
 
   const email = buildCreditEmail(cell);
   const emailHref = `mailto:?subject=${encodeURIComponent(email.subject)}&body=${encodeURIComponent(email.body)}`;
-
-  function copyReportRow() {
-    void navigator.clipboard.writeText(buildReportRow(cell)).then(() => {
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 2000);
-    });
-  }
 
   return (
     <Card>
@@ -237,7 +419,10 @@ export function PacbioCreditTracker({ cell }: PacbioCreditTrackerProps) {
         <div className={styles.actions}>
           {currentKey === "internal" && (
             <>
-              <div className={styles.actionLead}>Raise the internal report, then link it here.</div>
+              <div className={styles.actionLead}>
+                Raise the internal report (now that you have the PacBio case number), then link it here. Generate report
+                copies the issue row to your clipboard or downloads it as a CSV.
+              </div>
               <div className={styles.actionRow}>
                 <input
                   type="url"
@@ -253,9 +438,7 @@ export function PacbioCreditTracker({ cell }: PacbioCreditTrackerProps) {
                 >
                   {internalReportMutation.isPending ? "Saving…" : "Add link"}
                 </Button>
-                <Button variant="ghost" onClick={copyReportRow}>
-                  {copied ? "Copied ✓" : "Generate report row"}
-                </Button>
+                <GenerateReportMenu fields={reportFields} cellCode={cell.code} />
               </div>
             </>
           )}

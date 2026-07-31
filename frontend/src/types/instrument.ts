@@ -2,6 +2,10 @@ export interface InstrumentOut {
   id: number;
   serial_number: string;
   name: string | null;
+  // Descriptive lab-record metadata (nothing in scheduling reads these): where the instrument
+  // lives and its asset-register number. Edited from the instrument card's Edit dialog.
+  location: string | null;
+  asset_number: string | null;
   active: boolean;
   // "Down for maintenance": the date it went down (null = online). is_down is derived as
   // down_from != null. Distinct from `active` (permanently retired / hidden from the schedule).
@@ -14,11 +18,15 @@ export interface InstrumentOut {
 export interface InstrumentCreate {
   serial_number: string;
   name?: string | null;
+  location?: string | null;
+  asset_number?: string | null;
   active?: boolean;
 }
 
 export interface InstrumentUpdate {
   name?: string | null;
+  location?: string | null;
+  asset_number?: string | null;
   active?: boolean | null;
 }
 

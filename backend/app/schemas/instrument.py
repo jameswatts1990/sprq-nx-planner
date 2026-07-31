@@ -7,6 +7,8 @@ class InstrumentOut(BaseModel):
     id: int
     serial_number: str
     name: str | None
+    location: str | None
+    asset_number: str | None
     active: bool
     # "Down for maintenance" state (see models/instrument.py). down_from is the date it went
     # down (None = online); the frontend derives is_down = down_from is not None.
@@ -21,11 +23,15 @@ class InstrumentOut(BaseModel):
 class InstrumentCreate(BaseModel):
     serial_number: str
     name: str | None = None
+    location: str | None = None
+    asset_number: str | None = None
     active: bool = True
 
 
 class InstrumentUpdate(BaseModel):
     name: str | None = None
+    location: str | None = None
+    asset_number: str | None = None
     active: bool | None = None
 
 

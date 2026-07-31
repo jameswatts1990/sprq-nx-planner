@@ -14,7 +14,10 @@ export function InstrumentsSection() {
         <b>Add instrument</b> (top right) registers a new Revio. Its <b>serial number</b> is the instrument&apos;s own
         identity (e.g. 84047) and can&apos;t be changed afterwards. The <b>name</b> is an optional friendly label
         (e.g. &quot;Revio A&quot;) — when set, it&apos;s what shows in the Schedule, with the serial as a small
-        subtitle beneath; leave it blank and the Schedule just shows the serial. <b>Edit</b> changes the name.
+        subtitle beneath; leave it blank and the Schedule just shows the serial. <b>Edit</b> changes the name, and
+        also lets you record the instrument&apos;s <b>location</b> (where it physically sits in the lab) and its{" "}
+        <b>asset number</b>. Both are optional notes for your own records — they don&apos;t affect scheduling — and
+        show quietly on the instrument&apos;s card when set. You can also fill them in when adding a new instrument.
       </p>
       <p>
         <b>Retire</b> hides an instrument from the Schedule and the instrument dropdowns but keeps all its history —

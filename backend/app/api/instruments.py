@@ -37,7 +37,13 @@ def create_instrument(req: InstrumentCreate, db: SessionDep) -> InstrumentOut:
     existing = db.scalar(select(Instrument).where(Instrument.serial_number == req.serial_number))
     if existing is not None:
         raise HTTPException(409, f"Instrument '{req.serial_number}' already exists")
-    instrument = Instrument(serial_number=req.serial_number, name=(req.name or "").strip() or None, active=req.active)
+    instrument = Instrument(
+        serial_number=req.serial_number,
+        name=(req.name or "").strip() or None,
+        location=(req.location or "").strip() or None,
+        asset_number=(req.asset_number or "").strip() or None,
+        active=req.active,
+    )
     db.add(instrument)
     db.commit()
     db.refresh(instrument)
@@ -53,6 +59,10 @@ def update_instrument(instrument_id: int, req: InstrumentUpdate, db: SessionDep)
         # Normalize blank/whitespace to NULL so a name can be cleared back to "show the serial"
         # (an empty string would otherwise linger as a falsy-but-set name).
         instrument.name = req.name.strip() or None
+    if req.location is not None:
+        instrument.location = req.location.strip() or None
+    if req.asset_number is not None:
+        instrument.asset_number = req.asset_number.strip() or None
     if req.active is not None:
         instrument.active = req.active
     db.commit()

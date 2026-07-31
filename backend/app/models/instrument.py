@@ -14,6 +14,10 @@ class Instrument(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     serial_number: Mapped[str] = mapped_column(String(32), unique=True, index=True)
     name: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    # Physical/asset metadata for the lab's own records - where the instrument lives and its
+    # asset-register number. Purely descriptive; nothing in scheduling reads these.
+    location: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    asset_number: Mapped[str | None] = mapped_column(String(64), nullable=True)
     active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     # "Down for maintenance": the date the instrument went down, or NULL when online. Open-ended
     # (down until explicitly brought back online, which clears this). Distinct from `active`,

@@ -192,7 +192,7 @@ export function CellsSection() {
       <p>
         Once a cell has a Failed use or is Stopped, a <b>PacBio credit</b> card appears on its detail page. It&apos;s
         laid out like a parcel tracker: a row of five connected stages runs left to right —{" "}
-        <b>Failure → Internal report → PacBio report → Credit confirmed → Credit received</b>. Completed stages turn
+        <b>Failure → PacBio report → Internal report → Credit confirmed → Credit received</b>. Completed stages turn
         green and show the date they happened; the next stage you need to act on is highlighted, and the action for
         just that stage appears in the panel below the tracker. While the case is still open the card moves to the{" "}
         <b>top</b> of the page (marked <b>Open</b>); once credit is marked received it turns to a{" "}
@@ -204,18 +204,23 @@ export function CellsSection() {
           credit workflow; the date shown is when the triggering use failed.
         </li>
         <li>
-          <b>Internal report</b> — <b>Add link</b> saves a link to your own internal write-up of the failure (e.g. a
-          Google Sheet row or doc) and completes this stage. <b>Generate report row</b> copies a single
-          tab-separated row to your clipboard that you can paste straight into a Google Sheet — one cell per column,
-          in this order: cell code, case number, well, run, instrument, failure date, internal report link, reported
-          date, confirmed date, received date. Once saved, a <b>View report</b> link appears under the stage.
+          <b>PacBio report</b> — comes first, because the case number PacBio issues feeds the internal report.{" "}
+          <b>Add case number</b> records the case number from the quality log you raise, and moves the cell off the{" "}
+          <b>Unreported</b> filter on the Cells page. <b>Generate email…</b> drafts an email to PacBio in your own
+          email client, prefilled with the affected well, run, instrument and date (taken from the Failed use, or the
+          most recent use if the cell was Stopped without one). Review the draft — including who it&apos;s addressed
+          to — before sending.
         </li>
         <li>
-          <b>PacBio report</b> — <b>Add case number</b> records the case number PacBio issues when you raise the
-          quality log, and moves the cell off the <b>Unreported</b> filter on the Cells page. <b>Generate email…</b>{" "}
-          drafts an email to PacBio in your own email client, prefilled with the affected well, run, instrument and
-          date (taken from the Failed use, or the most recent use if the cell was Stopped without one). Review the
-          draft — including who it&apos;s addressed to — before sending.
+          <b>Internal report</b> — <b>Add link</b> saves a link to your own internal write-up of the failure (e.g. a
+          Google Sheet row or doc) and completes this stage. <b>Generate report ▾</b> opens a small menu with two
+          ways to hand the failure to the issue-tracking sheet: <b>Copy to clipboard</b> copies one tab-separated
+          row you can paste straight in as a new line, and <b>Download CSV</b> saves the same report as a file (a
+          header row plus a value row). Either way a popup confirms it worked and shows every column and value it
+          filled in — the occurrence date, the problem statement (run, well and use number of the failed cell), the
+          PacBio case number, the sample id, and the instrument&apos;s asset number and location — so you can check
+          it before pasting. If your browser blocks the automatic copy, that same popup lets you select and copy the
+          values by hand. Once a link is saved, a <b>View report</b> link appears under the stage.
         </li>
         <li>
           <b>Credit confirmed</b> — <b>Mark as confirmed</b> once PacBio has confirmed a credit will be issued for

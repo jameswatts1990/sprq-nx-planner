@@ -115,6 +115,32 @@
   color: var(--grey);
 }
 
+/* Descriptive lab-record metadata (location, asset number) shown only when set - a quiet
+   definition-list row beneath the figures, above the action buttons. */
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 24px;
+  margin: 14px 0 0;
+}
+.metaItem {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.metaItem dt {
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--grey);
+}
+.metaItem dd {
+  margin: 0;
+  font-size: var(--fs-md);
+  color: var(--ink);
+}
+
 .actions {
   display: flex;
   gap: 8px;

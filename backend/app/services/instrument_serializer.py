@@ -21,6 +21,8 @@ def serialize_instrument(db: Session, instrument: Instrument) -> InstrumentOut:
         id=instrument.id,
         serial_number=instrument.serial_number,
         name=instrument.name,
+        location=instrument.location,
+        asset_number=instrument.asset_number,
         active=instrument.active,
         down_from=instrument.down_from,
         down_note=instrument.down_note,

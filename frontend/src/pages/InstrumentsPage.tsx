@@ -317,6 +317,23 @@ function InstrumentCard({ instrument, stats, activeRuns, recentRuns, activeRunsU
           </div>
         )}
 
+        {(instrument.location || instrument.asset_number) && (
+          <dl className={styles.meta}>
+            {instrument.location && (
+              <div className={styles.metaItem}>
+                <dt>Location</dt>
+                <dd>{instrument.location}</dd>
+              </div>
+            )}
+            {instrument.asset_number && (
+              <div className={styles.metaItem}>
+                <dt>Asset no.</dt>
+                <dd>{instrument.asset_number}</dd>
+              </div>
+            )}
+          </dl>
+        )}
+
         <div className={styles.actions}>
           <Button size="sm" variant="ghost" onClick={onEdit}>
             Edit
@@ -359,9 +376,17 @@ function InstrumentCard({ instrument, stats, activeRuns, recentRuns, activeRunsU
 function AddInstrumentModal({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
   const [serial, setSerial] = useState("");
   const [name, setName] = useState("");
+  const [location, setLocation] = useState("");
+  const [assetNumber, setAssetNumber] = useState("");
 
   const mutation = useMutation({
-    mutationFn: () => instrumentsApi.create({ serial_number: serial.trim(), name: name.trim() || null }),
+    mutationFn: () =>
+      instrumentsApi.create({
+        serial_number: serial.trim(),
+        name: name.trim() || null,
+        location: location.trim() || null,
+        asset_number: assetNumber.trim() || null,
+      }),
     onSuccess: onDone,
   });
 
@@ -381,6 +406,14 @@ function AddInstrumentModal({ onClose, onDone }: { onClose: () => void; onDone: 
         <div className={styles.field}>
           <label className={styles.fieldLabel}>Name (optional)</label>
           <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Revio A" />
+        </div>
+        <div className={styles.field}>
+          <label className={styles.fieldLabel}>Location (optional)</label>
+          <input type="text" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="e.g. Lab 2, Bay 3" />
+        </div>
+        <div className={styles.field}>
+          <label className={styles.fieldLabel}>Asset number (optional)</label>
+          <input type="text" value={assetNumber} onChange={(e) => setAssetNumber(e.target.value)} placeholder="e.g. SANG-012345" />
         </div>
         {mutation.isError && (
           <Note tone="bad" icon="!">
@@ -410,11 +443,18 @@ function EditInstrumentModal({
   onDone: () => void;
 }) {
   const [name, setName] = useState(instrument.name ?? "");
+  const [location, setLocation] = useState(instrument.location ?? "");
+  const [assetNumber, setAssetNumber] = useState(instrument.asset_number ?? "");
 
   const mutation = useMutation({
-    // Always send the (trimmed) string, never null - the backend's PATCH ignores null fields
-    // ("don't touch"), so sending "" is what lets a name be cleared back to the serial.
-    mutationFn: () => instrumentsApi.update(instrument.id, { name: name.trim() }),
+    // Always send the (trimmed) strings, never null - the backend's PATCH ignores null fields
+    // ("don't touch"), so sending "" is what lets a field be cleared back to blank.
+    mutationFn: () =>
+      instrumentsApi.update(instrument.id, {
+        name: name.trim(),
+        location: location.trim(),
+        asset_number: assetNumber.trim(),
+      }),
     onSuccess: onDone,
   });
 
@@ -425,11 +465,19 @@ function EditInstrumentModal({
 
   return (
     <Modal onClose={onClose} title={`Edit ${instrument.serial_number}`}>
-      <p className={styles.helper}>The name is the friendly label shown in the Schedule. Leave it blank to show the serial instead.</p>
+      <p className={styles.helper}>The name is the friendly label shown in the Schedule. Location and asset number are for your own records. Leave any blank to clear it.</p>
       <form onSubmit={submit}>
         <div className={styles.field}>
           <label className={styles.fieldLabel}>Name</label>
           <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Revio A" />
+        </div>
+        <div className={styles.field}>
+          <label className={styles.fieldLabel}>Location</label>
+          <input type="text" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="e.g. Lab 2, Bay 3" />
+        </div>
+        <div className={styles.field}>
+          <label className={styles.fieldLabel}>Asset number</label>
+          <input type="text" value={assetNumber} onChange={(e) => setAssetNumber(e.target.value)} placeholder="e.g. SANG-012345" />
         </div>
         {mutation.isError && (
           <Note tone="bad" icon="!">

@@ -10,7 +10,9 @@
   top: calc(100% + 6px);
   right: 0;
   z-index: 30;
-  min-width: 240px;
+  /* Wide enough that the longest label + its segmented control ("Density" + "Comfortable /
+     Compact") both stay on one line - see .row below, which also stops the control wrapping. */
+  min-width: 288px;
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
@@ -26,7 +28,16 @@
   justify-content: space-between;
   gap: 12px;
 }
+/* The segmented control keeps its options side by side here - the shared SegmentedControl
+   defaults to flex-wrap:wrap, which stacked "Show/Hide" and "Comfortable/Compact" vertically
+   in this narrow dropdown. It never shrinks; the label yields space instead. */
+.row [role="group"] {
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+}
 .label {
+  flex: 0 1 auto;
+  min-width: 0;
   font-size: var(--fs-base);
   font-weight: 800;
   color: var(--ink);
