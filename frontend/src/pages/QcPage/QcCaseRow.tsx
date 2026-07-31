@@ -39,14 +39,18 @@ function MiniStageStrip({ stages, currentIndex }: { stages: CreditStageState[]; 
 }
 
 /** One credit case in the QC worklist: a compact identity + failed-run/sample line + mini stage
- * strip with the next credit action inline, expandable to the full PacbioCreditTracker. Works off
- * a CellOut (the list payload); the full tracker fetches the cell's detail only when expanded. */
+ * strip with the next credit action inline (including the Generate email/report helpers), expandable
+ * to the full PacbioCreditTracker. The row fetches the cell's detail so those helpers - which read the
+ * use history + instrument - work inline; the expanded tracker reuses that same cached query. */
 export function QcCaseRow({ cell }: { cell: CellOut }) {
   const [open, setOpen] = useState(false);
   const backNav = useSampleBackNav();
   const { stages, currentIndex } = getCreditStages(cell);
   const use = triggeringUse(cell.uses);
   const failureDate = formatDate(cell.stopped_at ?? cell.last_use_run_date);
+
+  const detailQuery = useQuery({ queryKey: ["cell", cell.id], queryFn: () => cellsApi.get(cell.id) });
+  const detail = detailQuery.data;
 
   return (
     <div className={styles.row} data-open={open}>
@@ -113,36 +117,24 @@ export function QcCaseRow({ cell }: { cell: CellOut }) {
         {/* Inline next-step action while collapsed; when expanded the full tracker below owns it. */}
         {!open && (
           <div className={styles.action}>
-            <CreditCaseActions cell={cell} compact />
+            <CreditCaseActions cell={cell} detail={detail} compact />
           </div>
         )}
       </div>
 
-      {open && <QcCaseDetail cellId={cell.id} />}
-    </div>
-  );
-}
-
-/** The expanded region: the full PacBio credit tracker for this cell, fetched on demand (the
- * worklist itself only carries CellOut, but the tracker's report/email generators need detail). */
-function QcCaseDetail({ cellId }: { cellId: number }) {
-  const query = useQuery({ queryKey: ["cell", cellId], queryFn: () => cellsApi.get(cellId) });
-
-  if (query.isLoading) return <div className={styles.detailStatus}>Loading credit tracker…</div>;
-  if (query.isError) {
-    return (
-      <div className={styles.detail}>
-        <Note tone="bad" icon="!">
-          {query.error instanceof ApiError ? query.error.message : "Failed to load the cell."}
-        </Note>
-      </div>
-    );
-  }
-  if (!query.data) return null;
-
-  return (
-    <div className={styles.detail}>
-      <PacbioCreditTracker cell={query.data} />
+      {open && (
+        <div className={styles.detail}>
+          {detailQuery.isLoading ? (
+            <span className={styles.detailStatus}>Loading credit tracker…</span>
+          ) : detailQuery.isError ? (
+            <Note tone="bad" icon="!">
+              {detailQuery.error instanceof ApiError ? detailQuery.error.message : "Failed to load the cell."}
+            </Note>
+          ) : detail ? (
+            <PacbioCreditTracker cell={detail} />
+          ) : null}
+        </div>
+      )}
     </div>
   );
 }

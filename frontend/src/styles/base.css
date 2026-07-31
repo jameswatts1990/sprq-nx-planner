@@ -37,6 +37,9 @@ h3 {
   color: var(--ink);
   padding: 9px 15px;
   cursor: pointer;
+  /* A link rendered as a button (<a class="btn">) must read as a button, not an underlined
+     link - neither the base `a` rule nor `.btn` reset the UA default otherwise. */
+  text-decoration: none;
   /* Scoped to the properties the button variants actually animate on hover/active (see the
      :hover / .primary / .ghost rules below) instead of the `all` shorthand - buttons appear
      all over the app, so this keeps their transitions off every other animatable property. */

@@ -237,15 +237,13 @@ function buildCreditEmail(cell: CellDetailOut): { to: string; cc: string; subjec
 
   const to = "Pacific Biosciences <support@pacificbiosciences.com>";
   const cc = "Johnathan Smith <jsmith@pacificbiosciences.com>";
-  const subject = `SMRT Cell issue – ${cell.code}`;
+  const subject = `SMRT Cell issue – ${run}`;
   const body = [
     `Cell issue on sample ${sample}, run ${run}, ${instrument}, ${runDate}.`,
     "",
-    "Please advise on how to proceed and if a credit will be given.",
+    "Please advise on how to proceed. If the cell will be credited, please can you confirm the number of acquisitions that are being credited.",
     "",
-    `Cell: ${cell.code}`,
     `Sample ID: ${sample}`,
-    cell.pacbio_case_number ? `Case number: ${cell.pacbio_case_number}` : null,
   ]
     .filter((line): line is string => line !== null)
     // CRLF, not bare LF: Outlook (classic + new) drops or truncates a mailto body
