@@ -251,7 +251,7 @@ function buildCreditEmail(cell: CellDetailOut): { subject: string; body: string 
     cell.pacbio_case_number ? `Case number: ${cell.pacbio_case_number}` : null,
   ]
     .filter((line): line is string => line !== null)
-    .join("\n");
+    .join("\r\n");
 
   return { subject, body };
 }
