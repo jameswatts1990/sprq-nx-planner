@@ -13,6 +13,8 @@ from app.models.schedule import CellUse, CellUseBarcode, Cycle, RunBatch
 from app.schemas.cell import (
     CellActorRequest,
     CellBootstrapRequest,
+    CellConfirmCreditRequest,
+    CellCreditNotesRequest,
     CellDetailOut,
     CellInternalReportRequest,
     CellOut,
@@ -35,6 +37,7 @@ from app.services.cell_service import (
     receive_cell_credit,
     report_cell_to_pacbio,
     rotate_tray,
+    set_cell_credit_notes,
     set_cell_internal_report,
     serialize_cell,
     set_tray_reuse_disabled,
@@ -266,7 +269,7 @@ def set_cell_internal_report_endpoint(
     if cell is None:
         raise HTTPException(404, "Cell not found")
     try:
-        cell = set_cell_internal_report(db, cell, req.link, req.actor or actor)
+        cell = set_cell_internal_report(db, cell, req.report_id, req.actor or actor)
     except ValueError as exc:
         raise HTTPException(409, str(exc)) from exc
     return serialize_cell(cell)
@@ -287,12 +290,28 @@ def report_cell_to_pacbio_endpoint(
 
 
 @router.post("/{cell_id}/confirm-credit", response_model=CellOut)
-def confirm_cell_credit_endpoint(cell_id: int, req: CellActorRequest, db: SessionDep, actor: ActorDep) -> CellOut:
+def confirm_cell_credit_endpoint(
+    cell_id: int, req: CellConfirmCreditRequest, db: SessionDep, actor: ActorDep
+) -> CellOut:
     cell = db.get(Cell, cell_id, options=_DETAIL_OPTIONS)
     if cell is None:
         raise HTTPException(404, "Cell not found")
     try:
-        cell = confirm_cell_credit(db, cell, req.actor or actor)
+        cell = confirm_cell_credit(db, cell, req.acquisitions, req.actor or actor)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    return serialize_cell(cell)
+
+
+@router.post("/{cell_id}/credit-notes", response_model=CellOut)
+def set_cell_credit_notes_endpoint(
+    cell_id: int, req: CellCreditNotesRequest, db: SessionDep, actor: ActorDep
+) -> CellOut:
+    cell = db.get(Cell, cell_id, options=_DETAIL_OPTIONS)
+    if cell is None:
+        raise HTTPException(404, "Cell not found")
+    try:
+        cell = set_cell_credit_notes(db, cell, req.notes, req.actor or actor)
     except ValueError as exc:
         raise HTTPException(409, str(exc)) from exc
     return serialize_cell(cell)

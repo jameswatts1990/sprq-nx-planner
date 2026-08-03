@@ -71,10 +71,9 @@ export function CellDetailPage() {
 
   const isTerminal = cell.status === "retired" || cell.status === "stopped";
   const showCreditCard = cell.has_failed_use || cell.status === "stopped";
-  // An open case (not yet reported, or reported but credit not yet received) is the thing the
-  // lab needs to act on next, so it jumps to the top of the page; once credit's received it's
-  // a resolved historical record and settles back to its normal spot after use history.
-  const isCreditCaseOpen = showCreditCard && !cell.credit_received_at;
+  // The credit case is the thing the lab acts on for this cell, so it stays pinned to the top
+  // of the page for its whole life - open or already settled - rather than sinking below use
+  // history once credit's received.
   const showWindowMeter =
     cell.status !== "exhausted" &&
     cell.status !== "retired" &&
@@ -244,10 +243,9 @@ export function CellDetailPage() {
 
   return (
     <div className={styles.page}>
-      {isCreditCaseOpen && creditCard}
+      {creditCard}
       {mainCard}
       {useHistoryCard}
-      {!isCreditCaseOpen && creditCard}
 
       {qcOpen && <CellQcModal cellId={id} onClose={() => setQcOpen(false)} />}
     </div>

@@ -79,11 +79,13 @@ export interface CellOut {
   has_failed_use: boolean;
   needs_qc_report: boolean;
   awaiting_credit: boolean;
-  internal_report_link: string | null;
+  internal_report_id: string | null;
   internal_report_at: string | null;
   pacbio_case_number: string | null;
   pacbio_reported_at: string | null;
   pacbio_credit_confirmed_at: string | null;
+  credit_acquisitions: number | null;
+  credit_notes: string | null;
   credit_received_at: string | null;
   // Physical SPRQ-Nx SMRT Cell tray (4 cells) this cell belongs to - null for cells
   // created before this feature, or via the one-off bootstrap cutover tool.
@@ -119,7 +121,18 @@ export interface CellReportToPacbioRequest {
 }
 
 export interface CellInternalReportRequest {
-  link: string;
+  /** The report ID the failure is filed under internally (e.g. 26_NC_S_004). */
+  report_id: string;
+}
+
+export interface CellConfirmCreditRequest {
+  /** Number of acquisitions PacBio confirmed they will credit for this case. */
+  acquisitions: number;
+}
+
+export interface CellCreditNotesRequest {
+  /** Free-text note on the credit case, editable at any stage. Empty clears it. */
+  notes: string | null;
 }
 
 export interface TrayDiscardRequest {

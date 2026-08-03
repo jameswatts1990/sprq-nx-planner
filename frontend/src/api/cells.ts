@@ -1,6 +1,8 @@
 import { api, buildQuery } from "./client";
 import type {
   CellBootstrapRequest,
+  CellConfirmCreditRequest,
+  CellCreditNotesRequest,
   CellDetailOut,
   CellDiscardRequest,
   CellInternalReportRequest,
@@ -66,13 +68,19 @@ export const cellsApi = {
   /** Reverse the most recent QC verdict on a cell - reopen it and restore the uses/samples
    * it touched (skipping any that have since drifted, e.g. a top-up already sent). */
   qcUndo: (id: number) => api.post<QcUndoOut>(`/api/cells/${id}/qc/undo`),
-  /** Save the lab's internal-report link (e.g. a Google Sheet row / doc). The first save
-   * stamps the internal-report timestamp, completing that stage of the credit workflow. */
+  /** Save the lab's internal-report ID (e.g. 26_NC_S_004). The first save stamps the
+   * internal-report timestamp, completing that stage of the credit workflow. */
   setInternalReport: (id: number, req: CellInternalReportRequest) =>
     api.post<CellOut>(`/api/cells/${id}/internal-report`, req),
   reportToPacbio: (id: number, req: CellReportToPacbioRequest) =>
     api.post<CellOut>(`/api/cells/${id}/report-to-pacbio`, req),
-  confirmCredit: (id: number) => api.post<CellOut>(`/api/cells/${id}/confirm-credit`, {}),
+  /** Record how many acquisitions PacBio confirmed they will credit, completing the
+   * credit-confirmed stage. */
+  confirmCredit: (id: number, req: CellConfirmCreditRequest) =>
+    api.post<CellOut>(`/api/cells/${id}/confirm-credit`, req),
+  /** Set the credit case's free-text note. Editable at any stage; empty clears it. */
+  setCreditNotes: (id: number, req: CellCreditNotesRequest) =>
+    api.post<CellOut>(`/api/cells/${id}/credit-notes`, req),
   receiveCredit: (id: number) => api.post<CellOut>(`/api/cells/${id}/receive-credit`, {}),
   /** Force a single cell to "exhausted" regardless of its actual remaining use count. */
   discard: (id: number, req: CellDiscardRequest = {}) => api.post<CellOut>(`/api/cells/${id}/discard`, req),

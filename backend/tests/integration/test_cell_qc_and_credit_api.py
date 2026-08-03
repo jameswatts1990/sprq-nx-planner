@@ -339,7 +339,9 @@ def test_credit_workflow_after_fail_and_stop(client):
     assert client.post(f"/api/cells/{cell_id}/report-to-pacbio", json={"case_number": "CASE-9"}).status_code == 200
     awaiting = client.get("/api/cells", params={"qc_status": "awaiting_credit"}).json()
     assert cell_id in [c["id"] for c in awaiting["items"]]
-    assert client.post(f"/api/cells/{cell_id}/confirm-credit", json={}).status_code == 200
+    confirmed = client.post(f"/api/cells/{cell_id}/confirm-credit", json={"acquisitions": 2})
+    assert confirmed.status_code == 200, confirmed.text
+    assert confirmed.json()["credit_acquisitions"] == 2
     assert client.post(f"/api/cells/{cell_id}/receive-credit", json={}).status_code == 200
     awaiting_after = client.get("/api/cells", params={"qc_status": "awaiting_credit"}).json()
     assert cell_id not in [c["id"] for c in awaiting_after["items"]]
@@ -369,13 +371,13 @@ def test_qc_status_in_workflow_lists_every_stage_and_excludes_healthy_cells(clie
     # It stays in the feed through report -> confirm -> receive (a settled tail the page still shows).
     assert client.post(f"/api/cells/{cell_id}/report-to-pacbio", json={"case_number": "CASE-IW"}).status_code == 200
     assert cell_id in in_workflow_ids()
-    assert client.post(f"/api/cells/{cell_id}/confirm-credit", json={}).status_code == 200
+    assert client.post(f"/api/cells/{cell_id}/confirm-credit", json={"acquisitions": 1}).status_code == 200
     assert cell_id in in_workflow_ids()
     assert client.post(f"/api/cells/{cell_id}/receive-credit", json={}).status_code == 200
     assert cell_id in in_workflow_ids()
 
 
-def test_internal_report_link_saved_and_timestamped(client):
+def test_internal_report_id_saved_and_timestamped(client):
     client.post("/api/imports", json={"raw_text": "sample,barcodes\nIR1,bcir1"})
     past = _past_weekday()
     r1 = _place(client, _sid(client, "IR1"), past, 0, {"mode": "new"})
@@ -384,18 +386,18 @@ def test_internal_report_link_saved_and_timestamped(client):
     assert client.patch(f"/api/cycles/{r1.json()['run_id']}", json={"status": "running"}).status_code == 200
     qc_commit(client, cell_id, "fail_and_stop", stage["cell_use_id"], {_sid(client, "IR1"): "lost"})
 
-    link = "https://docs.google.com/spreadsheets/d/abc#gid=0"
-    r = client.post(f"/api/cells/{cell_id}/internal-report", json={"link": link})
+    report_id = "26_NC_S_004"
+    r = client.post(f"/api/cells/{cell_id}/internal-report", json={"report_id": report_id})
     assert r.status_code == 200, r.text
     body = r.json()
-    assert body["internal_report_link"] == link
+    assert body["internal_report_id"] == report_id
     first_stamp = body["internal_report_at"]
     assert first_stamp is not None
 
-    # Editing the link keeps the original raised-at timestamp.
-    r2 = client.post(f"/api/cells/{cell_id}/internal-report", json={"link": link + "&edited"})
+    # Editing the report ID keeps the original raised-at timestamp.
+    r2 = client.post(f"/api/cells/{cell_id}/internal-report", json={"report_id": "26_NC_S_005"})
     assert r2.status_code == 200, r2.text
-    assert r2.json()["internal_report_link"] == link + "&edited"
+    assert r2.json()["internal_report_id"] == "26_NC_S_005"
     assert r2.json()["internal_report_at"] == first_stamp
 
 
@@ -404,8 +406,33 @@ def test_internal_report_rejected_without_failure(client):
     past = _past_weekday()
     r1 = _place(client, _sid(client, "IR2"), past, 0, {"mode": "new"})
     cell_id = _stages(r1.json())[0]["cell_id"]
-    r = client.post(f"/api/cells/{cell_id}/internal-report", json={"link": "https://example.com"})
+    r = client.post(f"/api/cells/{cell_id}/internal-report", json={"report_id": "26_NC_S_006"})
     assert r.status_code == 409, r.text
+
+
+def test_credit_notes_editable_at_any_stage_and_preserved(client):
+    """A credit-case note can be set right after failure (before any other step) and is kept
+    unchanged as the case moves through report -> confirm -> receive; it stays editable throughout."""
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nCN1,bccn1"})
+    past = _past_weekday()
+    r1 = _place(client, _sid(client, "CN1"), past, 0, {"mode": "new"})
+    stage = _stages(r1.json())[0]
+    cell_id = stage["cell_id"]
+    assert client.patch(f"/api/cycles/{r1.json()['run_id']}", json={"status": "running"}).status_code == 200
+    qc_commit(client, cell_id, "fail_and_stop", stage["cell_use_id"], {_sid(client, "CN1"): "lost"})
+
+    # Set at the earliest (needs-report) stage.
+    r = client.post(f"/api/cells/{cell_id}/credit-notes", json={"notes": "Chased on 3 Aug"})
+    assert r.status_code == 200, r.text
+    assert r.json()["credit_notes"] == "Chased on 3 Aug"
+
+    # Preserved through the later steps.
+    assert client.post(f"/api/cells/{cell_id}/report-to-pacbio", json={"case_number": "CASE-CN"}).status_code == 200
+    assert client.post(f"/api/cells/{cell_id}/confirm-credit", json={"acquisitions": 1}).status_code == 200
+    assert client.get(f"/api/cells/{cell_id}").json()["credit_notes"] == "Chased on 3 Aug"
+
+    # Still editable after confirmation; empty clears it.
+    assert client.post(f"/api/cells/{cell_id}/credit-notes", json={"notes": "  "}).json()["credit_notes"] is None
 
 
 # --------------------------------------------------------------------------------------

@@ -85,6 +85,6 @@ export const CREDIT_BUCKET_TONE: Record<CreditBucket, BadgeTone> = {
 export const CREDIT_NEXT_STEP_LABEL: Record<Exclude<CreditStageKey, "failure">, string> = {
   pacbio: "Report to PacBio",
   internal: "Add internal report",
-  confirmed: "Confirm credit",
+  confirmed: "Record credit",
   received: "Mark received in lab",
 };

@@ -36,6 +36,43 @@
   outline: none;
   border-color: var(--line-hover);
 }
+/* Compact fixed-width variant (e.g. the acquisitions count) so it sits tight beside a
+   flex-growing sibling input rather than each claiming an equal share of the row. */
+.inputNarrow {
+  flex: 0 0 auto;
+  min-width: 0;
+  width: 150px;
+}
+
+/* Case-notes editor - a persistent free-text note on the credit case, editable at any
+   stage. Sits under the current step's action, separated by a light rule. */
+.notesBlock {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.notesLabel {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--grey);
+}
+.notesArea {
+  font-family: var(--sans);
+  font-size: var(--fs-base);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 8px 10px;
+  resize: vertical;
+  min-height: 40px;
+  width: 100%;
+}
+.notesArea:focus {
+  outline: none;
+  border-color: var(--line-hover);
+}
 
 /* "Generate report ▾" dropdown - same lightweight pattern as the Schedule toolbar's View
    options menu (outside-click / Esc to close), scoped to this action row. */

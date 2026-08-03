@@ -94,11 +94,13 @@ class CellOut(BaseModel):
     has_failed_use: bool
     needs_qc_report: bool
     awaiting_credit: bool
-    internal_report_link: str | None
+    internal_report_id: str | None
     internal_report_at: datetime | None
     pacbio_case_number: str | None
     pacbio_reported_at: datetime | None
     pacbio_credit_confirmed_at: datetime | None
+    credit_acquisitions: int | None
+    credit_notes: str | None
     credit_received_at: datetime | None
     # Physical SPRQ-Nx SMRT Cell tray (4 cells) this cell belongs to - null for cells
     # created before this feature, or via the one-off bootstrap_cell() cutover tool.
@@ -157,7 +159,20 @@ class CellReportToPacbioRequest(BaseModel):
 
 
 class CellInternalReportRequest(BaseModel):
-    link: str
+    # The report ID the failure is filed under internally (e.g. 26_NC_S_004).
+    report_id: str
+    actor: str | None = None
+
+
+class CellConfirmCreditRequest(BaseModel):
+    # Number of acquisitions PacBio confirmed they will credit for this case.
+    acquisitions: int
+    actor: str | None = None
+
+
+class CellCreditNotesRequest(BaseModel):
+    # Free-text note on the credit case, editable at any stage. Empty clears it.
+    notes: str | None = None
     actor: str | None = None
 
 

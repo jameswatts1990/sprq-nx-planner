@@ -110,13 +110,16 @@ export function PacbioCreditTracker({ cell }: PacbioCreditTrackerProps) {
                 <span className={styles.stepTime}>
                   {stage.done ? formatDateTime(stage.at) : state === "current" ? "Next step" : "Pending"}
                 </span>
-                {stage.key === "internal" && cell.internal_report_link && (
-                  <a className={styles.stepMeta} href={cell.internal_report_link} target="_blank" rel="noreferrer">
-                    View report
-                  </a>
+                {stage.key === "internal" && cell.internal_report_id && (
+                  <span className={styles.stepMeta}>Report {cell.internal_report_id}</span>
                 )}
                 {stage.key === "pacbio" && cell.pacbio_case_number && (
                   <span className={styles.stepMeta}>Case {cell.pacbio_case_number}</span>
+                )}
+                {stage.key === "confirmed" && cell.credit_acquisitions != null && (
+                  <span className={styles.stepMeta}>
+                    {cell.credit_acquisitions} acquisition{cell.credit_acquisitions === 1 ? "" : "s"} credited
+                  </span>
                 )}
               </li>
             );

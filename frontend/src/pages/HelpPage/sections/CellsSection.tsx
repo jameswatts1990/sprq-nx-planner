@@ -194,9 +194,9 @@ export function CellsSection() {
         laid out like a parcel tracker: a row of five connected stages runs left to right —{" "}
         <b>Failure → PacBio report → Internal report → Credit confirmed → Credit received</b>. Completed stages turn
         green and show the date they happened; the next stage you need to act on is highlighted, and the action for
-        just that stage appears in the panel below the tracker. While the case is still open the card moves to the{" "}
-        <b>top</b> of the page (marked <b>Open</b>); once credit is marked received it turns to a{" "}
-        <b>Credit received</b> badge and settles back below use history as a resolved record.
+        just that stage appears in the panel below the tracker. The card stays pinned to the <b>top</b> of the page
+        for the life of the cell — marked <b>Open</b> while the case is live, switching to a <b>Credit received</b>{" "}
+        badge once credit is marked received.
       </p>
       <ul>
         <li>
@@ -207,32 +207,39 @@ export function CellsSection() {
           <b>PacBio report</b> — comes first, because the case number PacBio issues feeds the internal report.{" "}
           <b>Add case number</b> records the case number from the quality log you raise, and moves the cell off the{" "}
           <b>Unreported</b> filter on the Cells page. <b>Generate email…</b> drafts an email to PacBio support in
-          your own email client, addressed to Pacific Biosciences (cc&apos;d to your PacBio contact) and prefilled
+          your own email client, addressed to Pacific Biosciences (cc&apos;d to your PacBio contact and the Revio updates
+          list) and prefilled
           with the affected sample ID, run, instrument and date (taken from the Failed use, or the most recent use if
           the cell was Stopped without one). It identifies the cell by its customer sample rather than our internal
           well code, which PacBio can&apos;t match. Review the draft — including who it&apos;s addressed to — before
           sending.
         </li>
         <li>
-          <b>Internal report</b> — <b>Add link</b> saves a link to your own internal write-up of the failure (e.g. a
-          Google Sheet row or doc) and completes this stage. <b>Generate report ▾</b> opens a small menu with two
-          ways to hand the failure to the issue-tracking sheet: <b>Copy to clipboard</b> copies one tab-separated
+          <b>Internal report</b> — <b>Add report ID</b> records the ID your internal write-up of the failure is filed
+          under (e.g. <b>26_NC_S_004</b>) and completes this stage. <b>Generate report ▾</b> opens a small menu with
+          two ways to hand the failure to the issue-tracking sheet: <b>Copy to clipboard</b> copies one tab-separated
           row you can paste straight in as a new line, and <b>Download CSV</b> saves the same report as a file (a
           header row plus a value row). Either way a popup confirms it worked and shows every column and value it
           filled in — the occurrence date, the problem statement (run, well and use number of the failed cell), the
           PacBio case number, the sample id, and the instrument&apos;s asset number and location — so you can check
           it before pasting. If your browser blocks the automatic copy, that same popup lets you select and copy the
-          values by hand. Once a link is saved, a <b>View report</b> link appears under the stage.
+          values by hand. Once an ID is saved, it appears as <b>Report …</b> under the stage.
         </li>
         <li>
-          <b>Credit confirmed</b> — <b>Mark as confirmed</b> once PacBio has confirmed a credit will be issued for
-          that case.
+          <b>Credit confirmed</b> — once PacBio confirms how many acquisitions they will credit, enter that number
+          and press <b>Record credit</b>. The count is shown under the stage (e.g. <b>2 acquisitions credited</b>).
         </li>
         <li>
           <b>Credit received</b> — <b>Mark as received in lab</b> once the credit has physically landed. Until this
           is done, the cell shows on the <b>Awaiting credit</b> filter on the Cells page.
         </li>
       </ul>
+      <p>
+        <b>Case notes</b> — a free-text note sits under the tracker&apos;s action panel and can be added or edited at{" "}
+        <b>any stage</b>, from Failure through Credit received. Type your note and press <b>Save note</b> (it reads{" "}
+        <b>Update note</b> once one exists); it&apos;s kept with the case as it moves through the workflow. (On the QC
+        worklist, expand a row with the <b>▸</b> to edit its note.)
+      </p>
     </div>
   );
 }

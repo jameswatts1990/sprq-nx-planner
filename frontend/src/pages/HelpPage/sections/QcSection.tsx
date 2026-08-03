@@ -64,9 +64,9 @@ export function QcSection() {
           where the case is now.
         </li>
         <li>
-          The <b>next action, inline</b>: paste the PacBio <b>case number</b>, add the <b>internal report link</b>,{" "}
-          <b>Mark as confirmed</b>, or <b>Mark as received in lab</b> — whichever the case needs next, done without
-          leaving the page. The list updates itself and the case moves to the next group.
+          The <b>next action, inline</b>: paste the PacBio <b>case number</b>, add the <b>internal report ID</b>,
+          record the <b>acquisitions credited</b>, or <b>Mark as received in lab</b> — whichever the case needs next,
+          done without leaving the page. The list updates itself and the case moves to the next group.
         </li>
       </ul>
       <p>

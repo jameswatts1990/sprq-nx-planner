@@ -236,7 +236,7 @@ function buildCreditEmail(cell: CellDetailOut): { to: string; cc: string; subjec
   const runDate = use ? formatDateTime(use.started_at ?? use.completed_at) : "—";
 
   const to = "Pacific Biosciences <support@pacificbiosciences.com>";
-  const cc = "Johnathan Smith <jsmith@pacificbiosciences.com>";
+  const cc = "Johnathan Smith <jsmith@pacificbiosciences.com>, revio-updates@sanger.ac.uk";
   const subject = `SMRT Cell issue – ${run}`;
   const body = [
     `Cell issue on sample ${sample}, run ${run}, ${instrument}, ${runDate}.`,
@@ -274,7 +274,14 @@ export interface CreditCaseActionsProps {
 export function CreditCaseActions({ cell, detail, compact = false }: CreditCaseActionsProps) {
   const queryClient = useQueryClient();
   const [caseNumber, setCaseNumber] = useState("");
-  const [link, setLink] = useState("");
+  const [reportId, setReportId] = useState("");
+  const [acquisitions, setAcquisitions] = useState("");
+  // Seeded from the cell so the editor shows the saved note; re-synced when the persisted
+  // value changes (e.g. after a save invalidates and the cell prop refreshes).
+  const [creditNotes, setCreditNotes] = useState(cell.credit_notes ?? "");
+  useEffect(() => {
+    setCreditNotes(cell.credit_notes ?? "");
+  }, [cell.credit_notes]);
 
   const invalidate = () => invalidateScheduleRelated(queryClient);
 
@@ -288,10 +295,10 @@ export function CreditCaseActions({ cell, detail, compact = false }: CreditCaseA
   });
 
   const internalReportMutation = useMutation({
-    mutationFn: (url: string) => cellsApi.setInternalReport(cell.id, { link: url }),
+    mutationFn: (id: string) => cellsApi.setInternalReport(cell.id, { report_id: id }),
     onSuccess: () => {
       invalidate();
-      setLink("");
+      setReportId("");
     },
   });
   const reportMutation = useMutation({
@@ -302,7 +309,14 @@ export function CreditCaseActions({ cell, detail, compact = false }: CreditCaseA
     },
   });
   const confirmCreditMutation = useMutation({
-    mutationFn: () => cellsApi.confirmCredit(cell.id),
+    mutationFn: (count: number) => cellsApi.confirmCredit(cell.id, { acquisitions: count }),
+    onSuccess: () => {
+      invalidate();
+      setAcquisitions("");
+    },
+  });
+  const creditNotesMutation = useMutation({
+    mutationFn: (notes: string) => cellsApi.setCreditNotes(cell.id, { notes: notes || null }),
     onSuccess: invalidate,
   });
   const receiveCreditMutation = useMutation({
@@ -355,24 +369,24 @@ export function CreditCaseActions({ cell, detail, compact = false }: CreditCaseA
         <>
           {!compact && (
             <div className={styles.actionLead}>
-              Raise the internal report (now that you have the PacBio case number), then link it here.
+              Raise the internal report (now that you have the PacBio case number), then record its report ID here.
               {detail && " Generate report copies the issue row to your clipboard or downloads it as a CSV."}
             </div>
           )}
           <div className={styles.actionRow}>
             <input
-              type="url"
+              type="text"
               className={styles.input}
-              value={link}
-              onChange={(e) => setLink(e.target.value)}
-              placeholder="Paste report link (Google Sheet / doc)…"
+              value={reportId}
+              onChange={(e) => setReportId(e.target.value)}
+              placeholder="Report ID, e.g. 26_NC_S_004"
             />
             <Button
               variant="primary"
-              onClick={() => internalReportMutation.mutate(link.trim())}
-              disabled={!link.trim() || internalReportMutation.isPending}
+              onClick={() => internalReportMutation.mutate(reportId.trim())}
+              disabled={!reportId.trim() || internalReportMutation.isPending}
             >
-              {internalReportMutation.isPending ? "Saving…" : "Add link"}
+              {internalReportMutation.isPending ? "Saving…" : "Add report ID"}
             </Button>
             {detail && <GenerateReportMenu fields={reportFields} cellCode={cell.code} />}
           </div>
@@ -380,20 +394,31 @@ export function CreditCaseActions({ cell, detail, compact = false }: CreditCaseA
       )}
 
       {currentKey === "confirmed" && (
-        <div className={styles.actionRow}>
-          <Button
-            variant="primary"
-            onClick={() => confirmCreditMutation.mutate()}
-            disabled={confirmCreditMutation.isPending}
-          >
-            {confirmCreditMutation.isPending ? "Marking…" : "Mark as confirmed"}
-          </Button>
-          {detail && (
-            <a className="btn ghost" href={emailHref}>
-              Generate email…
-            </a>
+        <>
+          {!compact && (
+            <div className={styles.actionLead}>
+              Record how many acquisitions PacBio confirmed they will credit for this case.
+            </div>
           )}
-        </div>
+          <div className={styles.actionRow}>
+            <input
+              type="number"
+              min={1}
+              step={1}
+              className={`${styles.input} ${styles.inputNarrow}`}
+              value={acquisitions}
+              onChange={(e) => setAcquisitions(e.target.value)}
+              placeholder="Acquisitions credited, e.g. 1"
+            />
+            <Button
+              variant="primary"
+              onClick={() => confirmCreditMutation.mutate(Number(acquisitions))}
+              disabled={!(Number(acquisitions) >= 1) || confirmCreditMutation.isPending}
+            >
+              {confirmCreditMutation.isPending ? "Saving…" : "Record credit"}
+            </Button>
+          </div>
+        </>
       )}
 
       {currentKey === "received" && (
@@ -410,8 +435,47 @@ export function CreditCaseActions({ cell, detail, compact = false }: CreditCaseA
 
       {allDone && (
         <Note tone="good" icon="✓">
-          Credit received in lab{cell.pacbio_case_number ? ` — case ${cell.pacbio_case_number}` : ""}. This case is
-          closed.
+          Credit received in lab{cell.pacbio_case_number ? ` — case ${cell.pacbio_case_number}` : ""}
+          {cell.credit_acquisitions
+            ? ` (${cell.credit_acquisitions} acquisition${cell.credit_acquisitions === 1 ? "" : "s"} credited)`
+            : ""}
+          . This case is closed.
+        </Note>
+      )}
+
+      {/* Case notes: editable at any stage from failure through credit received, kept
+          across steps. Only on the full tracker - the compact QC rows stay tight; expand a
+          row to edit its note. */}
+      {!compact && (
+        <div className={styles.notesBlock}>
+          <label className={styles.notesLabel} htmlFor={`credit-notes-${cell.id}`}>
+            Case notes
+          </label>
+          <textarea
+            id={`credit-notes-${cell.id}`}
+            className={styles.notesArea}
+            value={creditNotes}
+            onChange={(e) => setCreditNotes(e.target.value)}
+            placeholder="Add a note about this credit case (optional)…"
+            rows={2}
+          />
+          <div className={styles.actionRow}>
+            <Button
+              variant="ghost"
+              onClick={() => creditNotesMutation.mutate(creditNotes.trim())}
+              disabled={creditNotes.trim() === (cell.credit_notes ?? "") || creditNotesMutation.isPending}
+            >
+              {creditNotesMutation.isPending ? "Saving…" : cell.credit_notes ? "Update note" : "Save note"}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {creditNotesMutation.isError && (
+        <Note tone="bad" icon="!">
+          {creditNotesMutation.error instanceof ApiError
+            ? creditNotesMutation.error.message
+            : "Failed to save case note."}
         </Note>
       )}
 
@@ -419,7 +483,7 @@ export function CreditCaseActions({ cell, detail, compact = false }: CreditCaseA
         <Note tone="bad" icon="!">
           {internalReportMutation.error instanceof ApiError
             ? internalReportMutation.error.message
-            : "Failed to save internal report link."}
+            : "Failed to save internal report."}
         </Note>
       )}
       {reportMutation.isError && (
