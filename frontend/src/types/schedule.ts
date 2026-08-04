@@ -10,15 +10,18 @@ import type { CycleStatus } from "./common";
 
 export type MaxUses = 1 | 2 | 3;
 export type RunTimeHours = 12 | 24 | 30;
-/** The two auto-schedule strategies the UI surfaces, stored as the engine's own mode
- * names so they pass straight through to /api/auto-fill (which still accepts the wider
- * legacy set - see backend/app/schemas/run.py). The UI labels them "Fastest" and
- * "Efficient" respectively (see RunDesignFields.OBJECTIVE_OPTIONS):
+/** The auto-schedule strategies the UI surfaces, stored as the engine's own mode names so
+ * they pass straight through to /api/auto-fill (which still accepts the wider legacy set -
+ * see backend/app/schemas/run.py). The UI labels them "Fastest", "Efficient" and "By order"
+ * (see RunDesignFields.OBJECTIVE_OPTIONS):
  *   - "utilisation" ("Fastest"): open enough distinct fresh cells to fill the tray so
  *     every sample starts as soon as possible - each cell then carries an expiry timer.
  *   - "fewest" ("Efficient"): reuse a cell to its Max-uses depth before opening the next,
- *     so fewer cells have a running 108h window at once. */
-export type Objective = "fewest" | "utilisation";
+ *     so fewer cells have a running 108h window at once.
+ *   - "order" ("By order"): place samples strictly in the sequence they were uploaded, and
+ *     within each upload the order their rows appeared in the CSV (fills the grid day-by-day
+ *     in that sequence; ignores priority). Uses the same fill-a-tray cell choice as "Fastest". */
+export type Objective = "fewest" | "utilisation" | "order";
 /** Per-day cap on how many samples auto-fill may schedule on one instrument: 4 = one sample
  * plate, 8 = two. A cap on samples, NOT a cell-tray count - the samples run on cells drawn from
  * whatever tray(s) are loaded (either carousel bay). Surfaced in the UI as "Plates per run". */

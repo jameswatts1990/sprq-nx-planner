@@ -312,12 +312,16 @@ export function ScheduleSection() {
         </dd>
         <dt>Optimise for</dt>
         <dd>
-          Two strategies. <b>Fastest</b> spreads samples across as many fresh cells as it takes to fill a whole
+          Three strategies. <b>Fastest</b> spreads samples across as many fresh cells as it takes to fill a whole
           tray, so every sample can start as soon as possible — but each of those cells then has its 108-hour expiry
           clock running. Example: 4 samples over 4 days go onto one tray, one per well (A01–D01). <b>Efficient</b>{" "}
           instead reuses one cell up to your <b>Max uses</b> depth before opening the next, keeping fewer cells&apos;
           expiry clocks running at once. Same example: cell 1 runs on Mon, Tue and Wed (its Use 1/2/3), then cell 2
-          starts on Thu — so only one cell is &quot;live&quot; at a time.
+          starts on Thu — so only one cell is &quot;live&quot; at a time. <b>By order</b> fills the grid strictly in
+          the sequence samples were <b>uploaded</b> — and within each upload, the order their rows appeared in the CSV
+          (so two files imported as A then B schedule as A1, A2, A3… then B1, B2, B3…). It <b>ignores priority</b> and
+          the usual Container-ID ordering — the point is to honour exactly the order you gave — and otherwise fills
+          trays the same way <b>Fastest</b> does.
         </dd>
         <dt>Plates per run (1 plate / 2 plates)</dt>
         <dd>

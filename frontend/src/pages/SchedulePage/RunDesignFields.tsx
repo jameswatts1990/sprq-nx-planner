@@ -45,13 +45,16 @@ const MAX_USES_OPTIONS = [
   { value: 2 as MaxUses, label: "2×" },
   { value: 3 as MaxUses, label: "3×" },
 ];
-/** Two strategies only. The stored `value` is the engine mode name (see Objective in
+/** Three strategies. The stored `value` is the engine mode name (see Objective in
  * types/schedule.ts); the `label` is what the lab user reads. "Fastest" fills a whole
  * tray so every sample starts sooner (each cell then has a running expiry timer);
- * "Efficient" reuses a cell to depth before opening the next, so fewer cells expire. */
+ * "Efficient" reuses a cell to depth before opening the next, so fewer cells expire;
+ * "By order" fills the grid strictly in upload/CSV sequence (ignoring priority), using
+ * the same fill-a-tray cell choice as "Fastest". */
 const OBJECTIVE_OPTIONS = [
   { value: "utilisation" as Objective, label: "Fastest", hint: "fill trays, start sooner" },
   { value: "fewest" as Objective, label: "Efficient", hint: "reuse cells, limit expiry" },
+  { value: "order" as Objective, label: "By order", hint: "upload / CSV sequence" },
 ];
 const PLATES_PER_RUN_OPTIONS = [
   { value: 4 as CellsPerDay, label: "1 plate", hint: "up to 4 samples/day" },

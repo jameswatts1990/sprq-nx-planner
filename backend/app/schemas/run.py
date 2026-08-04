@@ -224,7 +224,9 @@ class AutoFillRequest(BaseModel):
     # samples are confined to cell 1 and 30h samples to cell 4 - see auto_fill_service and
     # engine/slot_scheduling.fill_slots.
     movie_times: list[Literal[12, 24, 30]] = Field(default_factory=lambda: [24], min_length=1)
-    objective: Literal["fewest", "balance", "fastest", "utilisation"] = "fewest"
+    # "order" = "By Order": schedule strictly in upload/CSV sequence (ascending sample id),
+    # borrowing "utilisation"'s fill-a-tray-before-reusing cell choice. See engine/packing.py.
+    objective: Literal["fewest", "balance", "fastest", "utilisation", "order"] = "fewest"
     # 4 = one tray (Plate 1 only, up to 4 wells/day); 8 = both trays (up to 8 wells/day).
     # Caps how many wells auto-fill uses per acquisition day - see slot_scheduling.fill_slots.
     # A reuse run emerges from selecting consecutive days with cells_per_day=4 + max_uses>=2

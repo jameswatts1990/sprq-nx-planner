@@ -196,6 +196,18 @@ def _pool_rows(cell_use: CellUse, cycle: Cycle, serial: str) -> list[dict[str, s
     return rows
 
 
+# Leading characters that make a spreadsheet treat a cell as a live formula. User- and
+# import-controlled fields (sample/run names, barcodes, priority) flow into the exported
+# rows, so any value starting with one of these is prefixed with a single quote to force
+# the spreadsheet to read it as text - defeating CSV formula injection when the export is
+# pasted into the lab's Google Sheet.
+_FORMULA_LEADS = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _csv_safe(value: str) -> str:
+    return "'" + value if value and value[0] in _FORMULA_LEADS else value
+
+
 def build_schedule_csv(
     db: Session,
     date_from: date | None = None,
@@ -226,6 +238,6 @@ def build_schedule_csv(
         serial = cycle.run_batch.instrument.serial_number if cycle.run_batch and cycle.run_batch.instrument else ""
         for cell_use in sorted(cycle.cell_uses, key=lambda cu: cu.well):
             for values in _pool_rows(cell_use, cycle, serial):
-                writer.writerow([values.get(key, "") for _, key in TRACKER_COLUMNS])
+                writer.writerow([_csv_safe(values.get(key, "")) for _, key in TRACKER_COLUMNS])
 
     return buf.getvalue()

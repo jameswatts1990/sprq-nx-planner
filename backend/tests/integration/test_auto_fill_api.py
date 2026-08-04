@@ -558,6 +558,36 @@ def test_auto_fill_prioritizes_higher_priority_sample_over_wells_scarcity(client
     assert w9_id in body["placed_sample_ids"]
 
 
+def test_auto_fill_by_order_fills_grid_in_upload_and_csv_sequence(client):
+    """"By Order" objective: samples schedule strictly in the sequence they were uploaded,
+    and within each upload in CSV row order. Two files imported A (A1-A4) then B (B1-B4),
+    auto-filled one-tray-per-day (cells_per_day=4) across a week, must fill Monday with
+    A1..A4 (wells A01-D01 in order) and Tuesday - the same 4 cells' reuse - with B1..B4,
+    never interleaved or priority/ID reordered."""
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bca1\nA2,bca2\nA3,bca3\nA4,bca4"})
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nB1,bcb1\nB2,bcb2\nB3,bcb3\nB4,bcb4"})
+    week = _next_working_week()
+
+    resp = _auto_fill(
+        client,
+        [{"instrument_serial": "84047", "load_date": d} for d in week],
+        objective="order",
+        max_uses=3,
+        cells_per_day=4,
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert len(body["placed_sample_ids"]) == 8
+    assert body["unplaced_sample_ids"] == []
+
+    runs_by_day = {r["load_date"]: r for r in body["runs"]}
+    mon_stages = sorted(_stages(runs_by_day[week[0]]), key=lambda s: s["well"])
+    tue_stages = sorted(_stages(runs_by_day[week[1]]), key=lambda s: s["well"])
+    # Monday = the first upload in CSV order (A01-D01), Tuesday = the second upload.
+    assert [s["sample_external_id"] for s in mon_stages] == ["A1", "A2", "A3", "A4"]
+    assert [s["sample_external_id"] for s in tue_stages] == ["B1", "B2", "B3", "B4"]
+
+
 def test_auto_fill_rejects_weekend_cell(client):
     client.post("/api/imports", json={"raw_text": SIX_DISJOINT})
     resp = _auto_fill(client, [{"instrument_serial": "84047", "load_date": _next_saturday()}])

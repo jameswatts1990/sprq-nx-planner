@@ -379,6 +379,35 @@ def test_pack_movie_constraint_yields_to_priority():
     assert by_id["C2"] == "S12"
 
 
+def test_pack_by_order_schedules_strictly_by_upload_and_csv_sequence():
+    # "By Order" ignores priority and the Container-ID/movie ordering entirely and processes
+    # samples in ascending DB id - which import_service assigns per row in upload/CSV order.
+    # The later-uploaded sample here (higher id) is High priority and its Container ID sorts
+    # first, so every other objective would process it first; "order" must still take the
+    # earlier-uploaded one (lower id) first. max_uses=1 -> one fresh cell each, so cell-creation
+    # order (C1, C2) reveals processing order. Input is reversed so this only passes if the sort
+    # actually reorders by id, not by coincidentally preserving input order.
+    first_uploaded = ParsedSample(id="ZZZ", barcodes=["bc1"], priority="Standard (3)", key="a", sample_id=1)
+    later_uploaded = ParsedSample(id="AAA", barcodes=["bc2"], priority="High (1)", key="b", sample_id=2)
+    result = pack_cells([later_uploaded, first_uploaded], max_uses=1, objective="order")
+    by_cell = {c.id: c.uses[0].sample_id for c in result.cells}
+    assert by_cell["C1"] == 1  # earlier upload first, despite lower priority and earlier-sorting id
+    assert by_cell["C2"] == 2
+
+
+def test_pack_by_order_fills_a_whole_tray_before_reusing_like_utilisation():
+    # "By Order" borrows utilisation's cell choice: open cells_per_day distinct fresh cells
+    # before any 2nd use, so a day's wells fill with the first uploaded samples in sequence
+    # rather than deepening one cell down a single column. 8 samples, cells_per_day=4 -> 4 cells
+    # at 2 uses each, and the first tray's 4 cells hold the first 4 uploaded samples' first uses.
+    samples = [ParsedSample(id=f"S{i}", barcodes=[f"bc{i}"], key=f"k{i}", sample_id=i) for i in range(1, 9)]
+    result = pack_cells(samples, max_uses=3, objective="order", cells_per_day=4)
+    assert len(result.cells) == 4
+    assert sorted((len(c.uses) for c in result.cells), reverse=True) == [2, 2, 2, 2]
+    first_uses = [c.uses[0].sample_id for c in sorted(result.cells, key=lambda c: int(c.id[1:]))]
+    assert first_uses == [1, 2, 3, 4]
+
+
 def test_pack_keeps_a_small_insert_sample_off_a_reusable_prior_cell():
     # A prior cell has capacity and a disjoint barcode, so reuse-before-new would normally
     # place the sample on it - but a small-insert (<= threshold) library must take a FIRST use

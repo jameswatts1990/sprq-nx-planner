@@ -81,16 +81,24 @@ function buildReportFields(cell: CellDetailOut, instrument: InstrumentOut | unde
   ];
 }
 
+/** Force a spreadsheet to read a value as text, not a live formula: any field starting with a
+ * formula lead-in (= + - @, or a tab/CR) is prefixed with a single quote. Report fields carry
+ * user- and instrument-record-controlled values (case number, sample ID, asset/location), so
+ * this defeats CSV formula injection when the report is pasted into the lab's tracking sheet. */
+function csvSafe(value: string): string {
+  return /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
+}
+
 /** One tab-separated row of the report values - tabs land in separate cells when pasted into a
  * spreadsheet, so it appends as a single new row under the sheet's existing column headers. */
 function reportRowTsv(fields: ReportField[]): string {
-  return fields.map((f) => f.value).join("\t");
+  return fields.map((f) => csvSafe(f.value)).join("\t");
 }
 
 /** A standalone CSV (header row + value row) for download - RFC-4180 quoting so commas, quotes,
  * and newlines inside a field (e.g. the manager-notification column) survive intact. */
 function reportCsv(fields: ReportField[]): string {
-  const esc = (s: string) => `"${s.replace(/"/g, '""')}"`;
+  const esc = (s: string) => `"${csvSafe(s).replace(/"/g, '""')}"`;
   const headers = fields.map((f) => esc(f.label)).join(",");
   const values = fields.map((f) => esc(f.value)).join(",");
   return `${headers}\r\n${values}\r\n`;

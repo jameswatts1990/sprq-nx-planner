@@ -157,8 +157,15 @@ def pack_cells(
     Once that many fresh cells are open, it behaves exactly like "fastest" (least-used
     first) to round-robin further depth evenly across them.
 
+    "order" ("By Order") is a different axis: it doesn't change the reuse tie-break at all
+    (it borrows "utilisation"'s fill-a-whole-tray-before-reusing cell choice, so the grid
+    fills day-by-day in sequence rather than deepening one cell across days) - what it
+    changes is the SAMPLE processing order below, to strict upload/CSV sequence.
+
     Samples are processed in priority order first (see `priority_rank`) - that's the
-    ruling factor and always wins. Within equal priority, position-constrained movie lengths
+    ruling factor and always wins (EXCEPT under "order", which ignores priority and the
+    movie/Container-ID keys entirely and schedules strictly in upload/CSV sequence - see
+    the `by_order` branch). Within equal priority, position-constrained movie lengths
     (12h -> cell 1, 30h -> cell 4) are processed before flexible 24h samples (see
     `_movie_constraint_rank`), so they claim their required well first; movie length then
     gives way to External ID sequence (natural/numeric-aware, case-insensitive - see
@@ -182,6 +189,14 @@ def pack_cells(
     reuse."""
     cap = max_uses if available_days is None else min(max_uses, available_days)
 
+    # "By Order": schedule strictly in the sequence samples were uploaded and, within each
+    # upload, the order their rows appeared in the CSV. For cell CHOICE it behaves exactly like
+    # "utilisation" (fill a whole tray of fresh cells before reusing any), so the grid fills
+    # day-by-day in that same order instead of deepening one cell across days; only the SAMPLE
+    # ordering below differs. `cell_objective` is what the reuse tie-break / withholding read.
+    by_order = objective == "order"
+    cell_objective = "utilisation" if by_order else objective
+
     deg: dict[str, int] = {s.key: 0 for s in samples}
     for i in range(len(samples)):
         for j in range(i + 1, len(samples)):
@@ -189,18 +204,28 @@ def pack_cells(
                 deg[samples[i].key] += 1
                 deg[samples[j].key] += 1
 
-    ordered = sorted(
-        samples,
-        key=lambda s: (
-            priority_rank(s.priority),
-            _movie_constraint_rank(s.movie_time),
-            external_id_sort_key(s.id),
-            s.created_at or _EPOCH,
-            -len(s.barcodes),
-            -deg[s.key],
-            s.id,
-        ),
-    )
+    if by_order:
+        # Ascending DB primary key IS "upload order, then CSV row order within each upload":
+        # import_service inserts a batch's rows in file order (each flushed as it's created, so
+        # its id is assigned then) and a later import gets higher ids - so id order is exactly
+        # "CSV A rows 1..n, then CSV B rows 1..n". Priority and the movie/Container-ID keys are
+        # deliberately ignored - honouring the user's own sequence is the whole point of this
+        # mode. sample_id is always set on the auto-fill path (real DB rows); the `is None`
+        # guard only orders in-memory samples (e.g. a preview) deterministically and last.
+        ordered = sorted(samples, key=lambda s: (s.sample_id is None, s.sample_id or 0))
+    else:
+        ordered = sorted(
+            samples,
+            key=lambda s: (
+                priority_rank(s.priority),
+                _movie_constraint_rank(s.movie_time),
+                external_id_sort_key(s.id),
+                s.created_at or _EPOCH,
+                -len(s.barcodes),
+                -deg[s.key],
+                s.id,
+            ),
+        )
 
     cells: list[PackedCell] = []
     for i, pc in enumerate(prior_cells or []):
@@ -264,14 +289,17 @@ def pack_cells(
             # fall through to opening a fresh cell below (still a first use) - never a reuse.
             and (not s_small or _cell_is_first_use(c))
         ]
-        if objective == "utilisation" and sum(1 for c in cells if not c.prior) < utilisation_width:
+        if cell_objective == "utilisation" and sum(1 for c in cells if not c.prior) < utilisation_width:
             # Not enough distinct fresh cells open yet to fill a whole instrument-day -
             # refuse to deepen an existing fresh cell and fall through to opening another
             # one instead. Prior (reuse) cells are unaffected: reuse-before-new-cell still
             # wins regardless of objective (see docs/pacbio-sprq-nx-scheduling-reference.md #5).
             cands = [c for c in cands if c.prior]
         cands.sort(
-            key=lambda c: (0 if c.prior else 1, len(c.uses) if objective in ("fastest", "utilisation") else -len(c.uses))
+            key=lambda c: (
+                0 if c.prior else 1,
+                len(c.uses) if cell_objective in ("fastest", "utilisation") else -len(c.uses),
+            )
         )
 
         if cands:
