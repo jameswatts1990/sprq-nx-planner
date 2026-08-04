@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/Button";
 import { Modal, ModalActions } from "@/components/ui/Modal";
 import { Note } from "@/components/ui/Note";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
+import { smallInsertReuseWarning, useInsertSizeThreshold } from "@/hooks/useInsertSizeThreshold";
 import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
 import { SampleModal } from "@/pages/SampleModal";
 import type { RunOut, RunTimeHours, StageOut } from "@/types/schedule";
@@ -131,6 +132,9 @@ function SlotDetailBody({
 }: SlotDetailPopoverProps & { nav: SlotNav }) {
   const queryClient = useQueryClient();
   const backNav = useSampleBackNav();
+  const insertThreshold = useInsertSizeThreshold();
+  const smallOnReuse =
+    stage.use_number >= 2 && stage.insert_size_bp != null && stage.insert_size_bp <= insertThreshold;
   // Editable placement note. `savedNotes` tracks the last persisted value so the Save button
   // can tell dirty from clean - the `stage` prop is captured at click time and isn't refreshed
   // in place after the mutation.
@@ -270,6 +274,13 @@ function SlotDetailBody({
         <Note tone="info" icon="i">
           This cell was already used by <b>another copy of the same Container ID</b>. Reusing it is fine — it&apos;s
           the same underlying sample either way, so there&apos;s no cross-sample contamination risk.
+        </Note>
+      )}
+      {smallOnReuse && (
+        <Note tone="warn" icon="!">
+          {smallInsertReuseWarning(insertThreshold)} This is a small-insert library (
+          {stage.insert_size_bp?.toLocaleString()} bp) on <b>Use {stage.use_number}</b> of its cell — Auto Schedule
+          keeps small inserts on a first use.
         </Note>
       )}
       <div className={styles.details}>

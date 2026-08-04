@@ -41,6 +41,7 @@ def create_backlog_sample(
     priority: str | None = None,
     base_kinetics: str | None = None,
     movie_time_hours: int | None = None,
+    insert_size_bp: int | None = None,
     import_batch_id: int | None = None,
 ) -> Sample:
     """Insert one backlog Sample + its barcodes. Does NOT commit — the caller owns the
@@ -70,6 +71,7 @@ def create_backlog_sample(
         priority=priority or defaults["priority"],
         base_kinetics=base_kinetics if base_kinetics is not None else defaults["base_kinetics"],
         movie_time_hours=coerce_movie_hours(movie_time_hours),
+        insert_size_bp=insert_size_bp,
         status="backlog",
     )
     db.add(sample)
@@ -95,6 +97,7 @@ def update_backlog_sample(
     priority: str | None = None,
     base_kinetics: str | None = None,
     movie_time_hours: int | None = None,
+    insert_size_bp: int | None = None,
 ) -> Sample:
     """Overwrite an existing backlog Sample's editable fields and replace its barcode set.
     The sample's identity (external_id / Container ID) is intentionally left untouched.
@@ -111,6 +114,7 @@ def update_backlog_sample(
     sample.priority = priority or None
     sample.base_kinetics = base_kinetics or None
     sample.movie_time_hours = coerce_movie_hours(movie_time_hours)
+    sample.insert_size_bp = insert_size_bp
 
     # Replace barcodes. Clear + flush deletes the old rows first, so re-adding an unchanged
     # barcode doesn't collide with the uq_sample_barcode (sample_id, barcode) constraint

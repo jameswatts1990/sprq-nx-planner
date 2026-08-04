@@ -3,6 +3,7 @@ import { CellStatusCard } from "@/components/cells/CellStatusCard";
 import { TraySiblingList } from "@/components/cells/TraySiblingList";
 import { WindowMeter } from "@/components/cells/WindowMeter";
 import { DuplicateBadge } from "@/components/shared/DuplicateBadge";
+import { InsertSizeFlag } from "@/components/shared/InsertSizeFlag";
 import { UseLegend } from "@/components/shared/SectionHeading";
 import { Badge } from "@/components/ui/Badge";
 import { Note, type NoteTone } from "@/components/ui/Note";
@@ -203,6 +204,19 @@ export function LegendSection() {
           earlier copy of the same Container ID. That&apos;s allowed and expected - it&apos;s the
           same underlying sample either way, so there&apos;s no risk of one sample&apos;s reads
           being mixed up with another&apos;s. Opening the slot shows the same explanation.
+        </span>
+      </div>
+
+      <p className={styles.subheading}>Small insert flag (Backlog, Schedule)</p>
+      <div className={styles.legendRow}>
+        <span className={styles.legendSwatchLabel}>
+          <InsertSizeFlag sizeBp={3000} />
+        </span>
+        <span>
+          The sample&apos;s insert / fragment size is at or below the small-insert threshold (set in Admin →
+          Scheduling, default 5&nbsp;kb). Small inserts lose yield when a SMRT cell is re-used, so Auto Schedule keeps
+          them on a cell&apos;s first use, and a warning shows if one is placed manually on a 2nd/3rd use. The tag text
+          tracks the configured threshold.
         </span>
       </div>
 

@@ -32,6 +32,9 @@ class _SampleFieldsBase(BaseModel):
     # Desired movie / acquisition time (h). Accepted loosely (12/24/30); the service
     # normalizes anything else to the 24h default (engine.normalize.coerce_movie_hours).
     movie_time_hours: int | None = None
+    # Library insert / fragment size (bp). Optional whole number; a null means "not recorded"
+    # and never counts as small-insert for the scheduling rule / card flag.
+    insert_size_bp: int | None = None
 
     @field_validator(*_BOOL_FIELDS, mode="before")
     @classmethod
@@ -79,6 +82,7 @@ class SampleOut(BaseModel):
     priority: str | None
     base_kinetics: str | None
     movie_time_hours: int | None
+    insert_size_bp: int | None
     status: str
     # QC disposition tag ("repeatable"/"recoverable") when a Cell QC action returned this
     # sample to the backlog - drives the Backlog "Recoverable Samples" section grouping.

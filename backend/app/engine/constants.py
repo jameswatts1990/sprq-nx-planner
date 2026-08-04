@@ -25,6 +25,14 @@ REUSE_PREP_H = 0.3
 MOVIE_HOURS_CHOICES = (12, 24, 30)
 DEFAULT_MOVIE_HOURS = 24
 
+# Insert size (bp) at or below which a library is treated as "small-insert": PacBio flags
+# amplicon libraries <5 kb as risking reduced P1/HiFi yield on a cell's 2nd/3rd use, so
+# Auto Schedule keeps such samples on a cell's first use only (see
+# docs/pacbio-sprq-nx-scheduling-reference.md). This is only the built-in DEFAULT - the live
+# threshold is admin-configurable (app_settings "scheduling.insert_size_reuse_threshold_bp",
+# read via settings_service.get_insert_size_reuse_threshold and passed into pack_cells).
+DEFAULT_INSERT_SIZE_REUSE_THRESHOLD_BP = 5000
+
 # Hours added to a run's movie_hours to get the total instrument lock window (movie time
 # plus turnaround/cleanup before the instrument can start its next run).
 LOCK_BUFFER_HOURS = 6

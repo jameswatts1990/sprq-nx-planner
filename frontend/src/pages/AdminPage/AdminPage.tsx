@@ -10,6 +10,7 @@ import { Note } from "@/components/ui/Note";
 
 import { CreditEmailPanel } from "./CreditEmailPanel";
 import { SampleDefaultsPanel } from "./SampleDefaultsPanel";
+import { SchedulingPanel } from "./SchedulingPanel";
 import { TableRowsPanel } from "./TableRowsPanel";
 import styles from "./AdminPage.module.css";
 
@@ -46,6 +47,8 @@ export function AdminPage() {
   return (
     <div className={styles.page}>
       <SampleDefaultsPanel />
+
+      <SchedulingPanel />
 
       <CreditEmailPanel />
 

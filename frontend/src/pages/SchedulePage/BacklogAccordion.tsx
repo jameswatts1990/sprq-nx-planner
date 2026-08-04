@@ -8,6 +8,7 @@ import type { SampleSortBy, SampleSortDir } from "@/api/samples";
 import { samplesApi } from "@/api/samples";
 import { BarcodeChips } from "@/components/shared/BarcodeChips";
 import { DuplicateBadge } from "@/components/shared/DuplicateBadge";
+import { InsertSizeFlag } from "@/components/shared/InsertSizeFlag";
 import { sampleDragId } from "@/components/scheduler/gridKeys";
 import type { SampleDragData } from "@/components/scheduler/useSchedulerDnd";
 import { Accordion } from "@/components/ui/Accordion";
@@ -131,6 +132,7 @@ function DraggableSampleCard({ sample, onEdit }: { sample: SampleOut; onEdit: (s
         <span className={styles.movie} title="Movie / acquisition time">
           ⏱ {sample.movie_time_hours ?? DEFAULT_MOVIE_HOURS} h
         </span>
+        <InsertSizeFlag sizeBp={sample.insert_size_bp} />
       </div>
       <BarcodeChips barcodes={sample.barcodes} />
     </div>

@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from app.engine.constants import (
     ALL_CELL_POSITIONS,
     CELL_MAX_USES,
+    DEFAULT_INSERT_SIZE_REUSE_THRESHOLD_BP,
     WELLS,
     movie_allowed_positions,
     within_tray_pos,
@@ -56,6 +57,15 @@ def external_id_sort_key(external_id: str) -> tuple[str | int, ...]:
     return tuple(int(p) if i % 2 else p.lower() for i, p in enumerate(parts))
 
 
+def _movie_constraint_rank(movie_time: int | None) -> int:
+    """0 for a position-constrained movie length (12h -> cell 1, 30h -> cell 4), 1 for a
+    flexible one (24h, or a missing time that reads as the 24h default). Ordering constrained
+    samples first lets them claim their required well before a flexible 24h sample takes it -
+    the same "most-constrained first" idea slot_scheduling already uses when laying cells onto
+    slots (engine/slot_scheduling.py)."""
+    return 0 if movie_allowed_positions(movie_time) != ALL_CELL_POSITIONS else 1
+
+
 def disjoint(set_a: set[str], arr_b: list[str]) -> bool:
     return not any(b in set_a for b in arr_b)
 
@@ -95,6 +105,13 @@ def cell_allowed_positions(c: PackedCell) -> frozenset[int]:
     return positions
 
 
+def _cell_is_first_use(c: PackedCell) -> bool:
+    """True if adding a sample to this cell would be its very FIRST use - no uses consumed on a
+    prior real cell and none assigned yet this batch. Small-insert libraries are restricted to
+    first uses only (see pack_cells)."""
+    return (c.uses_consumed or 0) + len(c.uses) == 0
+
+
 def pack_cells(
     samples: list[ParsedSample],
     max_uses: int,
@@ -102,6 +119,7 @@ def pack_cells(
     prior_cells: list[PriorCellInput] | None = None,
     available_days: int | None = None,
     cells_per_day: int | None = None,
+    insert_size_reuse_threshold: int = DEFAULT_INSERT_SIZE_REUSE_THRESHOLD_BP,
 ) -> PackResult:
     """`max_uses` is this batch's target packing depth: how many TOTAL uses to plan onto a
     cell before moving on - the user's explicit choice, always honored in full. It bounds
@@ -140,8 +158,10 @@ def pack_cells(
     first) to round-robin further depth evenly across them.
 
     Samples are processed in priority order first (see `priority_rank`) - that's the
-    ruling factor and always wins. Within equal priority, samples are then processed in
-    External ID sequence (natural/numeric-aware, case-insensitive - see
+    ruling factor and always wins. Within equal priority, position-constrained movie lengths
+    (12h -> cell 1, 30h -> cell 4) are processed before flexible 24h samples (see
+    `_movie_constraint_rank`), so they claim their required well first; movie length then
+    gives way to External ID sequence (natural/numeric-aware, case-insensitive - see
     `external_id_sort_key`): a lab operator prepping a plate of e.g. "Sample 12".."Sample
     19" wants those loaded and run together, not scattered across cells/days by
     coincidence of upload time. This mostly just orders *processing*, but because the
@@ -152,7 +172,14 @@ def pack_cells(
     across two import rows). The barcode-count/conflict-degree heuristic that used to be
     the primary sort only kicks in as a tie-break after all of the above now - it still
     matters there (it's a hardest-to-place-first bin-packing heuristic), just no longer
-    overrides priority or ID sequence."""
+    overrides priority or ID sequence.
+
+    A separate, HARD rule sits on top of cell CHOICE (not ordering): a small-insert library
+    (`insert_size_bp` <= `insert_size_reuse_threshold`) is only ever placed as a cell's first
+    use - PacBio flags <5 kb amplicons as losing yield on a 2nd/3rd use (see
+    docs/pacbio-sprq-nx-scheduling-reference.md). Such a sample can still open a fresh cell,
+    but never reuses one; if the day fills up it's reported unplaced rather than forced onto a
+    reuse."""
     cap = max_uses if available_days is None else min(max_uses, available_days)
 
     deg: dict[str, int] = {s.key: 0 for s in samples}
@@ -166,6 +193,7 @@ def pack_cells(
         samples,
         key=lambda s: (
             priority_rank(s.priority),
+            _movie_constraint_rank(s.movie_time),
             external_id_sort_key(s.id),
             s.created_at or _EPOCH,
             -len(s.barcodes),
@@ -219,6 +247,9 @@ def pack_cells(
     unplaced: list[ParsedSample] = []
     for s in ordered:
         s_positions = movie_allowed_positions(s.movie_time)
+        # Small-insert (<5 kb) libraries lose yield on a cell's 2nd/3rd use, so they may only
+        # land on a first use (see the docstring / docs/pacbio-sprq-nx-scheduling-reference.md).
+        s_small = s.insert_size_bp is not None and s.insert_size_bp <= insert_size_reuse_threshold
         cands = [
             c
             for c in cells
@@ -229,6 +260,9 @@ def pack_cells(
             # cell pinned to - or already holding a use pinned to - anything but cell 1). For
             # all-24h backlogs both sides are the full position set, so this never bites.
             and (cell_allowed_positions(c) & s_positions)
+            # Small-insert samples only ever take a cell's FIRST use. When none is open they
+            # fall through to opening a fresh cell below (still a first use) - never a reuse.
+            and (not s_small or _cell_is_first_use(c))
         ]
         if objective == "utilisation" and sum(1 for c in cells if not c.prior) < utilisation_width:
             # Not enough distinct fresh cells open yet to fill a whole instrument-day -

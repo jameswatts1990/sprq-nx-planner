@@ -7,6 +7,7 @@ import { schedulerApi } from "@/api/schedulerGrid";
 import type { NoteTone } from "@/components/ui/Note";
 import type { GridSelection } from "@/components/scheduler/useGridSelection";
 import type { SlotSelection } from "@/components/scheduler/useSlotSelection";
+import { smallInsertReuseWarning, useInsertSizeThreshold } from "@/hooks/useInsertSizeThreshold";
 import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
 import type { RunOut, SlotIndex, StageOut } from "@/types/schedule";
 import type { GridCellRef, RunDesignState } from "@/types/schedulerGrid";
@@ -23,7 +24,7 @@ export interface AccordionNote {
  * RunOut.effective_start_at and StageOut.reuse_not_ready_hours), never on the plain grid feed,
  * so this must run off the mutation's own response rather than any later-refetched data. null
  * when neither applies. */
-function placementAdvisoryText(run: RunOut): string | null {
+function placementAdvisoryText(run: RunOut, insertThreshold: number): string | null {
   const parts: string[] = [];
   if (run.starts_later_than_requested && run.effective_start_at) {
     const plate1 = run.plates.find((p) => p.plate_index === 1) ?? run.plates[0];
@@ -42,6 +43,12 @@ function placementAdvisoryText(run: RunOut): string | null {
       `A reused cell in this run is scheduled about ${shortfall.toFixed(1)}h before its own wash-and-movie math says it can physically be ready.`,
     );
   }
+  // A small-insert (<= threshold) library on a cell's 2nd/3rd use. Auto Schedule avoids this
+  // outright; a manual drag/move is allowed but warned (PacBio flags reduced yield on re-use).
+  const smallOnReuse = run.plates.some((p) =>
+    p.stages.some((s) => s.use_number >= 2 && s.insert_size_bp != null && s.insert_size_bp <= insertThreshold),
+  );
+  if (smallOnReuse) parts.push(smallInsertReuseWarning(insertThreshold));
   return parts.length > 0 ? parts.join(" ") : null;
 }
 
@@ -85,6 +92,7 @@ export function useScheduleActions({
   weekPlannedStages,
 }: UseScheduleActionsArgs) {
   const queryClient = useQueryClient();
+  const insertThreshold = useInsertSizeThreshold();
 
   const [runDesignNote, setRunDesignNote] = useState<AccordionNote | null>(null);
   const [removeSlotsError, setRemoveSlotsError] = useState<string | null>(null);
@@ -210,7 +218,7 @@ export function useScheduleActions({
     onSuccess: (run) => {
       invalidateScheduleRelated(queryClient);
       setRemoveSlotsError(null);
-      setPlacementAdvisory(placementAdvisoryText(run));
+      setPlacementAdvisory(placementAdvisoryText(run, insertThreshold));
     },
     onError: (err) => {
       setPlacementAdvisory(null);
@@ -236,7 +244,7 @@ export function useScheduleActions({
     onSuccess: (run) => {
       invalidateScheduleRelated(queryClient);
       setRemoveSlotsError(null);
-      setPlacementAdvisory(placementAdvisoryText(run));
+      setPlacementAdvisory(placementAdvisoryText(run, insertThreshold));
     },
     onError: (err) => {
       setPlacementAdvisory(null);

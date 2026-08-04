@@ -6,7 +6,7 @@ export function AdminSection() {
   return (
     <div className={styles.copy}>
       <p>
-        <b>What this tab is for:</b> the <b>Sample defaults</b> and <b>Email template</b> panels (normal, safe
+        <b>What this tab is for:</b> the <b>Sample defaults</b>, <b>Scheduling</b> and <b>Email template</b> panels (normal, safe
         settings), plus raw database inspection and cleanup tools intended for development use only. The database tools operate directly on tables
         and rows, bypassing the app&apos;s normal scheduling rules — they are not part of the shipped/live product and
         are expected to be removed or disabled before a real production launch.
@@ -21,6 +21,15 @@ export function AdminSection() {
         blank when a sample is imported — so an import that doesn&apos;t specify, say, adaptive loading gets your
         chosen default rather than a blank. Existing samples are never changed; only samples created afterwards use
         the new defaults. Unlike the database tools below, this goes through the app&apos;s normal validated path.
+      </p>
+
+      <p className={styles.subheading}>Scheduling</p>
+      <p>
+        The <b>Scheduling</b> panel sets the <b>insert-size re-use threshold</b> (in base pairs, default 5000). A
+        library whose insert size is at or below this is treated as <b>small-insert</b>: it carries a <b>[&lt;5kb]</b>{" "}
+        flag, Auto Schedule keeps it on a SMRT cell&apos;s first use, and a warning shows if it&apos;s placed by hand on
+        a re-use. Change the number and press <b>Save</b>. Existing schedules are unaffected until they&apos;re re-run;
+        the flag and warning update everywhere immediately.
       </p>
 
       <p className={styles.subheading}>Email template</p>

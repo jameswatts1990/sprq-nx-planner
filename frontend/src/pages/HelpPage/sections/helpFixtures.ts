@@ -116,6 +116,7 @@ export const STAGE_EXAMPLE_SOURCE: StageOut = {
   run_time_hours: 24,
   sample_id: 1,
   sample_external_id: "SAMPLE-101",
+  insert_size_bp: null,
   barcodes: ["bc1001"],
   cell_use_status: "completed",
   cell_status: "open",

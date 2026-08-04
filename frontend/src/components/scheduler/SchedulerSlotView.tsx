@@ -3,6 +3,7 @@ import type { CSSProperties, HTMLAttributes, MouseEvent } from "react";
 
 import { BarcodeChips } from "@/components/shared/BarcodeChips";
 import { DuplicateBadge } from "@/components/shared/DuplicateBadge";
+import { InsertSizeFlag } from "@/components/shared/InsertSizeFlag";
 import type { SlotIndex, StageOut } from "@/types/schedule";
 import { classForUseIndex } from "@/utils/useIndexClass";
 import { cellPositionLabel, plateWellFromSlot } from "@/utils/plateWell";
@@ -280,6 +281,7 @@ export const SchedulerSlotView = memo(
                 ✎
               </span>
             )}
+            <InsertSizeFlag sizeBp={stage!.insert_size_bp} />
           </div>
           {qcAlert && (
             <div

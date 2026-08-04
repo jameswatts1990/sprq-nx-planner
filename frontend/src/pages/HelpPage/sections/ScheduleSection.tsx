@@ -286,6 +286,19 @@ export function ScheduleSection() {
           hand is unaffected — it always runs for its own movie time wherever you drop it, and you can still change any
           one cell&apos;s run time afterwards from its slot popover (see <b>Run time</b> under QC actions below).
         </dd>
+        <dt>Insert size (small-insert rule)</dt>
+        <dd>
+          A sample&apos;s <b>insert / fragment size</b> can carry a <b>[&lt;5kb]</b> flag when it&apos;s at or below the
+          small-insert threshold (<b>Admin → Scheduling</b>, default 5&nbsp;kb). Small inserts lose yield when a SMRT
+          cell is re-used, so Auto Schedule <b>only ever puts a small-insert sample on a cell&apos;s first use</b> —
+          never a 2nd or 3rd use. If no fresh first use is left, it&apos;s reported <b>unplaced</b> rather than forced
+          onto a reuse. Placing one by hand is still allowed, but shows a warning:{" "}
+          <i>&quot;Samples &lt;5kb have shown reduced performance of re-uses.&quot;</i>
+          <br />
+          When it has to decide what to place first, Auto Schedule works in this order: <b>Priority</b> (High → Medium →
+          Standard), then <b>movie length</b> (12 h and 30 h samples, each tied to one cell position, go ahead of
+          flexible 24 h ones), then <b>Container ID</b> order.
+        </dd>
         <dt>Load time</dt>
         <dd>
           When a newly-created run loads and starts sequencing (there are no pre-loaded runs, so loading and

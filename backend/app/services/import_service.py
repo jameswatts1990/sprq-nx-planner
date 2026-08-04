@@ -114,6 +114,7 @@ def import_samples(db: Session, req: ImportRequest) -> ImportResult:
             priority=parsed.priority,
             base_kinetics=parsed.base_kinetics,
             movie_time_hours=parsed.movie_time,
+            insert_size_bp=parsed.insert_size_bp,
             import_batch_id=batch.id,
         )
         created.append(sample)

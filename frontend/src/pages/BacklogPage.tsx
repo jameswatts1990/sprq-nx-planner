@@ -137,6 +137,13 @@ function buildSampleColumns({ renderHeader, backNav, onEdit, onCancel, cancelPen
       header: () => renderHeader("Include base kinetics", "base_kinetics"),
       cell: (info) => info.getValue() ?? "—",
     }),
+    columnHelper.accessor("insert_size_bp", {
+      header: "Insert size (bp)",
+      cell: (info) => {
+        const v = info.getValue();
+        return v != null ? v.toLocaleString() : "—";
+      },
+    }),
     columnHelper.accessor("created_at", {
       header: () => renderHeader("Created", "created_at"),
       cell: (info) => formatDateTime(info.getValue()),

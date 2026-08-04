@@ -71,6 +71,7 @@ function valuesFromSample(sample: SampleOut): Record<string, string> {
     priority: sample.priority ?? "",
     base_kinetics: sample.base_kinetics ?? "",
     movie_time_hours: sample.movie_time_hours != null ? String(sample.movie_time_hours) : "",
+    insert_size_bp: sample.insert_size_bp != null ? String(sample.insert_size_bp) : "",
   };
 }
 
@@ -231,6 +232,7 @@ export function SampleModal({
       priority: str("priority"),
       base_kinetics: str("base_kinetics"),
       movie_time_hours: num("movie_time_hours"),
+      insert_size_bp: num("insert_size_bp"),
     };
 
     if (isEdit) {

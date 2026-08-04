@@ -13,9 +13,11 @@ from app.api.deps import ActorDep, SessionDep
 from app.models.audit import AuditLog
 from app.services.settings_service import (
     get_credit_email,
+    get_insert_size_reuse_threshold,
     get_sample_defaults,
     set_credit_email,
     set_sample_defaults,
+    set_scheduling_settings,
 )
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
@@ -108,3 +110,42 @@ def update_credit_email(
     )
     db.commit()
     return CreditEmailOut(**template)
+
+
+class SchedulingSettingsOut(BaseModel):
+    # Insert size (bp) at/below which a library is kept on a cell's first use by Auto Schedule
+    # and flagged if placed on a reuse. Read by the grid/backlog card flag and the reuse warning.
+    insert_size_reuse_threshold_bp: int
+
+
+class SchedulingSettingsUpdate(BaseModel):
+    """Optional so the client can send just what changed; omitted fields keep their stored value."""
+
+    insert_size_reuse_threshold_bp: int | None = None
+
+
+@router.get("/scheduling", response_model=SchedulingSettingsOut)
+def read_scheduling_settings(db: SessionDep) -> SchedulingSettingsOut:
+    return SchedulingSettingsOut(insert_size_reuse_threshold_bp=get_insert_size_reuse_threshold(db))
+
+
+@router.put("/scheduling", response_model=SchedulingSettingsOut)
+def update_scheduling_settings(
+    req: SchedulingSettingsUpdate, db: SessionDep, actor: ActorDep
+) -> SchedulingSettingsOut:
+    values = {k: str(v) for k, v in req.model_dump().items() if v is not None}
+    try:
+        set_scheduling_settings(db, values)
+    except ValueError as err:
+        raise HTTPException(422, str(err)) from err
+    db.add(
+        AuditLog(
+            actor=actor,
+            action="update_scheduling_settings",
+            entity_type="app_setting",
+            entity_id=0,
+            details_json=values,
+        )
+    )
+    db.commit()
+    return SchedulingSettingsOut(insert_size_reuse_threshold_bp=get_insert_size_reuse_threshold(db))

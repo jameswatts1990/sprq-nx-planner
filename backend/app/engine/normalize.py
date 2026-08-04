@@ -22,6 +22,7 @@ from app.engine.import_fields import (
     K_CLEANED_COMPLEX_VOL,
     K_EXTERNAL_ID,
     K_FULL_RES_BASE_Q,
+    K_INSERT_SIZE,
     K_LOADING_BUFFER_VOL,
     K_MOVIE_TIME,
     K_PARENT_SAMPLE,
@@ -92,6 +93,19 @@ def _parse_movie_time(raw: str | None) -> int | None:
         return None
     v = _js_parse_float(raw)
     return int(round(v)) if v is not None else None
+
+
+def _parse_insert_size(raw: str | None) -> int | None:
+    """Parse an insert-size (bp) import cell to a positive int, or None when blank/unparseable
+    or non-positive. Unlike movie time there's no fixed choice set - any positive bp value is
+    valid - and unlike the volume fields it's stored as a whole number of base pairs."""
+    if raw is None or not raw.strip():
+        return None
+    v = _js_parse_float(raw)
+    if v is None:
+        return None
+    n = int(round(v))
+    return n if n > 0 else None
 
 
 # Boolean settings fields (Adaptive Loading, Full-Resolution Base Q, Include Base Kinetics)
@@ -178,6 +192,7 @@ def normalize_with_map(data_rows: list[list[str]], column_map: dict[str, int]) -
                 priority=normalize_priority(cell(r, K_PRIORITY)) or "",
                 base_kinetics=boolean(K_BASE_KINETICS, "Include Base Kinetics"),
                 movie_time=_parse_movie_time(cell(r, K_MOVIE_TIME)),
+                insert_size_bp=_parse_insert_size(cell(r, K_INSERT_SIZE)),
                 key=f"{sample_id}#{n}",
             )
         )

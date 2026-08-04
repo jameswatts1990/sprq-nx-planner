@@ -35,6 +35,7 @@ K_FULL_RES_BASE_Q = "full_resolution_base_q"
 K_PRIORITY = "priority"
 K_BASE_KINETICS = "base_kinetics"
 K_MOVIE_TIME = "movie_time_hours"
+K_INSERT_SIZE = "insert_size_bp"
 # Loading-dilution volumes (all optional) that pre-fill the batch sheet's SOP 7.3 worksheet.
 # Importable, and also editable on the manual add/edit form like every other optional field.
 # (Control Dilution 3 is a fixed 1 µL, printed on the batch sheet, so it isn't stored here.)
@@ -90,6 +91,10 @@ IMPORTABLE_FIELDS: list[ImportField] = [
     ImportField(
         K_MOVIE_TIME, "Movie time (h)", "24", kind="number",
         aliases=("movie time", "movie length", "run time", "acquisition time", "movie"),
+    ),
+    ImportField(
+        K_INSERT_SIZE, "Insert Size (bp)", "15000", kind="number",
+        aliases=("insert size", "fragment size", "insert length", "fragment length", "insert"),
     ),
     # Loading-dilution volumes that pre-fill the batch sheet's SOP 7.3 worksheet. Optional,
     # mappable from a normal CSV and carried automatically from the scheduler sheet; aliases

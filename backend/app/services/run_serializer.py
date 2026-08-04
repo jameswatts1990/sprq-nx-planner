@@ -98,6 +98,7 @@ def _stage_out(
         run_time_hours=cell_use.run_time_hours,
         sample_id=cell_use.sample_id,
         sample_external_id=cell_use.sample.external_id if cell_use.sample else None,
+        insert_size_bp=cell_use.sample.insert_size_bp if cell_use.sample else None,
         duplicate_index=dup_index,
         duplicate_total=dup_total,
         duplicate_cell_reuse=is_duplicate_cell_reuse(cell_use),

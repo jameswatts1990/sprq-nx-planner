@@ -40,6 +40,11 @@ class Sample(Base):
     # backlog card, and the manual-placement run-time default in placement_service). New
     # rows are always written a concrete value (see engine.normalize.coerce_movie_hours).
     movie_time_hours: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Library insert / fragment size in base pairs (optional). Drives the "[<5kb]" card flag
+    # and Auto Schedule's small-insert-on-first-use rule (see engine.packing and
+    # DEFAULT_INSERT_SIZE_REUSE_THRESHOLD_BP). Nullable like every other optional import field;
+    # a null means "not recorded" and never counts as small.
+    insert_size_bp: Mapped[int | None] = mapped_column(Integer, nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="backlog", index=True)
     # QC disposition tag when a Cell QC action sends this sample back to the backlog:
     # None | "repeatable" | "recoverable". An edit-proof grouping key for the Backlog's

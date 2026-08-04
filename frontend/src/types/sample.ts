@@ -21,6 +21,9 @@ export interface SampleOut {
    * this field existed — treated as the 24 h default wherever it's shown or used as the
    * placement run-time default. */
   movie_time_hours: number | null;
+  /** Library insert / fragment size (bp). Null when not recorded; a value at/below the
+   * admin-configured threshold drives the "[<5kb]" flag and Auto Schedule's first-use rule. */
+  insert_size_bp: number | null;
   status: SampleStatus;
   /** QC disposition tag ("repeatable"/"recoverable") when a Cell QC action returned this
    * sample to the backlog - groups it into the Backlog's "Recoverable Samples" section. */
@@ -51,6 +54,7 @@ export interface SampleCreate {
   priority?: string | null;
   base_kinetics?: string | null;
   movie_time_hours?: number | null;
+  insert_size_bp?: number | null;
 }
 
 /** Edit-a-backlog-sample payload: same editable fields as create, minus the Container ID

@@ -53,6 +53,7 @@ def sample_out(
         priority=sample.priority,
         base_kinetics=sample.base_kinetics,
         movie_time_hours=sample.movie_time_hours,
+        insert_size_bp=sample.insert_size_bp,
         status=sample.status,
         qc_disposition=sample.qc_disposition,
         barcodes=sample.barcode_list,

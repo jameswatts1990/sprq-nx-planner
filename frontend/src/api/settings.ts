@@ -23,6 +23,15 @@ export interface CreditEmailTemplate {
 
 export type CreditEmailUpdate = Partial<CreditEmailTemplate>;
 
+/** Global scheduling parameters (not per-sample), editable from the Admin "Scheduling" panel.
+ * Currently just the insert-size reuse threshold: a library whose insert_size_bp is at/below
+ * this is kept on a cell's first use by Auto Schedule and flagged if placed on a reuse. */
+export interface SchedulingSettings {
+  insert_size_reuse_threshold_bp: number;
+}
+
+export type SchedulingSettingsUpdate = Partial<SchedulingSettings>;
+
 export const settingsApi = {
   getSampleDefaults: () => api.get<SampleDefaults>("/api/settings/sample-defaults"),
   updateSampleDefaults: (body: SampleDefaultsUpdate) =>
@@ -30,4 +39,7 @@ export const settingsApi = {
   getCreditEmail: () => api.get<CreditEmailTemplate>("/api/settings/credit-email"),
   updateCreditEmail: (body: CreditEmailUpdate) =>
     api.put<CreditEmailTemplate>("/api/settings/credit-email", body),
+  getScheduling: () => api.get<SchedulingSettings>("/api/settings/scheduling"),
+  updateScheduling: (body: SchedulingSettingsUpdate) =>
+    api.put<SchedulingSettings>("/api/settings/scheduling", body),
 };

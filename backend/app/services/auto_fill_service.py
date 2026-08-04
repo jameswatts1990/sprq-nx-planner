@@ -32,6 +32,7 @@ from app.models.schedule import CellUse, CellUseBarcode, Cycle, RunBatch
 from app.services import instrument_lock
 from app.services.cell_service import mark_cell_discarded, open_new_tray, recompute_status
 from app.services.engine_bridge import load_backlog_samples, load_prior_cells, to_parsed_samples
+from app.services.settings_service import get_insert_size_reuse_threshold
 from app.services.placement_service import (
     PlacementError,
     get_or_create_run,
@@ -252,6 +253,9 @@ def auto_fill(
         prior_cells=prior_cells,
         available_days=available_days,
         cells_per_day=cells_per_day,
+        # Small-insert (<5 kb) libraries are kept on a cell's first use only - threshold is
+        # admin-configurable (settings_service), read here so the pure engine stays DB-free.
+        insert_size_reuse_threshold=get_insert_size_reuse_threshold(db),
     )
     fill = fill_slots(pack.cells, empty_slots, cells_per_day=cells_per_day)
 

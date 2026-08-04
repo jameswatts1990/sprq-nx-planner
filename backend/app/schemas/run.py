@@ -39,6 +39,10 @@ class StageOut(BaseModel):
     run_time_hours: int
     sample_id: int | None
     sample_external_id: str | None
+    # Library insert / fragment size (bp) of the sample in this slot, or null if not recorded.
+    # Drives the grid card's "[<5kb]" flag and the small-insert-on-reuse warning (a small-insert
+    # sample sitting on use_number >= 2). Threshold is admin-configurable (read client-side).
+    insert_size_bp: int | None = None
     # Duplicate marker for the sample in this slot: when its Container ID appears on more than
     # one sample (any status), duplicate_total is the count and duplicate_index this copy's
     # 1-based position. Both null for a one-off — the grid card shows the "1/3" badge only when set.

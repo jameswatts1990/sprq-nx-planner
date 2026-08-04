@@ -166,6 +166,12 @@ export function SampleDetailPage() {
               <span className={styles.value}>{sample.movie_time_hours ?? 24} h</span>
             </div>
             <div>
+              <span className={styles.label}>Insert size</span>
+              <span className={styles.value}>
+                {sample.insert_size_bp != null ? `${sample.insert_size_bp.toLocaleString()} bp` : "—"}
+              </span>
+            </div>
+            <div>
               <span className={styles.label}>Created</span>
               <span className={styles.value}>{formatDateTime(sample.created_at)}</span>
             </div>

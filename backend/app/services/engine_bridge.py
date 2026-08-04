@@ -33,6 +33,7 @@ def to_parsed_samples(samples: list[Sample]) -> list[ParsedSample]:
             # duration it schedules and for the 12h->cell 1 / 30h->cell 4 placement rule (see
             # engine/packing.cell_allowed_positions, engine/slot_scheduling, auto_fill_service).
             movie_time=s.movie_time_hours,
+            insert_size_bp=s.insert_size_bp,
             key=f"sample:{s.id}",
             sample_id=s.id,
             created_at=s.created_at,

@@ -130,6 +130,12 @@ export function BacklogSection() {
         time by default (you can still fine-tune the per-cell run time from the slot popover afterwards).
       </p>
       <p>
+        <b>Insert size (bp)</b> is a per-sample library property — import it (an &quot;Insert Size&quot; column) or type
+        it on the add/edit form. A sample at or below the small-insert threshold (set in <b>Admin → Scheduling</b>,
+        default 5&nbsp;kb) shows a <b>[&lt;5kb]</b> flag and is kept on a SMRT cell&apos;s <b>first use</b> by Auto
+        Schedule, because small inserts lose yield when a cell is re-used.
+      </p>
+      <p>
         <b>Cancel</b> (on each row) removes a sample from the backlog when you never intend to sequence it. Use it
         to clear out mistakes or withdrawn samples; it does not delete sequencing history. If a cancel fails, a red
         note explains why.

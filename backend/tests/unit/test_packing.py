@@ -348,3 +348,86 @@ def test_pack_external_id_sequencing_uses_natural_numeric_order():
     by_id = {c.id: c.uses[0].id for c in result.cells}
     assert by_id["C1"] == "Sample 9"
     assert by_id["C2"] == "Sample 10"
+
+
+def test_pack_processes_position_constrained_movie_lengths_before_flexible():
+    # Same (no) priority, but a position-constrained 12h sample (cell-1-locked) must be
+    # processed before a flexible 24h sample so it claims its required well first. max_uses=1
+    # -> one fresh cell each, so cell-creation order reveals processing order. Input order is
+    # reversed so this only passes if the sort actually reorders by movie-constrainedness.
+    samples = [
+        ParsedSample(id="S24", barcodes=["b24"], key="S24#0", movie_time=24),
+        ParsedSample(id="S12", barcodes=["b12"], key="S12#1", movie_time=12),
+    ]
+    result = pack_cells(samples, max_uses=1, objective="fewest")
+    by_id = {c.id: c.uses[0].id for c in result.cells}
+    assert by_id["C1"] == "S12"  # constrained 12h processed ahead of flexible 24h
+    assert by_id["C2"] == "S24"
+
+
+def test_pack_movie_constraint_yields_to_priority():
+    # Movie-constrainedness is only a WITHIN-priority tiebreak: a High-priority flexible 24h
+    # sample still beats a Standard-priority constrained 12h sample. Priority stays the ruling
+    # factor (Priority -> Movie -> Container ID).
+    samples = [
+        ParsedSample(id="S12", barcodes=["b12"], priority="Standard (3)", key="S12#0", movie_time=12),
+        ParsedSample(id="S24", barcodes=["b24"], priority="High (1)", key="S24#1", movie_time=24),
+    ]
+    result = pack_cells(samples, max_uses=1, objective="fewest")
+    by_id = {c.id: c.uses[0].id for c in result.cells}
+    assert by_id["C1"] == "S24"  # High priority wins despite being the flexible movie length
+    assert by_id["C2"] == "S12"
+
+
+def test_pack_keeps_a_small_insert_sample_off_a_reusable_prior_cell():
+    # A prior cell has capacity and a disjoint barcode, so reuse-before-new would normally
+    # place the sample on it - but a small-insert (<= threshold) library must take a FIRST use
+    # only, so it opens a fresh cell and leaves the prior cell untouched.
+    prior = [PriorCellInput(barcodes_text="bprior", uses_consumed=1, cell_id=42)]  # remaining=2
+    samples = [ParsedSample(id="S1", barcodes=["bc1"], key="S1#0", insert_size_bp=3000)]
+
+    result = pack_cells(samples, max_uses=3, objective="fewest", prior_cells=prior)
+
+    prior_cell = next(c for c in result.all_cells if c.prior)
+    assert prior_cell.uses == []  # a small-insert sample never reuses
+    fresh = next(c for c in result.cells if not c.prior)
+    assert [u.id for u in fresh.uses] == ["S1"]  # it opens its own fresh first use
+
+
+def test_pack_never_stacks_two_small_insert_samples_on_one_cell():
+    # Each small-insert sample must be a cell's first use, so two of them can't share a cell
+    # even with disjoint barcodes and room to deepen - they open two separate fresh cells.
+    samples = [
+        ParsedSample(id="S1", barcodes=["bc1"], key="S1#0", insert_size_bp=2000),
+        ParsedSample(id="S2", barcodes=["bc2"], key="S2#1", insert_size_bp=4000),
+    ]
+    result = pack_cells(samples, max_uses=3, objective="fewest")
+    assert len(result.cells) == 2
+    assert all(len(c.uses) == 1 for c in result.cells)
+
+
+def test_pack_reuses_normally_for_a_large_insert_sample():
+    # A sample above the threshold is unaffected: reuse-before-new still deepens onto the
+    # prior cell (a null insert size behaves the same - "not recorded" never counts as small).
+    prior = [PriorCellInput(barcodes_text="bprior", uses_consumed=1, cell_id=42)]
+    for size in (15000, None):
+        samples = [ParsedSample(id="S1", barcodes=["bc1"], key="S1#0", insert_size_bp=size)]
+        result = pack_cells(samples, max_uses=3, objective="fewest", prior_cells=list(prior))
+        prior_cell = next(c for c in result.all_cells if c.prior)
+        assert [u.id for u in prior_cell.uses] == ["S1"], f"insert_size_bp={size}"
+
+
+def test_pack_small_insert_threshold_is_configurable():
+    # Same 4500bp sample: "small" (kept off reuse) under the default 5000 threshold, but
+    # "large" (reuses normally) once the admin lowers the threshold to 4000.
+    def run(threshold: int):
+        prior = [PriorCellInput(barcodes_text="bprior", uses_consumed=1, cell_id=42)]
+        samples = [ParsedSample(id="S1", barcodes=["bc1"], key="S1#0", insert_size_bp=4500)]
+        return pack_cells(
+            samples, max_uses=3, objective="fewest", prior_cells=prior, insert_size_reuse_threshold=threshold
+        )
+
+    small = run(5000)
+    assert next(c for c in small.all_cells if c.prior).uses == []  # 4500 <= 5000 -> first use only
+    large = run(4000)
+    assert [u.id for u in next(c for c in large.all_cells if c.prior).uses] == ["S1"]  # 4500 > 4000 -> reuses

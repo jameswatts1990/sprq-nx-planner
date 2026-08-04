@@ -8,7 +8,11 @@ from __future__ import annotations
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.engine.constants import PRIORITY_STANDARD, normalize_priority
+from app.engine.constants import (
+    DEFAULT_INSERT_SIZE_REUSE_THRESHOLD_BP,
+    PRIORITY_STANDARD,
+    normalize_priority,
+)
 from app.engine.normalize import parse_bool_field
 from app.models.settings import AppSetting
 
@@ -71,6 +75,71 @@ def set_sample_defaults(db: Session, values: dict[str, str]) -> dict[str, str]:
         _upsert(db, _PREFIX + key, stored_value)
     db.flush()
     return get_sample_defaults(db)
+
+
+# --- Scheduling rules --------------------------------------------------------------------
+# Global scheduling parameters (not per-sample defaults). Currently just the insert-size
+# reuse threshold: a library whose insert_size_bp is <= this value is kept on a cell's first
+# use by Auto Schedule and flagged if placed on a reuse (see engine/packing.py and
+# docs/pacbio-sprq-nx-scheduling-reference.md). Namespaced so it never collides with other
+# app_settings entries.
+_SCHEDULING_PREFIX = "scheduling."
+
+SCHEDULING_DEFAULT_FALLBACKS: dict[str, str] = {
+    "insert_size_reuse_threshold_bp": str(DEFAULT_INSERT_SIZE_REUSE_THRESHOLD_BP),
+}
+SCHEDULING_KEYS: tuple[str, ...] = tuple(SCHEDULING_DEFAULT_FALLBACKS)
+
+
+def get_scheduling_settings(db: Session) -> dict[str, str]:
+    """The current scheduling settings, one entry per SCHEDULING_KEYS, falling back to the
+    built-in default for any key not yet stored."""
+    stored = {
+        s.key[len(_SCHEDULING_PREFIX):]: s.value
+        for s in db.scalars(
+            select(AppSetting).where(AppSetting.key.in_([_SCHEDULING_PREFIX + k for k in SCHEDULING_KEYS]))
+        )
+    }
+    return {key: (stored.get(key) or SCHEDULING_DEFAULT_FALLBACKS[key]) for key in SCHEDULING_KEYS}
+
+
+def get_insert_size_reuse_threshold(db: Session) -> int:
+    """The current small-insert threshold (bp) as an int, falling back to the built-in default
+    for a never-stored or unparseable/non-positive value. Read by auto-fill/recalculate and
+    passed into pack_cells so the pure engine never touches the DB."""
+    raw = get_scheduling_settings(db)["insert_size_reuse_threshold_bp"]
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return DEFAULT_INSERT_SIZE_REUSE_THRESHOLD_BP
+    return value if value > 0 else DEFAULT_INSERT_SIZE_REUSE_THRESHOLD_BP
+
+
+def _validate_scheduling(key: str, value: str) -> str:
+    """Coerce/validate one incoming scheduling value to its canonical stored form (a positive
+    integer, stored as text). Raises ValueError with a lab-readable message the API surfaces
+    as a 422."""
+    if key == "insert_size_reuse_threshold_bp":
+        try:
+            n = int(str(value).strip())
+        except (TypeError, ValueError) as err:
+            raise ValueError("Insert size re-use threshold must be a whole number of base pairs") from err
+        if n <= 0:
+            raise ValueError("Insert size re-use threshold must be greater than 0")
+        return str(n)
+    raise ValueError(f"Unknown scheduling setting '{key}'")
+
+
+def set_scheduling_settings(db: Session, values: dict[str, str]) -> dict[str, str]:
+    """Upsert the given scheduling settings (only the keys present in `values` are touched).
+    Does NOT commit — the caller owns the transaction. Returns the full current settings."""
+    for key, raw in values.items():
+        if key not in SCHEDULING_DEFAULT_FALLBACKS:
+            raise ValueError(f"Unknown scheduling setting '{key}'")
+        stored_value = _validate_scheduling(key, raw)
+        _upsert(db, _SCHEDULING_PREFIX + key, stored_value)
+    db.flush()
+    return get_scheduling_settings(db)
 
 
 # --- Credit-email template ---------------------------------------------------------------

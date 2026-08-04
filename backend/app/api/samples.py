@@ -207,6 +207,7 @@ def create_sample(
         priority=req.priority,
         base_kinetics=req.base_kinetics,
         movie_time_hours=req.movie_time_hours,
+        insert_size_bp=req.insert_size_bp,
     )
     db.add(AuditLog(actor=actor, action="create_sample", entity_type="sample", entity_id=sample.id, details_json={}))
     db.commit()
@@ -287,6 +288,7 @@ def update_sample(sample_id: int, req: SampleUpdate, db: SessionDep, actor: Acto
             priority=req.priority,
             base_kinetics=req.base_kinetics,
             movie_time_hours=req.movie_time_hours,
+            insert_size_bp=req.insert_size_bp,
         )
     else:
         update_placed_sample_metadata(

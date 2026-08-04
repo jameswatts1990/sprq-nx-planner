@@ -1104,6 +1104,53 @@ def test_auto_fill_places_12h_on_cell_1_and_30h_on_cell_4(client):
     assert stages["H30"]["run_time_hours"] == 30
 
 
+def test_auto_fill_keeps_small_insert_samples_on_first_uses_only(client):
+    """PacBio flags <5 kb amplicon libraries as losing yield on a cell's 2nd/3rd use, so Auto
+    Schedule keeps a small-insert sample on a cell's FIRST use only. Three disjoint small-insert
+    (3 kb) samples offered a full week under "fewest"/max_uses=3 would normally deepen onto ONE
+    cell (3 uses); instead each opens its own fresh cell, all Use 1."""
+    small_csv = "sample,barcodes,insert size\n" + "\n".join(f"S{i},bcs{i},3000" for i in range(1, 4))
+    client.post("/api/imports", json={"raw_text": small_csv})
+
+    resp = _auto_fill(
+        client,
+        [{"instrument_serial": "84047", "load_date": d} for d in _next_working_week()],
+        objective="fewest",
+        max_uses=3,
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert len(body["placed_sample_ids"]) == 3
+
+    stages = [s for run in body["runs"] for s in _stages(run)]
+    assert len(stages) == 3
+    # every small-insert placement is a first use, sitting on three distinct physical cells
+    assert all(s["use_number"] == 1 for s in stages)
+    assert all(s["insert_size_bp"] == 3000 for s in stages)
+    assert len({s["cell_id"] for s in stages}) == 3
+
+
+def test_auto_fill_large_insert_control_still_reuses_one_cell(client):
+    """Contrast to the small-insert rule: three disjoint LARGE-insert (20 kb) samples under
+    "fewest"/max_uses=3 over a full week deepen onto a single cell (Use 1/2/3), confirming the
+    small-insert behaviour above is the field's doing, not a scheduling coincidence."""
+    large_csv = "sample,barcodes,insert size\n" + "\n".join(f"L{i},bcl{i},20000" for i in range(1, 4))
+    client.post("/api/imports", json={"raw_text": large_csv})
+
+    resp = _auto_fill(
+        client,
+        [{"instrument_serial": "84047", "load_date": d} for d in _next_working_week()],
+        objective="fewest",
+        max_uses=3,
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert len(body["placed_sample_ids"]) == 3
+    stages = [s for run in body["runs"] for s in _stages(run)]
+    assert len({s["cell_id"] for s in stages}) == 1  # all three on one physical cell
+    assert sorted(s["use_number"] for s in stages) == [1, 2, 3]
+
+
 def test_auto_fill_reports_unplaced_external_ids(client):
     """A bare unplaced COUNT left a user unable to find an affected sample anywhere (reported
     2026-07-29) - unplaced_external_ids names the actual Container IDs so they can be found
