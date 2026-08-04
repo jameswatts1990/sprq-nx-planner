@@ -98,9 +98,9 @@ export function ScheduleSection() {
           default); hover it to read the note. Hide it if you don&apos;t want the markers on the grid.
         </li>
         <li>
-          <b>Cell uses left: Show / Hide</b> — off by default. When on, each filled card shows a large faint number
-          behind the sample id: how many uses that physical cell has left (its use cap minus the uses already spent).
-          A <b>0</b> means this is the cell&apos;s last use.
+          <b>Cell use number: Show / Hide</b> — off by default. When on, each filled card shows a large faint number
+          behind the sample id: which use of that physical cell this placement is (<b>1</b>, <b>2</b> or <b>3</b>),
+          tinted the matching Use 1 / 2 / 3 colour. A <b>3</b> means this is the cell&apos;s last use.
         </li>
         <li>
           <b>Density: Comfortable / Compact</b> — Compact trims the spacing on every card so more of the week fits on

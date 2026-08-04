@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { Note } from "@/components/ui/Note";
 
+import { CreditEmailPanel } from "./CreditEmailPanel";
 import { SampleDefaultsPanel } from "./SampleDefaultsPanel";
 import { TableRowsPanel } from "./TableRowsPanel";
 import styles from "./AdminPage.module.css";
@@ -45,6 +46,8 @@ export function AdminPage() {
   return (
     <div className={styles.page}>
       <SampleDefaultsPanel />
+
+      <CreditEmailPanel />
 
       <Note tone="warn" icon="!">
         Database tools operate directly on raw tables and rows, bypassing the app&apos;s normal business logic. These

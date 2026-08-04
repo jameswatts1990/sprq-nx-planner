@@ -17,6 +17,39 @@
   color: var(--grey);
   margin-bottom: 10px;
 }
+
+/* Expected-reimbursement stat: the failed + remaining acquisitions we expect PacBio to credit.
+   A quiet, single-line callout above the current action, with the number carried at a glance
+   and a hover title (see reimbursementTitle) spelling out the derivation. */
+.reimburse {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin-bottom: 14px;
+  padding: 8px 12px;
+  border: 1px solid var(--line-soft);
+  border-left: 3px solid var(--accent, var(--ink));
+  border-radius: var(--r-sm);
+  background: var(--bg);
+  cursor: help;
+}
+.reimburseLabel {
+  font-size: var(--fs-xs);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--grey);
+  font-weight: 700;
+}
+.reimburseValue {
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  color: var(--ink);
+}
+.reimburseHint {
+  font-size: var(--fs-sm);
+  color: var(--grey);
+}
 .actionRow {
   display: flex;
   align-items: center;

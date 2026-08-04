@@ -1,0 +1,163 @@
+.panel {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.title {
+  font-size: var(--fs-xl);
+  margin: 0;
+}
+.helper {
+  font-size: var(--fs-md);
+  color: var(--grey);
+  margin: 0;
+}
+
+.chipRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.chipLabel {
+  font-size: var(--fs-sm);
+  color: var(--grey);
+  font-weight: 600;
+}
+.chip {
+  font-family: var(--mono, monospace);
+  font-size: var(--fs-sm);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 3px 8px;
+  background: var(--bg);
+  color: var(--ink);
+  cursor: pointer;
+}
+.chip:hover {
+  border-color: var(--accent, var(--ink));
+  background: var(--card);
+}
+
+.fields {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.fieldLabel {
+  font-size: var(--fs-xs);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--grey);
+  font-weight: 700;
+}
+.input,
+.textarea {
+  width: 100%;
+  font-family: var(--sans);
+  font-size: var(--fs-base);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 7px 9px;
+  background: var(--card);
+  color: var(--ink);
+}
+.textarea {
+  resize: vertical;
+  min-height: 96px;
+  line-height: 1.45;
+}
+
+.preview {
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-sm);
+  background: var(--bg);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.previewHead {
+  font-size: var(--fs-xs);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--grey);
+  font-weight: 700;
+}
+.previewNote {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 400;
+}
+.previewMail {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 3px 12px;
+  margin: 0;
+  font-size: var(--fs-md);
+}
+.previewMail dt {
+  color: var(--grey);
+  font-weight: 600;
+}
+.previewMail dd {
+  margin: 0;
+  color: var(--ink);
+}
+.previewBody {
+  white-space: pre-wrap;
+}
+
+.legend {
+  border-top: 1px solid var(--line-soft);
+  padding-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.legendRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  font-size: var(--fs-sm);
+}
+.legendToken {
+  font-family: var(--mono, monospace);
+  color: var(--ink);
+}
+.legendArrow {
+  color: var(--grey);
+}
+.legendLabel {
+  color: var(--grey);
+}
+.legendValue {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+.savedNote {
+  font-size: var(--fs-md);
+  color: var(--grey);
+}

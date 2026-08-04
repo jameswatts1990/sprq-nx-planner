@@ -14,9 +14,9 @@ export interface ViewOptionsMenuProps {
   /** Whether the note marker shows on sample cards that carry a note. */
   showNotes: boolean;
   onChangeShowNotes: (show: boolean) => void;
-  /** Whether the big "uses left" watermark shows behind each filled card's sample id. */
-  showRemainingUses: boolean;
-  onChangeShowRemainingUses: (show: boolean) => void;
+  /** Whether the big use-number watermark shows behind each filled card's sample id. */
+  showUseNumber: boolean;
+  onChangeShowUseNumber: (show: boolean) => void;
   /** Grid card density - comfortable (default) or compact (trims spacing to fit more). */
   density: GridDensity;
   onChangeDensity: (density: GridDensity) => void;
@@ -25,7 +25,7 @@ export interface ViewOptionsMenuProps {
 /**
  * The Schedule toolbar's far-right "View options" button: a small drop-down of grid
  * display toggles that don't change the plan, only how it's drawn - barcodes, note markers,
- * the remaining-uses watermark, and card density. It's a menu (not a lone button) so further
+ * the use-number watermark, and card density. It's a menu (not a lone button) so further
  * display toggles can slot in beside these without re-cluttering the toolbar.
  *
  * Closes on an outside click or Esc, the same lightweight pattern the page's other
@@ -36,8 +36,8 @@ export function ViewOptionsMenu({
   onChangeShowBarcodes,
   showNotes,
   onChangeShowNotes,
-  showRemainingUses,
-  onChangeShowRemainingUses,
+  showUseNumber,
+  onChangeShowUseNumber,
   density,
   onChangeDensity,
 }: ViewOptionsMenuProps) {
@@ -103,18 +103,18 @@ export function ViewOptionsMenu({
           <p className={styles.hint}>Show a small ✎ marker on cards that carry a note — hover it to read the note.</p>
 
           <div className={styles.row}>
-            <span className={styles.label}>Cell uses left</span>
+            <span className={styles.label}>Cell use number</span>
             <SegmentedControl
-              ariaLabel="Show or hide the remaining-uses watermark on sample cards"
-              value={showRemainingUses ? "show" : "hide"}
-              onChange={(v) => onChangeShowRemainingUses(v === "show")}
+              ariaLabel="Show or hide the use-number watermark on sample cards"
+              value={showUseNumber ? "show" : "hide"}
+              onChange={(v) => onChangeShowUseNumber(v === "show")}
               options={[
                 { value: "show", label: "Show" },
                 { value: "hide", label: "Hide" },
               ]}
             />
           </div>
-          <p className={styles.hint}>Show how many uses each cell has left as a large faint number behind the sample id.</p>
+          <p className={styles.hint}>Show which use of the cell each placement is (1, 2 or 3) as a large faint number behind the sample id.</p>
 
           <div className={styles.row}>
             <span className={styles.label}>Density</span>

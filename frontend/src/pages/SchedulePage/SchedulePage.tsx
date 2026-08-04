@@ -67,7 +67,7 @@ interface DetailTarget {
  * falls back to its own default in a locked-down browser (localStorage throwing). */
 const SHOW_BARCODES_STORAGE_KEY = "runnx.schedule.showBarcodes";
 const SHOW_NOTES_STORAGE_KEY = "runnx.schedule.showNotes";
-const SHOW_REMAINING_USES_STORAGE_KEY = "runnx.schedule.showRemainingUses";
+const SHOW_USE_NUMBER_STORAGE_KEY = "runnx.schedule.showUseNumber";
 const DENSITY_STORAGE_KEY = "runnx.schedule.density";
 
 function readFlagPref(key: string, fallback: boolean): boolean {
@@ -124,10 +124,10 @@ export function SchedulePage() {
     setShowNotes(show);
     writeFlagPref(SHOW_NOTES_STORAGE_KEY, show);
   }, []);
-  const [showRemainingUses, setShowRemainingUses] = useState(() => readFlagPref(SHOW_REMAINING_USES_STORAGE_KEY, false));
-  const handleChangeShowRemainingUses = useCallback((show: boolean) => {
-    setShowRemainingUses(show);
-    writeFlagPref(SHOW_REMAINING_USES_STORAGE_KEY, show);
+  const [showUseNumber, setShowUseNumber] = useState(() => readFlagPref(SHOW_USE_NUMBER_STORAGE_KEY, false));
+  const handleChangeShowUseNumber = useCallback((show: boolean) => {
+    setShowUseNumber(show);
+    writeFlagPref(SHOW_USE_NUMBER_STORAGE_KEY, show);
   }, []);
   const [density, setDensity] = useState<GridDensity>(readDensityPref);
   const handleChangeDensity = useCallback((d: GridDensity) => {
@@ -622,8 +622,8 @@ export function SchedulePage() {
                 onChangeShowBarcodes={handleChangeShowBarcodes}
                 showNotes={showNotes}
                 onChangeShowNotes={handleChangeShowNotes}
-                showRemainingUses={showRemainingUses}
-                onChangeShowRemainingUses={handleChangeShowRemainingUses}
+                showUseNumber={showUseNumber}
+                onChangeShowUseNumber={handleChangeShowUseNumber}
                 density={density}
                 onChangeDensity={handleChangeDensity}
               />
@@ -652,7 +652,7 @@ export function SchedulePage() {
             ref={gridAreaRef}
             data-barcodes={showBarcodes ? undefined : "hidden"}
             data-notes={showNotes ? undefined : "hidden"}
-            data-remaining={showRemainingUses ? "shown" : undefined}
+            data-use-number={showUseNumber ? "shown" : undefined}
             data-density={density === "compact" ? "compact" : undefined}
           >
             <SectionHeading title="Weekly schedule" legend={<UseLegend />} progress={weekProgress} />

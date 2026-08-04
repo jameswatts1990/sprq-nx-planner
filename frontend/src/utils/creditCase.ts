@@ -31,6 +31,28 @@ export function triggeringUse<T extends { status: string }>(uses: T[]): T | null
   return [...uses].reverse().find((u) => u.status === "failed") ?? uses[uses.length - 1] ?? null;
 }
 
+/** The 1-based position of the triggering use among the cell's uses (use 1, use 2, …), or null
+ * if there's no identifiable triggering use. The list is chronological (earliest-first), so the
+ * index + 1 is the use number the failure occurred on. Works with either the summary `uses` or
+ * the full `use_history` — both carry id + status. */
+export function failUseNumber<T extends { id: number; status: string }>(uses: T[]): number | null {
+  const use = triggeringUse(uses);
+  if (!use) return null;
+  const idx = uses.findIndex((u) => u.id === use.id);
+  return idx === -1 ? null : idx + 1;
+}
+
+/** Expected acquisition reimbursement for a failed cell: the failed acquisition plus every
+ * acquisition the cell could still have run — `max_uses + 1 − (fail use number)`. "Remaining"
+ * is always measured against the cell's max capacity, ignoring any early tray discard, per the
+ * lab's agreed basis for what PacBio should credit (e.g. a failure on use 2 of a 3-use cell =
+ * 3 + 1 − 2 = 2). null when no triggering use is identifiable. */
+export function expectedReimbursement(cell: CellOut): number | null {
+  const n = failUseNumber(cell.uses);
+  if (n == null) return null;
+  return Math.max(1, cell.max_uses + 1 - n);
+}
+
 /** Derive the five credit stages purely from a cell's credit timestamps (all present on CellOut,
  * so this works for both the list and detail views). `failureAt` is supplied by the caller - the
  * triggering use's completion time, or the cell's stopped_at - since it's the one stage timestamp

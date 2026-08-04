@@ -11,7 +11,12 @@ from pydantic import BaseModel
 
 from app.api.deps import ActorDep, SessionDep
 from app.models.audit import AuditLog
-from app.services.settings_service import get_sample_defaults, set_sample_defaults
+from app.services.settings_service import (
+    get_credit_email,
+    get_sample_defaults,
+    set_credit_email,
+    set_sample_defaults,
+)
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 
@@ -58,3 +63,48 @@ def update_sample_defaults(
     )
     db.commit()
     return SampleDefaultsOut(**defaults)
+
+
+class CreditEmailOut(BaseModel):
+    to: str
+    cc: str
+    subject: str
+    body: str
+
+
+class CreditEmailUpdate(BaseModel):
+    """Every field optional so the client can send just what changed; omitted fields keep
+    their current stored value."""
+
+    to: str | None = None
+    cc: str | None = None
+    subject: str | None = None
+    body: str | None = None
+
+
+@router.get("/credit-email", response_model=CreditEmailOut)
+def read_credit_email(db: SessionDep) -> CreditEmailOut:
+    return CreditEmailOut(**get_credit_email(db))
+
+
+@router.put("/credit-email", response_model=CreditEmailOut)
+def update_credit_email(
+    req: CreditEmailUpdate, db: SessionDep, actor: ActorDep
+) -> CreditEmailOut:
+    values = {k: v for k, v in req.model_dump().items() if v is not None}
+    try:
+        template = set_credit_email(db, values)
+    except ValueError as err:
+        raise HTTPException(422, str(err)) from err
+    db.add(
+        AuditLog(
+            actor=actor,
+            action="update_credit_email",
+            entity_type="app_setting",
+            entity_id=0,
+            # Record which fields changed, not the (potentially long) body content itself.
+            details_json={"fields": sorted(values)},
+        )
+    )
+    db.commit()
+    return CreditEmailOut(**template)

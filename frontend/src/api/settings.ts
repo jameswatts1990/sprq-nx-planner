@@ -12,8 +12,22 @@ export interface SampleDefaults {
 
 export type SampleDefaultsUpdate = Partial<SampleDefaults>;
 
+/** The editable PacBio credit-email template (the only email the app sends). subject/body
+ * may embed <angle-bracket> variables filled from the failing cell — see utils/creditEmail. */
+export interface CreditEmailTemplate {
+  to: string;
+  cc: string;
+  subject: string;
+  body: string;
+}
+
+export type CreditEmailUpdate = Partial<CreditEmailTemplate>;
+
 export const settingsApi = {
   getSampleDefaults: () => api.get<SampleDefaults>("/api/settings/sample-defaults"),
   updateSampleDefaults: (body: SampleDefaultsUpdate) =>
     api.put<SampleDefaults>("/api/settings/sample-defaults", body),
+  getCreditEmail: () => api.get<CreditEmailTemplate>("/api/settings/credit-email"),
+  updateCreditEmail: (body: CreditEmailUpdate) =>
+    api.put<CreditEmailTemplate>("/api/settings/credit-email", body),
 };

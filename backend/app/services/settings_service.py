@@ -68,11 +68,76 @@ def set_sample_defaults(db: Session, values: dict[str, str]) -> dict[str, str]:
         if key not in SAMPLE_DEFAULT_FALLBACKS:
             raise ValueError(f"Unknown sample default '{key}'")
         stored_value = _validate(key, raw)
-        full_key = _PREFIX + key
-        existing = db.get(AppSetting, full_key)
-        if existing is None:
-            db.add(AppSetting(key=full_key, value=stored_value))
-        else:
-            existing.value = stored_value
+        _upsert(db, _PREFIX + key, stored_value)
     db.flush()
     return get_sample_defaults(db)
+
+
+# --- Credit-email template ---------------------------------------------------------------
+# The single email the app sends: the PacBio SMRT-cell credit request, generated from a
+# credit case. Its four parts (to/cc/subject/body) are editable from the admin "Email
+# template" panel and stored under the credit_email.* namespace. The subject/body may embed
+# <angle-bracket> variables (e.g. "<sample name>") that the frontend fills from the failing
+# cell's triggering use when it builds the mailto link — see frontend utils/creditEmail.ts,
+# which owns the canonical token list. The backend only stores/returns the raw strings.
+_CREDIT_EMAIL_PREFIX = "credit_email."
+
+# Built-in defaults, used until the lab edits the template. These mirror the original
+# hardcoded credit email, with the dynamic values replaced by variable tokens.
+CREDIT_EMAIL_FALLBACKS: dict[str, str] = {
+    "to": "Pacific Biosciences <support@pacificbiosciences.com>",
+    "cc": "revio-updates@sanger.ac.uk",
+    "subject": "SMRT Cell issue – <run>",
+    "body": (
+        "Cell issue on sample <sample name>, run <run>, <instrument>, <run date>.\n"
+        "\n"
+        "Please advise on how to proceed. If the cell will be credited, please can you "
+        "confirm the number of acquisitions that are being credited.\n"
+        "\n"
+        "Based on the failure, we expect <reimbursement> acquisition(s) to be credited "
+        "(the failed acquisition plus the cell's remaining acquisitions).\n"
+        "\n"
+        "Sample ID: <sample name>"
+    ),
+}
+CREDIT_EMAIL_KEYS: tuple[str, ...] = tuple(CREDIT_EMAIL_FALLBACKS)
+
+
+def get_credit_email(db: Session) -> dict[str, str]:
+    """The current credit-email template (to/cc/subject/body), falling back to the built-in
+    default for any part not yet stored. A stored-but-empty value is kept as-is (the lab may
+    deliberately want an empty cc); only a never-stored key falls back."""
+    stored = {
+        s.key[len(_CREDIT_EMAIL_PREFIX):]: s.value
+        for s in db.scalars(
+            select(AppSetting).where(
+                AppSetting.key.in_([_CREDIT_EMAIL_PREFIX + k for k in CREDIT_EMAIL_KEYS])
+            )
+        )
+    }
+    return {
+        key: (stored[key] if key in stored and stored[key] is not None else CREDIT_EMAIL_FALLBACKS[key])
+        for key in CREDIT_EMAIL_KEYS
+    }
+
+
+def set_credit_email(db: Session, values: dict[str, str]) -> dict[str, str]:
+    """Upsert the given credit-email parts (only the keys present in `values` are touched).
+    Does NOT commit — the caller owns the transaction. Returns the full current template.
+    to/cc/subject are trimmed; body is kept verbatim (leading/trailing blank lines matter)."""
+    for key, raw in values.items():
+        if key not in CREDIT_EMAIL_FALLBACKS:
+            raise ValueError(f"Unknown credit-email field '{key}'")
+        stored_value = raw if key == "body" else raw.strip()
+        _upsert(db, _CREDIT_EMAIL_PREFIX + key, stored_value)
+    db.flush()
+    return get_credit_email(db)
+
+
+def _upsert(db: Session, full_key: str, value: str) -> None:
+    """Insert or update one app_settings row. Does not flush/commit."""
+    existing = db.get(AppSetting, full_key)
+    if existing is None:
+        db.add(AppSetting(key=full_key, value=value))
+    else:
+        existing.value = value

@@ -248,16 +248,17 @@ export const SchedulerSlotView = memo(
     >
       {showStage ? (
         <>
-          {/* Big, faint "uses left" watermark behind the card content, tinted by the same Use
-              1/2/3 colour. Opt-in (default off) - the grid area's data-remaining attribute
-              reveals it; rendered here (always, when filled) so the toggle is pure CSS. Sits
-              on a negative z-index so it reads as a watermark under the text, never over it. */}
+          {/* Big, faint use-number watermark behind the card content (1/2/3 = which use of this
+              physical cell this placement is), tinted by the same Use 1/2/3 colour. Opt-in
+              (default off) - the grid area's data-use-number attribute reveals it; rendered here
+              (always, when filled) so the toggle is pure CSS. Sits on a negative z-index so it
+              reads as a watermark under the text, never over it. */}
           <span
-            className={`${styles.usesWatermark} ${styles[useClass]}`}
-            data-uses-watermark
+            className={`${styles.useNumberWatermark} ${styles[useClass]}`}
+            data-use-watermark
             aria-hidden="true"
           >
-            {Math.max(0, stage!.cell_max_uses - stage!.use_number)}
+            {stage!.use_number}
           </span>
           <div className={styles.ext} title={stage!.sample_external_id ?? stage!.cell_ref}>
             {stage!.sample_external_id ?? "—"}

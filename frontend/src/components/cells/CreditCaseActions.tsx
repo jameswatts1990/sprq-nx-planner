@@ -4,21 +4,24 @@ import { useEffect, useRef, useState } from "react";
 import { ApiError } from "@/api/client";
 import { cellsApi } from "@/api/cells";
 import { instrumentsApi } from "@/api/instruments";
+import { settingsApi } from "@/api/settings";
 import { Button } from "@/components/ui/Button";
 import { Modal, ModalActions } from "@/components/ui/Modal";
 import { Note } from "@/components/ui/Note";
 import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
 import type { CellDetailOut, CellOut } from "@/types/cell";
 import type { InstrumentOut } from "@/types/instrument";
-import { getCreditStages, triggeringUse } from "@/utils/creditCase";
+import { expectedReimbursement, failUseNumber, getCreditStages, triggeringUse } from "@/utils/creditCase";
+import {
+  buildCreditEmailContext,
+  creditEmailMailto,
+  DEFAULT_CREDIT_EMAIL,
+  renderCreditEmail,
+} from "@/utils/creditEmail";
 import { plateWellFromPlate } from "@/utils/plateWell";
 import { runLabel } from "@/utils/runLabel";
 
 import styles from "./CreditCaseActions.module.css";
-
-function formatDateTime(iso: string | null): string {
-  return iso ? new Date(iso).toLocaleString() : "—";
-}
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -225,32 +228,15 @@ function GenerateReportMenu({ fields, cellCode }: { fields: ReportField[]; cellC
   );
 }
 
-/** PacBio's support desk doesn't know this app's internal tray/well codes (e.g. C02), so the
- * email identifies the cell by the customer sample it ran and the vendor-visible fields (run,
- * instrument serial, date) — never by our well ID. */
-function buildCreditEmail(cell: CellDetailOut): { to: string; cc: string; subject: string; body: string } {
-  const use = triggeringUse(cell.use_history);
-  const sample = use?.sample_external_id || "—";
-  const run = use ? runLabel({ run_id: use.run_batch_id, run_name: use.run_name }) : "—";
-  const instrument = use?.instrument_serial ?? "—";
-  const runDate = use ? formatDateTime(use.started_at ?? use.completed_at) : "—";
-
-  const to = "Pacific Biosciences <support@pacificbiosciences.com>";
-  const cc = "Johnathan Smith <jsmith@pacificbiosciences.com>, revio-updates@sanger.ac.uk";
-  const subject = `SMRT Cell issue – ${run}`;
-  const body = [
-    `Cell issue on sample ${sample}, run ${run}, ${instrument}, ${runDate}.`,
-    "",
-    "Please advise on how to proceed. If the cell will be credited, please can you confirm the number of acquisitions that are being credited.",
-    "",
-    `Sample ID: ${sample}`,
-  ]
-    .filter((line): line is string => line !== null)
-    // CRLF, not bare LF: Outlook (classic + new) drops or truncates a mailto body
-    // whose line breaks are %0A rather than %0D%0A.
-    .join("\r\n");
-
-  return { to, cc, subject, body };
+/** Plain-language explanation of how the expected reimbursement was derived, shown on hover so
+ * the figure is never a mystery number (Transparent: why, at a glance). */
+function reimbursementTitle(cell: CellOut, amount: number): string {
+  const failNo = failUseNumber(cell.uses);
+  const basis = failNo == null ? "" : ` (max ${cell.max_uses} + 1 − use ${failNo} = ${amount})`;
+  return (
+    `The failed acquisition plus the cell's remaining acquisitions${basis}. ` +
+    "Remaining always counts to the cell's max, ignoring any early tray discard."
+  );
 }
 
 export interface CreditCaseActionsProps {
@@ -294,6 +280,15 @@ export function CreditCaseActions({ cell, detail, compact = false }: CreditCaseA
     enabled: !!detail,
   });
 
+  // The admin-editable credit-email template. Fetched only where the email button shows
+  // (i.e. when `detail` is present); falls back to the built-in default while it loads so
+  // the button always produces a usable email.
+  const { data: emailTemplate } = useQuery({
+    queryKey: ["credit-email-template"],
+    queryFn: () => settingsApi.getCreditEmail(),
+    enabled: !!detail,
+  });
+
   const internalReportMutation = useMutation({
     mutationFn: (id: string) => cellsApi.setInternalReport(cell.id, { report_id: id }),
     onSuccess: () => {
@@ -326,16 +321,33 @@ export function CreditCaseActions({ cell, detail, compact = false }: CreditCaseA
 
   const { currentKey, allDone } = getCreditStages(cell);
 
+  // Expected acquisitions PacBio should credit for this failure — the failed acquisition plus
+  // the cell's remaining acquisitions. Derived from cell.uses/max_uses, so it's available in
+  // both the full tracker and the compact QC rows without needing the full detail.
+  const reimbursement = expectedReimbursement(cell);
+
   const use = detail ? triggeringUse(detail.use_history) : null;
   const instrument = detail ? instruments?.find((i) => i.serial_number === use?.instrument_serial) : undefined;
   const reportFields = detail ? buildReportFields(detail, instrument) : [];
-  const email = detail ? buildCreditEmail(detail) : null;
-  const emailHref = email
-    ? `mailto:${encodeURIComponent(email.to)}?cc=${encodeURIComponent(email.cc)}&subject=${encodeURIComponent(email.subject)}&body=${encodeURIComponent(email.body)}`
+  const emailHref = detail
+    ? creditEmailMailto(renderCreditEmail(emailTemplate ?? DEFAULT_CREDIT_EMAIL, buildCreditEmailContext(detail)))
     : "";
 
   return (
     <div className={compact ? styles.actionsBare : styles.actions}>
+      {/* Expected reimbursement: a transparent, at-a-glance figure of what to claim, shown on
+          the full tracker while the case is still open. Compact QC rows stay tight — expand a
+          row (or read the generated email) to see it. */}
+      {!compact && !allDone && reimbursement != null && (
+        <div className={styles.reimburse} title={reimbursementTitle(cell, reimbursement)}>
+          <span className={styles.reimburseLabel}>Expected reimbursement</span>
+          <span className={styles.reimburseValue}>
+            {reimbursement} acquisition{reimbursement === 1 ? "" : "s"}
+          </span>
+          <span className={styles.reimburseHint}>failed + remaining, to the cell&apos;s max</span>
+        </div>
+      )}
+
       {currentKey === "pacbio" && (
         <>
           {!compact && (
@@ -408,7 +420,7 @@ export function CreditCaseActions({ cell, detail, compact = false }: CreditCaseA
               className={`${styles.input} ${styles.inputNarrow}`}
               value={acquisitions}
               onChange={(e) => setAcquisitions(e.target.value)}
-              placeholder="Acquisitions credited, e.g. 1"
+              placeholder={`Acquisitions credited, e.g. ${reimbursement ?? 1}`}
             />
             <Button
               variant="primary"

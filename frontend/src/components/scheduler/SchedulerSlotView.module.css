@@ -596,13 +596,13 @@
   color: var(--grey);
   cursor: help;
 }
-/* Big faint "uses left" watermark: the cell's remaining uses (cell_max_uses - use_number),
+/* Big faint use-number watermark: this placement's use number (1/2/3 of the physical cell),
    set large and low-opacity behind the sample id on the card's left, tinted by the Use
    1/2/3 colour so it reinforces which use this is without competing with the readable text.
    Negative z-index (contained by .filled's stacking context) keeps it a true watermark,
    under the text; the card's overflow:hidden clips the oversized digit to the card. Opt-in:
-   revealed only when the grid area carries data-remaining="shown". */
-.usesWatermark {
+   revealed only when the grid area carries data-use-number="shown". */
+.useNumberWatermark {
   position: absolute;
   left: 3px;
   top: 50%;
@@ -620,13 +620,13 @@
   pointer-events: none;
   user-select: none;
 }
-.usesWatermark.u1 {
+.useNumberWatermark.u1 {
   color: var(--magenta-deep);
 }
-.usesWatermark.u2 {
+.useNumberWatermark.u2 {
   color: var(--blue-deep);
 }
-.usesWatermark.u3 {
+.useNumberWatermark.u3 {
   color: var(--teal-deep);
 }
 /* Shades a filled slot by how far its cell has travelled through its own 108h window -
@@ -809,6 +809,6 @@
 :global([data-density="compact"]) .stub {
   width: 22px;
 }
-:global([data-density="compact"]) .usesWatermark {
+:global([data-density="compact"]) .useNumberWatermark {
   font-size: 36px;
 }

@@ -6,8 +6,8 @@ export function AdminSection() {
   return (
     <div className={styles.copy}>
       <p>
-        <b>What this tab is for:</b> the <b>Sample defaults</b> panel (a normal, safe setting), plus raw database
-        inspection and cleanup tools intended for development use only. The database tools operate directly on tables
+        <b>What this tab is for:</b> the <b>Sample defaults</b> and <b>Email template</b> panels (normal, safe
+        settings), plus raw database inspection and cleanup tools intended for development use only. The database tools operate directly on tables
         and rows, bypassing the app&apos;s normal scheduling rules — they are not part of the shipped/live product and
         are expected to be removed or disabled before a real production launch.
       </p>
@@ -21,6 +21,30 @@ export function AdminSection() {
         blank when a sample is imported — so an import that doesn&apos;t specify, say, adaptive loading gets your
         chosen default rather than a blank. Existing samples are never changed; only samples created afterwards use
         the new defaults. Unlike the database tools below, this goes through the app&apos;s normal validated path.
+      </p>
+
+      <p className={styles.subheading}>Email template</p>
+      <p>
+        The <b>Email template</b> panel customises the one email the app sends: the PacBio credit request opened by{" "}
+        <b>Generate email…</b> on a failed cell&apos;s credit case. Edit the <b>To</b>, <b>Cc</b>, <b>Subject</b> and{" "}
+        <b>Body</b>, then press <b>Save email template</b>. To drop in a value that changes per case — the sample name,
+        run, and so on — click one of the <b>Insert variable</b> chips and it&apos;s added where your cursor is. Each
+        variable (written in angle brackets, e.g. <code>&lt;sample name&gt;</code>) is replaced with the real value
+        from the failing cell when the email is generated. The <b>Preview</b> underneath shows the whole email with
+        every variable filled in using example values, and lists what each variable stands for, so you can confirm
+        you&apos;ve used the right ones before saving.
+      </p>
+      <p>
+        One variable is worked out for you: <code>&lt;reimbursement&gt;</code> is the{" "}
+        <b>expected number of acquisitions to credit</b> — the failed acquisition plus the cell&apos;s remaining
+        acquisitions (counted to the cell&apos;s maximum, ignoring any early tray discard). For example, a failure on
+        the second use of a three-use cell gives 2. The same figure is shown on the cell&apos;s <b>PacBio credit</b>{" "}
+        card, so the email and the screen always agree.
+      </p>
+      <p>
+        Two of the variables — <code>&lt;well&gt;</code> and <code>&lt;cell code&gt;</code> — are this app&apos;s
+        internal tray/cell identifiers, which PacBio&apos;s support desk won&apos;t recognise; leave them out of an
+        email going to PacBio and identify the cell by its sample and run instead.
       </p>
 
       <Note tone="warn" icon="!">

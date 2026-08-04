@@ -91,9 +91,9 @@
 .gridArea[data-notes="hidden"] [data-note-indicator] {
   display: none;
 }
-/* Remaining-uses watermark is opt-in (off by default): rendered on every filled card but
-   only revealed when the toolbar's "Cell uses left" toggle sets data-remaining="shown". */
-.gridArea:not([data-remaining="shown"]) [data-uses-watermark] {
+/* Use-number watermark is opt-in (off by default): rendered on every filled card but
+   only revealed when the toolbar's "Cell use number" toggle sets data-use-number="shown". */
+.gridArea:not([data-use-number="shown"]) [data-use-watermark] {
   display: none;
 }
 .dragChip {

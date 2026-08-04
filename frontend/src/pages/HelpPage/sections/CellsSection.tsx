@@ -198,6 +198,13 @@ export function CellsSection() {
         for the life of the cell — marked <b>Open</b> while the case is live, switching to a <b>Credit received</b>{" "}
         badge once credit is marked received.
       </p>
+      <p>
+        While the case is open, the panel shows an <b>Expected reimbursement</b> figure — the acquisitions PacBio
+        should credit, worked out as the failed acquisition plus the cell&apos;s remaining acquisitions (counted to
+        the cell&apos;s maximum, ignoring any early tray discard). Hovering it explains the sum. It&apos;s a guide for
+        the email and the credit you chase; the number you actually record at <b>Credit confirmed</b> is whatever
+        PacBio confirm.
+      </p>
       <ul>
         <li>
           <b>Failure</b> — set automatically the moment the cell is failed or stopped in Cell QC. This starts the
@@ -206,13 +213,12 @@ export function CellsSection() {
         <li>
           <b>PacBio report</b> — comes first, because the case number PacBio issues feeds the internal report.{" "}
           <b>Add case number</b> records the case number from the quality log you raise, and moves the cell off the{" "}
-          <b>Unreported</b> filter on the Cells page. <b>Generate email…</b> drafts an email to PacBio support in
-          your own email client, addressed to Pacific Biosciences (cc&apos;d to your PacBio contact and the Revio updates
-          list) and prefilled
-          with the affected sample ID, run, instrument and date (taken from the Failed use, or the most recent use if
-          the cell was Stopped without one). It identifies the cell by its customer sample rather than our internal
-          well code, which PacBio can&apos;t match. Review the draft — including who it&apos;s addressed to — before
-          sending.
+          <b>Unreported</b> filter on the Cells page. <b>Generate email…</b> drafts an email to PacBio support in your
+          own email client, filled in from the failing cell — by default the affected sample, run, instrument, date
+          and the expected acquisitions to credit (taken from the Failed use, or the most recent use if the cell was
+          Stopped without one). The recipients, subject and wording all come from the editable template on the{" "}
+          <b>Admin → Email template</b> tab, so you can change them there. Review the draft — including who it&apos;s
+          addressed to — before sending.
         </li>
         <li>
           <b>Internal report</b> — <b>Add report ID</b> records the ID your internal write-up of the failure is filed
@@ -227,7 +233,8 @@ export function CellsSection() {
         </li>
         <li>
           <b>Credit confirmed</b> — once PacBio confirms how many acquisitions they will credit, enter that number
-          and press <b>Record credit</b>. The count is shown under the stage (e.g. <b>2 acquisitions credited</b>).
+          and press <b>Record credit</b>. The box is pre-hinted with the expected figure, but record what PacBio
+          actually confirm. The count is shown under the stage (e.g. <b>2 acquisitions credited</b>).
         </li>
         <li>
           <b>Credit received</b> — <b>Mark as received in lab</b> once the credit has physically landed. Until this
