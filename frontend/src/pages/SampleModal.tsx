@@ -8,6 +8,7 @@ import { settingsApi } from "@/api/settings";
 import { Button } from "@/components/ui/Button";
 import { Modal, ModalActions } from "@/components/ui/Modal";
 import { Note } from "@/components/ui/Note";
+import type { ImportField } from "@/types/importing";
 import type { SampleCreate, SampleOut, SampleUpdate } from "@/types/sample";
 
 import styles from "./SampleModal.module.css";
@@ -15,6 +16,42 @@ import styles from "./SampleModal.module.css";
 /** Form-field keys that identify the sample and stay read-only when editing (see the
  * import-field spec for the key names). Container ID is the sample's fixed identity. */
 const PROTECTED_KEYS = new Set(["external_id"]);
+
+/** The form's fixed layout: shaded sections, each a stack of two-column rows referencing
+ * field keys. This drives the grouped presentation instead of one flat field grid; the
+ * per-field metadata (label/kind/choices) still comes from the backend import-field spec.
+ * Every optional and required field appears exactly once. */
+const SECTIONS: { header: string; rows: [string, string][] }[] = [
+  {
+    header: "Sample ID & Priority",
+    rows: [
+      ["external_id", "priority"],
+      ["sanger", "parent_sample"],
+    ],
+  },
+  {
+    header: "Complex Details",
+    rows: [
+      ["barcodes", "insert_size_bp"],
+      ["target_oplc", "actual_oplc"],
+      ["cleaned_complex_volume", "loading_buffer_volume"],
+    ],
+  },
+  {
+    header: "Run Settings",
+    rows: [
+      ["adaptive_loading", "movie_time_hours"],
+      ["full_resolution_base_q", "base_kinetics"],
+    ],
+  },
+];
+
+/** Field-label overrides shown on the form only — the backend spec keeps the canonical
+ * labels (used on import/template). These reword a couple of identifiers for lab users. */
+const LABEL_OVERRIDES: Record<string, string> = {
+  external_id: "Unique ID e.g. Pool ID",
+  parent_sample: "Parent Sample e.g. Plate ID",
+};
 
 // Loading buffer is a derived volume, not a free input: Complex + Loading buffer always tops
 // up to this fixed total (µL), so Loading buffer defaults to 25 − Cleaned Complex Vol. The
@@ -200,6 +237,78 @@ export function SampleModal({
   const lbOffTarget =
     lbExpected != null && lbRaw !== "" && Number.isFinite(lbNum) && lbNum !== lbExpected;
 
+  const fieldsByKey = new Map(fields.map((f) => [f.key, f]));
+
+  /** Whether a field is shown on the form: import-only fields are never hand-editable, and in
+   * restricted (placed-sample) mode only the editable fields plus the locked Container ID show. */
+  function isVisible(f: ImportField | undefined): f is ImportField {
+    if (!f || f.import_only) return false;
+    return !isRestricted || editableKeys.has(f.key) || PROTECTED_KEYS.has(f.key);
+  }
+
+  /** One field cell (label + input/select). The loading-buffer off-target warning is rendered
+   * separately at row level so it can span the full width rather than one narrow column. */
+  function renderField(f: ImportField) {
+    const locked = (isEdit && PROTECTED_KEYS.has(f.key)) || (isRestricted && !editableKeys.has(f.key));
+    const isLoadingBuffer = f.key === K_LOADING_BUFFER;
+    return (
+      <label key={f.key} className={styles.field}>
+        <span className={styles.label}>
+          {LABEL_OVERRIDES[f.key] ?? f.label}
+          {f.required && <span className={styles.req}> *</span>}
+          {locked && <span className={styles.lock}> · locked</span>}
+        </span>
+        {f.kind === "boolean" ? (
+          <select
+            className={styles.input}
+            value={values[f.key] ?? ""}
+            disabled={locked}
+            onChange={(e) => set(f.key, e.target.value)}
+          >
+            <option value="">—</option>
+            <option value="True">True</option>
+            <option value="False">False</option>
+          </select>
+        ) : f.kind === "select" ? (
+          <select
+            className={styles.input}
+            value={values[f.key] ?? ""}
+            disabled={locked}
+            onChange={(e) => set(f.key, e.target.value)}
+          >
+            <option value="">—</option>
+            {(f.choices ?? []).map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <input
+            className={styles.input}
+            value={values[f.key] ?? ""}
+            placeholder={f.example}
+            inputMode={f.kind === "number" ? "decimal" : undefined}
+            disabled={locked}
+            title={
+              isLoadingBuffer
+                ? `Auto-calculated as ${LOADING_TOTAL_UL} − Cleaned Complex Vol · Complex + Loading buffer = ${LOADING_TOTAL_UL} µL. Override if needed.`
+                : undefined
+            }
+            onChange={(e) => set(f.key, e.target.value)}
+          />
+        )}
+        {locked ? (
+          <span className={styles.hint}>The sample&apos;s identity — fixed once created.</span>
+        ) : (
+          (f.kind === "barcodes" || f.kind === "sanger") && (
+            <span className={styles.hint}>Separate multiple with commas or spaces.</span>
+          )
+        )}
+      </label>
+    );
+  }
+
   function handleSubmit() {
     setClientError(null);
     setDuplicatePrompt(null);
@@ -289,93 +398,39 @@ export function SampleModal({
         )}
       </p>
 
-      <div className={styles.grid}>
-        {fields
-          // import_only fields are mappable on import but never hand-editable here. (No field
-          // currently sets this, but the guard stays so a future import-only field is hidden.)
-          .filter((f) => !f.import_only)
-          // In restricted mode show only the editable fields plus the (locked) Container ID
-          // for context; every other field is hidden rather than shown greyed-out.
-          .filter((f) => !isRestricted || editableKeys.has(f.key) || PROTECTED_KEYS.has(f.key))
-          .map((f) => {
-          const locked = (isEdit && PROTECTED_KEYS.has(f.key)) || (isRestricted && !editableKeys.has(f.key));
-          const isLoadingBuffer = f.key === K_LOADING_BUFFER;
+      <div className={styles.sections}>
+        {SECTIONS.map((section) => {
+          const visibleRows = section.rows
+            .map((keys) => keys.map((k) => fieldsByKey.get(k)).filter(isVisible) as ImportField[])
+            .filter((row) => row.length > 0);
+          // In restricted (placed-sample) mode a whole section can end up empty — drop it and
+          // its header rather than render a bare heading.
+          if (visibleRows.length === 0) return null;
           return (
-            <label
-              key={f.key}
-              className={`${styles.field}${isLoadingBuffer ? ` ${styles.fieldWide}` : ""}`}
-            >
-              <span className={styles.label}>
-                {f.label}
-                {f.required && <span className={styles.req}> *</span>}
-                {locked && <span className={styles.lock}> · locked</span>}
-              </span>
-              {f.kind === "boolean" ? (
-                <select
-                  className={styles.input}
-                  value={values[f.key] ?? ""}
-                  disabled={locked}
-                  onChange={(e) => set(f.key, e.target.value)}
-                >
-                  <option value="">—</option>
-                  <option value="True">True</option>
-                  <option value="False">False</option>
-                </select>
-              ) : f.kind === "select" ? (
-                <select
-                  className={styles.input}
-                  value={values[f.key] ?? ""}
-                  disabled={locked}
-                  onChange={(e) => set(f.key, e.target.value)}
-                >
-                  <option value="">—</option>
-                  {(f.choices ?? []).map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <input
-                  className={styles.input}
-                  value={values[f.key] ?? ""}
-                  placeholder={f.example}
-                  inputMode={f.kind === "number" ? "decimal" : undefined}
-                  disabled={locked}
-                  title={
-                    isLoadingBuffer
-                      ? `Auto-calculated as ${LOADING_TOTAL_UL} − Cleaned Complex Vol. Complex + Loading buffer = ${LOADING_TOTAL_UL} µL. You can override it.`
-                      : undefined
-                  }
-                  onChange={(e) => set(f.key, e.target.value)}
-                />
-              )}
-              {locked ? (
-                <span className={styles.hint}>The sample&apos;s identity — fixed once created.</span>
-              ) : isLoadingBuffer ? (
-                <>
-                  <span className={styles.hint}>
-                    Auto-calculated as {LOADING_TOTAL_UL} − Cleaned Complex Vol · Complex + Loading buffer ={" "}
-                    {LOADING_TOTAL_UL} µL. Override if needed.
-                  </span>
-                  {lbOffTarget && (
-                    <div className={styles.lbWarn}>
-                      <Note tone="warn" icon="!">
-                        Loading buffer is {lbNum} µL, {lbNum > (lbExpected as number) ? "above" : "below"} the{" "}
-                        {lbExpected} µL that keeps Complex + Loading buffer = {LOADING_TOTAL_UL} µL.{" "}
-                        <button type="button" className={styles.lbReset} onClick={resetLoadingBuffer}>
-                          Use {lbExpected} µL
-                        </button>
-                      </Note>
+            <section key={section.header} className={styles.section}>
+              <h3 className={styles.sectionHeader}>{section.header}</h3>
+              <div className={styles.rows}>
+                {visibleRows.map((row, i) => {
+                  const hasLbWarn = row.some((f) => f.key === K_LOADING_BUFFER) && lbOffTarget;
+                  return (
+                    <div key={i} className={styles.row}>
+                      {row.map(renderField)}
+                      {hasLbWarn && (
+                        <div className={styles.rowWarn}>
+                          <Note tone="warn" icon="!">
+                            Loading buffer is {lbNum} µL, {lbNum > (lbExpected as number) ? "above" : "below"} the{" "}
+                            {lbExpected} µL that keeps Complex + Loading buffer = {LOADING_TOTAL_UL} µL.{" "}
+                            <button type="button" className={styles.lbReset} onClick={resetLoadingBuffer}>
+                              Use {lbExpected} µL
+                            </button>
+                          </Note>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </>
-              ) : (
-                (f.kind === "barcodes" || f.kind === "sanger") && (
-                  <span className={styles.hint}>Separate multiple with commas or spaces.</span>
-                )
-              )}
-            </label>
+                  );
+                })}
+              </div>
+            </section>
           );
         })}
       </div>

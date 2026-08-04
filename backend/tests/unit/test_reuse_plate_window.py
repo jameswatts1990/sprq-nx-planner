@@ -14,18 +14,18 @@ def _mon_noon() -> datetime:
 
 
 def test_normal_movie_lands_reuse_the_next_weekday():
-    # 24h from Mon noon -> Tue noon; + 0.75h wash -> Tue 12:45.
+    # 24h from Mon noon -> Tue noon; + 0.3h wash (REUSE_PREP_H) -> Tue 12:18.
     acquire, start, end = reuse_plate_window(_mon_noon(), 24, 24)
     assert acquire.isoformat() == "2026-07-21"  # Tuesday
-    assert start == datetime(2026, 7, 21, 12, 45, tzinfo=timezone.utc)
+    assert start == datetime(2026, 7, 21, 12, 18, tzinfo=timezone.utc)
     assert (end - start).total_seconds() == 24 * 3600  # end = start + the reuse movie
 
 
 def test_thirty_hour_movie_still_lands_tuesday():
-    # 30h (the longest allowed movie) from Mon noon -> Tue 18:00; + wash -> Tue 18:45, still Tue.
+    # 30h (the longest allowed movie) from Mon noon -> Tue 18:00; + 0.3h wash -> Tue 18:18, still Tue.
     acquire, start, _ = reuse_plate_window(_mon_noon(), 30, 30)
     assert acquire.isoformat() == "2026-07-21"  # Tuesday
-    assert start == datetime(2026, 7, 21, 18, 45, tzinfo=timezone.utc)
+    assert start == datetime(2026, 7, 21, 18, 18, tzinfo=timezone.utc)
 
 
 def test_very_long_movie_pushes_the_reuse_out_a_further_day():
@@ -35,7 +35,7 @@ def test_very_long_movie_pushes_the_reuse_out_a_further_day():
 
 
 def test_reuse_that_would_start_on_a_weekend_rolls_to_the_next_weekday():
-    # Load Friday noon, 30h movie -> ends Sat 18:00; + wash -> Sat 18:45, a weekend. Runs are
+    # Load Friday noon, 30h movie -> ends Sat 18:00; + 0.3h wash -> Sat 18:18, a weekend. Runs are
     # weekday-only and the operator isn't in, so it rolls to Monday's start hour (noon).
     fri_noon = datetime(2026, 7, 24, 12, 0, tzinfo=timezone.utc)  # 2026-07-24 is a Friday
     acquire, start, _ = reuse_plate_window(fri_noon, 30, 24)
