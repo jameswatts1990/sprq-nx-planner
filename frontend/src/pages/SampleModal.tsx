@@ -46,11 +46,11 @@ const SECTIONS: { header: string; rows: [string, string][] }[] = [
   },
 ];
 
-/** Field-label overrides shown on the form only — the backend spec keeps the canonical
- * labels (used on import/template). These reword a couple of identifiers for lab users. */
-const LABEL_OVERRIDES: Record<string, string> = {
+/** Light-grey sub-labels shown beneath a field's label on the form only — the canonical label
+ * (used on import/template) stays the field name; this clarifies it for lab users. */
+const FIELD_HINTS: Record<string, string> = {
   external_id: "Unique ID e.g. Pool ID",
-  parent_sample: "Parent Sample e.g. Plate ID",
+  parent_sample: "e.g. Plate ID",
 };
 
 // Loading buffer is a derived volume, not a free input: Complex + Loading buffer always tops
@@ -254,10 +254,11 @@ export function SampleModal({
     return (
       <label key={f.key} className={styles.field}>
         <span className={styles.label}>
-          {LABEL_OVERRIDES[f.key] ?? f.label}
+          {f.label}
           {f.required && <span className={styles.req}> *</span>}
           {locked && <span className={styles.lock}> · locked</span>}
         </span>
+        {FIELD_HINTS[f.key] && <span className={styles.sublabel}>{FIELD_HINTS[f.key]}</span>}
         {f.kind === "boolean" ? (
           <select
             className={styles.input}

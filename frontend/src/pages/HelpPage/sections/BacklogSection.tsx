@@ -99,7 +99,7 @@ export function BacklogSection() {
         <b>+ Add sample</b> (top-right of the toolbar) opens a form to add one sample to the backlog by hand — handy
         when a sample isn&apos;t in a file to import. The form is grouped into three shaded sections —{" "}
         <b>Sample ID &amp; Priority</b>, <b>Complex Details</b>, and <b>Run Settings</b> — to keep entry scannable.
-        The <b>Unique ID</b> (e.g. a Pool ID — the sample&apos;s container identifier) and at least one{" "}
+        The <b>Container ID</b> (a unique identifier such as a Pool ID) and at least one{" "}
         <b>barcode</b> are required (enter several barcodes separated by commas or spaces); every other field is
         optional. The
         three True/False settings (Adaptive Loading, Full-Resolution Base Q, Include Base Kinetics) and Priority
