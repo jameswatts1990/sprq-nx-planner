@@ -35,6 +35,9 @@ export interface SchedulerGridProps {
   grouped: Map<string, Map<string, RunOut>>;
   selection: GridSelection;
   placingSlotKey: string | null;
+  /** The slot a manual drop was just rejected on for a barcode clash - see
+   * useScheduleActions' clashSlotKey. */
+  clashSlotKey: string | null;
   onOpenDetail: (stage: StageOut, run: RunOut) => void;
   onOpenCell: (stage: StageOut, run: RunOut) => void;
   slotSelection: SlotSelection;
@@ -118,6 +121,7 @@ export function SchedulerGrid({
   grouped,
   selection,
   placingSlotKey,
+  clashSlotKey,
   onOpenDetail,
   onOpenCell,
   slotSelection,
@@ -222,6 +226,7 @@ export function SchedulerGrid({
               cyclesByDate={grouped.get(serial) ?? EMPTY_CYCLES_BY_DATE}
               selection={selection}
               placingSlotKey={placingSlotKey}
+              clashSlotKey={clashSlotKey}
               onOpenDetail={onOpenDetail}
               onOpenCell={onOpenCell}
               slotSelection={slotSelection}

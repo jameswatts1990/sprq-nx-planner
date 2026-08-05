@@ -763,6 +763,101 @@
   color: var(--red);
 }
 
+/* Barcode clash: a Cell QC re-zip landed this sample on a cell that had already burned this
+   exact barcode with a DIFFERENT sample - two samples on the instrument can no longer be told
+   apart, a data-integrity risk that outranks every qcAlert severity above (see .qcAlert* -
+   this rule intentionally comes after them in source order so its !important border wins any
+   tie). A distinct hazard-tape pattern (steeper angle, tighter pitch than .qcAlertCancelled's
+   cross-hatch) plus a slow pulse keeps it reading as "different, more urgent" even at a glance
+   across a full week, since it's rare enough that missing it is costly. */
+.barcodeClash {
+  border-color: var(--red) !important;
+  border-width: 2px !important;
+  --qc-ring: 0 0 0 2px var(--red);
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(220, 53, 69, 0.22),
+    rgba(220, 53, 69, 0.22) 5px,
+    transparent 5px,
+    transparent 10px
+  );
+  animation: barcodeClashPulse 1.6s ease-in-out infinite;
+}
+@keyframes barcodeClashPulse {
+  0%, 100% {
+    box-shadow: var(--shadow-sm), 0 0 0 2px var(--red);
+  }
+  50% {
+    box-shadow: var(--shadow-sm), 0 0 0 4px var(--red);
+  }
+}
+.qcAlertLabelClash {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--red);
+}
+
+/* Small-insert (<= admin threshold) flag, additive to whatever severity ladder colour the
+   border already carries above - a top-edge stripe rather than a border colour, so it never
+   fights with a QC/clash alert on the same card. Clipped to the card's own rounded corners by
+   `.slot`'s overflow:hidden. Plain stripe = recorded and at/below threshold; the hazard-striped
+   .insertFlagRisk variant is the case PacBio actually flags reduced yield for - a small insert
+   sitting on a cell's 2nd/3rd use (see InsertSizeFlag / smallInsertReuseWarning). */
+.insertFlag {
+  position: relative;
+}
+.insertFlag::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--orange);
+  z-index: 2;
+}
+.insertFlagRisk::before {
+  height: 4px;
+  background: repeating-linear-gradient(45deg, var(--orange) 0 5px, var(--amber) 5px 10px);
+}
+
+/* A manual drop just rejected here for a barcode clash (see useScheduleActions' clashSlotKey) -
+   a few-second pulsing red ring that pinpoints WHERE the rejected drop landed, alongside the
+   toolbar Note (removeSlotsError) that explains why. Applies to an empty "+" placeholder (a
+   rejected place/move) or an already-filled swap target alike - !important + later source
+   order wins over any severity-ladder border the target card already carries (e.g. a swap
+   target that also has its own QC alert). Faster/sharper pulse than .barcodeClash's since this
+   is a transient "look here now", not a standing state. */
+.clashFlash {
+  border-style: solid !important;
+  border-color: var(--red) !important;
+  border-width: 2px !important;
+  animation: clashFlashPulse 0.5s ease-in-out 4;
+}
+@keyframes clashFlashPulse {
+  0%, 100% {
+    box-shadow: 0 0 0 2px rgba(220, 53, 69, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 0 5px rgba(220, 53, 69, 0.55);
+  }
+}
+.clashFlashLabel {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--red);
+  white-space: nowrap;
+}
+@media (prefers-reduced-motion: reduce) {
+  .barcodeClash,
+  .clashFlash {
+    animation: none;
+    box-shadow: var(--shadow-sm), 0 0 0 3px var(--red);
+  }
+}
+
 .placing {
   border-style: solid;
   border-color: var(--blue);

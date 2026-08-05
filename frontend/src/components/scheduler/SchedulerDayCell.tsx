@@ -41,6 +41,9 @@ export interface SchedulerDayCellProps {
   /** Currently selected (and selectable) - via shift-click rectangle or ctrl/cmd-click toggle. */
   selected: boolean;
   placingSlotKey: string | null;
+  /** The slot a manual drop was just rejected on for a barcode clash - see
+   * useScheduleActions' clashSlotKey. */
+  clashSlotKey: string | null;
   onSelect: (r: number, c: number, shift: boolean, ctrl: boolean) => void;
   onOpenDetail: (stage: StageOut, run: RunOut) => void;
   /** Opens the in-grid cell-info popover for a placement's physical cell (the card's
@@ -107,6 +110,7 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
     selectable,
     selected,
     placingSlotKey,
+    clashSlotKey,
     onSelect,
     slotSelection,
     onExtendSelect,
@@ -443,6 +447,7 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
                   loadDate={loadDate}
                   locked={locked}
                   placing={placingSlotKey === slotKey(instrumentSerial, loadDate, i)}
+                  clashFlash={clashSlotKey === slotKey(instrumentSerial, loadDate, i)}
                   selected={
                     !locked &&
                     slots[i] !== null &&

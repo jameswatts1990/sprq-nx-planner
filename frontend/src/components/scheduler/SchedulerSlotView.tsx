@@ -4,6 +4,7 @@ import type { CSSProperties, HTMLAttributes, MouseEvent } from "react";
 import { BarcodeChips } from "@/components/shared/BarcodeChips";
 import { DuplicateBadge } from "@/components/shared/DuplicateBadge";
 import { InsertSizeFlag } from "@/components/shared/InsertSizeFlag";
+import { useInsertSizeThreshold } from "@/hooks/useInsertSizeThreshold";
 import type { SlotIndex, StageOut } from "@/types/schedule";
 import { classForUseIndex } from "@/utils/useIndexClass";
 import { cellPositionLabel, plateWellFromSlot } from "@/utils/plateWell";
@@ -46,6 +47,12 @@ export interface SchedulerSlotViewProps extends HTMLAttributes<HTMLDivElement> {
    * of the plain "+", since placing a new cell here isn't possible. Ignored when `stage`
    * or `ghost` is set. */
   blocked?: boolean;
+  /** A manual drop was just rejected here because it would clash a barcode already burned on
+   * the target cell (see placement_service's 409 "barcode conflict" guards) - a few-second
+   * pulsing red flash pinpointing WHERE the rejected drop landed, alongside the toolbar Note
+   * that explains why (see useScheduleActions' clashSlotKey). Applies to an empty "+" slot
+   * (a rejected place/move) or an already-filled slot (a rejected swap target) alike. */
+  clashFlash?: boolean;
   /** Opens the in-grid cell-info popover for this placement's physical cell. When set (and
    * a stage is shown), the card renders a clickable "ticket stub" on its right edge - the
    * physical cell + its use number. Distinct from the card-body click, which opens the
@@ -97,6 +104,7 @@ export const SchedulerSlotView = memo(
       linked,
       dimmed,
       blocked,
+      clashFlash,
       onOpenCell,
       className,
       style,
@@ -134,6 +142,22 @@ export const SchedulerSlotView = memo(
           : stage!.cell_use_status !== "completed" && stage!.cell_status === "stopped" && !stage!.cell_has_failed_use
             ? "stopped"
             : null;
+
+  // A Cell QC re-zip reassigned this placement onto a cell that had already burned this
+  // barcode with a DIFFERENT sample (see cell_service.has_barcode_clash) - two samples on the
+  // instrument can no longer be told apart by barcode, a data-integrity risk that outranks
+  // every qcAlert severity above, so it wins the card's single alert slot outright rather than
+  // being folded into that ladder (see classes/label below).
+  const barcodeClash = showStage && !!stage!.barcode_clash;
+
+  // Small-insert (<= admin threshold) libraries lose yield when a cell is re-used (see
+  // InsertSizeFlag) - flagged here too (not just the small text badge) so the risk reads at a
+  // glance across a full week without hunting for the badge text. Any recorded size gets the
+  // plain top-stripe; a small insert actually sitting on a reuse (use_number >= 2, the case
+  // that costs yield) gets the stronger hazard-striped variant.
+  const insertThreshold = useInsertSizeThreshold();
+  const insertSizeAlert = showStage && stage!.insert_size_bp != null && stage!.insert_size_bp <= insertThreshold;
+  const insertSizeReuseRisk = insertSizeAlert && stage!.use_number >= 2;
 
   // Colour groups by which physical cell is loaded (stage.use_number), not by well
   // position - so a cell reused across two wells in the same run shares one colour.
@@ -180,10 +204,15 @@ export const SchedulerSlotView = memo(
     // its own distinct orange, between warning and danger; Stopped and Cancelled/"Blocked"
     // (a future use lost because the whole cell was taken out of service) share the same
     // red "danger" severity, since both mean this physical cell is permanently done.
-    if (qcAlert === "cancelled") classes.push(styles.qcAlertCancelled);
+    if (barcodeClash) classes.push(styles.barcodeClash);
+    else if (qcAlert === "cancelled") classes.push(styles.qcAlertCancelled);
     else if (qcAlert === "aborted") classes.push(styles.qcAlertWarn);
     else if (qcAlert === "failed") classes.push(styles.qcAlertFailed);
     else if (qcAlert) classes.push(styles.qcAlert);
+    // Additive, not part of the ladder above - a top-edge stripe rather than a border colour,
+    // so it never fights with a QC/clash alert also carried by the same card.
+    if (insertSizeAlert) classes.push(styles.insertFlag);
+    if (insertSizeReuseRisk) classes.push(styles.insertFlagRisk);
     // Shades toward the same fade as a waiting-cell ghost, but driven by this cell's own
     // elapsed time rather than time-to-deadline - "denote the passing of time until a
     // [cell's] expiry" (see docs/pacbio-sprq-nx-scheduling-reference.md #2: this is always
@@ -196,6 +225,7 @@ export const SchedulerSlotView = memo(
   }
   if (locked) classes.push(styles.locked);
   if (placing) classes.push(styles.placing);
+  if (clashFlash) classes.push(styles.clashFlash);
   if (showStub) classes.push(styles.hasStub);
   if (over) {
     if (dragging) {
@@ -293,29 +323,38 @@ export const SchedulerSlotView = memo(
             )}
             <InsertSizeFlag sizeBp={stage!.insert_size_bp} />
           </div>
-          {qcAlert && (
+          {barcodeClash ? (
             <div
-              className={
-                qcAlert === "cancelled"
-                  ? styles.qcAlertLabelCancelled
-                  : qcAlert === "aborted"
-                    ? styles.qcAlertLabelWarn
-                    : qcAlert === "failed"
-                      ? styles.qcAlertLabelFailed
-                      : styles.qcAlertLabel
-              }
-              title={
-                qcAlert === "cancelled"
-                  ? "Blocked - this placement was cancelled when its cell was stopped before it could run. Its sample went back to the Backlog."
-                  : qcAlert === "stopped"
-                    ? "This physical cell has been stopped - out of service, never reused."
-                    : qcAlert === "failed"
-                      ? "This use was marked Failed - no usable data produced."
-                      : "This use was marked Aborted - the run/instrument was the problem, sample back in the backlog."
-              }
+              className={styles.qcAlertLabelClash}
+              title="Barcode clash - a Cell QC re-zip landed this sample on a cell that already burned this exact barcode with a DIFFERENT sample. The two can no longer be reliably told apart in the sequencing output - check this cell on the Cells page before this run proceeds."
             >
-              {qcAlert === "cancelled" ? "Blocked" : qcAlert === "stopped" ? "Stopped" : qcAlert === "failed" ? "Failed" : "Aborted"}
+              ⚠ Clash
             </div>
+          ) : (
+            qcAlert && (
+              <div
+                className={
+                  qcAlert === "cancelled"
+                    ? styles.qcAlertLabelCancelled
+                    : qcAlert === "aborted"
+                      ? styles.qcAlertLabelWarn
+                      : qcAlert === "failed"
+                        ? styles.qcAlertLabelFailed
+                        : styles.qcAlertLabel
+                }
+                title={
+                  qcAlert === "cancelled"
+                    ? "Blocked - this placement was cancelled when its cell was stopped before it could run. Its sample went back to the Backlog."
+                    : qcAlert === "stopped"
+                      ? "This physical cell has been stopped - out of service, never reused."
+                      : qcAlert === "failed"
+                        ? "This use was marked Failed - no usable data produced."
+                        : "This use was marked Aborted - the run/instrument was the problem, sample back in the backlog."
+                }
+              >
+                {qcAlert === "cancelled" ? "Blocked" : qcAlert === "stopped" ? "Stopped" : qcAlert === "failed" ? "Failed" : "Aborted"}
+              </div>
+            )
           )}
           <BarcodeChips barcodes={stage!.barcodes} variant={useClass} />
           {showStub && (
@@ -358,10 +397,24 @@ export const SchedulerSlotView = memo(
         </span>
       ) : (
         <span
-          className={styles.placeholder}
-          title={locked && !placing ? "This run is locked - it can't accept new placements or moves." : undefined}
+          className={clashFlash ? styles.clashFlashLabel : styles.placeholder}
+          title={
+            clashFlash
+              ? "Drop rejected - this would clash a barcode already burned on that cell."
+              : locked && !placing
+                ? "This run is locked - it can't accept new placements or moves."
+                : undefined
+          }
         >
-          {placing ? "placing…" : dragging ? (over ? "stays here" : "") : `+ ${plateWellFromSlot(slotIndex)}`}
+          {clashFlash
+            ? "⚠ clash"
+            : placing
+              ? "placing…"
+              : dragging
+                ? over
+                  ? "stays here"
+                  : ""
+                : `+ ${plateWellFromSlot(slotIndex)}`}
         </span>
       )}
       {showStage && placing && <div className={styles.shimmer}>placing…</div>}

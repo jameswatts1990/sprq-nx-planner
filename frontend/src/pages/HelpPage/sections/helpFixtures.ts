@@ -213,3 +213,33 @@ export const STAGE_EXAMPLE_CANCELLED: StageOut = {
   cell_use_status: "cancelled",
   cell_status: "stopped",
 };
+
+// A Cell QC re-zip landed this sample on a cell that had already burned this barcode with a
+// different sample - the most severe card marking, outranking every qcAlert state above.
+export const STAGE_EXAMPLE_BARCODE_CLASH: StageOut = {
+  ...STAGE_EXAMPLE_SOURCE,
+  cell_use_id: 8,
+  cell_id: 11,
+  cell_ref: "C02-T11",
+  tray_id: 11,
+  sample_id: 8,
+  sample_external_id: "SAMPLE-822",
+  barcodes: ["bc4010"],
+  reassigned: true,
+  barcode_clash: true,
+};
+
+// A small-insert (<= threshold) library sitting on a cell's 2nd use - the yield-loss case
+// PacBio flags, so the stronger hazard-striped top edge shows (see InsertSizeFlag).
+export const STAGE_EXAMPLE_SMALL_INSERT_REUSE: StageOut = {
+  ...STAGE_EXAMPLE_SOURCE,
+  cell_use_id: 9,
+  cell_id: 12,
+  cell_ref: "C02-T12",
+  tray_id: 12,
+  sample_id: 9,
+  sample_external_id: "SAMPLE-930",
+  barcodes: ["bc9030"],
+  use_number: 2,
+  insert_size_bp: 3000,
+};

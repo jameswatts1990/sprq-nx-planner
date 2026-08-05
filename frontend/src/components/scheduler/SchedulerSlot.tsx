@@ -43,6 +43,9 @@ export interface SchedulerSlotProps {
   /** This well is permanently blocked by a stopped cell (see waitingCells.
    * groupBlockedWellsByInstrument) - read-only, never a drop target. */
   blocked?: boolean;
+  /** A manual drop was just rejected on this exact slot for a barcode clash - see
+   * useScheduleActions' clashSlotKey and SchedulerSlotView's clashFlash. */
+  clashFlash?: boolean;
 }
 
 /**
@@ -93,6 +96,7 @@ function DroppableSlot({
   instrumentSerial,
   loadDate,
   placing,
+  clashFlash,
 }: SchedulerSlotProps) {
   // A slot is a plate LOADING position, not a cell: a drop never targets a specific resident
   // cell. Which physical cell it lands on is derived server-side (reuse-before-new, the
@@ -108,7 +112,16 @@ function DroppableSlot({
     id: slotKey(instrumentSerial, loadDate, slotIndex),
     data,
   });
-  return <SchedulerSlotView ref={setNodeRef} stage={null} slotIndex={slotIndex} over={isOver} placing={placing} />;
+  return (
+    <SchedulerSlotView
+      ref={setNodeRef}
+      stage={null}
+      slotIndex={slotIndex}
+      over={isOver}
+      placing={placing}
+      clashFlash={clashFlash}
+    />
+  );
 }
 
 function DraggableSlot({
@@ -117,6 +130,7 @@ function DraggableSlot({
   instrumentSerial,
   loadDate,
   placing,
+  clashFlash,
   selected,
   onOpenDetail,
   onOpenCell,
@@ -217,6 +231,7 @@ function DraggableSlot({
       dragging={isDragging}
       over={isOver}
       overInvalid={isOverInvalid}
+      clashFlash={clashFlash}
       selected={selected}
       linked={isPeer}
       linkSource={isSource}

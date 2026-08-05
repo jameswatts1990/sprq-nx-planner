@@ -293,7 +293,10 @@ export function ScheduleSection() {
           cell is re-used, so Auto Schedule <b>only ever puts a small-insert sample on a cell&apos;s first use</b> —
           never a 2nd or 3rd use. If no fresh first use is left, it&apos;s reported <b>unplaced</b> rather than forced
           onto a reuse. Placing one by hand is still allowed, but shows a warning:{" "}
-          <i>&quot;Samples &lt;5kb have shown reduced performance of re-uses.&quot;</i>
+          <i>&quot;Samples &lt;5kb have shown reduced performance of re-uses.&quot;</i> On the weekly schedule grid,
+          the card itself also carries an orange stripe across its top edge — a plain stripe on a first use, a bolder
+          hazard-striped one when it&apos;s actually sitting on a 2nd/3rd use — so the risk reads at a glance without
+          hunting for the small tag text (see the Legend tab).
           <br />
           When it has to decide what to place first, Auto Schedule works in this order: <b>Priority</b> (High → Medium →
           Standard), then <b>movie length</b> (12 h and 30 h samples, each tied to one cell position, go ahead of
@@ -525,6 +528,13 @@ export function ScheduleSection() {
         explaining the slot is already taken rather than silently doing nothing.
       </p>
       <p>
+        <b>A drop that would clash a barcode is rejected the same way.</b> If placing, moving, or swapping a sample by
+        hand would land it on a cell that&apos;s already burned that exact barcode with a <i>different</i> sample, the
+        placement never happens — the sample stays exactly where it was. The well you dropped onto flashes red for a
+        few seconds so it&apos;s obvious <i>where</i> the rejection landed, alongside a red banner above the schedule
+        explaining <i>why</i> (see <b>Rejected drop</b> in the Legend tab).
+      </p>
+      <p>
         <b>Auto-schedule result</b> summarises the outcome, e.g. &quot;12 placed · 3 unplaced (TRAC-2-26296,
         TRAC-2-26301, TRAC-2-26305) · 1 cell(s) skipped · 2 window flag(s) · 1 reuse-timing flag(s) · 1 barcode
         conflict(s) · 4 cell(s) disposed&quot; — any unplaced samples are named by Container ID (up to the first
@@ -568,7 +578,10 @@ export function ScheduleSection() {
         — <b>Lost</b> (→ the Backlog&apos;s <b>Top-up required</b> list), or <b>Repeatable</b> / <b>Recoverable</b>{" "}
         (→ the Backlog&apos;s <b>Recoverable Samples</b> section, above High priority). Samples that simply ran on a
         <i>different</i> cell than planned are flagged for review — with a warning if the shift created a barcode
-        clash. A stopped/retired cell is never offered for reuse again; the same dialog later offers <b>Undo QC</b> to
+        clash. That clash also marks the card itself directly on the weekly schedule — a pulsing red hazard-striped
+        border and a <b>⚠ Clash</b> label, the most severe marking the grid shows, so it can&apos;t be missed while
+        scanning the week (see <b>Barcode clash</b> in the Legend tab). A stopped/retired cell is never offered for
+        reuse again; the same dialog later offers <b>Undo QC</b> to
         reverse the whole action (a top-up whose request was already sent is left in place). Cancelled uses stay
         visible as <b>Blocked</b> slots (see below) rather than disappearing.
       </p>

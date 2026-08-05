@@ -1,10 +1,11 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { ApiError } from "@/api/client";
 import { cellUsesApi } from "@/api/cellUses";
 import { schedulerApi } from "@/api/schedulerGrid";
 import type { NoteTone } from "@/components/ui/Note";
+import { slotKey } from "@/components/scheduler/gridKeys";
 import type { GridSelection } from "@/components/scheduler/useGridSelection";
 import type { SlotSelection } from "@/components/scheduler/useSlotSelection";
 import { smallInsertReuseWarning, useInsertSizeThreshold } from "@/hooks/useInsertSizeThreshold";
@@ -17,6 +18,17 @@ export interface AccordionNote {
   tone: NoteTone;
   icon: string;
   text: string;
+}
+
+/** Swap's own request only needs the two cell_use_ids; the target* fields are never sent to
+ * the API - they're carried purely so a rejected swap's onError can flash the right slot (see
+ * flashClash below) without the mutation itself needing to know that's why they're there. */
+interface SwapVars {
+  a: number;
+  b: number;
+  targetInstrumentSerial?: string;
+  targetLoadDate?: string;
+  targetSlotIndex?: SlotIndex;
 }
 
 /** One or two advisory sentences for a just-placed/moved run, combining two independent,
@@ -50,6 +62,17 @@ function placementAdvisoryText(run: RunOut, insertThreshold: number): string | n
   );
   if (smallOnReuse) parts.push(smallInsertReuseWarning(insertThreshold));
   return parts.length > 0 ? parts.join(" ") : null;
+}
+
+/** True for the specific 409 placement_service raises when a manual place/move/swap would
+ * land a sample on a cell that's already burned the barcode it carries with a DIFFERENT
+ * sample (see cell_service.foreign_barcode_clash) - the one rejection worth pinpointing on the
+ * grid itself (see clashSlotKey below), as opposed to every other reason a drop can be
+ * rejected (locked day, occupied slot, etc.), which the generic removeSlotsError text already
+ * covers. Matched by the detail text's own stable "barcode conflict:" prefix (see
+ * placement_service.py's PlacementError call sites) since the API has no separate error code. */
+function isBarcodeConflictError(err: unknown): boolean {
+  return err instanceof ApiError && err.status === 409 && err.message.toLowerCase().startsWith("barcode conflict");
 }
 
 /** "3 unplaced (TRAC-2-26296, TRAC-2-26301, TRAC-2-26305 and 1 more)" - names WHICH samples
@@ -116,6 +139,25 @@ export function useScheduleActions({
   // and then never actually shown unless the user happened to already have the drawer open.
   // Rendered directly on the schedule page instead (see SchedulePage.tsx).
   const [recalculateNote, setRecalculateNote] = useState<AccordionNote | null>(null);
+  // The exact slot a manual place/move/swap was just rejected on for a barcode clash (see
+  // isBarcodeConflictError) - pinpoints WHERE on the grid the rejection happened, alongside
+  // removeSlotsError's generic banner explaining why (see SchedulerSlotView's clashFlash).
+  // Self-clears after a few seconds so it reads as a flash, not a standing state.
+  const [clashSlotKey, setClashSlotKeyState] = useState<string | null>(null);
+  const clashTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const flashClash = useCallback((key: string) => {
+    if (clashTimeoutRef.current) clearTimeout(clashTimeoutRef.current);
+    setClashSlotKeyState(key);
+    clashTimeoutRef.current = setTimeout(() => setClashSlotKeyState(null), 3000);
+  }, []);
+  const clearClashFlash = useCallback(() => {
+    if (clashTimeoutRef.current) clearTimeout(clashTimeoutRef.current);
+    clashTimeoutRef.current = null;
+    setClashSlotKeyState(null);
+  }, []);
+  useEffect(() => () => {
+    if (clashTimeoutRef.current) clearTimeout(clashTimeoutRef.current);
+  }, []);
 
   const removeSlots = useMutation({
     // One atomic request, not one DELETE per stage: the backend removes every stage in a
@@ -158,14 +200,25 @@ export function useScheduleActions({
   // samples' placements - the drag-and-drop equivalent of moving each into the other's
   // slot in one step.
   const swap = useMutation({
-    mutationFn: ({ a, b }: { a: number; b: number }) => cellUsesApi.swap(a, b),
+    mutationFn: ({ a, b }: SwapVars) => cellUsesApi.swap(a, b),
     onSuccess: () => {
       invalidateScheduleRelated(queryClient);
       setRemoveSlotsError(null);
       setDropBlockedMessage(null);
+      clearClashFlash();
     },
-    onError: (err) => {
+    onError: (err, variables) => {
       setRemoveSlotsError(err instanceof ApiError ? err.message : "Failed to swap samples.");
+      if (
+        isBarcodeConflictError(err) &&
+        variables.targetInstrumentSerial &&
+        variables.targetLoadDate &&
+        variables.targetSlotIndex !== undefined
+      ) {
+        flashClash(slotKey(variables.targetInstrumentSerial, variables.targetLoadDate, variables.targetSlotIndex));
+      } else {
+        clearClashFlash();
+      }
     },
   });
 
@@ -229,11 +282,17 @@ export function useScheduleActions({
       invalidateScheduleRelated(queryClient);
       setRemoveSlotsError(null);
       setDropBlockedMessage(null);
+      clearClashFlash();
       setPlacementAdvisory(placementAdvisoryText(run, insertThreshold));
     },
-    onError: (err) => {
+    onError: (err, variables) => {
       setPlacementAdvisory(null);
       setRemoveSlotsError(err instanceof ApiError ? err.message : "Failed to place sample.");
+      if (isBarcodeConflictError(err)) {
+        flashClash(slotKey(variables.instrument_serial, variables.load_date, variables.slot_index));
+      } else {
+        clearClashFlash();
+      }
     },
   });
 
@@ -256,11 +315,17 @@ export function useScheduleActions({
       invalidateScheduleRelated(queryClient);
       setRemoveSlotsError(null);
       setDropBlockedMessage(null);
+      clearClashFlash();
       setPlacementAdvisory(placementAdvisoryText(run, insertThreshold));
     },
-    onError: (err) => {
+    onError: (err, variables) => {
       setPlacementAdvisory(null);
       setRemoveSlotsError(err instanceof ApiError ? err.message : "Failed to move sample.");
+      if (isBarcodeConflictError(err)) {
+        flashClash(slotKey(variables.instrument_serial, variables.load_date, variables.slot_index));
+      } else {
+        clearClashFlash();
+      }
     },
   });
 
@@ -396,7 +461,8 @@ export function useScheduleActions({
     setClearConfirmOpen(false);
     setRecalculateTarget(null);
     setRecalculateNote(null);
-  }, []);
+    clearClashFlash();
+  }, [clearClashFlash]);
 
   return {
     runDesignNote,
@@ -405,6 +471,7 @@ export function useScheduleActions({
     onDropBlocked,
     placementAdvisory,
     setPlacementAdvisory,
+    clashSlotKey,
     clearConfirmOpen,
     setClearConfirmOpen,
     recalculateTarget,

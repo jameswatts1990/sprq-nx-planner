@@ -22,9 +22,11 @@ import {
   EXAMPLE_CELL_UNREPORTED,
   EXAMPLE_TRAY_SIBLINGS,
   STAGE_EXAMPLE_ABORTED,
+  STAGE_EXAMPLE_BARCODE_CLASH,
   STAGE_EXAMPLE_CANCELLED,
   STAGE_EXAMPLE_FAILED,
   STAGE_EXAMPLE_PEER,
+  STAGE_EXAMPLE_SMALL_INSERT_REUSE,
   STAGE_EXAMPLE_SOURCE,
   STAGE_EXAMPLE_STOPPED,
   STAGE_EXAMPLE_UNRELATED,
@@ -208,16 +210,29 @@ export function LegendSection() {
       </div>
 
       <p className={styles.subheading}>Small insert flag (Backlog, Schedule)</p>
-      <div className={styles.legendRow}>
-        <span className={styles.legendSwatchLabel}>
-          <InsertSizeFlag sizeBp={3000} />
-        </span>
-        <span>
-          The sample&apos;s insert / fragment size is at or below the small-insert threshold (set in Admin →
-          Scheduling, default 5&nbsp;kb). Small inserts lose yield when a SMRT cell is re-used, so Auto Schedule keeps
-          them on a cell&apos;s first use, and a warning shows if one is placed manually on a 2nd/3rd use. The tag text
-          tracks the configured threshold.
-        </span>
+      <div className={styles.legendGrid}>
+        <div className={styles.legendRow}>
+          <span className={styles.legendSwatchLabel}>
+            <InsertSizeFlag sizeBp={3000} />
+          </span>
+          <span>
+            The sample&apos;s insert / fragment size is at or below the small-insert threshold (set in Admin →
+            Scheduling, default 5&nbsp;kb). Small inserts lose yield when a SMRT cell is re-used, so Auto Schedule
+            keeps them on a cell&apos;s first use, and a warning shows if one is placed manually on a 2nd/3rd use. The
+            tag text tracks the configured threshold.
+          </span>
+        </div>
+        <div className={styles.legendRow}>
+          <div className={styles.ghostExampleSwatch}>
+            <SchedulerSlotView stage={STAGE_EXAMPLE_SMALL_INSERT_REUSE} slotIndex={4} />
+          </div>
+          <span>
+            On the weekly schedule, a small-insert sample also gets an orange stripe across the top of its card - a
+            plain stripe on a first use, the bolder hazard-striped stripe shown here when it&apos;s manually placed on
+            a cell&apos;s 2nd/3rd use (the case that actually costs yield), so it&apos;s visible at a glance without
+            reading the small tag text.
+          </span>
+        </div>
       </div>
 
       <p className={styles.subheading}>Use colours (schedule barcode chips)</p>
@@ -304,6 +319,34 @@ export function LegendSection() {
             Stop cell it&apos;s a permanent marker; from a cell discard it can be cleared with Return to backlog (open
             the slot). Shares Stopped&apos;s red severity, with an added cross-hatch texture since it&apos;s the more
             actionable claim (a slot you might otherwise expect to still happen).
+          </span>
+        </div>
+        <div className={styles.legendRow}>
+          <div className={styles.ghostExampleSwatch}>
+            <SchedulerSlotView stage={STAGE_EXAMPLE_BARCODE_CLASH} slotIndex={0} />
+          </div>
+          <span>
+            Barcode clash - the most severe marking, outranking every other QC alert. A Cell QC tray re-zip landed
+            this sample on a cell that had already burned this exact barcode with a <b>different</b> sample, so the
+            two can&apos;t be reliably told apart in the sequencing output. Pulses so it&apos;s never missed - check
+            the clashing cell on the Cells page before this run proceeds. A manual drag-and-drop that would cause this
+            is rejected outright before it can land (see below); this marking only appears for the rarer QC
+            re-zip case, since that reassignment happens after the fact.
+          </span>
+        </div>
+      </div>
+
+      <p className={styles.subheading}>Rejected drop (Weekly schedule)</p>
+      <div className={styles.legendGrid}>
+        <div className={styles.legendRow}>
+          <div className={styles.ghostExampleSwatch}>
+            <SchedulerSlotView stage={null} slotIndex={0} clashFlash />
+          </div>
+          <span>
+            Manually dragging a sample onto a well is refused outright if it would clash a barcode already burned on
+            that cell (rather than being placed and left in a bad state) - the exact well you dropped onto flashes
+            red for a few seconds so it&apos;s obvious where and what happened, alongside a red banner above the
+            schedule explaining why.
           </span>
         </div>
       </div>
