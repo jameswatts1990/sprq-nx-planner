@@ -339,8 +339,13 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
                   disabled={statusMutation.isPending}
                   onClick={() => {
                     setRunName(run.run_name ?? "");
-                    const plate1 = run.plates.find((p) => p.plate_index === 1);
-                    setLoadTime(plate1 ? formatLoadTime(new Date(plate1.planned_start_at)) : "12:00");
+                    // Default to right now, not the plan: pressing this button IS the physical
+                    // load event, and the cells start prepping immediately (see
+                    // cell_timing.run_is_acquiring) - defaulting to the earlier planned time let
+                    // an on-time-or-early load silently record a future load time, so the
+                    // Instruments page kept reading idle until that planned hour arrived. Still
+                    // freely editable for a genuine backdate (confirming after the fact).
+                    setLoadTime(formatLoadTime(new Date()));
                     setConfirmingLoad(true);
                   }}
                 >

@@ -115,7 +115,7 @@ export function RunDetailPage() {
         </span>
         {plate1 && (
           <span>
-            Loads &amp; starts <b>{formatShortDateTimeUTC(plate1.planned_start_at)}</b>
+            Loads &amp; starts <b>{formatShortDateTimeUTC(plate1.actual_start_at ?? plate1.planned_start_at)}</b>
           </span>
         )}
         <span>

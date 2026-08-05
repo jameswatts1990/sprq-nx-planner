@@ -11,14 +11,18 @@ export interface ModalProps {
   /** Optional content rendered top-right, alongside the title (e.g. quick actions). */
   titleExtra?: ReactNode;
   children: ReactNode;
-  /** max-width of the modal box; defaults to 480px. */
+  /** max-width of the modal box; defaults to 480px. Ignored when `fullScreen` is set. */
   maxWidth?: number;
+  /** Fills the viewport (minus the overlay's own padding) instead of the default centered,
+   * width-capped box — for content that needs real room (e.g. a week-long chart) rather than
+   * a dialog. Escape/overlay-click/stopPropagation behave identically either way. */
+  fullScreen?: boolean;
 }
 
 /** Generic centered modal dialog, generalized from CellsPage's inline overlay/modal
  * markup: div.overlay[role=dialog][aria-modal] + inner div.modal (stopPropagation),
  * Escape-to-close. Consumers lay out their own body/footer inside. */
-export function Modal({ onClose, title, titleExtra, children, maxWidth }: ModalProps) {
+export function Modal({ onClose, title, titleExtra, children, maxWidth, fullScreen }: ModalProps) {
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") onClose();
@@ -30,8 +34,8 @@ export function Modal({ onClose, title, titleExtra, children, maxWidth }: ModalP
   return (
     <div className={styles.overlay} role="dialog" aria-modal="true" onClick={onClose}>
       <div
-        className={styles.modal}
-        style={maxWidth ? { maxWidth } : undefined}
+        className={fullScreen ? `${styles.modal} ${styles.fullScreen}` : styles.modal}
+        style={!fullScreen && maxWidth ? { maxWidth } : undefined}
         onClick={(e) => e.stopPropagation()}
       >
         {(title !== undefined || titleExtra !== undefined) && (

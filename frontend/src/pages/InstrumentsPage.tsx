@@ -7,6 +7,7 @@ import { cyclesApi } from "@/api/cycles";
 import { instrumentsApi } from "@/api/instruments";
 import { RevioScreen } from "@/components/scheduler/RevioScreen";
 import { RunStageGantt } from "@/components/scheduler/RunStageGantt";
+import { WeekPlanModal } from "@/components/scheduler/WeekPlanModal";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody } from "@/components/ui/Card";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
@@ -98,6 +99,7 @@ export function InstrumentsPage() {
   const [editing, setEditing] = useState<InstrumentOut | null>(null);
   const [downing, setDowning] = useState<InstrumentOut | null>(null);
   const [confirming, setConfirming] = useState<{ instrument: InstrumentOut; kind: ConfirmKind } | null>(null);
+  const [weekPlanFor, setWeekPlanFor] = useState<InstrumentOut | null>(null);
 
   // One shared post-mutation refresh: the schedule grid's instrument axis + this page's list
   // and stats. invalidateScheduleRelated already covers ["instruments"] (so the grid regreys/
@@ -148,6 +150,7 @@ export function InstrumentsPage() {
               onEdit={() => setEditing(instrument)}
               onDown={() => setDowning(instrument)}
               onConfirm={(kind) => setConfirming({ instrument, kind })}
+              onOpenWeekPlan={() => setWeekPlanFor(instrument)}
             />
           ))}
         </div>
@@ -193,6 +196,7 @@ export function InstrumentsPage() {
           }}
         />
       )}
+      {weekPlanFor && <WeekPlanModal instrument={weekPlanFor} onClose={() => setWeekPlanFor(null)} />}
     </div>
   );
 }
@@ -225,9 +229,20 @@ interface InstrumentCardProps {
   onEdit: () => void;
   onDown: () => void;
   onConfirm: (kind: ConfirmKind) => void;
+  onOpenWeekPlan: () => void;
 }
 
-function InstrumentCard({ instrument, stats, activeRuns, recentRuns, activeRunsUpdatedAt, onEdit, onDown, onConfirm }: InstrumentCardProps) {
+function InstrumentCard({
+  instrument,
+  stats,
+  activeRuns,
+  recentRuns,
+  activeRunsUpdatedAt,
+  onEdit,
+  onDown,
+  onConfirm,
+  onOpenWeekPlan,
+}: InstrumentCardProps) {
   const hasHistory = !!stats && (stats.total_runs > 0 || stats.cell_total_count > 0);
   // Live runs when the machine is busy; otherwise retain its most recent finished run(s) on the
   // screen (like the physical display), so an idle card shows its last run rather than a blank.
@@ -335,6 +350,9 @@ function InstrumentCard({ instrument, stats, activeRuns, recentRuns, activeRunsU
         )}
 
         <div className={styles.actions}>
+          <Button size="sm" variant="ghost" onClick={onOpenWeekPlan}>
+            Week plan
+          </Button>
           <Button size="sm" variant="ghost" onClick={onEdit}>
             Edit
           </Button>

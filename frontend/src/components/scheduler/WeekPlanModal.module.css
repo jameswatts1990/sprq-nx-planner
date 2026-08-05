@@ -1,0 +1,11 @@
+.range {
+  margin: 0 0 12px;
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: var(--grey);
+}
+.status {
+  padding: 24px 0;
+  color: var(--grey);
+  font-size: var(--fs-md);
+}

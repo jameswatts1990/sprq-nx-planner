@@ -19,6 +19,13 @@
   max-height: 90vh;
   overflow-y: auto;
 }
+/* Fills the overlay's available space instead of the centered/capped box. 40px = 2 x .overlay's
+   own 20px padding, so the modal fills the viewport right up to that padding on every side. */
+.fullScreen {
+  max-width: none;
+  height: calc(100vh - 40px);
+  max-height: none;
+}
 .titleRow {
   display: flex;
   align-items: flex-start;

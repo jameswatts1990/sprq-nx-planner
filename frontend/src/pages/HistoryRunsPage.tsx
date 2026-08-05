@@ -54,7 +54,9 @@ const RunRow = memo(function RunRow({ run }: { run: RunOut }) {
       <td>{run.plates.length}</td>
       <td>{longestMovie} h</td>
       <td>{wellCount}</td>
-      <td>{plate1 ? new Date(plate1.planned_start_at).toLocaleString() : "—"}</td>
+      <td title={plate1 && !plate1.actual_start_at ? "Not yet loaded — showing the planned start" : undefined}>
+        {plate1 ? new Date(plate1.actual_start_at ?? plate1.planned_start_at).toLocaleString() : "—"}
+      </td>
     </tr>
   );
 });
@@ -203,7 +205,7 @@ export function HistoryRunsPage() {
                     <th>Plates</th>
                     <th>Movie</th>
                     <th>Cells</th>
-                    <th>Planned start</th>
+                    <th>Loaded at</th>
                   </tr>
                 </thead>
                 <tbody>

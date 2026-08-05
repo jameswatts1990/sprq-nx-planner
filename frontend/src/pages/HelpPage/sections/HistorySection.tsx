@@ -18,7 +18,8 @@ export function HistorySection() {
       <p>
         <b>Columns:</b> Run (its name if one was given when it was locked via <b>Confirm loaded</b>, otherwise its
         number, shown as <b>#45</b>; links to detail), Load date, Instrument, Status badge, number of Plates (1 or 2), Movie length
-        in hours (its longest plate), number of Cells in the run, and the planned start time.
+        in hours (its longest plate), number of Cells in the run, and <b>Loaded at</b> — the real time entered at{" "}
+        <b>Confirm loaded</b> once the run has started, or its still-planned start time before then.
       </p>
       <div className={styles.legendGrid}>
         <div className={styles.legendRow}>

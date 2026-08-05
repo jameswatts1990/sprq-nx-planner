@@ -125,6 +125,29 @@ export function InstrumentsSection() {
         are approximate PacBio estimates, not the instrument&apos;s exact schedule.
       </p>
 
+      <p className={styles.subheading}>Week plan</p>
+      <p>
+        <b>Week plan</b> (in the buttons row) opens a full-screen view of this instrument&apos;s current week (Monday
+        to Sunday) — the same stage-times gantt as above, expanded to show everything scheduled across the whole
+        week rather than just what&apos;s running right now. It&apos;s always available, even on an idle instrument
+        with nothing scheduled — you&apos;ll just see an empty week.
+      </p>
+      <p>
+        Two extra strips sit above the per-cell rows, so you don&apos;t have to work either out by eye:{" "}
+        <b>Loading window</b> (amber) shows when the instrument is locked and can&apos;t yet take a fresh tray — the
+        same meaning as the amber <b>prep-locked</b> chip described above, just plotted across the whole week
+        instead of just right now. <b>Noisy (PPA)</b> (the same slate colour as the PPA segment in every row below
+        it) shows whenever post-primary analysis is running anywhere on the instrument — the busiest part of a run,
+        and a useful cue for when not to disturb it. Anywhere left unshaded on either strip is open.
+      </p>
+      <p>
+        Move your mouse anywhere over the chart and a purple line follows the cursor, with the exact day and time
+        shown above it in the header. Unlike the green <b>now</b> line (which always marks the actual current
+        time), this one is just a ruler for reading off any point on the chart — both can be on screen together.
+        As with the gantt above, these are approximate PacBio timing estimates, not the instrument&apos;s exact
+        schedule, and this view only shows the current week — there&apos;s no way yet to step to another one.
+      </p>
+
       <p className={styles.subheading}>Status at a glance</p>
       <p>
         The Revio screen itself now shows each instrument&apos;s state, so the card no longer needs a separate title

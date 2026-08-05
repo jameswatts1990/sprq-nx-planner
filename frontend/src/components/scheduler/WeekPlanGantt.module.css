@@ -1,0 +1,341 @@
+/* Week-long instrument gantt, shown in the full-screen Week plan modal. Deliberately mirrors
+   RunStageGantt.module.css's row/segment/colour conventions (same prep/movie/PPA look, same
+   live-line idiom) so a user who already reads the compact Instruments-card gantt immediately
+   understands this view too - see WeekPlanGantt.tsx's header comment for why this is a sibling
+   file rather than a shared one. The label gutter is a touch wider (132px vs 116px) to fit the
+   two summary-strip labels ("Loading window", "Noisy (PPA)") alongside the per-cell cell chips -
+   every row/header/overlay below shares that same 132px width so their tracks all line up. */
+.wrap {
+  --c-prep: #9aa6c0;
+  --c-ppa: #515f7e;
+  margin: 4px 0;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 10px 12px 8px;
+  background: var(--card);
+}
+.caption {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.captionTitle {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--grey);
+}
+.legend {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--grey);
+}
+.swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex: none;
+}
+.swPrep {
+  background: var(--c-prep);
+}
+.swMovie {
+  background: var(--magenta);
+}
+.swPpa {
+  background: var(--c-ppa);
+}
+.hint {
+  font-size: 10.5px;
+  font-weight: 600;
+  font-style: italic;
+  color: var(--faint);
+}
+
+/* Day header: 7 date labels, left-aligned to their day boundary (not centred - each names the
+   day starting there), plus the hover pill sharing the same track/coordinate space. */
+.dayHeader {
+  display: grid;
+  grid-template-columns: 132px 1fr;
+  gap: 8px;
+  padding: 0 4px;
+  margin-bottom: 6px;
+}
+.dayTrack {
+  position: relative;
+  /* Tall enough for the day marks and the hover pill to sit in their own vertical lanes below -
+     they'd otherwise collide whenever the cursor lands close to a day boundary. */
+  height: 32px;
+}
+.dayMark {
+  position: absolute;
+  top: 0;
+  padding-left: 4px;
+  border-left: 1px solid var(--line);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--ink);
+  white-space: nowrap;
+}
+.hoverPill {
+  position: absolute;
+  top: 16px;
+  transform: translateX(-50%);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 800;
+  color: #fff;
+  background: var(--highlight);
+  border-radius: 4px;
+  padding: 2px 6px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.rows {
+  position: relative; /* anchors the live/hover overlay */
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.row {
+  display: grid;
+  grid-template-columns: 132px 1fr;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 4px;
+  border-radius: 5px;
+}
+/* First row of a run when several share this week's gantt: a hairline divider so distinct runs
+   read clearly, same convention as RunStageGantt's .groupStart. */
+.groupStart {
+  margin-top: 5px;
+  padding-top: 6px;
+  border-top: 1px dashed var(--line);
+}
+.rowLabel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.stub {
+  flex: none;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 800;
+  color: #fff;
+  background: var(--bar, var(--grey));
+  border-radius: 4px;
+  padding: 1px 5px;
+  white-space: nowrap;
+}
+.sample {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The two whole-instrument summary strips, sharing the same row grid as the per-cell rows below
+   so their bands line up under the day header and above whatever they summarise. */
+.stripRow {
+  display: grid;
+  grid-template-columns: 132px 1fr;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 4px;
+}
+.stripLabel {
+  font-size: 10.5px;
+  font-weight: 800;
+  color: var(--grey);
+  line-height: 1.2;
+}
+
+/* Shared track background for every row (strips and per-cell alike): a faint 7-way gridline
+   pattern marking day boundaries, layered under the solid base colour. Mathematically identical
+   spacing to the day-header marks above (both divide the track into 7), so they can't drift. */
+.track {
+  position: relative;
+  height: 14px;
+  border-radius: 4px;
+  overflow: hidden;
+  background:
+    repeating-linear-gradient(90deg, var(--line) 0, var(--line) 1px, transparent 1px, transparent calc(100% / 7)),
+    var(--line-soft);
+}
+
+.loadingBand {
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  min-width: 2px;
+  border-radius: 2px;
+  background: var(--amber-tint);
+  border-top: 2px solid var(--amber);
+  border-bottom: 2px solid var(--amber);
+}
+.noisyBand {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  min-width: 2px;
+  border-radius: 3px;
+  background: var(--c-ppa);
+  opacity: 0.72;
+}
+
+/* Prep-pending: the cell is loaded but idle, waiting for a sequencing lane / its stagger slot.
+   Prep / movie / PPA-wait / PPA: identical look to RunStageGantt's own rows - see that file's
+   CSS for the per-segment rationale (kept in prose there, not duplicated here). */
+.prepPending {
+  position: absolute;
+  top: 5px;
+  bottom: 5px;
+  border-radius: 2px;
+  min-width: 1px;
+  background: repeating-linear-gradient(90deg, var(--faint) 0, var(--faint) 1px, transparent 1px, transparent 4px);
+  opacity: 0.6;
+}
+.prep {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--c-prep);
+  border-radius: 3px 0 0 3px;
+  min-width: 2px;
+}
+.movie {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bar, var(--grey));
+  min-width: 2px;
+}
+.ppaWait {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  min-width: 1px;
+  background: repeating-linear-gradient(45deg, var(--c-ppa) 0, var(--c-ppa) 2px, transparent 2px, transparent 5px);
+  opacity: 0.55;
+}
+.ppa {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--c-ppa);
+  border-radius: 0 3px 3px 0;
+  min-width: 2px;
+}
+.movieLabel {
+  font-size: 9.5px;
+  font-weight: 800;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  padding: 0 3px;
+}
+
+/* Live "now" line + the hover crosshair: both sweep the full rows height, mirroring
+   RunStageGantt's .liveOverlay/.liveTrack pattern (pointer-events: none, so it never blocks a
+   row's own native tooltip) - the pointermove/pointerleave listeners live on .rows itself, one
+   level up, precisely so this overlay can stay non-interactive. */
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: 132px 1fr;
+  gap: 8px;
+  padding: 0 4px;
+  pointer-events: none;
+}
+.overlayTrack {
+  position: relative;
+}
+.liveLine {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--green);
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.65);
+}
+.liveGlyph {
+  position: absolute;
+  top: -9px;
+  left: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  font-size: 10px;
+  color: #fff;
+  background: var(--green);
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--card);
+  transform: translateX(-50%);
+  animation: weekPlanLiveSpin 0.9s linear infinite;
+}
+@keyframes weekPlanLiveSpin {
+  from {
+    transform: translateX(-50%) rotate(0deg);
+  }
+  to {
+    transform: translateX(-50%) rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .liveGlyph {
+    animation: none;
+  }
+}
+/* Hover crosshair: a distinct colour (purple/--highlight, already this app's token for a
+   transient hover-driven time affordance - see LoadTimePicker/SchedulerSlotView) so it's never
+   confused with the green "now" line even when both sit close together. No spin (that motion
+   means "live/ticking") and no transition (it must snap exactly to the cursor, not lag it). */
+.hoverLine {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--highlight);
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.65);
+}
+
+/* Per-use bar colour (magenta / blue / teal), matching the Use 1/2/3 swatches in the shared
+   legend (SectionHeading.module.css) - same convention as RunStageGantt.module.css. */
+.u1 {
+  --bar: var(--magenta);
+}
+.u2 {
+  --bar: var(--blue);
+}
+.u3 {
+  --bar: var(--teal);
+}

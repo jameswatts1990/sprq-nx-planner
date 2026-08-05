@@ -753,9 +753,10 @@ export function ScheduleSection() {
           format) — optional, and it overrides the plain run number everywhere this run is shown afterward (Run
           detail, History, Cells use history). Leave it blank to keep the plain number. <b>Unloading</b> never clears a
           name once it&apos;s set; re-confirming lets you change it. The same dialog also lets you <b>amend the load
-          time</b> — the <b>Revio Loaded at:</b> field prefills with the planned time; if the cells actually went on the
-          instrument at a different time, type the real one as <b>hh:mm</b> and the run&apos;s schedule (and any reuse
-          plate chained off it) shifts to match.
+          time</b> — the <b>Revio Loaded at:</b> field prefills with the current time, since that&apos;s normally the
+          moment the cells go on the instrument and start prepping; if you&apos;re confirming after the fact and the
+          cells actually went on at a different time, type the real one as <b>hh:mm</b> and the run&apos;s schedule
+          (and any reuse plate chained off it) shifts to match.
         </li>
         <li>
           A green <b>LOADED</b> tag marks a locked run — hover or focus it and it turns magenta and swaps to{" "}
