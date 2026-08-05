@@ -11,6 +11,7 @@ import {
   computeTrayEvictionDates,
   computeTrayFoundingDates,
   computeVacatedTrayIds,
+  ghostWouldClashWithSample,
   groupWaitingCellsByInstrumentAndDay,
   pinGhostsToSlots,
 } from "./waitingCells";
@@ -162,6 +163,41 @@ function baseUnusedTraySibling(overrides: Partial<CellOut> = {}): CellOut {
     ...overrides,
   });
 }
+
+describe("ghostWouldClashWithSample", () => {
+  const sample = { external_id: "TRAC-2-99999", barcodes: ["bc1"] };
+
+  it("is false with no ghost, a terminal ghost, or a sample with no barcodes", () => {
+    expect(ghostWouldClashWithSample(undefined, sample)).toBe(false);
+    const terminal = computeTerminalGhost(baseCell({ status: "exhausted", burned_barcodes: ["bc1"] }), "2026-07-14")!;
+    expect(ghostWouldClashWithSample(terminal, sample)).toBe(false);
+    const ghost = computeGhost(baseCell({ burned_barcodes: ["bc1"] }), "2026-07-14")!;
+    expect(ghostWouldClashWithSample(ghost, { external_id: "X", barcodes: [] })).toBe(false);
+  });
+
+  it("is false when the cell has no burned barcodes, or none overlap the dragged sample's", () => {
+    const noBurns = computeGhost(baseCell({ burned_barcodes: [] }), "2026-07-14")!;
+    expect(ghostWouldClashWithSample(noBurns, sample)).toBe(false);
+    const differentBarcode = computeGhost(baseCell({ burned_barcodes: ["bc2"] }), "2026-07-14")!;
+    expect(ghostWouldClashWithSample(differentBarcode, sample)).toBe(false);
+  });
+
+  it("is true when the cell already burned this barcode under a DIFFERENT Container ID", () => {
+    const ghost = computeGhost(
+      baseCell({ burned_barcodes: ["bc1"], uses: [{ id: 1, run_batch_id: 1, run_name: null, sample_id: 1, sample_external_id: "OTHER-SAMPLE", well: "A01", status: "planned", run_started: false, breakout_anchor_at: null }] }),
+      "2026-07-14",
+    )!;
+    expect(ghostWouldClashWithSample(ghost, sample)).toBe(true);
+  });
+
+  it("is false when the dragged sample's own Container ID already used this cell (duplicate self-reuse, not a clash)", () => {
+    const ghost = computeGhost(
+      baseCell({ burned_barcodes: ["bc1"], uses: [{ id: 1, run_batch_id: 1, run_name: null, sample_id: 1, sample_external_id: sample.external_id, well: "A01", status: "planned", run_started: false, breakout_anchor_at: null }] }),
+      "2026-07-14",
+    )!;
+    expect(ghostWouldClashWithSample(ghost, sample)).toBe(false);
+  });
+});
 
 describe("groupWaitingCellsByInstrumentAndDay", () => {
   it("buckets ghosts by the cell's current instrument and each eligible day", () => {

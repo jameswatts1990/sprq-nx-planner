@@ -850,9 +850,43 @@
   color: var(--red);
   white-space: nowrap;
 }
+
+/* A drag is in progress and dropping onto this empty slot would clash a barcode already burned
+   on the cell it would naturally reuse (see waitingCells.ghostWouldClashWithSample) - a
+   predictive "danger zone" shown on every such slot for the whole drag, not just the one
+   currently hovered. Dashed, not solid, and slower/calmer than .clashFlash's pulse: this never
+   blocks the drop (it still succeeds), so it must read as a heads-up, not a rejection. */
+.dragClashWarning {
+  border-style: dashed !important;
+  border-color: var(--red) !important;
+  border-width: 2px !important;
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(220, 53, 69, 0.12),
+    rgba(220, 53, 69, 0.12) 5px,
+    transparent 5px,
+    transparent 10px
+  );
+  animation: dragClashWarningPulse 1.4s ease-in-out infinite;
+}
+@keyframes dragClashWarningPulse {
+  0%, 100% {
+    box-shadow: 0 0 0 1px rgba(220, 53, 69, 0.25);
+  }
+  50% {
+    box-shadow: 0 0 0 3px rgba(220, 53, 69, 0.45);
+  }
+}
+.dragClashWarningLabel {
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--red);
+  white-space: nowrap;
+}
 @media (prefers-reduced-motion: reduce) {
   .barcodeClash,
-  .clashFlash {
+  .clashFlash,
+  .dragClashWarning {
     animation: none;
     box-shadow: var(--shadow-sm), 0 0 0 3px var(--red);
   }

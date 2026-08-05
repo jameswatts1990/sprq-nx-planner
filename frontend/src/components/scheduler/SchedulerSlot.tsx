@@ -8,8 +8,8 @@ import { deriveLinkState } from "./cellLinkState";
 import { slotKey } from "./gridKeys";
 import { SchedulerSlotView } from "./SchedulerSlotView";
 import { CellLinkContext } from "./useCellLinkHighlight";
-import type { FilledSlotDragData, OccupiedSlotDropData, SlotDropData } from "./useSchedulerDnd";
-import type { CellGhost } from "./waitingCells";
+import type { DragData, FilledSlotDragData, OccupiedSlotDropData, SlotDropData } from "./useSchedulerDnd";
+import { ghostWouldClashWithSample, type CellGhost } from "./waitingCells";
 
 export interface SchedulerSlotProps {
   stage: StageOut | null;
@@ -97,6 +97,7 @@ function DroppableSlot({
   loadDate,
   placing,
   clashFlash,
+  ghost,
 }: SchedulerSlotProps) {
   // A slot is a plate LOADING position, not a cell: a drop never targets a specific resident
   // cell. Which physical cell it lands on is derived server-side (reuse-before-new, the
@@ -112,6 +113,16 @@ function DroppableSlot({
     id: slotKey(instrumentSerial, loadDate, slotIndex),
     data,
   });
+  // A live drag's own sample, read directly from dnd-kit's shared context rather than threaded
+  // down as a prop - `active` only changes at drag start/end, so every slot in the grid
+  // subscribing to it costs two re-renders per drag, not one per pointer move. Combined with
+  // this slot's own reuse ghost (already computed by SchedulerDayCell) to warn, the moment a
+  // drag starts, about every well whose natural next cell would clash - not just the one
+  // currently hovered (see ghostWouldClashWithSample).
+  const { active } = useDndContext();
+  const dragged = active?.data.current as DragData | undefined;
+  const draggedSample = dragged?.kind === "sample" || dragged?.kind === "filledSlot" ? dragged.sample : undefined;
+  const dragClashWarning = !!draggedSample && ghostWouldClashWithSample(ghost, draggedSample);
   return (
     <SchedulerSlotView
       ref={setNodeRef}
@@ -120,6 +131,7 @@ function DroppableSlot({
       over={isOver}
       placing={placing}
       clashFlash={clashFlash}
+      dragClashWarning={dragClashWarning}
     />
   );
 }

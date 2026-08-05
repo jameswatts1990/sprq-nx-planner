@@ -53,6 +53,14 @@ export interface SchedulerSlotViewProps extends HTMLAttributes<HTMLDivElement> {
    * that explains why (see useScheduleActions' clashSlotKey). Applies to an empty "+" slot
    * (a rejected place/move) or an already-filled slot (a rejected swap target) alike. */
   clashFlash?: boolean;
+  /** A drag is currently in progress and dropping the dragged sample onto THIS empty slot
+   * would clash a barcode already burned on the cell it would naturally reuse (see
+   * waitingCells.ghostWouldClashWithSample) - a best-effort warning shown on every such slot
+   * for the whole drag, not just the one currently hovered, so the danger zones are visible
+   * before the user commits to a drop. Distinct from `clashFlash` (a real, already-rejected
+   * drop) - this is predictive and never blocks anything; the drop still succeeds and the
+   * authoritative clash is then shown via the placed card's own barcode-clash marking. */
+  dragClashWarning?: boolean;
   /** Opens the in-grid cell-info popover for this placement's physical cell. When set (and
    * a stage is shown), the card renders a clickable "ticket stub" on its right edge - the
    * physical cell + its use number. Distinct from the card-body click, which opens the
@@ -105,6 +113,7 @@ export const SchedulerSlotView = memo(
       dimmed,
       blocked,
       clashFlash,
+      dragClashWarning,
       onOpenCell,
       className,
       style,
@@ -143,11 +152,13 @@ export const SchedulerSlotView = memo(
             ? "stopped"
             : null;
 
-  // A Cell QC re-zip reassigned this placement onto a cell that had already burned this
-  // barcode with a DIFFERENT sample (see cell_service.has_barcode_clash) - two samples on the
-  // instrument can no longer be told apart by barcode, a data-integrity risk that outranks
-  // every qcAlert severity above, so it wins the card's single alert slot outright rather than
-  // being folded into that ladder (see classes/label below).
+  // This placement's cell already burned this exact barcode with a DIFFERENT sample (see
+  // cell_service.has_barcode_clash) - either because ordinary placement kept it here to
+  // preserve the tray's loading order (a manual drop never reroutes to dodge a clash - see
+  // placement_service._reuse_eligible), or a Cell QC re-zip landed it there. Either way two
+  // samples on the instrument can no longer be told apart by barcode, a data-integrity risk
+  // that outranks every qcAlert severity above, so it wins the card's single alert slot
+  // outright rather than being folded into that ladder (see classes/label below).
   const barcodeClash = showStage && !!stage!.barcode_clash;
 
   // Small-insert (<= admin threshold) libraries lose yield when a cell is re-used (see
@@ -226,6 +237,7 @@ export const SchedulerSlotView = memo(
   if (locked) classes.push(styles.locked);
   if (placing) classes.push(styles.placing);
   if (clashFlash) classes.push(styles.clashFlash);
+  else if (dragClashWarning) classes.push(styles.dragClashWarning);
   if (showStub) classes.push(styles.hasStub);
   if (over) {
     if (dragging) {
@@ -326,7 +338,7 @@ export const SchedulerSlotView = memo(
           {barcodeClash ? (
             <div
               className={styles.qcAlertLabelClash}
-              title="Barcode clash - a Cell QC re-zip landed this sample on a cell that already burned this exact barcode with a DIFFERENT sample. The two can no longer be reliably told apart in the sequencing output - check this cell on the Cells page before this run proceeds."
+              title="Barcode clash - this cell already burned this exact barcode with a DIFFERENT sample (either kept here to preserve the tray's loading order, or landed here by a Cell QC re-zip). The two can no longer be reliably told apart in the sequencing output - check this cell on the Cells page before this run proceeds."
             >
               ⚠ Clash
             </div>
@@ -397,13 +409,15 @@ export const SchedulerSlotView = memo(
         </span>
       ) : (
         <span
-          className={clashFlash ? styles.clashFlashLabel : styles.placeholder}
+          className={clashFlash ? styles.clashFlashLabel : dragClashWarning ? styles.dragClashWarningLabel : styles.placeholder}
           title={
             clashFlash
               ? "Drop rejected - this would clash a barcode already burned on that cell."
-              : locked && !placing
-                ? "This run is locked - it can't accept new placements or moves."
-                : undefined
+              : dragClashWarning
+                ? "Dropping here will clash a barcode already burned on the cell this well would reuse - the drop still works, but the sample will be flagged as clashing."
+                : locked && !placing
+                  ? "This run is locked - it can't accept new placements or moves."
+                  : undefined
           }
         >
           {clashFlash
@@ -414,7 +428,9 @@ export const SchedulerSlotView = memo(
                 ? over
                   ? "stays here"
                   : ""
-                : `+ ${plateWellFromSlot(slotIndex)}`}
+                : dragClashWarning
+                  ? "⚠ clash risk"
+                  : `+ ${plateWellFromSlot(slotIndex)}`}
         </span>
       )}
       {showStage && placing && <div className={styles.shimmer}>placing…</div>}

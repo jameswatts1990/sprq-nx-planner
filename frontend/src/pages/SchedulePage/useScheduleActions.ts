@@ -285,14 +285,15 @@ export function useScheduleActions({
       clearClashFlash();
       setPlacementAdvisory(placementAdvisoryText(run, insertThreshold));
     },
-    onError: (err, variables) => {
+    onError: (err) => {
+      // No cell_choice is ever sent here, so the backend auto-derives the cell (see
+      // derive_best_cell) - which never excludes a candidate for a barcode clash and so can
+      // never raise the clash 409 flashClash exists for (see isBarcodeConflictError). Any
+      // failure here is something else (locked day, occupied slot, ...); clear a stale flash
+      // left over from an earlier rejected swap so it doesn't linger past this new attempt.
       setPlacementAdvisory(null);
       setRemoveSlotsError(err instanceof ApiError ? err.message : "Failed to place sample.");
-      if (isBarcodeConflictError(err)) {
-        flashClash(slotKey(variables.instrument_serial, variables.load_date, variables.slot_index));
-      } else {
-        clearClashFlash();
-      }
+      clearClashFlash();
     },
   });
 
@@ -318,14 +319,12 @@ export function useScheduleActions({
       clearClashFlash();
       setPlacementAdvisory(placementAdvisoryText(run, insertThreshold));
     },
-    onError: (err, variables) => {
+    onError: (err) => {
+      // Same reasoning as autoPlace's onError above: no cell_choice is sent, so the backend
+      // auto-derives the destination cell and can never raise the barcode-clash 409.
       setPlacementAdvisory(null);
       setRemoveSlotsError(err instanceof ApiError ? err.message : "Failed to move sample.");
-      if (isBarcodeConflictError(err)) {
-        flashClash(slotKey(variables.instrument_serial, variables.load_date, variables.slot_index));
-      } else {
-        clearClashFlash();
-      }
+      clearClashFlash();
     },
   });
 

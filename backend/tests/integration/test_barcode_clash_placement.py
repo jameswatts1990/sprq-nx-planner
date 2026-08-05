@@ -1,13 +1,15 @@
-"""A barcode clash must never silently produce an impossible plate cell order.
-
-A tray breaks its cells out in physical order (▣1 before ▣2 before ▣3 before ▣4), so across a
-plate's loading slots the cells drawn from one tray must appear in that same order. `derive_best_cell`
-treats a slot as a pure loading position and reaches for the next-in-order *eligible* cell, so a
-sample whose barcode clashes with the cell that would naturally back its slot is silently handed a
-later-position sibling instead - which can transpose two equally-reusable cells and render a
-physically impossible "▣2 before ▣1" order on the grid, with no error (reported by the lab owner,
-2026-07-27). The placement path now refuses that transposition. A genuine reuse-depth difference
-(most-used-first / a shorter run) legitimately reorders cells and is still allowed.
+"""A tray breaks its cells out in a fixed physical order (▣1 before ▣2 before ▣3 before ▣4), so
+across a plate's loading slots the cells drawn from one physical tray must appear in that same
+order - a sample dropped onto a well must land on whichever cell the instrument would actually
+reach for next, never a different one chosen to dodge a barcode clash (reported by the lab
+owner, 2026-08-05: a manual drop skipped the naturally-next, in-order cell for a later-position
+sibling because of a barcode clash, an impossible cell order a real instrument would never
+produce). `derive_best_cell` no longer excludes a candidate cell for a barcode clash - see
+_reuse_eligible - so the natural, in-order cell always wins and a resulting clash surfaces as
+StageOut.barcode_clash (see cell_service.has_barcode_clash) instead of forcing a reroute or
+blocking the drop outright. The one place a clash still hard-blocks the request is an *explicit*
+"use this exact cell" choice (_resolve_cell_choice) - a free pick with other cells available, so
+there's no ordering constraint forcing the clash there.
 """
 from datetime import date, timedelta
 
@@ -47,56 +49,57 @@ def _place(client, sample_id, run_date, slot_index, cell_choice, instrument="840
     })
 
 
-def test_clash_forced_tray_position_inversion_is_blocked(client):
+def test_clash_no_longer_forces_a_skip_and_is_flagged_instead(client):
     """Monday burns bc1 onto cell ▣1 and bc2 onto ▣2. On Tuesday, TRAC (bc1, clashes ▣1) is
-    dropped onto A01 and silently reuses ▣2 (▣1 skipped for the clash). Dropping the non-clashing
-    T7 onto B01 would then take ▣1 - loading ▣2 (A01) before ▣1 (B01), an impossible tray order.
-    That second drop is refused with a message naming TRAC's clash, and nothing is placed."""
+    dropped onto A01: the natural next-in-order cell is still ▣1 (most-used, lowest tray
+    position) - TRAC lands there anyway, flagged as a barcode clash, rather than being silently
+    rerouted to ▣2. Dropping the non-clashing T7 onto B01 afterward then takes ▣2 - a plain,
+    ascending ▣1-then-▣2 tray order across the plate's slots, exactly what a real instrument
+    would produce, with no error at any point."""
     client.post("/api/imports", json={"raw_text": "sample,barcodes\nT1,bc1\nT2,bc2\nTRAC,bc1\nT7,bc7"})
     mon, tue = _weekdays(2)
 
     _place(client, _sid(client, "T1"), mon, 0, {"mode": "new"})  # cell ▣1 (A01) burns bc1
     _auto(client, _sid(client, "T2"), mon, 1)                    # cell ▣2 (B01) burns bc2
 
-    trac = _auto(client, _sid(client, "TRAC"), tue, 0)           # clashes ▣1 -> silently lands ▣2
+    trac = _auto(client, _sid(client, "TRAC"), tue, 0)
     assert trac.status_code == 201, trac.text
-    assert next(s for s in _stages(trac.json()) if s["sample_external_id"] == "TRAC")["tray_position"] == 2
+    trac_stage = next(s for s in _stages(trac.json()) if s["sample_external_id"] == "TRAC")
+    assert trac_stage["tray_position"] == 1  # natural in-order cell, not skipped for the clash
+    assert trac_stage["barcode_clash"] is True
 
-    r7 = _auto(client, _sid(client, "T7"), tue, 1)               # would complete the ▣2-before-▣1 inversion
-    assert r7.status_code == 409, r7.text
-    detail = r7.json()["detail"]
-    assert "TRAC" in detail and "▣1" in detail and "▣2" in detail
-
-    # Nothing was placed: T7 stays in the backlog (the drop rolled back cleanly).
-    assert client.get(f"/api/samples/{_sid(client, 'T7')}").json()["status"] == "backlog"
-
-
-def test_inversion_is_blocked_regardless_of_drop_order(client):
-    """The clashing sample can be dropped last, into the EARLIER slot: T7 lands ▣1 in B01 first,
-    then TRAC (bc1, clashes ▣1) is dropped onto A01 and is pushed to ▣2 - loading ▣2 (A01) before
-    ▣1 (B01). This drop is refused too, and the message still names TRAC as the culprit (it's the
-    one bumped off its natural cell), not T7."""
-    client.post("/api/imports", json={"raw_text": "sample,barcodes\nT1,bc1\nT2,bc2\nTRAC,bc1\nT7,bc7"})
-    mon, tue = _weekdays(2)
-
-    _place(client, _sid(client, "T1"), mon, 0, {"mode": "new"})  # ▣1 burns bc1
-    _auto(client, _sid(client, "T2"), mon, 1)                    # ▣2 burns bc2
-
-    r7 = _auto(client, _sid(client, "T7"), tue, 1)               # T7 -> ▣1 in B01 (no clash)
+    r7 = _auto(client, _sid(client, "T7"), tue, 1)
     assert r7.status_code == 201, r7.text
+    t7_stage = next(s for s in _stages(r7.json()) if s["sample_external_id"] == "T7")
+    assert t7_stage["tray_position"] == 2
+    assert t7_stage["barcode_clash"] is False
 
-    trac = _auto(client, _sid(client, "TRAC"), tue, 0)           # clashes ▣1 -> ▣2 in A01 -> inversion
-    assert trac.status_code == 409, trac.text
-    assert "TRAC" in trac.json()["detail"] and "T7" not in trac.json()["detail"]
+    # Nothing bounced to the backlog - both drops committed.
+    assert client.get(f"/api/samples/{_sid(client, 'TRAC')}").json()["status"] == "scheduled"
+    assert client.get(f"/api/samples/{_sid(client, 'T7')}").json()["status"] == "scheduled"
+
+
+def test_explicit_cell_choice_still_rejects_a_barcode_clash(client):
+    """The one place a clash still hard-blocks: naming a specific cell via an explicit
+    cell_choice (the CellInfoPopover "choose a specific cell" override). Unlike a plain drag
+    onto a fixed well, the caller here has other cells freely available, so there's no ordering
+    constraint forcing the clash - it's refused outright instead of being flagged."""
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nT1,bc1\nTRAC,bc1"})
+    (mon,) = _weekdays(1)
+    r1 = _place(client, _sid(client, "T1"), mon, 0, {"mode": "new"})
+    cell_x = _stages(r1.json())[0]["cell_id"]
+
+    r2 = _place(client, _sid(client, "TRAC"), mon, 1, {"mode": "existing", "cell_id": cell_x})
+    assert r2.status_code == 409, r2.text
+    assert "barcode conflict" in r2.json()["detail"]
     assert client.get(f"/api/samples/{_sid(client, 'TRAC')}").json()["status"] == "backlog"
 
 
 def test_reuse_depth_difference_allows_a_later_cell_in_an_earlier_slot(client):
-    """The exception the lab owner called out: when two cells differ in reuse depth (one nearer
-    its 108h expiry - "most-used first"), a later-position cell legitimately loads in an earlier
-    slot. Build a Wednesday plate whose A01 is backed by the more-used ▣2 (Use 3) and whose B01 is
-    backed by the less-used ▣1 (Use 2) - a ▣2-before-▣1 order across the slots - and confirm it is
-    NOT blocked, because the depths differ (unlike the equal-depth, clash-forced case above)."""
+    """Two cells differing in reuse depth (one nearer its 108h expiry - "most-used first") can
+    legitimately put a later-position cell in an earlier slot - unrelated to barcode clashes,
+    unaffected by the clash fix above. Build a Wednesday plate whose A01 is backed by the
+    more-used ▣2 (Use 3) and whose B01 is backed by the less-used ▣1 (Use 2)."""
     client.post("/api/imports", json={"raw_text": "sample,barcodes\nA,ba\nB,bb\nC,bc\nD,bd\nE,be"})
     mon, tue, wed = _weekdays(3)
 
@@ -121,8 +124,7 @@ def test_reuse_depth_difference_allows_a_later_cell_in_an_earlier_slot(client):
 
 
 def test_non_clashing_reorder_within_a_plate_is_unaffected(client):
-    """A plain two-sample plate with no barcode clash and cells in tray order commits normally -
-    the guard only fires on a genuine clash-forced inversion, never on ordinary placements."""
+    """A plain two-sample plate with no barcode clash and cells in tray order commits normally."""
     client.post("/api/imports", json={"raw_text": "sample,barcodes\nP,bp\nQ,bq"})
     (mon,) = _weekdays(1)
     r1 = _place(client, _sid(client, "P"), mon, 0, {"mode": "new"})

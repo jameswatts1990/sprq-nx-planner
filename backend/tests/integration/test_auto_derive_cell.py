@@ -1,8 +1,10 @@
 """The engine-derived cell path: placing a sample with `cell_choice` OMITTED lets the backend
 derive which physical cell it lands on - reuse-before-new, the same rule auto-fill uses (see
 placement_service.derive_best_cell) - instead of the client choosing. Covers intra-run Plate-2
-reuse, cross-run reuse, position pinning, the barcode-clash and 108h-window fallbacks to a new
-cell, and that an explicit cell_choice still overrides derivation."""
+reuse, cross-run reuse, position pinning, the 108h-window fallback to a new cell, that a
+barcode clash no longer excludes a candidate (it's reused and flagged instead - see
+test_barcode_clash_placement.py for the fuller coverage), and that an explicit cell_choice
+still overrides derivation."""
 from datetime import date, datetime, timedelta, timezone
 
 import pytest
@@ -219,19 +221,22 @@ def test_auto_place_reuse_picks_the_next_in_order_cell_not_the_slot_position(cli
     assert c_stage["use_number"] == 2
 
 
-def test_auto_place_falls_back_to_new_cell_on_barcode_clash(client):
-    """A reuse candidate that shares a burned barcode with the sample can't be read twice on
-    one cell, so the deriver skips it and opens a fresh cell instead - never a silent clash."""
+def test_auto_place_reuses_a_clashing_cell_rather_than_skipping_it(client):
+    """A reuse candidate that shares a burned barcode with the sample is still the natural
+    next-in-order cell, so the deriver reuses it anyway (never silently rerouted to a fresh
+    cell, which would risk transposing tray order - see docs/pacbio-sprq-nx-scheduling-
+    reference.md). The clash is real and is surfaced afterward, not avoided."""
     client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1\nA2,bc1"})  # same barcode
     (mon,) = _weekdays(1)
     r1 = _place(client, _sid(client, "A1"), mon, 0, {"mode": "new"})
     cell_x = _stages(r1.json())[0]["cell_id"]
 
-    r2 = _auto_place(client, _sid(client, "A2"), mon, 4)  # would reuse cell_x, but bc1 clashes
+    r2 = _auto_place(client, _sid(client, "A2"), mon, 4)  # reuses cell_x despite the bc1 clash
     assert r2.status_code == 201, r2.text
     a2_stage = next(s for s in _stages(r2.json()) if s["sample_external_id"] == "A2")
-    assert a2_stage["cell_id"] != cell_x  # fell back to a fresh cell
-    assert a2_stage["use_number"] == 1
+    assert a2_stage["cell_id"] == cell_x
+    assert a2_stage["use_number"] == 2
+    assert a2_stage["barcode_clash"] is True
 
 
 def test_explicit_cell_choice_still_overrides_derivation(client):
@@ -305,7 +310,6 @@ def test_derive_best_cell_skips_an_out_of_window_cell(db_session):
         instrument=instrument,
         load_date=d,
         slot_index=0,  # well A01 - exactly where the bootstrapped cell sits
-        sample_barcodes=["bcnew"],
         run_time_hours=24,
     )
     assert choice == {"mode": "new"}

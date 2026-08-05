@@ -326,12 +326,27 @@ export function LegendSection() {
             <SchedulerSlotView stage={STAGE_EXAMPLE_BARCODE_CLASH} slotIndex={0} />
           </div>
           <span>
-            Barcode clash - the most severe marking, outranking every other QC alert. A Cell QC tray re-zip landed
-            this sample on a cell that had already burned this exact barcode with a <b>different</b> sample, so the
-            two can&apos;t be reliably told apart in the sequencing output. Pulses so it&apos;s never missed - check
-            the clashing cell on the Cells page before this run proceeds. A manual drag-and-drop that would cause this
-            is rejected outright before it can land (see below); this marking only appears for the rarer QC
-            re-zip case, since that reassignment happens after the fact.
+            Barcode clash - the most severe marking, outranking every other QC alert. This cell has burned this exact
+            barcode with a <b>different</b> sample, so the two can&apos;t be reliably told apart in the sequencing
+            output. Most often this is a manual drop or move kept on the well&apos;s natural next cell to preserve
+            the tray&apos;s loading order (cells are always taken in sequence - a barcode clash is never a reason to
+            skip one), rather than being silently rerouted; it can also come from a rarer Cell QC tray re-zip.
+            Pulses so it&apos;s never missed - check the clashing cell and its slot detail before this run proceeds.
+          </span>
+        </div>
+      </div>
+
+      <p className={styles.subheading}>Clash warning while dragging (Weekly schedule)</p>
+      <div className={styles.legendGrid}>
+        <div className={styles.legendRow}>
+          <div className={styles.ghostExampleSwatch}>
+            <SchedulerSlotView stage={null} slotIndex={0} dragClashWarning />
+          </div>
+          <span>
+            While dragging a sample, every empty well whose natural next cell already carries a clashing barcode gets
+            this dashed red &quot;⚠ clash risk&quot; treatment - a heads-up shown for the whole drag so you can see
+            every affected well at a glance, not just the one under the pointer. It&apos;s a preview, not a
+            rejection: dropping there still works, and lands the sample with the Barcode clash marking above.
           </span>
         </div>
       </div>
@@ -343,10 +358,11 @@ export function LegendSection() {
             <SchedulerSlotView stage={null} slotIndex={0} clashFlash />
           </div>
           <span>
-            Manually dragging a sample onto a well is refused outright if it would clash a barcode already burned on
-            that cell (rather than being placed and left in a bad state) - the exact well you dropped onto flashes
-            red for a few seconds so it&apos;s obvious where and what happened, alongside a red banner above the
-            schedule explaining why.
+            An ordinary drag-and-drop is never rejected for a barcode clash - it&apos;s allowed and flagged instead
+            (see above). This red flash is narrower: it fires only when explicitly choosing a specific cell (the
+            cell stub&apos;s &quot;choose a specific cell&quot; override) or swapping two placed samples would clash
+            a burned barcode - both have other cells freely available, so those are refused outright. The exact well
+            flashes red for a few seconds alongside a red banner above the schedule explaining why.
           </span>
         </div>
       </div>

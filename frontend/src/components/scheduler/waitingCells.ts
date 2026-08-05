@@ -192,6 +192,33 @@ export function computeGhost(
 }
 
 /**
+ * Best-effort drag-time preview: would dropping `sample` onto this reuse ghost's cell burn a
+ * barcode that cell already carries from a DIFFERENT sample? Mirrors the backend's
+ * foreign_barcode_clash (a cell's next use is never rerouted to dodge a clash - see
+ * placement_service._reuse_eligible / docs/pacbio-sprq-nx-scheduling-reference.md), so a
+ * manual drop is warned about the exact clash it will actually surface as StageOut.barcode_clash
+ * once placed, not a hypothetical one. Approximate on purpose: CellOut only carries the cell's
+ * AGGREGATE burned_barcodes plus which Container IDs have ever used it (`uses`), not a
+ * per-barcode owner map, so this treats "the dragged sample's own Container ID has used this
+ * cell before" as exempt from every one of its burns (the common "duplicate Container ID
+ * reusing its own cell" case - see cell_service.foreign_barcode_clash) rather than checking
+ * barcode-by-barcode. The authoritative, exact answer is always the post-drop
+ * StageOut.barcode_clash flag and the slot-detail warning - this only lights up danger zones
+ * before the user commits to a drop. A terminal ghost (exhausted/expired) can never actually be
+ * picked for a reuse, so it never warns. */
+export function ghostWouldClashWithSample(
+  ghost: CellGhost | undefined,
+  sample: { external_id: string; barcodes: string[] },
+): boolean {
+  if (!ghost || ghost.terminalStatus || sample.barcodes.length === 0) return false;
+  const cell = ghost.cell;
+  if (cell.burned_barcodes.length === 0) return false;
+  const alreadyOwnsThisCell = cell.uses.some((u) => u.sample_external_id === sample.external_id);
+  if (alreadyOwnsThisCell) return false;
+  return cell.burned_barcodes.some((b) => sample.barcodes.includes(b));
+}
+
+/**
  * Whether `cell` has gone terminal by ordinary attrition - exhausted (used up its lawful
  * uses), window_expired (108h deadline closed with capacity still unused), or retired
  * (manually written off, e.g. via a never-yet-used sibling's "Discard remaining use(s)")

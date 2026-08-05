@@ -266,8 +266,22 @@ function SlotDetailBody({
       )}
       {(stage.reassigned || stage.barcode_clash) && (
         <Note tone={stage.barcode_clash ? "bad" : "warn"} icon="!">
-          This sample <b>ran on a different cell than planned</b> after a Cell QC action re-zipped the tray
-          {stage.barcode_clash ? " — and its new cell had already burned a clashing barcode." : "."}
+          {stage.reassigned && stage.barcode_clash ? (
+            <>
+              This sample <b>ran on a different cell than planned</b> after a Cell QC action re-zipped the tray — and
+              its new cell had already burned a clashing barcode.
+            </>
+          ) : stage.reassigned ? (
+            <>
+              This sample <b>ran on a different cell than planned</b> after a Cell QC action re-zipped the tray.
+            </>
+          ) : (
+            <>
+              This sample&apos;s barcode <b>clashes with another sample already burned onto this cell</b>. It was kept
+              here to preserve the tray&apos;s loading order (cells are always taken in sequence) rather than being
+              rerouted — check the two samples before this run proceeds.
+            </>
+          )}
         </Note>
       )}
       {stage.duplicate_cell_reuse && (

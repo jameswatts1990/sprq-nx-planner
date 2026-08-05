@@ -48,11 +48,15 @@ def _tray_id_of(client, cell_id: int) -> int:
     return client.get(f"/api/cells/{cell_id}").json()["tray_id"]
 
 
-def test_plate2_reuse_well_that_cant_reuse_plate1_tray_is_rejected_not_a_foreign_tray(client):
+def test_plate2_reuse_well_that_cant_reuse_plate1_tray_is_flagged_not_a_foreign_tray(client):
     """The exact reported bug: Plate 1 fully packed onto one tray (4 samples, uniform
-    tray_id). Plate 2 correctly reuses 3 of that tray's cells, but the 4th sample barcode-
-    clashes with the last remaining sibling - it must be REJECTED, never silently handed an
-    unrelated tray's cell (which is what used to produce mismatched use-numbers)."""
+    tray_id). Plate 2 correctly reuses 3 of that tray's cells, and the 4th sample barcode-
+    clashes with the last remaining sibling - tray cohesion still holds (it must never be
+    silently handed an unrelated tray's cell, which is what used to produce mismatched
+    use-numbers), but the clash itself is now allowed and flagged rather than rejected: this
+    plate has exactly one tray, so the last remaining well's sample has nowhere else to go
+    without breaking tray order (see docs/pacbio-sprq-nx-scheduling-reference.md's
+    "sequential samples in a plate always take sequential cells" rule)."""
     client.post(
         "/api/imports",
         json={"raw_text": "sample,barcodes\nP1,bcp1\nP2,bcp2\nP3,bcp3\nP4,bcp4"},
@@ -90,12 +94,13 @@ def test_plate2_reuse_well_that_cant_reuse_plate1_tray_is_rejected_not_a_foreign
     assert all(_tray_id_of(client, s["cell_id"]) == tray_id for s in plate2_before)
 
     r4 = _place(client, _sid(client, "Q4"), mon, 7)
-    assert r4.status_code == 409, r4.text
-    assert f"T{tray_id}" in r4.json()["detail"]
+    assert r4.status_code == 201, r4.text
+    q4_stage = _stage_for(r4.json(), "Q4")
+    assert q4_stage["barcode_clash"] is True
 
     after = client.get(f"/api/cycles/{run_id}").json()
     plate2_after = [s for p in after["plates"] if p["plate_index"] == 2 for s in p["stages"]]
-    assert len(plate2_after) == 3, "the rejected attempt must not have touched Plate 2"
+    assert len(plate2_after) == 4, "Q4 joined Plate 2 on the same physical tray, not a foreign one"
     assert all(_tray_id_of(client, s["cell_id"]) == tray_id for s in plate2_after)
 
 

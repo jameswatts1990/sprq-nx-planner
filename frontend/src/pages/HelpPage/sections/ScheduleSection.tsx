@@ -429,17 +429,20 @@ export function ScheduleSection() {
         <i>Placing samples</i> above.
       </p>
       <p>
-        <b>A barcode clash can&apos;t push cells out of tray order.</b> A cell can never run the same barcode twice for
-        two <i>different</i> samples, so if a sample&apos;s barcode was already burned on the cell that would naturally
-        back its slot by another sample, RunNx skips that cell. Usually it just reaches for the next usable cell — but
-        if doing so would leave the plate loading its cells <i>out of tray order</i> (e.g. <i>▣2</i> in an earlier slot
-        than <i>▣1</i>, something the instrument never does on a tray whose cells are all at the same use), the drop
-        is <b>refused</b> with a note naming the sample whose barcode forced it. Move that sample to a different slot
-        or day (or onto a fresh cell) and try again. (Cells legitimately loading out of position because one is
-        further through its uses — nearer its 108-hour deadline — is fine and is never blocked.) A <b>duplicate</b>
-        sample (same Container ID as an earlier copy) is the one exception: it&apos;s allowed to reuse a cell that
-        earlier copy already used, since it&apos;s the same underlying sample either way — see the ↻ badge under{" "}
-        <i>Duplicate samples</i> in the Colour &amp; Status Legend.
+        <b>Cells are always taken in tray order — a barcode clash is a warning, never a reason to skip one.</b> The
+        instrument breaks a tray&apos;s cells out strictly in position order; it can&apos;t reorder them around a
+        barcode clash, so RunNx doesn&apos;t either. A drop always lands on whichever cell the tray would naturally
+        give that slot, even if that cell already burned this exact barcode with a <i>different</i> sample. The
+        placement still succeeds — the card gets the hazard-striped <b>⚠ Clash</b> marking (see the Colour &amp;
+        Status Legend), and opening its slot detail explains why. While you&apos;re dragging, every empty well whose
+        natural next cell would clash lights up with a dashed red warning first, so you can see the danger zones
+        before you drop. If the clash shouldn&apos;t happen, move one of the two samples to a different slot, day, or
+        plate rather than relying on RunNx to route around it. A <b>duplicate</b> sample (same Container ID as an
+        earlier copy) is the one case that was never really a clash: it&apos;s allowed to reuse a cell that earlier
+        copy already used, since it&apos;s the same underlying sample either way — see the ↻ badge under{" "}
+        <i>Duplicate samples</i> in the Colour &amp; Status Legend. Naming one <i>specific</i> cell yourself (the cell
+        stub&apos;s &quot;choose a specific cell&quot; override) is different: there you do have other cells freely
+        available, so a clash there is refused outright instead.
       </p>
       <p>
         <b>Dropping onto a day the tray has already expired loads a fresh one — automatically.</b> A cell can only be
@@ -528,10 +531,11 @@ export function ScheduleSection() {
         explaining the slot is already taken rather than silently doing nothing.
       </p>
       <p>
-        <b>A drop that would clash a barcode is rejected the same way.</b> If placing, moving, or swapping a sample by
-        hand would land it on a cell that&apos;s already burned that exact barcode with a <i>different</i> sample, the
-        placement never happens — the sample stays exactly where it was. The well you dropped onto flashes red for a
-        few seconds so it&apos;s obvious <i>where</i> the rejection landed, alongside a red banner above the schedule
+        <b>A plain place or move that would clash a barcode is allowed, not rejected</b> — see <b>Cells are always
+        taken in tray order</b> above. <b>Swapping</b> two placed samples, or naming a specific cell yourself (the
+        cell stub&apos;s &quot;choose a specific cell&quot; override), is different: both have other cells freely
+        available, so a clash there is <b>rejected</b> outright and nothing changes. The well flashes red for a few
+        seconds so it&apos;s obvious <i>where</i> the rejection landed, alongside a red banner above the schedule
         explaining <i>why</i> (see <b>Rejected drop</b> in the Legend tab).
       </p>
       <p>
