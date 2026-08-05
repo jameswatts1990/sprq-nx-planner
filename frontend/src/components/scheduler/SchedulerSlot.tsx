@@ -144,17 +144,25 @@ function DraggableSlot({
   // Also droppable, so dropping a dragged sample back onto this exact slot (a no-op) or
   // onto a different occupied slot (a swap) can be distinguished from "dropped outside
   // any valid target" (which today evicts the dragged sample to the backlog).
-  const dropData: OccupiedSlotDropData = { kind: "occupiedSlot", cell_use_id: stage.cell_use_id };
+  const dropData: OccupiedSlotDropData = {
+    kind: "occupiedSlot",
+    cell_use_id: stage.cell_use_id,
+    instrument_serial: instrumentSerial,
+    load_date: loadDate,
+    slot_index: slotIndex,
+  };
   const { setNodeRef: setDropRef, isOver: rawIsOver } = useDroppable({
     id: slotKey(instrumentSerial, loadDate, slotIndex),
     data: dropData,
   });
-  // A backlog sample dragged over an occupied slot is deliberately a no-op (nothing to
-  // swap with - see useSchedulerDnd's onDragEnd), so it gets no hover preview at all;
-  // only an already-placed sample's drag (which will either no-op onto itself or swap
-  // onto a different slot) shows one.
+  // A backlog sample dragged over an occupied slot has nothing to swap with (see
+  // useSchedulerDnd's onDragEnd) - a distinct rejected-target cue, not the swap preview an
+  // already-placed sample's drag gets (which will either no-op onto itself or swap onto a
+  // different slot).
   const { active } = useDndContext();
-  const isOver = rawIsOver && (active?.data.current as { kind?: string } | undefined)?.kind === "filledSlot";
+  const activeKind = (active?.data.current as { kind?: string } | undefined)?.kind;
+  const isOver = rawIsOver && activeKind === "filledSlot";
+  const isOverInvalid = rawIsOver && activeKind === "sample";
   function setNodeRef(node: HTMLDivElement | null) {
     setDragRef(node);
     setDropRef(node);
@@ -208,6 +216,7 @@ function DraggableSlot({
       placing={placing}
       dragging={isDragging}
       over={isOver}
+      overInvalid={isOverInvalid}
       selected={selected}
       linked={isPeer}
       linkSource={isSource}

@@ -88,8 +88,27 @@ describe("computeInstrumentTrayMaps", () => {
     // Confirmed loads: the backend already bakes each cell's ~2h breakout stagger into
     // first_use_started_at (cell 1 at load, cell 2 at load+2h), so the map reads them as-is.
     const cells = trayCells(1, "01", [
-      { uses_consumed: 2, uses_remaining: 1, last_use_run_date: "2026-07-21", first_use_started_at: "2026-07-20T12:00:00Z" },
-      { uses_consumed: 1, uses_remaining: 2, last_use_run_date: "2026-07-20", first_use_started_at: "2026-07-20T14:00:00Z" },
+      {
+        uses_consumed: 2,
+        uses_remaining: 1,
+        last_use_run_date: "2026-07-21",
+        first_use_started_at: "2026-07-20T12:00:00Z",
+        // usesRemaining is now derived from these breakout instants (both within the viewed
+        // week), not read off uses_remaining directly - see positionView.
+        uses: [
+          { id: 101, run_batch_id: 1, run_name: "R1", sample_id: 1, sample_external_id: "s1", well: "A01", status: "completed", run_started: true, breakout_anchor_at: "2026-07-20T12:00:00Z" },
+          { id: 102, run_batch_id: 2, run_name: "R2", sample_id: 2, sample_external_id: "s2", well: "A01", status: "completed", run_started: true, breakout_anchor_at: "2026-07-21T12:00:00Z" },
+        ],
+      },
+      {
+        uses_consumed: 1,
+        uses_remaining: 2,
+        last_use_run_date: "2026-07-20",
+        first_use_started_at: "2026-07-20T14:00:00Z",
+        uses: [
+          { id: 111, run_batch_id: 3, run_name: "R3", sample_id: 3, sample_external_id: "s3", well: "B01", status: "completed", run_started: true, breakout_anchor_at: "2026-07-20T14:00:00Z" },
+        ],
+      },
     ]);
     const map = build(cells).get(SERIAL)!;
 
@@ -110,6 +129,38 @@ describe("computeInstrumentTrayMaps", () => {
     expect(tray.positions[1].expiryAt).toBe("2026-07-25T02:00:00.000Z");
     // Never-used C/D siblings have no anchor -> no expiry.
     expect(tray.positions[2].expiryAt).toBeNull();
+  });
+
+  it("does not let an off-screen future use deduct from the default (end-of-week) remaining count", () => {
+    // Regression test for the reported bug: 4 sibling cells all used once this Thursday
+    // (within the viewed Mon 07-20 - Fri 07-24 window); 3 of them additionally already have a
+    // Use 2 booked for next Monday (2026-07-27), off the end of the visible window. Reading
+    // cell.uses_remaining directly (the old, unbounded computation) already deducted that
+    // future use today, showing 1/2/1/1 instead of a consistent 2/2/2/2 with nothing in the
+    // visible week to explain the difference. usesRemaining must stay bounded to the viewed
+    // week's end, so all four read the same until that future use is actually in view.
+    const withFutureUse = (n: number) => ({
+      uses_consumed: 2,
+      uses_remaining: 1, // the old, unbounded backend figure - must NOT be what's shown
+      last_use_run_date: "2026-07-23",
+      first_use_started_at: "2026-07-23T12:00:00Z",
+      uses: [
+        { id: n * 10 + 1, run_batch_id: n, run_name: `R${n}`, sample_id: n, sample_external_id: `s${n}`, well: "A01", status: "completed" as const, run_started: true, breakout_anchor_at: "2026-07-23T12:00:00Z" },
+        { id: n * 10 + 2, run_batch_id: n + 10, run_name: `R${n + 10}`, sample_id: n + 10, sample_external_id: `s${n + 10}`, well: "A01", status: "planned" as const, run_started: false, breakout_anchor_at: "2026-07-27T12:00:00Z" },
+      ],
+    });
+    const noFutureUse = {
+      uses_consumed: 1,
+      uses_remaining: 2,
+      last_use_run_date: "2026-07-23",
+      first_use_started_at: "2026-07-23T12:00:00Z",
+      uses: [
+        { id: 999, run_batch_id: 99, run_name: "R99", sample_id: 99, sample_external_id: "s99", well: "A01", status: "completed" as const, run_started: true, breakout_anchor_at: "2026-07-23T12:00:00Z" },
+      ],
+    };
+    const cells = trayCells(182, "01", [withFutureUse(1), noFutureUse, withFutureUse(3), withFutureUse(4)]);
+    const tray = build(cells).get(SERIAL)!.carousel[0]!;
+    expect(tray.positions.map((p) => p.usesRemaining)).toEqual([2, 2, 2, 2]);
   });
 
   it("derives each cell's per-use breakout instants (staggered) for the live count", () => {

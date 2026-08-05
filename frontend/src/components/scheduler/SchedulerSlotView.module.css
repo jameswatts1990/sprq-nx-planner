@@ -571,6 +571,16 @@
   box-shadow: 0 0 0 3px var(--highlight-glow);
 }
 
+/* A backlog sample dragged over an already-occupied slot - nothing to swap with, so this
+   reads as a rejected target: a dashed red ring and a not-allowed cursor, distinct from
+   .swapOver's solid highlight-coloured "will swap" preview above. */
+.filled.overInvalid {
+  border-style: dashed;
+  border-width: 2px;
+  border-color: var(--red);
+  cursor: not-allowed;
+}
+
 .ext {
   font-size: 11.5px;
   font-weight: 800;

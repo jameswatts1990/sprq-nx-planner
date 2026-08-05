@@ -408,7 +408,13 @@ export function SchedulePage() {
 
   const dnd = useSchedulerDnd(
     (cellUseId) => actions.dragRemove.mutate(cellUseId),
-    (a, b) => actions.swap.mutate({ a, b }),
+    (a, b, targetInstrumentSerial, targetLoadDate, targetSlotIndex) => {
+      // Drive the same "placing…" shimmer autoPlace/move already show on their destination
+      // slot - a swap changes what both slots show, but the target is the one the user just
+      // dropped onto, so it's the one worth flagging mid-mutation.
+      dnd.setPlacingSlotKey(slotKey(targetInstrumentSerial, targetLoadDate, targetSlotIndex));
+      actions.swap.mutate({ a, b }, { onSettled: () => dnd.setPlacingSlotKey(null) });
+    },
     (sampleId, instrumentSerial, loadDate, slotIndex) => {
       // Dropping the first sample onto an empty instrument+day creates a brand-new run - ask
       // for its load time (the wheel) before committing, so the user sets when it loads and
@@ -440,6 +446,8 @@ export function SchedulePage() {
         { onSettled: () => dnd.setPlacingSlotKey(null) },
       );
     },
+    actions.onDropBlocked,
+    gridAreaRef,
   );
   // Suppressed during any drag (backlog-sample or filled-slot move) so the hover/pin
   // highlight never fights the drag/drop visuals - see useCellLinkHighlight.tsx.
@@ -629,23 +637,33 @@ export function SchedulePage() {
               />
             </div>
             <BacklogAccordion onOpenAutoschedule={() => setAutoscheduleOpen(true)} />
-          </div>
 
-          {actions.removeSlotsError && (
-            <Note tone="bad" icon="!">
-              {actions.removeSlotsError}
-            </Note>
-          )}
-          {actions.placementAdvisory && (
-            <Note tone="warn" icon="⏱">
-              {actions.placementAdvisory}
-            </Note>
-          )}
-          {actions.recalculateNote && (
-            <Note tone={actions.recalculateNote.tone} icon={actions.recalculateNote.icon}>
-              {actions.recalculateNote.text}
-            </Note>
-          )}
+            {/* Pinned alongside the toolbar/backlog tray (not left to scroll away below the
+                grid) so a rejected/failed drag's explanation is visible regardless of how far
+                down the instrument rows the drop itself happened - see the CLAUDE.md
+                "Transparent" principle and the drag-and-drop robustness review that flagged
+                these banners scrolling out of view as a real gap. */}
+            {actions.dropBlockedMessage && (
+              <Note tone="warn" icon="!">
+                {actions.dropBlockedMessage}
+              </Note>
+            )}
+            {actions.removeSlotsError && (
+              <Note tone="bad" icon="!">
+                {actions.removeSlotsError}
+              </Note>
+            )}
+            {actions.placementAdvisory && (
+              <Note tone="warn" icon="⏱">
+                {actions.placementAdvisory}
+              </Note>
+            )}
+            {actions.recalculateNote && (
+              <Note tone={actions.recalculateNote.tone} icon={actions.recalculateNote.icon}>
+                {actions.recalculateNote.text}
+              </Note>
+            )}
+          </div>
 
           <div
             className={styles.gridArea}

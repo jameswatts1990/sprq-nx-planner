@@ -368,10 +368,27 @@ export function computeBlockedWellsByInstrumentAndDay(
     const instrument = cell.current_instrument_serial;
     const well = cell.current_well;
     const founding = cell.tray_id !== null ? trayFoundingDates.get(cell.tray_id) : undefined;
-    if (!founding) {
-      // No tray tenure to bound (legacy cell, or a tray with no first use on record) -
-      // preserve the original "blocked on every visible day" behaviour.
-      for (const day of days) block(instrument, well, day);
+    if (founding === undefined) {
+      // No tray tenure of its own to bound this block with. A true legacy cell (tray_id ===
+      // null, predating tray tracking entirely) necessarily predates every tray-tracked
+      // founding date on record for this well - so if a tray-tracked successor has since been
+      // founded in this exact (instrument, well), that successor has physically evicted this
+      // legacy cell's well regardless of when precisely that happened, and the block must end
+      // there (mirroring the ordinary tracked-eviction case below) rather than staying blocked
+      // forever - the bug this branch used to have (see docs - a real successor tray landing
+      // in a legacy stopped cell's old well stayed permanently undroppable). A tray_id that IS
+      // set but whose founding merely failed to resolve (its founding cell's own anchor was
+      // cleared or missing) has no such ordering guarantee against occupancy's other entries,
+      // so it keeps the original "blocked on every visible day" fallback.
+      if (cell.tray_id === null) {
+        const successorFoundings = occupancy.get(occupancyKey(instrument, well));
+        const successorFounding = successorFoundings?.[0];
+        for (const day of days) {
+          if (successorFounding === undefined || day < successorFounding) block(instrument, well, day);
+        }
+      } else {
+        for (const day of days) block(instrument, well, day);
+      }
       continue;
     }
     const foundings = occupancy.get(occupancyKey(instrument, well)) ?? [founding];

@@ -1489,8 +1489,14 @@ def swap_samples(db: Session, *, cell_use_id_a: int, cell_use_id_b: int, actor: 
     cycle_id/well/cell_id on either row: only sample_id and its barcode snapshot move. So
     neither cell gains or loses a use, no use's acquire_date changes, and the well each cell
     is pinned to is untouched on both sides - the 3-use cap, 108h window, and the (cycle_id,
-    well) unique constraint all stay structurally unaffected, with nothing left to
-    re-validate beyond a barcode clash. Returns the affected run(s)."""
+    well) unique constraint all stay structurally unaffected. Each side's cell was already an
+    independently valid home for its OWN sample (whichever instrument that happens to be on) -
+    a swap doesn't introduce a new cell choice for either sample, it only exchanges the two
+    that already passed that check, so there's no instrument-match guard to add here (unlike
+    _resolve_cell_choice's "existing cell" mode, which validates a *newly proposed* cell
+    against the instrument being placed onto - see test_swap_cross_cell_cross_day_cross_
+    instrument_exchanges_samples_only, which is deliberate, tested behaviour, not a gap).
+    Nothing left to re-validate beyond a barcode clash. Returns the affected run(s)."""
     if cell_use_id_a == cell_use_id_b:
         raise PlacementError(400, "Cannot swap a placement with itself.")
 
@@ -1501,8 +1507,19 @@ def swap_samples(db: Session, *, cell_use_id_a: int, cell_use_id_b: int, actor: 
         selectinload(CellUse.barcodes),
         selectinload(CellUse.sample),
     ]
-    use_a = db.get(CellUse, cell_use_id_a, options=options)
-    use_b = db.get(CellUse, cell_use_id_b, options=options)
+    # Lock both rows before reading, in a fixed (ascending id) order regardless of which side
+    # of the drag was "a" or "b" - two concurrent swaps touching the same pair from either
+    # direction could otherwise both read the pre-swap state and race each other's write,
+    # silently dropping one sample (a real lost-update, not just a theoretical one, under
+    # Postgres READ COMMITTED in production). A consistent lock order also avoids a
+    # cross-deadlock between two such requests. SQLite (dev) has no FOR UPDATE and silently
+    # no-ops it, so this is free there and load-bearing only in production.
+    locked = {
+        cid: db.get(CellUse, cid, options=options, with_for_update=True)
+        for cid in sorted((cell_use_id_a, cell_use_id_b))
+    }
+    use_a = locked[cell_use_id_a]
+    use_b = locked[cell_use_id_b]
     if use_a is None:
         raise PlacementError(404, f"Cell use {cell_use_id_a} not found.")
     if use_b is None:

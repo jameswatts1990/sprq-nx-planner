@@ -1,6 +1,6 @@
 import type { CellOut } from "@/types/cell";
 import type { CellStatus } from "@/types/common";
-import { todayIsoUTC } from "@/utils/calendarDates";
+import { parseDateOnly, todayIsoUTC } from "@/utils/calendarDates";
 import { CELL_LIFETIME_H } from "@/utils/windowFade";
 
 import { WELL_ORDER } from "./waitingCells";
@@ -162,7 +162,7 @@ function cellNumberOf(cell: CellOut): number {
   return cell.current_well ? cell.current_well.charCodeAt(0) - 64 : 0; // "A" (65) -> 1 .. "D" -> 4
 }
 
-function positionView(cell: CellOut, carousel: 0 | 1): TrayPositionView {
+function positionView(cell: CellOut, carousel: 0 | 1, weekEndMs: number): TrayPositionView {
   const cellNumber = cellNumberOf(cell);
   // The instrument breaks a tray's 4 cells out ~2h apart (a Plate-2 tray a further ~24h later),
   // so each cell's 108h clock starts at its OWN breakout, not the shared load time. WHERE that
@@ -193,13 +193,22 @@ function positionView(cell: CellOut, carousel: 0 | 1): TrayPositionView {
     .filter((u) => u.status !== "cancelled" && u.breakout_anchor_at !== null)
     .map((u) => new Date(u.breakout_anchor_at as string).getTime() + (u.run_started ? 0 : plannedOffsetMs))
     .sort((a, b) => a - b);
+  // Usable uses still available here, bounded to the viewed week's end - counts down from
+  // full capacity by how many uses have actually broken out by then, the same week-scoped
+  // logic usesRemainingAt applies for the live "now" reference (see its own docstring), so a
+  // use booked for a later week never silently deducts from what THIS week's plan shows. This
+  // replaces reading cell.uses_remaining directly, which is the cell's unbounded, all-time
+  // remaining-use count (see cell_service.derive_cell_state) - a mismatch with this field's own
+  // "as of the end of the viewed week" contract below whenever any use is booked beyond it. A
+  // terminal/stopped cell offers no usable uses even if it physically has capacity left (e.g.
+  // a tray disposed early at the max-uses dial) - show what can still be run: 0.
+  const brokenOutByWeekEnd = useBreakoutsMs.filter((ms) => ms <= weekEndMs).length;
+  const usesRemaining = cell.status === "open" ? Math.max(0, cell.max_uses - brokenOutByWeekEnd) : 0;
   return {
     cellId: cell.id,
     code: cell.code,
     cellNumber,
-    // A terminal/stopped cell offers no usable uses even if it physically has capacity left
-    // (e.g. a tray disposed early at the max-uses dial) - show what can still be run: 0.
-    usesRemaining: cell.status === "open" ? cell.uses_remaining : 0,
+    usesRemaining,
     maxUses: cell.max_uses,
     useBreakoutsMs,
     status: cell.status,
@@ -261,6 +270,10 @@ export function computeInstrumentTrayMaps(
   // The week's LAST visible weekday anchors residency (and the panel's caption/shading). An
   // empty window (shouldn't happen in practice) falls back to today so the map still resolves.
   const lastDay = days[days.length - 1] ?? days[0] ?? todayIsoUTC();
+  // The same "end of that weekday" instant InstrumentTrayMap.tsx computes for its own default
+  // (non-hover) reference, reused here so positionView's usesRemaining figure genuinely matches
+  // the panel's own "by <week end>" caption instead of an unbounded all-time count.
+  const weekEndMs = parseDateOnly(lastDay).getTime() + (24 * 3600 - 1) * 1000;
   const out = new Map<string, InstrumentTrayMap>();
 
   for (const [serial, byTray] of byInstrument) {
@@ -305,7 +318,7 @@ export function computeInstrumentTrayMaps(
       if (!resident) continue;
       const positions = [...resident.siblings]
         .sort((a, b) => (a.tray_position ?? 0) - (b.tray_position ?? 0))
-        .map((c) => positionView(c, pos));
+        .map((c) => positionView(c, pos, weekEndMs));
       carousel[pos] = { trayId: resident.trayId, carousel: pos, positions };
     }
 

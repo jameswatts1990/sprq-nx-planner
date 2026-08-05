@@ -25,6 +25,10 @@ export interface SchedulerSlotViewProps extends HTMLAttributes<HTMLDivElement> {
    * the drag's own origin slot being hovered again - a no-op drop, previewed distinctly
    * from a dropped-elsewhere eviction (see .noopOver). */
   over?: boolean;
+  /** A backlog sample is being dragged over this already-occupied slot - nothing to swap
+   * with, so this is a rejected target rather than a valid drop preview (see `over`).
+   * Ignored when `over` is set (only one drag kind can be active at a time). */
+  overInvalid?: boolean;
   /** This filled slot is the active drag source - rendered as if unplaced (dashed
    * placeholder), matching what dropping it outside the grid would actually do (unless also
    * `over` - see above). */
@@ -86,6 +90,7 @@ export const SchedulerSlotView = memo(
       locked,
       placing,
       over,
+      overInvalid,
       dragging,
       selected,
       linkSource,
@@ -207,6 +212,11 @@ export const SchedulerSlotView = memo(
       // Hovering a valid drop target - a plain "+" well ready to take this sample.
       classes.push(styles.over);
     }
+  } else if (overInvalid) {
+    // A backlog sample hovering an already-occupied slot - nothing to swap with, so this
+    // reads as a rejected target instead of silently giving no feedback at all (see
+    // useSchedulerDnd's onDragEnd, which now also surfaces a message on drop).
+    classes.push(styles.overInvalid);
   }
   if (dragging) classes.push(styles.dragging);
   if (selected) classes.push(styles.selected);

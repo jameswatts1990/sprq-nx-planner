@@ -530,4 +530,38 @@ describe("computeBlockedWellsByInstrumentAndDay", () => {
       expect(blocked.get("84047")?.get(day)?.has("C01")).toBe(true);
     }
   });
+
+  it("lifts a legacy (tray-less) stopped cell's block once a real tray-tracked successor is founded in its well", () => {
+    // Regression test for the reported bug: a legacy stopped cell (tray_id null, so it has no
+    // founding date of its own) permanently blocked its well even after a genuine successor
+    // tray was founded there - the well never became droppable again, with no visible reason.
+    // A legacy cell necessarily predates every tray-tracked founding on record for the same
+    // well, so the block must end once one is.
+    const legacy = baseCell({
+      id: 5,
+      tray_id: null,
+      current_well: "C01",
+      current_instrument_serial: "84047",
+      status: "stopped",
+    });
+    const successor = baseCell({
+      id: 6,
+      tray_id: 3,
+      current_well: "C01",
+      current_instrument_serial: "84047",
+      status: "open",
+      uses_consumed: 0,
+      uses_remaining: 3,
+      last_use_run_date: null,
+      first_use_planned_start_at: "2026-07-23T12:00:00Z", // Thursday founding
+    });
+    const cells = [legacy, successor];
+    const founding = computeTrayFoundingDates(cells);
+    const blocked = computeBlockedWellsByInstrumentAndDay(cells, WEEK, founding);
+
+    expect(blocked.get("84047")?.get("2026-07-20")?.has("C01")).toBe(true); // Mon - still legacy's
+    expect(blocked.get("84047")?.get("2026-07-22")?.has("C01")).toBe(true); // Wed - still legacy's
+    expect(blocked.get("84047")?.get("2026-07-23")?.has("C01")).toBeFalsy(); // Thu - successor's well now
+    expect(blocked.get("84047")?.get("2026-07-24")?.has("C01")).toBeFalsy(); // Fri
+  });
 });

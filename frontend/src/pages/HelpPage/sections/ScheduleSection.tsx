@@ -520,7 +520,9 @@ export function ScheduleSection() {
         later cell into an earlier slot ahead of an available one. Dropping a sample back onto the exact slot it came
         from does nothing. Dropping an already-placed sample onto a slot that already holds a <i>different</i> sample{" "}
         <b>swaps the two</b> — they trade places, and a swap preview highlights the target as you hover. Dropping a{" "}
-        <i>backlog</i> sample onto an occupied slot, by contrast, does nothing — it never overwrites what&apos;s there.
+        <i>backlog</i> sample onto an occupied slot, by contrast, is <b>rejected</b> — it never overwrites what&apos;s
+        there: hovering shows a dashed red outline instead of the swap preview, and letting go shows a short note
+        explaining the slot is already taken rather than silently doing nothing.
       </p>
       <p>
         <b>Auto-schedule result</b> summarises the outcome, e.g. &quot;12 placed · 3 unplaced (TRAC-2-26296,
@@ -716,7 +718,10 @@ export function ScheduleSection() {
         <li>
           <b>Drag a placed sample off the grid</b> (drop it anywhere that isn&apos;t a slot) to remove it from the
           schedule the same way — while you&apos;re holding it, the slot it came from shows its empty <b>+</b>{" "}
-          placeholder as a preview of that removal.
+          placeholder as a preview of that removal. Dropping it onto a locked run, a blocked well, or any other
+          non-droppable spot <i>inside</i> the grid never removes it by mistake — only letting go genuinely outside
+          the whole grid does that. Landing on one of those non-droppable spots instead shows a short note saying the
+          drop couldn&apos;t land there, and the sample stays exactly where it was.
         </li>
       </ul>
 

@@ -96,6 +96,14 @@ export function useScheduleActions({
 
   const [runDesignNote, setRunDesignNote] = useState<AccordionNote | null>(null);
   const [removeSlotsError, setRemoveSlotsError] = useState<string | null>(null);
+  // A drop rejected before ever reaching the backend - a backlog sample dropped onto an
+  // already-occupied slot, or any drop landing on a locked/blocked/weekend/down area (see
+  // useSchedulerDnd's onDropBlocked). These used to be silent no-ops (or, worse, a silent
+  // deletion - see onRemoveOutside); this is the message that now explains why nothing (or
+  // something destructive) didn't happen. Cleared on the next successful drag-driven mutation
+  // so it never lingers past whatever the user does next.
+  const [dropBlockedMessage, setDropBlockedMessage] = useState<string | null>(null);
+  const onDropBlocked = useCallback((message: string) => setDropBlockedMessage(message), []);
   // A transient advisory shown after a drop/move onto a busy instrument: "loaded 12:00, cells
   // really start 18:00". Distinct from removeSlotsError (a red failure) - this is informational.
   const [placementAdvisory, setPlacementAdvisory] = useState<string | null>(null);
@@ -139,6 +147,7 @@ export function useScheduleActions({
     onSuccess: () => {
       invalidateScheduleRelated(queryClient);
       setRemoveSlotsError(null);
+      setDropBlockedMessage(null);
     },
     onError: (err) => {
       setRemoveSlotsError(err instanceof ApiError ? err.message : "Failed to remove sample from schedule.");
@@ -153,6 +162,7 @@ export function useScheduleActions({
     onSuccess: () => {
       invalidateScheduleRelated(queryClient);
       setRemoveSlotsError(null);
+      setDropBlockedMessage(null);
     },
     onError: (err) => {
       setRemoveSlotsError(err instanceof ApiError ? err.message : "Failed to swap samples.");
@@ -218,6 +228,7 @@ export function useScheduleActions({
     onSuccess: (run) => {
       invalidateScheduleRelated(queryClient);
       setRemoveSlotsError(null);
+      setDropBlockedMessage(null);
       setPlacementAdvisory(placementAdvisoryText(run, insertThreshold));
     },
     onError: (err) => {
@@ -244,6 +255,7 @@ export function useScheduleActions({
     onSuccess: (run) => {
       invalidateScheduleRelated(queryClient);
       setRemoveSlotsError(null);
+      setDropBlockedMessage(null);
       setPlacementAdvisory(placementAdvisoryText(run, insertThreshold));
     },
     onError: (err) => {
@@ -379,6 +391,7 @@ export function useScheduleActions({
   const resetFeedback = useCallback(() => {
     setRunDesignNote(null);
     setRemoveSlotsError(null);
+    setDropBlockedMessage(null);
     setPlacementAdvisory(null);
     setClearConfirmOpen(false);
     setRecalculateTarget(null);
@@ -388,6 +401,8 @@ export function useScheduleActions({
   return {
     runDesignNote,
     removeSlotsError,
+    dropBlockedMessage,
+    onDropBlocked,
     placementAdvisory,
     setPlacementAdvisory,
     clearConfirmOpen,
