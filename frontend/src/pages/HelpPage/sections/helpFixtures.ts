@@ -19,6 +19,7 @@ export const EXAMPLE_CELL: CellOut = {
   current_instrument_serial: "84047",
   current_well: "A01",
   last_use_run_date: "2026-07-13",
+  reuse_ready_at: null,
   first_use_started_at: "2026-07-13T12:00:00Z",
   first_use_planned_start_at: "2026-07-13T12:00:00Z",
   created_at: "2026-07-13T12:00:00Z",

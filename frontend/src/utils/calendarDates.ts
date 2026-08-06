@@ -37,6 +37,15 @@ export function nextWeekdayIsoUTC(isoDate: string): string {
   return toIsoDateUTC(d);
 }
 
+/** The nearest Mon-Fri on OR after an ISO date-only value (returns the date itself when it's
+ * already a weekday). Contrast nextWeekdayIsoUTC, which is strictly after - used for the earliest
+ * day a cell is physically free to reuse, which can be the free-time's own day. */
+export function weekdayOnOrAfterIsoUTC(isoDate: string): string {
+  let d = parseDateOnly(isoDate);
+  while (isWeekendUTC(d)) d = addDaysUTC(d, 1);
+  return toIsoDateUTC(d);
+}
+
 /** The nearest Mon-Fri strictly before an ISO date (skips weekends). */
 export function prevWeekdayIsoUTC(isoDate: string): string {
   let d = addDaysUTC(parseDateOnly(isoDate), -1);

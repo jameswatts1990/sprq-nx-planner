@@ -34,6 +34,7 @@ function baseCell(overrides: Partial<CellOut> = {}): CellOut {
     current_instrument_serial: "84047",
     current_well: "A01",
     last_use_run_date: lastUseRunDate,
+    reuse_ready_at: null,
     first_use_started_at: null,
     // Defaults to noon on the same day as last_use_run_date, since in these single-use
     // fixtures the first use *is* the last use - keeps the fixture internally consistent
@@ -84,6 +85,19 @@ describe("computeGhost", () => {
     expect(computeGhost(cell, "2026-07-11")).toBeNull(); // Saturday
     expect(computeGhost(cell, "2026-07-12")).toBeNull(); // Sunday
     expect(computeGhost(cell, "2026-07-13")?.useNumber).toBe(2); // Monday
+  });
+
+  it("delays the reuse ghost to the day the cell is physically free (prep-aware), not just the next weekday", () => {
+    // Last used Monday, but its (long/late) movie only finishes Wed 02:00 (reuse_ready_at) - so the
+    // cell isn't free on Tuesday even though Tuesday is the next weekday. The ghost must wait for Wed.
+    const cell = baseCell({
+      uses_consumed: 1,
+      uses_remaining: 2,
+      last_use_run_date: "2026-07-13", // Monday
+      reuse_ready_at: "2026-07-15T02:00:00Z", // Wednesday 02:00 - the prep-aware movie end
+    });
+    expect(computeGhost(cell, "2026-07-14")).toBeNull(); // Tuesday - cell still sequencing
+    expect(computeGhost(cell, "2026-07-15")?.useNumber).toBe(2); // Wednesday - now free
   });
 
   it("estimates a bounded deadline from the planned loading time when Use 1 hasn't been confirmed yet", () => {

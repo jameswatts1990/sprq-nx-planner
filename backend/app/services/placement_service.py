@@ -22,9 +22,9 @@ from app.engine.constants import (
     CELL_LIFETIME_H,
     DAY_START_HOUR,
     DEFAULT_MOVIE_HOURS,
-    REUSE_PREP_H,
     WELLS,
 )
+from app.services.cell_timing import coarse_movie_end
 from app.models.audit import AuditLog
 from app.models.cell import Cell
 from app.models.cell_tray import CellTray
@@ -78,17 +78,20 @@ def planned_window(
 def reuse_plate_window(
     plate1_start: datetime, plate1_movie_hours: float, reuse_movie_hours: float
 ) -> tuple[date, datetime, datetime]:
-    """Timing for a reuse Plate 2, chained from Plate 1's real window - so the reuse's day
+    """Timing for a reuse Plate 2, chained from Plate 1's real movie end - so the reuse's day
     reflects the movie length, not a fixed 'next day'.
 
-    The instrument runs Plate 1's movie, does the on-board reuse wash (REUSE_PREP_H), then
-    starts Plate 2. A 24-30h movie loaded midday lands the reuse the following weekday; only a
-    very long movie (>~36h) pushes it a further day. If the reuse would start on a weekend it
-    rolls forward to the next weekday's start hour - runs are weekday-only, and the operator
-    isn't there to load it over the weekend. Returns (acquire_date, planned_start, planned_end).
-    See docs/pacbio-sprq-nx-scheduling-reference.md's "Instrument load-lock timing" section."""
-    plate1_end = ensure_aware(plate1_start) + timedelta(hours=plate1_movie_hours)
-    start = plate1_end + timedelta(hours=REUSE_PREP_H)
+    The reuse Plate 2 loads the moment Plate 1's movie finishes, i.e. Plate 1's load + its PREP_H
+    prep + its movie (the same prep-then-movie the one timing model uses - see cell_timing; the
+    reuse can't start before the cell physically stops sequencing its prior use). PREP_H is Plate
+    1's first-use prep (the common case for the load-day plate); the reuse cell's own on-board wash
+    is NOT added here - it's the reuse's own prep in cell_timing (REUSE_PREP_H on top of PREP_H),
+    counted once. A 24-30h movie loaded midday lands the reuse the following weekday; a late load or
+    long movie can push it a further day. If the reuse would start on a weekend it rolls forward to
+    the next weekday's start hour - runs are weekday-only, and the operator isn't there to load it
+    over the weekend. Returns (acquire_date, planned_start, planned_end). See
+    docs/pacbio-sprq-nx-scheduling-reference.md's "Instrument load-lock timing"."""
+    start = coarse_movie_end(plate1_start, plate1_movie_hours)
     if start.weekday() >= 5:
         rolled = start.date()
         while rolled.weekday() >= 5:
@@ -123,7 +126,7 @@ def recompute_cycle_timing(db: Session, cycle: Cycle) -> None:
 
 
 def update_run_load_time(db: Session, run_batch: RunBatch, start_hour: int, start_minute: int = 0) -> None:
-    """Amend a run's load time - the hour it loads and starts sequencing - re-deriving every
+    """Amend a run's load time - the hour it loads (its cells then prep before sequencing) - re-deriving every
     plate's window from it. Called when the operator records/corrects the real load time at
     Confirm-loaded (see api/cycles.patch_run). Plate 1 moves to the chosen time on the run's
     own load_date; a same-day parallel Plate 2 loads with it; a reuse Plate 2 (a later
@@ -146,7 +149,8 @@ def update_run_load_time(db: Session, run_batch: RunBatch, start_hour: int, star
         if plate.plate_index == 1:
             continue
         if plate.acquire_date > load_date:
-            # Reuse Plate 2: rerun Plate 1's cells after its movie finishes + on-board wash.
+            # Reuse Plate 2: rerun Plate 1's cells once its movie finishes (the on-board wash is
+            # the reuse cell's own prep now, in cell_timing, not a load-time gap here).
             acquire_date, start, end = reuse_plate_window(plate1.planned_start_at, plate1.movie_hours, plate.movie_hours)
             plate.acquire_date = acquire_date
             plate.planned_start_at = start

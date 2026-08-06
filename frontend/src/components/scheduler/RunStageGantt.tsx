@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 
 import type { RunOut, StageOut } from "@/types/schedule";
 import { cellPositionLabel } from "@/utils/plateWell";
-import { computeTimeline, PPA_H, PPA_SERVERS, PREP_H, type StageTiming } from "@/utils/stageTimings";
+import { computeTimeline, PPA_H, PPA_SERVERS, type StageTiming } from "@/utils/stageTimings";
 import { classForUseIndex } from "@/utils/useIndexClass";
 
 import styles from "./RunStageGantt.module.css";
@@ -24,7 +24,7 @@ function hhmm(ms: number): string {
 function LiveSpinner() {
   return (
     <svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" aria-hidden>
-      <path d="M12 3a9 9 0 1 1-7.5 4" />
+      <path d="M12 3a9 9 0 1 1-9 9" />
     </svg>
   );
 }
@@ -104,7 +104,9 @@ function GanttRow({
         <div
           className={styles.prep}
           style={{ left: pct(t.prepStartH), width: pct(t.movieStartH - t.prepStartH) }}
-          title={`Prep (breakout) ~${PREP_H} h · from ${hhmm(t.prepStartMs)}`}
+          title={`Prep (breakout) ~${+(t.movieStartH - t.prepStartH).toFixed(2)} h${
+            s.use_number >= 2 ? " · incl. 45 min reuse wash" : ""
+          } · from ${hhmm(t.prepStartMs)}`}
         />
         <div
           className={`${styles.movie} ${styles[useClass]}`}

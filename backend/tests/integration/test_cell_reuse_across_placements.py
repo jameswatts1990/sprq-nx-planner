@@ -114,8 +114,8 @@ def test_reusing_a_cell_on_a_different_instrument_than_its_current_one_is_reject
 
 def test_reuse_before_cell_is_physically_ready_is_flagged_but_not_blocked(client):
     """Advisory only (docs/pacbio-sprq-nx-scheduling-reference.md's "Deliberate
-    simplifications"): explicitly reusing a cell sooner than its prior use's real movie end +
-    REUSE_PREP_H wash still succeeds - it's flagged on the returned stage, never rejected."""
+    simplifications"): explicitly reusing a cell sooner than its prior use's real movie end (when
+    the cell is physically free) still succeeds - it's flagged on the returned stage, never rejected."""
     client.post("/api/imports", json={"raw_text": "sample,barcodes\nR1,bc10\nR2,bc11"})
     mon, tue, _wed = _weekdays(3)
 
@@ -123,12 +123,12 @@ def test_reuse_before_cell_is_physically_ready_is_flagged_but_not_blocked(client
     assert r1.status_code == 201, r1.text
     cell_id = _stages(r1.json())[0]["cell_id"]
 
-    # Monday noon + 4h prep + 24h movie -> real ready at Tuesday 16:00, +0.3h wash (REUSE_PREP_H) = 16:18.
+    # Monday noon + 4h prep + 24h movie -> real movie end (cell physically free) at Tuesday 16:00.
     # An 08:00 Tuesday reuse lands well before that.
     r2 = _place(client, _sid(client, "R2"), tue, 0, {"mode": "existing", "cell_id": cell_id}, start_hour=8)
     assert r2.status_code == 201, r2.text  # advisory only - never blocked
     stage = next(s for s in _stages(r2.json()) if s["cell_id"] == cell_id and s["sample_external_id"] == "R2")
-    assert stage["reuse_not_ready_hours"] == pytest.approx(8.3, abs=0.05)
+    assert stage["reuse_not_ready_hours"] == pytest.approx(8.0, abs=0.05)
 
 
 def test_reuse_safely_after_cell_is_ready_has_no_flag(client):
@@ -139,8 +139,29 @@ def test_reuse_safely_after_cell_is_ready_has_no_flag(client):
     assert r1.status_code == 201, r1.text
     cell_id = _stages(r1.json())[0]["cell_id"]
 
-    # Real ready at Tuesday 16:18 (see above) - a 20:00 Tuesday reuse lands safely after.
+    # Real movie end (cell free) at Tuesday 16:00 (see above) - a 20:00 Tuesday reuse lands safely after.
     r2 = _place(client, _sid(client, "R4"), tue, 0, {"mode": "existing", "cell_id": cell_id}, start_hour=20)
     assert r2.status_code == 201, r2.text
     stage = next(s for s in _stages(r2.json()) if s["cell_id"] == cell_id and s["sample_external_id"] == "R4")
     assert stage["reuse_not_ready_hours"] is None
+
+
+def test_reuse_dropped_on_a_later_day_stays_on_that_day(client):
+    """The drop is sacrosanct: dropping a reuse onto a later day column places it on THAT day,
+    acquiring THAT day - the app never relocates a card the user dropped to an earlier day, even
+    though the cell's prep-aware free time is later. (The prep-aware reuse chaining governs only an
+    intra-run Plate 2's *derived* acquire day, never a card dropped directly onto a day column.)"""
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nD1,bcd1\nD2,bcd2"})
+    mon, _tue, wed = _weekdays(3)
+
+    r1 = _place(client, _sid(client, "D1"), mon, 0, {"mode": "new"}, run_time_hours=24, start_hour=12)
+    assert r1.status_code == 201, r1.text
+    cell_id = _stages(r1.json())[0]["cell_id"]
+
+    # Drop the reuse onto WEDNESDAY - it must land on Wednesday, acquiring Wednesday.
+    r2 = _place(client, _sid(client, "D2"), wed, 0, {"mode": "existing", "cell_id": cell_id})
+    assert r2.status_code == 201, r2.text
+    run = r2.json()
+    assert run["load_date"] == wed
+    plate = next(p for p in run["plates"] if any(s["sample_external_id"] == "D2" for s in p["stages"]))
+    assert plate["acquire_date"] == wed

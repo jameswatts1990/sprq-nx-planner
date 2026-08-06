@@ -23,7 +23,7 @@ class RunStatusUpdate(BaseModel):
     actor: str | None = None
     # Only meaningful when locking (status="running") - see update_run_status.
     run_name: str | None = None
-    # Optional amend of the run's load time (the hour it loads and starts sequencing), applied
+    # Optional amend of the run's load time (the hour it loads; its cells then prep before sequencing), applied
     # before the status change - the "give an opportunity to amend the loading time" at
     # Confirm-loaded. Omit to leave the run's existing start untouched. See update_run_load_time.
     start_hour: int | None = Field(default=None, ge=0, le=23)

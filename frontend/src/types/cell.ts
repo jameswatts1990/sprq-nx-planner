@@ -67,6 +67,10 @@ export interface CellOut {
   current_instrument_serial: string | null;
   current_well: string | null;
   last_use_run_date: string | null;
+  /** When the cell is physically free for its next use = its most recent use's prep-aware movie
+   * end. Drives the weekly grid's "reusable from" ghost so it invites the day the cell is actually
+   * free, not just the next weekday. Null when unused or its last use's run isn't loaded. */
+  reuse_ready_at: string | null;
   first_use_started_at: string | null;
   first_use_planned_start_at: string | null;
   created_at: string;

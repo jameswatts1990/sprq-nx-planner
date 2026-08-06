@@ -48,7 +48,7 @@ export function HistorySection() {
         </div>
       </div>
       <p>
-        <b>Run detail page</b> shows the run&apos;s instrument, load date, when it loads &amp; starts sequencing,
+        <b>Run detail page</b> shows the run&apos;s instrument, load date, when it loads (its cells then prep before sequencing),
         status, and whether it&apos;s <b>Active now</b>, then a tray block per plate laid out just like the weekly
         schedule. Each plate&apos;s header carries an <b>→ acquire-day</b> tag next to its title when the plate
         sequences on a different day from loading (a reuse Plate 2 — you can tell it&apos;s a reuse because its cells&apos;

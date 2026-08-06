@@ -18,6 +18,7 @@ function baseCell(overrides: Partial<CellOut> = {}): CellOut {
     current_instrument_serial: "84047",
     current_well: "A01",
     last_use_run_date: null,
+    reuse_ready_at: null,
     first_use_started_at: null,
     first_use_planned_start_at: null,
     created_at: "2026-07-13T12:00:00Z",

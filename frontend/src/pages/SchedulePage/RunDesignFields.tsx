@@ -134,7 +134,7 @@ export function RunDesignFields({
 
       <div className={styles.field}>
         <div className={styles.fieldLabel}>
-          Load time <span className={styles.hint}>when a new run loads &amp; starts sequencing</span>
+          Load time <span className={styles.hint}>when a new run loads (cells prep, then sequencing starts)</span>
         </div>
         <Button
           className={styles.loadBtn}

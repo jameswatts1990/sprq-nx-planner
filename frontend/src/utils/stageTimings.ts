@@ -7,7 +7,9 @@ import type { PlateOut, RunOut, StageOut } from "@/types/schedule";
  * with limited lanes, and the timeline falls straight out of those limits:
  *
  *  - **Breakout drives everything.** A cell's *breakout* is when its prep starts; its movie
- *    (acquiring) starts `PREP_H` (4h) later, and its 108h reuse window is anchored at breakout.
+ *    (acquiring) starts `PREP_H` (4h) later — plus `REUSE_PREP_H` (the 45-min on-board wash) for a
+ *    Use 2/3 cell, whose prep is 4h 45m (it's already in the instrument, so a reuse's turnaround is
+ *    the wash, not a fresh tray breakout). Its 108h reuse window is anchored at breakout.
  *  - **Adaptive loading: cells break out `WELL_STAGGER_H` (2h) apart** within a load group.
  *  - **`SEQ_LANES` (4) sequencing lanes.** A cell holds one of the instrument's 4 physical
  *    positions from its breakout until its movie ends, so a 5th cell (a second tray) can't break
@@ -25,6 +27,13 @@ import type { PlateOut, RunOut, StageOut } from "@/types/schedule";
  * docs/pacbio-sprq-nx-scheduling-reference.md, "Per-cell breakout, PPA capacity, and instrument state").
  */
 export const PREP_H = 4;
+/**
+ * On-board reuse wash added to a Use 2/3 cell's prep (45 min). PacBio's Revio v13.5 multi-use
+ * workflow adds ~45 min to cell prep for each reuse vs a single-use cell. Mirrors backend
+ * `cell_timing.REUSE_PREP_H` / `engine.constants.REUSE_PREP_H`; a reuse (`use_number >= 2`) preps
+ * for `PREP_H + REUSE_PREP_H`.
+ */
+export const REUSE_PREP_H = 0.75;
 export const WELL_STAGGER_H = 2;
 /** Illustrative per-cell post-primary analysis; see PPA_SERVERS for the concurrency limit. */
 export const PPA_H = 6;
@@ -94,7 +103,8 @@ function schedule4Server(seeds: Seed[], loadMs: number): StageTiming[] {
     let i = 0;
     for (let j = 1; j < servers.length; j++) if (servers[j] < servers[i]) i = j; // earliest-free server
     const prepStartH = Math.max(staggerFloorH, servers[i]);
-    const movieStartH = prepStartH + PREP_H;
+    // Prep is PREP_H for a first use; a reuse (Use 2/3) adds the REUSE_PREP_H on-board wash on top.
+    const movieStartH = prepStartH + PREP_H + (s.stage.use_number >= 2 ? REUSE_PREP_H : 0);
     const movieEndH = movieStartH + s.stage.run_time_hours;
     servers[i] = movieEndH;
     prevBreakoutH.set(s.groupKey, prepStartH);

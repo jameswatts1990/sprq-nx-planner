@@ -14,8 +14,13 @@ CELL_MAX_USES = 3
 # models/cell_tray.py::CellTray. Distinct from WELLS' own "tray 1/tray 2" grid-loading
 # split below (instrument deck position, not a SMRT Cell shipping tray).
 CELLS_PER_TRAY = 4
-FIRST_PREP_H = 2
-REUSE_PREP_H = 0.3
+# On-board reuse wash (h) added to a cell's prep for Use 2 and Use 3. PacBio's Revio v13.5
+# multi-use workflow adds ~45 min to cell prep for each reuse versus a single-use cell's prep
+# (technical overview p.33). Modeled as extra prep on the reuse cell in the ONE timing model
+# (cell_timing.compute_timings / stageTimings.ts) - not as a separate turnaround gap - so the
+# gantt, the instrument load-lock, the acquisition window and the reuse-readiness advisory all
+# reflect it once. See docs/pacbio-sprq-nx-scheduling-reference.md, "Instrument load-lock timing".
+REUSE_PREP_H = 0.75
 
 # A sample's desired movie / acquisition time (h). One of these three (matching the
 # per-cell run-time choices); anything missing or out of range falls back to

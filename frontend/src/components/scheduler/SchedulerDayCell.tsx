@@ -293,13 +293,13 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
               {runLabel(run)}
             </span>
             {(() => {
-              // The run's load/start time, from Plate 1's planned start - since there are no
-              // pre-loaded runs, this is when it loads AND starts sequencing.
+              // The run's load time, from Plate 1's planned start - when the operator racks the
+              // plates; the cells then prep ~4h before the movie (sequencing) starts.
               const plate1 = run.plates.find((p) => p.plate_index === 1);
               return plate1 ? (
                 <span
                   className={styles.loadTimeTag}
-                  title={`Loads and starts sequencing at ${formatTimeUTC(plate1.planned_start_at)}`}
+                  title={`Loads at ${formatTimeUTC(plate1.planned_start_at)} (cells prep, then sequencing starts)`}
                 >
                   ⏱ {formatTimeUTC(plate1.planned_start_at)}
                 </span>

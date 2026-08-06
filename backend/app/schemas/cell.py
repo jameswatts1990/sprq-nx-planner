@@ -80,6 +80,11 @@ class CellOut(BaseModel):
     current_instrument_serial: str | None
     current_well: str | None
     last_use_run_date: date | None
+    # When the cell is physically free for its NEXT use = its most recent use's prep-aware movie
+    # end (cell_service.cell_ready_at). Drives the weekly grid's "reusable from" ghost so it invites
+    # the day the cell is actually free, not just the next weekday. None when the cell has no uses
+    # yet or its last use's run isn't loaded.
+    reuse_ready_at: datetime | None
     first_use_started_at: datetime | None
     first_use_planned_start_at: datetime | None
     created_at: datetime

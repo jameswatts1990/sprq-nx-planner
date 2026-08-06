@@ -16,7 +16,6 @@ from app.engine.constants import (
     CELL_MAX_USES,
     CELLS_PER_TRAY,
     DAY_START_HOUR,
-    REUSE_PREP_H,
     WELLS,
     within_tray_pos,
 )
@@ -183,19 +182,20 @@ def current_location(cell: Cell, uses: list[CellUse] | None = None) -> tuple[str
 
 
 def _ready_after(prior_use: CellUse) -> datetime | None:
-    """The prior use's real movie end plus the on-board reuse wash (REUSE_PREP_H) - the one
-    place +REUSE_PREP_H is applied to a movie end, shared by cell_ready_at and
-    reuse_not_ready_hours below."""
-    movie_end = cell_use_movie_end_at(prior_use)
-    return movie_end + timedelta(hours=REUSE_PREP_H) if movie_end is not None else None
+    """When a cell is physically free for its NEXT use = its prior use's real movie end
+    (cell_timing.cell_use_movie_end_at, lane/prep-aware). The on-board reuse wash is no longer
+    added here - it's the reuse cell's own prep now (the extra REUSE_PREP_H in cell_timing, applied
+    after the reuse loads), so 'free for the next use' is simply 'the prior movie has finished'.
+    Shared by cell_ready_at and reuse_not_ready_hours below."""
+    return cell_use_movie_end_at(prior_use)
 
 
 def cell_ready_at(cell: Cell) -> datetime | None:
     """When `cell` is physically free for its NEXT use - its most recent active use's real movie
-    end (cell_timing.cell_use_movie_end_at, lane-aware) plus REUSE_PREP_H. None when the cell has
-    no uses yet (nothing to wait for - immediately available) or its last use's run isn't loaded.
-    Advisory only (see docs/pacbio-sprq-nx-scheduling-reference.md's "Deliberate
-    simplifications") - nothing gates a placement on this, it only feeds reuse_not_ready_hours."""
+    end (cell_timing.cell_use_movie_end_at, lane/prep-aware). None when the cell has no uses yet
+    (nothing to wait for - immediately available) or its last use's run isn't loaded. Advisory only
+    (see docs/pacbio-sprq-nx-scheduling-reference.md's "Deliberate simplifications") - nothing gates
+    a placement on this, it only feeds reuse_not_ready_hours."""
     uses = active_uses(cell)
     if not uses:
         return None
@@ -204,9 +204,10 @@ def cell_ready_at(cell: Cell) -> datetime | None:
 
 def reuse_not_ready_hours(cell_use: CellUse) -> float | None:
     """Advisory only: hours by which `cell_use`'s own start preceded its cell's real physical
-    readiness (the immediately-prior active use's movie end + REUSE_PREP_H wash). None when this
-    is the cell's first use, the prior use's run isn't loaded, or the start was already safely
-    at/after readiness - only a genuine shortfall is reported. Anchored on the real confirmed
+    readiness (the immediately-prior active use's movie end - when the cell finishes its prior
+    acquisition and is free to load again). None when this is the cell's first use, the prior use's
+    run isn't loaded, or the start was already safely at/after readiness - only a genuine shortfall
+    is reported. Anchored on the real confirmed
     start once known (Cycle.actual_start_at), else planned - same actual-beats-planned
     precedence as cell_timing._plate_anchor.
 
@@ -608,6 +609,7 @@ def serialize_cell(cell: Cell, as_of: datetime | None = None) -> CellOut:
         current_instrument_serial=instrument_serial,
         current_well=well,
         last_use_run_date=last_run_date,
+        reuse_ready_at=cell_ready_at(cell),
         first_use_started_at=cell.first_use_started_at,
         first_use_planned_start_at=first_use_planned_start_at(cell),
         created_at=cell.created_at,

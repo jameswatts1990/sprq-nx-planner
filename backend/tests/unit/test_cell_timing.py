@@ -5,6 +5,7 @@ The sequencing servers are shared ACROSS runs, so a run loaded onto a busy machi
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
+from app.engine.constants import REUSE_PREP_H
 from app.services.cell_timing import (
     PPA_H,
     PREP_H,
@@ -57,6 +58,18 @@ def test_reuse_plate_on_a_later_day_is_its_own_lane_group():
     # The reuse cell finds a free server at its own day's start (not pulled to ~28h): only 1 of 4
     # servers was busy, so cross-run/plate contention doesn't bite here.
     assert t[4].breakout_h == 24
+
+
+def test_reuse_cell_prep_carries_the_on_board_wash():
+    # A first-use cell and a reuse (Use 2/3) cell in the same load group: both break out on the
+    # 2h stagger, but the reuse's movie starts REUSE_PREP_H (the 45-min wash) later than a fresh
+    # cell would at the same breakout - the wash is extra prep, not a fresh 4h tray breakout.
+    fresh = CellInput(key="fresh", slot_index=0, run_time_h=24.0, group_base_h=0.0, group_key="g")
+    reuse = CellInput(key="reuse", slot_index=1, run_time_h=24.0, group_base_h=0.0, group_key="g", is_reuse=True)
+    t = compute_timings([fresh, reuse])
+    assert t["fresh"].movie_start_h == PREP_H  # first use: 4h prep, no wash
+    # reuse: same 2h-staggered breakout, + PREP_H + the wash.
+    assert t["reuse"].movie_start_h == t["reuse"].breakout_h + PREP_H + REUSE_PREP_H
 
 
 def test_a_second_run_loaded_while_the_machine_is_full_waits_for_a_server():

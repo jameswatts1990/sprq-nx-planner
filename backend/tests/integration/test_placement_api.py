@@ -752,8 +752,8 @@ def test_patch_cycle_amends_load_time_at_confirm(client):
     p1 = run.json()["plates"][0]
     assert run.json()["status"] == "running"
     assert p1["planned_start_at"][11:16] == "14:00"
-    # planned_end_at follows the new start (14:00 + 24h movie -> 14:00 next day).
-    assert p1["planned_end_at"][11:16] == "14:00"
+    # planned_end_at is the prep-aware movie end: 14:00 + 4h prep + 24h movie -> 18:00 next day.
+    assert p1["planned_end_at"][11:16] == "18:00"
     # actual_start_at ("Load time = the time entered at Confirm-loaded") anchors on the
     # entered 14:00, not on whatever moment the request happens to be processed.
     assert p1["actual_start_at"][11:16] == "14:00"

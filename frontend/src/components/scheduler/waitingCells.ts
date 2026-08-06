@@ -1,7 +1,14 @@
 import type { CellOut } from "@/types/cell";
 import type { CellStatus } from "@/types/common";
 import type { SlotIndex, StageOut } from "@/types/schedule";
-import { DAY_START_HOUR, isWeekendUTC, nextWeekdayIsoUTC, parseDateOnly } from "@/utils/calendarDates";
+import {
+  DAY_START_HOUR,
+  isWeekendUTC,
+  nextWeekdayIsoUTC,
+  parseDateOnly,
+  toIsoDateUTC,
+  weekdayOnOrAfterIsoUTC,
+} from "@/utils/calendarDates";
 import { CELL_LIFETIME_H, expiryFadeOpacity } from "@/utils/windowFade";
 
 export interface CellGhost {
@@ -127,7 +134,15 @@ function reuseWindow(
     // that day's start - clamp the deadline down to it if the 108h clock would run longer.
     deadlineAtMs = Math.min(deadlineAtMs, dayStart(evictionDate).getTime() - 1);
   }
-  const earliestDate = nextWeekdayIsoUTC(cell.last_use_run_date);
+  // Earliest reuse day: strictly after the last use's day (nextWeekday) AND on/after the day the
+  // cell is physically free - its last use's prep-aware movie end (reuse_ready_at, from the one
+  // timing model). So a cell whose movie only finishes the day after tomorrow isn't offered
+  // tomorrow just because tomorrow is the next weekday.
+  let earliestDate = nextWeekdayIsoUTC(cell.last_use_run_date);
+  if (cell.reuse_ready_at) {
+    const readyWeekday = weekdayOnOrAfterIsoUTC(toIsoDateUTC(new Date(cell.reuse_ready_at)));
+    if (readyWeekday > earliestDate) earliestDate = readyWeekday;
+  }
   if (dayStart(earliestDate).getTime() > deadlineAtMs) return null; // window shuts before any reuse day
   const cutoffDate = lastWeekdayWithin(earliestDate, deadlineAtMs);
   return { earliestDate, cutoffDate, deadlineAtMs };

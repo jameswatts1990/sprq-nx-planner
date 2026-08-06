@@ -23,7 +23,7 @@ from app.services.cell_service import (
     use_sort_key,
     window_hours_elapsed,
 )
-from app.services.cell_timing import run_is_acquiring, run_load_at
+from app.services.cell_timing import coarse_movie_end, run_is_acquiring, run_load_at
 from app.services.instrument_lock import effective_run_start, run_lock_until
 from app.timeutil import ensure_aware, utcnow
 
@@ -127,6 +127,18 @@ def _plate_out(
     *,
     with_reuse_timing: bool = False,
 ) -> PlateOut:
+    live = [cu for cu in cycle.cell_uses if cu.status != "cancelled"]
+    # Prep-aware plate movie-end from the ONE timing model (coarse_movie_end: load + prep + movie,
+    # +the on-board wash for a reuse plate) - the movie can't start until the cell is prepped.
+    # Derived on read so it always reflects the current model; the stored cycle.planned_end_at is
+    # the older prep-blind value, kept only as a fallback for a plate with no live wells.
+    planned_end_at = (
+        coarse_movie_end(
+            cycle.planned_start_at, cycle.movie_hours, is_reuse=any(_use_number(cu) >= 2 for cu in live)
+        )
+        if live
+        else ensure_aware(cycle.planned_end_at)
+    )
     return PlateOut(
         plate_id=cycle.id,
         plate_index=cycle.plate_index,
@@ -141,7 +153,7 @@ def _plate_out(
         # emit a naive ISO string the frontend reads as *local* time (off by the viewer's
         # UTC offset). Every value written here is UTC (see planned_window / reuse_plate_window).
         planned_start_at=ensure_aware(cycle.planned_start_at),
-        planned_end_at=ensure_aware(cycle.planned_end_at),
+        planned_end_at=planned_end_at,
         actual_start_at=ensure_aware(cycle.actual_start_at) if cycle.actual_start_at else None,
         actual_end_at=ensure_aware(cycle.actual_end_at) if cycle.actual_end_at else None,
         stages=[

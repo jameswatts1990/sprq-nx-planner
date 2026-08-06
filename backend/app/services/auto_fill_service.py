@@ -17,7 +17,6 @@ from app.engine.constants import (
     CELLS_PER_TRAY,
     DAY_START_HOUR,
     DEFAULT_MOVIE_HOURS,
-    REUSE_PREP_H,
     WELLS,
     within_tray_pos,
 )
@@ -31,6 +30,7 @@ from app.models.sample import Sample
 from app.models.schedule import CellUse, CellUseBarcode, Cycle, RunBatch
 from app.services import instrument_lock
 from app.services.cell_service import mark_cell_discarded, open_new_tray, recompute_status
+from app.services.cell_timing import coarse_movie_end
 from app.services.engine_bridge import load_backlog_samples, load_prior_cells, to_parsed_samples
 from app.services.settings_service import get_insert_size_reuse_threshold
 from app.services.placement_service import (
@@ -61,9 +61,8 @@ class AutoFillResult:
     window_flags: list[tuple[str, float]] = field(default_factory=list)
     # Advisory only (never blocks a placement): (cell_code, worst-shortfall-hours) for a cell
     # whose chained reuse start, within this batch, fell short of its own prior use's real movie
-    # end + REUSE_PREP_H wash - see the assign_start loop below. A distinct clock from
-    # window_flags' 108h lifetime check (see docs/pacbio-sprq-nx-scheduling-reference.md's
-    # "Deliberate simplifications").
+    # end - see the assign_start loop below. A distinct clock from window_flags' 108h lifetime
+    # check (see docs/pacbio-sprq-nx-scheduling-reference.md's "Deliberate simplifications").
     reuse_timing_flags: list[tuple[str, float]] = field(default_factory=list)
     barcode_conflicts: list[ConflictPair] = field(default_factory=list)
     run_ids: list[int] = field(default_factory=list)  # RunBatch (run) ids the batch created/touched
@@ -367,10 +366,11 @@ def auto_fill(
 
     # Per-well planned start. A cell's first use in this batch starts at the run's load hour
     # (a fresh cell, or a prior cell whose earlier use already finished - the instrument is
-    # free). A later reuse of the same cell chains off that use's real end + the on-board wash
-    # (REUSE_PREP_H), so a long (24-30h) movie starts its next-day reuse in the afternoon/
-    # evening rather than the flat load hour - never before the cells have physically finished
-    # their previous acquisition. The chained start is used only while it still lands on the
+    # free). A later reuse of the same cell chains off that use's real movie end (the on-board
+    # wash is now the reuse cell's own prep in cell_timing, not a load-time gap), so a long
+    # (24-30h) movie starts its next-day reuse in the afternoon/evening rather than the flat load
+    # hour - never before the cells have physically finished their previous acquisition. The
+    # chained start is used only while it still lands on the
     # very day the packer reserved for the reuse (which is weekday- and lock-aware); a chain
     # long enough to spill past that day (e.g. a 30h x 3-use cell) falls back to the load hour,
     # matching the packer's own day rather than silently floating the run to a later column.
@@ -381,26 +381,30 @@ def auto_fill(
     # Advisory only (see AutoFillResult.reuse_timing_flags): cell_ref -> worst hours by which a
     # chained reuse's actual start (base_start, once the correctly-chained time doesn't land on
     # the packer's reserved day - see below) fell short of that cell's own prior use's real
-    # movie end + REUSE_PREP_H wash. Never rejects or reroutes the placement itself.
+    # movie end. Never rejects or reroutes the placement itself.
     reuse_wait_shortfall: dict[str, float] = {}
     assign_start: dict[int, datetime] = {}
     for cell_ref, uses in uses_by_cell_ref.items():
         prev_end: datetime | None = None
-        for a in uses:
+        for idx, a in enumerate(uses):
             # planned_window's start ([0]) doesn't depend on the movie length; the movie only
             # matters for chaining a reuse off the PRIOR use's real end, which is now that
             # prior sample's own movie time (a run can mix 12/24/30 movies well-by-well).
             base_start, _ = planned_window(a.run_date, _movie(a.sample), start_hour, start_minute)
             start = base_start
             if prev_end is not None:
-                chained = prev_end + timedelta(hours=REUSE_PREP_H)
+                # The reuse loads when the prior movie ends; the on-board wash is the reuse cell's
+                # own prep now (REUSE_PREP_H in cell_timing), not an extra gap on the load time.
+                chained = prev_end
                 if base_start <= chained and chained.date() == a.run_date:
                     start = chained
                 elif start < chained:
                     shortfall = (chained - start).total_seconds() / 3600
                     reuse_wait_shortfall[cell_ref] = max(shortfall, reuse_wait_shortfall.get(cell_ref, 0.0))
             assign_start[id(a)] = start
-            prev_end = start + timedelta(hours=_movie(a.sample))
+            # The prior use's real movie END (load + prep + movie, the one timing model); the next
+            # use can't load before then. A cell's later uses (idx>0) carry the on-board wash too.
+            prev_end = coarse_movie_end(start, _movie(a.sample), is_reuse=idx > 0)
 
     # A cycle (one plate of one run) starts at the latest start among its wells - all equal in
     # practice (a plate's wells are one reuse-generation), but the max keeps a mixed

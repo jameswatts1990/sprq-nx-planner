@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { PlateOut, RunOut, StageOut } from "@/types/schedule";
 
-import { computeRunTimeline, computeTimeline, PPA_H, PREP_H, WELL_STAGGER_H } from "./stageTimings";
+import { computeRunTimeline, computeTimeline, PPA_H, PREP_H, REUSE_PREP_H, WELL_STAGGER_H } from "./stageTimings";
 
 function stage(slotIndex: number, runTimeHours: 12 | 24 | 30, cellUseId: number): StageOut {
   return {
@@ -81,6 +81,17 @@ describe("computeRunTimeline", () => {
 
     // Span now runs to the last well's PPA tail, not its movie end.
     expect(spanH).toBe(36);
+  });
+
+  it("adds the 45-min on-board wash to a reuse (Use 2/3) cell's prep", () => {
+    // A reuse cell (use_number >= 2) preps for PREP_H + REUSE_PREP_H = 4h45m: it's already in
+    // the instrument, so its turnaround before the next movie is the wash on top of the base prep.
+    const reuseStage: StageOut = { ...stage(0, 24, 30), use_number: 2 };
+    const { timings } = computeRunTimeline(run([plate(1, "2026-08-03T12:00:00+00:00", [reuseStage])]));
+    const s = timings.find((t) => t.stage.cell_use_id === 30)!;
+    expect(s.prepStartH).toBe(0);
+    expect(s.movieStartH).toBe(PREP_H + REUSE_PREP_H); // 4.75
+    expect(s.movieEndH).toBe(PREP_H + REUSE_PREP_H + 24);
   });
 
   it("anchors a later plate at its own real start offset from the load time", () => {

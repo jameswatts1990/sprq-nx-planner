@@ -420,8 +420,8 @@ export function SchedulePage() {
     },
     (sampleId, instrumentSerial, loadDate, slotIndex) => {
       // Dropping the first sample onto an empty instrument+day creates a brand-new run - ask
-      // for its load time (the wheel) before committing, so the user sets when it loads and
-      // starts sequencing. A drop onto a day that already has a run places straight away at
+      // for its load time (the wheel) before committing, so the user sets when it loads (the cells
+      // then prep before sequencing). A drop onto a day that already has a run places straight away at
       // that run's already-fixed time.
       if (!grouped.get(instrumentSerial)?.get(loadDate)) {
         setPendingLoadTime({ sample_id: sampleId, instrument_serial: instrumentSerial, load_date: loadDate, slot_index: slotIndex });
@@ -726,7 +726,7 @@ export function SchedulePage() {
       {pendingLoadTime && (
         <LoadTimePicker
           value={runDesign.load_hour}
-          subtitle={`New run — pick when it loads on ${formatShortDateUTC(parseDateOnly(pendingLoadTime.load_date))} and starts sequencing.`}
+          subtitle={`New run — pick when it loads on ${formatShortDateUTC(parseDateOnly(pendingLoadTime.load_date))} (cells prep, then sequencing starts).`}
           onCancel={() => setPendingLoadTime(null)}
           onPick={(hour) => {
             const p = pendingLoadTime;

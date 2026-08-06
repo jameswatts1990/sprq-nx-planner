@@ -4,7 +4,9 @@ each cell, when it breaks out (prep start), sequences (movie), and runs PPA, fro
 limits of the instrument:
 
   - **Breakout drives everything.** A cell's 108h reuse window anchors at its breakout, and its
-    movie starts ``PREP_H`` (4h) after breakout.
+    movie starts ``PREP_H`` (4h) after breakout - plus ``REUSE_PREP_H`` (the 45-min on-board wash)
+    for a Use 2/3 cell, whose prep is therefore 4h 45m (the cell is already in the instrument, so
+    a reuse's turnaround before its next movie is the wash, not a fresh tray breakout).
   - **Adaptive loading: cells break out ``STAGGER_H`` (2h) apart** within a load group.
   - **``SEQ_LANES`` (4) sequencing lanes.** A cell holds one of the instrument's 4 physical
     positions from breakout until its movie ends, so a same-session second tray cannot break out
@@ -19,9 +21,9 @@ lockstep with the frontend constants of the same names.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
-from app.engine.constants import within_tray_pos
+from app.engine.constants import REUSE_PREP_H, within_tray_pos
 from app.timeutil import ensure_aware
 
 PREP_H = 4.0
@@ -40,6 +42,7 @@ class CellInput:
     run_time_h: float
     group_base_h: float  # hours from T to this cell's load group's base (its plate's start)
     group_key: object  # cells sharing this key were loaded together and share the 4 seq lanes
+    is_reuse: bool = False  # a Use 2/3 cell: its prep carries the REUSE_PREP_H on-board wash
 
 
 @dataclass
@@ -78,7 +81,9 @@ def compute_timings(cells: list[CellInput]) -> dict[object, CellTiming]:
         stagger_floor = c.group_base_h if c.group_key not in prev_breakout else prev_breakout[c.group_key] + STAGGER_H
         i = min(range(SEQ_LANES), key=lambda j: servers[j])  # earliest-free sequencing server
         breakout = max(stagger_floor, servers[i])
-        movie_start = breakout + PREP_H
+        # Prep is PREP_H (4h) for a first use; a reuse (Use 2/3) adds the REUSE_PREP_H on-board
+        # wash on top, so its movie starts 45 min later than a fresh cell would at the same breakout.
+        movie_start = breakout + PREP_H + (REUSE_PREP_H if c.is_reuse else 0.0)
         movie_end = movie_start + c.run_time_h
         servers[i] = movie_end
         prev_breakout[c.group_key] = breakout
@@ -101,7 +106,38 @@ def _schedule_ppa(timings) -> None:
         t.ppa_end_h = start + PPA_H
 
 
+def coarse_movie_end(load_at: datetime, movie_hours: float, is_reuse: bool = False) -> datetime:
+    """The prep-aware movie END for one plate/cell at the COARSE (per-plate) granularity the
+    persisted schedule and the reuse-day chain use: ``load + prep + movie``, where prep is
+    ``PREP_H`` (4h) plus the ``REUSE_PREP_H`` on-board wash for a reuse (Use 2/3). This is the same
+    prep-then-movie ``compute_timings`` applies, minus the per-cell 2h stagger (a within-tray gantt
+    detail that doesn't belong in a per-plate day/window). ONE definition so reuse_plate_window,
+    the serialized plate window, and the auto-fill reuse chain can never drift apart on "when does
+    a plate's movie finish / when is its cell free for the next use"."""
+    prep = PREP_H + (REUSE_PREP_H if is_reuse else 0.0)
+    return ensure_aware(load_at) + timedelta(hours=prep + movie_hours)
+
+
 # --- adapters over the ORM ---------------------------------------------------------------------
+
+def _is_reuse(cell_use) -> bool:
+    """True when ``cell_use`` is a 2nd/3rd use of its cell (a reuse) rather than its first use -
+    so its prep carries the REUSE_PREP_H on-board wash. Chronology mirrors
+    ``cell_service.use_sort_key`` / ``run_serializer._use_number`` (a cell's active, non-cancelled
+    uses ordered by acquire_date then id); kept local here to avoid a circular import, since
+    cell_service imports this module. A cell with no loaded use history (e.g. a synthetic test
+    cell) is treated as a first use."""
+    cell = getattr(cell_use, "cell", None)
+    actives = [cu for cu in (getattr(cell, "cell_uses", None) or []) if getattr(cu, "status", None) != "cancelled"]
+    if len(actives) <= 1:
+        return False
+
+    def _key(cu):
+        cyc = getattr(cu, "cycle", None)
+        return (getattr(cyc, "acquire_date", None) or date.min, cu.id)
+
+    return min(actives, key=_key).id != cell_use.id
+
 
 def _plate_anchor(cycle) -> datetime:
     """This plate's effective load anchor on the timeline: its real confirm-load time
@@ -136,6 +172,7 @@ def _run_cell_inputs(run_batch) -> list[CellInput]:
                     run_time_h=float(cu.run_time_hours),
                     group_base_h=base_h,
                     group_key=cycle.planned_start_at,
+                    is_reuse=_is_reuse(cu),
                 )
             )
     return cells
@@ -174,6 +211,7 @@ def instrument_timeline(run_batches) -> dict[int, datetime]:
                         # (run, plate-start) so different runs are separate prep-stagger groups but
                         # still share the 4 sequencing servers across the whole instrument.
                         group_key=(r.id, cyc.planned_start_at),
+                        is_reuse=_is_reuse(cu),
                     )
                 )
                 run_of[cu.id] = r.id
@@ -251,9 +289,11 @@ def run_load_lock_end(run_batch) -> datetime | None:
     LAST cell finishes prep (breakout + PREP_H), i.e. the end of the last purple "Prep" bar in the
     adaptive-loading slide (docs/pacbio-sprq-nx-scheduling-reference.md, capacity fact #3's
     "awaiting-prep ⇒ locked"). Dynamic in the cell count via the same per-cell model as the gantt:
-    one tray's four cells finish prep at load+4/6/8/10h (4h prep, 2h-staggered); a second tray's
-    cells are *prep-pending* until the first frees the 4 sequencing lanes (~28h), finishing prep at
-    ~32-38h. None when nothing is loaded.
+    one tray's four fresh cells finish prep at load+4/6/8/10h (4h prep, 2h-staggered); a second
+    tray's cells are *prep-pending* until the first frees the 4 sequencing lanes (~28h), finishing
+    prep at ~32-38h. A reuse (Use 2/3) cell's prep carries the extra REUSE_PREP_H on-board wash, so
+    a run that loads a reuse plate frees ~45 min later than the fresh-load ladder. None when nothing
+    is loaded.
 
     Distinct from ``run_acquisition_end`` (last PPA end, the full "still on the instrument" window):
     the loading bay frees when every cell has broken out, long before the movies + PPA finish. This

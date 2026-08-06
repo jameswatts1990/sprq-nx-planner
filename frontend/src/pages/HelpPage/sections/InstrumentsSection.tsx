@@ -65,8 +65,9 @@ export function InstrumentsSection() {
           <b>start the next run</b>: the moment its <b>last cell finishes prep</b> (after which the cells just
           sequence, and the bay is free to load again). It scales with the number of cells — roughly <b>4h</b> for one
           cell up to <b>10h</b> for a full tray of four (prep is 4h, staggered 2h per cell), and up to <b>~38h</b> for
-          a second tray, whose cells can&apos;t start prep until the first tray frees the sequencing lanes. It
-          disappears once every cell has finished prep.
+          a second tray, whose cells can&apos;t start prep until the first tray frees the sequencing lanes. A run that
+          loads a <b>reused</b> cell (its Use 2 or 3) frees ~45 min later, as reuse adds a short on-board wash to that
+          cell&apos;s prep. It disappears once every cell has finished prep.
         </li>
         <li>
           <b>Stage columns</b> — each run in progress is a row, labelled by its run name, with its cells shown as
@@ -116,7 +117,9 @@ export function InstrumentsSection() {
         <b>stage-times gantt</b> — the same chart as the Schedule&apos;s slot popover. Each loaded well is a row with
         its three stages (a slate <b>prep</b> lead-in, the Use-coloured <b>movie</b>, then a darker slate <b>PPA</b>{" "}
         tail) laid out over a shared clock-time axis, and a green <b>live line</b> (with a spinning marker) sweeps down
-        through every bar to show where sequencing has got to. Since the instrument can only run <b>two cells&apos; PPA
+        through every bar to show where sequencing has got to. A <b>reused</b> cell (its Use 2 or 3) has a slightly
+        longer prep lead-in — ~45 min more — for the on-board wash it needs before its next movie; the prep bar&apos;s
+        tooltip spells this out. Since the instrument can only run <b>two cells&apos; PPA
         at once</b>, later cells show a short hatched <b>&quot;waiting for PPA&quot;</b> gap before their PPA begins. If{" "}
         <b>two runs overlap</b> on the instrument they share the one chart — up to eight cells — separated by a divider
         so each run reads clearly. Because the machine can only <b>sequence four cells at a time</b>, a run that loads

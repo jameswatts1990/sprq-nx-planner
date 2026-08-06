@@ -37,8 +37,8 @@ export interface LoadTimePickerProps {
 }
 
 /**
- * A radial "quick-select" wheel for a run's load time - the hour it loads and (since there
- * are no pre-loaded runs) starts sequencing. 13 hourly sectors 08:00-20:00 arranged on a
+ * A radial "quick-select" wheel for a run's load time - the hour the operator racks its plates
+ * (the cells then prep ~4h before the movie starts). 13 hourly sectors 08:00-20:00 arranged on a
  * circle; the centre shows the currently-highlighted time. Hover or arrow-key to move the
  * highlight, click / Enter to pick, Escape (or the overlay) to cancel. Rendered inside the
  * shared Modal so overlay + Escape + focus behaviour matches the rest of the app.
@@ -68,7 +68,7 @@ export function LoadTimePicker({ value, onPick, onCancel, title = "Load time", s
 
   return (
     <Modal onClose={onCancel} title={title} maxWidth={340}>
-      <p className={styles.hint}>{subtitle ?? "Pick when this run loads and starts sequencing."}</p>
+      <p className={styles.hint}>{subtitle ?? "Pick when this run loads (its cells prep, then sequencing starts)."}</p>
       <div
         ref={ringRef}
         className={styles.ring}
