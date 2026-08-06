@@ -293,10 +293,11 @@ export function ScheduleSection() {
           cell is re-used, so Auto Schedule <b>only ever puts a small-insert sample on a cell&apos;s first use</b> —
           never a 2nd or 3rd use. If no fresh first use is left, it&apos;s reported <b>unplaced</b> rather than forced
           onto a reuse. Placing one by hand is still allowed, but shows a warning:{" "}
-          <i>&quot;Samples &lt;5kb have shown reduced performance of re-uses.&quot;</i> On the weekly schedule grid,
-          the card itself also carries an orange stripe across its top edge — a plain stripe on a first use, a bolder
-          hazard-striped one when it&apos;s actually sitting on a 2nd/3rd use — so the risk reads at a glance without
-          hunting for the small tag text (see the Legend tab).
+          <i>&quot;Samples &lt;5kb have shown reduced performance of re-uses.&quot;</i> On the weekly schedule grid, a
+          small-insert card on its <b>first use</b> carries only the <b>[&lt;5kb]</b> flag (no stripe — a first use is
+          fine); when it&apos;s actually sitting on a <b>2nd/3rd use</b> the card also gets a bolder hazard-striped
+          stripe across its top edge, so the at-risk reuse reads at a glance without hunting for the small tag text
+          (see the Legend tab).
           <br />
           When it has to decide what to place first, Auto Schedule works in this order: <b>Priority</b> (High → Medium →
           Standard), then <b>movie length</b> (12 h and 30 h samples, each tied to one cell position, go ahead of

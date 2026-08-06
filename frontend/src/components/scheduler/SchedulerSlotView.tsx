@@ -163,9 +163,10 @@ export const SchedulerSlotView = memo(
 
   // Small-insert (<= admin threshold) libraries lose yield when a cell is re-used (see
   // InsertSizeFlag) - flagged here too (not just the small text badge) so the risk reads at a
-  // glance across a full week without hunting for the badge text. Any recorded size gets the
-  // plain top-stripe; a small insert actually sitting on a reuse (use_number >= 2, the case
-  // that costs yield) gets the stronger hazard-striped variant.
+  // glance across a full week without hunting for the badge text. The top-stripe warning is
+  // reserved for the case PacBio actually flags (a small insert sitting on a cell's 2nd/3rd
+  // use, use_number >= 2); a small insert on its first use is fine and gets only the orange
+  // InsertSizeFlag badge, no stripe.
   const insertThreshold = useInsertSizeThreshold();
   const insertSizeAlert = showStage && stage!.insert_size_bp != null && stage!.insert_size_bp <= insertThreshold;
   const insertSizeReuseRisk = insertSizeAlert && stage!.use_number >= 2;
@@ -221,9 +222,9 @@ export const SchedulerSlotView = memo(
     else if (qcAlert === "failed") classes.push(styles.qcAlertFailed);
     else if (qcAlert) classes.push(styles.qcAlert);
     // Additive, not part of the ladder above - a top-edge stripe rather than a border colour,
-    // so it never fights with a QC/clash alert also carried by the same card.
-    if (insertSizeAlert) classes.push(styles.insertFlag);
-    if (insertSizeReuseRisk) classes.push(styles.insertFlagRisk);
+    // so it never fights with a QC/clash alert also carried by the same card. Only shown on a
+    // small-insert reuse (use_number >= 2); a first use carries just the InsertSizeFlag badge.
+    if (insertSizeReuseRisk) classes.push(styles.insertFlag, styles.insertFlagRisk);
     // Shades toward the same fade as a waiting-cell ghost, but driven by this cell's own
     // elapsed time rather than time-to-deadline - "denote the passing of time until a
     // [cell's] expiry" (see docs/pacbio-sprq-nx-scheduling-reference.md #2: this is always

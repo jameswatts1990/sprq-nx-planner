@@ -227,10 +227,10 @@ export function LegendSection() {
             <SchedulerSlotView stage={STAGE_EXAMPLE_SMALL_INSERT_REUSE} slotIndex={4} />
           </div>
           <span>
-            On the weekly schedule, a small-insert sample also gets an orange stripe across the top of its card - a
-            plain stripe on a first use, the bolder hazard-striped stripe shown here when it&apos;s manually placed on
-            a cell&apos;s 2nd/3rd use (the case that actually costs yield), so it&apos;s visible at a glance without
-            reading the small tag text.
+            On the weekly schedule, a small-insert sample on a cell&apos;s <b>2nd/3rd use</b> (the case that actually
+            costs yield) gets the bolder hazard-striped stripe across the top of its card, shown here, so the at-risk
+            reuse is visible at a glance without reading the small tag text. On a <b>first use</b> the card carries only
+            the flag, no stripe.
           </span>
         </div>
       </div>
