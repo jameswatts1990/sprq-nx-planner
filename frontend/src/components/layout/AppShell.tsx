@@ -26,7 +26,7 @@ const NAV_ITEMS = [
   { to: "/history/runs", label: "History" },
   { to: "/history/samples", label: "Samples" },
   { to: "/stats", label: "Stats" },
-  { to: "/admin", label: "Admin" },
+  { to: "/settings", label: "Settings" },
   { to: "/help", label: "Help" },
 ];
 

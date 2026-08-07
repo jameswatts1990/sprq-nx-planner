@@ -1,5 +1,6 @@
 """Constants ported verbatim from revio-nx-planner.html (lines 359-364, 362), except
 where noted below for the 8-well/two-tray loading redesign."""
+from dataclasses import dataclass
 
 INSTRUMENTS = ["84047", "84098", "84093", "84309"]
 
@@ -105,11 +106,31 @@ MOVIE_CELL_POSITION: dict[int, int] = {12: 0, 30: 3}
 ALL_CELL_POSITIONS: frozenset[int] = frozenset(range(CELLS_PER_TRAY))  # {0, 1, 2, 3}
 
 
-def movie_allowed_positions(movie_hours: int | None) -> frozenset[int]:
+@dataclass(frozen=True)
+class MovieRules:
+    """The lab-configurable movie-time scheduling rules, bundled so a single value threads
+    through the pure engine (pack_cells / fill_slots) the same way the insert-size threshold
+    does - keeping the engine DB-free while the service layer builds this from settings_service
+    (get_movie_rules). ``positions`` maps a movie length to the one carousel position
+    (within_tray_pos 0-3) it's confined to under Auto Schedule; an absent key or a None value
+    means unrestricted. ``default_hours`` is the movie length assumed when a sample's own is
+    missing. DEFAULT_MOVIE_RULES mirrors the built-in constants, so every existing caller/test
+    that omits the argument behaves exactly as before."""
+
+    positions: dict[int, int | None]
+    default_hours: int
+
+
+DEFAULT_MOVIE_RULES = MovieRules(positions=dict(MOVIE_CELL_POSITION), default_hours=DEFAULT_MOVIE_HOURS)
+
+
+def movie_allowed_positions(movie_hours: int | None, rules: MovieRules = DEFAULT_MOVIE_RULES) -> frozenset[int]:
     """Which carousel cell positions (within_tray_pos, 0-3) a sample of this movie length may
-    load into under Auto Schedule's movie-time rules: 12h -> only cell 1 (pos 0), 30h -> only
-    cell 4 (pos 3), everything else (24h, or a missing movie time that defaults to 24h) ->
-    every position. Returned as a frozenset so callers can intersect a cell's uses' allowances
-    to find the positions still open to a whole (possibly multi-use) cell."""
-    pos = MOVIE_CELL_POSITION.get(movie_hours if movie_hours is not None else DEFAULT_MOVIE_HOURS)
+    load into under Auto Schedule's movie-time rules: by default 12h -> only cell 1 (pos 0),
+    30h -> only cell 4 (pos 3), everything else (24h, or a missing movie time that defaults to
+    the configured default) -> every position. The mapping and default are lab-configurable via
+    ``rules`` (settings_service.get_movie_rules); DEFAULT_MOVIE_RULES reproduces the built-in
+    behaviour. Returned as a frozenset so callers can intersect a cell's uses' allowances to
+    find the positions still open to a whole (possibly multi-use) cell."""
+    pos = rules.positions.get(movie_hours if movie_hours is not None else rules.default_hours)
     return ALL_CELL_POSITIONS if pos is None else frozenset({pos})

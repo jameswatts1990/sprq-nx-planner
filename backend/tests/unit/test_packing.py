@@ -9,6 +9,7 @@ sequential, they're now packed in that exact order rather than hardest-to-place-
 """
 from datetime import datetime, timezone
 
+from app.engine.constants import ALL_CELL_POSITIONS, DEFAULT_MOVIE_RULES, MovieRules, movie_allowed_positions
 from app.engine.packing import disjoint, external_id_sort_key, pack_cells, priority_rank
 from app.engine.types import ParsedSample, PriorCellInput
 
@@ -16,6 +17,23 @@ from app.engine.types import ParsedSample, PriorCellInput
 def test_disjoint():
     assert disjoint({"a", "b"}, ["c", "d"]) is True
     assert disjoint({"a", "b"}, ["b", "d"]) is False
+
+
+def test_movie_allowed_positions_honours_custom_rules():
+    # Default rules: 12h confined to cell 1 (pos 0), 24h unrestricted.
+    assert movie_allowed_positions(12) == frozenset({0})
+    assert movie_allowed_positions(24) == ALL_CELL_POSITIONS
+
+    # A lab that frees 12h (any cell) and confines 24h to cell 2 (pos 1) - the engine reads the
+    # supplied MovieRules, so pack_cells/fill_slots honour an edited Settings > Movie scheduling rule.
+    edited = MovieRules(positions={12: None, 24: 1, 30: 3}, default_hours=24)
+    assert movie_allowed_positions(12, edited) == ALL_CELL_POSITIONS
+    assert movie_allowed_positions(24, edited) == frozenset({1})
+    assert movie_allowed_positions(30, edited) == frozenset({3})
+
+    # A None movie time falls back to the rules' own default length.
+    assert movie_allowed_positions(None, edited) == movie_allowed_positions(24, edited)
+    assert movie_allowed_positions(None, DEFAULT_MOVIE_RULES) == ALL_CELL_POSITIONS  # default 24h = any
 
 
 def test_pack_example_csv_matches_hand_traced_expectation(example_samples):

@@ -71,18 +71,20 @@ def _parse_float_or_none(raw: str | None) -> float | None:
     return v if v else None
 
 
-def coerce_movie_hours(value: object) -> int:
+def coerce_movie_hours(value: object, default_hours: int = DEFAULT_MOVIE_HOURS) -> int:
     """A sample's movie / acquisition time, normalized to one of MOVIE_HOURS_CHOICES
-    (12/24/30). Anything missing, blank, or out of range falls back to DEFAULT_MOVIE_HOURS
-    (24h) - so a stored movie time is always a valid choice, and "not imported" means 24h.
-    Used on manual create/edit and on import."""
+    (12/24/30). Anything missing, blank, or out of range falls back to ``default_hours`` (the
+    lab-configured default movie length, settings_service.get_default_movie_hours; the built-in
+    DEFAULT_MOVIE_HOURS when a caller omits it) - so a stored movie time is always a valid
+    choice, and "not imported" means the default. Used on manual create/edit and on import."""
+    fallback = default_hours if default_hours in MOVIE_HOURS_CHOICES else DEFAULT_MOVIE_HOURS
     if value is None or (isinstance(value, str) and not value.strip()):
-        return DEFAULT_MOVIE_HOURS
+        return fallback
     v = _js_parse_float(value if isinstance(value, str) else str(value))
     if v is None:
-        return DEFAULT_MOVIE_HOURS
+        return fallback
     n = int(round(v))
-    return n if n in MOVIE_HOURS_CHOICES else DEFAULT_MOVIE_HOURS
+    return n if n in MOVIE_HOURS_CHOICES else fallback
 
 
 def _parse_movie_time(raw: str | None) -> int | None:

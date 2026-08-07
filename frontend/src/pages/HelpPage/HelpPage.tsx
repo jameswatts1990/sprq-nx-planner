@@ -4,7 +4,6 @@ import { useDebouncedValue } from "@/utils/useDebouncedValue";
 
 import styles from "./HelpPage.module.css";
 import { useHelpSearch } from "./useHelpSearch";
-import { AdminSection } from "./sections/AdminSection";
 import { BacklogSection } from "./sections/BacklogSection";
 import { CellsSection } from "./sections/CellsSection";
 import { GettingStartedSection } from "./sections/GettingStartedSection";
@@ -14,6 +13,7 @@ import { InstrumentsSection } from "./sections/InstrumentsSection";
 import { LegendSection } from "./sections/LegendSection";
 import { QcSection } from "./sections/QcSection";
 import { ScheduleSection } from "./sections/ScheduleSection";
+import { SettingsSection } from "./sections/SettingsSection";
 import { StatsSection } from "./sections/StatsSection";
 
 const SECTIONS = [
@@ -26,7 +26,7 @@ const SECTIONS = [
   { key: "instruments", title: "Instruments", Component: InstrumentsSection },
   { key: "history", title: "History & Samples", Component: HistorySection },
   { key: "stats", title: "Stats", Component: StatsSection },
-  { key: "admin", title: "Admin", Component: AdminSection },
+  { key: "settings", title: "Settings", Component: SettingsSection },
   { key: "legend", title: "Colour & Status Legend", Component: LegendSection },
 ] as const;
 

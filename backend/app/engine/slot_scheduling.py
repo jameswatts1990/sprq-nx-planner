@@ -17,9 +17,10 @@ from app.engine.constants import (
     ALL_CELL_POSITIONS,
     CELL_LIFETIME_H,
     CELLS_PER_TRAY,
-    DEFAULT_MOVIE_HOURS,
+    DEFAULT_MOVIE_RULES,
     LOCK_BUFFER_HOURS,
     WELLS,
+    MovieRules,
     within_tray_pos,
 )
 from app.engine.packing import cell_allowed_positions
@@ -36,6 +37,7 @@ def fill_slots(
     cells: list[PackedCell],
     slots: list[SlotInput],
     cells_per_day: int = len(WELLS),
+    movie_rules: MovieRules = DEFAULT_MOVIE_RULES,
 ) -> SlotFillResult:
     # Deterministic order: earliest date first, then instrument serial.
     slots_sorted = sorted(slots, key=lambda s: (s.run_date, s.instrument_serial))
@@ -50,7 +52,7 @@ def fill_slots(
         cells,
         key=lambda c: (
             0 if c.prior else 1,
-            0 if cell_allowed_positions(c) != ALL_CELL_POSITIONS else 1,
+            0 if cell_allowed_positions(c, movie_rules) != ALL_CELL_POSITIONS else 1,
             -c.future_uses,
         ),
     )
@@ -196,7 +198,7 @@ def fill_slots(
             # only A01-D01. A fresh cell (no pin yet) takes any allowed-position free well. Every
             # candidate must clear _takeable (movie-position rule, the well_owner over-use guard,
             # and the one-tray-per-plate cohesion guard).
-            allowed = cell_allowed_positions(cell)
+            allowed = cell_allowed_positions(cell, movie_rules)
             home = cell.pinned_well
             # Prefer the cell's own home well: it's physically entitled to it, `free_wells`
             # already excludes any well actually taken this slot, so the only extra gates are the
@@ -212,7 +214,7 @@ def fill_slots(
             free_wells[slot].remove(well)
 
             sample = cell.uses[idx]
-            slot_max_movie = max(slot_max_movie, sample.movie_time or DEFAULT_MOVIE_HOURS)
+            slot_max_movie = max(slot_max_movie, sample.movie_time or movie_rules.default_hours)
             assignments.append(
                 SlotAssignment(
                     cell=cell,

@@ -1,0 +1,42 @@
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.group + .group {
+  margin-top: 16px;
+}
+.groupTitle {
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--grey);
+  margin: 0;
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 8px;
+}
+.fact {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 10px 12px;
+  background: var(--line-soft);
+  border-radius: var(--r-sm);
+}
+.factLabel {
+  font-size: var(--fs-sm);
+  color: var(--grey);
+}
+.factValue {
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  color: var(--ink);
+}
+.factNote {
+  font-size: var(--fs-xs);
+  color: var(--faint);
+}

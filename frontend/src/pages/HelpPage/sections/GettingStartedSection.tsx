@@ -51,8 +51,9 @@ export function GettingStartedSection() {
 
       <p className={styles.subheading}>Other tabs</p>
       <p>
-        The <b>Admin</b> tab has raw database tools for development use, and this <b>Help</b> tab documents every
-        screen — see their sections below, or use the search box above to jump straight to a topic.
+        The <b>Settings</b> tab configures how this instance schedules runs and defaults new samples (and hides raw
+        database tools for development use), and this <b>Help</b> tab documents every screen — see their sections below,
+        or use the search box above to jump straight to a topic.
       </p>
     </div>
   );

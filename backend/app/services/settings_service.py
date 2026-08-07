@@ -5,11 +5,19 @@ of these fields is left unspecified — an explicitly provided value (including 
 False) always wins. The manual add form also reads these to pre-fill its controls."""
 from __future__ import annotations
 
+import json
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.engine.constants import (
+    CELLS_PER_TRAY,
+    DAY_START_HOUR,
     DEFAULT_INSERT_SIZE_REUSE_THRESHOLD_BP,
+    DEFAULT_MOVIE_HOURS,
+    MOVIE_CELL_POSITION,
+    MOVIE_HOURS_CHOICES,
+    MovieRules,
     PRIORITY_STANDARD,
     normalize_priority,
 )
@@ -78,15 +86,32 @@ def set_sample_defaults(db: Session, values: dict[str, str]) -> dict[str, str]:
 
 
 # --- Scheduling rules --------------------------------------------------------------------
-# Global scheduling parameters (not per-sample defaults). Currently just the insert-size
-# reuse threshold: a library whose insert_size_bp is <= this value is kept on a cell's first
-# use by Auto Schedule and flagged if placed on a reuse (see engine/packing.py and
-# docs/pacbio-sprq-nx-scheduling-reference.md). Namespaced so it never collides with other
-# app_settings entries.
+# Global scheduling parameters (not per-sample defaults), each a lab-tunable knob surfaced in
+# the Settings page. Namespaced so they never collide with other app_settings entries. The
+# built-in constants (engine/constants.py) remain the fallback for a never-stored/unparseable
+# value. Editable set:
+#   insert_size_reuse_threshold_bp - a library whose insert_size_bp is <= this is kept on a
+#     cell's first use by Auto Schedule and flagged if placed on a reuse.
+#   day_start_hour                 - the default hour (UTC, 0-23) a run loads; seeds the grid's
+#     load-time dial and the reuse-window day reference (services/cell_service).
+#   default_movie_hours            - the movie length assumed when a sample's own is missing
+#     (must be one of MOVIE_HOURS_CHOICES; the values themselves stay fixed).
+#   movie_cell_position            - JSON map {movie_hours: within_tray_pos 0-3 or null=any}:
+#     which carousel cell a movie length is confined to under Auto Schedule.
+# The last three feed engine/constants.MovieRules / the day-start reads; the getters below build
+# them and the service layer passes them into the pure engine (see get_movie_rules), keeping the
+# engine DB-free - the same pattern get_insert_size_reuse_threshold already uses.
 _SCHEDULING_PREFIX = "scheduling."
+
+# Built-in movie->cell-position map as canonical JSON: one entry per movie choice, absent
+# restrictions written as null ("any"). e.g. {"12": 0, "24": null, "30": 3}.
+_DEFAULT_MOVIE_CELL_POSITION_JSON = json.dumps({str(h): MOVIE_CELL_POSITION.get(h) for h in MOVIE_HOURS_CHOICES})
 
 SCHEDULING_DEFAULT_FALLBACKS: dict[str, str] = {
     "insert_size_reuse_threshold_bp": str(DEFAULT_INSERT_SIZE_REUSE_THRESHOLD_BP),
+    "day_start_hour": str(DAY_START_HOUR),
+    "default_movie_hours": str(DEFAULT_MOVIE_HOURS),
+    "movie_cell_position": _DEFAULT_MOVIE_CELL_POSITION_JSON,
 }
 SCHEDULING_KEYS: tuple[str, ...] = tuple(SCHEDULING_DEFAULT_FALLBACKS)
 
@@ -115,10 +140,83 @@ def get_insert_size_reuse_threshold(db: Session) -> int:
     return value if value > 0 else DEFAULT_INSERT_SIZE_REUSE_THRESHOLD_BP
 
 
+def get_day_start_hour(db: Session) -> int:
+    """The configured default run start hour (UTC, 0-23), falling back to the built-in
+    DAY_START_HOUR for a never-stored or out-of-range value. Read by the reuse-window day
+    reference (services/cell_service) and returned to the frontend to seed the load-time dial."""
+    raw = get_scheduling_settings(db)["day_start_hour"]
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return DAY_START_HOUR
+    return value if 0 <= value <= 23 else DAY_START_HOUR
+
+
+def get_default_movie_hours(db: Session) -> int:
+    """The configured default movie length (h), falling back to the built-in DEFAULT_MOVIE_HOURS
+    for a never-stored value or one that isn't a valid movie choice."""
+    raw = get_scheduling_settings(db)["default_movie_hours"]
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return DEFAULT_MOVIE_HOURS
+    return value if value in MOVIE_HOURS_CHOICES else DEFAULT_MOVIE_HOURS
+
+
+def get_movie_cell_position(db: Session) -> dict[int, int | None]:
+    """The configured movie->cell-position rules as {movie_hours: within_tray_pos 0-3 or None}:
+    which carousel cell each movie length is confined to under Auto Schedule (None = any). Always
+    returns one entry per MOVIE_HOURS_CHOICES; falls back to the built-in MOVIE_CELL_POSITION for
+    a corrupt/never-stored value."""
+    raw = get_scheduling_settings(db)["movie_cell_position"]
+    try:
+        data = json.loads(raw)
+        if not isinstance(data, dict):
+            raise ValueError
+    except (TypeError, ValueError):
+        return {h: MOVIE_CELL_POSITION.get(h) for h in MOVIE_HOURS_CHOICES}
+    result: dict[int, int | None] = {}
+    for h in MOVIE_HOURS_CHOICES:
+        v = data.get(str(h))
+        result[h] = v if isinstance(v, int) and not isinstance(v, bool) and 0 <= v < CELLS_PER_TRAY else None
+    return result
+
+
+def get_movie_rules(db: Session) -> MovieRules:
+    """The configured movie-time rules bundled for the pure engine (pack_cells/fill_slots), the
+    DB-free-engine pattern get_insert_size_reuse_threshold uses. Combines get_movie_cell_position
+    with get_default_movie_hours."""
+    return MovieRules(positions=get_movie_cell_position(db), default_hours=get_default_movie_hours(db))
+
+
+def _validate_movie_cell_position(value: str) -> str:
+    """Validate the incoming movie->cell-position JSON and return it re-serialized canonically
+    (one entry per movie choice, restrictions as an int 0..CELLS_PER_TRAY-1, "any" as null)."""
+    try:
+        data = json.loads(value)
+    except (TypeError, ValueError) as err:
+        raise ValueError("Movie cell-position rules must be a valid mapping") from err
+    if not isinstance(data, dict):
+        raise ValueError("Movie cell-position rules must map each movie length to a cell or 'Any'")
+    valid_keys = {str(h) for h in MOVIE_HOURS_CHOICES}
+    for k in data:
+        if str(k) not in valid_keys:
+            raise ValueError(f"Unknown movie length '{k}' in cell-position rules")
+    canonical: dict[str, int | None] = {}
+    for h in MOVIE_HOURS_CHOICES:
+        v = data.get(str(h))
+        if v is None:
+            canonical[str(h)] = None
+            continue
+        if isinstance(v, bool) or not isinstance(v, int) or not (0 <= v < CELLS_PER_TRAY):
+            raise ValueError(f"Cell rule for {h} h must be one of cells 1-{CELLS_PER_TRAY}, or Any")
+        canonical[str(h)] = v
+    return json.dumps(canonical)
+
+
 def _validate_scheduling(key: str, value: str) -> str:
-    """Coerce/validate one incoming scheduling value to its canonical stored form (a positive
-    integer, stored as text). Raises ValueError with a lab-readable message the API surfaces
-    as a 422."""
+    """Coerce/validate one incoming scheduling value to its canonical stored form (all stored as
+    text). Raises ValueError with a lab-readable message the API surfaces as a 422."""
     if key == "insert_size_reuse_threshold_bp":
         try:
             n = int(str(value).strip())
@@ -127,6 +225,25 @@ def _validate_scheduling(key: str, value: str) -> str:
         if n <= 0:
             raise ValueError("Insert size re-use threshold must be greater than 0")
         return str(n)
+    if key == "day_start_hour":
+        try:
+            n = int(str(value).strip())
+        except (TypeError, ValueError) as err:
+            raise ValueError("Default run start hour must be a whole number of hours (0-23)") from err
+        if not (0 <= n <= 23):
+            raise ValueError("Default run start hour must be between 0 and 23")
+        return str(n)
+    if key == "default_movie_hours":
+        try:
+            n = int(str(value).strip())
+        except (TypeError, ValueError) as err:
+            raise ValueError("Default movie length must be a whole number of hours") from err
+        if n not in MOVIE_HOURS_CHOICES:
+            allowed = ", ".join(f"{h} h" for h in MOVIE_HOURS_CHOICES)
+            raise ValueError(f"Default movie length must be one of {allowed}")
+        return str(n)
+    if key == "movie_cell_position":
+        return _validate_movie_cell_position(value)
     raise ValueError(f"Unknown scheduling setting '{key}'")
 
 

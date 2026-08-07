@@ -8,7 +8,9 @@ from app.engine.constants import (
     ALL_CELL_POSITIONS,
     CELL_MAX_USES,
     DEFAULT_INSERT_SIZE_REUSE_THRESHOLD_BP,
+    DEFAULT_MOVIE_RULES,
     WELLS,
+    MovieRules,
     movie_allowed_positions,
     within_tray_pos,
 )
@@ -57,13 +59,13 @@ def external_id_sort_key(external_id: str) -> tuple[str | int, ...]:
     return tuple(int(p) if i % 2 else p.lower() for i, p in enumerate(parts))
 
 
-def _movie_constraint_rank(movie_time: int | None) -> int:
-    """0 for a position-constrained movie length (12h -> cell 1, 30h -> cell 4), 1 for a
-    flexible one (24h, or a missing time that reads as the 24h default). Ordering constrained
+def _movie_constraint_rank(movie_time: int | None, rules: MovieRules = DEFAULT_MOVIE_RULES) -> int:
+    """0 for a position-constrained movie length (by default 12h -> cell 1, 30h -> cell 4), 1
+    for a flexible one (24h, or a missing time that reads as the default). Ordering constrained
     samples first lets them claim their required well before a flexible 24h sample takes it -
     the same "most-constrained first" idea slot_scheduling already uses when laying cells onto
     slots (engine/slot_scheduling.py)."""
-    return 0 if movie_allowed_positions(movie_time) != ALL_CELL_POSITIONS else 1
+    return 0 if movie_allowed_positions(movie_time, rules) != ALL_CELL_POSITIONS else 1
 
 
 def disjoint(set_a: set[str], arr_b: list[str]) -> bool:
@@ -88,7 +90,7 @@ def _foreign_clash(cell: PackedCell, sample: ParsedSample) -> bool:
     return False
 
 
-def cell_allowed_positions(c: PackedCell) -> frozenset[int]:
+def cell_allowed_positions(c: PackedCell, rules: MovieRules = DEFAULT_MOVIE_RULES) -> frozenset[int]:
     """The carousel cell positions (within_tray_pos, 0-3) still open to this whole cell,
     given Auto Schedule's movie-time rule (see engine/constants.movie_allowed_positions).
 
@@ -101,7 +103,7 @@ def cell_allowed_positions(c: PackedCell) -> frozenset[int]:
     if c.pinned_well is not None:
         positions &= frozenset({within_tray_pos(c.pinned_well)})
     for u in c.uses:
-        positions &= movie_allowed_positions(u.movie_time)
+        positions &= movie_allowed_positions(u.movie_time, rules)
     return positions
 
 
@@ -120,6 +122,7 @@ def pack_cells(
     available_days: int | None = None,
     cells_per_day: int | None = None,
     insert_size_reuse_threshold: int = DEFAULT_INSERT_SIZE_REUSE_THRESHOLD_BP,
+    movie_rules: MovieRules = DEFAULT_MOVIE_RULES,
 ) -> PackResult:
     """`max_uses` is this batch's target packing depth: how many TOTAL uses to plan onto a
     cell before moving on - the user's explicit choice, always honored in full. It bounds
@@ -218,7 +221,7 @@ def pack_cells(
             samples,
             key=lambda s: (
                 priority_rank(s.priority),
-                _movie_constraint_rank(s.movie_time),
+                _movie_constraint_rank(s.movie_time, movie_rules),
                 external_id_sort_key(s.id),
                 s.created_at or _EPOCH,
                 -len(s.barcodes),
@@ -271,7 +274,7 @@ def pack_cells(
 
     unplaced: list[ParsedSample] = []
     for s in ordered:
-        s_positions = movie_allowed_positions(s.movie_time)
+        s_positions = movie_allowed_positions(s.movie_time, movie_rules)
         # Small-insert (<5 kb) libraries lose yield on a cell's 2nd/3rd use, so they may only
         # land on a first use (see the docstring / docs/pacbio-sprq-nx-scheduling-reference.md).
         s_small = s.insert_size_bp is not None and s.insert_size_bp <= insert_size_reuse_threshold
@@ -284,7 +287,7 @@ def pack_cells(
             # remaining allowed positions overlap its own (e.g. a 12h sample never lands on a
             # cell pinned to - or already holding a use pinned to - anything but cell 1). For
             # all-24h backlogs both sides are the full position set, so this never bites.
-            and (cell_allowed_positions(c) & s_positions)
+            and (cell_allowed_positions(c, movie_rules) & s_positions)
             # Small-insert samples only ever take a cell's FIRST use. When none is open they
             # fall through to opening a fresh cell below (still a first use) - never a reuse.
             and (not s_small or _cell_is_first_use(c))

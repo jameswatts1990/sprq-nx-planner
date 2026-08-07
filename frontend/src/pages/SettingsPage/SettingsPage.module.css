@@ -1,9 +1,131 @@
 .page {
   padding-top: 22px;
+}
+
+/* --- Settings shell: sidebar nav + one active panel (swap, not scroll) ------- */
+.shell {
+  display: grid;
+  grid-template-columns: 236px minmax(0, 1fr);
+  gap: 44px;
+  align-items: start;
+}
+.sidebar {
+  position: sticky;
+  top: calc(var(--topbar-h, 64px) + 20px);
+  align-self: start;
+  max-height: calc(100vh - var(--topbar-h, 64px) - 40px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.search {
+  width: 100%;
+  font-family: var(--sans);
+  font-size: var(--fs-base);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 8px 10px;
+}
+.search:focus-visible {
+  outline: 2px solid var(--magenta-deep);
+  outline-offset: 1px;
+}
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-left: 1px solid var(--line);
+}
+.navLink {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  text-align: left;
+  font-family: var(--sans);
+  font-size: var(--fs-base);
+  font-weight: 600;
+  color: var(--grey);
+  background: transparent;
+  border: none;
+  border-left: 2px solid transparent;
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+  margin-left: -1px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+.navLink:hover {
+  color: var(--ink);
+  background: var(--line-soft);
+}
+.navLink:focus-visible {
+  outline: 2px solid var(--magenta-deep);
+  outline-offset: -2px;
+}
+.navLinkActive {
+  color: var(--magenta);
+  background: var(--magenta-tint);
+  border-left-color: var(--magenta);
+  font-weight: 700;
+}
+/* The developer-tools entry is deliberately understated - it's an escape hatch, not an
+   everyday setting. */
+.navDev {
+  color: var(--faint);
+}
+.noMatch {
+  font-size: var(--fs-sm);
+  color: var(--grey);
+  padding: 6px 12px;
+}
+.reveal {
+  margin-top: 6px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.revealBtn {
+  width: 100%;
+  text-align: left;
+  font-family: var(--sans);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--grey);
+  background: transparent;
+  border: none;
+  border-radius: var(--r-sm);
+  padding: 6px 12px;
+  cursor: pointer;
+}
+.revealBtn:hover {
+  color: var(--ink);
+  background: var(--line-soft);
+}
+
+/* --- Content column --------------------------------------------------------- */
+.content {
+  min-width: 0;
+}
+.contentHead {
+  margin-bottom: 16px;
+}
+.title {
+  font-size: var(--fs-display);
+  margin: 0 0 6px;
+}
+.intro {
+  font-size: var(--fs-lg);
+  color: var(--grey);
+  margin: 0;
+  max-width: 80ch;
+}
+
+/* Developer-tools section wrapper (stacks its warning, clear-backlog card, table browser). */
+.devTools {
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
+
 .actions {
   background: var(--card);
   border: 1px solid var(--line);
@@ -34,7 +156,7 @@
   gap: 18px;
   align-items: start;
 }
-.sidebar {
+.tablesSidebar {
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: var(--r);

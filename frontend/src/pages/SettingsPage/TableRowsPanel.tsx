@@ -8,7 +8,7 @@ import { Modal, ModalActions } from "@/components/ui/Modal";
 import { Note } from "@/components/ui/Note";
 
 import { ClearTableModal } from "./ClearTableModal";
-import styles from "./AdminPage.module.css";
+import styles from "./SettingsPage.module.css";
 
 const PAGE_SIZE = 50;
 

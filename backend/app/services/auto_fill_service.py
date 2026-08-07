@@ -32,7 +32,7 @@ from app.services import instrument_lock
 from app.services.cell_service import mark_cell_discarded, open_new_tray, recompute_status
 from app.services.cell_timing import coarse_movie_end
 from app.services.engine_bridge import load_backlog_samples, load_prior_cells, to_parsed_samples
-from app.services.settings_service import get_insert_size_reuse_threshold
+from app.services.settings_service import get_insert_size_reuse_threshold, get_movie_rules
 from app.services.placement_service import (
     PlacementError,
     get_or_create_run,
@@ -245,6 +245,9 @@ def auto_fill(
     # capping it here spreads samples across fresh cells instead of packing depth that
     # would just come back as unplaced.
     available_days = len({s.run_date for s in empty_slots})
+    # Lab-configurable scheduling rules read once here and passed into the pure engine so it
+    # stays DB-free (same pattern for both the small-insert threshold and the movie-time rules).
+    movie_rules = get_movie_rules(db)
     pack = pack_cells(
         parsed,
         max_uses=max_uses,
@@ -255,8 +258,10 @@ def auto_fill(
         # Small-insert (<5 kb) libraries are kept on a cell's first use only - threshold is
         # admin-configurable (settings_service), read here so the pure engine stays DB-free.
         insert_size_reuse_threshold=get_insert_size_reuse_threshold(db),
+        # Movie-time cell-position rules + default length (Settings > Movie scheduling).
+        movie_rules=movie_rules,
     )
-    fill = fill_slots(pack.cells, empty_slots, cells_per_day=cells_per_day)
+    fill = fill_slots(pack.cells, empty_slots, cells_per_day=cells_per_day, movie_rules=movie_rules)
 
     # PackedCell.id -> DB Cell (prior cells resolve to real rows; fresh cells created on first use)
     ref_to_cell: dict[str, Cell] = {pc.id: cells_by_id[pc.cell_id] for pc in pack.cells if pc.prior}

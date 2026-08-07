@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.engine.normalize import coerce_movie_hours
 from app.models.sample import Sample, SampleBarcode
-from app.services.settings_service import get_sample_defaults
+from app.services.settings_service import get_default_movie_hours, get_sample_defaults
 
 
 def existing_samples_with_id(db: Session, external_id: str) -> list[Sample]:
@@ -70,7 +70,7 @@ def create_backlog_sample(
         else defaults["full_resolution_base_q"],
         priority=priority or defaults["priority"],
         base_kinetics=base_kinetics if base_kinetics is not None else defaults["base_kinetics"],
-        movie_time_hours=coerce_movie_hours(movie_time_hours),
+        movie_time_hours=coerce_movie_hours(movie_time_hours, get_default_movie_hours(db)),
         insert_size_bp=insert_size_bp,
         status="backlog",
     )
@@ -113,7 +113,7 @@ def update_backlog_sample(
     sample.full_resolution_base_q = full_resolution_base_q or None
     sample.priority = priority or None
     sample.base_kinetics = base_kinetics or None
-    sample.movie_time_hours = coerce_movie_hours(movie_time_hours)
+    sample.movie_time_hours = coerce_movie_hours(movie_time_hours, get_default_movie_hours(db))
     sample.insert_size_bp = insert_size_bp
 
     # Replace barcodes. Clear + flush deletes the old rows first, so re-adding an unchanged

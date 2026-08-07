@@ -8,6 +8,7 @@ import { cellsApi } from "@/api/cells";
 import { cyclesApi } from "@/api/cycles";
 import { instrumentsApi } from "@/api/instruments";
 import { scheduleExportUrl } from "@/api/scheduleExport";
+import { settingsApi } from "@/api/settings";
 import { CellQcModal } from "@/components/cells/CellQcModal";
 import { CellInfoPopover } from "@/components/scheduler/CellInfoPopover";
 import { LoadTimePicker } from "@/components/scheduler/LoadTimePicker";
@@ -107,6 +108,20 @@ export function SchedulePage() {
   const slotSelection = useSlotSelection();
 
   const [runDesign, setRunDesign] = useState<RunDesignState>(DEFAULT_RUN_DESIGN);
+  // Seed the load-time dial from the lab's configured default run start hour (Settings >
+  // Scheduling) once, and only while the dial is still at the built-in default - so a scheduler
+  // who has already picked an hour this session keeps their choice.
+  const schedulingSettingsQuery = useQuery({
+    queryKey: ["scheduling-settings"],
+    queryFn: () => settingsApi.getScheduling(),
+  });
+  const seededLoadHourRef = useRef(false);
+  useEffect(() => {
+    const configuredHour = schedulingSettingsQuery.data?.day_start_hour;
+    if (configuredHour == null || seededLoadHourRef.current) return;
+    seededLoadHourRef.current = true;
+    setRunDesign((rd) => (rd.load_hour === DEFAULT_RUN_DESIGN.load_hour ? { ...rd, load_hour: configuredHour } : rd));
+  }, [schedulingSettingsQuery.data]);
   const [autoscheduleOpen, setAutoscheduleOpen] = useState(false);
   const [detail, setDetail] = useState<DetailTarget | null>(null);
   const [printSheetOpen, setPrintSheetOpen] = useState(false);

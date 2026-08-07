@@ -185,6 +185,23 @@ export function SampleModal({
     }
   }, [isAdd, defaultsQuery.data]);
 
+  // Also pre-fill the movie length from the configured default (Settings > Movie scheduling), so
+  // a new sample shows the length that will apply rather than a blank "—". Seeds once, and only
+  // while the field is still blank, so a typed value always wins.
+  const schedulingQuery = useQuery({
+    queryKey: ["scheduling-settings"],
+    queryFn: () => settingsApi.getScheduling(),
+    enabled: isAdd,
+  });
+  const seededMovieRef = useRef(false);
+  useEffect(() => {
+    if (isAdd && !seededMovieRef.current && schedulingQuery.data) {
+      seededMovieRef.current = true;
+      const defaultHours = String(schedulingQuery.data.default_movie_hours);
+      setValues((prev) => ({ ...prev, movie_time_hours: prev.movie_time_hours || defaultHours }));
+    }
+  }, [isAdd, schedulingQuery.data]);
+
   const mutation = useMutation({
     mutationFn: ({ body, allowDuplicate }: { body: SampleCreate | SampleUpdate; allowDuplicate?: boolean }) =>
       sample

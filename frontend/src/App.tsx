@@ -15,14 +15,14 @@ import { SchedulePage } from "@/pages/SchedulePage/SchedulePage";
 
 // Rare / heavy routes are code-split so their large dependencies stay out of the initial
 // bundle that gates first paint of the default (Schedule) screen: StatsPage pulls in recharts,
-// ImportPage pulls in read-excel-file, BatchSheetPage is a print-only view, and AdminPage/
+// ImportPage pulls in read-excel-file, BatchSheetPage is a print-only view, and SettingsPage/
 // HelpPage are visited rarely. The daily-workflow routes above stay eagerly imported.
 const StatsPage = lazy(() => import("@/pages/StatsPage/StatsPage").then((m) => ({ default: m.StatsPage })));
 const ImportPage = lazy(() => import("@/pages/ImportPage").then((m) => ({ default: m.ImportPage })));
 const BatchSheetPage = lazy(() =>
   import("@/pages/BatchSheetPage/BatchSheetPage").then((m) => ({ default: m.BatchSheetPage })),
 );
-const AdminPage = lazy(() => import("@/pages/AdminPage/AdminPage").then((m) => ({ default: m.AdminPage })));
+const SettingsPage = lazy(() => import("@/pages/SettingsPage/SettingsPage").then((m) => ({ default: m.SettingsPage })));
 const HelpPage = lazy(() => import("@/pages/HelpPage/HelpPage").then((m) => ({ default: m.HelpPage })));
 
 /** Shown while a lazily-loaded route chunk is fetched - the AppShell (nav) stays mounted
@@ -58,7 +58,9 @@ export default function App() {
           <Route path="/history/samples" element={<HistorySamplesPage />} />
           <Route path="/samples/:sampleId" element={<SampleDetailPage />} />
           <Route path="/stats" element={<StatsPage />} />
-          <Route path="/admin" element={<AdminPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
+          {/* Old bookmark: the Admin tab was renamed Settings. */}
+          <Route path="/admin" element={<Navigate to="/settings" replace />} />
           <Route path="/help" element={<HelpPage />} />
           <Route path="*" element={<Navigate to="/schedule" replace />} />
         </Routes>

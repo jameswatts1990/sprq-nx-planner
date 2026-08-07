@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/Button";
 import { Modal, ModalActions } from "@/components/ui/Modal";
 import { Note } from "@/components/ui/Note";
 
-import styles from "./AdminPage.module.css";
+import styles from "./SettingsPage.module.css";
 
 export interface ClearTableModalProps {
   table: string;
