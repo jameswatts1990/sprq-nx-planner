@@ -7,6 +7,7 @@ import type { SlotIndex, StageOut } from "@/types/schedule";
 import { deriveLinkState } from "./cellLinkState";
 import { slotKey } from "./gridKeys";
 import { SchedulerSlotView } from "./SchedulerSlotView";
+import { SearchHighlightContext } from "./searchHighlight";
 import { CellLinkContext } from "./useCellLinkHighlight";
 import type { DragData, FilledSlotDragData, OccupiedSlotDropData, SlotDropData } from "./useSchedulerDnd";
 import { ghostWouldClashWithSample, type CellGhost } from "./waitingCells";
@@ -190,6 +191,7 @@ function DraggableSlot({
   const link = useContext(CellLinkContext);
   const { isSource, isPeer, isDimmed } = deriveLinkState(link.active, stage);
   const linkTarget = { cellId: stage.cell_id, sourceUseId: stage.cell_use_id };
+  const searchMatch = useContext(SearchHighlightContext) === slotKey(instrumentSerial, loadDate, slotIndex);
 
   function onClick(e: MouseEvent<HTMLDivElement>) {
     if ((e.ctrlKey || e.metaKey) && e.shiftKey) {
@@ -241,6 +243,7 @@ function DraggableSlot({
       linked={isPeer}
       linkSource={isSource}
       dimmed={isDimmed}
+      searchMatch={searchMatch}
       onClick={onClick}
       onOpenCell={onOpenCell ? () => onOpenCell(stage) : undefined}
       onMouseEnter={() => link.setHover(linkTarget)}
@@ -256,6 +259,8 @@ function DraggableSlot({
 function ClickableSlot({
   stage,
   slotIndex,
+  instrumentSerial,
+  loadDate,
   locked,
   placing,
   selected,
@@ -268,6 +273,7 @@ function ClickableSlot({
   const link = useContext(CellLinkContext);
   const { isSource, isPeer, isDimmed } = deriveLinkState(link.active, stage);
   const linkTarget = { cellId: stage.cell_id, sourceUseId: stage.cell_use_id };
+  const searchMatch = useContext(SearchHighlightContext) === slotKey(instrumentSerial, loadDate, slotIndex);
 
   const selectable = !locked && stage.cell_use_status !== "cancelled";
 
@@ -315,6 +321,7 @@ function ClickableSlot({
       linked={isPeer}
       linkSource={isSource}
       dimmed={isDimmed}
+      searchMatch={searchMatch}
       role="button"
       tabIndex={0}
       onClick={onClick}

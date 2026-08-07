@@ -692,6 +692,33 @@
   opacity: var(--highlight-dim-opacity);
   filter: grayscale(0.35);
 }
+/* Unified-search focus (see searchHighlight.ts): the one placement the header search is
+   currently cycled to. A magenta pulsing ring — the brand action colour, distinct from the
+   purple cross-time cell link — with a raised z-index so the ring sits above neighbouring
+   cards as it pulses. box-shadow only, never a transform scale (which blurs the card's text —
+   see the scheduler-card-zoom note in the change history). */
+.searchMatch {
+  z-index: 6;
+  border-color: var(--magenta);
+  animation: searchMatchPulse 1.4s ease-out infinite;
+}
+@keyframes searchMatchPulse {
+  0% {
+    box-shadow: 0 0 0 2px var(--magenta), 0 0 0 4px rgba(230, 0, 126, 0.35);
+  }
+  70% {
+    box-shadow: 0 0 0 2px var(--magenta), 0 0 0 12px rgba(230, 0, 126, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 2px var(--magenta), 0 0 0 4px rgba(230, 0, 126, 0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .searchMatch {
+    animation: none;
+    box-shadow: 0 0 0 2px var(--magenta), 0 0 0 5px rgba(230, 0, 126, 0.35);
+  }
+}
 /* QC alert: a QC problem on this use or its cell, surfaced directly on the grid so it's
    visible without opening the slot - independent of (and layered on top of) the Use
    1/2/3 tint, which is left alone so it still reads as which physical cell this is.

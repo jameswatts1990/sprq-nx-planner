@@ -1,0 +1,131 @@
+.card {
+  position: relative;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--card);
+  box-shadow: var(--shadow-sm);
+  padding: 10px 12px;
+  cursor: grab;
+  touch-action: none;
+}
+.card:hover {
+  border-color: var(--line-hover);
+}
+/* Priority-tinted left edge: --accent is set inline from the same palette var the priority
+   Badge uses (see BacklogCards.tsx TONE_ACCENT_VAR), so a card's priority reads at a glance
+   without re-describing colours. Every card gets one - Standard / no priority defaults to
+   grey, so the edge always reflects a real priority. */
+.prioritised {
+  border-left-width: 3px;
+  border-left-color: var(--line);
+}
+/* Edit affordance pinned top-right, revealed on card hover / keyboard focus. Absolutely
+   positioned so it never reflows the card, and small enough to clear the head row's badges.
+   Kept out of the drag by stopping its own pointerdown (see DraggableSampleCard). Shape/
+   border/hover/focus come from the shared `btn icon sm` variant (base.css); only the corner
+   positioning, understated grey colour, and reveal-on-hover are component-specific. */
+.editBtn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  color: var(--grey);
+  opacity: 0;
+  transition: opacity 0.12s, color 0.12s, border-color 0.12s;
+}
+.card:hover .editBtn,
+.editBtn:focus-visible {
+  opacity: 1;
+}
+.editBtn:hover {
+  color: var(--ink);
+}
+/* Trailing "add a sample" placeholder - a dashed card that shares the grid track sizing
+   with the sample cards, so it reads as the natural next slot in the list. */
+.addCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 64px;
+  font-family: var(--sans);
+  font-size: var(--fs-md);
+  font-weight: 700;
+  color: var(--grey);
+  background: transparent;
+  border: 1px dashed var(--line);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  transition: 0.14s;
+}
+.addCard:hover {
+  color: var(--magenta-deep);
+  border-color: var(--magenta);
+  background: var(--card);
+}
+.addCard:focus-visible {
+  outline: 2px solid var(--magenta-deep);
+  outline-offset: 2px;
+}
+.addPlus {
+  font-size: var(--fs-display);
+  font-weight: 400;
+  line-height: 1;
+}
+.card:active {
+  cursor: grabbing;
+}
+.dragging {
+  opacity: 0.4;
+}
+/* Unified-search focus: the one backlog card the header search is currently cycled to.
+   Same magenta pulsing ring the matched grid slot uses (see SchedulerSlotView.module.css
+   .searchMatch), so a search match reads the same whether it lands in the grid or the tray.
+   box-shadow only — never a transform scale. */
+.searchMatch {
+  border-color: var(--magenta);
+  animation: backlogSearchMatchPulse 1.4s ease-out infinite;
+}
+@keyframes backlogSearchMatchPulse {
+  0% {
+    box-shadow: 0 0 0 2px var(--magenta), 0 0 0 4px rgba(230, 0, 126, 0.35);
+  }
+  70% {
+    box-shadow: 0 0 0 2px var(--magenta), 0 0 0 12px rgba(230, 0, 126, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 2px var(--magenta), 0 0 0 4px rgba(230, 0, 126, 0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .searchMatch {
+    animation: none;
+    box-shadow: 0 0 0 2px var(--magenta), 0 0 0 5px rgba(230, 0, 126, 0.35);
+  }
+}
+.cardHead {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+.ext {
+  font-size: var(--fs-base);
+  font-weight: 800;
+  color: var(--ink);
+}
+.parent {
+  font-size: var(--fs-xs);
+  color: var(--faint);
+  font-weight: 600;
+}
+/* Movie / acquisition time chip, pushed to the right of the head row so it lines up down the
+   card list. Quiet by default - it's reference info, not a status. */
+.movie {
+  margin-left: auto;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  color: var(--grey);
+  white-space: nowrap;
+}

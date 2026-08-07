@@ -54,6 +54,10 @@ export interface SchedulerSlotViewProps extends HTMLAttributes<HTMLDivElement> {
    * visible before the user commits. It never blocks anything: the drop still succeeds and the
    * authoritative clash is then shown via the placed card's own barcode-clash marking. */
   dragClashWarning?: boolean;
+  /** This filled slot is the one grid placement the Schedule page's unified search is
+   * currently focused on (see searchHighlight.ts) - given a pulsing ring and marked
+   * data-search-match so the page can scroll it into view when the search cycles here. */
+  searchMatch?: boolean;
   /** Opens the in-grid cell-info popover for this placement's physical cell. When set (and
    * a stage is shown), the card renders a clickable "ticket stub" on its right edge - the
    * physical cell + its use number. Distinct from the card-body click, which opens the
@@ -106,6 +110,7 @@ export const SchedulerSlotView = memo(
       dimmed,
       blocked,
       dragClashWarning,
+      searchMatch,
       onOpenCell,
       className,
       style,
@@ -253,6 +258,7 @@ export const SchedulerSlotView = memo(
     classes.push(styles.overInvalid);
   }
   if (dragging) classes.push(styles.dragging);
+  if (searchMatch) classes.push(styles.searchMatch);
   if (selected) classes.push(styles.selected);
   if (linkSource) classes.push(styles.linkSource);
   else if (linked) classes.push(styles.linkPeer);
@@ -289,6 +295,7 @@ export const SchedulerSlotView = memo(
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
       {...(showStage ? { [CELL_LINK_SLOT_ATTR]: "" } : {})}
+      {...(searchMatch ? { "data-search-match": "true" } : {})}
       {...rest}
     >
       {showStage ? (

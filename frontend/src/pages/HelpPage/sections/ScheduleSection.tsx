@@ -82,6 +82,23 @@ export function ScheduleSection() {
         how far through the displayed week today is.
       </p>
 
+      <p className={styles.subheading}>Find a sample or run</p>
+      <p>
+        The <b>search box</b> in the toolbar (just right of <b>Export schedule</b>) finds a sample or run anywhere — it
+        looks across both the <b>Backlog</b> and everything already <b>planned on the grid</b> at once. Type a{" "}
+        <b>Container ID</b>, a <b>barcode</b>, a <b>run name</b>, or a bare <b>run number</b> (e.g. <i>123</i> or{" "}
+        <i>#123</i>): the Backlog tray narrows to the matching samples as you type, and a counter shows how many
+        appearances were found.
+      </p>
+      <p>
+        Press <b>Enter</b> (or the <b>›</b> button) to jump to the next appearance and <b>Shift+Enter</b> (or <b>‹</b>)
+        for the previous — it works like a browser&apos;s find bar. A sample can be placed on several days across
+        different weeks; cycling steps through <b>every</b> one, <b>jumping the week view to wherever the match sits</b>{" "}
+        even if it&apos;s weeks away, and <b>ringing the matched card</b> in magenta so it&apos;s easy to spot. Backlog
+        matches are part of the same cycle — it scrolls the tray to the matching card and rings it too. <b>Esc</b>{" "}
+        clears the search.
+      </p>
+
       <p className={styles.subheading}>View options</p>
       <p>
         <b>View options</b> at the far right of the date toolbar opens a small menu of display toggles that change
@@ -105,6 +122,12 @@ export function ScheduleSection() {
         <li>
           <b>Density: Comfortable / Compact</b> — Compact trims the spacing on every card so more of the week fits on
           screen without scrolling; Comfortable is the roomier default.
+        </li>
+        <li>
+          <b>Backlog: Top / Left / Right</b> — where the Backlog tray sits. <b>Top</b> (default) pins it across the top
+          under the toolbar; <b>Left</b> or <b>Right</b> docks it as a narrow, one-card-wide panel down that side of the
+          screen, <b>pushing the grid across</b> to make room rather than covering it. The docked panel <b>collapses</b>{" "}
+          to a thin rail with its <b>‹ / ›</b> toggle when you need the full width back, and expands again the same way.
         </li>
       </ul>
 
@@ -358,17 +381,24 @@ export function ScheduleSection() {
       </dl>
       <RunDesignExample />
       <p>
-        <b>The Backlog panel</b> is pinned to the top of the Schedule page, just under the date toolbar, so it stays
-        in view as you scroll down the instrument rows — drag a card straight onto any slot and the grid scrolls to
-        meet you, no scrolling back up to fetch the next sample. Click the <b>Backlog</b> header to open or collapse
-        the tray (your choice is remembered next time); when open, its card list scrolls on its own so it never hides
-        the grid beneath it. As you keep scrolling, the grid&apos;s <b>day-header row</b> (the weekday and date for each
-        column) catches just under the Backlog and stays pinned there, so you can always tell which day a slot is in;
-        the rows slide up and disappear beneath it. To keep the tray as short as possible over the grid, its <b>search box, priority filter,
-        sort control, and page controls sit in the Backlog header bar</b> (to the right of <b>✦ Autoschedule</b>) rather
-        than above the cards, leaving the body as just the sample list. They work exactly like the same controls on the
-        Backlog tab, so you can narrow down to the sample you want before dragging it — see the Backlog tab&apos;s help
-        for details on each control.
+        <b>The Backlog panel</b> holds the samples waiting to be placed; its cards are drag sources. By default it&apos;s
+        <b> pinned across the top</b> of the Schedule page, just under the date toolbar, so it stays in view as you
+        scroll down the instrument rows — drag a card straight onto any slot and the grid scrolls to meet you, no
+        scrolling back up to fetch the next sample. Click the <b>Backlog</b> header to open or collapse the tray (your
+        choice is remembered next time); when open, its card list scrolls on its own so it never hides the grid beneath
+        it. As you keep scrolling, the grid&apos;s <b>day-header row</b> (the weekday and date for each column) catches
+        just under the Backlog and stays pinned there, so you can always tell which day a slot is in; the rows slide up
+        and disappear beneath it. Its <b>priority filter, sort control, and page controls</b> sit in the header bar (to
+        the right of <b>✦ Autoschedule</b>) rather than above the cards, leaving the body as just the sample list. They
+        work exactly like the same controls on the Backlog tab. The search box used to live here — it&apos;s now the
+        unified <b>Find</b> box up in the toolbar (see <i>Find a sample or run</i> above), which searches the grid as
+        well as the backlog.
+      </p>
+      <p>
+        Prefer the backlog down one side? <b>View options → Backlog → Left</b> or <b>Right</b> docks it as a narrow,
+        one-card-wide panel that <b>pushes the grid across</b> to make room, its cards stacked in a single column;
+        collapse it to a thin rail with the panel&apos;s <b>‹ / ›</b> toggle when you want the width back. Either way
+        it&apos;s the same backlog — same controls, cards and drag behaviour — just in a different place.
       </p>
       <p>
         <b>Editing and adding samples from the tray:</b> hover a backlog card (or tab to it) and an <b>✎ edit</b> button

@@ -6,6 +6,9 @@ import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import styles from "./ViewOptionsMenu.module.css";
 
 export type GridDensity = "comfortable" | "compact";
+/** Where the Backlog tray sits relative to the grid: pinned across the top (default), or a
+ * docked one-card-wide side drawer on the left / right that pushes the grid aside. */
+export type BacklogPosition = "top" | "left" | "right";
 
 export interface ViewOptionsMenuProps {
   /** Whether barcode chips are currently shown on the grid's sample cards. */
@@ -20,6 +23,9 @@ export interface ViewOptionsMenuProps {
   /** Grid card density - comfortable (default) or compact (trims spacing to fit more). */
   density: GridDensity;
   onChangeDensity: (density: GridDensity) => void;
+  /** Where the Backlog tray sits - top (default), left, or right. */
+  backlogPosition: BacklogPosition;
+  onChangeBacklogPosition: (position: BacklogPosition) => void;
 }
 
 /**
@@ -40,6 +46,8 @@ export function ViewOptionsMenu({
   onChangeShowUseNumber,
   density,
   onChangeDensity,
+  backlogPosition,
+  onChangeBacklogPosition,
 }: ViewOptionsMenuProps) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -129,6 +137,24 @@ export function ViewOptionsMenu({
             />
           </div>
           <p className={styles.hint}>Compact trims card spacing so more of the week fits without scrolling.</p>
+
+          <div className={styles.row}>
+            <span className={styles.label}>Backlog</span>
+            <SegmentedControl
+              ariaLabel="Choose where the backlog sits"
+              value={backlogPosition}
+              onChange={(v) => onChangeBacklogPosition(v as BacklogPosition)}
+              options={[
+                { value: "top", label: "Top" },
+                { value: "left", label: "Left" },
+                { value: "right", label: "Right" },
+              ]}
+            />
+          </div>
+          <p className={styles.hint}>
+            Pin the backlog across the top, or dock it as a one-card-wide panel on the left or right that pushes the
+            grid aside. The side panel collapses with its ‹ / › toggle.
+          </p>
         </div>
       )}
     </div>

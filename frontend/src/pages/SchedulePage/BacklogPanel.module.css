@@ -1,0 +1,183 @@
+.badgeGroup {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+/* The ✦ Autoschedule entry point - a shared primary Button (see BacklogPanel.tsx); only its
+   sparkle glyph needs sizing. */
+.sparkleIcon {
+  font-size: var(--fs-2xl);
+  line-height: 1;
+  color: #fff;
+}
+
+/* ── Top accordion header controls ───────────────────────────────────────────────────────
+   Filter / sort / rows-per-page / pager, pinned into the Backlog header row (right of the ✦
+   Autoschedule button) so the tray body is just the card list. The unified search box now
+   lives in the page toolbar, not here. Wraps to a second line only when the header narrows. */
+.headControls {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px 10px;
+}
+.select {
+  font-family: var(--sans);
+  font-size: var(--fs-base);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 7px 8px;
+}
+.sortGroup {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.pager {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.pageInfo {
+  font-size: var(--fs-md);
+  font-weight: 700;
+  color: var(--grey);
+  white-space: nowrap;
+  min-width: 44px;
+  text-align: center;
+}
+/* Shown in place of the browse controls while the unified search is active - a plain count
+   of how many backlog samples match, since the search box itself is up in the toolbar. */
+.matchNote {
+  font-size: var(--fs-md);
+  font-weight: 700;
+  color: var(--magenta-deep);
+  white-space: nowrap;
+}
+.status {
+  color: var(--grey);
+  font-size: var(--fs-base);
+  padding: 12px 4px;
+}
+/* Top-position card list: wrapping card grid that scrolls internally so the pinned tray
+   never pushes the grid off-screen. The cap keeps the whole pinned tray within ~33vh of the
+   viewport; the max() floor keeps a couple of rows on short screens. */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 10px;
+  max-height: max(160px, calc(33vh - 100px));
+  overflow-y: auto;
+  padding: 4px;
+}
+
+/* ── Side drawer (backlog on the left / right) ───────────────────────────────────────────
+   A docked panel one sample-card wide that pushes the grid aside (the page becomes a flex
+   row - see SchedulePage.module.css), rather than the Autoschedule drawer's overlay. Sticky
+   and full-height so it stays reachable for a drag while the grid scrolls; its card column
+   scrolls on its own. */
+.sidePanel {
+  --panel-w: 232px;
+  position: sticky;
+  top: var(--topbar-h, 69px);
+  align-self: flex-start;
+  height: calc(100vh - var(--topbar-h, 69px) - 16px);
+  flex: 0 0 var(--panel-w);
+  width: var(--panel-w);
+  display: flex;
+  flex-direction: column;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+/* Right-position: sits after the grid. Everything else is rendered before the main column in
+   the DOM, so only the right variant needs to reorder. */
+.right {
+  order: 2;
+}
+.collapsed {
+  --panel-w: 34px;
+  align-items: center;
+  gap: 10px;
+  padding-top: 8px;
+}
+/* The ‹ / › collapse-expand control, reused by both the collapsed rail and the expanded
+   header. Structure/hover come from the base ghost-button look. */
+.railToggle {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--fs-lg);
+  font-weight: 800;
+  color: var(--grey);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+.railToggle:hover {
+  color: var(--ink);
+  border-color: var(--line-hover);
+}
+.railLabel {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  font-weight: 800;
+  font-size: var(--fs-md);
+  color: var(--grey);
+  letter-spacing: 0.06em;
+}
+.railCount {
+  font-size: var(--fs-xs);
+  font-weight: 800;
+  color: var(--magenta-deep);
+}
+.sideHeader {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 12px 10px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.sideTitleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.sideTitle {
+  font-size: var(--fs-title);
+  font-weight: 800;
+  color: var(--ink);
+}
+/* The browse controls stacked vertically in the narrow drawer - each select fills the width. */
+.sideControls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.sideControls .select {
+  width: 100%;
+}
+.sideControls .sortGroup .select {
+  flex: 1 1 auto;
+}
+.sideBody {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px;
+}
+/* Side-drawer card list: a single vertical column, one card wide. */
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}

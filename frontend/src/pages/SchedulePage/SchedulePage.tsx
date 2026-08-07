@@ -21,6 +21,7 @@ import {
 import { slotKey } from "@/components/scheduler/gridKeys";
 import { computeInstrumentTrayMaps } from "@/components/scheduler/instrumentTrayMaps";
 import { SchedulerGrid } from "@/components/scheduler/SchedulerGrid";
+import { SearchHighlightContext } from "@/components/scheduler/searchHighlight";
 import { SlotDetailPopover } from "@/components/scheduler/SlotDetailPopover";
 import { CellLinkContext, useCellLinkHighlight } from "@/components/scheduler/useCellLinkHighlight";
 import { useGridSelection } from "@/components/scheduler/useGridSelection";
@@ -41,13 +42,15 @@ import type { GridCellRef, RunDesignState } from "@/types/schedulerGrid";
 import { addDaysUTC, formatShortDateUTC, isWeekendUTC, parseDateOnly, todayIsoUTC, toIsoDateUTC } from "@/utils/calendarDates";
 
 import { AutoscheduleDrawer } from "./AutoscheduleDrawer";
-import { BacklogAccordion } from "./BacklogAccordion";
+import { BacklogPanel, readBacklogOpenPref, writeBacklogOpenPref } from "./BacklogPanel";
 import { ClearScheduleModal } from "./ClearScheduleModal";
 import { PrintBatchSheetModal } from "./PrintBatchSheetModal";
 import styles from "./SchedulePage.module.css";
+import { ScheduleSearchBar } from "./ScheduleSearchBar";
 import { useScheduleActions } from "./useScheduleActions";
+import { useScheduleSearch } from "./useScheduleSearch";
 import { useSchedulerWindow } from "./useSchedulerWindow";
-import { ViewOptionsMenu, type GridDensity } from "./ViewOptionsMenu";
+import { ViewOptionsMenu, type BacklogPosition, type GridDensity } from "./ViewOptionsMenu";
 
 const DEFAULT_RUN_DESIGN: RunDesignState = {
   max_uses: 3,
@@ -102,6 +105,42 @@ function writeDensityPref(density: GridDensity): void {
   }
 }
 
+/** Where the Backlog tray sits (top / left / right) and, for the side positions, whether the
+ * docked panel is collapsed - both remembered so a scheduler's layout choice survives paging,
+ * navigation and reloads, same as the other view toggles above. */
+const BACKLOG_POSITION_STORAGE_KEY = "runnx.schedule.backlogPosition";
+const BACKLOG_SIDE_COLLAPSED_STORAGE_KEY = "runnx.schedule.backlogSideCollapsed";
+
+function readBacklogPositionPref(): BacklogPosition {
+  try {
+    const raw = localStorage.getItem(BACKLOG_POSITION_STORAGE_KEY);
+    return raw === "left" || raw === "right" ? raw : "top";
+  } catch {
+    return "top";
+  }
+}
+function writeBacklogPositionPref(position: BacklogPosition): void {
+  try {
+    localStorage.setItem(BACKLOG_POSITION_STORAGE_KEY, position);
+  } catch {
+    /* ignore - persistence is a convenience, not a requirement */
+  }
+}
+function readSideCollapsedPref(): boolean {
+  try {
+    return localStorage.getItem(BACKLOG_SIDE_COLLAPSED_STORAGE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+function writeSideCollapsedPref(collapsed: boolean): void {
+  try {
+    localStorage.setItem(BACKLOG_SIDE_COLLAPSED_STORAGE_KEY, collapsed ? "1" : "0");
+  } catch {
+    /* ignore - persistence is a convenience, not a requirement */
+  }
+}
+
 export function SchedulePage() {
   const win = useSchedulerWindow();
   const selection = useGridSelection();
@@ -149,6 +188,28 @@ export function SchedulePage() {
     setDensity(d);
     writeDensityPref(d);
   }, []);
+  const [backlogPosition, setBacklogPosition] = useState<BacklogPosition>(readBacklogPositionPref);
+  const handleChangeBacklogPosition = useCallback((p: BacklogPosition) => {
+    setBacklogPosition(p);
+    writeBacklogPositionPref(p);
+  }, []);
+  // Top-tray open and side-panel collapse are lifted here (not owned by BacklogPanel) so the
+  // unified search can force the tray visible when it cycles to a backlog match. The user-
+  // driven toggles persist; the search's programmatic reveal in the nav effect below uses the
+  // raw setters directly, so it stays a transient aid that doesn't rewrite the saved choice.
+  const [backlogOpen, setBacklogOpen] = useState<boolean>(readBacklogOpenPref);
+  const handleToggleBacklogOpen = useCallback((open: boolean) => {
+    setBacklogOpen(open);
+    writeBacklogOpenPref(open);
+  }, []);
+  const [sideCollapsed, setSideCollapsed] = useState<boolean>(readSideCollapsedPref);
+  const handleToggleSideCollapsed = useCallback((collapsed: boolean) => {
+    setSideCollapsed(collapsed);
+    writeSideCollapsedPref(collapsed);
+  }, []);
+  // The unified header search: filters the backlog tray and finds every placement of a sample
+  // / run across the whole schedule (see useScheduleSearch).
+  const search = useScheduleSearch();
   // The placement whose physical-cell info popover is open (the card's "ticket stub" click).
   const [cellInfo, setCellInfo] = useState<DetailTarget | null>(null);
   // The cell whose QC modal is open, opened from either slot popover's QC action. cellUseId
@@ -497,6 +558,10 @@ export function SchedulePage() {
       const target = e.target as Node;
       if (gridAreaRef.current?.contains(target)) return;
       if (stickyHeadRef.current?.contains(target)) return;
+      // The docked side backlog panel carries controls that act on the current selection (its
+      // ✦ Autoschedule button), same as the pinned top tray inside stickyHead above - so a
+      // mousedown there must not wipe the selection out from under its own click.
+      if (target instanceof Element && target.closest("[data-backlog-panel]")) return;
       selection.clear();
       slotSelection.clear();
     }
@@ -530,6 +595,49 @@ export function SchedulePage() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [slotSelection.hasSelection, actions.removeSlots]);
+
+  // Cycling the unified search to a new match brings it into view: a grid placement pages the
+  // week window to the week it sits in (even one the grid isn't currently showing) and reveals
+  // the tray for a backlog match. Keyed on the match's stable key so it fires once per new
+  // match, not on every unrelated re-render/data refresh. The raw state setters keep the
+  // reveal transient (see the lifted backlog state above).
+  const activeMatchKey = search.activeMatch?.key ?? null;
+  useEffect(() => {
+    const m = search.activeMatch;
+    if (!m) return;
+    if (m.kind === "placement") {
+      if (!win.days.includes(m.loadDate)) win.goToDate(m.loadDate);
+    } else if (backlogPosition === "top") {
+      setBacklogOpen(true);
+    } else {
+      setSideCollapsed(false);
+    }
+    // Deliberately keyed on the match identity alone - reading the latest win/backlogPosition
+    // at fire time is correct, and adding them would re-page on every window change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeMatchKey]);
+
+  // Once the focused match has actually rendered - after the window has paged and its grid
+  // data has arrived, or the backlog matches have loaded - scroll the marked node into view.
+  // Keyed on the match identity plus the grid/backlog data timestamps and the window anchor,
+  // so a match in a freshly-paged week still gets scrolled to once its slot renders, without
+  // re-firing on every unrelated matches recompute. Double rAF lets layout settle first.
+  useEffect(() => {
+    if (!activeMatchKey) return;
+    let raf1 = 0;
+    let raf2 = 0;
+    raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => {
+        document
+          .querySelector<HTMLElement>('[data-search-match="true"]')
+          ?.scrollIntoView({ block: "center", inline: "center", behavior: "smooth" });
+      });
+    });
+    return () => {
+      cancelAnimationFrame(raf1);
+      cancelAnimationFrame(raf2);
+    };
+  }, [activeMatchKey, cyclesQuery.dataUpdatedAt, search.backlogUpdatedAt, win.from]);
 
   const handleOpenDetail = useCallback((stage: StageOut, run: RunOut) => {
     setDetail({ stage, run });
@@ -569,8 +677,10 @@ export function SchedulePage() {
     return (idx + 0.5) / win.days.length;
   }, [win.days]);
 
+  const backlogOnSide = backlogPosition !== "top";
+
   return (
-    <div className={styles.page}>
+    <div className={styles.page} data-backlog-pos={backlogPosition}>
       <DndContext
         sensors={dnd.sensors}
         collisionDetection={dnd.collisionDetection}
@@ -578,159 +688,201 @@ export function SchedulePage() {
         onDragEnd={dnd.onDragEnd}
       >
         <CellLinkContext.Provider value={cellLink}>
-          {/* Pinned head: the date toolbar plus the Backlog tray stay stuck below the nav
-              so a backlog card can be dragged straight onto any slot without scrolling the
-              tray back into view first. The tray's own card list scrolls internally so the
-              pinned region never swallows the grid (see BacklogAccordion). */}
-          <div className={styles.stickyHead} ref={stickyHeadRef}>
-            <div className={styles.toolbar}>
-              <div className={styles.pager}>
-                <Button size="sm" variant="ghost" onClick={win.prev}>
-                  Prev
-                </Button>
-                <span className={styles.range}>{rangeLabel}</span>
-                <Button size="sm" variant="ghost" onClick={win.next}>
-                  Next
-                </Button>
-                <Button size="sm" variant="ghost" onClick={win.goToday}>
-                  Today
-                </Button>
-                <input
-                  className={styles.jumpDate}
-                  type="date"
-                  value={win.from}
-                  onChange={(e) => e.target.value && win.goToDate(e.target.value)}
-                  aria-label="Jump to date"
-                  title="Jump to the week containing this date"
-                />
-                <Button size="sm" variant="ghost" onClick={() => setPrintSheetOpen(true)}>
-                  Print Batch Sheet
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={handleExportSchedule}
-                  title="Download the visible week as a sequencing-tracker CSV to paste into the Google Sheet"
-                >
-                  Export schedule
-                </Button>
+          <SearchHighlightContext.Provider value={search.highlightSlotKey}>
+            {/* Backlog docked on the left / right: a collapsible panel one card wide that
+                pushes the grid aside (the .page becomes a flex row - see the module CSS),
+                rather than the Autoschedule drawer's overlay. Rendered inside the same
+                DndContext so a card still drags straight onto a slot. */}
+            {backlogOnSide && (
+              <BacklogPanel
+                mode={backlogPosition}
+                onOpenAutoschedule={() => setAutoscheduleOpen(true)}
+                q={search.q}
+                searchItems={search.backlogItems}
+                searchTotal={search.backlogTotal}
+                searchLoading={search.backlogLoading}
+                highlightSampleId={search.highlightSampleId}
+                collapsed={sideCollapsed}
+                onToggleCollapsed={handleToggleSideCollapsed}
+              />
+            )}
+
+            <div className={styles.main}>
+              {/* Pinned head: the date toolbar plus (in top mode) the Backlog tray stay stuck
+                  below the nav so a backlog card can be dragged straight onto any slot without
+                  scrolling the tray back into view first. The tray's own card list scrolls
+                  internally so the pinned region never swallows the grid (see BacklogPanel). */}
+              <div className={styles.stickyHead} ref={stickyHeadRef}>
+                <div className={styles.toolbar}>
+                  <div className={styles.pager}>
+                    <Button size="sm" variant="ghost" onClick={win.prev}>
+                      Prev
+                    </Button>
+                    <span className={styles.range}>{rangeLabel}</span>
+                    <Button size="sm" variant="ghost" onClick={win.next}>
+                      Next
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={win.goToday}>
+                      Today
+                    </Button>
+                    <input
+                      className={styles.jumpDate}
+                      type="date"
+                      value={win.from}
+                      onChange={(e) => e.target.value && win.goToDate(e.target.value)}
+                      aria-label="Jump to date"
+                      title="Jump to the week containing this date"
+                    />
+                    <Button size="sm" variant="ghost" onClick={() => setPrintSheetOpen(true)}>
+                      Print Batch Sheet
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={handleExportSchedule}
+                      title="Download the visible week as a sequencing-tracker CSV to paste into the Google Sheet"
+                    >
+                      Export schedule
+                    </Button>
+                    <ScheduleSearchBar search={search} />
+                  </div>
+                  <div className={styles.spacer} />
+                  {selectedCells.length > 0 && (
+                    <div className={styles.selectionInfo}>
+                      <span>{selectedCells.length} cell(s) selected</span>
+                      <Button size="sm" variant="ghost" onClick={selection.clear}>
+                        Clear
+                      </Button>
+                    </div>
+                  )}
+                  {slotSelection.hasSelection && (
+                    <div className={styles.selectionInfo}>
+                      <span>{slotSelection.selectedStages.length} sample(s) selected</span>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={slotSelection.clear}
+                        disabled={actions.removeSlots.isPending}
+                      >
+                        Clear
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="primary"
+                        onClick={() => actions.removeSlots.mutate()}
+                        disabled={actions.removeSlots.isPending}
+                      >
+                        {actions.removeSlots.isPending ? "Removing…" : "Remove from schedule (Del)"}
+                      </Button>
+                    </div>
+                  )}
+                  <ViewOptionsMenu
+                    showBarcodes={showBarcodes}
+                    onChangeShowBarcodes={handleChangeShowBarcodes}
+                    showNotes={showNotes}
+                    onChangeShowNotes={handleChangeShowNotes}
+                    showUseNumber={showUseNumber}
+                    onChangeShowUseNumber={handleChangeShowUseNumber}
+                    density={density}
+                    onChangeDensity={handleChangeDensity}
+                    backlogPosition={backlogPosition}
+                    onChangeBacklogPosition={handleChangeBacklogPosition}
+                  />
+                </div>
+                {!backlogOnSide && (
+                  <BacklogPanel
+                    mode="top"
+                    onOpenAutoschedule={() => setAutoscheduleOpen(true)}
+                    q={search.q}
+                    searchItems={search.backlogItems}
+                    searchTotal={search.backlogTotal}
+                    searchLoading={search.backlogLoading}
+                    highlightSampleId={search.highlightSampleId}
+                    open={backlogOpen}
+                    onToggleOpen={handleToggleBacklogOpen}
+                  />
+                )}
+
+                {/* Pinned alongside the toolbar/backlog tray (not left to scroll away below the
+                    grid) so a rejected/failed drag's explanation is visible regardless of how far
+                    down the instrument rows the drop itself happened - see the CLAUDE.md
+                    "Transparent" principle and the drag-and-drop robustness review that flagged
+                    these banners scrolling out of view as a real gap. */}
+                {actions.dropBlockedMessage && (
+                  <Note tone="warn" icon="!">
+                    {actions.dropBlockedMessage}
+                  </Note>
+                )}
+                {actions.removeSlotsError && (
+                  <Note tone="bad" icon="!">
+                    {actions.removeSlotsError}
+                  </Note>
+                )}
+                {actions.placementAdvisory && (
+                  <Note tone="warn" icon="⏱">
+                    {actions.placementAdvisory}
+                  </Note>
+                )}
+                {actions.recalculateNote && (
+                  <Note tone={actions.recalculateNote.tone} icon={actions.recalculateNote.icon}>
+                    {actions.recalculateNote.text}
+                  </Note>
+                )}
               </div>
-              <div className={styles.spacer} />
-              {selectedCells.length > 0 && (
-                <div className={styles.selectionInfo}>
-                  <span>{selectedCells.length} cell(s) selected</span>
-                  <Button size="sm" variant="ghost" onClick={selection.clear}>
-                    Clear
-                  </Button>
-                </div>
-              )}
-              {slotSelection.hasSelection && (
-                <div className={styles.selectionInfo}>
-                  <span>{slotSelection.selectedStages.length} sample(s) selected</span>
-                  <Button size="sm" variant="ghost" onClick={slotSelection.clear} disabled={actions.removeSlots.isPending}>
-                    Clear
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="primary"
-                    onClick={() => actions.removeSlots.mutate()}
-                    disabled={actions.removeSlots.isPending}
-                  >
-                    {actions.removeSlots.isPending ? "Removing…" : "Remove from schedule (Del)"}
-                  </Button>
-                </div>
-              )}
-              <ViewOptionsMenu
-                showBarcodes={showBarcodes}
-                onChangeShowBarcodes={handleChangeShowBarcodes}
-                showNotes={showNotes}
-                onChangeShowNotes={handleChangeShowNotes}
-                showUseNumber={showUseNumber}
-                onChangeShowUseNumber={handleChangeShowUseNumber}
-                density={density}
-                onChangeDensity={handleChangeDensity}
-              />
+
+              <div
+                className={styles.gridArea}
+                ref={gridAreaRef}
+                data-barcodes={showBarcodes ? undefined : "hidden"}
+                data-notes={showNotes ? undefined : "hidden"}
+                data-use-number={showUseNumber ? "shown" : undefined}
+                data-density={density === "compact" ? "compact" : undefined}
+              >
+                <SectionHeading title="Weekly schedule" legend={<UseLegend />} progress={weekProgress} />
+
+                {instrumentsQuery.isLoading && <div className={styles.status}>Loading instruments…</div>}
+                {instrumentsQuery.isError && (
+                  <Note tone="bad" icon="!">
+                    {instrumentsQuery.error instanceof ApiError ? instrumentsQuery.error.message : "Failed to load instruments."}
+                  </Note>
+                )}
+                {!instrumentsQuery.isLoading && !instrumentsQuery.isError && instrumentSerials.length === 0 && (
+                  <Note tone="info" icon="i">
+                    No active instruments configured.
+                  </Note>
+                )}
+                {cyclesQuery.isError && (
+                  <Note tone="bad" icon="!">
+                    {cyclesQuery.error instanceof ApiError ? cyclesQuery.error.message : "Failed to load schedule."}
+                  </Note>
+                )}
+
+                {instrumentSerials.length > 0 && (
+                  <SchedulerGrid
+                    instrumentSerials={instrumentSerials}
+                    instrumentMeta={instrumentMeta}
+                    days={win.days}
+                    grouped={grouped}
+                    selection={selection}
+                    placingSlotKey={dnd.placingSlotKey}
+                    onOpenDetail={handleOpenDetail}
+                    onOpenCell={handleOpenCell}
+                    slotSelection={slotSelection}
+                    onExtendSelect={onExtendSlotSelect}
+                    onDragSelectStart={onDragSelectStart}
+                    waitingGrouped={waitingGrouped}
+                    blockedGrouped={blockedGrouped}
+                    trayMaps={trayMaps}
+                    onRecalculate={actions.onRequestRecalculate}
+                  />
+                )}
+              </div>
             </div>
-            <BacklogAccordion onOpenAutoschedule={() => setAutoscheduleOpen(true)} />
 
-            {/* Pinned alongside the toolbar/backlog tray (not left to scroll away below the
-                grid) so a rejected/failed drag's explanation is visible regardless of how far
-                down the instrument rows the drop itself happened - see the CLAUDE.md
-                "Transparent" principle and the drag-and-drop robustness review that flagged
-                these banners scrolling out of view as a real gap. */}
-            {actions.dropBlockedMessage && (
-              <Note tone="warn" icon="!">
-                {actions.dropBlockedMessage}
-              </Note>
-            )}
-            {actions.removeSlotsError && (
-              <Note tone="bad" icon="!">
-                {actions.removeSlotsError}
-              </Note>
-            )}
-            {actions.placementAdvisory && (
-              <Note tone="warn" icon="⏱">
-                {actions.placementAdvisory}
-              </Note>
-            )}
-            {actions.recalculateNote && (
-              <Note tone={actions.recalculateNote.tone} icon={actions.recalculateNote.icon}>
-                {actions.recalculateNote.text}
-              </Note>
-            )}
-          </div>
-
-          <div
-            className={styles.gridArea}
-            ref={gridAreaRef}
-            data-barcodes={showBarcodes ? undefined : "hidden"}
-            data-notes={showNotes ? undefined : "hidden"}
-            data-use-number={showUseNumber ? "shown" : undefined}
-            data-density={density === "compact" ? "compact" : undefined}
-          >
-            <SectionHeading title="Weekly schedule" legend={<UseLegend />} progress={weekProgress} />
-
-            {instrumentsQuery.isLoading && <div className={styles.status}>Loading instruments…</div>}
-            {instrumentsQuery.isError && (
-              <Note tone="bad" icon="!">
-                {instrumentsQuery.error instanceof ApiError ? instrumentsQuery.error.message : "Failed to load instruments."}
-              </Note>
-            )}
-            {!instrumentsQuery.isLoading && !instrumentsQuery.isError && instrumentSerials.length === 0 && (
-              <Note tone="info" icon="i">
-                No active instruments configured.
-              </Note>
-            )}
-            {cyclesQuery.isError && (
-              <Note tone="bad" icon="!">
-                {cyclesQuery.error instanceof ApiError ? cyclesQuery.error.message : "Failed to load schedule."}
-              </Note>
-            )}
-
-            {instrumentSerials.length > 0 && (
-              <SchedulerGrid
-                instrumentSerials={instrumentSerials}
-                instrumentMeta={instrumentMeta}
-                days={win.days}
-                grouped={grouped}
-                selection={selection}
-                placingSlotKey={dnd.placingSlotKey}
-                onOpenDetail={handleOpenDetail}
-                onOpenCell={handleOpenCell}
-                slotSelection={slotSelection}
-                onExtendSelect={onExtendSlotSelect}
-                onDragSelectStart={onDragSelectStart}
-                waitingGrouped={waitingGrouped}
-                blockedGrouped={blockedGrouped}
-                trayMaps={trayMaps}
-                onRecalculate={actions.onRequestRecalculate}
-              />
-            )}
-          </div>
-
-          <DragOverlay dropAnimation={null}>
-            {dnd.activeSample ? <div className={styles.dragChip}>{dnd.activeSample.external_id || "sample"}</div> : null}
-          </DragOverlay>
+            <DragOverlay dropAnimation={null}>
+              {dnd.activeSample ? <div className={styles.dragChip}>{dnd.activeSample.external_id || "sample"}</div> : null}
+            </DragOverlay>
+          </SearchHighlightContext.Provider>
         </CellLinkContext.Provider>
       </DndContext>
 
