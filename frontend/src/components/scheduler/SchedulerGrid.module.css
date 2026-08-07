@@ -41,7 +41,9 @@
   border-bottom: 1px solid var(--line-soft);
   position: sticky;
   top: calc(var(--topbar-h, 69px) + var(--sched-head-h, 0px) + 8px);
-  left: 0;
+  /* Normally 0 (pins to the window edge); a left-docked Backlog sets --grid-sticky-left so the
+     pinned instrument column parks against the panel instead of vanishing behind it. */
+  left: var(--grid-sticky-left, 0px);
   z-index: 5;
   padding: 12px;
   text-align: left;
@@ -68,9 +70,10 @@
   vertical-align: top;
   /* Sticky-left only (no top): the instrument column pins horizontally, but must scroll
      up with its row and vanish beneath the pinned day-header row - not also pin to the
-     window top under the nav (the grid now pins against the window, not an inner box). */
+     window top under the nav (the grid now pins against the window, not an inner box).
+     --grid-sticky-left parks it against a left-docked Backlog panel (0 otherwise). */
   position: sticky;
-  left: 0;
+  left: var(--grid-sticky-left, 0px);
   background: var(--card);
   z-index: 4;
   border-right: 1px solid var(--line);

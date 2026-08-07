@@ -221,46 +221,50 @@ export function BacklogPanel({
           {sortDir === "asc" ? "▲" : "▼"}
         </Button>
       </div>
-      <select
-        className={styles.select}
-        aria-label="Rows per page"
-        title="Rows per page"
-        value={pageSize}
-        onChange={(e) => {
-          setPageSize(Number(e.target.value));
-          setPage(1);
-        }}
-      >
-        {PAGE_SIZE_OPTIONS.map((n) => (
-          <option key={n} value={n}>
-            {n} / page
-          </option>
-        ))}
-      </select>
-      <div className={styles.pager}>
-        <Button
-          size="sm"
-          variant="ghost"
-          aria-label="Previous page"
-          title="Previous page"
-          onClick={() => setPage((p) => Math.max(1, p - 1))}
-          disabled={page <= 1}
+      {/* Rows-per-page + pager grouped so they stay on one row in the narrow side drawer
+          (and sit together at the end of the top-header controls). */}
+      <div className={styles.pageGroup}>
+        <select
+          className={styles.select}
+          aria-label="Rows per page"
+          title="Rows per page"
+          value={pageSize}
+          onChange={(e) => {
+            setPageSize(Number(e.target.value));
+            setPage(1);
+          }}
         >
-          ‹
-        </Button>
-        <span className={styles.pageInfo}>
-          {page} / {totalPages}
-        </span>
-        <Button
-          size="sm"
-          variant="ghost"
-          aria-label="Next page"
-          title="Next page"
-          onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-          disabled={page >= totalPages}
-        >
-          ›
-        </Button>
+          {PAGE_SIZE_OPTIONS.map((n) => (
+            <option key={n} value={n}>
+              {n} / page
+            </option>
+          ))}
+        </select>
+        <div className={styles.pager}>
+          <Button
+            size="sm"
+            variant="ghost"
+            aria-label="Previous page"
+            title="Previous page"
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={page <= 1}
+          >
+            ‹
+          </Button>
+          <span className={styles.pageInfo}>
+            {page} / {totalPages}
+          </span>
+          <Button
+            size="sm"
+            variant="ghost"
+            aria-label="Next page"
+            title="Next page"
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            disabled={page >= totalPages}
+          >
+            ›
+          </Button>
+        </div>
       </div>
     </>
   );
@@ -328,7 +332,7 @@ export function BacklogPanel({
         <aside className={[...sideClasses, styles.collapsed].join(" ")} aria-label="Backlog" data-backlog-panel="">
           <button
             type="button"
-            className={styles.railToggle}
+            className={styles.collapseToggle}
             onClick={() => onToggleCollapsed?.(false)}
             title="Expand the backlog panel"
             aria-label="Expand the backlog panel"
@@ -346,10 +350,10 @@ export function BacklogPanel({
       <aside className={sideClasses.join(" ")} aria-label="Backlog" data-backlog-panel="">
         <div className={styles.sideHeader}>
           <div className={styles.sideTitleRow}>
-            <span className={styles.sideTitle}>Backlog</span>
+            <h2 className={styles.sideTitle}>Backlog</h2>
             <button
               type="button"
-              className={styles.railToggle}
+              className={styles.collapseToggle}
               onClick={() => onToggleCollapsed?.(true)}
               title="Collapse the backlog panel"
               aria-label="Collapse the backlog panel"

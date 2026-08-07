@@ -15,15 +15,41 @@
   align-items: flex-start;
   gap: 12px;
 }
+/* Left dock: the grid's own sticky instrument column (SchedulerGrid .machTh/.corner) must pin
+   to the right of the docked panel, not the window edge, or it would hide behind the panel
+   while the page scrolls horizontally. Panel width (232) + the row gap (12). Unset (0)
+   everywhere else. */
+.page[data-backlog-pos="left"] {
+  --grid-sticky-left: 244px;
+}
+/* When the left panel is collapsed to its 34px rail, the instrument column parks against the
+   rail (34 + 12 gap), not the full-panel offset - otherwise sticky-left would clamp it far to
+   the right and leave a wide empty gap. */
+.page[data-backlog-pos="left"][data-backlog-collapsed] {
+  --grid-sticky-left: 46px;
+}
 /* Groups the pinned head + the grid into one flex child, so in row layout they stay stacked
-   beside the docked backlog instead of splitting into two side-by-side row items. min-width:0
-   lets the grid's own horizontal scroll shrink to fit the narrowed column. */
+   beside the docked backlog instead of splitting into two side-by-side row items. No
+   min-width:0: the grid keeps its natural width rather than being squashed under the panel -
+   when it can't fit beside the panel the whole page scrolls horizontally instead, and the
+   panel is pinned to its edge (see BacklogPanel .sidePanel) so it stays visible throughout. */
 .main {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  min-width: 0;
   flex: 1 1 auto;
+}
+/* In side mode, park the toolbar CONTROLS beside the docked panel during a horizontal scroll,
+   while the sticky head itself stays full grid width so its opaque background band still forms
+   the ceiling the instrument rows vanish under. Only the inner .toolbar shrinks to its content
+   width (align-self) and sticks horizontally (a full-width bar has no travel room and can't
+   stick); --grid-sticky-left parks it just right of the panel (0 in top mode). */
+.page[data-backlog-pos="left"] .toolbar,
+.page[data-backlog-pos="right"] .toolbar {
+  position: sticky;
+  left: var(--grid-sticky-left, 0px);
+  align-self: flex-start;
+  z-index: 1;
 }
 /* The date toolbar and the Backlog tray pin together as one unit directly beneath the
    nav, so the backlog stays reachable for a drag no matter how far down the instrument

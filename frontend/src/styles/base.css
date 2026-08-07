@@ -24,7 +24,15 @@ h3 {
 .wrap {
   max-width: 1720px;
   margin: 0 auto;
-  padding: 0 22px 64px;
+  /* Top padding clears the fixed nav (AppShell .topbar); --topbar-h is measured live so a
+     wrapped nav on a narrow viewport still gets the right offset. */
+  padding: var(--topbar-h, 69px) 22px 64px;
+}
+@media print {
+  /* The nav is hidden when printing, so drop the offset that reserves space for it. */
+  .wrap {
+    padding-top: 0;
+  }
 }
 
 .btn {

@@ -680,7 +680,11 @@ export function SchedulePage() {
   const backlogOnSide = backlogPosition !== "top";
 
   return (
-    <div className={styles.page} data-backlog-pos={backlogPosition}>
+    <div
+      className={styles.page}
+      data-backlog-pos={backlogPosition}
+      data-backlog-collapsed={backlogOnSide && sideCollapsed ? "" : undefined}
+    >
       <DndContext
         sensors={dnd.sensors}
         collisionDetection={dnd.collisionDetection}

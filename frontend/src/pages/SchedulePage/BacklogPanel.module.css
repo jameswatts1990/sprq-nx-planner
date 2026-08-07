@@ -1,7 +1,8 @@
 .badgeGroup {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 6px 8px;
 }
 /* The ✦ Autoschedule entry point - a shared primary Button (see BacklogPanel.tsx); only its
    sparkle glyph needs sizing. */
@@ -41,6 +42,13 @@
   align-items: center;
   gap: 2px;
 }
+/* Rows-per-page select + pager kept together on one row (see BacklogPanel.tsx) - so in the
+   narrow side drawer "25 / page" and "1 / N ‹ ›" share a line rather than stacking. */
+.pageGroup {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 .pageInfo {
   font-size: var(--fs-md);
   font-weight: 700;
@@ -77,12 +85,20 @@
 /* ── Side drawer (backlog on the left / right) ───────────────────────────────────────────
    A docked panel one sample-card wide that pushes the grid aside (the page becomes a flex
    row - see SchedulePage.module.css), rather than the Autoschedule drawer's overlay. Sticky
-   and full-height so it stays reachable for a drag while the grid scrolls; its card column
+   to the top AND its docked edge (left/right below) so it stays fully visible and pinned to
+   the viewport even when the wide grid makes the page scroll horizontally - the grid then
+   scrolls beneath it rather than shoving it off-screen. A z-index above the grid's own sticky
+   header/column keeps those scrolling cells behind the panel. Full-height; its card column
    scrolls on its own. */
 .sidePanel {
   --panel-w: 232px;
   position: sticky;
   top: var(--topbar-h, 69px);
+  left: 0;
+  /* Above the sticky toolbar/day-header (z 20) so, in the rare case the toolbar's content
+     still reaches under the panel during a horizontal scroll, the panel cleanly covers it
+     rather than the toolbar painting on top. */
+  z-index: 25;
   align-self: flex-start;
   height: calc(100vh - var(--topbar-h, 69px) - 16px);
   flex: 0 0 var(--panel-w);
@@ -95,10 +111,12 @@
   box-shadow: var(--shadow-sm);
   overflow: hidden;
 }
-/* Right-position: sits after the grid. Everything else is rendered before the main column in
-   the DOM, so only the right variant needs to reorder. */
+/* Right-position: rendered before the main column in the DOM, so reorder it after the grid
+   and pin it to the right viewport edge instead of the left. */
 .right {
   order: 2;
+  left: auto;
+  right: 0;
 }
 .collapsed {
   --panel-w: 34px;
@@ -106,9 +124,10 @@
   gap: 10px;
   padding-top: 8px;
 }
-/* The ‹ / › collapse-expand control, reused by both the collapsed rail and the expanded
-   header. Structure/hover come from the base ghost-button look. */
-.railToggle {
+/* The ‹ / › collapse-expand control - inline with the title in the expanded header, and the
+   sole element in the collapsed rail. flex-centred so the glyph sits dead-centre in the box.
+   Structure/hover come from the base ghost-button look. */
+.collapseToggle {
   flex: 0 0 auto;
   width: 24px;
   height: 24px;
@@ -123,7 +142,7 @@
   border-radius: var(--r-sm);
   cursor: pointer;
 }
-.railToggle:hover {
+.collapseToggle:hover {
   color: var(--ink);
   border-color: var(--line-hover);
 }
@@ -153,8 +172,11 @@
   justify-content: space-between;
   gap: 8px;
 }
+/* Matches the Backlog page's own header <h2> (Card head h2 = --fs-2xl) so the tray reads as
+   the same panel wherever it's shown. */
 .sideTitle {
-  font-size: var(--fs-title);
+  margin: 0;
+  font-size: var(--fs-2xl);
   font-weight: 800;
   color: var(--ink);
 }
@@ -169,6 +191,10 @@
 }
 .sideControls .sortGroup .select {
   flex: 1 1 auto;
+}
+/* Rows-per-page + pager share one row, spread to the panel's full width. */
+.sideControls .pageGroup {
+  justify-content: space-between;
 }
 .sideBody {
   flex: 1;
