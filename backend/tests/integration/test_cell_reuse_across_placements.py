@@ -78,23 +78,28 @@ def test_cell_with_remaining_capacity_is_reused_across_days_and_burned_barcodes_
     assert cell["uses_remaining"] == 1
     assert cell["burned_barcodes"] == ["bc1", "bc2"]
 
-    # --- S3 (shares burned bc1) is barred from that cell (409) ---
-    r3 = _place(client, _sid(client, "S3"), wed, 0, {"mode": "existing", "cell_id": cell_id})
-    assert r3.status_code == 409, r3.text
-    assert "barcode" in r3.json()["detail"].lower()
-
-    # --- S4 (bc3, no clash) takes the last slot, exhausting the cell ---
-    # r3 above never reached the lock check (it 409s on the barcode conflict first), so r4
-    # is the first write into Wednesday's grid cell - start_hour is pinned explicitly here
-    # too, for the same reason as r2 above.
-    r4 = _place(client, _sid(client, "S4"), wed, 0, {"mode": "existing", "cell_id": cell_id}, start_hour=21)
-    assert r4.status_code == 201, r4.text
+    # --- S3 (shares burned bc1) is NO LONGER barred - warn, don't block (2026-08-07). It lands
+    # as the cell's 3rd use, flagged as a barcode clash, and exhausts the cell. ---
+    r3 = _place(client, _sid(client, "S3"), wed, 0, {"mode": "existing", "cell_id": cell_id}, start_hour=15)
+    assert r3.status_code == 201, r3.text
+    s3_stage = next(s for s in _stages(r3.json()) if s["sample_external_id"] == "S3")
+    assert s3_stage["cell_id"] == cell_id
+    assert s3_stage["barcode_clash"] is True
 
     cell = client.get(f"/api/cells/{cell_id}").json()
     assert cell["uses_consumed"] == 3
     assert cell["uses_remaining"] == 0
     assert cell["status"] == "exhausted"
-    assert cell["burned_barcodes"] == ["bc1", "bc2", "bc3"]
+
+    # --- S4 genuinely can't reuse it now: no remaining capacity. Capacity (the 3-use cap) is a
+    # REAL block, unchanged by the warn-don't-block clash rule - the two are distinct. ---
+    (thu,) = _weekdays(4)[3:4]
+    r4 = _place(client, _sid(client, "S4"), thu, 0, {"mode": "existing", "cell_id": cell_id}, start_hour=21)
+    assert r4.status_code == 409, r4.text
+    assert "exhausted" in r4.json()["detail"].lower()  # capacity is a real block, not a clash
+
+    # S3 shared bc1 (already burned), so the union is unchanged; S4 never landed.
+    assert client.get(f"/api/cells/{cell_id}").json()["burned_barcodes"] == ["bc1", "bc2"]
 
 
 def test_reusing_a_cell_on_a_different_instrument_than_its_current_one_is_rejected(client):

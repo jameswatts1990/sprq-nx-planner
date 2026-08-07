@@ -125,55 +125,53 @@ def test_move_within_same_instrument_to_a_different_day_same_slot(client):
     assert client.get(f"/api/cycles/{old_cycle_id}").status_code == 404
 
 
-def test_move_to_a_different_slot_in_the_same_carousel_position_reassigns_the_cell(client):
-    """A grid slot is a plate loading position, but a physical cell is fixed to its own tray
-    position for life - so moving a sample to a *different* slot in the same carousel position
-    hands it to the cell the instrument reaches for at that slot (reuse-before-new), never drags
-    its current cell into a foreign well. A1's fresh cell A is released; A1 adopts cell B, which
-    lives at the destination well B01."""
+def test_move_to_a_different_slot_in_the_same_carousel_position_keeps_the_cell(client):
+    """A within-plate reorder (same instrument/day/plate, different loading well) keeps the sample
+    on its OWN cell and just moves the loading well - _resequence_plate then re-zips the plate's
+    wells onto its cells in ascending order. With a single sample there's nothing to re-order, so
+    A1 stays on cell A (the next-available cell, ▣1), now shown in slot B01 - no churn onto a
+    fresh sibling, no cell number jumping (the reported "cell out of sync" bug)."""
     client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1"})
     (mon,) = _weekdays(1)
 
     r1 = _place(client, _sid(client, "A1"), mon, slot_index=0)
     cell_use_id = _stages(r1.json())[0]["cell_use_id"]
     cell_a = _stages(r1.json())[0]["cell_id"]
-    assert _stages(r1.json())[0]["cell_home_well"] == "A01"
+    assert _stages(r1.json())[0]["tray_position"] == 1  # ▣1 - the next-available cell
 
-    # A plain move to slot 1 (well B01, same Plate-1 carousel position) reassigns to B01's cell.
     moved = _move(client, cell_use_id, mon, slot_index=1)
     assert moved.status_code == 200, moved.text
     stage = _stages(moved.json())[0]
     assert stage["slot_index"] == 1
     assert stage["well"] == "B01"  # the plate loading position it moved to
-    assert stage["cell_id"] != cell_a  # reassigned - not the old cell dragged into a foreign well
-    assert stage["cell_home_well"] == "B01"  # now on cell B, in cell B's own slot (stub "B1")
+    assert stage["cell_id"] == cell_a  # kept its own cell - re-sequencing, not a reassign
+    assert stage["tray_position"] == 1  # still ▣1 (a lone sample is the plate's first cell)
     assert stage["sample_external_id"] == "A1"
-    # cell A is released back to 0 uses - still open, still the earliest cell for slot A01.
-    assert client.get(f"/api/cells/{cell_a}").json()["uses_consumed"] == 0
+    # cell A is still in use (1 use) - a re-sequence never frees a cell, unlike the old reassign.
+    assert client.get(f"/api/cells/{cell_a}").json()["uses_consumed"] == 1
 
 
 def test_move_within_a_box_cannot_strand_a_fresh_cell_out_of_slot_a01(client):
-    """Regression (reported 2026-07-26): dragging cards between slots in one tray must never
-    leave a fresh cell stranded in a foreign slot, so that slot A01 shows a *later* cell (cell B
-    Use 1) while cell A still has capacity. Because a move reassigns to the destination slot's
-    own cell (rather than rewriting the loading well while keeping the cell), slot A01 always
-    draws the earliest cell with capacity - cell A here."""
+    """Regression (2026-07-26, re-affirmed under the 2026-08-07 re-sequence model): reordering
+    cards within one tray must never leave slot A01 showing a *later* cell (▣2) while ▣1 still
+    has capacity. _resequence_plate guarantees the earliest occupied well always draws the
+    earliest (expiring-first, then position) cell, so A01 always reads ▣1 and the plate reads
+    ascending across its wells."""
     client.post("/api/imports", json={"raw_text": "sample,barcodes\nT12,bc12\nT10,bc10"})
     (mon,) = _weekdays(1)
 
-    # T12 lands on the earliest cell (cell A) in slot A01.
+    # T12 lands on the earliest cell (▣1) in slot A01.
     r1 = _place(client, _sid(client, "T12"), mon, slot_index=0)
     t12_use = _stages(r1.json())[0]["cell_use_id"]
     cell_a = _stages(r1.json())[0]["cell_id"]
-    assert _stages(r1.json())[0]["cell_home_well"] == "A01"
+    assert _stages(r1.json())[0]["tray_position"] == 1
 
-    # Drag T12 down to the empty B01: it adopts cell B and frees cell A (not "cell A now in B01").
+    # Drag T12 down to the empty B01: with only one sample it keeps ▣1 (re-sequence is a no-op).
     moved = _move(client, t12_use, mon, slot_index=1)
     assert moved.status_code == 200, moved.text
-    assert client.get(f"/api/cells/{cell_a}").json()["uses_consumed"] == 0
 
-    # Now load T10 into the freed A01 with a plain drop (no cell_choice -> server auto-derives):
-    # it MUST draw cell A (earliest with capacity), never cell B.
+    # Now load T10 into A01 with a plain drop (no cell_choice -> server auto-derives). The plate
+    # re-sequences: A01 (earliest well) draws ▣1 = cell A, and T12 in B01 is bumped up to ▣2.
     r2 = client.post(
         "/api/cell-uses",
         json={
@@ -187,16 +185,18 @@ def test_move_within_a_box_cannot_strand_a_fresh_cell_out_of_slot_a01(client):
     assert r2.status_code == 201, r2.text
     a01 = next(s for s in _stages(r2.json()) if s["slot_index"] == 0)
     assert a01["cell_id"] == cell_a
-    assert a01["cell_home_well"] == "A01"  # stub "A1" - the reported "B1 in slot A01" bug is gone
+    assert a01["tray_position"] == 1  # ▣1 - the reported "▣2 in slot A01" transposition is gone
     assert a01["sample_external_id"] == "T10"
+    b01 = next(s for s in _stages(r2.json()) if s["slot_index"] == 1)
+    assert b01["sample_external_id"] == "T12"  # bumped to ▣2 by the re-sequence - ascending order
+    assert b01["tray_position"] == 2
 
 
-def test_move_to_a_different_carousel_position_reuses_an_idle_sibling_of_its_own_tray(client):
-    """Moving a Plate-1 sample to a Plate-2 slot hands it to the cell the instrument reaches for
-    there (reuse-before-new). A cell is pinned to its tray POSITION, not a plate box, so - rather
-    than opening a fresh SECOND tray - the drag reuses an idle sibling of the sample's OWN tray,
-    loaded into the Plate-2 well (docs/pacbio-sprq-nx-scheduling-reference.md's "Plate vs cell").
-    No cell_choice needed - a plain drag just works."""
+def test_move_to_a_different_carousel_position_reuses_its_own_tray_not_a_fresh_one(client):
+    """Moving a Plate-1 sample to a Plate-2 slot loads it into the Plate-2 well on a cell of its
+    OWN tray (reuse-before-new across carousel positions), never opening a fresh SECOND tray - a
+    cell is pinned to its tray POSITION, not a plate box (docs/pacbio-sprq-nx-scheduling-
+    reference.md's "Plate vs cell"). No cell_choice needed - a plain drag just works."""
     client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1"})
     (mon,) = _weekdays(1)
 
@@ -208,14 +208,11 @@ def test_move_to_a_different_carousel_position_reuses_an_idle_sibling_of_its_own
     moved = _move(client, cell_use_id, mon, slot_index=4)
     assert moved.status_code == 200, moved.text
     stage = next(s for s in _stages(moved.json()) if s["sample_external_id"] == "A1")
-    new_cell_id = stage["cell_id"]
-    assert new_cell_id != cell_id  # handed to a different cell...
     assert stage["slot_index"] == 4
-    assert stage["well"] == "A02"  # ...loaded into the Plate-2 well
-
-    # reuse-before-new across plate positions: the sample lands on an idle sibling of its OWN
-    # physical tray, not a freshly opened second tray.
-    assert client.get(f"/api/cells/{new_cell_id}").json()["tray_id"] == tray_id
+    assert stage["well"] == "A02"  # loaded into the Plate-2 well
+    # reuse-before-new across plate positions: the sample runs on a cell of its OWN physical
+    # tray, not a freshly opened second tray.
+    assert client.get(f"/api/cells/{stage['cell_id']}").json()["tray_id"] == tray_id
 
 
 def test_move_across_instruments_reassigns_to_a_new_cell_when_cell_has_another_use(client):
@@ -350,10 +347,12 @@ def _place_a_twice_used_cell(client):
     return _stages(r2.json())[0]["cell_use_id"], cell_id, tray_id
 
 
-def test_move_to_a_different_well_in_the_same_position_reassigns_to_the_sibling_there(client):
-    """A twice-used cell dragged to a different well in the same Plate-1 carousel position is
-    handed to the cell resident at that well (its fresh tray sibling), not dragged into a foreign
-    well - a physical cell stays in its own tray position for life. Its own earlier use stays put."""
+def test_move_to_a_different_well_on_a_new_day_reuses_the_next_available_cell(client):
+    """A twice-used cell's later use, dragged to a different well on a NEW day, lands on whichever
+    cell the instrument reaches for at that slot (reuse-before-new = the most-used cell = its own
+    cell here), loaded into the dropped well. With a lone sample on that day there's nothing to
+    re-order, so it reads that cell's ▣N in the new well - A2 simply reschedules onto its own
+    cell, no churn."""
     cell_use_id_2, cell_id, _tray_id = _place_a_twice_used_cell(client)
     (wed,) = _weekdays(3)[2:3]
 
@@ -361,12 +360,11 @@ def test_move_to_a_different_well_in_the_same_position_reassigns_to_the_sibling_
     assert moved.status_code == 200, moved.text
     stage = _stages(moved.json())[0]
     assert stage["well"] == "B01"
-    assert stage["cell_id"] != cell_id  # reassigned to B01's own resident sibling
-    assert stage["cell_home_well"] == "B01"  # cell B's identity, stub "B1"
+    assert stage["cell_id"] == cell_id  # reuse-before-new picks its own (most-used) cell again
     assert stage["sample_external_id"] == "A2"
 
-    # the original (twice-used) cell keeps only its first use now; A2 moved off it
-    assert client.get(f"/api/cells/{cell_id}").json()["uses_consumed"] == 1
+    # the cell still holds both uses (A1 on Monday + A2 now on Wednesday) - A2 just rescheduled
+    assert client.get(f"/api/cells/{cell_id}").json()["uses_consumed"] == 2
 
 
 def test_move_to_a_different_well_reassigns_sample_to_a_new_cell(client):

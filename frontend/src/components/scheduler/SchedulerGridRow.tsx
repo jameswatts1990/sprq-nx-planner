@@ -31,9 +31,6 @@ export interface SchedulerGridRowProps {
   cyclesByDate: Map<string, RunOut>;
   selection: GridSelection;
   placingSlotKey: string | null;
-  /** The slot a manual drop was just rejected on for a barcode clash - see
-   * useScheduleActions' clashSlotKey. */
-  clashSlotKey: string | null;
   onOpenDetail: (stage: StageOut, run: RunOut) => void;
   onOpenCell: (stage: StageOut, run: RunOut) => void;
   slotSelection: SlotSelection;
@@ -63,7 +60,6 @@ export const SchedulerGridRow = memo(function SchedulerGridRow({
   cyclesByDate,
   selection,
   placingSlotKey,
-  clashSlotKey,
   onOpenDetail,
   onOpenCell,
   slotSelection,
@@ -161,7 +157,6 @@ export const SchedulerGridRow = memo(function SchedulerGridRow({
             selectable={selectable}
             selected={selected}
             placingSlotKey={placingSlotKey}
-            clashSlotKey={clashSlotKey}
             onSelect={selection.handleCellClick}
             onOpenDetail={onOpenDetail}
             onOpenCell={onOpenCell}

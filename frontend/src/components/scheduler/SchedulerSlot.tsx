@@ -43,9 +43,6 @@ export interface SchedulerSlotProps {
   /** This well is permanently blocked by a stopped cell (see waitingCells.
    * groupBlockedWellsByInstrument) - read-only, never a drop target. */
   blocked?: boolean;
-  /** A manual drop was just rejected on this exact slot for a barcode clash - see
-   * useScheduleActions' clashSlotKey and SchedulerSlotView's clashFlash. */
-  clashFlash?: boolean;
 }
 
 /**
@@ -96,7 +93,6 @@ function DroppableSlot({
   instrumentSerial,
   loadDate,
   placing,
-  clashFlash,
   ghost,
 }: SchedulerSlotProps) {
   // A slot is a plate LOADING position, not a cell: a drop never targets a specific resident
@@ -130,7 +126,6 @@ function DroppableSlot({
       slotIndex={slotIndex}
       over={isOver}
       placing={placing}
-      clashFlash={clashFlash}
       dragClashWarning={dragClashWarning}
     />
   );
@@ -142,7 +137,6 @@ function DraggableSlot({
   instrumentSerial,
   loadDate,
   placing,
-  clashFlash,
   selected,
   onOpenDetail,
   onOpenCell,
@@ -243,7 +237,6 @@ function DraggableSlot({
       dragging={isDragging}
       over={isOver}
       overInvalid={isOverInvalid}
-      clashFlash={clashFlash}
       selected={selected}
       linked={isPeer}
       linkSource={isSource}

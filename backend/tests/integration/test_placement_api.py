@@ -92,15 +92,20 @@ def test_place_sample_rejects_weekend(client):
     assert "weekend" in resp.json()["detail"].lower()
 
 
-def test_place_sample_rejects_barcode_conflict_on_existing_cell(client):
+def test_place_sample_flags_barcode_conflict_on_existing_cell_but_does_not_block(client):
+    """Warn, don't block (2026-08-07): explicitly reusing a cell that already burned a clashing
+    barcode from a *different* sample now succeeds and is flagged (StageOut.barcode_clash),
+    rather than being refused with a 409 - the user rectifies a real clash themselves."""
     client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1\nA2,bc1"})
     mon, tue = _weekdays(2)
     r1 = _place(client, _sid(client, "A1"), mon, 0)
     cell_id = _stages(r1.json())[0]["cell_id"]
 
     r2 = _place(client, _sid(client, "A2"), tue, 0, {"mode": "existing", "cell_id": cell_id})
-    assert r2.status_code == 409
-    assert "barcode" in r2.json()["detail"].lower()
+    assert r2.status_code == 201, r2.text
+    stage = next(s for s in _stages(r2.json()) if s["sample_external_id"] == "A2")
+    assert stage["cell_id"] == cell_id
+    assert stage["barcode_clash"] is True
 
 
 def test_place_sample_rejects_well_collision(client):
@@ -120,8 +125,9 @@ def test_place_new_cell_opens_a_fresh_tray_in_the_free_bay_when_the_drop_bay_is_
     into the OTHER free bay rather than 409ing (docs/pacbio-sprq-nx-scheduling-reference.md's
     "Plate vs cell"). open_new_tray() still never mints a second tray over an already-occupied
     bay - it just uses the free one. Placing into slot 0 opens a tray in bay 0 (A01-D01); a later
-    mode="new" request into slot 1 opens a fresh tray in bay 1, its cell keeping a bay-1 home well
-    (B02) while loaded into the Plate-1 display well it was dropped onto (B01)."""
+    mode="new" request into slot 1 opens a fresh tray in bay 1 and takes that tray's NEXT-AVAILABLE
+    cell (position 1, home A02 - "the well takes the next available cell regardless of plate
+    position"), loaded into the Plate-1 display well it was dropped onto (B01)."""
     client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1\nA2,bc2"})
     mon, tue = _weekdays(2)
     r1 = _place(client, _sid(client, "A1"), mon, 0)
@@ -132,7 +138,7 @@ def test_place_new_cell_opens_a_fresh_tray_in_the_free_bay_when_the_drop_bay_is_
     assert r2.status_code == 201, r2.text
     stage = _stages(r2.json())[0]
     assert stage["well"] == "B01"  # loaded into the Plate-1 display well it was dropped onto
-    assert stage["cell_home_well"] == "B02"  # ...but the fresh tray physically sits in bay 1
+    assert stage["cell_home_well"] == "A02"  # the fresh bay-1 tray's next-available cell (▣1)
     new_cell = client.get(f"/api/cells/{stage['cell_id']}").json()
     assert new_cell["tray_id"] != tray0  # a genuinely different physical tray, in the free bay
 
@@ -391,10 +397,11 @@ def test_remove_sample_reverts_to_backlog_and_cleans_up_emptied_run(client):
 
 
 def test_opening_a_tray_pins_every_sibling_to_a_well_in_the_same_box(client):
-    """Placing into slot_index 2 (well C01, tray 1's box) should give the placed cell
-    current_well "C01" and its 3 never-used siblings current_well A01/B01/D01 - the other
-    half of the day's wells (A02-D02, tray 2's box) - so all 4 are immediately visible in
-    their own reserved well, in the right physical tray box."""
+    """Opening a fresh tray registers all 4 siblings, each pinned to a well in the same box
+    (A01-D01). A drop onto slot_index 2 (well C01) still opens that box, but the sample takes the
+    tray's NEXT-AVAILABLE cell (position 1, home A01) - "the well takes the next available cell
+    regardless of plate position" - so A01 is the used one and B01/C01/D01 are the unused
+    siblings, all immediately visible in their own reserved well."""
     client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1"})
     (mon,) = _weekdays(1)
     r1 = _place(client, _sid(client, "A1"), mon, 2)
@@ -406,8 +413,8 @@ def test_opening_a_tray_pins_every_sibling_to_a_well_in_the_same_box(client):
     assert len(cells) == 4
     by_well = {c["current_well"]: c["uses_consumed"] for c in cells}
     assert set(by_well) == {"A01", "B01", "C01", "D01"}
-    assert by_well["C01"] == 1  # the placed cell
-    assert by_well["A01"] == by_well["B01"] == by_well["D01"] == 0  # unused siblings
+    assert by_well["A01"] == 1  # the placed cell = the tray's next-available (position 1)
+    assert by_well["B01"] == by_well["C01"] == by_well["D01"] == 0  # unused siblings
 
 
 def test_a_tray_cell_can_be_loaded_into_any_plate_slot_in_its_carousel_position(client):

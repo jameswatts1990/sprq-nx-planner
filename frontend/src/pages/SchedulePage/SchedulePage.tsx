@@ -413,10 +413,7 @@ export function SchedulePage() {
       // slot - a swap changes what both slots show, but the target is the one the user just
       // dropped onto, so it's the one worth flagging mid-mutation.
       dnd.setPlacingSlotKey(slotKey(targetInstrumentSerial, targetLoadDate, targetSlotIndex));
-      actions.swap.mutate(
-        { a, b, targetInstrumentSerial, targetLoadDate, targetSlotIndex },
-        { onSettled: () => dnd.setPlacingSlotKey(null) },
-      );
+      actions.swap.mutate({ a, b }, { onSettled: () => dnd.setPlacingSlotKey(null) });
     },
     (sampleId, instrumentSerial, loadDate, slotIndex) => {
       // Dropping the first sample onto an empty instrument+day creates a brand-new run - ask
@@ -703,7 +700,6 @@ export function SchedulePage() {
                 grouped={grouped}
                 selection={selection}
                 placingSlotKey={dnd.placingSlotKey}
-                clashSlotKey={actions.clashSlotKey}
                 onOpenDetail={handleOpenDetail}
                 onOpenCell={handleOpenCell}
                 slotSelection={slotSelection}

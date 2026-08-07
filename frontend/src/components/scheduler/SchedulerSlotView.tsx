@@ -47,18 +47,11 @@ export interface SchedulerSlotViewProps extends HTMLAttributes<HTMLDivElement> {
    * of the plain "+", since placing a new cell here isn't possible. Ignored when `stage`
    * or `ghost` is set. */
   blocked?: boolean;
-  /** A manual drop was just rejected here because it would clash a barcode already burned on
-   * the target cell (see placement_service's 409 "barcode conflict" guards) - a few-second
-   * pulsing red flash pinpointing WHERE the rejected drop landed, alongside the toolbar Note
-   * that explains why (see useScheduleActions' clashSlotKey). Applies to an empty "+" slot
-   * (a rejected place/move) or an already-filled slot (a rejected swap target) alike. */
-  clashFlash?: boolean;
   /** A drag is currently in progress and dropping the dragged sample onto THIS empty slot
    * would clash a barcode already burned on the cell it would naturally reuse (see
-   * waitingCells.ghostWouldClashWithSample) - a best-effort warning shown on every such slot
-   * for the whole drag, not just the one currently hovered, so the danger zones are visible
-   * before the user commits to a drop. Distinct from `clashFlash` (a real, already-rejected
-   * drop) - this is predictive and never blocks anything; the drop still succeeds and the
+   * waitingCells.ghostWouldClashWithSample) - a best-effort, predictive warning shown on every
+   * such slot for the whole drag, not just the one currently hovered, so the danger zones are
+   * visible before the user commits. It never blocks anything: the drop still succeeds and the
    * authoritative clash is then shown via the placed card's own barcode-clash marking. */
   dragClashWarning?: boolean;
   /** Opens the in-grid cell-info popover for this placement's physical cell. When set (and
@@ -112,7 +105,6 @@ export const SchedulerSlotView = memo(
       linked,
       dimmed,
       blocked,
-      clashFlash,
       dragClashWarning,
       onOpenCell,
       className,
@@ -237,8 +229,7 @@ export const SchedulerSlotView = memo(
   }
   if (locked) classes.push(styles.locked);
   if (placing) classes.push(styles.placing);
-  if (clashFlash) classes.push(styles.clashFlash);
-  else if (dragClashWarning) classes.push(styles.dragClashWarning);
+  if (dragClashWarning) classes.push(styles.dragClashWarning);
   if (showStub) classes.push(styles.hasStub);
   if (over) {
     if (dragging) {
@@ -410,28 +401,24 @@ export const SchedulerSlotView = memo(
         </span>
       ) : (
         <span
-          className={clashFlash ? styles.clashFlashLabel : dragClashWarning ? styles.dragClashWarningLabel : styles.placeholder}
+          className={dragClashWarning ? styles.dragClashWarningLabel : styles.placeholder}
           title={
-            clashFlash
-              ? "Drop rejected - this would clash a barcode already burned on that cell."
-              : dragClashWarning
-                ? "Dropping here will clash a barcode already burned on the cell this well would reuse - the drop still works, but the sample will be flagged as clashing."
-                : locked && !placing
-                  ? "This run is locked - it can't accept new placements or moves."
-                  : undefined
+            dragClashWarning
+              ? "Dropping here will clash a barcode already burned on the cell this well would reuse - the drop still works, but the sample will be flagged as clashing."
+              : locked && !placing
+                ? "This run is locked - it can't accept new placements or moves."
+                : undefined
           }
         >
-          {clashFlash
-            ? "⚠ clash"
-            : placing
-              ? "placing…"
-              : dragging
-                ? over
-                  ? "stays here"
-                  : ""
-                : dragClashWarning
-                  ? "⚠ clash risk"
-                  : `+ ${plateWellFromSlot(slotIndex)}`}
+          {placing
+            ? "placing…"
+            : dragging
+              ? over
+                ? "stays here"
+                : ""
+              : dragClashWarning
+                ? "⚠ clash risk"
+                : `+ ${plateWellFromSlot(slotIndex)}`}
         </span>
       )}
       {showStage && placing && <div className={styles.shimmer}>placing…</div>}

@@ -351,22 +351,6 @@ export function LegendSection() {
         </div>
       </div>
 
-      <p className={styles.subheading}>Rejected drop (Weekly schedule)</p>
-      <div className={styles.legendGrid}>
-        <div className={styles.legendRow}>
-          <div className={styles.ghostExampleSwatch}>
-            <SchedulerSlotView stage={null} slotIndex={0} clashFlash />
-          </div>
-          <span>
-            An ordinary drag-and-drop is never rejected for a barcode clash - it&apos;s allowed and flagged instead
-            (see above). This red flash is narrower: it fires only when explicitly choosing a specific cell (the
-            cell stub&apos;s &quot;choose a specific cell&quot; override) or swapping two placed samples would clash
-            a burned barcode - both have other cells freely available, so those are refused outright. The exact well
-            flashes red for a few seconds alongside a red banner above the schedule explaining why.
-          </span>
-        </div>
-      </div>
-
       <p className={styles.subheading}>Cell card, tray, and window meter (Cells, Cell detail)</p>
       <div className={styles.legendGrid}>
         <div className={styles.legendRow}>

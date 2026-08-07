@@ -7,9 +7,9 @@ sibling because of a barcode clash, an impossible cell order a real instrument w
 produce). `derive_best_cell` no longer excludes a candidate cell for a barcode clash - see
 _reuse_eligible - so the natural, in-order cell always wins and a resulting clash surfaces as
 StageOut.barcode_clash (see cell_service.has_barcode_clash) instead of forcing a reroute or
-blocking the drop outright. The one place a clash still hard-blocks the request is an *explicit*
-"use this exact cell" choice (_resolve_cell_choice) - a free pick with other cells available, so
-there's no ordering constraint forcing the clash there.
+blocking the drop outright. As of 2026-08-07 a clash never hard-blocks any manual path at all -
+not even an *explicit* "use this exact cell" choice: warn, don't block, everywhere; the user
+rectifies a real clash themselves.
 """
 from datetime import date, timedelta
 
@@ -79,20 +79,23 @@ def test_clash_no_longer_forces_a_skip_and_is_flagged_instead(client):
     assert client.get(f"/api/samples/{_sid(client, 'T7')}").json()["status"] == "scheduled"
 
 
-def test_explicit_cell_choice_still_rejects_a_barcode_clash(client):
-    """The one place a clash still hard-blocks: naming a specific cell via an explicit
-    cell_choice (the CellInfoPopover "choose a specific cell" override). Unlike a plain drag
-    onto a fixed well, the caller here has other cells freely available, so there's no ordering
-    constraint forcing the clash - it's refused outright instead of being flagged."""
+def test_explicit_cell_choice_with_a_barcode_clash_is_flagged_not_blocked(client):
+    """Warn, don't block, on EVERY manual path (lab-owner decision 2026-08-07): even naming a
+    specific cell via an explicit cell_choice (the CellInfoPopover "choose a specific cell"
+    override) no longer refuses a barcode clash. The placement lands and the clash is surfaced
+    on the card (StageOut.barcode_clash) for the user to rectify - never a 409."""
     client.post("/api/imports", json={"raw_text": "sample,barcodes\nT1,bc1\nTRAC,bc1"})
-    (mon,) = _weekdays(1)
+    mon, tue = _weekdays(2)
     r1 = _place(client, _sid(client, "T1"), mon, 0, {"mode": "new"})
     cell_x = _stages(r1.json())[0]["cell_id"]
 
-    r2 = _place(client, _sid(client, "TRAC"), mon, 1, {"mode": "existing", "cell_id": cell_x})
-    assert r2.status_code == 409, r2.text
-    assert "barcode conflict" in r2.json()["detail"]
-    assert client.get(f"/api/samples/{_sid(client, 'TRAC')}").json()["status"] == "backlog"
+    # Tuesday, explicit reuse of cell_x for the clashing TRAC - lands as its Use 2 and is flagged.
+    r2 = _place(client, _sid(client, "TRAC"), tue, 0, {"mode": "existing", "cell_id": cell_x})
+    assert r2.status_code == 201, r2.text
+    trac_stage = next(s for s in _stages(r2.json()) if s["sample_external_id"] == "TRAC")
+    assert trac_stage["cell_id"] == cell_x
+    assert trac_stage["barcode_clash"] is True
+    assert client.get(f"/api/samples/{_sid(client, 'TRAC')}").json()["status"] == "scheduled"
 
 
 def test_reuse_depth_difference_allows_a_later_cell_in_an_earlier_slot(client):

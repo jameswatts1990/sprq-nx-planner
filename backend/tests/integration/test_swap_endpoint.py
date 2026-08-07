@@ -103,11 +103,12 @@ def test_swap_within_the_same_physical_cell(client):
     assert client.get(f"/api/cells/{cell_id}").json()["uses_consumed"] == 2
 
 
-def test_swap_rejects_cross_cell_barcode_clash(client):
-    """cellA holds two real uses (A1/bc1, A4/bc4); cellB holds one (A5/bc4, same barcode
-    text as A4 - allowed, barcode uniqueness is per-sample, not global). Swapping A1's use
-    onto cellB is fine, but swapping A5's use onto cellA must be rejected: cellA already
-    has bc4 burned by A4's *other*, non-vacating use."""
+def test_swap_with_a_cross_cell_barcode_clash_is_flagged_not_blocked(client):
+    """cellA holds two real uses (A1/bc1, A4/bc4); cellB holds one (A5/bc4, same barcode text as
+    A4 - allowed, barcode uniqueness is per-sample). Swapping A1 and A5 lands A5 onto cellA next
+    to A4's already-burned bc4 - a genuine cross-sample clash. As of 2026-08-07 that no longer
+    blocks (warn, don't block, on every manual path): the swap goes through and the clash is
+    surfaced on the affected card (StageOut.barcode_clash) for the user to rectify."""
     client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1\nA4,bc4\nA5,bc4"})
     mon, tue = _weekdays(2)
 
@@ -124,12 +125,16 @@ def test_swap_rejects_cross_cell_barcode_clash(client):
     use_5 = _stages(r5.json())[0]
 
     resp = _swap(client, use_1["cell_use_id"], use_5["cell_use_id"])
-    assert resp.status_code == 409, resp.text
-    assert "barcode" in resp.json()["detail"].lower()
+    assert resp.status_code == 200, resp.text
 
-    # nothing changed
-    assert client.get(f"/api/cell-uses/{use_1['cell_use_id']}").json()["sample_external_id"] == "A1"
-    assert client.get(f"/api/cell-uses/{use_5['cell_use_id']}").json()["sample_external_id"] == "A5"
+    # the samples exchanged...
+    assert client.get(f"/api/cell-uses/{use_1['cell_use_id']}").json()["sample_external_id"] == "A5"
+    assert client.get(f"/api/cell-uses/{use_5['cell_use_id']}").json()["sample_external_id"] == "A1"
+    # ...and A5, now on cellA beside A4's burned bc4, is flagged as a clash (not blocked).
+    stage_on_a = next(
+        s for cyc in resp.json() for s in _stages(cyc) if s["cell_use_id"] == use_1["cell_use_id"]
+    )
+    assert stage_on_a["barcode_clash"] is True
 
 
 def test_swap_rejects_when_owning_cycle_is_locked(client):

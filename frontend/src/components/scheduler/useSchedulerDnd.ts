@@ -14,16 +14,15 @@ import type { DragSampleRef } from "@/types/schedulerGrid";
 
 import { gridCoordinateGetter } from "./gridKeyboardCoordinates";
 
-/** Payload attached to an empty slot's useDroppable. */
+/** Payload attached to an empty slot's useDroppable. A grid slot is a plate LOADING position,
+ * not a cell: a drop never targets a specific cell - which physical cell backs it is decided
+ * server-side (reuse-before-new, then the plate is laid out ascending - see
+ * placement_service.derive_best_cell / _resequence_plate) and shown afterward on the card's stub. */
 export interface SlotDropData {
   kind: "slot";
   instrument_serial: string;
   load_date: string;
   slot_index: SlotIndex;
-  /** Set when this slot is currently showing a waiting-cell ghost placeholder - the id of
-   * the specific cell it represents (see waitingCells.ts). A sample dropped directly here
-   * unambiguously means "reuse this cell", so it skips the cell-choice popup. */
-  ghostCellId?: number;
 }
 
 /** Payload attached to a filled slot's useDroppable (a placed sample dropped onto it). Carries

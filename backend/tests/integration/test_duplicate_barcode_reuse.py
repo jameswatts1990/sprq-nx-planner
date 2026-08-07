@@ -78,20 +78,25 @@ def test_duplicate_copy_reuses_a_cell_its_own_earlier_copy_already_used(client):
     assert stage2["barcode_clash"] is False  # allowed reuse, not the QC-danger "clash" flag
 
 
-def test_a_different_sample_sharing_a_barcode_is_still_blocked_from_a_duplicates_cell(client):
-    """Sanity check that the exemption is scoped to the SAME Container ID only: a genuinely
-    different sample sharing DUP's barcode still can't explicitly reuse its cell."""
+def test_a_different_sample_sharing_a_barcode_is_flagged_not_blocked_on_a_duplicates_cell(client):
+    """The duplicate-Container-ID exemption only decides whether a self-reuse is FLAGGED; a
+    genuinely different sample sharing DUP's barcode is still a real cross-sample clash. But as
+    of 2026-08-07 a clash is warned, never blocked, on every manual path - so OTHER lands on
+    DUP's cell as its 2nd use and is flagged (barcode_clash), not refused with a 409."""
     client.post("/api/imports", json={"raw_text": "sample,barcodes\nDUP,bc1\nOTHER,bc1"})
-    (mon,) = _weekdays(1)
+    mon, tue = _weekdays(2)
     (dup1,) = _sids(client, "DUP")
     (other,) = _sids(client, "OTHER")
 
     r1 = _place(client, dup1, mon, 0, {"mode": "new"})
     cell_id = _stages(r1.json())[0]["cell_id"]
 
-    r2 = _place(client, other, mon, 1, {"mode": "existing", "cell_id": cell_id})
-    assert r2.status_code == 409, r2.text
-    assert "barcode" in r2.json()["detail"].lower()
+    r2 = _place(client, other, tue, 0, {"mode": "existing", "cell_id": cell_id})
+    assert r2.status_code == 201, r2.text
+    stage = next(s for s in _stages(r2.json()) if s["sample_external_id"] == "OTHER")
+    assert stage["cell_id"] == cell_id
+    assert stage["barcode_clash"] is True  # genuinely different sample -> real clash, flagged
+    assert stage["duplicate_cell_reuse"] is False
 
 
 def test_recalculate_consolidates_duplicate_copies_forced_onto_separate_trays(client):

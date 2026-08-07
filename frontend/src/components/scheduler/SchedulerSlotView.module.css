@@ -823,39 +823,11 @@
   background: repeating-linear-gradient(45deg, var(--orange) 0 5px, var(--amber) 5px 10px);
 }
 
-/* A manual drop just rejected here for a barcode clash (see useScheduleActions' clashSlotKey) -
-   a few-second pulsing red ring that pinpoints WHERE the rejected drop landed, alongside the
-   toolbar Note (removeSlotsError) that explains why. Applies to an empty "+" placeholder (a
-   rejected place/move) or an already-filled swap target alike - !important + later source
-   order wins over any severity-ladder border the target card already carries (e.g. a swap
-   target that also has its own QC alert). Faster/sharper pulse than .barcodeClash's since this
-   is a transient "look here now", not a standing state. */
-.clashFlash {
-  border-style: solid !important;
-  border-color: var(--red) !important;
-  border-width: 2px !important;
-  animation: clashFlashPulse 0.5s ease-in-out 4;
-}
-@keyframes clashFlashPulse {
-  0%, 100% {
-    box-shadow: 0 0 0 2px rgba(220, 53, 69, 0.3);
-  }
-  50% {
-    box-shadow: 0 0 0 5px rgba(220, 53, 69, 0.55);
-  }
-}
-.clashFlashLabel {
-  font-size: 11px;
-  font-weight: 800;
-  color: var(--red);
-  white-space: nowrap;
-}
-
 /* A drag is in progress and dropping onto this empty slot would clash a barcode already burned
    on the cell it would naturally reuse (see waitingCells.ghostWouldClashWithSample) - a
    predictive "danger zone" shown on every such slot for the whole drag, not just the one
-   currently hovered. Dashed, not solid, and slower/calmer than .clashFlash's pulse: this never
-   blocks the drop (it still succeeds), so it must read as a heads-up, not a rejection. */
+   currently hovered. Dashed, not solid, and calm: this never blocks the drop (it still
+   succeeds), so it must read as a heads-up, not a rejection. */
 .dragClashWarning {
   border-style: dashed !important;
   border-color: var(--red) !important;
@@ -885,7 +857,6 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .barcodeClash,
-  .clashFlash,
   .dragClashWarning {
     animation: none;
     box-shadow: var(--shadow-sm), 0 0 0 3px var(--red);

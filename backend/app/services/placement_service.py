@@ -23,6 +23,7 @@ from app.engine.constants import (
     DAY_START_HOUR,
     DEFAULT_MOVIE_HOURS,
     WELLS,
+    within_tray_pos,
 )
 from app.services.cell_timing import coarse_movie_end
 from app.models.audit import AuditLog
@@ -33,12 +34,10 @@ from app.models.sample import Sample
 from app.models.schedule import CellUse, CellUseBarcode, Cycle, RunBatch
 from app.services import instrument_lock
 from app.services.cell_service import (
-    barcode_owners,
     cleanup_tray_if_fully_unused,
     current_location,
     derive_cell_state,
     first_use_planned_start_at,
-    foreign_barcode_clash,
     open_new_tray,
     recompute_status,
     run_has_started,
@@ -123,6 +122,80 @@ def recompute_cycle_timing(db: Session, cycle: Cycle) -> None:
         return
     cycle.movie_hours = int(longest)
     cycle.planned_end_at = ensure_aware(cycle.planned_start_at) + timedelta(hours=int(longest))
+
+
+def _reuse_priority_key(cell: Cell) -> tuple[int, float, int]:
+    """Order cells the way the instrument reaches for them: most-used first (its 108h clock is
+    nearest expiry - "expiring next"), then earliest first-use, then tray position (1->4). The
+    single ordering used BOTH to pick which cell a drop reuses (_pick_next_reuse_cell) and to
+    lay a plate's wells onto its cells (_resequence_plate), so "which cell is next" and "which
+    well shows which cell" can never disagree. See docs/pacbio-sprq-nx-scheduling-reference.md's
+    reuse-before-new priority (#5) and "Sequential wells take sequential cells"."""
+    consumed = derive_cell_state(cell)[0]
+    started = cell.first_use_started_at or first_use_planned_start_at(cell)
+    started_key = ensure_aware(started).timestamp() if started is not None else float("inf")
+    pos = cell.tray_position if cell.tray_position is not None else 99
+    return (-consumed, started_key, pos)
+
+
+def _fresh_tray_cell(cells: list[Cell]) -> Cell:
+    """The cell a drop takes when a brand-new tray is opened: its NEXT-AVAILABLE cell = tray
+    position 1, regardless of which loading well was dropped on. "The well takes the next
+    available cell, not the well-position-matched one" (lab-owner model). For the common
+    start-at-A drop this is unchanged (A01 is position 1); it only matters when the first drop
+    onto a fresh tray lands on a later well (e.g. a lone C01), which must still read cell 1, not
+    cell 3. _resequence_plate keeps the whole plate ascending as further wells fill in."""
+    return min(cells, key=lambda c: c.tray_position if c.tray_position is not None else 99)
+
+
+def _resequence_plate(db: Session, cycle: Cycle) -> None:
+    """Lay a still-planned plate's occupied wells onto its cells so that, read in well order
+    (A->B->C->D), the wells are backed by the plate's cells in reuse-priority order (expiring-
+    first, then tray sequence 1,2,3,4 - see _reuse_priority_key). Every sample stays in the
+    exact well it was dropped onto; only which physical cell backs each well is re-zipped, so a
+    plate can never render an out-of-order cell number - the forbidden A=1,B=4,C=3,D=2 state the
+    lab owner reported. Called after every placement/move/removal that can change a plate's set
+    of wells or cells. See docs/pacbio-sprq-nx-scheduling-reference.md's "Sequential wells take
+    sequential cells".
+
+    A pure permutation of the plate's existing cells across its existing wells: each cell keeps
+    exactly one use on this plate, so every cell's consumed count (hence its priority) is
+    invariant under the remap - the order is computed once from the current state and is stable,
+    never oscillating. Barcodes ride with their CellUse (CellUseBarcode is keyed by cell_use_id),
+    so a clash a remap surfaces is simply re-derived and flagged on the card, never blocked
+    (lab-owner decision: warn, don't block). Only touches a `planned` plate - a confirmed/loaded
+    plate is physically committed. Safe against the DB constraints: (cycle_id, well) is untouched
+    (wells never move here) and there is no (cycle_id, cell_id) constraint, so the transient
+    mid-loop state where two uses momentarily point at one cell can't violate anything."""
+    if cycle.status != "planned":
+        return
+    # Queried straight off CellUse (not cycle.cell_uses): callers reach here right after a raw
+    # cycle_id insert / reassignment whose ORM collection can still be stale (same reason
+    # recompute_cycle_timing queries directly). Each cell's own uses + their cycles are eager-
+    # loaded so _reuse_priority_key can derive consumed count and first-use start without N+1.
+    live = list(
+        db.scalars(
+            select(CellUse)
+            .where(CellUse.cycle_id == cycle.id, CellUse.status != "cancelled")
+            .options(
+                selectinload(CellUse.cell)
+                .selectinload(Cell.cell_uses)
+                .selectinload(CellUse.cycle)
+            )
+        ).all()
+    )
+    live = [cu for cu in live if cu.cell is not None]
+    if len(live) < 2:
+        return
+    wells_ascending = sorted(live, key=lambda cu: within_tray_pos(cu.well))
+    cells_by_priority = sorted((cu.cell for cu in live), key=_reuse_priority_key)
+    changed = False
+    for cu, cell in zip(wells_ascending, cells_by_priority):
+        if cu.cell_id != cell.id:
+            cu.cell = cell
+            changed = True
+    if changed:
+        db.flush()
 
 
 def update_run_load_time(db: Session, run_batch: RunBatch, start_hour: int, start_minute: int = 0) -> None:
@@ -383,43 +456,30 @@ def _resolve_cell_choice(
     instrument_id: int,
     instrument_serial: str,
     well: str,
-    barcodes: list[str],
     acquire_date: date,
     load_date: date,
     plate_index: int,
-    external_id: str | None = None,
-    derived: bool = False,
 ) -> Cell:
     """Shared "which cell hosts this sample" resolution, shared by place_sample and
     move_sample's cell-reassignment path: mode "new" opens a fresh tray at plate position
-    `well`; mode "existing" validates the chosen cell is open, has capacity, has no
-    burned-barcode clash with these barcodes (unless `derived`, see below), is on this same
+    `well`; mode "existing" validates the chosen cell is open, has capacity, is on this same
     instrument (a physical cell never crosses instruments), belongs to the SAME physical tray
     as any cell already placed on this plate (see _established_tray_id - a plate is one
     carousel box, which can only ever hold one tray), and - see the chronological-order check
     below - isn't displacing an already-started later use of the same cell.
 
     A grid slot is a plate LOADING position, not a cell, so there is no "must stay in its own
-    well" check any more: the sample lands in the slot it was dropped onto (`well`), and which
-    physical cell it runs on is what this resolves. `well` is the dropped plate position
+    well" check: the sample lands in the slot it was dropped onto (`well`), and which physical
+    cell it runs on is what this resolves. `well` is the dropped plate position
     (WELLS[slot_index]) - used to open a fresh tray in mode "new". `load_date`/`plate_index`
     identify which Plate (Cycle) this placement is joining, purely to look up its already-
     established tray, if any - see _load_existing_cycle.
 
-    `external_id` (the sample's Container ID) lets the barcode-clash check exempt a cell this
-    exact Container ID already burned this same barcode onto - another copy of a duplicate
-    sample - from the clash it would otherwise raise for a genuinely different, foreign
-    sample sharing that barcode (see cell_service.foreign_barcode_clash).
-
-    `derived=True` skips the barcode-clash check entirely - set by place_sample/move_sample
-    when `cell_choice` is derive_best_cell's own answer rather than something the caller
-    picked. An *explicit* "existing" choice is the one place a barcode clash still hard-blocks
-    the request: naming a specific cell is a free choice with other cells available, so there's
-    no tray-order constraint forcing the clash the way there is for a plain drag onto a fixed
-    well, and the caller can simply pick a different cell. A derived choice has no such
-    freedom - it IS the cell the tray would actually give that well - so re-running the same
-    check here would just silently reintroduce the skip-ahead bug _reuse_eligible was fixed to
-    stop (see docs/pacbio-sprq-nx-scheduling-reference.md)."""
+    A burned-barcode clash NEVER blocks resolution here - not even for an explicit "existing"
+    choice (lab-owner decision 2026-08-07: warn, don't block, on every manual path). The clash
+    is real and is surfaced afterward on the card (has_barcode_clash -> StageOut.barcode_clash),
+    for the user to rectify - never as a refused request or a silent reroute (see
+    docs/pacbio-sprq-nx-scheduling-reference.md's "Sequential wells take sequential cells")."""
     target_cycle = _load_existing_cycle(db, instrument_id=instrument_id, load_date=load_date, plate_index=plate_index)
     committed_tray_id = _established_tray_id(target_cycle)
 
@@ -445,8 +505,6 @@ def _resolve_cell_choice(
         _consumed, remaining, _burned = derive_cell_state(cell)
         if remaining <= 0:
             raise PlacementError(409, f"Cell {cell.code} has no remaining uses.")
-        if not derived and foreign_barcode_clash(barcode_owners(cell), external_id, barcodes):
-            raise PlacementError(409, f"barcode conflict: sample shares a burned barcode with cell {cell.code}.")
         current_serial, _current_well = current_location(cell)
         if current_serial is not None and current_serial != instrument_serial:
             raise PlacementError(
@@ -498,8 +556,11 @@ def _resolve_cell_choice(
         try:
             # founding_date lets open_new_tray treat an expired resident tray as physically
             # removed, so a reassignment onto a date the old tray has aged out mints a fresh
-            # successor rather than 409ing (see open_new_tray / _cell_resident_on).
-            return open_new_tray(db, instrument_id, well, founding_date=acquire_date)[0]
+            # successor rather than 409ing (see open_new_tray / _cell_resident_on). Use the
+            # fresh tray's NEXT-AVAILABLE cell (tray position 1), not the drop well's
+            # position-matched one - "the well takes the next available cell regardless of plate
+            # position" (see _resequence_plate); the plate is then laid out ascending.
+            return _fresh_tray_cell(open_new_tray(db, instrument_id, well, founding_date=acquire_date))
         except ValueError as exc:
             raise PlacementError(409, str(exc)) from exc
     else:
@@ -588,15 +649,10 @@ def _pick_next_reuse_cell(
 
     This is the ICS "prioritise the cell expiring next / next in order" behaviour: the plate
     slot the sample is dropped onto is only a loading position - which physical cell runs it is
-    picked here, and shown afterwards by the loaded card's stub (see run_serializer/StageOut)."""
-    def sort_key(cell: Cell) -> tuple[int, float, int]:
-        consumed = derive_cell_state(cell)[0]
-        started = cell.first_use_started_at or first_use_planned_start_at(cell)
-        started_key = ensure_aware(started).timestamp() if started is not None else float("inf")
-        pos = cell.tray_position if cell.tray_position is not None else 99
-        return (-consumed, started_key, pos)
-
-    for cell in sorted(cells, key=sort_key):
+    picked here, and shown afterwards by the loaded card's stub (see run_serializer/StageOut).
+    The plate's wells are then re-zipped onto its cells in this same priority order by
+    _resequence_plate, so the loaded plate always reads ascending."""
+    for cell in sorted(cells, key=_reuse_priority_key):
         _plate, acquire = _plate_target(
             db, cell=cell, instrument_id=instrument.id, load_date=load_date, slot_index=slot_index
         )
@@ -622,7 +678,6 @@ def derive_best_cell(
     run_time_hours: float,
     start_hour: int = DAY_START_HOUR,
     start_minute: int = 0,
-    exclude_cell_id: int | None = None,
 ) -> dict:
     """Pick the physical cell a manually-dropped sample should use, mirroring the instrument's
     own allocation: a grid slot is a plate LOADING position, not a cell, so a drop reaches for
@@ -649,12 +704,10 @@ def derive_best_cell(
     "sequential wells take sequential cells" rule). A resulting clash surfaces afterward as
     StageOut.barcode_clash, not as a rerouted or blocked placement.
 
-    `exclude_cell_id`, when given, drops that cell from the reuse candidates. Used by
-    move_sample: a sample dragged to a *different* loading well is handed to a different cell
-    at the destination, never allowed to re-adopt its own cell into a foreign well - which,
-    for a reused (most-used) cell, would otherwise be re-picked here and stored at the new
-    well, reintroducing exactly the loading-well ≠ home-well divergence this is meant to
-    prevent (see the "Plate vs cell" refinement in docs/pacbio-sprq-nx-scheduling-reference.md).
+    The moved sample re-adopting its own cell at a new well is no longer a hazard to guard
+    against here (move_sample used to pass an `exclude_cell_id` for that): _resequence_plate now
+    lays the destination plate's wells onto its cells in ascending order after the move, so a
+    re-adopted cell simply takes whichever well its rank maps to - never a stranded transposition.
 
     (0) **Tray cohesion** - tried first, for both Plate 1 and Plate 2 slots: a Plate is
     physically one carousel box, which can only ever hold one physical tray, so once this
@@ -671,7 +724,7 @@ def derive_best_cell(
     if committed_tray_id is not None:
         already_in_cycle = {cu.cell_id for cu in target_cycle.cell_uses if cu.status != "cancelled"}
         tray_cells = db.scalars(select(Cell).where(Cell.tray_id == committed_tray_id, Cell.status == "open")).all()
-        cands = [c for c in tray_cells if c.id != exclude_cell_id and c.id not in already_in_cycle]
+        cands = [c for c in tray_cells if c.id not in already_in_cycle]
         best = _pick_next_reuse_cell(
             db, cands, instrument=instrument, load_date=load_date, slot_index=slot_index,
             run_time_hours=run_time_hours, start_hour=start_hour, start_minute=start_minute,
@@ -695,7 +748,6 @@ def derive_best_cell(
                 if cu.status != "cancelled"
                 and cu.cell is not None
                 and cu.cell.status == "open"
-                and cu.cell.id != exclude_cell_id
             ]
             best = _pick_next_reuse_cell(
                 db, cands, instrument=instrument, load_date=load_date, slot_index=slot_index,
@@ -716,8 +768,6 @@ def derive_best_cell(
         if pc.pinned_instrument_serial != instrument.serial_number:
             continue
         cell = by_id[pc.cell_id]
-        if cell.id == exclude_cell_id:
-            continue  # move_sample: don't re-adopt the moved cell into a foreign well
         if _cell_used_in_run(cell, instrument.id, load_date):
             continue  # already covered by the intra-run branch above
         cands.append(cell)
@@ -773,10 +823,8 @@ def place_sample(
     # No explicit cell choice (or an explicit "auto") -> the engine derives the cell, applying
     # the same reuse-before-new rule as auto-fill (see derive_best_cell). This is the default
     # for a plain drag-drop; an explicit {"new"|"existing"} still overrides it (the stub's
-    # "use a different cell" path). Tracked so _resolve_cell_choice below knows to skip its own
-    # barcode-clash check for a derived choice - see its docstring.
-    cell_choice_was_derived = cell_choice is None or cell_choice.get("mode") == "auto"
-    if cell_choice_was_derived:
+    # "use a different cell" path).
+    if cell_choice is None or cell_choice.get("mode") == "auto":
         cell_choice = derive_best_cell(
             db,
             instrument=instrument,
@@ -809,12 +857,9 @@ def place_sample(
             instrument_id=instrument.id,
             instrument_serial=instrument_serial,
             well=well,
-            barcodes=sample_barcodes,
             acquire_date=acquire_date,
             load_date=load_date,
             plate_index=plate_index,
-            external_id=sample.external_id,
-            derived=cell_choice_was_derived,
         )
     elif mode == "new":
         plate_index, acquire_date = _plate_target(
@@ -853,8 +898,10 @@ def place_sample(
         try:
             # acquire_date lets an expired resident tray be treated as physically removed, so a
             # plain drop onto a date it has aged out mints a fresh successor tray in its
-            # carousel position instead of 409ing (see open_new_tray / _cell_resident_on).
-            cell = open_new_tray(db, instrument.id, well, founding_date=acquire_date)[0]
+            # carousel position instead of 409ing (see open_new_tray / _cell_resident_on). Use
+            # the fresh tray's NEXT-AVAILABLE cell (tray position 1), not the drop well's
+            # position-matched one - see _fresh_tray_cell / _resequence_plate.
+            cell = _fresh_tray_cell(open_new_tray(db, instrument.id, well, founding_date=acquire_date))
         except ValueError as exc:
             raise PlacementError(409, str(exc)) from exc
     else:
@@ -884,6 +931,9 @@ def place_sample(
     # section if it ever returns to the backlog by another path. See services/qc_service.py.
     sample.qc_disposition = None
 
+    # Lay this plate's wells onto its cells in ascending order (see _resequence_plate) so the
+    # freshly-placed sample never leaves the plate reading an out-of-order cell number.
+    _resequence_plate(db, cycle)
     recompute_cycle_timing(db, cycle)
     db.refresh(cell, attribute_names=["cell_uses"])
     recompute_status(cell, utcnow())
@@ -956,6 +1006,10 @@ def _remove_one(db: Session, cell_use_id: int, actor: str | None = None) -> None
     db.flush()
 
     plate_deleted, _run_deleted = _cleanup_emptied_plate(db, cycle)
+    if not plate_deleted:
+        # The plate lost a well; re-zip its remaining wells onto its cells so it still reads
+        # ascending (see _resequence_plate).
+        _resequence_plate(db, cycle)
 
     if cell is not None:
         _release_cell(db, cell, utcnow())
@@ -1157,37 +1211,78 @@ def move_sample(
         pinned_run_batch = old_cycle.run_batch
     pinned_serial = pinned_run_batch.instrument.serial_number if pinned_run_batch and pinned_run_batch.instrument else None
 
-    # A grid slot is a plate LOADING position, not a cell, but a physical cell is fixed to its
-    # own tray/well position for life - so a cell renders in whichever loading slot it currently
-    # occupies, and moving a sample to a *different* loading well hands it to the cell the
-    # instrument would reach for at that slot (reuse-before-new, via derive_best_cell / the
-    # cell_choice path below) rather than dragging the sample's current physical cell into a
-    # foreign well. Without this, a within-box drag rewrites CellUse.well while keeping the cell,
-    # letting two fresh cells swap slots: a still-has-capacity cell A gets displaced out of slot
-    # A01 and a fresh drop back into A01 then resolves to cell B - the reported "slot A01 = cell
-    # B Use 1 while cell A still has capacity" transposition (see the "Plate vs cell" refinement
-    # in docs/pacbio-sprq-nx-scheduling-reference.md; a fresh cell must always be the earliest in
-    # tray order). A *same-well* move (a plain reschedule to another day, same slot) keeps the
-    # cell in place. A cross-instrument or cross-carousel-box move necessarily changes the well
-    # too, so this single check subsumes both of those older triggers.
+    # The plate (Cycle) the destination slot lands in - for the moved cell, so an intra-run
+    # reuse reads as the sequential Plate 2 (excluding this very use so a plain reschedule of it
+    # doesn't count as a reuse of itself).
+    dest_plate_index, dest_acquire_date = _plate_target(
+        db, cell=cell, instrument_id=instrument.id, load_date=load_date, slot_index=slot_index, exclude_use_id=cell_use.id
+    )
+    old_rb = old_cycle.run_batch
+    # An explicit override (the CellInfoPopover "use a new cell" / "choose a specific cell"
+    # actions) - naming the same cell it's already on is not an override.
+    explicit_override = cell_choice is not None and (
+        cell_choice.get("mode") == "new" or cell_choice.get("cell_id") != cell.id
+    )
+    same_plate = (
+        old_rb is not None
+        and old_rb.instrument_id == instrument.id
+        and old_rb.load_date == load_date
+        and dest_plate_index == old_cycle.plate_index
+    )
+
+    # A within-plate reorder (same instrument, day and plate; no explicit cell override): keep
+    # every cell where it is and just move this sample's loading well, then _resequence_plate
+    # re-zips the plate's wells onto its cells in ascending order. This is what makes "drop A,
+    # then C, then B" settle to A=1, B=2, C=3 without churning any other sample onto a fresh
+    # cell (the old delete-and-recreate path did). A grid slot is a plate LOADING position, not
+    # a cell - see docs/pacbio-sprq-nx-scheduling-reference.md's "Sequential wells take
+    # sequential cells".
+    if same_plate and not explicit_override:
+        if cell_use.well == dest_well:
+            return old_rb  # no-op: dropped back onto its own slot
+        cell_use.well = dest_well
+        try:
+            db.flush()
+        except IntegrityError:
+            db.rollback()
+            raise PlacementError(409, f"slot already occupied: well {dest_well} is taken on this plate.")
+        _resequence_plate(db, old_cycle)
+        recompute_cycle_timing(db, old_cycle)
+        db.add(
+            AuditLog(
+                actor=actor or "unknown",
+                action="move_sample",
+                entity_type="cell_use",
+                entity_id=cell_use.id,
+                details_json={
+                    "from_cycle_id": old_cycle.id,
+                    "to_cycle_id": old_cycle.id,
+                    "well": dest_well,
+                    "instrument_serial": instrument_serial,
+                    "load_date": load_date.isoformat(),
+                },
+            )
+        )
+        db.commit()
+        return db.get(RunBatch, old_rb.id)
+
+    # A cross-plate / cross-day / cross-instrument move, or an explicit cell override, hands the
+    # sample to the cell the instrument would reach for at the destination (reuse-before-new, via
+    # derive_best_cell) - never dragging the sample's current physical cell into a foreign plate.
+    # A cross-instrument move can never keep the physical cell (a cell never crosses instruments).
     reassign_to_new_cell = pinned_serial is not None and pinned_serial != instrument_serial
     if not reassign_to_new_cell and dest_well != cell_use.well:
         reassign_to_new_cell = True
-    if not reassign_to_new_cell and cell_choice is not None:
-        # An explicit override to a fresh tray, or to a *different* existing cell, is honoured
-        # even when the sample's current cell could have stayed. Naming the same cell it's
-        # already on is not an override - fall through to the in-place reschedule.
-        if cell_choice.get("mode") == "new" or cell_choice.get("cell_id") != cell.id:
-            reassign_to_new_cell = True
+    if not reassign_to_new_cell and explicit_override:
+        reassign_to_new_cell = True
 
-    # Tracked so _resolve_cell_choice (inside _move_sample_to_new_cell) knows to skip its own
-    # barcode-clash check for a derived choice - see its docstring.
-    cell_choice_was_derived = cell_choice is None
-    if reassign_to_new_cell and cell_choice_was_derived:
+    if reassign_to_new_cell and cell_choice is None:
         # No explicit target cell - derive the next-in-order cell at the destination, same as a
-        # fresh drop (reuse-before-new, see derive_best_cell), so a plain drag "just works".
-        # Exclude the moved cell itself: the sample must land on a *different* cell at the
-        # destination well, never re-adopt its own cell into a foreign well.
+        # fresh drop (reuse-before-new, see derive_best_cell), so a plain drag "just works". No
+        # exclusion of the moved cell any more: _resequence_plate now enforces ascending well->
+        # cell order on the destination plate, so re-adopting the same cell (a genuine reuse on a
+        # later day) is safe and no longer produces the loading-well != home-well transposition
+        # the old exclude_cell_id workaround guarded against.
         cell_choice = derive_best_cell(
             db,
             instrument=instrument,
@@ -1196,7 +1291,6 @@ def move_sample(
             run_time_hours=run_time_hours,
             start_hour=start_hour,
             start_minute=start_minute,
-            exclude_cell_id=cell.id,
         )
 
     if reassign_to_new_cell:
@@ -1211,22 +1305,17 @@ def move_sample(
             start_hour=start_hour,
             start_minute=start_minute,
             cell_choice=cell_choice,
-            cell_choice_was_derived=cell_choice_was_derived,
             actor=actor,
         )
 
-    # --- writes: same-cell reschedule ---
-    # The cell keeps its own well; the plate/acquire day come from the slot, or - if this
-    # cell is (still) loaded in the destination run via another use - the reuse Plate 2.
-    plate_index, acquire_date = _plate_target(
-        db, cell=cell, instrument_id=instrument.id, load_date=load_date, slot_index=slot_index, exclude_use_id=cell_use.id
-    )
+    # --- writes: same-cell reschedule (a cross-day move onto the same loading well) ---
+    # The cell keeps its own well; the plate/acquire day come from the slot.
     dest_cycle = get_or_create_run(
         db,
         instrument=instrument,
         load_date=load_date,
-        plate_index=plate_index,
-        acquire_date=acquire_date,
+        plate_index=dest_plate_index,
+        acquire_date=dest_acquire_date,
         run_time_hours=run_time_hours,
         start_hour=start_hour,
         start_minute=start_minute,
@@ -1248,10 +1337,14 @@ def move_sample(
         raise PlacementError(409, f"slot already occupied: well {dest_well} is taken on this plate.")
 
     dest_run_batch_id = dest_cycle.run_batch_id
+    plate_deleted = False
     if not same_cycle:
-        _cleanup_emptied_plate(db, old_cycle)
+        plate_deleted, _run_deleted = _cleanup_emptied_plate(db, old_cycle)
+        if not plate_deleted:
+            _resequence_plate(db, old_cycle)  # the plate this sample left may now read out of order
 
     # Destination gains this well (its representative run time may now be longer).
+    _resequence_plate(db, dest_cycle)
     recompute_cycle_timing(db, dest_cycle)
 
     db.add(
@@ -1285,19 +1378,14 @@ def _move_sample_to_new_cell(
     start_hour: int,
     start_minute: int,
     cell_choice: dict | None,
-    cell_choice_was_derived: bool,
     actor: str | None,
 ) -> RunBatch:
     """The dragged sample's physical cell can't reach the destination - a different instrument
-    (a cell never crosses instruments) or a different carousel position - so hand the sample to
-    `cell_choice`'s resolved cell instead. One transaction: a new CellUse under the resolved
-    cell replaces this one, and the sample's status never bounces through "backlog" in between
-    (unlike a naive remove-then-place).
-
-    `cell_choice_was_derived` is threaded straight through to _resolve_cell_choice (see its
-    docstring): True when `cell_choice` is derive_best_cell's own answer for this move (the
-    caller sent no explicit override), which must never be re-blocked for a barcode clash here -
-    that would just reintroduce the skip-ahead bug the derive path was fixed to stop."""
+    (a cell never crosses instruments), a different day/plate, or an explicit cell override - so
+    hand the sample to `cell_choice`'s resolved cell instead. One transaction: a new CellUse
+    under the resolved cell replaces this one, and the sample's status never bounces through
+    "backlog" in between (unlike a naive remove-then-place). Both the plate the sample joins and
+    the plate it leaves are re-sequenced afterward so each still reads ascending."""
     old_cell = cell_use.cell
     if cell_choice is None:
         raise PlacementError(
@@ -1312,17 +1400,21 @@ def _move_sample_to_new_cell(
     # runs it is what `cell_choice` resolves. Plate/acquire come from the slot, or - for an
     # existing cell already loaded in this run - the sequential reuse Plate 2 (via _plate_target).
     well = WELLS[slot_index]
+    # exclude_use_id: the use being moved is about to be deleted and replaced, so it must not
+    # count as an existing use of the chosen cell in this run - otherwise re-adopting the moved
+    # sample's own cell (now allowed, since exclude_cell_id was removed) would misread as an
+    # intra-run reuse Plate 2.
     if mode == "existing":
         cell_id = cell_choice.get("cell_id")
         if cell_id is None:
             raise PlacementError(400, "cell_choice.cell_id is required when mode is 'existing'.")
         prelim = db.get(Cell, cell_id, options=[selectinload(Cell.cell_uses).selectinload(CellUse.cycle).selectinload(Cycle.run_batch)])
         plate_index, acquire_date = _plate_target(
-            db, cell=prelim, instrument_id=instrument.id, load_date=load_date, slot_index=slot_index
+            db, cell=prelim, instrument_id=instrument.id, load_date=load_date, slot_index=slot_index, exclude_use_id=cell_use.id
         )
     else:
         plate_index, acquire_date = _plate_target(
-            db, cell=None, instrument_id=instrument.id, load_date=load_date, slot_index=slot_index
+            db, cell=None, instrument_id=instrument.id, load_date=load_date, slot_index=slot_index, exclude_use_id=cell_use.id
         )
 
     dest_cycle = get_or_create_run(
@@ -1344,12 +1436,9 @@ def _move_sample_to_new_cell(
         instrument_id=instrument.id,
         instrument_serial=instrument.serial_number,
         well=well,
-        barcodes=barcodes,
         acquire_date=acquire_date,
         load_date=load_date,
         plate_index=plate_index,
-        external_id=cell_use.sample.external_id if cell_use.sample else None,
-        derived=cell_choice_was_derived,
     )
 
     old_cycle_id = old_cycle.id
@@ -1377,8 +1466,12 @@ def _move_sample_to_new_cell(
     db.flush()
 
     if old_cycle_id != dest_cycle.id:
-        _cleanup_emptied_plate(db, old_cycle)
+        plate_deleted, _run_deleted = _cleanup_emptied_plate(db, old_cycle)
+        if not plate_deleted:
+            _resequence_plate(db, old_cycle)  # the plate this sample left may now read out of order
 
+    # Lay the destination plate's wells onto its cells in ascending order (see _resequence_plate).
+    _resequence_plate(db, dest_cycle)
     recompute_cycle_timing(db, dest_cycle)
 
     now = utcnow()
@@ -1420,7 +1513,10 @@ def swap_samples(db: Session, *, cell_use_id_a: int, cell_use_id_b: int, actor: 
     _resolve_cell_choice's "existing cell" mode, which validates a *newly proposed* cell
     against the instrument being placed onto - see test_swap_cross_cell_cross_day_cross_
     instrument_exchanges_samples_only, which is deliberate, tested behaviour, not a gap).
-    Nothing left to re-validate beyond a barcode clash. Returns the affected run(s)."""
+    A resulting barcode clash never blocks the swap - it is surfaced afterward on the card
+    (has_barcode_clash -> StageOut.barcode_clash) for the user to rectify, the same warn-don't-
+    block rule every manual path now follows (lab-owner decision 2026-08-07). Returns the
+    affected run(s)."""
     if cell_use_id_a == cell_use_id_b:
         raise PlacementError(400, "Cannot swap a placement with itself.")
 
@@ -1457,34 +1553,13 @@ def swap_samples(db: Session, *, cell_use_id_a: int, cell_use_id_b: int, actor: 
         if use.sample_id is None:
             raise PlacementError(400, "Cannot swap a placement with no sample loaded.")
 
-    cell_a, cell_b = use_a.cell, use_b.cell
     sample_a_id, sample_b_id = use_a.sample_id, use_b.sample_id
     sample_a_barcodes, sample_b_barcodes = use_a.barcode_list, use_b.barcode_list
-    sample_a_ext = use_a.sample.external_id if use_a.sample else None
-    sample_b_ext = use_b.sample.external_id if use_b.sample else None
 
-    if cell_a.id != cell_b.id:
-        # Barcode clash is only a real concern crossing cells - two uses of the *same*
-        # physical cell already share one burned-barcode set, so a same-cell swap can
-        # never introduce a new clash. A clash against a burn from the SAME Container ID
-        # (another copy of a duplicate sample) is allowed - see cell_service.foreign_barcode_clash.
-        def owners_excluding(cell: Cell, exclude_use_id: int) -> dict[str, set[str]]:
-            uses = [cu for cu in cell.cell_uses if cu.id != exclude_use_id and cu.status != "cancelled"]
-            return barcode_owners(cell, uses)
-
-        if foreign_barcode_clash(owners_excluding(cell_a, use_a.id), sample_b_ext, sample_b_barcodes):
-            raise PlacementError(
-                409,
-                f"barcode conflict: moving this sample onto cell {cell_a.code} clashes with a "
-                f"barcode already burned there by a different sample.",
-            )
-        if foreign_barcode_clash(owners_excluding(cell_b, use_b.id), sample_a_ext, sample_a_barcodes):
-            raise PlacementError(
-                409,
-                f"barcode conflict: moving this sample onto cell {cell_b.code} clashes with a "
-                f"barcode already burned there by a different sample.",
-            )
-
+    # A barcode clash a swap would create is not blocked (warn, don't block): the exchange goes
+    # through and any clash surfaces on the card. Two uses of the same physical cell can't
+    # introduce a new clash anyway (they already share one burned-barcode set); a swap across
+    # cells can, and that is left to the has_barcode_clash flag to report.
     use_a.sample_id, use_b.sample_id = sample_b_id, sample_a_id
     for row in list(use_a.barcodes) + list(use_b.barcodes):
         db.delete(row)

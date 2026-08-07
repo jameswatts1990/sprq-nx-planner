@@ -431,20 +431,25 @@ export function ScheduleSection() {
         <i>Placing samples</i> above.
       </p>
       <p>
-        <b>Cells are always taken in tray order — a barcode clash is a warning, never a reason to skip one.</b> The
-        instrument breaks a tray&apos;s cells out strictly in position order; it can&apos;t reorder them around a
-        barcode clash, so RunNx doesn&apos;t either. A drop always lands on whichever cell the tray would naturally
-        give that slot, even if that cell already burned this exact barcode with a <i>different</i> sample. The
-        placement still succeeds — the card gets the hazard-striped <b>⚠ Clash</b> marking (see the Colour &amp;
-        Status Legend), and opening its slot detail explains why. While you&apos;re dragging, every empty well whose
-        natural next cell would clash lights up with a dashed red warning first, so you can see the danger zones
-        before you drop. If the clash shouldn&apos;t happen, move one of the two samples to a different slot, day, or
-        plate rather than relying on RunNx to route around it. A <b>duplicate</b> sample (same Container ID as an
-        earlier copy) is the one case that was never really a clash: it&apos;s allowed to reuse a cell that earlier
-        copy already used, since it&apos;s the same underlying sample either way — see the ↻ badge under{" "}
-        <i>Duplicate samples</i> in the Colour &amp; Status Legend. Naming one <i>specific</i> cell yourself (the cell
-        stub&apos;s &quot;choose a specific cell&quot; override) is different: there you do have other cells freely
-        available, so a clash there is refused outright instead.
+        <b>Cells fill in order and always read 1, 2, 3, 4 across the plate — a barcode clash is a warning, never a
+        reason to skip one.</b> Each well takes the <i>next available cell</i> — the one nearest its 108-hour
+        expiry, then the next in tray order — no matter which well you drop onto. So a lone drop onto well C runs on
+        cell 1, and if you then drop onto A and B the plate re-numbers itself so it reads A=1, B=2, C=3 — the cell
+        numbers on the stubs always ascend across the plate&apos;s wells, and reordering or moving a card keeps them
+        ascending. You&apos;ll never see an impossible order like A=1, B=4, C=3, D=2. The one thing that never
+        changes is the well a card sits in: RunNx re-numbers the underlying cells to keep them in order, but it never
+        moves your sample to a different well behind your back. A drop always lands on whichever cell the tray would
+        naturally give that slot, even if that cell already burned this exact barcode with a <i>different</i> sample —
+        the placement still succeeds and the card gets the hazard-striped <b>⚠ Clash</b> marking (see the Colour &amp;
+        Status Legend), with the slot detail explaining why. While you&apos;re dragging, every empty well whose natural
+        next cell would clash lights up with a dashed red warning first, so you can see the danger zones before you
+        drop. If a clash shouldn&apos;t happen, move one of the two samples to a different slot, day, or plate. This is
+        true on <b>every</b> manual action — a plain drop, naming a specific cell yourself (the cell stub&apos;s
+        &quot;choose a specific cell&quot; override), or swapping two placed samples: none of them is ever blocked for
+        a clash, they warn and let you decide. A <b>duplicate</b> sample (same Container ID as an earlier copy) is the
+        one case that was never really a clash: it&apos;s allowed to reuse a cell that earlier copy already used, since
+        it&apos;s the same underlying sample either way — see the ↻ badge under <i>Duplicate samples</i> in the Colour
+        &amp; Status Legend.
       </p>
       <p>
         <b>Dropping onto a day the tray has already expired loads a fresh one — automatically.</b> A cell can only be
@@ -510,8 +515,8 @@ export function ScheduleSection() {
         the same slot — a separate tray that runs the same day, rather than the next-day reuse the engine picked.{" "}
         <b>Choose a specific cell…</b> opens a searchable list of every open cell on the instrument, so you can force
         an exact one — most usefully to put a run&apos;s Plate 2 onto the <i>exact same</i> physical cells as its
-        Plate 1, if the auto-derived choice picked a different one for a well (a barcode clash or a closed 108-hour
-        window on the usual cell, for instance). It suggests that plate&apos;s own tray first. Either way, RunNx still
+        Plate 1, if the auto-derived choice picked a different one for a well (a closed 108-hour window or a used-up
+        cell, for instance). It suggests that plate&apos;s own tray first. Either way, RunNx still
         never lets one plate end up split across two physical trays — an invalid pick is rejected with a clear error
         rather than silently applied.
       </p>
@@ -519,26 +524,24 @@ export function ScheduleSection() {
         <b>Dragging an already-placed sample to a new slot moves it</b> — to any open slot on any instrument and
         any day, not just the one it&apos;s already on. A sample doesn&apos;t get physically loaded onto anything
         until its run is confirmed loaded; until then it&apos;s just a plan, so moving it anywhere valid never needs
-        a confirmation step or a picker. Because a grid slot is a loading <i>position</i> while a physical cell is
-        fixed to its own tray position for life, moving a sample to a <i>different</i> slot hands it to whichever
-        cell the instrument would reach for there — picked automatically, reuse-before-new — so the card&apos;s stub
-        then names <i>that</i> cell, not the one it came from. Moving a sample to the <i>same</i> slot on a different
-        day is the exception: that&apos;s a plain reschedule that keeps its own cell. This is what keeps a fresh cell
-        in tray order — slot A01 keeps showing cell 1 while cell 1 still has capacity, and you can&apos;t shuffle a
-        later cell into an earlier slot ahead of an available one. Dropping a sample back onto the exact slot it came
-        from does nothing. Dropping an already-placed sample onto a slot that already holds a <i>different</i> sample{" "}
+        a confirmation step or a picker. Reordering cards <i>within one day&apos;s plate</i> just moves the sample to the
+        new well and re-numbers the plate&apos;s cells so it still reads 1, 2, 3, 4 in order — no cell is churned and
+        no other sample is disturbed. Moving a sample to a <i>different day or instrument</i> hands it to whichever
+        cell the instrument would reach for at the destination (next-available, reuse-before-new), so the card&apos;s
+        stub names that cell. Either way the destination plate always stays in ascending cell order — you can never
+        end up with a later cell sitting in an earlier well ahead of an available one. Dropping a sample back onto the
+        exact slot it came from does nothing. Dropping an already-placed sample onto a slot that already holds a <i>different</i> sample{" "}
         <b>swaps the two</b> — they trade places, and a swap preview highlights the target as you hover. Dropping a{" "}
         <i>backlog</i> sample onto an occupied slot, by contrast, is <b>rejected</b> — it never overwrites what&apos;s
         there: hovering shows a dashed red outline instead of the swap preview, and letting go shows a short note
         explaining the slot is already taken rather than silently doing nothing.
       </p>
       <p>
-        <b>A plain place or move that would clash a barcode is allowed, not rejected</b> — see <b>Cells are always
-        taken in tray order</b> above. <b>Swapping</b> two placed samples, or naming a specific cell yourself (the
-        cell stub&apos;s &quot;choose a specific cell&quot; override), is different: both have other cells freely
-        available, so a clash there is <b>rejected</b> outright and nothing changes. The well flashes red for a few
-        seconds so it&apos;s obvious <i>where</i> the rejection landed, alongside a red banner above the schedule
-        explaining <i>why</i> (see <b>Rejected drop</b> in the Legend tab).
+        <b>No manual action is ever blocked by a barcode clash</b> — a plain place, a move, a swap, and naming a
+        specific cell yourself all go through and simply flag the clash on the card (the <b>⚠ Clash</b> marking) for
+        you to check and rectify. See <b>Cells fill in order</b> above. The only things that genuinely stop a
+        placement are a cell with no uses left (its 3-use cap) or an expired 108-hour window — real, physical limits,
+        not a clash.
       </p>
       <p>
         <b>Auto-schedule result</b> summarises the outcome, e.g. &quot;12 placed · 3 unplaced (TRAC-2-26296,

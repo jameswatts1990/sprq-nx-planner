@@ -16,6 +16,7 @@ from app.models.schedule import CellUse, Cycle, RunBatch
 from app.schemas.run import PlateOut, RunOut, StageOut
 from app.serializers import duplicate_groups
 from app.services.cell_service import (
+    active_uses,
     has_barcode_clash,
     has_failed_use,
     is_duplicate_cell_reuse,
@@ -53,17 +54,25 @@ RUN_LOAD_OPTIONS = [
 
 
 def _use_number(cell_use: CellUse) -> int:
-    """1-based position of this cell_use among all of its cell's loads, in true
-    chronological (acquire_date) order - what the Use 1/2/3 grid colour/legend refers to.
-    Grouping by cell here (rather than by well/slot_index) is what lets a reused cell's
-    wells share a colour. CellUse.id is only a tie-break, not the primary key: a batch
-    auto-fill spanning multiple instruments can commit rows in an order that doesn't
-    match any one cell's own date sequence (see auto_fill_service.py's persist loop)."""
+    """1-based position of this cell_use among its cell's ACTIVE (non-cancelled) loads, in true
+    chronological (acquire_date) order - what the Use 1/2/3 grid colour/legend refers to. Only
+    active uses count toward a cell's capacity (see cell_service.active_uses / derive_cell_state),
+    so a cancelled "Blocked" Stop-cell marker sitting chronologically between two real uses must
+    NOT inflate the later one's Use number - counting it used to make a card read "Use 3 of 3",
+    even "Use 4 of 3", on a cell with only 2 real uses. Grouping by cell here (rather than by
+    well/slot_index) is what lets a reused cell's wells share a colour. CellUse.id is only a
+    tie-break, not the primary key: a batch auto-fill spanning multiple instruments can commit
+    rows in an order that doesn't match any one cell's own date sequence (see
+    auto_fill_service.py's persist loop)."""
     cell = cell_use.cell
     if cell is None:
         return 1
-    ordered = sorted(cell.cell_uses, key=use_sort_key)
-    return ordered.index(cell_use) + 1
+    ordered = sorted(active_uses(cell), key=use_sort_key)
+    if cell_use in ordered:
+        return ordered.index(cell_use) + 1
+    # A cancelled ("Blocked") marker isn't a real acquisition and isn't in active_uses - show it
+    # after the cell's real uses rather than raising on .index().
+    return len(ordered) + 1
 
 
 def _slot_index(plate_index: int, well: str) -> int:
