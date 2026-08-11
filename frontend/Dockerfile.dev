@@ -1,4 +1,4 @@
-FROM node:20-alpine
+FROM node:25-alpine
 WORKDIR /app
 # source is bind-mounted by docker-compose.dev.yml; install runs at container start
 # so it always matches whatever package.json is currently on disk.
