@@ -5,11 +5,13 @@ real production launch (see CLAUDE.md "Help Tab Maintenance" /
 RunNx Admin notes).
 """
 
+import json
+from datetime import date, datetime
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
-from sqlalchemy import Table, delete, func, select, update
+from sqlalchemy import JSON, Column, Table, delete, func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
@@ -111,6 +113,12 @@ class RowPage(BaseModel):
     page_size: int
 
 
+class UpdateRowRequest(BaseModel):
+    # {column: new_value}. Only the columns present are written; a JSON null clears the
+    # column (subject to the DB's NOT NULL constraints, which still apply and surface as a 409).
+    values: dict[str, Any]
+
+
 class ClearResult(BaseModel):
     table: str
     deleted: int
@@ -196,6 +204,86 @@ def delete_row(table_name: str, row_id: str, db: SessionDep) -> Response:
     if result.rowcount == 0:
         raise HTTPException(404, f"No row with {pk_col.name}={row_id} in '{table_name}'")
     return Response(status_code=204)
+
+
+def _coerce_value(column: Column, value: Any) -> Any:
+    """Turn a JSON value from the edit form into something SQLAlchemy can write to `column`.
+    Text inputs arrive as strings, so numeric/boolean/JSON/datetime columns need coercing;
+    an empty field arrives as a JSON null and clears the column. A bad value (e.g. "abc"
+    into an int column) is a 400, not a 500."""
+    if value is None:
+        return None
+    if isinstance(column.type, JSON):
+        if isinstance(value, str):
+            try:
+                return json.loads(value)
+            except json.JSONDecodeError as exc:
+                raise HTTPException(400, f"Column '{column.name}' expects valid JSON: {exc}") from exc
+        return value
+    try:
+        py = column.type.python_type
+    except NotImplementedError:
+        return value
+    if isinstance(value, py):
+        return value
+    if py is bool:
+        if isinstance(value, str):
+            return value.strip().lower() in ("true", "1", "yes", "on")
+        return bool(value)
+    if py in (int, float):
+        try:
+            return py(value)
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(400, f"Column '{column.name}' expects a {py.__name__}: {value!r}") from exc
+    if py in (datetime, date):
+        if isinstance(value, str):
+            try:
+                parsed = datetime.fromisoformat(value)
+            except ValueError as exc:
+                raise HTTPException(400, f"Column '{column.name}' expects an ISO date/time: {value!r}") from exc
+            return parsed.date() if py is date else parsed
+        return value
+    return str(value)
+
+
+@router.patch("/tables/{table_name}/rows/{row_id}")
+def update_row(table_name: str, row_id: str, payload: UpdateRowRequest, db: SessionDep) -> dict[str, Any]:
+    """Write new values to individual columns of one row, identified by its single-column
+    primary key. Like the delete/clear tools, this bypasses every service-layer invariant
+    and does no derived-state reconciliation - it's a raw column edit. Primary-key columns
+    can't be edited (change the identity of a row and its dependents silently detach)."""
+    table = _get_table(table_name)
+    pk_cols = list(table.primary_key.columns)
+    if len(pk_cols) != 1:
+        raise HTTPException(400, f"Table '{table_name}' does not have a single-column primary key")
+    pk_col = pk_cols[0]
+    try:
+        typed_id = pk_col.type.python_type(row_id)
+    except (ValueError, TypeError) as exc:
+        raise HTTPException(400, f"Invalid id '{row_id}' for primary key column '{pk_col.name}'") from exc
+
+    if not payload.values:
+        raise HTTPException(400, "No columns to update")
+    pk_names = {c.name for c in pk_cols}
+    updates: dict[str, Any] = {}
+    for name, raw in payload.values.items():
+        column = table.columns.get(name)
+        if column is None:
+            raise HTTPException(400, f"Unknown column '{name}' in table '{table_name}'")
+        if name in pk_names:
+            raise HTTPException(400, f"Cannot edit primary-key column '{name}'")
+        updates[name] = _coerce_value(column, raw)
+
+    try:
+        result = db.execute(update(table).where(pk_col == typed_id).values(**updates))
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(409, f"Cannot update row: {exc.orig}") from exc
+    if result.rowcount == 0:
+        raise HTTPException(404, f"No row with {pk_col.name}={row_id} in '{table_name}'")
+    row = db.execute(select(table).where(pk_col == typed_id)).one()
+    return dict(row._mapping)
 
 
 @router.post("/clear-backlog")

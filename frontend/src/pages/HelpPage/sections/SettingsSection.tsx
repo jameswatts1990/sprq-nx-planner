@@ -89,7 +89,14 @@ export function SettingsSection() {
         <dt>Browsing tables</dt>
         <dd>
           The table list shows every database table with its row count. Selecting one shows its rows 50 at a time, with
-          a <b>Delete</b> button on each row.
+          an <b>Edit</b> and a <b>Delete</b> button on each row.
+        </dd>
+        <dt>Edit (a single row)</dt>
+        <dd>
+          Opens a form with every column of that row (except its ID). Change any values and <b>Save changes</b> — only
+          the fields you actually changed are written. Leaving a field empty sets it to null. Like the other developer
+          tools, this writes straight to the row and skips the app&apos;s normal validation, so a value the app would
+          otherwise reject can be saved; use it to correct data that was imported incorrectly, not as an everyday edit.
         </dd>
         <dt>Delete (a single row)</dt>
         <dd>Asks for confirmation, then permanently removes that one row. This can&apos;t be undone.</dd>

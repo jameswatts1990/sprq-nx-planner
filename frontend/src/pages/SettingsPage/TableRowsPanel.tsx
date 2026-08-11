@@ -8,6 +8,7 @@ import { Modal, ModalActions } from "@/components/ui/Modal";
 import { Note } from "@/components/ui/Note";
 
 import { ClearTableModal } from "./ClearTableModal";
+import { RowEditModal } from "./RowEditModal";
 import styles from "./SettingsPage.module.css";
 
 const PAGE_SIZE = 50;
@@ -25,6 +26,7 @@ export interface TableRowsPanelProps {
 export function TableRowsPanel({ table }: TableRowsPanelProps) {
   const [page, setPage] = useState(1);
   const [rowPendingDelete, setRowPendingDelete] = useState<string | null>(null);
+  const [rowPendingEdit, setRowPendingEdit] = useState<Record<string, unknown> | null>(null);
   const [clearModalOpen, setClearModalOpen] = useState(false);
   const queryClient = useQueryClient();
 
@@ -42,6 +44,15 @@ export function TableRowsPanel({ table }: TableRowsPanelProps) {
     mutationFn: (rowId: string) => adminApi.deleteRow(table, rowId),
     onSuccess: () => {
       setRowPendingDelete(null);
+      invalidate();
+    },
+  });
+
+  const editMutation = useMutation({
+    mutationFn: ({ rowId, values }: { rowId: string; values: Record<string, unknown> }) =>
+      adminApi.updateRow(table, rowId, values),
+    onSuccess: () => {
+      setRowPendingEdit(null);
       invalidate();
     },
   });
@@ -114,11 +125,23 @@ export function TableRowsPanel({ table }: TableRowsPanelProps) {
                           {formatCellValue(row[c])}
                         </td>
                       ))}
-                      <td>
+                      <td className={styles.rowActions}>
                         {pkColumn && (
-                          <Button size="sm" variant="ghost" onClick={() => setRowPendingDelete(rowId)}>
-                            Delete
-                          </Button>
+                          <>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => {
+                                editMutation.reset();
+                                setRowPendingEdit(row);
+                              }}
+                            >
+                              Edit
+                            </Button>
+                            <Button size="sm" variant="ghost" onClick={() => setRowPendingDelete(rowId)}>
+                              Delete
+                            </Button>
+                          </>
                         )}
                       </td>
                     </tr>
@@ -166,6 +189,19 @@ export function TableRowsPanel({ table }: TableRowsPanelProps) {
             </Button>
           </ModalActions>
         </Modal>
+      )}
+
+      {rowPendingEdit !== null && pkColumn && (
+        <RowEditModal
+          table={table}
+          columns={columns}
+          primaryKey={data?.primary_key ?? [pkColumn]}
+          row={rowPendingEdit}
+          pending={editMutation.isPending}
+          error={editMutation.error}
+          onCancel={() => setRowPendingEdit(null)}
+          onSave={(values) => editMutation.mutate({ rowId: String(rowPendingEdit[pkColumn]), values })}
+        />
       )}
 
       {clearModalOpen && (

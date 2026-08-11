@@ -205,6 +205,68 @@ def test_deleting_a_cell_still_in_use_is_blocked_not_orphaned(client):
     assert resp.status_code == 409
 
 
+def test_update_row_edits_a_string_column(client):
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1"})
+    sample_id = _sid(client, "A1")
+
+    resp = client.patch(
+        f"/api/admin/tables/samples/rows/{sample_id}",
+        json={"values": {"external_id": "A1-corrected"}},
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["external_id"] == "A1-corrected"
+    assert client.get(f"/api/samples/{sample_id}").json()["external_id"] == "A1-corrected"
+
+
+def test_update_row_coerces_numeric_text_and_clears_with_null(client):
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1"})
+    sample_id = _sid(client, "A1")
+
+    # A numeric column arrives from the form as a string and is coerced.
+    typed = client.patch(
+        f"/api/admin/tables/samples/rows/{sample_id}", json={"values": {"insert_size_bp": "4200"}}
+    )
+    assert typed.status_code == 200, typed.text
+    assert typed.json()["insert_size_bp"] == 4200
+
+    # An empty field arrives as null and clears a nullable column.
+    cleared = client.patch(
+        f"/api/admin/tables/samples/rows/{sample_id}", json={"values": {"insert_size_bp": None}}
+    )
+    assert cleared.status_code == 200
+    assert cleared.json()["insert_size_bp"] is None
+
+
+def test_update_row_bad_numeric_value_is_400(client):
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1"})
+    sample_id = _sid(client, "A1")
+    resp = client.patch(
+        f"/api/admin/tables/samples/rows/{sample_id}", json={"values": {"insert_size_bp": "not-a-number"}}
+    )
+    assert resp.status_code == 400
+
+
+def test_update_row_rejects_pk_and_unknown_columns(client):
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1"})
+    sample_id = _sid(client, "A1")
+
+    assert client.patch(
+        f"/api/admin/tables/samples/rows/{sample_id}", json={"values": {"id": 999}}
+    ).status_code == 400
+    assert client.patch(
+        f"/api/admin/tables/samples/rows/{sample_id}", json={"values": {"nope": "x"}}
+    ).status_code == 400
+
+
+def test_update_row_unknown_table_and_missing_row(client):
+    assert client.patch(
+        "/api/admin/tables/not_a_real_table/rows/1", json={"values": {"x": 1}}
+    ).status_code == 404
+    assert client.patch(
+        "/api/admin/tables/samples/rows/999999", json={"values": {"external_id": "z"}}
+    ).status_code == 404
+
+
 def test_deleting_a_sample_still_in_use_is_blocked_not_orphaned(client):
     client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1"})
     (mon,) = _weekdays(1)
