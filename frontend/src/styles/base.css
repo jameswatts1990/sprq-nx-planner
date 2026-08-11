@@ -28,6 +28,15 @@ h3 {
      wrapped nav on a narrow viewport still gets the right offset. */
   padding: var(--topbar-h, 69px) 22px 64px;
 }
+/* Schedule is a dense, information-heavy grid whose columns are a fixed width: capped at
+   1720px it can't grow into a wide screen, leaving the fixed grid + docked Backlog stranded
+   against a big centering gap. On this route only, drop the cap so the content spans the full
+   viewport (just the 22px gutter each side) - the weekly grid then flex-grows to widen its day
+   columns, and a left- or right-docked Backlog sits symmetrically against the true screen edge
+   rather than the 1720 boundary (AppShell adds .wrap-full on /schedule). */
+.wrap-full {
+  max-width: none;
+}
 @media print {
   /* The nav is hidden when printing, so drop the offset that reserves space for it. */
   .wrap {

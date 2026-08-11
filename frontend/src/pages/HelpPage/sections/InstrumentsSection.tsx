@@ -67,7 +67,8 @@ export function InstrumentsSection() {
           cell up to <b>10h</b> for a full tray of four (prep is 4h, staggered 2h per cell), and up to <b>~38h</b> for
           a second tray, whose cells can&apos;t start prep until the first tray frees the sequencing lanes. A run that
           loads a <b>reused</b> cell (its Use 2 or 3) frees ~45 min later, as reuse adds a short on-board wash to that
-          cell&apos;s prep. It disappears once every cell has finished prep.
+          cell&apos;s prep. It disappears once every cell has finished prep. All load, lock and turnaround times across
+          the app are shown in your <b>local (lab) time</b>, matching the instrument&apos;s own clock.
         </li>
         <li>
           <b>Stage columns</b> — each run in progress is a row, labelled by its run name, with its cells shown as

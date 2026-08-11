@@ -107,16 +107,47 @@ export function formatShortDateUTC(date: Date): string {
   return date.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
 }
 
-/** Formats an ISO datetime as "HH:MM, D Mon" (UTC) - used for lock_until displays. */
-export function formatShortDateTimeUTC(isoDateTime: string): string {
+/**
+ * Formats an ISO datetime as "HH:MM, D Mon" in the viewer's LOCAL timezone - used for lock_until
+ * and other turnaround displays. The lab works on the instrument's own (local) wall clock, and
+ * the physical Revio's lock countdown is local, so a "locked until" time must read against that
+ * clock, not UTC - otherwise, in British Summer Time, the grid reads an hour behind both the
+ * instrument screen's countdown and the machine in the lab. Stored/computed times stay UTC; this
+ * is purely the presentation boundary, matching the browser-local `toLocaleString` the
+ * History/Cells pages already use.
+ */
+export function formatShortDateTimeLocal(isoDateTime: string): string {
   const d = new Date(isoDateTime);
-  const hh = String(d.getUTCHours()).padStart(2, "0");
-  const mm = String(d.getUTCMinutes()).padStart(2, "0");
-  return `${hh}:${mm}, ${formatShortDateUTC(d)}`;
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  const date = d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  return `${hh}:${mm}, ${date}`;
 }
 
-/** Formats an ISO datetime as just "HH:MM" (UTC) - used for a run's load/start time. */
-export function formatTimeUTC(isoDateTime: string): string {
+/** Formats an ISO datetime as just "HH:MM" in the viewer's LOCAL timezone - a run's load/start
+ *  time against the lab wall clock. See formatShortDateTimeLocal. */
+export function formatTimeLocal(isoDateTime: string): string {
   const d = new Date(isoDateTime);
-  return `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+/**
+ * Converts an operator-picked LOCAL wall-clock load time on a calendar date to the UTC
+ * hour/minute the backend stores. The backend's `start_hour`/`start_minute` contract is UTC and
+ * the whole scheduling engine computes in UTC, but the lab picks load times on the instrument's
+ * own (local) clock - so the picker converts here, at the boundary, and every stored time stays a
+ * correct absolute instant. DST is handled automatically by the local `Date` constructor.
+ *
+ * NOTE: Auto Schedule sends ONE hour for a whole date range and converts using the range's
+ * earliest day, so a range that straddles a DST change could place runs on the far side an hour
+ * off - a rare, accepted edge (weekday loads, twice a year).
+ */
+export function localWallTimeToUtcParts(
+  isoDate: string,
+  hour: number,
+  minute: number,
+): { hour: number; minute: number } {
+  const [y, m, d] = isoDate.split("-").map(Number);
+  const local = new Date(y, m - 1, d, hour, minute);
+  return { hour: local.getUTCHours(), minute: local.getUTCMinutes() };
 }

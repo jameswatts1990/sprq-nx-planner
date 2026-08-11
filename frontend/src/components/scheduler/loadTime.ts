@@ -1,15 +1,18 @@
 /** Helpers for the free-text "Revio Loaded at:" time field in the Confirm-Revio-loaded
- * modal. The operator types the real load time as hh:mm (24-hour); we validate it before
- * letting the run lock, and parse it into the hour/minute the status update expects. Times
- * are treated as UTC to match the rest of the scheduler's clock handling. */
+ * modal. The operator types the real load time as hh:mm (24-hour) on the lab's own (local) wall
+ * clock; we validate it before letting the run lock, and parse it into the hour/minute the
+ * caller converts to UTC (localWallTimeToUtcParts) before sending - the backend clock is UTC,
+ * the lab clock is local. */
 
 /** Accepts h:mm or hh:mm, 00:00-23:59. */
 const LOAD_TIME_RE = /^(\d{1,2}):(\d{2})$/;
 
-/** Format a run's planned start into the hh:mm string the field prefills with. */
+/** Format a run's planned start into the hh:mm string the field prefills with, in the viewer's
+ *  LOCAL timezone (the lab wall clock) - so the prefilled value matches what the operator would
+ *  read off the instrument, not a UTC-shifted time. */
 export function formatLoadTime(date: Date): string {
-  const hh = String(date.getUTCHours()).padStart(2, "0");
-  const mm = String(date.getUTCMinutes()).padStart(2, "0");
+  const hh = String(date.getHours()).padStart(2, "0");
+  const mm = String(date.getMinutes()).padStart(2, "0");
   return `${hh}:${mm}`;
 }
 

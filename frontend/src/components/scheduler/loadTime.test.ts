@@ -3,10 +3,14 @@ import { describe, expect, it } from "vitest";
 import { formatLoadTime, isValidLoadTime, parseLoadTime } from "./loadTime";
 
 describe("Confirm-Revio-loaded time field", () => {
-  it("formats a run's planned start as hh:mm (UTC)", () => {
-    expect(formatLoadTime(new Date("2026-07-27T09:05:00Z"))).toBe("09:05");
-    expect(formatLoadTime(new Date("2026-07-27T00:00:00Z"))).toBe("00:00");
-    expect(formatLoadTime(new Date("2026-07-27T23:59:00Z"))).toBe("23:59");
+  it("formats a run's planned start as hh:mm on the local (lab) wall clock", () => {
+    // Derive the expectation from local getters so this holds regardless of the runner's TZ:
+    // the field prefills with what the operator would read off the instrument's own clock.
+    for (const iso of ["2026-07-27T09:05:00Z", "2026-01-15T00:00:00Z", "2026-07-27T23:59:00Z"]) {
+      const d = new Date(iso);
+      const expected = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+      expect(formatLoadTime(d)).toBe(expected);
+    }
   });
 
   it("accepts valid 24-hour times as h:mm or hh:mm", () => {

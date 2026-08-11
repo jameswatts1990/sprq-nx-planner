@@ -818,7 +818,8 @@ export function ScheduleSection() {
         <li>
           A teal <b>🔒 padlock</b> chip appears next to the status on every day the instrument is reserved by a run —
           its own load day and any later day still held by its lock. Hover or focus it and it expands to reveal the
-          exact date/time the instrument frees up. The day the reservation actually <i>ends</i> stays open to load —
+          exact date/time the instrument frees up, shown in your <b>local (lab) time</b> — the same clock as the
+          instrument screen&apos;s own countdown and the machine in the lab. The day the reservation actually <i>ends</i> stays open to load —
           the instrument frees up partway through it, so you can still schedule a run there and it simply starts
           when the instrument is free (its start time shifts to the clear time). Only days the lock covers
           end-to-end show the padlock with no droppable slots.

@@ -17,9 +17,9 @@ import { Note } from "@/components/ui/Note";
 import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
 import type { PlateOut, RunOut, StageOut } from "@/types/schedule";
 import {
-  formatShortDateTimeUTC,
+  formatShortDateTimeLocal,
   formatShortDateUTC,
-  formatTimeUTC,
+  formatTimeLocal,
   parseDateOnly,
   shortWeekdayUTC,
 } from "@/utils/calendarDates";
@@ -115,7 +115,7 @@ export function RunDetailPage() {
         </span>
         {plate1 && (
           <span>
-            Loads &amp; starts <b>{formatShortDateTimeUTC(plate1.actual_start_at ?? plate1.planned_start_at)}</b>
+            Loads &amp; starts <b>{formatShortDateTimeLocal(plate1.actual_start_at ?? plate1.planned_start_at)}</b>
           </span>
         )}
         <span>
@@ -154,7 +154,7 @@ export function RunDetailPage() {
                       className={styles.acquireTag}
                       title={
                         plate!.is_reuse
-                          ? `Runs after Plate 1's movie finishes and the cells are washed — starts ${formatShortDateTimeUTC(plate!.planned_start_at)}.`
+                          ? `Runs after Plate 1's movie finishes and the cells are washed — starts ${formatShortDateTimeLocal(plate!.planned_start_at)}.`
                           : `Plate ${plate!.plate_index} acquires on ${shortWeekdayUTC(parseDateOnly(plate!.acquire_date))} ${formatShortDateUTC(parseDateOnly(plate!.acquire_date))}`
                       }
                     >
@@ -232,13 +232,13 @@ function PlateTiming({ plate }: { plate: PlateOut }) {
   return (
     <span className={styles.timing}>
       <span title="Planned start → end of this plate's movie">
-        {formatShortDateTimeUTC(plate.planned_start_at)} → {formatTimeUTC(plate.planned_end_at)}
+        {formatShortDateTimeLocal(plate.planned_start_at)} → {formatTimeLocal(plate.planned_end_at)}
       </span>
       <span className={styles.movie}>{plate.movie_hours} h</span>
       {plate.actual_start_at && (
         <span className={styles.actual} title="Actual start → end recorded on the instrument">
-          actual {formatShortDateTimeUTC(plate.actual_start_at)}
-          {plate.actual_end_at ? ` → ${formatTimeUTC(plate.actual_end_at)}` : ""}
+          actual {formatShortDateTimeLocal(plate.actual_start_at)}
+          {plate.actual_end_at ? ` → ${formatTimeLocal(plate.actual_end_at)}` : ""}
         </span>
       )}
     </span>

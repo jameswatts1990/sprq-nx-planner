@@ -8,7 +8,7 @@ import { settingsApi, type SampleDefaults } from "@/api/settings";
 import { Button } from "@/components/ui/Button";
 import { Note } from "@/components/ui/Note";
 import type { BatchSheetPlateOut, BatchSheetRunOut, BatchSheetWellOut } from "@/types/batchSheet";
-import { formatShortDateTimeUTC, parseDateOnly } from "@/utils/calendarDates";
+import { formatShortDateTimeLocal, parseDateOnly } from "@/utils/calendarDates";
 import { plateWellFromSlot } from "@/utils/plateWell";
 import { runLabel } from "@/utils/runLabel";
 
@@ -75,7 +75,7 @@ function WellRow({ well, defaults }: { well: BatchSheetWellOut; defaults?: Sampl
           Use {well.use_number} of 3
           {!well.window_breached &&
             well.cell_window_deadline &&
-            ` · reuse by ${formatShortDateTimeUTC(well.cell_window_deadline)}`}
+            ` · reuse by ${formatShortDateTimeLocal(well.cell_window_deadline)}`}
         </div>
         {well.window_breached && <div className={styles.warn}>⚠ 108h window expired</div>}
       </td>

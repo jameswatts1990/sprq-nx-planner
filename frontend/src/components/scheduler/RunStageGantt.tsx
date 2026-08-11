@@ -13,10 +13,11 @@ const HOUR_MS = 3_600_000;
 const TICK_STEPS_H = [2, 4, 6, 8, 12, 24];
 const MAX_TICKS = 7;
 
-/** "HH:MM" (UTC) for an epoch-ms instant - matches the app's UTC clock everywhere else. */
+/** "HH:MM" in the viewer's LOCAL timezone for an epoch-ms instant - the axis reads against the
+ *  lab wall clock, matching the grid's "locked until" and the instrument screen's countdown. */
 function hhmm(ms: number): string {
   const d = new Date(ms);
-  return `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
 /** The app's shared "live / now" glyph: a rotating 270° arc (matches InstrumentTrayMap's NOW

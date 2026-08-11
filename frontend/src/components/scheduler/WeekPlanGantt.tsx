@@ -20,12 +20,13 @@ import styles from "./WeekPlanGantt.module.css";
  *  converted from hours to milliseconds since this component works in absolute time. */
 const EPSILON_MS = 36_000;
 
-/** "HH:MM" (UTC) for an epoch-ms instant. Deliberately a private copy of RunStageGantt's own
- *  `hhmm` (see that file) rather than a shared import - the two components must never be forced
- *  to change together just because they happen to format time the same way today. */
+/** "HH:MM" in the viewer's LOCAL timezone (the lab wall clock) for an epoch-ms instant.
+ *  Deliberately a private copy of RunStageGantt's own `hhmm` (see that file) rather than a shared
+ *  import - the two components must never be forced to change together just because they happen
+ *  to format time the same way today. */
 function hhmm(ms: number): string {
   const d = new Date(ms);
-  return `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
 /** The app's shared "live / now" glyph (a rotating 270deg arc). Deliberately a private copy of

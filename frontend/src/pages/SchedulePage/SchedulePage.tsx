@@ -39,7 +39,7 @@ import { Button } from "@/components/ui/Button";
 import { Note } from "@/components/ui/Note";
 import type { RunOut, SlotIndex, StageOut } from "@/types/schedule";
 import type { GridCellRef, RunDesignState } from "@/types/schedulerGrid";
-import { addDaysUTC, formatShortDateUTC, isWeekendUTC, parseDateOnly, todayIsoUTC, toIsoDateUTC } from "@/utils/calendarDates";
+import { addDaysUTC, formatShortDateUTC, isWeekendUTC, localWallTimeToUtcParts, parseDateOnly, todayIsoUTC, toIsoDateUTC } from "@/utils/calendarDates";
 
 import { AutoscheduleDrawer } from "./AutoscheduleDrawer";
 import { BacklogPanel, readBacklogOpenPref, writeBacklogOpenPref } from "./BacklogPanel";
@@ -900,14 +900,17 @@ export function SchedulePage() {
             setPendingLoadTime(null);
             setRunDesign((rd) => ({ ...rd, load_hour: hour })); // remember for the next drop / auto-fill
             dnd.setPlacingSlotKey(slotKey(p.instrument_serial, p.load_date, p.slot_index));
+            // The dial is the lab's local wall-clock hour; convert to the UTC hour/minute the
+            // backend stores (see localWallTimeToUtcParts).
+            const utc = localWallTimeToUtcParts(p.load_date, hour, 0);
             actions.autoPlace.mutate(
               {
                 sample_id: p.sample_id,
                 instrument_serial: p.instrument_serial,
                 load_date: p.load_date,
                 slot_index: p.slot_index,
-                start_hour: hour,
-                start_minute: 0,
+                start_hour: utc.hour,
+                start_minute: utc.minute,
               },
               { onSettled: () => dnd.setPlacingSlotKey(null) },
             );

@@ -11,7 +11,7 @@ import { smallInsertReuseWarning, useInsertSizeThreshold } from "@/hooks/useInse
 import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
 import type { RunOut, SlotIndex, StageOut } from "@/types/schedule";
 import type { GridCellRef, RunDesignState } from "@/types/schedulerGrid";
-import { formatShortDateTimeUTC, formatTimeUTC } from "@/utils/calendarDates";
+import { formatShortDateTimeLocal, formatTimeLocal, localWallTimeToUtcParts } from "@/utils/calendarDates";
 
 export interface AccordionNote {
   tone: NoteTone;
@@ -34,9 +34,9 @@ function placementAdvisoryText(run: RunOut, insertThreshold: number): string | n
   const parts: string[] = [];
   if (run.starts_later_than_requested && run.effective_start_at) {
     const plate1 = run.plates.find((p) => p.plate_index === 1) ?? run.plates[0];
-    const loaded = plate1 ? formatTimeUTC(plate1.planned_start_at) : "your chosen time";
+    const loaded = plate1 ? formatTimeLocal(plate1.planned_start_at) : "your chosen time";
     parts.push(
-      `${run.instrument_serial} is busy — this run loads at ${loaded}, but its cells won't start sequencing until ${formatShortDateTimeUTC(run.effective_start_at)}.`,
+      `${run.instrument_serial} is busy — this run loads at ${loaded}, but its cells won't start sequencing until ${formatShortDateTimeLocal(run.effective_start_at)}.`,
     );
   }
   // Advisory only, never blocks a placement - a distinct clock from the instrument-busy check
@@ -286,8 +286,16 @@ export function useScheduleActions({
         movie_times: runDesign.movie_times,
         objective: runDesign.objective,
         cells_per_day: runDesign.cells_per_day,
-        // Every run this batch creates loads/starts at the Run design load hour.
-        start_hour: runDesign.load_hour,
+        // Every run this batch creates loads/starts at the Run design load hour, picked on the
+        // lab's local wall clock. Convert to the UTC hour/minute the backend stores, using the
+        // earliest selected day for the offset (see localWallTimeToUtcParts's DST-range note).
+        ...(() => {
+          const anchor = selectedCells.map((c) => c.load_date).sort()[0];
+          const utc = anchor
+            ? localWallTimeToUtcParts(anchor, runDesign.load_hour, 0)
+            : { hour: runDesign.load_hour, minute: 0 };
+          return { start_hour: utc.hour, start_minute: utc.minute };
+        })(),
       }),
     onSuccess: (res) => {
       invalidateScheduleRelated(queryClient);

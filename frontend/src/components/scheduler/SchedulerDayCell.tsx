@@ -10,7 +10,7 @@ import { formatLoadTime, isValidLoadTime, parseLoadTime } from "@/components/sch
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
 import type { SlotIndex, RunOut, StageOut } from "@/types/schedule";
-import { formatShortDateTimeUTC, formatShortDateUTC, formatTimeUTC, parseDateOnly, shortWeekdayUTC } from "@/utils/calendarDates";
+import { formatShortDateTimeLocal, formatShortDateUTC, formatTimeLocal, localWallTimeToUtcParts, parseDateOnly, shortWeekdayUTC } from "@/utils/calendarDates";
 import { runLabel } from "@/utils/runLabel";
 
 import { PLATE_INDICES, slotKey } from "./gridKeys";
@@ -72,7 +72,7 @@ export interface SchedulerDayCellProps {
  * expand reachable by keyboard; `aria-label` carries the full text for screen readers
  * regardless of hover state. */
 function LockChip({ until }: { until: string }) {
-  const time = formatShortDateTimeUTC(until);
+  const time = formatShortDateTimeLocal(until);
   return (
     <span className={styles.lockChip} tabIndex={0} aria-label={`Locked until ${time}`}>
       <svg viewBox="0 0 16 16" width="10" height="10" fill="currentColor" aria-hidden="true" className={styles.lockChipIcon}>
@@ -295,9 +295,9 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
               return plate1 ? (
                 <span
                   className={styles.loadTimeTag}
-                  title={`Loads at ${formatTimeUTC(plate1.planned_start_at)} (cells prep, then sequencing starts)`}
+                  title={`Loads at ${formatTimeLocal(plate1.planned_start_at)} (cells prep, then sequencing starts)`}
                 >
-                  ⏱ {formatTimeUTC(plate1.planned_start_at)}
+                  ⏱ {formatTimeLocal(plate1.planned_start_at)}
                 </span>
               ) : null;
             })()}
@@ -360,7 +360,7 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
                 title="No action here — the instrument runs this plate itself once Plate 1's movie finishes and the cells are washed (a reuse run's Plate 2 — the next working day for a normal-length movie, later for a very long one). Manage it from its own run on its load day."
               >
                 P{continuationPlate.plate_index}: {runLabel(continuation.run)} @{" "}
-                {formatTimeUTC(continuationPlate.planned_start_at)}
+                {formatTimeLocal(continuationPlate.planned_start_at)}
               </span>
               <LockChip until={continuation.run.lock_until} />
             </>
@@ -399,7 +399,7 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
                     title={
                       plate && plate.acquire_date !== loadDate
                         ? plate.is_reuse
-                          ? `Runs after Plate 1's movie finishes and the cells are washed — starts ${formatShortDateTimeUTC(plate.planned_start_at)} (the reuse day reflects the movie length, so a longer movie pushes it later).`
+                          ? `Runs after Plate 1's movie finishes and the cells are washed — starts ${formatShortDateTimeLocal(plate.planned_start_at)} (the reuse day reflects the movie length, so a longer movie pushes it later).`
                           : `Plate ${plate.plate_index} acquires on ${shortWeekdayUTC(parseDateOnly(plate.acquire_date))} ${formatShortDateUTC(parseDateOnly(plate.acquire_date))}`
                         : undefined
                     }
@@ -486,11 +486,14 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
           onConfirm={() => {
             const parsed = parseLoadTime(loadTime);
             if (!parsed) return;
+            // The operator types the load time on the lab's local wall clock; convert to the UTC
+            // hour/minute the backend stores (see localWallTimeToUtcParts).
+            const utc = localWallTimeToUtcParts(loadDate, parsed.hour, parsed.minute);
             statusMutation.mutate({
               status: "running",
               run_name: runName,
-              start_hour: parsed.hour,
-              start_minute: parsed.minute,
+              start_hour: utc.hour,
+              start_minute: utc.minute,
             });
           }}
         >

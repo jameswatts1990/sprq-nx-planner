@@ -17,7 +17,7 @@ import { StatTile, StatTiles } from "@/components/shared/StatTile";
 import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
 import type { InstrumentOut, InstrumentStatsOut } from "@/types/instrument";
 import type { RunOut } from "@/types/schedule";
-import { formatShortDateTimeUTC, formatShortDateUTC, parseDateOnly } from "@/utils/calendarDates";
+import { formatShortDateTimeLocal, formatShortDateUTC, parseDateOnly } from "@/utils/calendarDates";
 import { instrumentStatus } from "@/utils/instrumentStatus";
 
 import styles from "./InstrumentsPage.module.css";
@@ -284,7 +284,7 @@ function InstrumentCard({
                 (stats?.running_run_name ?? "—")
               )
             }
-            hint={stats?.free_at ? `frees ${formatShortDateTimeUTC(stats.free_at)}` : stats?.running_run_name ? undefined : "idle"}
+            hint={stats?.free_at ? `frees ${formatShortDateTimeLocal(stats.free_at)}` : stats?.running_run_name ? undefined : "idle"}
           />
           <StatTile
             label="Open trays"

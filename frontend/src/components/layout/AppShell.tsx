@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, type ReactNode } from "react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useLocation } from "react-router-dom";
 
 import styles from "./AppShell.module.css";
 
@@ -32,6 +32,9 @@ const NAV_ITEMS = [
 
 export function AppShell({ children }: { children: ReactNode }) {
   const topbarRef = useRef<HTMLElement>(null);
+  // The Schedule page's fixed-width weekly grid is starved by the 1720px .wrap cap on wide
+  // screens, so it opts out of the cap and spans the full viewport (see .wrap-full in base.css).
+  const fullBleed = useLocation().pathname.startsWith("/schedule");
 
   // Exposed as a CSS var so other sticky elements (e.g. the schedule page's date-picker
   // toolbar) can position themselves directly beneath the nav instead of guessing its
@@ -78,7 +81,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </a>
         </div>
       </header>
-      <div className="wrap">{children}</div>
+      <div className={fullBleed ? "wrap wrap-full" : "wrap"}>{children}</div>
     </>
   );
 }
