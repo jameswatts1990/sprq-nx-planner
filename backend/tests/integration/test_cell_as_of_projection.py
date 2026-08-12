@@ -24,9 +24,9 @@ def _weekdays(n: int) -> list[str]:
     return out
 
 
-def _sid(client, external_id: str) -> int:
+def _sid(client, pool_id: str) -> int:
     items = client.get("/api/samples", params={"page_size": 200}).json()["items"]
-    return next(s["id"] for s in items if s["external_id"] == external_id)
+    return next(s["id"] for s in items if s["pool_id"] == pool_id)
 
 
 def _cell(client, cell_id: int, as_of: str | None = None) -> dict:

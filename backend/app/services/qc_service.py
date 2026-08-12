@@ -21,7 +21,11 @@ from datetime import date, datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.engine.constants import within_tray_pos
+from app.engine.constants import (
+    DEFAULT_REPEAT_SAFE_MIN_UL,
+    DEFAULT_TOTAL_COMPLEX_UL,
+    within_tray_pos,
+)
 from app.engine.packing import RECOVERABLE_PRIORITY, REPEATABLE_PRIORITY
 from app.models.audit import AuditLog
 from app.models.cell import Cell
@@ -189,8 +193,10 @@ def _affected_from_recompute(rc: _Recompute) -> list[AffectedSampleOut]:
         out.append(
             AffectedSampleOut(
                 sample_id=cu.sample_id if cu.sample_id is not None else -1,
-                external_id=cu.sample.external_id if cu.sample else None,
+                pool_id=cu.sample.pool_id if cu.sample else None,
                 barcodes=cu.barcode_list,
+                sanger_ids=list(cu.sample.sanger_ids or []) if cu.sample else [],
+                cleaned_complex_volume=cu.sample.cleaned_complex_volume if cu.sample else None,
                 cell_use_id=cu.id,
                 use_number=_planned_use_number(cu),
                 run_date=use_run_date(cu),
@@ -218,7 +224,14 @@ def _affected_from_recompute(rc: _Recompute) -> list[AffectedSampleOut]:
     return out
 
 
-def preview_qc(cell: Cell, verdict: str, cell_use_id: int | None) -> QcPreviewOut:
+def preview_qc(
+    cell: Cell,
+    verdict: str,
+    cell_use_id: int | None,
+    *,
+    total_complex_ul: float = DEFAULT_TOTAL_COMPLEX_UL,
+    repeat_safe_min_ul: float = DEFAULT_REPEAT_SAFE_MIN_UL,
+) -> QcPreviewOut:
     trigger = _resolve_trigger(cell, verdict, cell_use_id)
     rc = _compute(cell, verdict, trigger)
     affected = _affected_from_recompute(rc)
@@ -228,6 +241,8 @@ def preview_qc(cell: Cell, verdict: str, cell_use_id: int | None) -> QcPreviewOu
         cell_use_id=cell_use_id,
         affected_samples=affected,
         requires_disposition=requires,
+        total_complex_ul=total_complex_ul,
+        repeat_safe_min_ul=repeat_safe_min_ul,
     )
 
 
@@ -352,9 +367,12 @@ def commit_qc(
             db.flush()
             created_topup_ids.append(topup.id)
             audit_samples[str(sid)]["topup_id"] = topup.id
-        else:  # repeatable / recoverable
+        else:  # repeatable_complex / repeatable / recoverable - all return to the backlog
             sample.status = "backlog"
-            sample.priority = REPEATABLE_PRIORITY if disp == "repeatable" else RECOVERABLE_PRIORITY
+            # The two repeat pathways (from complex, from library) share Repeatable(0); only
+            # "recoverable" (data recoverable) gets Recoverable(0). qc_disposition keeps the
+            # exact pathway so the Backlog's Recoverable section and reporting can tell them apart.
+            sample.priority = RECOVERABLE_PRIORITY if disp == "recoverable" else REPEATABLE_PRIORITY
             sample.qc_disposition = disp
             backlog_sample_ids.append(sid)
 
@@ -516,7 +534,7 @@ def _topup_out(topup: SampleTopup) -> SampleTopupOut:
     return SampleTopupOut(
         id=topup.id,
         sample_id=topup.sample_id,
-        external_id=sample.external_id if sample else None,
+        pool_id=sample.pool_id if sample else None,
         barcodes=sample.barcode_list if sample else [],
         priority=sample.priority if sample else None,
         created_at=topup.created_at,

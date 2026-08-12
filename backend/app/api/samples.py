@@ -6,7 +6,7 @@ from sqlalchemy.orm import selectinload
 
 from app.api.deps import ActorDep, SessionDep, pagination
 from app.engine.csv_parse import split_barcodes
-from app.engine.packing import external_id_sort_key, priority_rank
+from app.engine.packing import pool_id_sort_key, priority_rank
 from app.models.audit import AuditLog
 from app.models.sample import SAMPLE_STATUSES, Sample, SampleBarcode
 from app.schemas.common import Page
@@ -24,11 +24,11 @@ router = APIRouter(prefix="/api/samples", tags=["samples"])
 SORTABLE_FIELDS = (
     "created_at",
     "updated_at",
-    "external_id",
+    "pool_id",
     "barcode",
     "priority",
     "status",
-    "parent_sample",
+    "plate_id",
     "sanger_ids",
     "target_oplc",
     "actual_oplc",
@@ -50,11 +50,11 @@ def _lower_or_none(value: str | None) -> str | None:
 
 # Simple single-column sort keys (text lower-cased, numbers as-is). Each returns None for
 # an empty cell so `_sort_none_last` can keep blanks at the bottom either way. The columns
-# with bespoke ordering (external_id / barcode / priority / created_at) are handled inline.
+# with bespoke ordering (pool_id / barcode / priority / created_at) are handled inline.
 _SIMPLE_SORT_KEYS = {
     "updated_at": lambda s: s.updated_at,
     "status": lambda s: s.status,
-    "parent_sample": lambda s: _lower_or_none(s.parent_sample),
+    "plate_id": lambda s: _lower_or_none(s.plate_id),
     "sanger_ids": lambda s: (s.sanger_ids[0].lower() if s.sanger_ids else None),
     "target_oplc": lambda s: s.target_oplc,
     "actual_oplc": lambda s: s.actual_oplc,
@@ -117,8 +117,8 @@ def list_samples(
         like = f"%{q}%"
         stmt = stmt.where(
             or_(
-                Sample.external_id.ilike(like),
-                Sample.parent_sample.ilike(like),
+                Sample.pool_id.ilike(like),
+                Sample.plate_id.ilike(like),
                 Sample.priority.ilike(like),
                 Sample.barcodes.any(SampleBarcode.barcode.ilike(like)),
             )
@@ -127,8 +127,8 @@ def list_samples(
     all_matching = list(db.scalars(stmt.order_by(Sample.created_at.desc())).unique().all())
 
     reverse = sort_dir == "desc"
-    if sort_by == "external_id":
-        all_matching.sort(key=lambda s: s.external_id.lower(), reverse=reverse)
+    if sort_by == "pool_id":
+        all_matching.sort(key=lambda s: s.pool_id.lower(), reverse=reverse)
     elif sort_by == "barcode":
         all_matching.sort(key=lambda s: _first_barcode(s).lower(), reverse=reverse)
     elif sort_by == "priority":
@@ -138,7 +138,7 @@ def list_samples(
         # and so identical priority labels group together instead of scattering by an
         # arbitrary insertion/created_at order.
         all_matching.sort(
-            key=lambda s: (priority_rank(s.priority), external_id_sort_key(s.external_id)),
+            key=lambda s: (priority_rank(s.priority), pool_id_sort_key(s.pool_id)),
             reverse=reverse,
         )
     elif sort_by in _SIMPLE_SORT_KEYS:
@@ -151,7 +151,7 @@ def list_samples(
     start = (page - 1) * page_size
     page_items = all_matching[start : start + page_size]
     # Stamp the "1/3" duplicate ordinal for the visible page in one grouped query.
-    groups = duplicate_groups(db, {s.external_id for s in page_items})
+    groups = duplicate_groups(db, {s.pool_id for s in page_items})
     items = []
     for s in page_items:
         dup_index, dup_total = duplicate_marker(s, groups)
@@ -167,25 +167,25 @@ def create_sample(
 
     Duplicates are allowed (the same sample can be run across multiple cells), but unlike
     CSV import — which only warns after the fact — the manual path *confirms* first: if this
-    Container ID has been seen before (any status, incl. completed) and `allow_duplicate` is
+    Pool ID has been seen before (any status, incl. completed) and `allow_duplicate` is
     false, it returns a 409 the UI turns into an "Add another copy anyway?" prompt. Re-submitting
     with `allow_duplicate=true` creates the copy."""
-    external_id = req.external_id.strip()
-    if not external_id:
-        raise HTTPException(422, "Container ID is required")
+    pool_id = req.pool_id.strip()
+    if not pool_id:
+        raise HTTPException(422, "Pool ID is required")
     barcodes = split_barcodes(" ".join(req.barcodes))
     if not barcodes:
         raise HTTPException(422, "At least one barcode is required")
 
     if not allow_duplicate:
-        existing = existing_samples_with_id(db, external_id)
+        existing = existing_samples_with_id(db, pool_id)
         if existing:
             n = len(existing)
             raise HTTPException(
                 409,
                 detail={
-                    "code": "duplicate_container",
-                    "message": f"Container ID '{external_id}' has been seen {n} time{'s' if n != 1 else ''} "
+                    "code": "duplicate_pool",
+                    "message": f"Pool ID '{pool_id}' has been seen {n} time{'s' if n != 1 else ''} "
                     f"before (including completed samples). Add another copy anyway?",
                     "seen_count": n,
                     "statuses": [s.status for s in existing],
@@ -194,10 +194,10 @@ def create_sample(
 
     sample = create_backlog_sample(
         db,
-        external_id=external_id,
+        pool_id=pool_id,
         barcodes=barcodes,
         sanger_ids=req.sanger_ids,
-        parent_sample=req.parent_sample,
+        plate_id=req.plate_id,
         target_oplc=req.target_oplc,
         actual_oplc=req.actual_oplc,
         cleaned_complex_volume=req.cleaned_complex_volume,
@@ -258,7 +258,7 @@ _LOCKED_EDIT_STATUSES = ("completed", "failed", "cancelled")
 @router.patch("/{sample_id}", response_model=SampleOut)
 def update_sample(sample_id: int, req: SampleUpdate, db: SessionDep, actor: ActorDep) -> SampleOut:
     """Edit a sample. A backlog sample is fully editable (everything on the add form except
-    the Container ID, which is fixed once created). A sample already placed on the grid
+    the Pool ID, which is fixed once created). A sample already placed on the grid
     (scheduled/in_progress) is edited from the slot-detail popover and is limited to its
     loading/annotation parameters — its barcodes, Sanger IDs, and parent are frozen at
     placement (the barcodes are burned onto the cell use), so any barcode/sanger/parent
@@ -278,7 +278,7 @@ def update_sample(sample_id: int, req: SampleUpdate, db: SessionDep, actor: Acto
             sample,
             barcodes=barcodes,
             sanger_ids=req.sanger_ids,
-            parent_sample=req.parent_sample,
+            plate_id=req.plate_id,
             target_oplc=req.target_oplc,
             actual_oplc=req.actual_oplc,
             cleaned_complex_volume=req.cleaned_complex_volume,

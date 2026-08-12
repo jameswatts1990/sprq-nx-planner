@@ -23,11 +23,15 @@ export function SettingsSection() {
 
       <p className={styles.subheading}>Scheduling</p>
       <p>
-        Two global rules. The <b>insert-size re-use threshold</b> (in base pairs, default 5000): a library whose insert
+        Global rules. The <b>insert-size re-use threshold</b> (in base pairs, default 5000): a library whose insert
         size is at or below this is treated as <b>small-insert</b> — it carries a <b>[&lt;5kb]</b> flag, Auto Schedule
         keeps it on a SMRT cell&apos;s first use, and a warning shows if it&apos;s placed by hand on a re-use. The{" "}
         <b>default run start hour</b>: the time of day a run loads by default, which pre-fills the load-time dial on the
-        Schedule grid. Change a value and press <b>Save</b>. Existing schedules are unaffected until they&apos;re re-run.
+        Schedule grid. Two <b>cleaned complex</b> volumes drive the Cell QC repeat-from-complex decision: the total{" "}
+        <b>cleaned complex made</b> per sample (default 24 µL) and the <b>safe repeat-from-complex volume</b> (default
+        12 µL) — when at least that much complex is left after loading, Cell QC suggests a repeat straight from complex;
+        below it the repeat is flagged “at risk” (never blocked). Change a value and press <b>Save</b>. Existing
+        schedules are unaffected until they&apos;re re-run.
       </p>
 
       <p className={styles.subheading}>Movie scheduling</p>

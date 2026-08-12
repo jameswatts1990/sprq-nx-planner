@@ -97,8 +97,8 @@ describe("computeInstrumentTrayMaps", () => {
         // usesRemaining is now derived from these breakout instants (both within the viewed
         // week), not read off uses_remaining directly - see positionView.
         uses: [
-          { id: 101, run_batch_id: 1, run_name: "R1", sample_id: 1, sample_external_id: "s1", well: "A01", status: "completed", run_started: true, breakout_anchor_at: "2026-07-20T12:00:00Z" },
-          { id: 102, run_batch_id: 2, run_name: "R2", sample_id: 2, sample_external_id: "s2", well: "A01", status: "completed", run_started: true, breakout_anchor_at: "2026-07-21T12:00:00Z" },
+          { id: 101, run_batch_id: 1, run_name: "R1", sample_id: 1, sample_pool_id: "s1", well: "A01", status: "completed", run_started: true, breakout_anchor_at: "2026-07-20T12:00:00Z" },
+          { id: 102, run_batch_id: 2, run_name: "R2", sample_id: 2, sample_pool_id: "s2", well: "A01", status: "completed", run_started: true, breakout_anchor_at: "2026-07-21T12:00:00Z" },
         ],
       },
       {
@@ -107,7 +107,7 @@ describe("computeInstrumentTrayMaps", () => {
         last_use_run_date: "2026-07-20",
         first_use_started_at: "2026-07-20T14:00:00Z",
         uses: [
-          { id: 111, run_batch_id: 3, run_name: "R3", sample_id: 3, sample_external_id: "s3", well: "B01", status: "completed", run_started: true, breakout_anchor_at: "2026-07-20T14:00:00Z" },
+          { id: 111, run_batch_id: 3, run_name: "R3", sample_id: 3, sample_pool_id: "s3", well: "B01", status: "completed", run_started: true, breakout_anchor_at: "2026-07-20T14:00:00Z" },
         ],
       },
     ]);
@@ -146,8 +146,8 @@ describe("computeInstrumentTrayMaps", () => {
       last_use_run_date: "2026-07-23",
       first_use_started_at: "2026-07-23T12:00:00Z",
       uses: [
-        { id: n * 10 + 1, run_batch_id: n, run_name: `R${n}`, sample_id: n, sample_external_id: `s${n}`, well: "A01", status: "completed" as const, run_started: true, breakout_anchor_at: "2026-07-23T12:00:00Z" },
-        { id: n * 10 + 2, run_batch_id: n + 10, run_name: `R${n + 10}`, sample_id: n + 10, sample_external_id: `s${n + 10}`, well: "A01", status: "planned" as const, run_started: false, breakout_anchor_at: "2026-07-27T12:00:00Z" },
+        { id: n * 10 + 1, run_batch_id: n, run_name: `R${n}`, sample_id: n, sample_pool_id: `s${n}`, well: "A01", status: "completed" as const, run_started: true, breakout_anchor_at: "2026-07-23T12:00:00Z" },
+        { id: n * 10 + 2, run_batch_id: n + 10, run_name: `R${n + 10}`, sample_id: n + 10, sample_pool_id: `s${n + 10}`, well: "A01", status: "planned" as const, run_started: false, breakout_anchor_at: "2026-07-27T12:00:00Z" },
       ],
     });
     const noFutureUse = {
@@ -156,7 +156,7 @@ describe("computeInstrumentTrayMaps", () => {
       last_use_run_date: "2026-07-23",
       first_use_started_at: "2026-07-23T12:00:00Z",
       uses: [
-        { id: 999, run_batch_id: 99, run_name: "R99", sample_id: 99, sample_external_id: "s99", well: "A01", status: "completed" as const, run_started: true, breakout_anchor_at: "2026-07-23T12:00:00Z" },
+        { id: 999, run_batch_id: 99, run_name: "R99", sample_id: 99, sample_pool_id: "s99", well: "A01", status: "completed" as const, run_started: true, breakout_anchor_at: "2026-07-23T12:00:00Z" },
       ],
     };
     const cells = trayCells(182, "01", [withFutureUse(1), noFutureUse, withFutureUse(3), withFutureUse(4)]);
@@ -173,9 +173,9 @@ describe("computeInstrumentTrayMaps", () => {
         last_use_run_date: "2026-07-24",
         // A completed Use 1 (Mon) and a still-planned Use 2 (Fri); a cancelled marker is ignored.
         uses: [
-          { id: 1, run_batch_id: 1, run_name: "R1", sample_id: 1, sample_external_id: "s1", well: "A01", status: "completed", run_started: true, breakout_anchor_at: "2026-07-20T12:00:00Z" },
-          { id: 2, run_batch_id: 2, run_name: "R2", sample_id: 2, sample_external_id: "s2", well: "A01", status: "planned", run_started: false, breakout_anchor_at: "2026-07-24T12:00:00Z" },
-          { id: 3, run_batch_id: 3, run_name: "R3", sample_id: 3, sample_external_id: "s3", well: "A01", status: "cancelled", run_started: false, breakout_anchor_at: "2026-07-22T12:00:00Z" },
+          { id: 1, run_batch_id: 1, run_name: "R1", sample_id: 1, sample_pool_id: "s1", well: "A01", status: "completed", run_started: true, breakout_anchor_at: "2026-07-20T12:00:00Z" },
+          { id: 2, run_batch_id: 2, run_name: "R2", sample_id: 2, sample_pool_id: "s2", well: "A01", status: "planned", run_started: false, breakout_anchor_at: "2026-07-24T12:00:00Z" },
+          { id: 3, run_batch_id: 3, run_name: "R3", sample_id: 3, sample_pool_id: "s3", well: "A01", status: "cancelled", run_started: false, breakout_anchor_at: "2026-07-22T12:00:00Z" },
         ],
       },
     ]);
@@ -200,8 +200,8 @@ describe("computeInstrumentTrayMaps", () => {
         first_use_started_at: "2026-07-20T14:00:00Z", // load 12:00 + cell-2 stagger
         last_use_run_date: "2026-07-24",
         uses: [
-          { id: 1, run_batch_id: 1, run_name: "R1", sample_id: 1, sample_external_id: "s1", well: "B01", status: "completed", run_started: true, breakout_anchor_at: "2026-07-20T14:00:00Z" },
-          { id: 2, run_batch_id: 2, run_name: "R2", sample_id: 2, sample_external_id: "s2", well: "B01", status: "planned", run_started: false, breakout_anchor_at: "2026-07-24T12:00:00Z" },
+          { id: 1, run_batch_id: 1, run_name: "R1", sample_id: 1, sample_pool_id: "s1", well: "B01", status: "completed", run_started: true, breakout_anchor_at: "2026-07-20T14:00:00Z" },
+          { id: 2, run_batch_id: 2, run_name: "R2", sample_id: 2, sample_pool_id: "s2", well: "B01", status: "planned", run_started: false, breakout_anchor_at: "2026-07-24T12:00:00Z" },
         ],
       },
     ]);

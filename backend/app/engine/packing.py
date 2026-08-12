@@ -48,14 +48,14 @@ def priority_rank(priority: str | None) -> int:
     return int(m.group(1)) if m else _UNRANKED_PRIORITY
 
 
-def external_id_sort_key(external_id: str) -> tuple[str | int, ...]:
+def pool_id_sort_key(pool_id: str) -> tuple[str | int, ...]:
     """Natural (numeric-aware), case-insensitive sort key for an External ID, e.g.
     "Sample 9" sorts before "Sample 10" rather than after (plain string sort would put
     "10" before "9"). Splits the id on runs of digits, lower-cases the text chunks, and
     parses the digit chunks as ints. `re.split`'s capture group always yields text
     chunks at even indices and digit chunks at odd ones regardless of the input, so two
     keys compared position-by-position never mix `str` and `int` at the same index."""
-    parts = _NATURAL_SORT_CHUNK_RE.split(external_id or "")
+    parts = _NATURAL_SORT_CHUNK_RE.split(pool_id or "")
     return tuple(int(p) if i % 2 else p.lower() for i, p in enumerate(parts))
 
 
@@ -73,9 +73,9 @@ def disjoint(set_a: set[str], arr_b: list[str]) -> bool:
 
 
 def _foreign_clash(cell: PackedCell, sample: ParsedSample) -> bool:
-    """True if any of `sample`'s barcodes was burned on `cell` by a DIFFERENT Container ID -
+    """True if any of `sample`'s barcodes was burned on `cell` by a DIFFERENT Pool ID -
     the real reuse-carryover risk (see docs/pacbio-sprq-nx-scheduling-reference.md). A barcode
-    this exact Container ID (`sample.id`, an external_id) already burned on the cell itself -
+    this exact Pool ID (`sample.id`, an pool_id) already burned on the cell itself -
     an earlier duplicate copy of the same sample - is not a clash: it's the same physical
     material either way, so there's no cross-sample misattribution risk (lab owner decision,
     2026-07-29). `cell.barcode_owners` has no entry for a barcode nobody has recorded an owner
@@ -167,18 +167,18 @@ def pack_cells(
 
     Samples are processed in priority order first (see `priority_rank`) - that's the
     ruling factor and always wins (EXCEPT under "order", which ignores priority and the
-    movie/Container-ID keys entirely and schedules strictly in upload/CSV sequence - see
+    movie/Pool ID keys entirely and schedules strictly in upload/CSV sequence - see
     the `by_order` branch). Within equal priority, position-constrained movie lengths
     (12h -> cell 1, 30h -> cell 4) are processed before flexible 24h samples (see
     `_movie_constraint_rank`), so they claim their required well first; movie length then
     gives way to External ID sequence (natural/numeric-aware, case-insensitive - see
-    `external_id_sort_key`): a lab operator prepping a plate of e.g. "Sample 12".."Sample
+    `pool_id_sort_key`): a lab operator prepping a plate of e.g. "Sample 12".."Sample
     19" wants those loaded and run together, not scattered across cells/days by
     coincidence of upload time. This mostly just orders *processing*, but because the
     greedy loop below fills each cell to capacity before opening the next, it also tends
     to *place* ID-adjacent samples on the same cell/run - grouping them physically, not
     just conceptually. Oldest-first (`created_at` ascending) only breaks a further tie
-    where two samples share both priority and External ID (e.g. a container id reused
+    where two samples share both priority and External ID (e.g. a Pool ID reused
     across two import rows). The barcode-count/conflict-degree heuristic that used to be
     the primary sort only kicks in as a tie-break after all of the above now - it still
     matters there (it's a hardest-to-place-first bin-packing heuristic), just no longer
@@ -211,7 +211,7 @@ def pack_cells(
         # Ascending DB primary key IS "upload order, then CSV row order within each upload":
         # import_service inserts a batch's rows in file order (each flushed as it's created, so
         # its id is assigned then) and a later import gets higher ids - so id order is exactly
-        # "CSV A rows 1..n, then CSV B rows 1..n". Priority and the movie/Container-ID keys are
+        # "CSV A rows 1..n, then CSV B rows 1..n". Priority and the movie/Pool ID keys are
         # deliberately ignored - honouring the user's own sequence is the whole point of this
         # mode. sample_id is always set on the auto-fill path (real DB rows); the `is None`
         # guard only orders in-memory samples (e.g. a preview) deterministically and last.
@@ -222,7 +222,7 @@ def pack_cells(
             key=lambda s: (
                 priority_rank(s.priority),
                 _movie_constraint_rank(s.movie_time, movie_rules),
-                external_id_sort_key(s.id),
+                pool_id_sort_key(s.id),
                 s.created_at or _EPOCH,
                 -len(s.barcodes),
                 -deg[s.key],

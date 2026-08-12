@@ -94,9 +94,9 @@ export function QcCaseRow({ cell }: { cell: CellOut }) {
             <Link to={`/history/runs/${use.run_batch_id}`} className="link">
               {runLabel({ run_id: use.run_batch_id, run_name: use.run_name })}
             </Link>
-            {use.sample_id !== null && use.sample_external_id !== null ? (
+            {use.sample_id !== null && use.sample_pool_id !== null ? (
               <Link to={`/samples/${use.sample_id}`} state={backNav} className="link">
-                {use.sample_external_id}
+                {use.sample_pool_id}
               </Link>
             ) : (
               <span className={styles.muted}>no sample</span>

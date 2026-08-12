@@ -179,7 +179,7 @@ export function CellDetailPage() {
                   <th>Run</th>
                   <th>Well</th>
                   <th>Status</th>
-                  <th>Container ID</th>
+                  <th>Pool ID</th>
                   <th>Barcodes</th>
                   <th>Priority</th>
                   <th>Target OPLC</th>
@@ -209,12 +209,12 @@ export function CellDetailPage() {
                       </div>
                     </td>
                     <td>
-                      {u.sample_id !== null && u.sample_external_id !== null ? (
+                      {u.sample_id !== null && u.sample_pool_id !== null ? (
                         <Link to={`/samples/${u.sample_id}`} state={backNav} className="link">
-                          {u.sample_external_id}
+                          {u.sample_pool_id}
                         </Link>
                       ) : (
-                        (u.sample_external_id ?? "—")
+                        (u.sample_pool_id ?? "—")
                       )}
                     </td>
                     <td>

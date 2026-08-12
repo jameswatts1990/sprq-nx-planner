@@ -28,9 +28,9 @@ def _stages(run):
     return [s for p in run["plates"] for s in p["stages"]]
 
 
-def _sid(client, external_id: str) -> int:
+def _sid(client, pool_id: str) -> int:
     items = client.get("/api/samples", params={"page_size": 200}).json()["items"]
-    return next(s["id"] for s in items if s["external_id"] == external_id)
+    return next(s["id"] for s in items if s["pool_id"] == pool_id)
 
 
 def _place(client, sample_id, run_date, slot_index=0, cell_choice=None, instrument="84047", start_hour=None):
@@ -66,12 +66,12 @@ def test_insert_earlier_use_succeeds_and_renumbers_the_later_use(client):
     r3 = _place(client, _sid(client, "A3"), tue, slot_index=0, cell_choice={"mode": "existing", "cell_id": cell_id}, start_hour=15)
     assert r3.status_code == 201, r3.text
     tue_stage = _stages(r3.json())[0]
-    assert tue_stage["sample_external_id"] == "A3"
+    assert tue_stage["sample_pool_id"] == "A3"
     assert tue_stage["use_number"] == 2
 
     wed_cycle = client.get(f"/api/cycles/{wed_cycle_id}").json()
     wed_stage = _stages(wed_cycle)[0]
-    assert wed_stage["sample_external_id"] == "A2"
+    assert wed_stage["sample_pool_id"] == "A2"
     assert wed_stage["use_number"] == 3  # bumped up, never removed
 
     assert client.get(f"/api/cells/{cell_id}").json()["uses_consumed"] == 3

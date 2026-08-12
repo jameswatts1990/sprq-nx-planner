@@ -54,10 +54,10 @@ class PriorCellInput:
     barcodes_text: str
     uses_consumed: int
     cell_id: int | None = None  # DB id of the real Cell this represents, if any
-    # barcode -> the Container ID(s) (ParsedSample.id) that burned it on this real cell, from
+    # barcode -> the Pool ID(s) (ParsedSample.id) that burned it on this real cell, from
     # app.services.cell_service.barcode_owners(). Lets pack_cells tell "a different sample
     # happens to share this barcode" (a real clash - blocks reuse) apart from "another copy of
-    # the SAME Container ID already used this cell" (the identical physical material - allowed,
+    # the SAME Pool ID already used this cell" (the identical physical material - allowed,
     # see engine/packing.py's _foreign_clash). A barcode absent from this map is treated as
     # foreign to every sample - the safe default when the caller has no owner data (e.g. a
     # hand-built test, or a pre-this-feature cell) - so omitting it exactly reproduces the
@@ -121,7 +121,7 @@ class PackedCell:
         # Physical tray (CellTray.id) for a prior cell - fill_slots' cohesion guard keeps one
         # sample plate backed by a single tray. None for fresh or tray-less legacy cells.
         self.tray_id = tray_id
-        # barcode -> Container ID(s) that burned it on this cell so far (prior history plus
+        # barcode -> Pool ID(s) that burned it on this cell so far (prior history plus
         # every use pack_cells has appended this batch) - see PriorCellInput.barcode_owners
         # and engine/packing.py's _foreign_clash.
         self.barcode_owners: dict[str, set[str]] = {k: set(v) for k, v in (barcode_owners or {}).items()}

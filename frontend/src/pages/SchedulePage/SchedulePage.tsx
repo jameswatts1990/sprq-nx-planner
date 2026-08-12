@@ -884,7 +884,7 @@ export function SchedulePage() {
             </div>
 
             <DragOverlay dropAnimation={null}>
-              {dnd.activeSample ? <div className={styles.dragChip}>{dnd.activeSample.external_id || "sample"}</div> : null}
+              {dnd.activeSample ? <div className={styles.dragChip}>{dnd.activeSample.pool_id || "sample"}</div> : null}
             </DragOverlay>
           </SearchHighlightContext.Provider>
         </CellLinkContext.Provider>

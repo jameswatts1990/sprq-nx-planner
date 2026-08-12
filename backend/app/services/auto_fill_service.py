@@ -763,7 +763,7 @@ def recalculate_instrument(db: Session, *, instrument_serial: str, actor: str | 
     using the exact same reuse-before-new engine Auto Schedule already uses (pack_cells +
     fill_slots) - the "Recalculate" action next to an instrument's name in the weekly grid.
     For cases the engine packed under an older or since-corrected rule (e.g. before the
-    barcode-clash guard learned to exempt a duplicate Container ID's own earlier copy - see
+    barcode-clash guard learned to exempt a duplicate Pool ID's own earlier copy - see
     docs/pacbio-sprq-nx-scheduling-reference.md) and needs re-packing under the current one,
     without the user manually clearing and replacing each sample by hand.
 

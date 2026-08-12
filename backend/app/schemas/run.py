@@ -38,17 +38,17 @@ class StageOut(BaseModel):
     # is the longest of these (see PlateOut.movie_hours).
     run_time_hours: int
     sample_id: int | None
-    sample_external_id: str | None
+    sample_pool_id: str | None
     # Library insert / fragment size (bp) of the sample in this slot, or null if not recorded.
     # Drives the grid card's "[<5kb]" flag and the small-insert-on-reuse warning (a small-insert
     # sample sitting on use_number >= 2). Threshold is admin-configurable (read client-side).
     insert_size_bp: int | None = None
-    # Duplicate marker for the sample in this slot: when its Container ID appears on more than
+    # Duplicate marker for the sample in this slot: when its Pool ID appears on more than
     # one sample (any status), duplicate_total is the count and duplicate_index this copy's
     # 1-based position. Both null for a one-off — the grid card shows the "1/3" badge only when set.
     duplicate_index: int | None = None
     duplicate_total: int | None = None
-    # True when this cell was already used by another copy of the exact same Container ID
+    # True when this cell was already used by another copy of the exact same Pool ID
     # (a sibling duplicate sharing a barcode) - an intentionally ALLOWED reuse (see
     # cell_service.foreign_barcode_clash / docs/pacbio-sprq-nx-scheduling-reference.md), shown
     # so it's transparent at a glance rather than a silent exception to the barcode-clash rule.
@@ -152,8 +152,8 @@ class BarcodeConflictOut(BaseModel):
     the existing same-cell burned-barcode 409 guard is what actually prevents an unsafe
     reuse when either sample is later placed."""
 
-    sample_external_id_a: str
-    sample_external_id_b: str
+    sample_pool_id_a: str
+    sample_pool_id_b: str
     shared_barcodes: list[str]
 
 
@@ -250,11 +250,11 @@ class RecalculateRequest(BaseModel):
 class AutoFillResponse(BaseModel):
     placed_sample_ids: list[int]
     unplaced_sample_ids: list[int]
-    # Container IDs (Sample.external_id) parallel to unplaced_sample_ids, so the caller can
+    # Pool IDs (Sample.pool_id) parallel to unplaced_sample_ids, so the caller can
     # tell the user WHICH samples landed back in the Backlog without a separate lookup - a bare
     # count left a user unable to find an affected sample anywhere (see auto_fill.py's
     # _to_response and useScheduleActions.ts).
-    unplaced_external_ids: list[str] = []
+    unplaced_pool_ids: list[str] = []
     skipped_cells: list[GridCellRef]
     window_flags: list[WindowFlagOut]
     # Advisory only, never blocks a placement - a distinct clock from window_flags' 108h

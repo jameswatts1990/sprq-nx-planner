@@ -61,11 +61,11 @@ function placementAdvisoryText(run: RunOut, insertThreshold: number): string | n
 /** "3 unplaced (TRAC-2-26296, TRAC-2-26301, TRAC-2-26305 and 1 more)" - names WHICH samples
  * landed back in the Backlog instead of just a count, so a user isn't left hunting for them
  * (see the Samples page's all-status search, HistorySamplesPage.tsx). Truncated to the first
- * 3 Container IDs to keep the note short. */
-function unplacedNote(count: number, externalIds: string[]): string {
+ * 3 Pool IDs to keep the note short. */
+function unplacedNote(count: number, poolIds: string[]): string {
   if (count === 0) return "";
-  const shown = externalIds.slice(0, 3);
-  const rest = externalIds.length - shown.length;
+  const shown = poolIds.slice(0, 3);
+  const rest = poolIds.length - shown.length;
   const names = shown.length > 0 ? ` (${shown.join(", ")}${rest > 0 ? ` and ${rest} more` : ""})` : "";
   return `${count} unplaced${names}`;
 }
@@ -302,7 +302,7 @@ export function useScheduleActions({
       selection.clear();
       const parts = [`${res.placed_sample_ids.length} placed`];
       if (res.unplaced_sample_ids.length > 0) {
-        parts.push(unplacedNote(res.unplaced_sample_ids.length, res.unplaced_external_ids));
+        parts.push(unplacedNote(res.unplaced_sample_ids.length, res.unplaced_pool_ids));
       }
       if (res.skipped_cells.length > 0) parts.push(`${res.skipped_cells.length} cell(s) skipped`);
       if (res.window_flags.length > 0) parts.push(`${res.window_flags.length} window flag(s)`);
@@ -352,7 +352,7 @@ export function useScheduleActions({
       setRecalculateTarget(null);
       const parts = [`${res.placed_sample_ids.length} placed`];
       if (res.unplaced_sample_ids.length > 0) {
-        parts.push(unplacedNote(res.unplaced_sample_ids.length, res.unplaced_external_ids));
+        parts.push(unplacedNote(res.unplaced_sample_ids.length, res.unplaced_pool_ids));
       }
       // Recalculate re-packs across a wider day range than an ordinary Auto Schedule call, so
       // it's the flow most likely to hit deep cross-run reuse - surface both timing flags here

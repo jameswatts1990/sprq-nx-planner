@@ -86,12 +86,12 @@ function GanttRow({
             type="button"
             className={`${styles.sample} ${styles.sampleBtn}`}
             onClick={() => onSelectStage(s)}
-            title={`Open ${s.sample_external_id ?? "this placement"}`}
+            title={`Open ${s.sample_pool_id ?? "this placement"}`}
           >
-            {s.sample_external_id ?? "—"}
+            {s.sample_pool_id ?? "—"}
           </button>
         ) : (
-          <span className={styles.sample}>{s.sample_external_id ?? "—"}</span>
+          <span className={styles.sample}>{s.sample_pool_id ?? "—"}</span>
         )}
       </div>
       <div className={styles.track}>

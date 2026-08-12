@@ -155,9 +155,9 @@ export const CellStatusCard = memo(function CellStatusCard({ cell, expanded = fa
                     <div key={use.id} className={styles.useRow}>
                       <UseBox use={useNo} />
                       <Badge tone={USE_STATUS_TONE[use.status] ?? "default"}>{use.status}</Badge>
-                      {use.sample_id !== null && use.sample_external_id !== null ? (
+                      {use.sample_id !== null && use.sample_pool_id !== null ? (
                         <Link to={`/samples/${use.sample_id}`} state={backNav} className={styles.useSample}>
-                          {use.sample_external_id}
+                          {use.sample_pool_id}
                         </Link>
                       ) : (
                         <span className={styles.useSampleMuted}>no sample</span>

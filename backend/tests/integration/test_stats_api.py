@@ -11,9 +11,9 @@ def _past_weekday() -> str:
     return d.isoformat()
 
 
-def _sid(client, external_id: str) -> int:
+def _sid(client, pool_id: str) -> int:
     items = client.get("/api/samples", params={"page_size": 200}).json()["items"]
-    return next(s["id"] for s in items if s["external_id"] == external_id)
+    return next(s["id"] for s in items if s["pool_id"] == pool_id)
 
 
 def test_stats_empty_db_returns_all_groups(client):

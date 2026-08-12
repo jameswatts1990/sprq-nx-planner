@@ -213,9 +213,9 @@ export function computeGhost(
  * placement_service._reuse_eligible / docs/pacbio-sprq-nx-scheduling-reference.md), so a
  * manual drop is warned about the exact clash it will actually surface as StageOut.barcode_clash
  * once placed, not a hypothetical one. Approximate on purpose: CellOut only carries the cell's
- * AGGREGATE burned_barcodes plus which Container IDs have ever used it (`uses`), not a
- * per-barcode owner map, so this treats "the dragged sample's own Container ID has used this
- * cell before" as exempt from every one of its burns (the common "duplicate Container ID
+ * AGGREGATE burned_barcodes plus which Pool IDs have ever used it (`uses`), not a
+ * per-barcode owner map, so this treats "the dragged sample's own Pool ID has used this
+ * cell before" as exempt from every one of its burns (the common "duplicate Pool ID
  * reusing its own cell" case - see cell_service.foreign_barcode_clash) rather than checking
  * barcode-by-barcode. The authoritative, exact answer is always the post-drop
  * StageOut.barcode_clash flag and the slot-detail warning - this only lights up danger zones
@@ -223,12 +223,12 @@ export function computeGhost(
  * picked for a reuse, so it never warns. */
 export function ghostWouldClashWithSample(
   ghost: CellGhost | undefined,
-  sample: { external_id: string; barcodes: string[] },
+  sample: { pool_id: string; barcodes: string[] },
 ): boolean {
   if (!ghost || ghost.terminalStatus || sample.barcodes.length === 0) return false;
   const cell = ghost.cell;
   if (cell.burned_barcodes.length === 0) return false;
-  const alreadyOwnsThisCell = cell.uses.some((u) => u.sample_external_id === sample.external_id);
+  const alreadyOwnsThisCell = cell.uses.some((u) => u.sample_pool_id === sample.pool_id);
   if (alreadyOwnsThisCell) return false;
   return cell.burned_barcodes.some((b) => sample.barcodes.includes(b));
 }

@@ -32,6 +32,10 @@ export interface SchedulingSettings {
   day_start_hour: number;
   default_movie_hours: number;
   movie_cell_position: Record<string, number | null>;
+  /** Total cleaned complex (µL) made per sample, and the leftover (µL) at/above which a repeat
+   * straight from complex is "safe" — drive the Cell QC modal's repeat-from-complex readout. */
+  repeat_total_complex_ul: number;
+  repeat_safe_min_ul: number;
 }
 
 export type SchedulingSettingsUpdate = Partial<SchedulingSettings>;

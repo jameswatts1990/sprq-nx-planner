@@ -65,7 +65,7 @@ function buildReportFields(cell: CellDetailOut, instrument: InstrumentOut | unde
     { label: "Vendor/RT Support Ticket", value: cell.pacbio_case_number ?? "" },
     { label: "Equipment Software name (if applicable)", value: "N/A" },
     { label: "Equipment Program (If applicable)", value: "N/A" },
-    { label: "Sample ID(s) e.g. Plate or Tube Barcode ID", value: use?.sample_external_id ?? "" },
+    { label: "Sample ID(s) e.g. Plate or Tube Barcode ID", value: use?.sample_pool_id ?? "" },
     { label: "4 digit Study ID(s)", value: "" },
     { label: "Equipment Owner", value: "Long_Read" },
     { label: "Equipment Asset Number", value: instrument?.asset_number ?? "" },
@@ -425,7 +425,7 @@ export function CreditCaseActions({ cell, detail, compact = false }: CreditCaseA
               type="number"
               min={1}
               step={1}
-              className={`${styles.input} ${styles.inputNarrow}`}
+              className={styles.input}
               value={acquisitions}
               onChange={(e) => setAcquisitions(e.target.value)}
               placeholder={`Acquisitions credited, e.g. ${reimbursement ?? 1}`}

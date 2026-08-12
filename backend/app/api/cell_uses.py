@@ -59,7 +59,7 @@ def _cell_use_dict(cu: CellUse) -> dict:
         "cell_id": cu.cell_id,
         "cell_code": cu.cell.code if cu.cell else None,
         "sample_id": cu.sample_id,
-        "sample_external_id": cu.sample.external_id if cu.sample else None,
+        "sample_pool_id": cu.sample.pool_id if cu.sample else None,
         "well": cu.well,
         "run_time_hours": cu.run_time_hours,
         "status": cu.status,

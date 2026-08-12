@@ -28,9 +28,9 @@ def _weekdays(n: int) -> list[str]:
     return out
 
 
-def _sid(client, external_id: str) -> int:
+def _sid(client, pool_id: str) -> int:
     items = client.get("/api/samples", params={"page_size": 200}).json()["items"]
-    return next(s["id"] for s in items if s["external_id"] == external_id)
+    return next(s["id"] for s in items if s["pool_id"] == pool_id)
 
 
 def _stages(run):
@@ -93,7 +93,7 @@ def test_auto_place_on_plate2_reuses_plate1_cell_as_use2(client):
     plate2 = next(p for p in run["plates"] if p["plate_index"] == 2)
     assert plate2["is_reuse"] is True
     assert plate2["acquire_date"] == tue  # reuse acquires the next weekday
-    a2_stage = next(s for s in _stages(run) if s["sample_external_id"] == "A2")
+    a2_stage = next(s for s in _stages(run) if s["sample_pool_id"] == "A2")
     assert a2_stage["cell_id"] == cell_x  # same physical cell - one tray
     assert a2_stage["use_number"] == 2
     assert a2_stage["well"] == "A02"  # the plate slot it was dropped onto (a loading position)
@@ -193,7 +193,7 @@ def test_auto_place_second_plate1_drop_stays_cohesive_after_cross_box_reuse(clie
     _auto_place(client, _sid(client, "Z1"), tue, 0)  # first Plate-1 drop reuses the A02-box tray
     r3 = _auto_place(client, _sid(client, "Z2"), tue, 1)  # second Plate-1 drop, same run
     assert r3.status_code == 201, r3.text
-    z2_stage = next(s for s in _stages(r3.json()) if s["sample_external_id"] == "Z2")
+    z2_stage = next(s for s in _stages(r3.json()) if s["sample_pool_id"] == "Z2")
     assert client.get(f"/api/cells/{z2_stage['cell_id']}").json()["tray_id"] == tray_id
 
 
@@ -214,7 +214,7 @@ def test_auto_place_reuse_picks_the_next_in_order_cell_not_the_slot_position(cli
 
     r = _auto_place(client, _sid(client, "C1"), mon, 5)  # Plate-2 B slot, no cell_choice
     assert r.status_code == 201, r.text
-    c_stage = next(s for s in _stages(r.json()) if s["sample_external_id"] == "C1")
+    c_stage = next(s for s in _stages(r.json()) if s["sample_pool_id"] == "C1")
     assert c_stage["cell_id"] == cell_a  # next-in-order (tie -> tray position A), not the B cell
     assert c_stage["well"] == "B02"  # the plate slot it was dropped onto
     assert c_stage["cell_home_well"] == "A01"  # cell A's identity, stub shows "A2"
@@ -233,7 +233,7 @@ def test_auto_place_reuses_a_clashing_cell_rather_than_skipping_it(client):
 
     r2 = _auto_place(client, _sid(client, "A2"), mon, 4)  # reuses cell_x despite the bc1 clash
     assert r2.status_code == 201, r2.text
-    a2_stage = next(s for s in _stages(r2.json()) if s["sample_external_id"] == "A2")
+    a2_stage = next(s for s in _stages(r2.json()) if s["sample_pool_id"] == "A2")
     assert a2_stage["cell_id"] == cell_x
     assert a2_stage["use_number"] == 2
     assert a2_stage["barcode_clash"] is True
@@ -249,7 +249,7 @@ def test_explicit_cell_choice_still_overrides_derivation(client):
 
     r2 = _place(client, _sid(client, "A2"), mon, 4, {"mode": "new"})  # explicit new, not derive
     assert r2.status_code == 201, r2.text
-    a2_stage = next(s for s in _stages(r2.json()) if s["sample_external_id"] == "A2")
+    a2_stage = next(s for s in _stages(r2.json()) if s["sample_pool_id"] == "A2")
     assert a2_stage["cell_id"] != cell_x  # forced a new cell despite the reuse being available
     assert a2_stage["use_number"] == 1
 
@@ -267,7 +267,7 @@ def test_override_reuse_to_new_cell_builds_a_fresh_same_day_plate(client):
 
     # Auto-derive a reuse on the aligned Plate-2 slot (Use 2, next-day, is_reuse).
     r2 = _auto_place(client, _sid(client, "A2"), mon, 4)
-    reuse_stage = next(s for s in _stages(r2.json()) if s["sample_external_id"] == "A2")
+    reuse_stage = next(s for s in _stages(r2.json()) if s["sample_pool_id"] == "A2")
     assert reuse_stage["cell_id"] == cell_x and reuse_stage["use_number"] == 2
 
     # The override: remove the reuse, then place fresh at the same slot.
@@ -276,7 +276,7 @@ def test_override_reuse_to_new_cell_builds_a_fresh_same_day_plate(client):
     assert r3.status_code == 201, r3.text
     run = r3.json()
     plate2 = next(p for p in run["plates"] if p["plate_index"] == 2)
-    a2 = next(s for s in _stages(run) if s["sample_external_id"] == "A2")
+    a2 = next(s for s in _stages(run) if s["sample_pool_id"] == "A2")
     assert a2["cell_id"] != cell_x  # a genuinely fresh cell, not the reused one
     assert a2["use_number"] == 1
     assert plate2["acquire_date"] == mon  # same-day parallel tray, not the reuse's next day

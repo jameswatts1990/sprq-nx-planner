@@ -69,13 +69,6 @@
   outline: none;
   border-color: var(--line-hover);
 }
-/* Compact fixed-width variant (e.g. the acquisitions count) so it sits tight beside a
-   flex-growing sibling input rather than each claiming an equal share of the row. */
-.inputNarrow {
-  flex: 0 0 auto;
-  min-width: 0;
-  width: 150px;
-}
 
 /* Case-notes editor - a persistent free-text note on the credit case, editable at any
    stage. Sits under the current step's action, separated by a light rule. */

@@ -21,13 +21,13 @@ def _stages(run):
     return [s for p in run["plates"] for s in p["stages"]]
 
 
-def _sid(client, external_id: str) -> int:
+def _sid(client, pool_id: str) -> int:
     items = client.get("/api/samples", params={"page_size": 200}).json()["items"]
-    return next(s["id"] for s in items if s["external_id"] == external_id)
+    return next(s["id"] for s in items if s["pool_id"] == pool_id)
 
 
-def _stage_for(run, external_id: str):
-    return next(s for s in _stages(run) if s["sample_external_id"] == external_id)
+def _stage_for(run, pool_id: str):
+    return next(s for s in _stages(run) if s["sample_pool_id"] == pool_id)
 
 
 def _place(client, sample_id, run_date, slot_index, cell_choice=None, instrument="84047"):

@@ -10,7 +10,7 @@ def test_import_example_csv_lands_in_backlog(client, example_samples_text):
 
     backlog = client.get("/api/samples", params={"status": "backlog"}).json()
     assert backlog["total"] == 8
-    assert {s["external_id"] for s in backlog["items"]} == {
+    assert {s["pool_id"] for s in backlog["items"]} == {
         "BNCH-1597",
         "BNCH-1598",
         "BNCH-1599",
@@ -34,9 +34,9 @@ def test_reimporting_same_rows_creates_copies_and_flags_them_as_duplicates(clien
     assert body["imported_count"] == 8  # every row imported again as a copy
     assert body["duplicate_count"] == 8  # all 8 flagged as seen-before
     assert body["rejected"] == []  # duplicates are no longer rejected
-    # Each Container ID reports one copy created now, seen twice total (prior + this import).
-    by_id = {d["external_id"]: d for d in body["duplicates"]}
-    assert by_id["BNCH-1597"] == {"external_id": "BNCH-1597", "created_now": 1, "total_seen": 2}
+    # Each Pool ID reports one copy created now, seen twice total (prior + this import).
+    by_id = {d["pool_id"]: d for d in body["duplicates"]}
+    assert by_id["BNCH-1597"] == {"pool_id": "BNCH-1597", "created_now": 1, "total_seen": 2}
 
     backlog = client.get("/api/samples", params={"status": "backlog"}).json()
     assert backlog["total"] == 16  # now 16, two copies of each of the 8
@@ -46,12 +46,12 @@ def test_within_file_duplicate_creates_multiple_copies_with_ordinal(client):
     text = "sample,barcodes\nA,bc1\nA,bc2\nA,bc3\nB,bc4"
     body = client.post("/api/imports", json={"raw_text": text}).json()
     assert body["imported_count"] == 4
-    by_id = {d["external_id"]: d for d in body["duplicates"]}
-    assert by_id["A"] == {"external_id": "A", "created_now": 3, "total_seen": 3}
+    by_id = {d["pool_id"]: d for d in body["duplicates"]}
+    assert by_id["A"] == {"pool_id": "A", "created_now": 3, "total_seen": 3}
     assert "B" not in by_id  # a singleton is never flagged
 
     backlog = client.get("/api/samples", params={"status": "backlog", "q": "A"}).json()
-    a_copies = [s for s in backlog["items"] if s["external_id"] == "A"]
+    a_copies = [s for s in backlog["items"] if s["pool_id"] == "A"]
     assert {s["duplicate_index"] for s in a_copies} == {1, 2, 3}
     assert {s["duplicate_total"] for s in a_copies} == {3}
 

@@ -5,7 +5,7 @@
 export interface SampleTopupOut {
   id: number;
   sample_id: number;
-  external_id: string | null;
+  pool_id: string | null;
   barcodes: string[];
   priority: string | null;
   created_at: string;

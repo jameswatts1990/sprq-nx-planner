@@ -29,6 +29,8 @@ from app.services.settings_service import (
     get_default_movie_hours,
     get_insert_size_reuse_threshold,
     get_movie_cell_position,
+    get_repeat_safe_min_ul,
+    get_repeat_total_complex_ul,
     get_sample_defaults,
     set_credit_email,
     set_sample_defaults,
@@ -138,6 +140,10 @@ class SchedulingSettingsOut(BaseModel):
     # movie length -> carousel cell position (within_tray_pos 0-3) it's confined to under Auto
     # Schedule; null = any cell. One entry per movie choice. JSON object keys are strings.
     movie_cell_position: dict[int, int | None]
+    # Total cleaned complex (uL) made per sample, and the leftover (uL) at/above which a repeat
+    # straight from complex is "safe" - drive the Cell QC modal's repeat-from-complex readout.
+    repeat_total_complex_ul: float
+    repeat_safe_min_ul: float
 
 
 class SchedulingSettingsUpdate(BaseModel):
@@ -147,6 +153,8 @@ class SchedulingSettingsUpdate(BaseModel):
     day_start_hour: int | None = None
     default_movie_hours: int | None = None
     movie_cell_position: dict[int, int | None] | None = None
+    repeat_total_complex_ul: float | None = None
+    repeat_safe_min_ul: float | None = None
 
 
 def _scheduling_out(db: SessionDep) -> SchedulingSettingsOut:
@@ -155,6 +163,8 @@ def _scheduling_out(db: SessionDep) -> SchedulingSettingsOut:
         day_start_hour=get_day_start_hour(db),
         default_movie_hours=get_default_movie_hours(db),
         movie_cell_position=get_movie_cell_position(db),
+        repeat_total_complex_ul=get_repeat_total_complex_ul(db),
+        repeat_safe_min_ul=get_repeat_safe_min_ul(db),
     )
 
 
@@ -178,6 +188,10 @@ def update_scheduling_settings(
         values["default_movie_hours"] = str(req.default_movie_hours)
     if req.movie_cell_position is not None:
         values["movie_cell_position"] = json.dumps({str(k): v for k, v in req.movie_cell_position.items()})
+    if req.repeat_total_complex_ul is not None:
+        values["repeat_total_complex_ul"] = str(req.repeat_total_complex_ul)
+    if req.repeat_safe_min_ul is not None:
+        values["repeat_safe_min_ul"] = str(req.repeat_safe_min_ul)
     try:
         set_scheduling_settings(db, values)
     except ValueError as err:

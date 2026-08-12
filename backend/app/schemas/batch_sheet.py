@@ -18,8 +18,8 @@ class BatchSheetWellOut(BaseModel):
     cell_window_deadline: datetime | None  # cell.first_use_started_at + CELL_LIFETIME_H, if started
     window_breached: bool
     sample_id: int | None
-    sample_external_id: str | None
-    parent_sample: str | None
+    sample_pool_id: str | None
+    plate_id: str | None
     barcodes: list[str]
     adaptive_loading: str | None
     base_kinetics: str | None

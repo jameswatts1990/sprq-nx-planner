@@ -140,7 +140,7 @@ def _row_values(cell_use: CellUse, cycle: Cycle, serial: str) -> dict[str, str]:
         # Plate ID is left blank (the app doesn't store a separate plate id). The Loading
         # Conc. column carries the sample's actual (achieved) OPLC when recorded; Target OPLC
         # stays its own column.
-        K_TRACTION_ID: (sample.external_id or "") if sample else "",
+        K_TRACTION_ID: (sample.pool_id or "") if sample else "",
         K_SANGER: _fmt_sanger(sample.sanger_ids if sample else None),
         K_CELL_LOCATION: _cell_location(cell_use, cycle.plate_index),
         # Per-cell run time: each exported well row carries its own movie time, which can
@@ -184,7 +184,7 @@ def _pool_rows(cell_use: CellUse, cycle: Cycle, serial: str) -> list[dict[str, s
         return [collapsed]
 
     portion = _fmt_portion(len(barcodes))
-    pool_id = (sample.external_id or "") if sample else ""
+    pool_id = (sample.pool_id or "") if sample else ""
     rows: list[dict[str, str]] = []
     for barcode, sanger_id in zip(barcodes, sanger_ids):
         row = dict(base)

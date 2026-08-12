@@ -57,17 +57,17 @@ export interface StageOut {
    * one run may differ; PlateOut.movie_hours is the longest of its plate's wells. */
   run_time_hours: RunTimeHours;
   sample_id: number | null;
-  sample_external_id: string | null;
+  sample_pool_id: string | null;
   /** Library insert / fragment size (bp) of the sample in this slot, or null if not recorded.
    * Drives the grid card's "[<5kb]" flag and the small-insert-on-reuse warning (a small-insert
    * sample sitting on use_number >= 2). The threshold is admin-configurable (read client-side). */
   insert_size_bp: number | null;
-  /** Duplicate marker for the sample in this slot: when its Container ID is carried by more
+  /** Duplicate marker for the sample in this slot: when its Pool ID is carried by more
    * than one sample (any status), duplicate_total is the count and duplicate_index this copy's
    * 1-based position. Both null/absent for a one-off — the grid card shows "1/3" only when set. */
   duplicate_index?: number | null;
   duplicate_total?: number | null;
-  /** True when this cell was already used by another copy of the exact same Container ID (a
+  /** True when this cell was already used by another copy of the exact same Pool ID (a
    * sibling duplicate sharing a barcode) - an intentionally ALLOWED reuse, not a clash: reusing
    * a cell with the identical sample can't misattribute reads to a foreign sample, so there's
    * no cross-contamination risk the barcode-clash rule exists to prevent. Shown so it's

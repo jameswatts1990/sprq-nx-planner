@@ -12,6 +12,8 @@ from app.engine.constants import (
     DAY_START_HOUR,
     DEFAULT_INSERT_SIZE_REUSE_THRESHOLD_BP,
     DEFAULT_MOVIE_HOURS,
+    DEFAULT_REPEAT_SAFE_MIN_UL,
+    DEFAULT_TOTAL_COMPLEX_UL,
     MOVIE_HOURS_CHOICES,
 )
 from app.services.settings_service import (
@@ -20,6 +22,8 @@ from app.services.settings_service import (
     get_insert_size_reuse_threshold,
     get_movie_cell_position,
     get_movie_rules,
+    get_repeat_safe_min_ul,
+    get_repeat_total_complex_ul,
     get_scheduling_settings,
     set_scheduling_settings,
 )
@@ -142,6 +146,43 @@ def test_scheduling_api_returns_and_updates_all_fields(client):
 
     # Out-of-range hour is a 422.
     assert client.put("/api/settings/scheduling", json={"day_start_hour": 25}).status_code == 422
+
+
+# --- cleaned-complex repeat volumes ------------------------------------------------------
+
+def test_repeat_complex_volumes_default_and_round_trip(db_session):
+    assert get_repeat_total_complex_ul(db_session) == DEFAULT_TOTAL_COMPLEX_UL
+    assert get_repeat_safe_min_ul(db_session) == DEFAULT_REPEAT_SAFE_MIN_UL
+    set_scheduling_settings(db_session, {"repeat_total_complex_ul": "30", "repeat_safe_min_ul": "10.5"})
+    assert get_repeat_total_complex_ul(db_session) == 30.0
+    assert get_repeat_safe_min_ul(db_session) == 10.5
+    # Stored canonically - a whole number keeps no trailing ".0", a fraction is preserved.
+    assert get_scheduling_settings(db_session)["repeat_total_complex_ul"] == "30"
+    assert get_scheduling_settings(db_session)["repeat_safe_min_ul"] == "10.5"
+
+
+def test_repeat_complex_volumes_reject_non_positive_non_numeric_and_non_finite(db_session):
+    # "inf"/"nan" (a JSON number like 1e400 parses to inf) must be rejected too — a stored
+    # non-finite value would later break JSON-serialising every scheduling/QC read.
+    for key in ("repeat_total_complex_ul", "repeat_safe_min_ul"):
+        for bad in ("0", "-5", "abc", "inf", "-inf", "nan"):
+            with pytest.raises(ValueError):
+                set_scheduling_settings(db_session, {key: bad})
+
+
+def test_repeat_complex_volumes_api_round_trip(client):
+    r = client.get("/api/settings/scheduling").json()
+    assert r["repeat_total_complex_ul"] == DEFAULT_TOTAL_COMPLEX_UL
+    assert r["repeat_safe_min_ul"] == DEFAULT_REPEAT_SAFE_MIN_UL
+
+    put = client.put("/api/settings/scheduling", json={"repeat_total_complex_ul": 20, "repeat_safe_min_ul": 8})
+    assert put.status_code == 200
+    assert put.json()["repeat_total_complex_ul"] == 20
+    assert put.json()["repeat_safe_min_ul"] == 8
+    assert client.get("/api/settings/scheduling").json()["repeat_total_complex_ul"] == 20
+
+    # A non-positive volume is a 422, not a silent store.
+    assert client.put("/api/settings/scheduling", json={"repeat_total_complex_ul": 0}).status_code == 422
 
 
 # --- read-only facts card ----------------------------------------------------------------

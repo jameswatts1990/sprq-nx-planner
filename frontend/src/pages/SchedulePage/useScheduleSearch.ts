@@ -24,7 +24,7 @@ export interface BacklogMatch {
   kind: "backlog";
   key: string;
   sampleId: number;
-  externalId: string;
+  poolId: string;
   label: string;
 }
 /** One appearance the unified search can cycle to. */
@@ -42,11 +42,11 @@ function runMatches(run: RunOut, ql: string, qDigits: string): boolean {
   return false;
 }
 
-/** A placed well matches on its sample's Container ID or any of its barcodes - the same
+/** A placed well matches on its sample's Pool ID or any of its barcodes - the same
  * fields the backlog's own text search covers, so the two halves of the unified search feel
  * like one search. */
-function stageMatches(externalId: string | null, barcodes: string[], ql: string): boolean {
-  if (externalId && externalId.toLowerCase().includes(ql)) return true;
+function stageMatches(poolId: string | null, barcodes: string[], ql: string): boolean {
+  if (poolId && poolId.toLowerCase().includes(ql)) return true;
   return barcodes.some((b) => b.toLowerCase().includes(ql));
 }
 
@@ -125,7 +125,7 @@ export function useScheduleSearch(): ScheduleSearch {
       const runHit = runMatches(run, ql, qDigits);
       for (const plate of run.plates) {
         for (const stage of plate.stages) {
-          if (!(runHit || stageMatches(stage.sample_external_id, stage.barcodes, ql))) continue;
+          if (!(runHit || stageMatches(stage.sample_pool_id, stage.barcodes, ql))) continue;
           const sk = slotKey(run.instrument_serial, run.load_date, stage.slot_index);
           if (seen.has(sk)) continue;
           seen.add(sk);
@@ -136,7 +136,7 @@ export function useScheduleSearch(): ScheduleSearch {
             instrumentSerial: run.instrument_serial,
             slotIndex: stage.slot_index,
             slotKey: sk,
-            label: `${runLabel(run)} · ${stage.sample_external_id ?? "—"}`,
+            label: `${runLabel(run)} · ${stage.sample_pool_id ?? "—"}`,
           });
         }
       }
@@ -152,8 +152,8 @@ export function useScheduleSearch(): ScheduleSearch {
       kind: "backlog",
       key: `b${s.id}`,
       sampleId: s.id,
-      externalId: s.external_id,
-      label: s.external_id,
+      poolId: s.pool_id,
+      label: s.pool_id,
     }));
     return [...placements, ...backlog];
   }, [searchActive, allRunsQuery.data, backlogItemsRaw, ql, qDigits]);

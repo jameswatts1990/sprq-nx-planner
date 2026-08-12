@@ -9,7 +9,7 @@ export interface CellUseOut {
   cell_id: number;
   cell_code: string | null;
   sample_id: number | null;
-  sample_external_id: string | null;
+  sample_pool_id: string | null;
   well: string;
   run_time_hours: number;
   status: string;

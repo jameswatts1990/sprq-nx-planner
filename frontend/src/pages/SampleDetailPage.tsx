@@ -40,7 +40,7 @@ const PLACED_EDITABLE_KEYS = new Set([
  * Edit button is offered (matches update_sample's _LOCKED_EDIT_STATUSES). */
 const LOCKED_EDIT_STATUSES = ["completed", "failed", "cancelled"];
 
-/** Full detail for a single sample (container), reached by clicking any container id
+/** Full detail for a single sample (pool), reached by clicking any Pool ID
  * across the app - a cell card, the cell detail use-history, the Samples history list.
  * Shows the sample's metadata and every cell use it has had, each linking back to the
  * cell and run it ran on, closing the sample <-> cell <-> run navigation loop. Read via
@@ -115,19 +115,19 @@ export function SampleDetailPage() {
           }
         >
           <h2>
-            {sample.external_id}{" "}
+            {sample.pool_id}{" "}
             <DuplicateBadge index={sample.duplicate_index} total={sample.duplicate_total} />
           </h2>
         </CardHeader>
         <CardBody>
           <div className={styles.headerGrid}>
             <div>
-              <span className={styles.label}>Container ID</span>
-              <span className={styles.value}>{sample.external_id}</span>
+              <span className={styles.label}>Pool ID</span>
+              <span className={styles.value}>{sample.pool_id}</span>
             </div>
             <div>
-              <span className={styles.label}>Parent sample</span>
-              <span className={styles.value}>{sample.parent_sample ?? "—"}</span>
+              <span className={styles.label}>Plate ID</span>
+              <span className={styles.value}>{sample.plate_id ?? "—"}</span>
             </div>
             <div>
               <span className={styles.label}>Priority</span>

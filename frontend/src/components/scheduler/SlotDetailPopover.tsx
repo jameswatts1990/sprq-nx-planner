@@ -40,7 +40,7 @@ export interface SlotDetailPopoverProps {
 }
 
 /** The only sample fields still editable once a sample has been placed on the grid — its
- * loading/annotation parameters. Barcodes, Sanger IDs, parent, and the Container ID are
+ * loading/annotation parameters. Barcodes, Sanger IDs, parent, and the Pool ID are
  * frozen at placement (the barcodes are burned onto the cell use; the backend enforces this
  * too — see update_placed_sample_metadata). Keys match the importable-field set. */
 const PLACED_EDITABLE_KEYS = new Set([
@@ -209,7 +209,7 @@ function SlotDetailBody({
   }
 
   return (
-    // Titled by the SAMPLE (Container ID) - the card-body popover is about this placement,
+    // Titled by the SAMPLE (Pool ID) - the card-body popover is about this placement,
     // so it reads differently from the cell-stub popover (CellInfoPopover), which stays
     // titled by the physical cell code. The cell it ran on is shown as a subtitle for context.
     <Modal
@@ -227,7 +227,7 @@ function SlotDetailBody({
             >
               <span aria-hidden="true">‹</span>
             </button>
-            <span className={styles.titleId}>{stage.sample_external_id ?? "Placement"}</span>
+            <span className={styles.titleId}>{stage.sample_pool_id ?? "Placement"}</span>
             <button
               type="button"
               className={`btn icon sm ${styles.navBtn}`}
@@ -240,7 +240,7 @@ function SlotDetailBody({
             </button>
           </span>
         ) : (
-          (stage.sample_external_id ?? "Placement")
+          (stage.sample_pool_id ?? "Placement")
         )
       }
     >
@@ -286,7 +286,7 @@ function SlotDetailBody({
       )}
       {stage.duplicate_cell_reuse && (
         <Note tone="info" icon="i">
-          This cell was already used by <b>another copy of the same Container ID</b>. Reusing it is fine — it&apos;s
+          This cell was already used by <b>another copy of the same Pool ID</b>. Reusing it is fine — it&apos;s
           the same underlying sample either way, so there&apos;s no cross-sample contamination risk.
         </Note>
       )}
@@ -302,13 +302,13 @@ function SlotDetailBody({
           <span className={styles.label}>Sample</span>
           <span className={styles.sampleValue}>
             {stage.sample_id != null ? (
-              // The Container ID links to the sample's own page; the ✎ opens the inline edit
+              // The Pool ID links to the sample's own page; the ✎ opens the inline edit
               // popup (its loading parameters) - two distinct affordances, not one combined link.
               <Link to={`/samples/${stage.sample_id}`} state={backNav} className={styles.sampleLink}>
-                {stage.sample_external_id ?? "—"}
+                {stage.sample_pool_id ?? "—"}
               </Link>
             ) : (
-              <b className={styles.value}>{stage.sample_external_id ?? "—"}</b>
+              <b className={styles.value}>{stage.sample_pool_id ?? "—"}</b>
             )}
             {sampleEditable && (
               <button

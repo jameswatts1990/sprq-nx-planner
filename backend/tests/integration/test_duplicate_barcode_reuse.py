@@ -1,8 +1,8 @@
-"""Duplicate Container ID samples (the "same sample run across multiple cells" feature,
+"""Duplicate Pool ID samples (the "same sample run across multiple cells" feature,
 frontend/src/pages/SampleModal.tsx) share a barcode by default - so the burned-barcode
 carryover guard used to bar every copy from ever reusing a cell any sibling copy had
 touched, even while a tray it could safely reuse still had capacity. A cell can only ever
-be reused by a DIFFERENT copy of the exact same Container ID, never a genuinely different
+be reused by a DIFFERENT copy of the exact same Pool ID, never a genuinely different
 sample sharing that barcode (see cell_service.foreign_barcode_clash and
 docs/pacbio-sprq-nx-scheduling-reference.md's barcode-carryover exception, 2026-07-29).
 
@@ -24,11 +24,11 @@ def _weekdays(n: int) -> list[str]:
     return out
 
 
-def _sids(client, external_id: str) -> list[int]:
-    """Every sample id carrying this Container ID, oldest first - there are several once
+def _sids(client, pool_id: str) -> list[int]:
+    """Every sample id carrying this Pool ID, oldest first - there are several once
     it's a duplicate, unlike _sid()'s single-match lookup elsewhere in this test suite."""
     items = client.get("/api/samples", params={"page_size": 200}).json()["items"]
-    return sorted(s["id"] for s in items if s["external_id"] == external_id)
+    return sorted(s["id"] for s in items if s["pool_id"] == pool_id)
 
 
 def _stages(run):
@@ -57,7 +57,7 @@ def _auto(client, sample_id, run_date, slot_index, instrument="84047"):
 
 
 def test_duplicate_copy_reuses_a_cell_its_own_earlier_copy_already_used(client):
-    """Two copies of Container ID DUP, same barcode. The second copy is dropped onto a
+    """Two copies of Pool ID DUP, same barcode. The second copy is dropped onto a
     Plate-2 slot of the same run as the first - the intra-run reuse branch of
     derive_best_cell - and must land on the exact same physical cell as its own earlier
     copy (Use 2), not be forced onto a fresh tray. duplicate_cell_reuse marks the result."""
@@ -93,14 +93,14 @@ def test_a_different_sample_sharing_a_barcode_is_flagged_not_blocked_on_a_duplic
 
     r2 = _place(client, other, tue, 0, {"mode": "existing", "cell_id": cell_id})
     assert r2.status_code == 201, r2.text
-    stage = next(s for s in _stages(r2.json()) if s["sample_external_id"] == "OTHER")
+    stage = next(s for s in _stages(r2.json()) if s["sample_pool_id"] == "OTHER")
     assert stage["cell_id"] == cell_id
     assert stage["barcode_clash"] is True  # genuinely different sample -> real clash, flagged
     assert stage["duplicate_cell_reuse"] is False
 
 
 def test_recalculate_consolidates_duplicate_copies_forced_onto_separate_trays(client):
-    """Reproduces the reported bug's shape: two copies of one Container ID ended up on two
+    """Reproduces the reported bug's shape: two copies of one Pool ID ended up on two
     separate fresh trays - here, an explicit {"mode":"new"} forcing the second copy onto its
     own tray in a different carousel position/day even though it could have reused the
     first's cell (e.g. built before this exemption existed, or a deliberate manual override).
@@ -133,7 +133,7 @@ def test_recalculate_consolidates_duplicate_copies_forced_onto_separate_trays(cl
 
 
 def test_recalculate_extends_into_a_new_day_when_the_existing_footprint_is_too_narrow_to_consolidate(client):
-    """Reproduces the reported bug's shape (2026-07-29): two copies of one Container ID both
+    """Reproduces the reported bug's shape (2026-07-29): two copies of one Pool ID both
     forced onto the SAME single day (two separate fresh trays in the two different carousel
     boxes, since a cell can't be reused twice in one day) - recalculate's day-scope used to
     only ever offer back that one pre-existing day, so available_days=1 capped every fresh

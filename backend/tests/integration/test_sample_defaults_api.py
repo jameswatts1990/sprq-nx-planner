@@ -44,7 +44,7 @@ def test_created_sample_fills_blanks_from_defaults_but_respects_explicit_values(
     )
 
     # Manual create with nothing specified -> every defaultable field is filled.
-    filled = client.post("/api/samples", json={"external_id": "D1", "barcodes": ["bc1"]})
+    filled = client.post("/api/samples", json={"pool_id": "D1", "barcodes": ["bc1"]})
     assert filled.status_code == 201, filled.text
     b = filled.json()
     assert b["adaptive_loading"] == "True"
@@ -54,7 +54,7 @@ def test_created_sample_fills_blanks_from_defaults_but_respects_explicit_values(
     # An explicit value (including an explicit False) always wins over the default.
     explicit = client.post(
         "/api/samples",
-        json={"external_id": "D2", "barcodes": ["bc2"], "base_kinetics": "False", "priority": "High (1)"},
+        json={"pool_id": "D2", "barcodes": ["bc2"], "base_kinetics": "False", "priority": "High (1)"},
     )
     assert explicit.status_code == 201, explicit.text
     b2 = explicit.json()
@@ -67,6 +67,6 @@ def test_import_backfills_blank_loading_options_from_defaults(client):
     client.put("/api/settings/sample-defaults", json={"adaptive_loading": "True", "priority": "High (1)"})
     _import(client, "sample,barcodes\nIMP1,bc1")
     items = client.get("/api/samples", params={"page_size": 50}).json()["items"]
-    imp = next(s for s in items if s["external_id"] == "IMP1")
+    imp = next(s for s in items if s["pool_id"] == "IMP1")
     assert imp["adaptive_loading"] == "True"
     assert imp["priority"] == "High (1)"

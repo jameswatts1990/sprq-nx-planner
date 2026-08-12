@@ -82,7 +82,7 @@ const PRIORITY_EXAMPLES: { label: string; meaning: string }[] = [
   },
   {
     label: "Repeatable (0)",
-    meaning: "Rank 0 - returned to the backlog by a Cell QC action (library repeatable); shown in the Recoverable Samples section, above High.",
+    meaning: "Rank 0 - returned to the backlog by a Cell QC action to be repeated, either from the leftover cleaned complex or from library material in Traction; shown in the Recoverable Samples section, above High.",
   },
   {
     label: "Aborted (0)",
@@ -191,7 +191,7 @@ export function LegendSection() {
           <DuplicateBadge index={1} total={3} />
         </span>
         <span>
-          The same Container ID appears on more than one sample - the same sample deliberately run
+          The same Pool ID appears on more than one sample - the same sample deliberately run
           across multiple SMRT cells. &ldquo;1/3&rdquo; means this is copy 1 of 3 (counted across
           every status, including completed runs). Distinct from the cell &ldquo;Use 1/2/3&rdquo;
           colours above, which count acquisitions of one physical cell.
@@ -203,7 +203,7 @@ export function LegendSection() {
         </span>
         <span>
           On the weekly schedule only: the ↻ means this copy is sharing a physical cell with an
-          earlier copy of the same Container ID. That&apos;s allowed and expected - it&apos;s the
+          earlier copy of the same Pool ID. That&apos;s allowed and expected - it&apos;s the
           same underlying sample either way, so there&apos;s no risk of one sample&apos;s reads
           being mixed up with another&apos;s. Opening the slot shows the same explanation.
         </span>

@@ -18,9 +18,9 @@ def _stages(run):
     return [s for p in run["plates"] for s in p["stages"]]
 
 
-def _sid(client, external_id: str) -> int:
+def _sid(client, pool_id: str) -> int:
     items = client.get("/api/samples", params={"page_size": 200}).json()["items"]
-    return next(s["id"] for s in items if s["external_id"] == external_id)
+    return next(s["id"] for s in items if s["pool_id"] == pool_id)
 
 
 def _place(client, sample_id, run_date, slot_index=0, instrument="84047", run_time_hours=24):
@@ -186,8 +186,8 @@ def test_deleting_a_run_batch_row_cascades_and_reconciles_its_samples(client):
     resp = client.delete(f"/api/admin/tables/run_batches/rows/{run_batch_id}")
     assert resp.status_code == 204
 
-    for external_id in ("A1", "A2"):
-        sample = client.get(f"/api/samples/{_sid(client, external_id)}").json()
+    for pool_id in ("A1", "A2"):
+        sample = client.get(f"/api/samples/{_sid(client, pool_id)}").json()
         assert sample["status"] == "backlog"
     assert client.get("/api/admin/tables/cell_uses/rows").json()["total"] == 0
 
@@ -211,11 +211,11 @@ def test_update_row_edits_a_string_column(client):
 
     resp = client.patch(
         f"/api/admin/tables/samples/rows/{sample_id}",
-        json={"values": {"external_id": "A1-corrected"}},
+        json={"values": {"pool_id": "A1-corrected"}},
     )
     assert resp.status_code == 200, resp.text
-    assert resp.json()["external_id"] == "A1-corrected"
-    assert client.get(f"/api/samples/{sample_id}").json()["external_id"] == "A1-corrected"
+    assert resp.json()["pool_id"] == "A1-corrected"
+    assert client.get(f"/api/samples/{sample_id}").json()["pool_id"] == "A1-corrected"
 
 
 def test_update_row_coerces_numeric_text_and_clears_with_null(client):
@@ -263,7 +263,7 @@ def test_update_row_unknown_table_and_missing_row(client):
         "/api/admin/tables/not_a_real_table/rows/1", json={"values": {"x": 1}}
     ).status_code == 404
     assert client.patch(
-        "/api/admin/tables/samples/rows/999999", json={"values": {"external_id": "z"}}
+        "/api/admin/tables/samples/rows/999999", json={"values": {"pool_id": "z"}}
     ).status_code == 404
 
 

@@ -204,7 +204,7 @@ export function CellsPage() {
         <input
           type="search"
           className={styles.search}
-          placeholder="Search cells, trays, container IDs, runs, barcodes, instruments…"
+          placeholder="Search cells, trays, Pool IDs, runs, barcodes, instruments…"
           value={qInput}
           onChange={(e) => setQInput(e.target.value)}
         />

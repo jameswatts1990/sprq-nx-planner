@@ -20,12 +20,12 @@ from app.engine.import_fields import (
     K_BARCODES,
     K_BASE_KINETICS,
     K_CLEANED_COMPLEX_VOL,
-    K_EXTERNAL_ID,
+    K_POOL_ID,
     K_FULL_RES_BASE_Q,
     K_INSERT_SIZE,
     K_LOADING_BUFFER_VOL,
     K_MOVIE_TIME,
-    K_PARENT_SAMPLE,
+    K_PLATE_ID,
     K_PRIORITY,
     K_SANGER,
     K_TARGET_OPLC,
@@ -158,7 +158,7 @@ def normalize_with_map(data_rows: list[list[str]], column_map: dict[str, int]) -
         return r[idx] if 0 <= idx < len(r) else ""
 
     for n, r in enumerate(data_rows):
-        raw_id = cell(r, K_EXTERNAL_ID).strip()
+        raw_id = cell(r, K_POOL_ID).strip()
         barcodes = split_barcodes(cell(r, K_BARCODES))
 
         if not raw_id and not barcodes:
@@ -181,7 +181,7 @@ def normalize_with_map(data_rows: list[list[str]], column_map: dict[str, int]) -
             ParsedSample(
                 id=sample_id,
                 barcodes=barcodes,
-                parent=cell(r, K_PARENT_SAMPLE).strip(),
+                parent=cell(r, K_PLATE_ID).strip(),
                 sanger=_parse_sanger(sanger_raw) if sanger_raw.strip() else [],
                 target_oplc=_parse_float_or_none(cell(r, K_TARGET_OPLC)),
                 actual_oplc=_parse_float_or_none(cell(r, K_ACTUAL_OPLC)),
@@ -217,6 +217,6 @@ def normalize_samples(text: str | None) -> NormalizeResult:
     if has_header:
         return normalize_with_map(rows[1:], suggest_column_map(rows[0]))
 
-    result = normalize_with_map(rows, {K_EXTERNAL_ID: 0, K_BARCODES: 1})
+    result = normalize_with_map(rows, {K_POOL_ID: 0, K_BARCODES: 1})
     result.warnings.insert(0, "No header row detected — read as two columns: sample, barcodes.")
     return result

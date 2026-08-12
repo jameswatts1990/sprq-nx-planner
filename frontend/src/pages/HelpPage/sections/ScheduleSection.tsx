@@ -86,7 +86,7 @@ export function ScheduleSection() {
       <p>
         The <b>search box</b> in the toolbar (just right of <b>Export schedule</b>) finds a sample or run anywhere — it
         looks across both the <b>Backlog</b> and everything already <b>planned on the grid</b> at once. Type a{" "}
-        <b>Container ID</b>, a <b>barcode</b>, a <b>run name</b>, or a bare <b>run number</b> (e.g. <i>123</i> or{" "}
+        <b>Pool ID</b>, a <b>barcode</b>, a <b>run name</b>, or a bare <b>run number</b> (e.g. <i>123</i> or{" "}
         <i>#123</i>): the Backlog tray narrows to the matching samples as you type, and a counter shows how many
         appearances were found.
       </p>
@@ -215,8 +215,8 @@ export function ScheduleSection() {
         use is in (see <i>Runs, plates &amp; wells</i> below), not a whole separate run card. Afterwards a note —
         shown directly on the schedule page, next to the weekly grid — reports how many samples were placed, how
         many (if any) moved to a different day, and how many, if any, couldn&apos;t be placed at all, naming their
-        Container IDs: they stay safely in the Backlog, never lost, and can always be found from there or by
-        pasting the Container ID into the Samples tab&apos;s search (which looks across every status, not just
+        Pool IDs: they stay safely in the Backlog, never lost, and can always be found from there or by
+        pasting the Pool ID into the Samples tab&apos;s search (which looks across every status, not just
         finished samples).
       </p>
 
@@ -228,7 +228,7 @@ export function ScheduleSection() {
         1</b>, then <b>Plate 2</b> if the run has one. Each plate block is headed with the day it sequences, e.g.{" "}
         <i>&quot;Plate 2 · acquires Fri 25 Jul · reuse (Use 2)&quot;</i> — so a reuse run&apos;s second plate, which the
         instrument runs the next day, is on the sheet too (both plates are loaded in the one session). Each well shows
-        its cell code, use number and 108-hour reuse deadline, the sample to load and its <b>parent sample</b>, the
+        its cell code, use number and 108-hour reuse deadline, the sample to load and its <b>Plate ID</b>, the
         per-cell run settings (movie / run time, adaptive loading, include base kinetics, full-resolution baseQ) and the
         <b> Actual OPLC</b>. Any setting that differs from the configured Sample Defaults (Admin tab) is shown in
         <b> bold with a &quot;*&quot;</b> so a non-standard value stands out; a footnote under the table explains the
@@ -324,7 +324,7 @@ export function ScheduleSection() {
           <br />
           When it has to decide what to place first, Auto Schedule works in this order: <b>Priority</b> (High → Medium →
           Standard), then <b>movie length</b> (12 h and 30 h samples, each tied to one cell position, go ahead of
-          flexible 24 h ones), then <b>Container ID</b> order.
+          flexible 24 h ones), then <b>Pool ID</b> order.
         </dd>
         <dt>Load time</dt>
         <dd>
@@ -348,7 +348,7 @@ export function ScheduleSection() {
           starts on Thu — so only one cell is &quot;live&quot; at a time. <b>By order</b> fills the grid strictly in
           the sequence samples were <b>uploaded</b> — and within each upload, the order their rows appeared in the CSV
           (so two files imported as A then B schedule as A1, A2, A3… then B1, B2, B3…). It <b>ignores priority</b> and
-          the usual Container-ID ordering — the point is to honour exactly the order you gave — and otherwise fills
+          the usual Pool ID ordering — the point is to honour exactly the order you gave — and otherwise fills
           trays the same way <b>Fastest</b> does.
         </dd>
         <dt>Plates per run (1 plate / 2 plates)</dt>
@@ -408,7 +408,7 @@ export function ScheduleSection() {
         form. Either way the tray refreshes on save.
       </p>
       <p>
-        A backlog card or placed grid slot showing a <b>1/3</b> badge is a <b>duplicate</b> — the same Container ID
+        A backlog card or placed grid slot showing a <b>1/3</b> badge is a <b>duplicate</b> — the same Pool ID
         entered more than once so it can be run across multiple cells. Each copy drags onto its own slot
         independently; &ldquo;1/3&rdquo; means copy 1 of 3.
       </p>
@@ -476,7 +476,7 @@ export function ScheduleSection() {
         drop. If a clash shouldn&apos;t happen, move one of the two samples to a different slot, day, or plate. This is
         true on <b>every</b> manual action — a plain drop, naming a specific cell yourself (the cell stub&apos;s
         &quot;choose a specific cell&quot; override), or swapping two placed samples: none of them is ever blocked for
-        a clash, they warn and let you decide. A <b>duplicate</b> sample (same Container ID as an earlier copy) is the
+        a clash, they warn and let you decide. A <b>duplicate</b> sample (same Pool ID as an earlier copy) is the
         one case that was never really a clash: it&apos;s allowed to reuse a cell that earlier copy already used, since
         it&apos;s the same underlying sample either way — see the ↻ badge under <i>Duplicate samples</i> in the Colour
         &amp; Status Legend.
@@ -576,7 +576,7 @@ export function ScheduleSection() {
       <p>
         <b>Auto-schedule result</b> summarises the outcome, e.g. &quot;12 placed · 3 unplaced (TRAC-2-26296,
         TRAC-2-26301, TRAC-2-26305) · 1 cell(s) skipped · 2 window flag(s) · 1 reuse-timing flag(s) · 1 barcode
-        conflict(s) · 4 cell(s) disposed&quot; — any unplaced samples are named by Container ID (up to the first
+        conflict(s) · 4 cell(s) disposed&quot; — any unplaced samples are named by Pool ID (up to the first
         three, then &quot;and N more&quot;) so you know exactly which ones are still sitting in the Backlog, rather
         than just a count. &quot;Cell(s) disposed&quot; is the
         expected result of the Max-uses cap — the cells of any tray whose every cell reached the use limit, binned
@@ -626,7 +626,7 @@ export function ScheduleSection() {
       </p>
       <p>
         <b>Opening a placement:</b> clicking a filled slot&apos;s <b>card body</b> opens its detail popover, now titled
-        by the <b>sample</b> (its Container ID), with the cell it ran on shown just beneath — so it reads clearly apart
+        by the <b>sample</b> (its Pool ID), with the cell it ran on shown just beneath — so it reads clearly apart
         from the cell-stub popover (which stays titled by the physical cell). The <b>Sample ID</b> is a link to that
         sample&apos;s own page, and the <b>Run</b> value links to that run&apos;s page.
       </p>

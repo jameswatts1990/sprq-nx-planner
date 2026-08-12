@@ -58,9 +58,9 @@ def _stages(run):
     return [s for p in run["plates"] for s in p["stages"]]
 
 
-def _sid(client, external_id: str) -> int:
+def _sid(client, pool_id: str) -> int:
     items = client.get("/api/samples", params={"page_size": 200}).json()["items"]
-    return next(s["id"] for s in items if s["external_id"] == external_id)
+    return next(s["id"] for s in items if s["pool_id"] == pool_id)
 
 
 def _auto_fill(client, cells, objective="fastest", movie_times=(24,), max_uses=3, cells_per_day=8):
@@ -279,7 +279,7 @@ def test_auto_fill_fills_around_a_cancelled_stopped_cell_marker_without_crashing
     assert wells == {"A01", "B01", "C01", "D01", "A02", "B02", "C02", "D02"}
     cancelled = next(s for s in _stages(cycle) if s["cell_use_status"] == "cancelled")
     assert cancelled["well"] == "A01"
-    assert cancelled["sample_external_id"] == "CM1"
+    assert cancelled["sample_pool_id"] == "CM1"
 
 
 def test_auto_fill_skips_day_locked_by_its_own_earlier_run(client):
@@ -584,8 +584,8 @@ def test_auto_fill_by_order_fills_grid_in_upload_and_csv_sequence(client):
     mon_stages = sorted(_stages(runs_by_day[week[0]]), key=lambda s: s["well"])
     tue_stages = sorted(_stages(runs_by_day[week[1]]), key=lambda s: s["well"])
     # Monday = the first upload in CSV order (A01-D01), Tuesday = the second upload.
-    assert [s["sample_external_id"] for s in mon_stages] == ["A1", "A2", "A3", "A4"]
-    assert [s["sample_external_id"] for s in tue_stages] == ["B1", "B2", "B3", "B4"]
+    assert [s["sample_pool_id"] for s in mon_stages] == ["A1", "A2", "A3", "A4"]
+    assert [s["sample_pool_id"] for s in tue_stages] == ["B1", "B2", "B3", "B4"]
 
 
 def test_auto_fill_rejects_weekend_cell(client):
@@ -803,7 +803,7 @@ def test_auto_fill_opens_a_fresh_tray_in_bay1_when_bay0_is_occupied_by_a_nonreus
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert _sid(client, "Y") in body["placed_sample_ids"]  # placed in the free bay, not stranded
-    stage = next(s for run in body["runs"] for s in _stages(run) if s["sample_external_id"] == "Y")
+    stage = next(s for run in body["runs"] for s in _stages(run) if s["sample_pool_id"] == "Y")
     assert stage["well"] == "A01"  # loaded into the Plate-1 display well
     assert stage["cell_home_well"] == "A02"  # ...but the fresh tray physically sits in bay 1
 
@@ -1084,7 +1084,7 @@ def test_auto_fill_surfaces_barcode_conflicts_between_backlog_samples(client):
 
     assert len(body["barcode_conflicts"]) == 1
     conflict = body["barcode_conflicts"][0]
-    assert {conflict["sample_external_id_a"], conflict["sample_external_id_b"]} == {"CJ1", "CJ2"}
+    assert {conflict["sample_pool_id_a"], conflict["sample_pool_id_b"]} == {"CJ1", "CJ2"}
     assert conflict["shared_barcodes"] == ["shared"]
 
 
@@ -1102,13 +1102,13 @@ def test_auto_fill_only_schedules_ticked_movie_times(client):
     assert resp.status_code == 200, resp.text
     body = resp.json()
 
-    placed = {s["sample_external_id"] for r in body["runs"] for s in _stages(r)}
+    placed = {s["sample_pool_id"] for r in body["runs"] for s in _stages(r)}
     assert placed == {"M24"}
     assert body["unplaced_sample_ids"] == []
 
     # The excluded 12h/30h samples stay in the backlog for a later run that ticks them.
     samples = client.get("/api/samples", params={"page_size": 200}).json()["items"]
-    by_id = {s["external_id"]: s for s in samples}
+    by_id = {s["pool_id"]: s for s in samples}
     assert by_id["M12"]["status"] == "backlog"
     assert by_id["M30"]["status"] == "backlog"
     assert by_id["M24"]["status"] == "scheduled"
@@ -1126,7 +1126,7 @@ def test_auto_fill_places_12h_on_cell_1_and_30h_on_cell_4(client):
 
     resp = _auto_fill(client, [{"instrument_serial": "84047", "load_date": mon}], movie_times=[12, 30])
     assert resp.status_code == 200, resp.text
-    stages = {s["sample_external_id"]: s for r in resp.json()["runs"] for s in _stages(r)}
+    stages = {s["sample_pool_id"]: s for r in resp.json()["runs"] for s in _stages(r)}
 
     assert stages["H12"]["tray_position"] == 1
     assert stages["H12"]["well"] == "A01"
@@ -1183,9 +1183,9 @@ def test_auto_fill_large_insert_control_still_reuses_one_cell(client):
     assert sorted(s["use_number"] for s in stages) == [1, 2, 3]
 
 
-def test_auto_fill_reports_unplaced_external_ids(client):
+def test_auto_fill_reports_unplaced_pool_ids(client):
     """A bare unplaced COUNT left a user unable to find an affected sample anywhere (reported
-    2026-07-29) - unplaced_external_ids names the actual Container IDs so they can be found
+    2026-07-29) - unplaced_pool_ids names the actual Pool IDs so they can be found
     (in the Backlog, or via the Samples page's all-status search)."""
     client.post("/api/imports", json={"raw_text": TEN_DISJOINT})
     (mon,) = _weekdays(1)  # one day on offer -> 8 wells, only 8 of the 10 samples fit
@@ -1196,11 +1196,11 @@ def test_auto_fill_reports_unplaced_external_ids(client):
 
     assert len(body["placed_sample_ids"]) == 8
     assert len(body["unplaced_sample_ids"]) == 2
-    assert len(body["unplaced_external_ids"]) == 2
+    assert len(body["unplaced_pool_ids"]) == 2
 
     backlog = client.get("/api/samples", params={"status": "backlog", "page_size": 200}).json()["items"]
-    still_backlog = {s["external_id"] for s in backlog}
-    assert set(body["unplaced_external_ids"]) == still_backlog
+    still_backlog = {s["pool_id"] for s in backlog}
+    assert set(body["unplaced_pool_ids"]) == still_backlog
 
 
 def test_auto_fill_clears_qc_disposition_on_placement(client, db_session):

@@ -92,7 +92,7 @@ export function buildCreditEmailContext(cell: CellDetailOut): CreditEmailContext
   const use = triggeringUse(cell.use_history);
   const reimbursement = expectedReimbursement(cell);
   return {
-    sampleName: use?.sample_external_id || "—",
+    sampleName: use?.sample_pool_id || "—",
     run: use ? runLabel({ run_id: use.run_batch_id, run_name: use.run_name }) : "—",
     instrument: use?.instrument_serial ?? "—",
     runDate: use ? formatDateTime(use.started_at ?? use.completed_at) : "—",

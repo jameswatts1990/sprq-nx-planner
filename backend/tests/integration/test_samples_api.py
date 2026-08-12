@@ -40,7 +40,7 @@ def test_priority_filter_narrows_results(client):
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert body["total"] == 2
-    assert {s["external_id"] for s in body["items"]} == {"A1", "A3"}
+    assert {s["pool_id"] for s in body["items"]} == {"A1", "A3"}
 
 
 def test_search_matches_on_priority(client):
@@ -53,7 +53,7 @@ def test_search_matches_on_priority(client):
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert body["total"] == 1
-    assert body["items"][0]["external_id"] == "A1"
+    assert body["items"][0]["pool_id"] == "A1"
 
 
 def test_sort_by_priority_orders_by_rank_not_object_identity(client):
@@ -64,11 +64,11 @@ def test_sort_by_priority_orders_by_rank_not_object_identity(client):
 
     resp = client.get("/api/samples", params={"sort_by": "priority", "sort_dir": "asc"})
     assert resp.status_code == 200, resp.text
-    assert [s["external_id"] for s in resp.json()["items"]] == ["A2", "A1", "A3"]
+    assert [s["pool_id"] for s in resp.json()["items"]] == ["A2", "A1", "A3"]
 
     resp = client.get("/api/samples", params={"sort_by": "priority", "sort_dir": "desc"})
     assert resp.status_code == 200, resp.text
-    assert [s["external_id"] for s in resp.json()["items"]] == ["A3", "A1", "A2"]
+    assert [s["pool_id"] for s in resp.json()["items"]] == ["A3", "A1", "A2"]
 
 
 def test_sort_by_priority_groups_equal_rank_by_container_id(client):
@@ -82,34 +82,34 @@ def test_sort_by_priority_groups_equal_rank_by_container_id(client):
 
     resp = client.get("/api/samples", params={"sort_by": "priority", "sort_dir": "asc"})
     assert resp.status_code == 200, resp.text
-    # all rank 1, so ordered by Container ID (A1, B1, C1) - not import order (B1, A1, C1)
-    assert [s["external_id"] for s in resp.json()["items"]] == ["A1", "B1", "C1"]
+    # all rank 1, so ordered by Pool ID (A1, B1, C1) - not import order (B1, A1, C1)
+    assert [s["pool_id"] for s in resp.json()["items"]] == ["A1", "B1", "C1"]
 
 
 def test_sort_by_numeric_column_orders_numerically_with_blanks_last(client):
     # target_oplc is a nullable number; blanks (A3) must stay at the end in BOTH directions
     # rather than floating to the top when the direction flips.
-    _create(client, external_id="A1", barcodes=["bc1"], target_oplc=250)
-    _create(client, external_id="A2", barcodes=["bc2"], target_oplc=90)
-    _create(client, external_id="A3", barcodes=["bc3"])
+    _create(client, pool_id="A1", barcodes=["bc1"], target_oplc=250)
+    _create(client, pool_id="A2", barcodes=["bc2"], target_oplc=90)
+    _create(client, pool_id="A3", barcodes=["bc3"])
 
     asc = client.get("/api/samples", params={"sort_by": "target_oplc", "sort_dir": "asc"})
     assert asc.status_code == 200, asc.text
-    assert [s["external_id"] for s in asc.json()["items"]] == ["A2", "A1", "A3"]
+    assert [s["pool_id"] for s in asc.json()["items"]] == ["A2", "A1", "A3"]
 
     desc = client.get("/api/samples", params={"sort_by": "target_oplc", "sort_dir": "desc"})
     assert desc.status_code == 200, desc.text
-    assert [s["external_id"] for s in desc.json()["items"]] == ["A1", "A2", "A3"]
+    assert [s["pool_id"] for s in desc.json()["items"]] == ["A1", "A2", "A3"]
 
 
 def test_sort_by_text_column_is_case_insensitive(client):
-    _create(client, external_id="A1", barcodes=["bc1"], parent_sample="zebra")
-    _create(client, external_id="A2", barcodes=["bc2"], parent_sample="Apple")
-    _create(client, external_id="A3", barcodes=["bc3"], parent_sample="mango")
+    _create(client, pool_id="A1", barcodes=["bc1"], plate_id="zebra")
+    _create(client, pool_id="A2", barcodes=["bc2"], plate_id="Apple")
+    _create(client, pool_id="A3", barcodes=["bc3"], plate_id="mango")
 
-    resp = client.get("/api/samples", params={"sort_by": "parent_sample", "sort_dir": "asc"})
+    resp = client.get("/api/samples", params={"sort_by": "plate_id", "sort_dir": "asc"})
     assert resp.status_code == 200, resp.text
-    assert [s["external_id"] for s in resp.json()["items"]] == ["A2", "A3", "A1"]
+    assert [s["pool_id"] for s in resp.json()["items"]] == ["A2", "A3", "A1"]
 
 
 def test_sort_by_unknown_field_is_400(client):
@@ -139,7 +139,7 @@ def test_list_priorities_scopes_to_status(client):
 
 
 def _create(client, **body):
-    body.setdefault("external_id", "TRAC-2-40001")
+    body.setdefault("pool_id", "TRAC-2-40001")
     body.setdefault("barcodes", ["bc1"])
     resp = client.post("/api/samples", json=body)
     assert resp.status_code == 201, resp.text
@@ -207,14 +207,14 @@ def test_update_keeps_a_reused_barcode_without_unique_constraint_error(client):
 
 
 def test_update_cannot_change_container_id(client):
-    """external_id isn't part of the update schema; sending it is ignored, not applied."""
-    created = _create(client, external_id="TRAC-2-40010", barcodes=["bc1"])
+    """pool_id isn't part of the update schema; sending it is ignored, not applied."""
+    created = _create(client, pool_id="TRAC-2-40010", barcodes=["bc1"])
     resp = client.patch(
         f"/api/samples/{created['id']}",
-        json={"external_id": "TRAC-2-99999", "barcodes": ["bc1"]},
+        json={"pool_id": "TRAC-2-99999", "barcodes": ["bc1"]},
     )
     assert resp.status_code == 200, resp.text
-    assert resp.json()["external_id"] == "TRAC-2-40010"
+    assert resp.json()["pool_id"] == "TRAC-2-40010"
 
 
 def test_update_requires_at_least_one_barcode(client):
@@ -252,7 +252,7 @@ def test_update_scheduled_sample_edits_loading_params_but_freezes_barcodes(clien
     parameters. Its barcodes and parent are frozen at placement (barcodes are burned onto
     the cell use), so those fields in the request are ignored rather than applied."""
     created = _create(
-        client, external_id="TRAC-2-40100", barcodes=["bc1", "bc2"], parent_sample="P1"
+        client, pool_id="TRAC-2-40100", barcodes=["bc1", "bc2"], plate_id="P1"
     )
     place = client.post(
         "/api/cell-uses",
@@ -271,7 +271,7 @@ def test_update_scheduled_sample_edits_loading_params_but_freezes_barcodes(clien
         f"/api/samples/{created['id']}",
         json={
             "barcodes": ["bcX"],  # frozen once placed -> ignored
-            "parent_sample": "P-CHANGED",  # frozen -> ignored
+            "plate_id": "P-CHANGED",  # frozen -> ignored
             "priority": "High (1)",  # editable
             "target_oplc": 275,  # editable
             "adaptive_loading": "true",  # editable, normalized to "True"
@@ -289,4 +289,4 @@ def test_update_scheduled_sample_edits_loading_params_but_freezes_barcodes(clien
     assert body["loading_buffer_volume"] == 4
     # Frozen fields are left exactly as placed.
     assert body["barcodes"] == ["bc1", "bc2"]
-    assert body["parent_sample"] == "P1"
+    assert body["plate_id"] == "P1"

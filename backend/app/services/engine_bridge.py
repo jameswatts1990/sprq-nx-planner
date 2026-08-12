@@ -24,9 +24,9 @@ def load_backlog_samples(db: Session, sample_ids: list[int] | None = None) -> li
 def to_parsed_samples(samples: list[Sample]) -> list[ParsedSample]:
     return [
         ParsedSample(
-            id=s.external_id,
+            id=s.pool_id,
             barcodes=s.barcode_list,
-            parent=s.parent_sample or "",
+            parent=s.plate_id or "",
             sanger=s.sanger_ids or [],
             priority=s.priority or "",
             # Carried so Auto Schedule can honour the per-sample movie time - both as the run
@@ -51,9 +51,9 @@ def load_prior_cells(db: Session, excluded_cell_ids: list[int]) -> tuple[list[Pr
             .selectinload(CellUse.cycle)
             .selectinload(Cycle.run_batch)
             .selectinload(RunBatch.instrument),
-            # Needed for barcode_owners() below, which reads each use's Sample.external_id to
+            # Needed for barcode_owners() below, which reads each use's Sample.pool_id to
             # tell a genuine cross-sample barcode clash apart from another copy of the exact
-            # same Container ID (see docs/pacbio-sprq-nx-scheduling-reference.md).
+            # same Pool ID (see docs/pacbio-sprq-nx-scheduling-reference.md).
             selectinload(Cell.cell_uses).selectinload(CellUse.sample),
             # A zero-use tray sibling has no CellUse history to derive a location from -
             # current_location() falls back to its tray's instrument, so that relationship

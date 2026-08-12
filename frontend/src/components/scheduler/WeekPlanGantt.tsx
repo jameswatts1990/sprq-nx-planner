@@ -66,7 +66,7 @@ function WeekPlanGanttRow({
     <div className={`${styles.row} ${newGroup ? styles.groupStart : ""}`}>
       <div className={styles.rowLabel} title={`Cell ${s.cell_ref} · Use ${s.use_number}`}>
         <span className={`${styles.stub} ${styles[useClass]}`}>{cell}</span>
-        <span className={styles.sample}>{s.sample_external_id ?? "—"}</span>
+        <span className={styles.sample}>{s.sample_pool_id ?? "—"}</span>
       </div>
       <div className={styles.track}>
         {prepPending && (

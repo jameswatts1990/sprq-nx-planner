@@ -13,12 +13,12 @@ class _SampleFieldsBase(BaseModel):
     """The editable sample fields shared by the manual "Add to backlog" and "Edit backlog
     sample" forms. At least one barcode is required; everything else is optional (mirrors the
     canonical importable-field set). The three boolean settings are validated/normalized to
-    "True"/"False". Container ID (external_id) is the sample's identity and lives only on
+    "True"/"False". Pool ID (pool_id) is the sample's identity and lives only on
     SampleCreate — it is set once at creation and never edited."""
 
     barcodes: list[str] = Field(min_length=1)
     sanger_ids: list[str] = []
-    parent_sample: str | None = None
+    plate_id: str | None = None
     target_oplc: float | None = None
     actual_oplc: float | None = None
     # Loading-dilution volumes that pre-fill the batch sheet's SOP 7.3 worksheet (all optional).
@@ -57,21 +57,21 @@ class _SampleFieldsBase(BaseModel):
 
 
 class SampleCreate(_SampleFieldsBase):
-    """Manual "Add to backlog" input. external_id (shown as "Container ID") and at least one
+    """Manual "Add to backlog" input. pool_id (shown as "Pool ID") and at least one
     barcode are required; everything else is optional."""
 
-    external_id: str = Field(min_length=1)
+    pool_id: str = Field(min_length=1)
 
 
 class SampleUpdate(_SampleFieldsBase):
     """Manual "Edit backlog sample" input. Same editable fields as create minus the
-    Container ID, which identifies the sample and is intentionally not editable."""
+    Pool ID, which identifies the sample and is intentionally not editable."""
 
 
 class SampleOut(BaseModel):
     id: int
-    external_id: str
-    parent_sample: str | None
+    pool_id: str
+    plate_id: str | None
     sanger_ids: list[str]
     target_oplc: float | None
     actual_oplc: float | None
@@ -84,14 +84,15 @@ class SampleOut(BaseModel):
     movie_time_hours: int | None
     insert_size_bp: int | None
     status: str
-    # QC disposition tag ("repeatable"/"recoverable") when a Cell QC action returned this
-    # sample to the backlog - drives the Backlog "Recoverable Samples" section grouping.
+    # QC disposition tag ("repeatable_complex"/"repeatable"/"recoverable") when a Cell QC action
+    # returned this sample to the backlog - drives the Backlog "Recoverable Samples" section
+    # grouping. See schemas/qc.py DISPOSITIONS for the full set and their meanings.
     qc_disposition: str | None = None
     barcodes: list[str]
     import_batch_id: int | None
     created_at: datetime
     updated_at: datetime
-    # Duplicate marker: when this Container ID appears on more than one sample (across ALL
+    # Duplicate marker: when this Pool ID appears on more than one sample (across ALL
     # statuses, incl. completed), duplicate_total is that count and duplicate_index is this
     # copy's 1-based position (ordered oldest-first). Both null for a one-off sample — the UI
     # renders the "1/3" badge only when duplicate_total is set.

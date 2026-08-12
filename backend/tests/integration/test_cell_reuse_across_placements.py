@@ -31,9 +31,9 @@ def _stages(run):
     return [s for p in run["plates"] for s in p["stages"]]
 
 
-def _sid(client, external_id: str) -> int:
+def _sid(client, pool_id: str) -> int:
     items = client.get("/api/samples", params={"page_size": 200}).json()["items"]
-    return next(s["id"] for s in items if s["external_id"] == external_id)
+    return next(s["id"] for s in items if s["pool_id"] == pool_id)
 
 
 def _place(client, sample_id, run_date, slot_index, cell_choice, run_time_hours=24, instrument="84047", start_hour=None):
@@ -60,7 +60,7 @@ def test_cell_with_remaining_capacity_is_reused_across_days_and_burned_barcodes_
     assert r1.status_code == 201, r1.text
     cycle1 = r1.json()
     cell_id = _stages(cycle1)[0]["cell_id"]
-    assert _stages(cycle1)[0]["sample_external_id"] == "S1"
+    assert _stages(cycle1)[0]["sample_pool_id"] == "S1"
 
     cell = client.get(f"/api/cells/{cell_id}").json()
     assert cell["uses_consumed"] == 1
@@ -82,7 +82,7 @@ def test_cell_with_remaining_capacity_is_reused_across_days_and_burned_barcodes_
     # as the cell's 3rd use, flagged as a barcode clash, and exhausts the cell. ---
     r3 = _place(client, _sid(client, "S3"), wed, 0, {"mode": "existing", "cell_id": cell_id}, start_hour=15)
     assert r3.status_code == 201, r3.text
-    s3_stage = next(s for s in _stages(r3.json()) if s["sample_external_id"] == "S3")
+    s3_stage = next(s for s in _stages(r3.json()) if s["sample_pool_id"] == "S3")
     assert s3_stage["cell_id"] == cell_id
     assert s3_stage["barcode_clash"] is True
 
@@ -132,7 +132,7 @@ def test_reuse_before_cell_is_physically_ready_is_flagged_but_not_blocked(client
     # An 08:00 Tuesday reuse lands well before that.
     r2 = _place(client, _sid(client, "R2"), tue, 0, {"mode": "existing", "cell_id": cell_id}, start_hour=8)
     assert r2.status_code == 201, r2.text  # advisory only - never blocked
-    stage = next(s for s in _stages(r2.json()) if s["cell_id"] == cell_id and s["sample_external_id"] == "R2")
+    stage = next(s for s in _stages(r2.json()) if s["cell_id"] == cell_id and s["sample_pool_id"] == "R2")
     assert stage["reuse_not_ready_hours"] == pytest.approx(8.0, abs=0.05)
 
 
@@ -147,7 +147,7 @@ def test_reuse_safely_after_cell_is_ready_has_no_flag(client):
     # Real movie end (cell free) at Tuesday 16:00 (see above) - a 20:00 Tuesday reuse lands safely after.
     r2 = _place(client, _sid(client, "R4"), tue, 0, {"mode": "existing", "cell_id": cell_id}, start_hour=20)
     assert r2.status_code == 201, r2.text
-    stage = next(s for s in _stages(r2.json()) if s["cell_id"] == cell_id and s["sample_external_id"] == "R4")
+    stage = next(s for s in _stages(r2.json()) if s["cell_id"] == cell_id and s["sample_pool_id"] == "R4")
     assert stage["reuse_not_ready_hours"] is None
 
 
@@ -168,5 +168,5 @@ def test_reuse_dropped_on_a_later_day_stays_on_that_day(client):
     assert r2.status_code == 201, r2.text
     run = r2.json()
     assert run["load_date"] == wed
-    plate = next(p for p in run["plates"] if any(s["sample_external_id"] == "D2" for s in p["stages"]))
+    plate = next(p for p in run["plates"] if any(s["sample_pool_id"] == "D2" for s in p["stages"]))
     assert plate["acquire_date"] == wed

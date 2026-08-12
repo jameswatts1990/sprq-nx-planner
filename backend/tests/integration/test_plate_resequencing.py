@@ -22,9 +22,9 @@ def _weekdays(n: int) -> list[str]:
     return out
 
 
-def _sid(client, external_id: str) -> int:
+def _sid(client, pool_id: str) -> int:
     items = client.get("/api/samples", params={"page_size": 200}).json()["items"]
-    return next(s["id"] for s in items if s["external_id"] == external_id)
+    return next(s["id"] for s in items if s["pool_id"] == pool_id)
 
 
 def _stages(run):
@@ -60,7 +60,7 @@ def test_out_of_order_drops_resequence_to_ascending(client):
     assert r_b.status_code == 201, r_b.text
     assert _tray_positions_by_well(r_b.json()) == {"A01": 1, "B01": 2, "C01": 3}
     # and the samples never moved wells - only which cell backs each well re-sequenced
-    by_well_sample = {s["well"]: s["sample_external_id"] for s in _stages(r_b.json())}
+    by_well_sample = {s["well"]: s["sample_pool_id"] for s in _stages(r_b.json())}
     assert by_well_sample == {"A01": "SA", "B01": "SB", "C01": "SC"}
 
 
@@ -97,7 +97,7 @@ def test_moving_a_card_between_wells_keeps_the_plate_ascending(client):
     r_b = _drop(client, _sid(client, "SB"), mon, 1)  # B01 -> ▣2
     assert _tray_positions_by_well(r_b.json()) == {"A01": 1, "B01": 2}
 
-    sb_use = next(s["cell_use_id"] for s in _stages(r_b.json()) if s["sample_external_id"] == "SB")
+    sb_use = next(s["cell_use_id"] for s in _stages(r_b.json()) if s["sample_pool_id"] == "SB")
     # Drag SB from B01 to the empty D01.
     moved = client.post(f"/api/cell-uses/{sb_use}/move", json={
         "instrument_serial": "84047", "load_date": mon, "slot_index": 3, "run_time_hours": 24,

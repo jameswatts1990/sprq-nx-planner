@@ -312,8 +312,8 @@ export const SchedulerSlotView = memo(
           >
             {stage!.use_number}
           </span>
-          <div className={styles.ext} title={stage!.sample_external_id ?? stage!.cell_ref}>
-            {stage!.sample_external_id ?? "—"}
+          <div className={styles.ext} title={stage!.sample_pool_id ?? stage!.cell_ref}>
+            {stage!.sample_pool_id ?? "—"}
           </div>
           <div className={styles.cellref}>
             {stage!.cell_ref}

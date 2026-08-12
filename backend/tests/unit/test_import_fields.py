@@ -12,24 +12,36 @@ DEFAULT_HEADER = [
 
 def test_suggest_map_default_lims_header():
     m = suggest_column_map(DEFAULT_HEADER)
-    assert m["external_id"] == 0  # Container -> the "Container ID" field
+    assert m["pool_id"] == 0  # Container -> the "Pool ID" field
     assert m["barcodes"] == 4
     assert m["sanger"] == 2
-    assert m["parent_sample"] == 1
+    assert m["plate_id"] == 1
     assert m["actual_oplc"] == 5
     assert m["target_oplc"] == 6
 
 
-def test_suggest_map_tracker_header_maps_traction_id_and_complex_batch_id():
+def test_suggest_map_pool_id_and_plate_id_headers():
+    # A file whose headers are literally "Pool ID" / "Plate ID" auto-maps to the pool_id /
+    # plate_id fields (the lab's tracker-sheet vocabulary).
+    m = suggest_column_map(["Pool ID", "Barcodes", "Plate ID", "Sanger Sample IDs"])
+    assert m["pool_id"] == 0
+    assert m["plate_id"] == 2
+
+
+def test_suggest_map_tracker_header_maps_pool_id_plate_id_and_complex_batch_id():
+    # The tracker sheet has both a "Pool ID" and a "Plate ID" column; the app's identity field
+    # auto-maps to "Pool ID" (its own name) and the Plate ID field to "Plate ID", matching the
+    # pooling importer's own use of Pool ID as the sample identity.
     m = suggest_column_map(TRACKER_HEADER)
-    assert TRACKER_HEADER[m["external_id"]] == "Traction ID"
+    assert TRACKER_HEADER[m["pool_id"]] == "Pool ID"
+    assert TRACKER_HEADER[m["plate_id"]] == "Plate ID"
     assert TRACKER_HEADER[m["barcodes"]] == "Complex Batch ID"
     assert TRACKER_HEADER[m["sanger"]] == "Sanger Sample ID"
 
 
 def test_suggest_map_renamed_header_still_finds_barcodes_and_id():
     m = suggest_column_map(["Sample Name", "My Barcodes", "Notes"])
-    assert m["external_id"] == 0
+    assert m["pool_id"] == 0
     assert m["barcodes"] == 1
 
 
@@ -39,7 +51,7 @@ def test_normalize_with_map_skips_and_records_barcodeless_rows():
         ["", ""],           # blank separator -> dropped silently
         ["TRAC-2", ""],     # id but no barcode -> skipped, recorded
     ]
-    result = normalize_with_map(rows, {"external_id": 0, "barcodes": 1})
+    result = normalize_with_map(rows, {"pool_id": 0, "barcodes": 1})
     assert [s.id for s in result.samples] == ["TRAC-1"]
     assert result.samples[0].barcodes == ["bc1", "bc2"]
     assert [(s.identifier, s.reason) for s in result.skipped] == [("TRAC-2", "No barcodes")]

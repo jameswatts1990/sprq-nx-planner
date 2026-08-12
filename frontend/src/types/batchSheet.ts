@@ -12,8 +12,8 @@ export interface BatchSheetWellOut {
   cell_window_deadline: string | null; // ISO datetime
   window_breached: boolean;
   sample_id: number | null;
-  sample_external_id: string | null;
-  parent_sample: string | null;
+  sample_pool_id: string | null;
+  plate_id: string | null;
   barcodes: string[];
   adaptive_loading: string | null;
   base_kinetics: string | null;

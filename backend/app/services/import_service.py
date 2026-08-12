@@ -11,7 +11,7 @@ from app.engine.csv_parse import parse_csv
 from app.engine.import_fields import (
     IMPORTABLE_FIELDS,
     K_BARCODES,
-    K_EXTERNAL_ID,
+    K_POOL_ID,
     REQUIRED_KEYS,
     suggest_column_map,
 )
@@ -81,16 +81,16 @@ def import_samples(db: Session, req: ImportRequest) -> ImportResult:
     db.add(batch)
     db.flush()
 
-    # How many copies of each Container ID already existed BEFORE this import (any status,
+    # How many copies of each Pool ID already existed BEFORE this import (any status,
     # incl. completed) — captured up front so total_seen can distinguish prior history from
     # this batch's own copies. Duplicates are created, never rejected.
     incoming_ids = {parsed.id for parsed in normalized.samples}
     prior_counts: dict[str, int] = {}
     if incoming_ids:
         for ext, cnt in db.execute(
-            select(Sample.external_id, func.count())
-            .where(Sample.external_id.in_(incoming_ids))
-            .group_by(Sample.external_id)
+            select(Sample.pool_id, func.count())
+            .where(Sample.pool_id.in_(incoming_ids))
+            .group_by(Sample.pool_id)
         ).all():
             prior_counts[ext] = cnt
 
@@ -101,10 +101,10 @@ def import_samples(db: Session, req: ImportRequest) -> ImportResult:
     for parsed in normalized.samples:
         sample = create_backlog_sample(
             db,
-            external_id=parsed.id,
+            pool_id=parsed.id,
             barcodes=parsed.barcodes,
             sanger_ids=parsed.sanger,
-            parent_sample=parsed.parent,
+            plate_id=parsed.parent,
             target_oplc=parsed.target_oplc,
             actual_oplc=parsed.actual_oplc,
             cleaned_complex_volume=parsed.cleaned_complex_volume,
@@ -120,18 +120,18 @@ def import_samples(db: Session, req: ImportRequest) -> ImportResult:
         created.append(sample)
         created_counts[parsed.id] = created_counts.get(parsed.id, 0) + 1
 
-    # A Container ID is a "duplicate" worth flagging if this import made >1 copy of it OR it was
+    # A Pool ID is a "duplicate" worth flagging if this import made >1 copy of it OR it was
     # already known before. total_seen = prior copies + copies created now.
     duplicates = [
         DuplicateNote(
-            external_id=ext,
+            pool_id=ext,
             created_now=created_counts[ext],
             total_seen=prior_counts.get(ext, 0) + created_counts[ext],
         )
         for ext in created_counts
         if prior_counts.get(ext, 0) + created_counts[ext] > 1
     ]
-    duplicates.sort(key=lambda d: d.external_id)
+    duplicates.sort(key=lambda d: d.pool_id)
 
     batch.imported_count = len(created)
     batch.duplicate_count = len(duplicates)
@@ -173,7 +173,7 @@ def preview_import(raw_text: str, has_header: bool = True) -> ImportPreviewResul
         width = max(len(r) for r in rows)
         data = rows
         columns = [PreviewColumn(index=i, name=f"Column {i + 1}") for i in range(width)]
-        suggested = {K_EXTERNAL_ID: 0} | ({K_BARCODES: 1} if width >= 2 else {})
+        suggested = {K_POOL_ID: 0} | ({K_BARCODES: 1} if width >= 2 else {})
 
     unmatched = [k for k in REQUIRED_KEYS if k not in suggested]
     return ImportPreviewResult(
@@ -183,12 +183,12 @@ def preview_import(raw_text: str, has_header: bool = True) -> ImportPreviewResul
         sample_rows=data[:PREVIEW_ROW_LIMIT],
         row_count=len(data),
         unmatched_required=unmatched,
-        within_file_duplicates=_within_file_duplicates(data, suggested.get(K_EXTERNAL_ID)),
+        within_file_duplicates=_within_file_duplicates(data, suggested.get(K_POOL_ID)),
     )
 
 
 def _within_file_duplicates(data: list[list[str]], ext_col: int | None) -> list[DuplicateNote]:
-    """Container IDs that repeat within the pasted rows, using the auto-suggested Container ID
+    """Pool IDs that repeat within the pasted rows, using the auto-suggested Pool ID
     column. Best-effort: if the user later remaps that column the review UI can recompute, but
     this gives an early heads-up straight after paste. Empty when no ID column is detected."""
     if ext_col is None:
@@ -200,11 +200,11 @@ def _within_file_duplicates(data: list[list[str]], ext_col: int | None) -> list[
             if ext:
                 counts[ext] = counts.get(ext, 0) + 1
     notes = [
-        DuplicateNote(external_id=ext, created_now=n, total_seen=n)
+        DuplicateNote(pool_id=ext, created_now=n, total_seen=n)
         for ext, n in counts.items()
         if n > 1
     ]
-    notes.sort(key=lambda d: d.external_id)
+    notes.sort(key=lambda d: d.pool_id)
     return notes
 
 

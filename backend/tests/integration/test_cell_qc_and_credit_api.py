@@ -29,9 +29,9 @@ def _stages(run):
     return [s for p in run["plates"] for s in p["stages"]]
 
 
-def _sid(client, external_id: str) -> int:
+def _sid(client, pool_id: str) -> int:
     items = client.get("/api/samples", params={"page_size": 200}).json()["items"]
-    return next(s["id"] for s in items if s["external_id"] == external_id)
+    return next(s["id"] for s in items if s["pool_id"] == pool_id)
 
 
 def _sample(client, sample_id: int) -> dict:
@@ -128,6 +128,55 @@ def test_fail_cell_loses_only_its_sample_and_keeps_the_cell_open(client):
     assert [t["sample_id"] for t in topups] == [f1_id]
 
 
+def test_repeat_from_complex_surfaces_volumes_and_returns_to_backlog(client):
+    """A Fail-Cell disposition of "repeatable_complex": the preview carries the sample's loaded
+    cleaned-complex volume, its Sanger IDs, and the configured totals (so the modal can show how
+    much is left), and the commit sends the sample back to the backlog at Repeatable(0)."""
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nRC1,bcrc1"})
+    rc1 = _sid(client, "RC1")
+    # Record a small load so plenty of complex remains for a repeat straight from complex
+    # (barcodes is required on the edit form, so echo it back unchanged).
+    assert client.patch(
+        f"/api/samples/{rc1}", json={"barcodes": ["bcrc1"], "cleaned_complex_volume": 8}
+    ).status_code == 200
+
+    past = _past_weekday()
+    r1 = _place(client, rc1, past, 0, {"mode": "new"})
+    assert r1.status_code == 201, r1.text
+    stage = _stages(r1.json())[0]
+    assert client.patch(f"/api/cycles/{r1.json()['run_id']}", json={"status": "running"}).status_code == 200
+
+    body = qc_preview(client, stage["cell_id"], "fail", stage["cell_use_id"]).json()
+    assert body["total_complex_ul"] == 24.0  # engine default
+    assert body["repeat_safe_min_ul"] == 12.0
+    a = body["affected_samples"][0]
+    assert a["cleaned_complex_volume"] == 8
+    assert a["sanger_ids"] == []  # a single (imported with no Sanger IDs)
+
+    commit = qc_commit(client, stage["cell_id"], "fail", stage["cell_use_id"], {rc1: "repeatable_complex"}, reason="lots left")
+    assert commit.status_code == 200, commit.text
+    s = _sample(client, rc1)
+    assert s["status"] == "backlog"
+    assert s["qc_disposition"] == "repeatable_complex"
+    assert s["priority"] == "Repeatable (0)"
+
+
+def test_qc_preview_reflects_configured_complex_volumes(client):
+    """The preview's volume totals track the admin-configured Settings values, not just the
+    engine defaults."""
+    assert client.put(
+        "/api/settings/scheduling", json={"repeat_total_complex_ul": 30, "repeat_safe_min_ul": 15}
+    ).status_code == 200
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nRC2,bcrc2"})
+    past = _past_weekday()
+    r1 = _place(client, _sid(client, "RC2"), past, 0, {"mode": "new"})
+    stage = _stages(r1.json())[0]
+    client.patch(f"/api/cycles/{r1.json()['run_id']}", json={"status": "running"})
+    body = qc_preview(client, stage["cell_id"], "fail", stage["cell_use_id"]).json()
+    assert body["total_complex_ul"] == 30.0
+    assert body["repeat_safe_min_ul"] == 15.0
+
+
 def test_patch_cell_use_failed_is_rejected_and_points_at_qc(client):
     client.post("/api/imports", json={"raw_text": "sample,barcodes\nZ1,bcz1"})
     past = _past_weekday()
@@ -150,7 +199,7 @@ def test_fail_and_stop_rezips_the_tray_and_displaces_the_tail(client):
 
     preview = qc_preview(client, cellA, "fail_and_stop", mon_use1_A)
     assert preview.status_code == 200, preview.text
-    by_sample = {a["external_id"]: a for a in preview.json()["affected_samples"]}
+    by_sample = {a["pool_id"]: a for a in preview.json()["affected_samples"]}
     # P1A failed; P2A/P2B/P2C shifted onto the next cell (B/C/D); P2D displaced off the tail.
     assert by_sample["P1A"]["role"] == "failed"
     assert by_sample["P2A"]["role"] == "reassigned" and by_sample["P2A"]["actual_cell_code"] == by_sample["P2B"]["planned_cell_code"]
@@ -171,7 +220,7 @@ def test_fail_and_stop_rezips_the_tray_and_displaces_the_tail(client):
     assert body["cell"]["status"] == "stopped"
 
     wed = client.get(f"/api/cycles/{wed_run_id}").json()
-    wed_stages = {s["sample_external_id"]: s for s in _stages(wed)}
+    wed_stages = {s["sample_pool_id"]: s for s in _stages(wed)}
     # P2A now backs cell B (its planned neighbour), flagged reassigned; P2D is a cancelled tail.
     assert wed_stages["P2A"]["cell_id"] == cells["B01"]
     assert wed_stages["P2A"]["reassigned"] is True
@@ -203,7 +252,7 @@ def test_retire_rezips_future_uses_without_failing_the_current_use(client):
 
     preview = qc_preview(client, cellA, "retire", None)
     assert preview.status_code == 200, preview.text
-    by_sample = {a["external_id"]: a for a in preview.json()["affected_samples"]}
+    by_sample = {a["pool_id"]: a for a in preview.json()["affected_samples"]}
     # No failed sample (retire doesn't fail the current use); P2A/B/C shift, P2D displaced.
     assert "P1A" not in by_sample
     assert {k for k, v in by_sample.items() if v["disposition_required"]} == {"P2D"}
@@ -244,7 +293,7 @@ def test_shift_onto_a_cell_with_a_clashing_burned_barcode_is_flagged(client):
     mon_use1_A = next(s["cell_use_id"] for s in _stages(client.get(f"/api/cycles/{mon_run_id}").json()) if s["cell_id"] == cellA)
 
     preview = qc_preview(client, cellA, "fail_and_stop", mon_use1_A)
-    p2a = next(a for a in preview.json()["affected_samples"] if a["external_id"] == "P2A")
+    p2a = next(a for a in preview.json()["affected_samples"] if a["pool_id"] == "P2A")
     assert p2a["reassigned"] is True
     assert p2a["barcode_clash"] is True
 
@@ -283,7 +332,7 @@ def test_undo_qc_reopens_the_cell_and_restores_uses_and_samples(client):
     assert undo.json()["cell"]["status"] == "open"
 
     # P2A moves back onto cell A; P2D's cancelled tail is planned again; the top-up is gone.
-    wed_stages = {s["sample_external_id"]: s for s in _stages(client.get(f"/api/cycles/{wed_run_id}").json())}
+    wed_stages = {s["sample_pool_id"]: s for s in _stages(client.get(f"/api/cycles/{wed_run_id}").json())}
     assert wed_stages["P2A"]["cell_id"] == cellA
     assert wed_stages["P2A"]["reassigned"] is False
     assert wed_stages["P2D"]["cell_use_status"] == "planned"

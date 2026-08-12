@@ -10,12 +10,13 @@ import { Modal, ModalActions } from "@/components/ui/Modal";
 import { Note } from "@/components/ui/Note";
 import type { ImportField } from "@/types/importing";
 import type { SampleCreate, SampleOut, SampleUpdate } from "@/types/sample";
+import { tractionUrl } from "@/utils/traction";
 
 import styles from "./SampleModal.module.css";
 
 /** Form-field keys that identify the sample and stay read-only when editing (see the
- * import-field spec for the key names). Container ID is the sample's fixed identity. */
-const PROTECTED_KEYS = new Set(["external_id"]);
+ * import-field spec for the key names). Pool ID is the sample's fixed identity. */
+const PROTECTED_KEYS = new Set(["pool_id"]);
 
 /** The form's fixed layout: shaded sections, each a stack of two-column rows referencing
  * field keys. This drives the grouped presentation instead of one flat field grid; the
@@ -25,8 +26,8 @@ const SECTIONS: { header: string; rows: [string, string][] }[] = [
   {
     header: "Sample ID & Priority",
     rows: [
-      ["external_id", "priority"],
-      ["sanger", "parent_sample"],
+      ["pool_id", "priority"],
+      ["sanger", "plate_id"],
     ],
   },
   {
@@ -49,8 +50,7 @@ const SECTIONS: { header: string; rows: [string, string][] }[] = [
 /** Light-grey sub-labels shown beneath a field's label on the form only — the canonical label
  * (used on import/template) stays the field name; this clarifies it for lab users. */
 const FIELD_HINTS: Record<string, string> = {
-  external_id: "Unique ID e.g. Pool ID",
-  parent_sample: "e.g. Plate ID",
+  pool_id: "Unique ID",
 };
 
 // Loading buffer is a derived volume, not a free input: Complex + Loading buffer always tops
@@ -71,15 +71,15 @@ function expectedLoadingBuffer(complexRaw: string): number | null {
   return Number((LOADING_TOTAL_UL - c).toFixed(2));
 }
 
-/** The shape of the 409 body the create endpoint returns for a seen-before Container ID. */
-type DuplicateDetail = { detail: { code: "duplicate_container"; message: string; seen_count: number } };
+/** The shape of the 409 body the create endpoint returns for a seen-before Pool ID. */
+type DuplicateDetail = { detail: { code: "duplicate_pool"; message: string; seen_count: number } };
 function isDuplicateDetail(body: unknown): body is DuplicateDetail {
   return (
     typeof body === "object" &&
     body !== null &&
     "detail" in body &&
     typeof (body as { detail: unknown }).detail === "object" &&
-    (body as { detail: { code?: unknown } }).detail?.code === "duplicate_container"
+    (body as { detail: { code?: unknown } }).detail?.code === "duplicate_pool"
   );
 }
 
@@ -93,10 +93,10 @@ function splitList(raw: string): string[] {
  * spec — note the Sanger IDs field's key is `sanger`, not `sanger_ids`. */
 function valuesFromSample(sample: SampleOut): Record<string, string> {
   return {
-    external_id: sample.external_id,
+    pool_id: sample.pool_id,
     barcodes: sample.barcodes.join(", "),
     sanger: sample.sanger_ids.join(", "),
-    parent_sample: sample.parent_sample ?? "",
+    plate_id: sample.plate_id ?? "",
     target_oplc: sample.target_oplc != null ? String(sample.target_oplc) : "",
     actual_oplc: sample.actual_oplc != null ? String(sample.actual_oplc) : "",
     cleaned_complex_volume:
@@ -113,15 +113,16 @@ function valuesFromSample(sample: SampleOut): Record<string, string> {
 }
 
 /** Add a new backlog sample, or (when `sample` is given) edit an existing one. Same form
- * either way; in edit mode the Container ID is greyed out because a sample's identity is
+ * either way; in edit mode the Pool ID is greyed out because a sample's identity is
  * fixed once created.
  *
- * `editableKeys` puts the form into restricted mode: only fields whose key is in the set
- * are shown as editable (the Container ID is still shown, locked, for context; every other
- * field is hidden). The Schedule page's slot-detail popover uses this to edit an
- * already-placed sample's loading parameters only — its barcodes/Sanger/parent are frozen
- * once scheduled (the backend ignores them for a placed sample regardless), so exposing
- * them here would just invite edits that silently don't apply.
+ * `editableKeys` puts the form into restricted (placed-sample) mode: only fields whose key
+ * is in the set are editable; every other field — barcodes, Sanger, Plate ID and the Pool ID
+ * — is still shown, locked, so the scheduled-edit modal reads as the same form as the backlog
+ * edit rather than a different, cut-down one. The Schedule page's slot-detail popover uses this
+ * to edit an already-placed sample's loading parameters only: its barcodes/Sanger/Plate ID are
+ * frozen once scheduled (the backend ignores them for a placed sample regardless), so they show
+ * greyed-out rather than as inputs that would silently not apply.
  *
  * `onSaved` runs after a successful save, before onClose — a hook for callers that need to
  * refresh more than the ["samples"] list this modal already invalidates (e.g. the popover
@@ -213,7 +214,7 @@ export function SampleModal({
       onClose();
     },
     onError: (err) => {
-      // A duplicate Container ID isn't a hard error — it's a confirm. Capture the "seen N times"
+      // A duplicate Pool ID isn't a hard error — it's a confirm. Capture the "seen N times"
       // message so handleSubmit can offer "Add anyway" (re-submit with allowDuplicate).
       if (err instanceof ApiError && err.status === 409 && isDuplicateDetail(err.body)) {
         setDuplicatePrompt(err.body.detail.message);
@@ -222,9 +223,9 @@ export function SampleModal({
   });
 
   function set(key: string, v: string) {
-    // Editing the Container ID invalidates a pending duplicate confirm — the ID it warned about
+    // Editing the Pool ID invalidates a pending duplicate confirm — the ID it warned about
     // no longer matches, so drop back to a normal submit rather than "Add anyway" on a stale body.
-    if (key === "external_id" && duplicatePrompt) setDuplicatePrompt(null);
+    if (key === "pool_id" && duplicatePrompt) setDuplicatePrompt(null);
     setValues((prev) => {
       const next = { ...prev, [key]: v };
       // Keep Loading buffer topped up to 25 − complex while it's still auto-derived. Editing
@@ -256,11 +257,12 @@ export function SampleModal({
 
   const fieldsByKey = new Map(fields.map((f) => [f.key, f]));
 
-  /** Whether a field is shown on the form: import-only fields are never hand-editable, and in
-   * restricted (placed-sample) mode only the editable fields plus the locked Container ID show. */
+  /** Whether a field is shown on the form. Import-only fields are never hand-editable, so
+   * they're hidden; everything else is always shown — including in restricted (placed-sample)
+   * mode, where the frozen fields render locked rather than being hidden, so the scheduled-edit
+   * modal reads as the same form as the backlog edit (see `locked` in renderField). */
   function isVisible(f: ImportField | undefined): f is ImportField {
-    if (!f || f.import_only) return false;
-    return !isRestricted || editableKeys.has(f.key) || PROTECTED_KEYS.has(f.key);
+    return !!f && !f.import_only;
   }
 
   /** One field cell (label + input/select). The loading-buffer off-target warning is rendered
@@ -317,7 +319,11 @@ export function SampleModal({
           />
         )}
         {locked ? (
-          <span className={styles.hint}>The sample&apos;s identity — fixed once created.</span>
+          <span className={styles.hint}>
+            {PROTECTED_KEYS.has(f.key)
+              ? "The sample’s identity — fixed once created."
+              : "Frozen once the sample is scheduled."}
+          </span>
         ) : (
           (f.kind === "barcodes" || f.kind === "sanger") && (
             <span className={styles.hint}>Separate multiple with commas or spaces.</span>
@@ -330,9 +336,9 @@ export function SampleModal({
   function handleSubmit() {
     setClientError(null);
     setDuplicatePrompt(null);
-    const externalId = (values.external_id ?? "").trim();
+    const poolId = (values.pool_id ?? "").trim();
     const barcodes = splitList(values.barcodes ?? "");
-    if (!isEdit && !externalId) return setClientError("Container ID is required.");
+    if (!isEdit && !poolId) return setClientError("Pool ID is required.");
     // In restricted (placed-sample) mode barcodes aren't editable and the backend ignores
     // them, so don't block on them — the seeded set is sent unchanged just to satisfy the
     // shared request shape.
@@ -349,7 +355,7 @@ export function SampleModal({
     const editable: SampleUpdate = {
       barcodes,
       sanger_ids: splitList(values.sanger ?? ""),
-      parent_sample: str("parent_sample"),
+      plate_id: str("plate_id"),
       target_oplc: num("target_oplc"),
       actual_oplc: num("actual_oplc"),
       cleaned_complex_volume: num("cleaned_complex_volume"),
@@ -366,7 +372,7 @@ export function SampleModal({
       mutation.mutate({ body: editable });
       return;
     }
-    const createBody: SampleCreate = { external_id: externalId, ...editable };
+    const createBody: SampleCreate = { pool_id: poolId, ...editable };
     pendingBodyRef.current = createBody;
     mutation.mutate({ body: createBody });
   }
@@ -405,12 +411,12 @@ export function SampleModal({
           </>
         ) : isEdit ? (
           <>
-            Update this backlog sample. The Container ID identifies the sample and can&apos;t be
+            Update this backlog sample. The Pool ID identifies the sample and can&apos;t be
             changed; at least one barcode is still required.
           </>
         ) : (
           <>
-            Add one sample by hand. It lands in the backlog just like an imported row. Container ID
+            Add one sample by hand. It lands in the backlog just like an imported row. Pool ID
             and at least one barcode are required.
           </>
         )}
@@ -473,6 +479,19 @@ export function SampleModal({
         <Button variant="ghost" onClick={onClose} disabled={mutation.isPending}>
           Cancel
         </Button>
+        {sample && tractionUrl(sample.pool_id, sample.sanger_ids.length) && (
+          // Open the library/pool in Traction (the LIMS holding its material). Pools link to
+          // Traction's pools view, singles to libraries — see utils/traction. Rendered as an
+          // anchor styled like a ghost button so middle-click / open-in-new-tab work.
+          <a
+            className="btn ghost"
+            href={tractionUrl(sample.pool_id, sample.sanger_ids.length)!}
+            target="_blank"
+            rel="noreferrer"
+          >
+            View on Traction ↗
+          </a>
+        )}
         {duplicatePrompt ? (
           <Button variant="primary" onClick={confirmDuplicate} disabled={mutation.isPending}>
             {mutation.isPending ? "Adding…" : "Add anyway"}

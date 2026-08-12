@@ -80,9 +80,9 @@ function WellRow({ well, defaults }: { well: BatchSheetWellOut; defaults?: Sampl
         {well.window_breached && <div className={styles.warn}>⚠ 108h window expired</div>}
       </td>
       <td>
-        <div>{well.sample_external_id ?? "—"}</div>
+        <div>{well.sample_pool_id ?? "—"}</div>
       </td>
-      <td>{well.parent_sample ?? "—"}</td>
+      <td>{well.plate_id ?? "—"}</td>
       <td className={styles.settingsCell}>
         <span>Movie {well.run_time_hours}h</span>
         <SettingSpan label="Adaptive" value={well.adaptive_loading} defaultValue={defaults?.adaptive_loading} />
@@ -153,7 +153,7 @@ function DilutionWorksheet({ plate }: { plate: BatchSheetPlateOut }) {
           {plate.wells.map((w) => (
             <tr key={w.slot_index}>
               <td>{plateWellFromSlot(w.slot_index, { qualified: true })}</td>
-              <td>{w.sample_external_id ?? "—"}</td>
+              <td>{w.sample_pool_id ?? "—"}</td>
               {/* Pre-filled from import when the scheduler sheet supplied a value; otherwise a
                   blank box to hand-write at the bench. */}
               <WorksheetVolumeCell value={w.cleaned_complex_volume} />
@@ -220,7 +220,7 @@ function PlateLoadingChecklist({ plate }: { plate: BatchSheetPlateOut }) {
           {plate.wells.map((w) => (
             <tr key={w.slot_index}>
               <td>{plateWellFromSlot(w.slot_index, { qualified: true })}</td>
-              <td>{w.sample_external_id ?? "—"}</td>
+              <td>{w.sample_pool_id ?? "—"}</td>
               <td>
                 <span className={styles.check} />
               </td>
@@ -275,8 +275,8 @@ function RunSection({ run, defaults }: { run: BatchSheetRunOut; defaults?: Sampl
           <tr>
             <th>Well</th>
             <th>Cell</th>
-            <th>Container ID</th>
-            <th>Parent sample</th>
+            <th>Pool ID</th>
+            <th>Plate ID</th>
             <th>Settings</th>
             <th>Actual OPLC</th>
             <th>Notes</th>

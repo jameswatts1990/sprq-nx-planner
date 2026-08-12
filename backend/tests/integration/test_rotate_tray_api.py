@@ -28,9 +28,9 @@ def _stages(run):
     return [s for p in run["plates"] for s in p["stages"]]
 
 
-def _sid(client, external_id: str) -> int:
+def _sid(client, pool_id: str) -> int:
     items = client.get("/api/samples", params={"page_size": 200}).json()["items"]
-    return next(s["id"] for s in items if s["external_id"] == external_id)
+    return next(s["id"] for s in items if s["pool_id"] == pool_id)
 
 
 def _sample(client, sample_id: int) -> dict:
@@ -99,13 +99,13 @@ def test_rotate_moves_trigger_day_and_later_uses_to_a_fresh_tray_keeping_earlier
     assert mon_stage["cell_id"] == old_cell_id
     assert mon_stage["use_number"] == 1
     assert mon_stage["cell_use_status"] == "planned"
-    assert mon_stage["sample_external_id"] == "A1"
+    assert mon_stage["sample_pool_id"] == "A1"
 
     # Wednesday (the rotate day) + Friday: moved onto the fresh cell, renumbered from Use 1.
     wed_stage = _stage(client.get(f"/api/cycles/{wed_cycle_id}").json())
     assert wed_stage["cell_id"] == new_cell_id
     assert wed_stage["use_number"] == 1
-    assert wed_stage["sample_external_id"] == "A2"
+    assert wed_stage["sample_pool_id"] == "A2"
     assert wed_stage["barcodes"] == ["bc2"]  # barcodes travel with the moved use
     fri_stage = _stage(client.get(f"/api/cycles/{fri_cycle_id}").json())
     assert fri_stage["cell_id"] == new_cell_id

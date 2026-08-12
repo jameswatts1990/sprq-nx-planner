@@ -4,12 +4,12 @@ The scheduler sheet (the same "sequencing tracker" layout described in tracker_c
 lists one row *per sample*, and several samples can share a single SMRT Cell — a row's
 "Portion of SMRT Cell" says how much of a cell it occupies (1 = a whole cell, 0.5 = half,
 0.25 = a quarter). Sequential rows whose portions add up to a whole cell are one *pool*:
-they run together on one physical cell and, in this app, become one Container.
+they run together on one physical cell and, in this app, become one sample (its Pool ID).
 
 Where tracker_import.py imports this sheet one-row-per-sample (keyed by Traction ID, no
 pooling), this module implements the pooling described in the `refactor-pacbio-run-csv`
-skill: consolidate each completed pool into a single container row (Container ID = Pool
-ID, barcodes/Sanger IDs combined across the pool) and emit a plain CSV with the app's
+skill: consolidate each completed pool into a single row (the pool's Pool ID, with
+barcodes/Sanger IDs combined across the pool) and emit a plain CSV with the app's
 canonical headers. That CSV then flows through the ordinary import preview/mapping wizard
 unchanged — every column auto-maps, so the lab never has to move columns by hand.
 
@@ -18,10 +18,9 @@ Pooling rules (mirrors the skill spec):
   - Pools are built from *sequential* rows until the cumulative portion reaches 1
     (±0.001). A group that overshoots 100%, hits an unreadable portion, or ends the file
     part-way is reported and skipped rather than guessed at.
-  - Container ID, Priority and Target OPLC take the first non-empty value in the pool.
+  - Pool ID, Plate ID, Priority and Target OPLC take the first non-empty value in the pool.
   - Barcodes and Sanger IDs combine every distinct non-empty value across the pool, in
     source order (comma / JSON-array lists in a single cell are split into individuals).
-  - Plate ID has no home in this app, so it's dropped (with a one-line note).
 """
 from __future__ import annotations
 
@@ -54,9 +53,10 @@ _TOLERANCE = 0.001
 # ordinary importer's suggest_column_map auto-maps every one of them. The three dilution
 # volume columns are batch-sheet-only fields carried straight from the scheduler sheet.
 OUT_HEADERS = [
-    "Container ID",
+    "Pool ID",
     "Barcodes",
     "Sanger Sample IDs",
+    "Plate ID",
     "Priority",
     "Target OPLC (pM)",
     "Cleaned Complex Vol (uL)",
@@ -85,7 +85,7 @@ _FIELD_ALIASES: dict[str, tuple[str, ...]] = {
     K_LOADING_BUFFER_VOL: ("loading buffer volume (ul)", "loading buffer vol (ul)"),
 }
 
-# Without these three we can't produce importable containers: Pool ID is the Container ID,
+# Without these three we can't produce importable pools: Pool ID is the sample's identity,
 # Complex Batch ID carries the barcodes, and Portion drives the pooling.
 _REQUIRED_FIELDS = (K_POOL_ID, K_BARCODES, K_PORTION)
 _REQUIRED_LABELS = {
@@ -111,9 +111,10 @@ class SchedulerConversion:
 
 @dataclass
 class _Pool:
-    container_id: str
+    pool_id: str
     barcodes: list[str]
     sanger: list[str]
+    plate_id: str
     priority: str
     target_oplc: str
     # Batch-sheet-only dilution volumes; first non-empty value across the pool (they describe
@@ -193,9 +194,10 @@ def _finalize(group: list[list[str]], cols: dict[str, int]) -> _Pool:
         return out
 
     return _Pool(
-        container_id=first_nonempty(K_POOL_ID),
+        pool_id=first_nonempty(K_POOL_ID),
         barcodes=combined(K_BARCODES, split_barcodes),
         sanger=combined(K_SANGER, _split_ids),
+        plate_id=first_nonempty(K_PLATE_ID),
         priority=first_nonempty(K_PRIORITY),
         target_oplc=first_nonempty(K_TARGET_OPLC),
         cleaned_complex_volume=first_nonempty(K_CLEANED_COMPLEX_VOL),
@@ -281,9 +283,10 @@ def _pools_to_csv(pools: list[_Pool]) -> str:
             sanger_cell = pool.sanger[0] if pool.sanger else ""
         writer.writerow(
             [
-                pool.container_id,
+                pool.pool_id,
                 "; ".join(pool.barcodes),
                 sanger_cell,
+                pool.plate_id,
                 pool.priority,
                 pool.target_oplc,
                 pool.cleaned_complex_volume,
@@ -314,8 +317,6 @@ def convert_scheduler_csv(raw_text: str | None) -> SchedulerConversion:
     data_rows = rows[1:]
     pools, warnings = _build_pools(data_rows, cols)
 
-    if K_PLATE_ID in cols:
-        warnings.insert(0, "Plate ID isn't tracked by the planner, so that column was left out.")
     if not pools:
         warnings.append("No complete SMRT Cell (a pool of rows summing to 100%) was found — nothing to import.")
 

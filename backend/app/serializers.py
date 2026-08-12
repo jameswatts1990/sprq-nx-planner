@@ -7,18 +7,18 @@ from app.models.sample import Sample
 from app.schemas.sample import SampleCellUseOut, SampleDetailOut, SampleOut
 
 
-def duplicate_groups(db: Session, external_ids: set[str]) -> dict[str, list[int]]:
-    """Map each given Container ID to the ids of every sample carrying it, oldest-first — across
+def duplicate_groups(db: Session, pool_ids: set[str]) -> dict[str, list[int]]:
+    """Map each given Pool ID to the ids of every sample carrying it, oldest-first — across
     ALL statuses (incl. completed/cancelled). Lets a serializer stamp the "1/3" ordinal: a
     sample's total = len(group), its index = group.index(sample.id) + 1. One query for a whole
     page/grid; empty input returns {}."""
-    if not external_ids:
+    if not pool_ids:
         return {}
     groups: dict[str, list[int]] = {}
     for ext, sid in db.execute(
-        select(Sample.external_id, Sample.id)
-        .where(Sample.external_id.in_(external_ids))
-        .order_by(Sample.external_id, Sample.created_at, Sample.id)
+        select(Sample.pool_id, Sample.id)
+        .where(Sample.pool_id.in_(pool_ids))
+        .order_by(Sample.pool_id, Sample.created_at, Sample.id)
     ).all():
         groups.setdefault(ext, []).append(sid)
     return groups
@@ -27,7 +27,7 @@ def duplicate_groups(db: Session, external_ids: set[str]) -> dict[str, list[int]
 def duplicate_marker(sample: Sample, groups: dict[str, list[int]]) -> tuple[int | None, int | None]:
     """(index, total) for a sample given a duplicate_groups() map, or (None, None) when it's a
     one-off (or not in the map). Only groups of >1 yield a marker."""
-    group = groups.get(sample.external_id)
+    group = groups.get(sample.pool_id)
     if not group or len(group) <= 1:
         return None, None
     return group.index(sample.id) + 1, len(group)
@@ -41,8 +41,8 @@ def sample_out(
 ) -> SampleOut:
     return SampleOut(
         id=sample.id,
-        external_id=sample.external_id,
-        parent_sample=sample.parent_sample,
+        pool_id=sample.pool_id,
+        plate_id=sample.plate_id,
         sanger_ids=sample.sanger_ids or [],
         target_oplc=sample.target_oplc,
         actual_oplc=sample.actual_oplc,
@@ -68,7 +68,7 @@ def sample_out(
 def sample_detail_out(sample: Sample, db: Session | None = None) -> SampleDetailOut:
     dup_index, dup_total = (None, None)
     if db is not None:
-        dup_index, dup_total = duplicate_marker(sample, duplicate_groups(db, {sample.external_id}))
+        dup_index, dup_total = duplicate_marker(sample, duplicate_groups(db, {sample.pool_id}))
     base = sample_out(sample, duplicate_index=dup_index, duplicate_total=dup_total)
     cell_uses: list[SampleCellUseOut] = []
     for cu in sorted(sample.cell_uses, key=lambda x: x.id):

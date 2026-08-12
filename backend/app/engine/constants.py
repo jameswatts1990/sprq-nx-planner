@@ -43,6 +43,17 @@ DEFAULT_INSERT_SIZE_REUSE_THRESHOLD_BP = 5000
 # plus turnaround/cleanup before the instrument can start its next run).
 LOCK_BUFFER_HOURS = 6
 
+# Cleaned-complex loading volumes, used by the Cell QC "repeat from complex" decision. The lab
+# makes a fixed total of cleaned complex per sample and records the volume actually loaded on
+# Sample.cleaned_complex_volume; the leftover (total - used) is what a failed run can be
+# re-loaded from. A repeat straight from that leftover is "safe" when at least
+# REPEAT_SAFE_MIN_UL remains; below that a repeat is still possible but "at risk" (the
+# operator's call - the QC modal shows the volume and never hard-blocks). Both are lab-tunable
+# defaults - the live values are admin-configurable (app_settings "scheduling.*", read via
+# settings_service.get_repeat_total_complex_ul / get_repeat_safe_min_ul).
+DEFAULT_TOTAL_COMPLEX_UL = 24.0
+DEFAULT_REPEAT_SAFE_MIN_UL = 12.0
+
 DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 DAY_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 

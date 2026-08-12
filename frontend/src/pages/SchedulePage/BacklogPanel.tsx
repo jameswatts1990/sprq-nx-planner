@@ -44,7 +44,7 @@ const HIGH_OR_ABOVE_PRIORITIES = [RECOVERABLE_PRIORITY, REPEATABLE_PRIORITY, ABO
 const PAGE_SIZE_OPTIONS = [25, 50, 100, 200];
 const SORT_OPTIONS: { value: SampleSortBy; label: string }[] = [
   { value: "created_at", label: "Created" },
-  { value: "external_id", label: "Container ID" },
+  { value: "pool_id", label: "Pool ID" },
   { value: "barcode", label: "Barcode" },
   { value: "priority", label: "Priority" },
 ];

@@ -11,7 +11,7 @@ export interface CellUseHistoryOut {
   well: string;
   status: string;
   sample_id: number | null;
-  sample_external_id: string | null;
+  sample_pool_id: string | null;
   sample_priority: string | null;
   sample_target_oplc: number | null;
   sample_adaptive_loading: string | null;
@@ -43,7 +43,7 @@ export interface CellUseSummaryOut {
   run_batch_id: number;
   run_name: string | null;
   sample_id: number | null;
-  sample_external_id: string | null;
+  sample_pool_id: string | null;
   well: string;
   status: string;
   run_started: boolean;

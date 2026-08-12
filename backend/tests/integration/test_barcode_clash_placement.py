@@ -26,9 +26,9 @@ def _weekdays(n: int) -> list[str]:
     return out
 
 
-def _sid(client, external_id: str) -> int:
+def _sid(client, pool_id: str) -> int:
     items = client.get("/api/samples", params={"page_size": 200}).json()["items"]
-    return next(s["id"] for s in items if s["external_id"] == external_id)
+    return next(s["id"] for s in items if s["pool_id"] == pool_id)
 
 
 def _stages(run):
@@ -64,13 +64,13 @@ def test_clash_no_longer_forces_a_skip_and_is_flagged_instead(client):
 
     trac = _auto(client, _sid(client, "TRAC"), tue, 0)
     assert trac.status_code == 201, trac.text
-    trac_stage = next(s for s in _stages(trac.json()) if s["sample_external_id"] == "TRAC")
+    trac_stage = next(s for s in _stages(trac.json()) if s["sample_pool_id"] == "TRAC")
     assert trac_stage["tray_position"] == 1  # natural in-order cell, not skipped for the clash
     assert trac_stage["barcode_clash"] is True
 
     r7 = _auto(client, _sid(client, "T7"), tue, 1)
     assert r7.status_code == 201, r7.text
-    t7_stage = next(s for s in _stages(r7.json()) if s["sample_external_id"] == "T7")
+    t7_stage = next(s for s in _stages(r7.json()) if s["sample_pool_id"] == "T7")
     assert t7_stage["tray_position"] == 2
     assert t7_stage["barcode_clash"] is False
 
@@ -92,7 +92,7 @@ def test_explicit_cell_choice_with_a_barcode_clash_is_flagged_not_blocked(client
     # Tuesday, explicit reuse of cell_x for the clashing TRAC - lands as its Use 2 and is flagged.
     r2 = _place(client, _sid(client, "TRAC"), tue, 0, {"mode": "existing", "cell_id": cell_x})
     assert r2.status_code == 201, r2.text
-    trac_stage = next(s for s in _stages(r2.json()) if s["sample_external_id"] == "TRAC")
+    trac_stage = next(s for s in _stages(r2.json()) if s["sample_pool_id"] == "TRAC")
     assert trac_stage["cell_id"] == cell_x
     assert trac_stage["barcode_clash"] is True
     assert client.get(f"/api/samples/{_sid(client, 'TRAC')}").json()["status"] == "scheduled"
@@ -122,7 +122,7 @@ def test_reuse_depth_difference_allows_a_later_cell_in_an_earlier_slot(client):
     assert r_d.status_code == 201, r_d.text
     r_e = _place(client, _sid(client, "E"), wed, 1, {"mode": "existing", "cell_id": cell1})
     assert r_e.status_code == 201, r_e.text  # ▣2-before-▣1 across slots, but depths differ -> allowed
-    stages = {s["sample_external_id"]: s for s in _stages(r_e.json())}
+    stages = {s["sample_pool_id"]: s for s in _stages(r_e.json())}
     assert stages["D"]["tray_position"] == 2 and stages["E"]["tray_position"] == 1
 
 
@@ -134,5 +134,5 @@ def test_non_clashing_reorder_within_a_plate_is_unaffected(client):
     assert r1.status_code == 201
     r2 = _auto(client, _sid(client, "Q"), mon, 1)
     assert r2.status_code == 201, r2.text
-    stages = {s["sample_external_id"]: s for s in _stages(r2.json())}
+    stages = {s["sample_pool_id"]: s for s in _stages(r2.json())}
     assert stages["P"]["tray_position"] == 1 and stages["Q"]["tray_position"] == 2

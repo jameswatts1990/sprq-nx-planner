@@ -5,11 +5,11 @@ import type { SampleCreate, SampleDetailOut, SampleOut, SampleUpdate } from "@/t
 export type SampleSortBy =
   | "created_at"
   | "updated_at"
-  | "external_id"
+  | "pool_id"
   | "barcode"
   | "priority"
   | "status"
-  | "parent_sample"
+  | "plate_id"
   | "sanger_ids"
   | "target_oplc"
   | "actual_oplc"
@@ -34,8 +34,8 @@ export interface ListSamplesParams {
 
 export const samplesApi = {
   list: (params: ListSamplesParams = {}) => api.get<Page<SampleOut>>(`/api/samples${buildQuery(params)}`),
-  /** Add a backlog sample. A Container ID seen before returns 409 (detail.code
-   * "duplicate_container") unless allowDuplicate is set — the confirm seam for the manual path. */
+  /** Add a backlog sample. A Pool ID seen before returns 409 (detail.code
+   * "duplicate_pool") unless allowDuplicate is set — the confirm seam for the manual path. */
   create: (body: SampleCreate, allowDuplicate = false) =>
     api.post<SampleOut>(
       `/api/samples${buildQuery({ allow_duplicate: allowDuplicate ? true : undefined })}`,

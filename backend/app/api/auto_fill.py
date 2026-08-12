@@ -29,23 +29,23 @@ def _to_response(db: SessionDep, result: AutoFillResult) -> AutoFillResponse:
             # out given the machine's other resident runs (consecutive-day auto-fills can queue).
             runs.append(run_out(db, run_batch, with_effective_start=True))
 
-    unplaced_external_ids: list[str] = []
+    unplaced_pool_ids: list[str] = []
     if result.unplaced_sample_ids:
-        unplaced_external_ids = list(
-            db.scalars(select(Sample.external_id).where(Sample.id.in_(result.unplaced_sample_ids))).all()
+        unplaced_pool_ids = list(
+            db.scalars(select(Sample.pool_id).where(Sample.id.in_(result.unplaced_sample_ids))).all()
         )
 
     return AutoFillResponse(
         placed_sample_ids=result.placed_sample_ids,
         unplaced_sample_ids=result.unplaced_sample_ids,
-        unplaced_external_ids=unplaced_external_ids,
+        unplaced_pool_ids=unplaced_pool_ids,
         skipped_cells=[GridCellRef(instrument_serial=s, load_date=d) for s, d in result.skipped_cells],
         window_flags=[WindowFlagOut(cell_ref=ref, span_hours=span) for ref, span in result.window_flags],
         reuse_timing_flags=[
             WindowFlagOut(cell_ref=ref, span_hours=span) for ref, span in result.reuse_timing_flags
         ],
         barcode_conflicts=[
-            BarcodeConflictOut(sample_external_id_a=c.a, sample_external_id_b=c.b, shared_barcodes=c.shared)
+            BarcodeConflictOut(sample_pool_id_a=c.a, sample_pool_id_b=c.b, shared_barcodes=c.shared)
             for c in result.barcode_conflicts
         ],
         runs=runs,

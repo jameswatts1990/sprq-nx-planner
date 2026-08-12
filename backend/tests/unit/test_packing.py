@@ -3,14 +3,14 @@ default settings (max uses 3x, objective "fewest"). Originally a straight port-p
 test against packCells() in revio-nx-planner.html (see PLAN's "porting the algorithms"
 section) - the expected assignments below no longer match the prototype byte-for-byte,
 because none of this fixture's samples set a priority, which puts External ID
-sequencing (see `external_id_sort_key`) in the driver's seat instead of the prototype's
+sequencing (see `pool_id_sort_key`) in the driver's seat instead of the prototype's
 barcode-count/conflict-degree heuristic: since BNCH-1597..1604 are already numerically
 sequential, they're now packed in that exact order rather than hardest-to-place-first.
 """
 from datetime import datetime, timezone
 
 from app.engine.constants import ALL_CELL_POSITIONS, DEFAULT_MOVIE_RULES, MovieRules, movie_allowed_positions
-from app.engine.packing import disjoint, external_id_sort_key, pack_cells, priority_rank
+from app.engine.packing import disjoint, pool_id_sort_key, pack_cells, priority_rank
 from app.engine.types import ParsedSample, PriorCellInput
 
 
@@ -87,9 +87,9 @@ def test_pack_excludes_prior_cell_when_sample_shares_a_burned_barcode():
     assert [u.id for u in fresh_cell.uses] == ["S1"]
 
 
-def test_pack_allows_prior_cell_reuse_for_the_same_duplicate_container_id():
+def test_pack_allows_prior_cell_reuse_for_the_same_duplicate_pool_id():
     # P1 already burned bc1, but the owner data says it was S1 itself (an earlier duplicate
-    # copy of the same Container ID) that burned it - reusing P1 for another copy of S1 is
+    # copy of the same Pool ID) that burned it - reusing P1 for another copy of S1 is
     # allowed: it's the same physical material either way, no cross-sample contamination
     # risk (see docs/pacbio-sprq-nx-scheduling-reference.md's barcode-carryover exception).
     prior = [
@@ -108,7 +108,7 @@ def test_pack_allows_prior_cell_reuse_for_the_same_duplicate_container_id():
 
 def test_pack_still_blocks_a_different_sample_sharing_a_barcode_even_with_owner_data():
     # Same prior cell/owner data as above, but the new sample is a genuinely DIFFERENT
-    # Container ID sharing the identical barcode - a real foreign clash, still blocked.
+    # Pool ID sharing the identical barcode - a real foreign clash, still blocked.
     prior = [
         PriorCellInput(
             barcodes_text="bc1", barcode_owners={"bc1": frozenset({"S1"})}, uses_consumed=1, cell_id=42
@@ -124,8 +124,8 @@ def test_pack_still_blocks_a_different_sample_sharing_a_barcode_even_with_owner_
     assert [u.id for u in fresh_cell.uses] == ["S2"]
 
 
-def test_pack_lets_duplicate_container_id_copies_share_a_fresh_cell():
-    # Two copies of the SAME Container ID (same external_id, same barcode - the "duplicate"
+def test_pack_lets_duplicate_pool_id_copies_share_a_fresh_cell():
+    # Two copies of the SAME Pool ID (same pool_id, same barcode - the "duplicate"
     # sample feature), no prior cells at all: the second copy must be able to deepen the
     # very fresh cell the first copy just opened, not be forced onto a brand-new one - this
     # exercises the fresh-cell owner-seeding path (a freshly opened cell's own first use has
@@ -303,9 +303,9 @@ def test_priority_rank_extracts_trailing_parenthesized_number():
     assert priority_rank(None) == 999
 
 
-def test_external_id_sort_key_orders_numerically_and_case_insensitively():
+def test_pool_id_sort_key_orders_numerically_and_case_insensitively():
     ids = ["sample 10", "SAMPLE 2", "Sample 1", "sample 9"]
-    assert sorted(ids, key=external_id_sort_key) == ["Sample 1", "SAMPLE 2", "sample 9", "sample 10"]
+    assert sorted(ids, key=pool_id_sort_key) == ["Sample 1", "SAMPLE 2", "sample 9", "sample 10"]
 
 
 def test_pack_processes_higher_priority_samples_first():
@@ -340,7 +340,7 @@ def test_pack_breaks_priority_and_id_ties_by_oldest_first():
     assert by_id["C2"] == "S2#1"
 
 
-def test_pack_breaks_priority_ties_by_external_id_sequence_ahead_of_age():
+def test_pack_breaks_priority_ties_by_pool_id_sequence_ahead_of_age():
     # S2 was entered into the backlog first (older created_at), but S1's External ID
     # sorts first - a lab operator loading a sequential plate of samples wants them
     # grouped/ordered by ID, not by whichever happened to be imported first.
@@ -356,7 +356,7 @@ def test_pack_breaks_priority_ties_by_external_id_sequence_ahead_of_age():
     assert by_id["C2"] == "S9"
 
 
-def test_pack_external_id_sequencing_uses_natural_numeric_order():
+def test_pack_pool_id_sequencing_uses_natural_numeric_order():
     # Plain lexical sort would put "Sample 10" before "Sample 9" - natural sort must
     # treat the embedded number as a number so sequential plates pack in the order a lab
     # operator actually reads them.
@@ -386,7 +386,7 @@ def test_pack_processes_position_constrained_movie_lengths_before_flexible():
 def test_pack_movie_constraint_yields_to_priority():
     # Movie-constrainedness is only a WITHIN-priority tiebreak: a High-priority flexible 24h
     # sample still beats a Standard-priority constrained 12h sample. Priority stays the ruling
-    # factor (Priority -> Movie -> Container ID).
+    # factor (Priority -> Movie -> Pool ID).
     samples = [
         ParsedSample(id="S12", barcodes=["b12"], priority="Standard (3)", key="S12#0", movie_time=12),
         ParsedSample(id="S24", barcodes=["b24"], priority="High (1)", key="S24#1", movie_time=24),
@@ -400,7 +400,7 @@ def test_pack_movie_constraint_yields_to_priority():
 def test_pack_by_order_schedules_strictly_by_upload_and_csv_sequence():
     # "By Order" ignores priority and the Container-ID/movie ordering entirely and processes
     # samples in ascending DB id - which import_service assigns per row in upload/CSV order.
-    # The later-uploaded sample here (higher id) is High priority and its Container ID sorts
+    # The later-uploaded sample here (higher id) is High priority and its Pool ID sorts
     # first, so every other objective would process it first; "order" must still take the
     # earlier-uploaded one (lower id) first. max_uses=1 -> one fresh cell each, so cell-creation
     # order (C1, C2) reveals processing order. Input is reversed so this only passes if the sort

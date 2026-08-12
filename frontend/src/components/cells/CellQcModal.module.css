@@ -101,3 +101,41 @@
   font-size: var(--fs-sm);
   font-weight: 600;
 }
+
+/* Cleaned-complex readout on a disposition row: how much complex was loaded vs how much is
+   left, and whether that leftover is enough for a "safe" repeat from complex (green tint) or an
+   "at risk" one (amber tint). Mirrors the auto-suggested "Complex" disposition. */
+.complex {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 9px;
+  border-radius: var(--r-sm);
+  font-size: var(--fs-sm);
+}
+.complexOk {
+  background: var(--green-tint);
+}
+.complexRisk {
+  background: var(--amber-tint);
+}
+.complexMuted {
+  background: var(--line-soft);
+  color: var(--grey);
+}
+.complexTag {
+  font-weight: 700;
+}
+.complexOk .complexTag {
+  color: var(--green);
+}
+.complexRisk .complexTag {
+  color: var(--amber);
+}
+/* Link out to Traction to check remaining library volume for a repeat-from-library decision. */
+.tracLink {
+  align-self: flex-start;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--magenta);
+}

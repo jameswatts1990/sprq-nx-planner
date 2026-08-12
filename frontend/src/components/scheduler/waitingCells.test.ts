@@ -179,14 +179,14 @@ function baseUnusedTraySibling(overrides: Partial<CellOut> = {}): CellOut {
 }
 
 describe("ghostWouldClashWithSample", () => {
-  const sample = { external_id: "TRAC-2-99999", barcodes: ["bc1"] };
+  const sample = { pool_id: "TRAC-2-99999", barcodes: ["bc1"] };
 
   it("is false with no ghost, a terminal ghost, or a sample with no barcodes", () => {
     expect(ghostWouldClashWithSample(undefined, sample)).toBe(false);
     const terminal = computeTerminalGhost(baseCell({ status: "exhausted", burned_barcodes: ["bc1"] }), "2026-07-14")!;
     expect(ghostWouldClashWithSample(terminal, sample)).toBe(false);
     const ghost = computeGhost(baseCell({ burned_barcodes: ["bc1"] }), "2026-07-14")!;
-    expect(ghostWouldClashWithSample(ghost, { external_id: "X", barcodes: [] })).toBe(false);
+    expect(ghostWouldClashWithSample(ghost, { pool_id: "X", barcodes: [] })).toBe(false);
   });
 
   it("is false when the cell has no burned barcodes, or none overlap the dragged sample's", () => {
@@ -196,17 +196,17 @@ describe("ghostWouldClashWithSample", () => {
     expect(ghostWouldClashWithSample(differentBarcode, sample)).toBe(false);
   });
 
-  it("is true when the cell already burned this barcode under a DIFFERENT Container ID", () => {
+  it("is true when the cell already burned this barcode under a DIFFERENT Pool ID", () => {
     const ghost = computeGhost(
-      baseCell({ burned_barcodes: ["bc1"], uses: [{ id: 1, run_batch_id: 1, run_name: null, sample_id: 1, sample_external_id: "OTHER-SAMPLE", well: "A01", status: "planned", run_started: false, breakout_anchor_at: null }] }),
+      baseCell({ burned_barcodes: ["bc1"], uses: [{ id: 1, run_batch_id: 1, run_name: null, sample_id: 1, sample_pool_id: "OTHER-SAMPLE", well: "A01", status: "planned", run_started: false, breakout_anchor_at: null }] }),
       "2026-07-14",
     )!;
     expect(ghostWouldClashWithSample(ghost, sample)).toBe(true);
   });
 
-  it("is false when the dragged sample's own Container ID already used this cell (duplicate self-reuse, not a clash)", () => {
+  it("is false when the dragged sample's own Pool ID already used this cell (duplicate self-reuse, not a clash)", () => {
     const ghost = computeGhost(
-      baseCell({ burned_barcodes: ["bc1"], uses: [{ id: 1, run_batch_id: 1, run_name: null, sample_id: 1, sample_external_id: sample.external_id, well: "A01", status: "planned", run_started: false, breakout_anchor_at: null }] }),
+      baseCell({ burned_barcodes: ["bc1"], uses: [{ id: 1, run_batch_id: 1, run_name: null, sample_id: 1, sample_pool_id: sample.pool_id, well: "A01", status: "planned", run_started: false, breakout_anchor_at: null }] }),
       "2026-07-14",
     )!;
     expect(ghostWouldClashWithSample(ghost, sample)).toBe(false);

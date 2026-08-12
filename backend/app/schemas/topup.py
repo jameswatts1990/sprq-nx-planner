@@ -6,7 +6,7 @@ from pydantic import BaseModel
 class SampleTopupOut(BaseModel):
     id: int
     sample_id: int
-    external_id: str | None
+    pool_id: str | None
     barcodes: list[str]
     priority: str | None
     created_at: datetime

@@ -12,9 +12,9 @@ def _past_weekday() -> str:
     return d.isoformat()
 
 
-def _sid(client, external_id: str) -> int:
+def _sid(client, pool_id: str) -> int:
     items = client.get("/api/samples", params={"page_size": 200}).json()["items"]
-    return next(s["id"] for s in items if s["external_id"] == external_id)
+    return next(s["id"] for s in items if s["pool_id"] == pool_id)
 
 
 def _rows(csv_text: str) -> list[list[str]]:
@@ -77,11 +77,11 @@ def test_export_fills_p1_columns_for_a_loaded_run(client):
     assert row[51] == "High (1)"  # Prioity — "High" coerced to the canonical label on import
 
 
-def _place_running(client, external_id: str, run_name: str, past: str) -> None:
+def _place_running(client, pool_id: str, run_name: str, past: str) -> None:
     placed = client.post(
         "/api/cell-uses",
         json={
-            "sample_id": _sid(client, external_id),
+            "sample_id": _sid(client, pool_id),
             "instrument_serial": "84047",
             "load_date": past,
             "slot_index": 0,

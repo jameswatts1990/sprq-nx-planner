@@ -22,7 +22,7 @@ export function BacklogSection() {
 
       <p className={styles.subheading}>Filters &amp; search</p>
       <p>
-        <b>Search</b> by Container ID, barcode, parent sample, or priority; results narrow as you type. Use the{" "}
+        <b>Search</b> by Pool ID, barcode, Plate ID, or priority; results narrow as you type. Use the{" "}
         <b>priority dropdown</b> to narrow the list to one priority value — it only lists priorities that are
         actually present in the backlog, so a choice never comes back empty. The <b>rows-per-page</b> control (25 /
         50 / 100 / 200, defaulting to 50) sets how many samples are shown at once.
@@ -30,11 +30,11 @@ export function BacklogSection() {
 
       <p className={styles.subheading}>Columns &amp; sorting</p>
       <p>
-        <b>Columns:</b> Container ID, Barcodes, Parent sample, Sanger IDs, Priority, Target OPLC, Actual OPLC, Adaptive
+        <b>Columns:</b> Pool ID, Barcodes, Plate ID, Sanger IDs, Priority, Target OPLC, Actual OPLC, Adaptive
         loading, Full res. base Q, Include base kinetics, and Created (when it was imported). <b>Target OPLC</b> is the
         planned loading concentration; <b>Actual OPLC</b> is the concentration actually achieved on the plate. A dash
-        (—) means that field is empty for the sample. Click a <b>Container ID</b> to open that sample&apos;s detail page.
-        A <b>1/3</b> badge beside a Container ID means it&apos;s a <b>duplicate</b> — the same sample entered more than
+        (—) means that field is empty for the sample. Click a <b>Pool ID</b> to open that sample&apos;s detail page.
+        A <b>1/3</b> badge beside a Pool ID means it&apos;s a <b>duplicate</b> — the same sample entered more than
         once so it can be run across multiple cells; &ldquo;1/3&rdquo; is copy 1 of 3 (counted across every status,
         including completed).
       </p>
@@ -42,7 +42,7 @@ export function BacklogSection() {
         <b>Sorting:</b> click <i>any</i> column header to sort by that field; click it again to reverse the
         direction. An arrow (▲/▼) on the header shows the active sort and direction. Empty cells (shown as —) always
         sit at the bottom, whichever direction you choose, so a blank never floats to the top. Priority sorts by rank
-        (High before Standard), not alphabetically; samples that share a priority are then ordered by Container ID —
+        (High before Standard), not alphabetically; samples that share a priority are then ordered by Pool ID —
         the same order the scheduler processes them in. The backlog opens sorted this way by default — <b>Priority,
         High to low</b> — both here and in the Schedule tab&apos;s Backlog panel, so the most urgent samples surface
         first without having to sort yourself.
@@ -67,11 +67,13 @@ export function BacklogSection() {
       <p>
         When a <b>Cell QC</b> action (see the Schedule and Cells tabs&apos; help) takes a cell out of service, the
         samples on its later uses shift onto the tray&apos;s other cells and the tail may drop off. Any sample you
-        dispositioned <b>Repeatable</b> or <b>Recoverable</b> comes back here into a <b>Recoverable Samples</b>{" "}
-        section shown <i>above</i> the main backlog, bumped above High priority so it&apos;s rescheduled first.
-        Rescuing one is no different from scheduling any other backlog sample: drag it (or place it via Auto Schedule)
-        onto a cell. A <Badge tone="info">N recoverable</Badge> count appears in the header while any are waiting. Its
-        column headers are clickable to sort, just like the main backlog (it starts sorted by priority).
+        dispositioned to repeat — <b>from complex</b> or <b>from library</b> — or as <b>Recoverable</b> comes back here
+        into a <b>Recoverable Samples</b> section shown <i>above</i> the main backlog, bumped above High priority so
+        it&apos;s rescheduled first. The <b>Priority</b> column shows which pathway was chosen (for example{" "}
+        <i>Repeatable — from complex</i>) so you know how to re-prep it. Rescuing one is no different from scheduling
+        any other backlog sample: drag it (or place it via Auto Schedule) onto a cell. A{" "}
+        <Badge tone="info">N recoverable</Badge> count appears in the header while any are waiting. Its column headers
+        are clickable to sort, just like the main backlog (it starts sorted by priority).
       </p>
       <p className={styles.subheading}>Top-up required (below the backlog)</p>
       <p>
@@ -99,24 +101,27 @@ export function BacklogSection() {
         <b>+ Add sample</b> (top-right of the toolbar) opens a form to add one sample to the backlog by hand — handy
         when a sample isn&apos;t in a file to import. The form is grouped into three shaded sections —{" "}
         <b>Sample ID &amp; Priority</b>, <b>Complex Details</b>, and <b>Run Settings</b> — to keep entry scannable.
-        The <b>Container ID</b> (a unique identifier such as a Pool ID) and at least one{" "}
+        The <b>Pool ID</b> (a unique identifier such as a Pool ID) and at least one{" "}
         <b>barcode</b> are required (enter several barcodes separated by commas or spaces); every other field is
         optional. The
         three True/False settings (Adaptive Loading, Full-Resolution Base Q, Include Base Kinetics) and Priority
         (Standard / Medium / High) are chosen from a dropdown, and start on the defaults set in the Admin tab&apos;s{" "}
         <b>Sample defaults</b> panel — change any of them before saving. The new sample lands in the backlog exactly
-        like an imported one. If the Container ID has been seen before (any status, including completed), the form
+        like an imported one. If the Pool ID has been seen before (any status, including completed), the form
         doesn&apos;t reject it — it tells you how many times it&apos;s been seen and offers <b>Add anyway</b> to create
         another copy (for running the same sample across multiple cells). Click Add anyway to confirm, or change the
-        Container ID if it was a mistake.
+        Pool ID if it was a mistake.
       </p>
       <p>
         <b>Edit</b> (on each row) opens the same form to correct a backlog sample&apos;s details — barcodes, Sanger
         IDs, priority, Target OPLC, Actual OPLC, the complex-loading volumes (cleaned-complex and loading-buffer,
         which pre-fill the batch sheet&apos;s dilution worksheet), and the other settings. The{" "}
-        <b>Container ID</b> is greyed out and can&apos;t be changed: it identifies the sample and is fixed once
+        <b>Pool ID</b> is greyed out and can&apos;t be changed: it identifies the sample and is fixed once
         created. A backlog sample is fully editable; once it&apos;s scheduled you can still adjust its loading
         parameters (including those volumes) from the Schedule slot popover, but its barcodes and identity are locked.
+        A <b>View on Traction</b> button (next to Cancel) opens the sample in Traction — the pools view for a pool
+        (more than one Sanger ID) or the libraries view for a single — so you can check its material without leaving
+        RunNx.
       </p>
       <p>
         <b>Loading buffer is worked out for you.</b> Complex and loading buffer always top up to <b>25 µL</b>
@@ -145,9 +150,9 @@ export function BacklogSection() {
       </p>
       <p>
         The same backlog also appears as draggable cards inside the Schedule tab&apos;s Backlog panel, with the same
-        search, priority filter, and rows-per-page controls. Sorting there is a compact dropdown (Created, Container
-        ID, Barcode, or Priority) plus a direction button rather than clickable column headers, since that panel is a
-        card list, not a table. Each card shows the sample&apos;s parent sample, a coloured <b>priority</b> badge, and
+        search, priority filter, and rows-per-page controls. Sorting there is a compact dropdown (Created, Pool ID,
+        Barcode, or Priority) plus a direction button rather than clickable column headers, since that panel is a
+        card list, not a table. Each card shows the sample&apos;s Plate ID, a coloured <b>priority</b> badge, and
         its <b>movie time</b> (e.g. ⏱ 24 h), with a coloured left edge matching its priority. Drag a card onto a slot to
         schedule it, or <b>click</b> it to open that sample&apos;s detail page (the ✎ button in the card&apos;s corner
         still opens the quick edit form). To cancel a sample, use the Backlog tab.

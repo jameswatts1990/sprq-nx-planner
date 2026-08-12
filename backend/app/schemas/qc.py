@@ -9,7 +9,17 @@ from app.schemas.cell import CellOut
 # tray's loading queue (see services/qc_service.py).
 QC_VERDICTS = ("fail", "fail_and_stop", "retire")
 # Per-sample fate chosen in the disposition step.
-DISPOSITIONS = ("lost", "repeatable", "recoverable")
+#   lost               - no material left; goes to the Top-up list (a fresh-material request).
+#   repeatable_complex - re-load straight from the leftover cleaned complex (no re-prep); the
+#                        cheap repeat, offered when enough complex remains (see qc_service /
+#                        the QC modal's volume readout). New in the two-way repeat split.
+#   repeatable         - "repeatable from library": re-make complex from the library material
+#                        held in Traction. The original single "Repeatable" option.
+#   recoverable        - data recoverable; back to the backlog for review.
+# The three non-"lost" values all return the sample to the backlog (repeatable_complex and
+# repeatable at Repeatable(0), recoverable at Recoverable(0)) and appear in the Backlog's
+# "Recoverable Samples" section.
+DISPOSITIONS = ("lost", "repeatable_complex", "repeatable", "recoverable")
 
 
 class AffectedSampleOut(BaseModel):
@@ -21,8 +31,15 @@ class AffectedSampleOut(BaseModel):
     `barcode_clash` marks a reassignment whose new cell already burned a clashing barcode."""
 
     sample_id: int
-    external_id: str | None
+    pool_id: str | None
     barcodes: list[str]
+    # Sanger sample IDs on this sample - the modal uses the count to tell a single (1) from a
+    # pool (>1) when building the correct Traction deep-link (libraries vs pools view).
+    sanger_ids: list[str]
+    # Volume (uL) of cleaned complex loaded for this sample (Sample.cleaned_complex_volume, may
+    # be unrecorded/None). The modal derives leftover = total - used against the configured
+    # totals on QcPreviewOut to suggest / flag a "repeat from complex".
+    cleaned_complex_volume: float | None
     cell_use_id: int
     use_number: int
     run_date: date | None
@@ -51,6 +68,12 @@ class QcPreviewOut(BaseModel):
     # False when nothing needs a decision - the frontend then commits immediately without
     # the disposition step.
     requires_disposition: bool
+    # Configured cleaned-complex volumes (uL) the modal derives its "repeat from complex"
+    # readout from: leftover = total_complex_ul - cleaned_complex_volume, "safe" to repeat when
+    # leftover >= repeat_safe_min_ul, otherwise "at risk". See settings_service /
+    # engine.constants DEFAULT_TOTAL_COMPLEX_UL / DEFAULT_REPEAT_SAFE_MIN_UL.
+    total_complex_ul: float
+    repeat_safe_min_ul: float
 
 
 class QcCommitRequest(BaseModel):

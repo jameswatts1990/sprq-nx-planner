@@ -16,10 +16,11 @@ class Sample(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     import_batch_id: Mapped[int | None] = mapped_column(ForeignKey("import_batches.id"), nullable=True)
-    # Surfaced to lab users as "Container ID" (see the import-field spec); the DB column
-    # keeps its historical `external_id` name.
-    external_id: Mapped[str] = mapped_column(String(255), index=True)
-    parent_sample: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # The sample's identity, surfaced to lab users as "Pool ID" (see the import-field spec).
+    pool_id: Mapped[str] = mapped_column(String(255), index=True)
+    # Optional plate identifier (was "Parent Sample" / parent_sample before v0.52.0), surfaced
+    # to lab users as "Plate ID" and round-tripping with the tracker sheet's "Plate ID" column.
+    plate_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     sanger_ids: Mapped[list[str]] = mapped_column(JSON, default=list)
     target_oplc: Mapped[float | None] = mapped_column(Float, nullable=True)
     # Actual (achieved) on-plate loading concentration, distinct from the planned target_oplc.
@@ -47,11 +48,13 @@ class Sample(Base):
     insert_size_bp: Mapped[int | None] = mapped_column(Integer, nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="backlog", index=True)
     # QC disposition tag when a Cell QC action sends this sample back to the backlog:
-    # None | "repeatable" | "recoverable". An edit-proof grouping key for the Backlog's
-    # "Recoverable Samples" section (priority is free-text/user-editable and shares rank 0
-    # with "Aborted (0)", so it can't be relied on for grouping). Paired with a rank-0
-    # priority label (REPEATABLE_PRIORITY/RECOVERABLE_PRIORITY) that drives the ordering.
-    # Cleared when the sample is next placed. See services/qc_service.py.
+    # None | "repeatable_complex" | "repeatable" | "recoverable" (the full set is schemas/qc.py
+    # DISPOSITIONS minus "lost", which goes to the top-up list instead). An edit-proof grouping
+    # key for the Backlog's "Recoverable Samples" section (priority is free-text/user-editable and
+    # shares rank 0 with "Aborted (0)", so it can't be relied on for grouping). Paired with a
+    # rank-0 priority label (REPEATABLE_PRIORITY for either repeat pathway, RECOVERABLE_PRIORITY
+    # for "recoverable") that drives the ordering. Cleared when the sample is next placed. See
+    # services/qc_service.py.
     qc_disposition: Mapped[str | None] = mapped_column(String(20), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(

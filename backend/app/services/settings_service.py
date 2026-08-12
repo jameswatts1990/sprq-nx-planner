@@ -6,6 +6,7 @@ False) always wins. The manual add form also reads these to pre-fill its control
 from __future__ import annotations
 
 import json
+import math
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -15,6 +16,8 @@ from app.engine.constants import (
     DAY_START_HOUR,
     DEFAULT_INSERT_SIZE_REUSE_THRESHOLD_BP,
     DEFAULT_MOVIE_HOURS,
+    DEFAULT_REPEAT_SAFE_MIN_UL,
+    DEFAULT_TOTAL_COMPLEX_UL,
     MOVIE_CELL_POSITION,
     MOVIE_HOURS_CHOICES,
     MovieRules,
@@ -98,10 +101,20 @@ def set_sample_defaults(db: Session, values: dict[str, str]) -> dict[str, str]:
 #     (must be one of MOVIE_HOURS_CHOICES; the values themselves stay fixed).
 #   movie_cell_position            - JSON map {movie_hours: within_tray_pos 0-3 or null=any}:
 #     which carousel cell a movie length is confined to under Auto Schedule.
-# The last three feed engine/constants.MovieRules / the day-start reads; the getters below build
-# them and the service layer passes them into the pure engine (see get_movie_rules), keeping the
-# engine DB-free - the same pattern get_insert_size_reuse_threshold already uses.
+#   repeat_total_complex_ul        - the total cleaned complex (uL) made per sample; the Cell QC
+#     "repeat from complex" readout derives leftover = total - loaded from it.
+#   repeat_safe_min_ul             - the leftover cleaned complex (uL) at or above which a repeat
+#     straight from complex is "safe"; below it the QC modal flags the repeat "at risk".
+# The movie_* keys feed engine/constants.MovieRules / the day-start reads; the repeat_* keys feed
+# the QC preview's volume readout. The getters below build them and the service layer passes them
+# to their callers, keeping the engine DB-free - the pattern get_insert_size_reuse_threshold uses.
 _SCHEDULING_PREFIX = "scheduling."
+
+
+def _canonical_ul(n: float) -> str:
+    """A volume stored as text without a needless trailing ".0" (so 24.0 -> "24", 12.5 stays
+    "12.5") - keeps the stored value and the Settings input reading the way a user typed it."""
+    return f"{n:g}"
 
 # Built-in movie->cell-position map as canonical JSON: one entry per movie choice, absent
 # restrictions written as null ("any"). e.g. {"12": 0, "24": null, "30": 3}.
@@ -112,6 +125,8 @@ SCHEDULING_DEFAULT_FALLBACKS: dict[str, str] = {
     "day_start_hour": str(DAY_START_HOUR),
     "default_movie_hours": str(DEFAULT_MOVIE_HOURS),
     "movie_cell_position": _DEFAULT_MOVIE_CELL_POSITION_JSON,
+    "repeat_total_complex_ul": _canonical_ul(DEFAULT_TOTAL_COMPLEX_UL),
+    "repeat_safe_min_ul": _canonical_ul(DEFAULT_REPEAT_SAFE_MIN_UL),
 }
 SCHEDULING_KEYS: tuple[str, ...] = tuple(SCHEDULING_DEFAULT_FALLBACKS)
 
@@ -189,6 +204,29 @@ def get_movie_rules(db: Session) -> MovieRules:
     return MovieRules(positions=get_movie_cell_position(db), default_hours=get_default_movie_hours(db))
 
 
+def get_repeat_total_complex_ul(db: Session) -> float:
+    """The configured total cleaned complex (uL) made per sample, falling back to the built-in
+    default for a never-stored or non-positive value. Passed into the QC preview so the modal can
+    show how much complex is left after loading."""
+    raw = get_scheduling_settings(db)["repeat_total_complex_ul"]
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        return DEFAULT_TOTAL_COMPLEX_UL
+    return value if value > 0 else DEFAULT_TOTAL_COMPLEX_UL
+
+
+def get_repeat_safe_min_ul(db: Session) -> float:
+    """The configured leftover cleaned complex (uL) at/above which a repeat from complex is
+    "safe", falling back to the built-in default for a never-stored or non-positive value."""
+    raw = get_scheduling_settings(db)["repeat_safe_min_ul"]
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        return DEFAULT_REPEAT_SAFE_MIN_UL
+    return value if value > 0 else DEFAULT_REPEAT_SAFE_MIN_UL
+
+
 def _validate_movie_cell_position(value: str) -> str:
     """Validate the incoming movie->cell-position JSON and return it re-serialized canonically
     (one entry per movie choice, restrictions as an int 0..CELLS_PER_TRAY-1, "any" as null)."""
@@ -244,6 +282,21 @@ def _validate_scheduling(key: str, value: str) -> str:
         return str(n)
     if key == "movie_cell_position":
         return _validate_movie_cell_position(value)
+    if key in ("repeat_total_complex_ul", "repeat_safe_min_ul"):
+        label = (
+            "Total cleaned complex volume"
+            if key == "repeat_total_complex_ul"
+            else "Safe repeat-from-complex volume"
+        )
+        try:
+            n = float(str(value).strip())
+        except (TypeError, ValueError) as err:
+            raise ValueError(f"{label} must be a number of microlitres") from err
+        # Reject NaN/inf (a JSON number like 1e400 parses to inf) - stored "inf"/"nan" would
+        # later break JSON-serialising every scheduling/QC read that returns it.
+        if not math.isfinite(n) or n <= 0:
+            raise ValueError(f"{label} must be greater than 0")
+        return _canonical_ul(n)
     raise ValueError(f"Unknown scheduling setting '{key}'")
 
 

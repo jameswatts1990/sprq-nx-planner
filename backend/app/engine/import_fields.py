@@ -8,7 +8,7 @@ This single spec drives everything on the input side so they can never drift:
 
 `aliases` are the substring synonyms used to *pre-fill* the mapping from a file's headers;
 they mirror the old `_find` needles in normalize.py plus a couple that let the sequencing
-tracker sheet auto-map ("traction id" -> external_id, "complex batch id" -> barcodes).
+tracker sheet auto-map ("traction id" -> pool_id, "complex batch id" -> barcodes).
 The user always sees and can correct the suggestion, so substring matching being loose is
 fine here.
 """
@@ -20,12 +20,12 @@ from app.engine.constants import CANONICAL_PRIORITIES
 from app.engine.tracker_columns import normalize_header
 
 # Field keys. These match ParsedSample attribute names where they differ from the DB
-# column (external_id -> ParsedSample.id, parent_sample -> ParsedSample.parent).
-# The `external_id` column is surfaced to lab users as "Container ID" (see its label).
-K_EXTERNAL_ID = "external_id"
+# column (pool_id -> ParsedSample.id, plate_id -> ParsedSample.parent).
+# The `pool_id` column is surfaced to lab users as "Pool ID" (see its label).
+K_POOL_ID = "pool_id"
 K_BARCODES = "barcodes"
 K_SANGER = "sanger"
-K_PARENT_SAMPLE = "parent_sample"
+K_PLATE_ID = "plate_id"
 K_TARGET_OPLC = "target_oplc"
 # The actual (achieved) on-plate loading concentration, distinct from the planned Target
 # OPLC. Round-trips with the tracker sheet's "Loading Conc. (pM)" column.
@@ -63,15 +63,15 @@ class ImportField:
 # Order here is the order shown in the mapping UI, the manual-add form, and the template.
 IMPORTABLE_FIELDS: list[ImportField] = [
     ImportField(
-        K_EXTERNAL_ID, "Container ID", "TRAC-2-26256", required=True,
-        aliases=("container id", "container", "traction id", "external id", "parent sample", "sample"),
+        K_POOL_ID, "Pool ID", "TRAC-2-26256", required=True,
+        aliases=("pool id", "container id", "container", "traction id", "external id", "sample"),
     ),
     ImportField(
         K_BARCODES, "Barcodes", "bc2074, bc2075", kind="barcodes", required=True,
         aliases=("barcode", "complex batch id"),
     ),
     ImportField(K_SANGER, "Sanger Sample IDs", "DTOL16944651", kind="sanger", aliases=("sanger",)),
-    ImportField(K_PARENT_SAMPLE, "Parent Sample", "TRAC-2-26256", aliases=("parent sample",)),
+    ImportField(K_PLATE_ID, "Plate ID", "TRAC-2-26256", aliases=("plate id", "parent sample")),
     ImportField(
         K_TARGET_OPLC, "Target OPLC (pM)", "300", kind="number",
         aliases=("target oplc", "target loading concentration"),

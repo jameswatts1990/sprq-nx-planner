@@ -10,8 +10,8 @@ from app.models.sample import Sample, SampleBarcode
 from app.services.settings_service import get_default_movie_hours, get_sample_defaults
 
 
-def existing_samples_with_id(db: Session, external_id: str) -> list[Sample]:
-    """Every sample that already carries this Container ID, oldest first — across ALL statuses
+def existing_samples_with_id(db: Session, pool_id: str) -> list[Sample]:
+    """Every sample that already carries this Pool ID, oldest first — across ALL statuses
     (including completed/cancelled). Duplicates are intentionally allowed (the same sample can be
     run across multiple cells), so this powers the "seen N times" warning/confirm rather than a
     hard rejection. Excludes nothing by status because a container that ran and completed before
@@ -19,7 +19,7 @@ def existing_samples_with_id(db: Session, external_id: str) -> list[Sample]:
     return list(
         db.scalars(
             select(Sample)
-            .where(Sample.external_id == external_id)
+            .where(Sample.pool_id == pool_id)
             .order_by(Sample.created_at, Sample.id)
         ).all()
     )
@@ -28,10 +28,10 @@ def existing_samples_with_id(db: Session, external_id: str) -> list[Sample]:
 def create_backlog_sample(
     db: Session,
     *,
-    external_id: str,
+    pool_id: str,
     barcodes: list[str],
     sanger_ids: list[str] | None = None,
-    parent_sample: str | None = None,
+    plate_id: str | None = None,
     target_oplc: float | None = None,
     actual_oplc: float | None = None,
     cleaned_complex_volume: float | None = None,
@@ -51,14 +51,14 @@ def create_backlog_sample(
     base_kinetics, priority) fall back to the admin-configured sample defaults when left
     unspecified — an explicitly provided value (including an explicit "False") always wins.
 
-    A matching Container ID is NOT rejected: the same sample is deliberately run across multiple
+    A matching Pool ID is NOT rejected: the same sample is deliberately run across multiple
     cells, so each copy is its own backlog row. Callers surface a "seen N times" warning/confirm
     via existing_samples_with_id() instead of blocking here."""
     defaults = get_sample_defaults(db)
     sample = Sample(
         import_batch_id=import_batch_id,
-        external_id=external_id,
-        parent_sample=parent_sample or None,
+        pool_id=pool_id,
+        plate_id=plate_id or None,
         sanger_ids=sanger_ids or [],
         target_oplc=target_oplc,
         actual_oplc=actual_oplc,
@@ -87,7 +87,7 @@ def update_backlog_sample(
     *,
     barcodes: list[str],
     sanger_ids: list[str] | None = None,
-    parent_sample: str | None = None,
+    plate_id: str | None = None,
     target_oplc: float | None = None,
     actual_oplc: float | None = None,
     cleaned_complex_volume: float | None = None,
@@ -100,10 +100,10 @@ def update_backlog_sample(
     insert_size_bp: int | None = None,
 ) -> Sample:
     """Overwrite an existing backlog Sample's editable fields and replace its barcode set.
-    The sample's identity (external_id / Container ID) is intentionally left untouched.
+    The sample's identity (pool_id / Pool ID) is intentionally left untouched.
     Does NOT commit — the caller owns the transaction. Edits store exactly what's given
     (no default-filling — defaults only apply to brand-new samples)."""
-    sample.parent_sample = parent_sample or None
+    sample.plate_id = plate_id or None
     sample.sanger_ids = sanger_ids or []
     sample.target_oplc = target_oplc
     sample.actual_oplc = actual_oplc
@@ -142,7 +142,7 @@ def update_placed_sample_metadata(
     left the backlog and been placed on the grid (status scheduled/in_progress). The
     loading-dilution volumes are included — they only feed the batch sheet, which is printed
     for an already-scheduled run, so editing them post-placement is exactly the common case.
-    The sample's identity (external_id), its barcodes, Sanger IDs, and parent are deliberately
+    The sample's identity (pool_id), its barcodes, Sanger IDs, and parent are deliberately
     frozen at placement time — the barcodes in particular are burned onto the cell use when
     it's scheduled (see run_serializer._stage_out), so a later sample-record edit must not
     diverge from what the cell already carries. Sets attributes on the tracked ORM object

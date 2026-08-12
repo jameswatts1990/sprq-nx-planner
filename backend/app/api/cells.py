@@ -44,6 +44,7 @@ from app.services.cell_service import (
     serialize_cell_detail,
 )
 from app.services.qc_service import commit_qc, preview_qc, undo_qc
+from app.services.settings_service import get_repeat_safe_min_ul, get_repeat_total_complex_ul
 
 QC_STATUSES = ("unreported", "awaiting_credit", "in_workflow")
 
@@ -94,14 +95,14 @@ def list_cells(
         raise HTTPException(400, f"Unknown qc_status '{qc_status}'. Valid: {', '.join(QC_STATUSES)}")
     if q:
         # Search any id associated with a cell, not just its own code: its tray, and - via
-        # its uses - the container id (sample external id), burned barcodes, run name/id, and
-        # the instrument it ran on. So typing a container id, a Traction run id, or a barcode
+        # its uses - the Pool ID (sample external id), burned barcodes, run name/id, and
+        # the instrument it ran on. So typing a Pool ID, a Traction run id, or a barcode
         # finds every cell that touched it, the same box that finds a cell code or "T123".
         term = q.strip()
         like = f"%{term}%"
         conditions = [
             Cell.code.ilike(like),
-            Cell.cell_uses.any(CellUse.sample.has(Sample.external_id.ilike(like))),
+            Cell.cell_uses.any(CellUse.sample.has(Sample.pool_id.ilike(like))),
             Cell.cell_uses.any(CellUse.barcodes.any(CellUseBarcode.barcode.ilike(like))),
             Cell.cell_uses.any(
                 CellUse.cycle.has(Cycle.run_batch.has(RunBatch.run_name.ilike(like)))
@@ -180,7 +181,13 @@ def qc_preview_endpoint(cell_id: int, req: QcPreviewRequest, db: SessionDep) -> 
     if cell is None:
         raise HTTPException(404, "Cell not found")
     try:
-        return preview_qc(cell, req.verdict, req.cell_use_id)
+        return preview_qc(
+            cell,
+            req.verdict,
+            req.cell_use_id,
+            total_complex_ul=get_repeat_total_complex_ul(db),
+            repeat_safe_min_ul=get_repeat_safe_min_ul(db),
+        )
     except ValueError as exc:
         raise HTTPException(409, str(exc)) from exc
 

@@ -104,14 +104,14 @@ export function HistorySamplesPage() {
         </CardHeader>
         <CardBody>
           <p className={styles.intro}>
-            Browse completed &amp; failed history below, or search any Container ID, barcode, or parent sample to
+            Browse completed &amp; failed history below, or search any Pool ID, barcode, or Plate ID to
             find a sample wherever it is right now — Backlog, Scheduled, In progress, Completed, Failed, or
             Cancelled.
           </p>
           <input
             type="search"
             className={styles.search}
-            placeholder="Search by container ID, barcode, or parent sample…"
+            placeholder="Search by Pool ID, barcode, or Plate ID…"
             value={qInput}
             onChange={(e) => {
               setQInput(e.target.value);
@@ -142,10 +142,10 @@ export function HistorySamplesPage() {
                 <thead>
                   <tr>
                     <th />
-                    <th>{sortableHeader("Container ID", "external_id")}</th>
+                    <th>{sortableHeader("Pool ID", "pool_id")}</th>
                     <th>{sortableHeader("Status", "status")}</th>
                     <th>{sortableHeader("Barcodes", "barcode")}</th>
-                    <th>{sortableHeader("Parent sample", "parent_sample")}</th>
+                    <th>{sortableHeader("Plate ID", "plate_id")}</th>
                     <th>{sortableHeader("Target OPLC", "target_oplc")}</th>
                     <th>{sortableHeader("Actual OPLC", "actual_oplc")}</th>
                     <th>{sortableHeader("Priority", "priority")}</th>
@@ -177,7 +177,7 @@ interface SampleRowProps {
 }
 
 /** Each row expands inline (lazily fetching samplesApi.get(id)) for a quick peek at the
- * sample's cell_uses without leaving the list; the Container ID also links to the full,
+ * sample's cell_uses without leaving the list; the Pool ID also links to the full,
  * durable /samples/:id page (SampleDetailPage) for every field and history. Memoized so a
  * search keystroke re-renders only the row whose expanded state changed, not all 25 (each row
  * also owns a lazy detail useQuery). */
@@ -196,7 +196,7 @@ const SampleRow = memo(function SampleRow({ sample, expanded, onToggle }: Sample
         <td className={styles.toggleCell}>{expanded ? "▼" : "▶"}</td>
         <td>
           <Link to={`/samples/${sample.id}`} className="link" onClick={(e) => e.stopPropagation()}>
-            {sample.external_id}
+            {sample.pool_id}
           </Link>{" "}
           <DuplicateBadge index={sample.duplicate_index} total={sample.duplicate_total} />
         </td>
@@ -206,7 +206,7 @@ const SampleRow = memo(function SampleRow({ sample, expanded, onToggle }: Sample
         <td>
           <BarcodeChips barcodes={sample.barcodes} />
         </td>
-        <td>{sample.parent_sample ?? "—"}</td>
+        <td>{sample.plate_id ?? "—"}</td>
         <td>{sample.target_oplc ?? "—"}</td>
         <td>{sample.actual_oplc ?? "—"}</td>
         <td>{sample.priority ?? "—"}</td>

@@ -297,9 +297,9 @@ export function ImportPage() {
             )}
             {preview.within_file_duplicates.length > 0 && (
               <Note tone="warn" icon="!">
-                This file repeats {preview.within_file_duplicates.length} Container ID
+                This file repeats {preview.within_file_duplicates.length} Pool ID
                 {preview.within_file_duplicates.length === 1 ? "" : "s"} (
-                {preview.within_file_duplicates.map((d) => `${d.external_id} ×${d.created_now}`).join(", ")}
+                {preview.within_file_duplicates.map((d) => `${d.pool_id} ×${d.created_now}`).join(", ")}
                 ). Each will be imported as a separate copy — fine if you&apos;re running the same sample
                 across multiple cells; otherwise fix the file before importing.
               </Note>
@@ -404,7 +404,7 @@ export function ImportPage() {
             spellCheck={false}
             placeholder={
               "Paste CSV here — any columns. You'll match them to fields on the next step.\n" +
-              "Container,Parent Sample,Sanger Sample IDs,Barcodes,Target OPLC,...\n" +
+              "Pool ID,Plate ID,Sanger Sample IDs,Barcodes,Target OPLC,...\n" +
               'BNCH-1597,TRAC-2-25402,...,"bc2021, bc2066",268.0,...\n\n' +
               "…or a simple two-column list (untick “First row is a header”):\n" +
               "TRAC-2-25402, bc2021 bc2066"
@@ -657,17 +657,17 @@ function ImportResultPanel({ result }: { result: ImportResult }) {
           <>
             <div className={styles.notesList}>
               <Note tone="warn" icon="!">
-                Some Container IDs appear more than once (in this file, or already in the system
+                Some Pool IDs appear more than once (in this file, or already in the system
                 including completed samples). Each copy was still imported — the same sample can be
                 run across multiple cells. If this wasn&apos;t intended, use <b>Undo last import</b>{" "}
                 below and re-import.
               </Note>
             </div>
-            <p className={styles.subheading}>Duplicated Container IDs</p>
+            <p className={styles.subheading}>Duplicated Pool IDs</p>
             <table className={styles.rejectedTable}>
               <thead>
                 <tr>
-                  <th>Container ID</th>
+                  <th>Pool ID</th>
                   <th>Copies this import</th>
                   <th>Seen total (incl. completed)</th>
                 </tr>
@@ -675,7 +675,7 @@ function ImportResultPanel({ result }: { result: ImportResult }) {
               <tbody>
                 {result.duplicates.map((d, i) => (
                   <tr key={i}>
-                    <td>{d.external_id}</td>
+                    <td>{d.pool_id}</td>
                     <td>{d.created_now}</td>
                     <td>{d.total_seen}</td>
                   </tr>
@@ -691,14 +691,14 @@ function ImportResultPanel({ result }: { result: ImportResult }) {
             <table className={styles.rejectedTable}>
               <thead>
                 <tr>
-                  <th>Container ID</th>
+                  <th>Pool ID</th>
                   <th>Reason</th>
                 </tr>
               </thead>
               <tbody>
                 {result.rejected.map((r, i) => (
                   <tr key={i}>
-                    <td>{r.external_id}</td>
+                    <td>{r.pool_id}</td>
                     <td>{r.reason}</td>
                   </tr>
                 ))}

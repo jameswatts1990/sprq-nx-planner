@@ -14,7 +14,7 @@ from app.engine.scheduler_import import (
 )
 
 # A representative subset of the scheduler-sheet header (order irrelevant — columns are
-# resolved by name). Includes Plate ID so we can assert it's dropped.
+# resolved by name). Includes Plate ID so we can assert it's carried through.
 HEADER = [
     "Pool ID",
     "Portion of SMRT Cell",
@@ -44,14 +44,14 @@ def _sheet(rows: list[list[str]]) -> str:
     return buf.getvalue()
 
 
-def _by_container(csv_text: str) -> dict[str, dict[str, str]]:
-    """Parse the emitted standard CSV back into {Container ID: {header: value}}."""
+def _by_pool(csv_text: str) -> dict[str, dict[str, str]]:
+    """Parse the emitted standard CSV back into {Pool ID: {header: value}}."""
     rows = parse_csv(csv_text)
     header = rows[0]
     out: dict[str, dict[str, str]] = {}
     for r in rows[1:]:
         record = dict(zip(header, r))
-        out[record["Container ID"]] = record
+        out[record["Pool ID"]] = record
     return out
 
 
@@ -99,7 +99,7 @@ def test_pools_individual_half_and_quarter_cells_into_containers():
     assert result.pool_count == 3
     assert result.source_row_count == 6
 
-    containers = _by_container(result.csv)
+    containers = _by_pool(result.csv)
     assert set(containers) == {"POOL-A", "POOL-B", "POOL-C"}
     # barcodes are combined across the pool
     assert containers["POOL-B"]["Barcodes"] == "bc02; bc03"
@@ -128,7 +128,7 @@ def test_first_nonempty_wins_for_id_priority_oplc_and_sanger_combines():
     )
     result = convert_scheduler_csv(text)
     assert result.pool_count == 1
-    rec = _by_container(result.csv)["POOL-X"]
+    rec = _by_pool(result.csv)["POOL-X"]
 
     assert rec["Priority"] == "High"
     assert rec["Target OPLC (pM)"] == "300"
@@ -139,7 +139,7 @@ def test_first_nonempty_wins_for_id_priority_oplc_and_sanger_combines():
 
 def test_single_sanger_id_emitted_plain_not_as_json_array():
     text = _sheet([_row(Pool_ID="P1", Portion_of_SMRT_Cell="1", Complex_Batch_ID="bc1", Sanger_Sample_ID="DTOL1")])
-    rec = _by_container(convert_scheduler_csv(text).csv)["P1"]
+    rec = _by_pool(convert_scheduler_csv(text).csv)["P1"]
     assert rec["Sanger Sample IDs"] == "DTOL1"
 
 
@@ -153,7 +153,7 @@ def test_overshoot_group_is_skipped_with_warning():
     )
     result = convert_scheduler_csv(text)
     assert result.pool_count == 1
-    assert set(_by_container(result.csv)) == {"GOOD"}
+    assert set(_by_pool(result.csv)) == {"GOOD"}
     assert any("BAD" in w and "125%" in w for w in result.warnings)
 
 
@@ -189,11 +189,14 @@ def test_trailing_unrelated_row_is_ignored_silently():
     assert not any("total" in w.lower() for w in result.warnings)
 
 
-def test_plate_id_column_is_dropped_with_a_note():
+def test_plate_id_column_is_carried_through():
+    """Plate ID now has a home in the app (the sample's Plate ID), so the scheduler-sheet
+    Plate ID column is carried into the emitted CSV rather than dropped."""
     text = _sheet([_row(Pool_ID="P1", Portion_of_SMRT_Cell="1", Complex_Batch_ID="bc1", Plate_ID="PLATE-9")])
     result = convert_scheduler_csv(text)
-    assert "Plate ID" not in result.csv.splitlines()[0]
-    assert any("Plate ID" in w for w in result.warnings)
+    assert "Plate ID" in result.csv.splitlines()[0]
+    assert _by_pool(result.csv)["P1"]["Plate ID"] == "PLATE-9"
+    assert not any("Plate ID" in w for w in result.warnings)
 
 
 def test_missing_required_column_raises_format_error():
@@ -221,7 +224,7 @@ def test_emitted_csv_auto_maps_and_imports_through_the_normal_path():
     rows = parse_csv(converted)
     column_map = suggest_column_map(rows[0])
     # the five emitted columns all auto-map
-    assert column_map["external_id"] is not None
+    assert column_map["pool_id"] is not None
     assert column_map["barcodes"] is not None
     assert column_map["sanger"] is not None
 
@@ -253,7 +256,7 @@ def test_loading_volumes_carry_from_the_scheduler_sheet_and_auto_map():
     writer.writerows([header, row])
 
     converted = convert_scheduler_csv(buf.getvalue()).csv
-    rec = _by_container(converted)["POOL-1"]
+    rec = _by_pool(converted)["POOL-1"]
     assert "Volume to Load (uL)" not in rec  # the library-volume column is dropped
     assert "Control Dilution 3 Vol (uL)" not in rec  # fixed 1 µL now, no longer carried
     assert rec["Cleaned Complex Vol (uL)"] == "8"

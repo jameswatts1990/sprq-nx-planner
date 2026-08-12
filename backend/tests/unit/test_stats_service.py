@@ -75,8 +75,8 @@ def seeded(session):
     _run(session, i47, date(2026, 7, 8), "completed", 24, [(c1, "completed", "A01"), (c3, "completed", "B01")])
     _run(session, i47, WEEK_B, "planned", 12, [(c1, "completed", "A01"), (c3, "completed", "B01")])
 
-    session.add_all([Sample(external_id="S1", status="backlog"), Sample(external_id="S2", status="backlog"),
-                     Sample(external_id="S3", status="completed")])
+    session.add_all([Sample(pool_id="S1", status="backlog"), Sample(pool_id="S2", status="backlog"),
+                     Sample(pool_id="S3", status="completed")])
     session.add(ImportBatch(raw_text="x", imported_count=5))
     session.commit()
     return session

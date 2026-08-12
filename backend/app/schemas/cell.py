@@ -15,7 +15,7 @@ class CellUseHistoryOut(BaseModel):
     well: str
     status: str
     sample_id: int | None
-    sample_external_id: str | None
+    sample_pool_id: str | None
     sample_priority: str | None
     sample_target_oplc: float | None
     sample_adaptive_loading: str | None
@@ -52,7 +52,7 @@ class CellUseSummaryOut(BaseModel):
     run_batch_id: int
     run_name: str | None
     sample_id: int | None
-    sample_external_id: str | None
+    sample_pool_id: str | None
     well: str
     status: str
     # True once this use's run has reached/passed its scheduled start (see run_has_started) -

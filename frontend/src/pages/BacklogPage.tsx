@@ -23,6 +23,7 @@ import type { SampleOut } from "@/types/sample";
 import type { SampleTopupOut } from "@/types/topup";
 import { useDebouncedValue } from "@/utils/useDebouncedValue";
 import { ABORTED_PRIORITY, priorityLabel, priorityRank, priorityTone } from "@/utils/priority";
+import { qcDispositionLabel } from "@/utils/qcDisposition";
 import { useClientSort } from "@/utils/useClientSort";
 import { useSampleBackNav } from "@/utils/sampleBackNav";
 
@@ -34,8 +35,9 @@ const PAGE_SIZE_OPTIONS: SegmentedOption<number>[] = [25, 50, 100, 200].map((n) 
   value: n,
   label: String(n),
 }));
-/** The QC-disposition tags whose samples show in the "Recoverable Samples" section. */
-const RECOVERABLE_TAGS = "repeatable,recoverable";
+/** The QC-disposition tags whose samples show in the "Recoverable Samples" section (both repeat
+ * pathways — from complex and from library — plus data-recoverable). */
+const RECOVERABLE_TAGS = "repeatable_complex,repeatable,recoverable";
 const columnHelper = createColumnHelper<SampleOut>();
 
 function formatDateTime(iso: string): string {
@@ -48,11 +50,11 @@ function formatDateTime(iso: string): string {
 const SAMPLE_SORT_ACCESSORS: Record<SampleSortBy, (s: SampleOut) => string | number | null> = {
   created_at: (s) => s.created_at,
   updated_at: (s) => s.updated_at,
-  external_id: (s) => s.external_id,
+  pool_id: (s) => s.pool_id,
   barcode: (s) => s.barcodes[0] ?? null,
   priority: (s) => priorityRank(s.priority),
   status: (s) => s.status,
-  parent_sample: (s) => s.parent_sample,
+  plate_id: (s) => s.plate_id,
   sanger_ids: (s) => s.sanger_ids[0] ?? null,
   target_oplc: (s) => s.target_oplc,
   actual_oplc: (s) => s.actual_oplc,
@@ -64,7 +66,7 @@ const SAMPLE_SORT_ACCESSORS: Record<SampleSortBy, (s: SampleOut) => string | num
 /** Column keys for the client-sorted Top-up table (fully loaded, no pagination). */
 type TopupSortKey = "container" | "barcode" | "from" | "requested";
 const TOPUP_SORT_ACCESSORS: Record<TopupSortKey, (t: SampleTopupOut) => string | number | null> = {
-  container: (t) => t.external_id ?? `Sample ${t.sample_id}`,
+  container: (t) => t.pool_id ?? `Sample ${t.sample_id}`,
   barcode: (t) => t.barcodes[0] ?? null,
   from: (t) => t.source_run_name ?? null,
   requested: (t) => t.request_sent_at ?? null,
@@ -84,8 +86,8 @@ interface SampleColumnDeps {
  * Recoverable tables can share cell markup while driving their own independent sort state. */
 function buildSampleColumns({ renderHeader, backNav, onEdit, onCancel, cancelPending }: SampleColumnDeps) {
   return [
-    columnHelper.accessor("external_id", {
-      header: () => renderHeader("Container ID", "external_id"),
+    columnHelper.accessor("pool_id", {
+      header: () => renderHeader("Pool ID", "pool_id"),
       cell: (info) => (
         <span className={styles.badgeGroup}>
           <Link to={`/samples/${info.row.original.id}`} state={backNav} className="link">
@@ -102,8 +104,8 @@ function buildSampleColumns({ renderHeader, backNav, onEdit, onCancel, cancelPen
       header: () => renderHeader("Barcodes", "barcode"),
       cell: (info) => <BarcodeChips barcodes={info.getValue()} />,
     }),
-    columnHelper.accessor("parent_sample", {
-      header: () => renderHeader("Parent sample", "parent_sample"),
+    columnHelper.accessor("plate_id", {
+      header: () => renderHeader("Plate ID", "plate_id"),
       cell: (info) => info.getValue() ?? "—",
     }),
     columnHelper.accessor("sanger_ids", {
@@ -114,7 +116,12 @@ function buildSampleColumns({ renderHeader, backNav, onEdit, onCancel, cancelPen
       header: () => renderHeader("Priority", "priority"),
       cell: (info) => {
         const v = info.getValue();
-        return <Badge tone={priorityTone(v)}>{priorityLabel(v)}</Badge>;
+        // For a QC-return row (Recoverable Samples section) show which repeat pathway was chosen
+        // — "Repeatable — from complex" vs "from library" both carry the rank-0 Repeatable badge,
+        // so the priority label alone can't tell them apart. Main-backlog rows have no
+        // qc_disposition, so they keep the plain priority label.
+        const disp = qcDispositionLabel(info.row.original.qc_disposition);
+        return <Badge tone={priorityTone(v)}>{disp ?? priorityLabel(v)}</Badge>;
       },
     }),
     columnHelper.accessor("target_oplc", {
@@ -374,7 +381,7 @@ export function BacklogPage() {
             <input
               type="search"
               className={styles.search}
-              placeholder="Search by container ID, barcode, parent sample, or priority…"
+              placeholder="Search by Pool ID, barcode, Plate ID, or priority…"
               value={qInput}
               onChange={(e) => {
                 setQInput(e.target.value);
@@ -454,7 +461,7 @@ export function BacklogPage() {
                 <tr>
                   <th>
                     <SortableColumnHeader
-                      label="Container ID"
+                      label="Pool ID"
                       active={topupSort.sortBy === "container"}
                       dir={topupSort.sortDir}
                       onClick={() => topupSort.toggle("container")}
@@ -491,7 +498,7 @@ export function BacklogPage() {
                 {topupSort.sorted.map((t) => (
                   <tr key={t.id}>
                     <td>
-                      {t.external_id ? <b>{t.external_id}</b> : `Sample ${t.sample_id}`}
+                      {t.pool_id ? <b>{t.pool_id}</b> : `Sample ${t.sample_id}`}
                     </td>
                     <td>
                       <BarcodeChips barcodes={t.barcodes} />

@@ -80,8 +80,8 @@ export interface AutoFillWindowFlag {
  * off the same cell (see engine/packing.py's disjoint() check), this just surfaces that
  * a clash existed rather than discarding it. */
 export interface AutoFillBarcodeConflict {
-  sample_external_id_a: string;
-  sample_external_id_b: string;
+  sample_pool_id_a: string;
+  sample_pool_id_b: string;
   shared_barcodes: string[];
 }
 
@@ -89,9 +89,9 @@ export interface AutoFillBarcodeConflict {
 export interface AutoFillResponse {
   placed_sample_ids: number[];
   unplaced_sample_ids: number[];
-  /** Container IDs (Sample.external_id) parallel to unplaced_sample_ids, so a caller can name
+  /** Pool IDs (Sample.pool_id) parallel to unplaced_sample_ids, so a caller can name
    * which samples landed back in the Backlog instead of showing a bare count. */
-  unplaced_external_ids: string[];
+  unplaced_pool_ids: string[];
   skipped_cells: GridCellRef[];
   window_flags: AutoFillWindowFlag[];
   /** Advisory only, never blocks a placement - a distinct clock from window_flags' 108h
@@ -128,7 +128,7 @@ export interface RunDesignState {
  * sample and a sample being moved out of a filled slot (built from its StageOut). */
 export interface DragSampleRef {
   id: number;
-  external_id: string;
+  pool_id: string;
   barcodes: string[];
 }
 

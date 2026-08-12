@@ -51,7 +51,7 @@ def test_scheduler_convert_pools_rows_then_imports_end_to_end(client):
     assert result["imported_count"] == 2
 
     backlog = client.get("/api/samples", params={"status": "backlog"}).json()["items"]
-    by_id = {s["external_id"]: s for s in backlog}
+    by_id = {s["pool_id"]: s for s in backlog}
     assert set(by_id) == {"POOL-1", "POOL-2"}
     # POOL-2 combined the two half-cell rows' barcodes
     assert by_id["POOL-2"]["barcodes"] == ["bc02", "bc03"]

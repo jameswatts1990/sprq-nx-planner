@@ -24,10 +24,10 @@ export function ImportSection() {
           Click the small arrow beside <b>Upload CSV</b> and choose <b>Upload from scheduler…</b> to load your
           scheduling sheet directly, as either a <b>.csv</b> or an <b>.xlsx</b> Excel file — no need to rename or
           rearrange columns first. The planner reads the sheet&apos;s <i>Portion of SMRT Cell</i> column and{" "}
-          <b>pools</b> the rows that share a cell into one container (Pool ID becomes the Container ID; barcodes and
+          <b>pools</b> the rows that share a cell into one sample (identified by its Pool ID; barcodes and
           Sanger IDs are combined). It then takes you straight to the mapping step with a note saying how many rows
-          became how many containers, plus a warning for any group that didn&apos;t add up to a whole cell (those
-          are left out). A Plate ID column, if present, is ignored — the planner doesn&apos;t track it. The
+          became how many pools, plus a warning for any group that didn&apos;t add up to a whole cell (those
+          are left out). A Plate ID column, if present, is carried across too. The
           complex-loading dilution volumes on the sheet — cleaned-complex and loading-buffer —
           are carried across automatically and later pre-fill the batch sheet&apos;s loading-dilution worksheet
           (Control Dilution 3 is always 1 µL, printed on the batch sheet).
@@ -49,13 +49,13 @@ export function ImportSection() {
 
       <p className={styles.subheading}>Step 2 — review columns</p>
       <p>
-        Each field (Container ID, Barcodes, Sanger Sample IDs, Target OPLC, priority, Movie time, Insert Size, True/False settings…) has a
+        Each field (Pool ID, Barcodes, Sanger Sample IDs, Target OPLC, priority, Movie time, Insert Size, True/False settings…) has a
         dropdown where you pick which column of your file feeds it. The planner <b>pre-fills its best guess</b>, so
         usually you just glance and confirm; correct any that are wrong, or set one to <i>“— not imported —”</i>. A
         live preview of the first rows shows exactly what will be imported, and the mapping updates it as you change
-        a dropdown. Fields marked <span aria-hidden>*</span> are required — <b>Container ID</b> and{" "}
+        a dropdown. Fields marked <span aria-hidden>*</span> are required — <b>Pool ID</b> and{" "}
         <b>Barcodes</b> must be mapped before the <b>Import</b> button enables. Rows with no barcode are skipped, and
-        a note tells you how many. If the same Container ID appears more than once in the file, a note flags it here
+        a note tells you how many. If the same Pool ID appears more than once in the file, a note flags it here
         too — fine when you mean to run a sample across several cells, worth a second look otherwise. Use <b>Back</b>{" "}
         to return to the text without losing it.
       </p>
@@ -77,7 +77,7 @@ export function ImportSection() {
         <dd>New samples added to the Backlog.</dd>
         <dt>Duplicates</dt>
         <dd>
-          Container IDs that appear more than once — repeated within this file, or already in the
+          Pool IDs that appear more than once — repeated within this file, or already in the
           system (any status, including completed). <b>Duplicates are no longer blocked:</b> every
           copy is imported, because the same sample is often run across multiple SMRT cells. This
           number is a heads-up, not a drop count.
@@ -88,7 +88,7 @@ export function ImportSection() {
       <p>
         Two tables make skipped and duplicate rows <b>actionable</b>: the <b>Skipped rows</b> table lists each
         sample ID and why it was skipped (e.g. &quot;No barcodes&quot;) so you can fix the source and re-import, and
-        the <b>Duplicated Container IDs</b> table lists each repeated ID with how many copies this import created and
+        the <b>Duplicated Pool IDs</b> table lists each repeated ID with how many copies this import created and
         how many now exist in total. If a duplicate wasn&apos;t intended, <b>undo the import</b> (below) and
         re-import a corrected file. Duplicated samples are marked with a <b>1/3</b> badge everywhere they appear.
         Use <b>Import another file</b> to start over, or <b>View backlog</b> to jump to the newly imported samples.

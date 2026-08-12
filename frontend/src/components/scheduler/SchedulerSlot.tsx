@@ -149,7 +149,7 @@ function DraggableSlot({
     kind: "filledSlot",
     sample: {
       id: stage.sample_id as number,
-      external_id: stage.sample_external_id ?? "",
+      pool_id: stage.sample_pool_id ?? "",
       barcodes: stage.barcodes,
     },
     cell_use_id: stage.cell_use_id,

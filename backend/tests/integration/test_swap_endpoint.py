@@ -26,9 +26,9 @@ def _stages(run):
     return [s for p in run["plates"] for s in p["stages"]]
 
 
-def _sid(client, external_id: str) -> int:
+def _sid(client, pool_id: str) -> int:
     items = client.get("/api/samples", params={"page_size": 200}).json()["items"]
-    return next(s["id"] for s in items if s["external_id"] == external_id)
+    return next(s["id"] for s in items if s["pool_id"] == pool_id)
 
 
 def _place(client, sample_id, run_date, slot_index=0, cell_choice=None, instrument="84047", start_hour=None):
@@ -67,9 +67,9 @@ def test_swap_cross_cell_cross_day_cross_instrument_exchanges_samples_only(clien
     stage_b = next(s for cyc in cycles for s in _stages(cyc) if s["cell_use_id"] == use_b["cell_use_id"])
 
     # samples exchanged...
-    assert stage_a["sample_external_id"] == "A2"
+    assert stage_a["sample_pool_id"] == "A2"
     assert stage_a["barcodes"] == ["bc2"]
-    assert stage_b["sample_external_id"] == "A1"
+    assert stage_b["sample_pool_id"] == "A1"
     assert stage_b["barcodes"] == ["bc1"]
     # ...but neither placement's day/well/cell moved.
     assert stage_a["cell_id"] == use_a["cell_id"]
@@ -96,9 +96,9 @@ def test_swap_within_the_same_physical_cell(client):
     assert resp.status_code == 200, resp.text
     cycle = resp.json()[0]
     stage_1 = next(s for s in _stages(cycle) if s["cell_use_id"] == use_1["cell_use_id"])
-    assert stage_1["sample_external_id"] == "A2"
+    assert stage_1["sample_pool_id"] == "A2"
     stage_2 = next(s for cyc in resp.json() for s in _stages(cyc) if s["cell_use_id"] == use_2["cell_use_id"])
-    assert stage_2["sample_external_id"] == "A1"
+    assert stage_2["sample_pool_id"] == "A1"
 
     assert client.get(f"/api/cells/{cell_id}").json()["uses_consumed"] == 2
 
@@ -128,8 +128,8 @@ def test_swap_with_a_cross_cell_barcode_clash_is_flagged_not_blocked(client):
     assert resp.status_code == 200, resp.text
 
     # the samples exchanged...
-    assert client.get(f"/api/cell-uses/{use_1['cell_use_id']}").json()["sample_external_id"] == "A5"
-    assert client.get(f"/api/cell-uses/{use_5['cell_use_id']}").json()["sample_external_id"] == "A1"
+    assert client.get(f"/api/cell-uses/{use_1['cell_use_id']}").json()["sample_pool_id"] == "A5"
+    assert client.get(f"/api/cell-uses/{use_5['cell_use_id']}").json()["sample_pool_id"] == "A1"
     # ...and A5, now on cellA beside A4's burned bc4, is flagged as a clash (not blocked).
     stage_on_a = next(
         s for cyc in resp.json() for s in _stages(cyc) if s["cell_use_id"] == use_1["cell_use_id"]

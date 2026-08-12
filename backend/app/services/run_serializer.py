@@ -32,9 +32,9 @@ from app.timeutil import ensure_aware, utcnow
 # each stage's cell/sample/barcodes, plus each stage's cell's *full* sibling-use list and
 # each sibling's cycle/sample: _use_number() sorts a cell's uses by acquire_date (via
 # use_run_date -> cycle.acquire_date), has_failed_use() scans the cell's use statuses, and
-# has_barcode_clash()/is_duplicate_cell_reuse() need each sibling's own Sample.external_id to
+# has_barcode_clash()/is_duplicate_cell_reuse() need each sibling's own Sample.pool_id to
 # tell a genuine cross-sample barcode clash apart from another copy of the same duplicate
-# Container ID. Without the Cell.cell_uses chain, each of these lazy-loads per stage, turning
+# Pool ID. Without the Cell.cell_uses chain, each of these lazy-loads per stage, turning
 # one grid fetch into an N+1.
 RUN_LOAD_OPTIONS = [
     selectinload(RunBatch.instrument),
@@ -92,7 +92,7 @@ def _stage_out(
 ) -> StageOut:
     dup_index = dup_total = None
     if dup_groups is not None and cell_use.sample is not None:
-        group = dup_groups.get(cell_use.sample.external_id)
+        group = dup_groups.get(cell_use.sample.pool_id)
         if group and len(group) > 1 and cell_use.sample_id in group:
             dup_index, dup_total = group.index(cell_use.sample_id) + 1, len(group)
     return StageOut(
@@ -106,7 +106,7 @@ def _stage_out(
         cell_max_uses=cell_use.cell.max_uses if cell_use.cell else 3,
         run_time_hours=cell_use.run_time_hours,
         sample_id=cell_use.sample_id,
-        sample_external_id=cell_use.sample.external_id if cell_use.sample else None,
+        sample_pool_id=cell_use.sample.pool_id if cell_use.sample else None,
         insert_size_bp=cell_use.sample.insert_size_bp if cell_use.sample else None,
         duplicate_index=dup_index,
         duplicate_total=dup_total,
@@ -207,7 +207,7 @@ def run_out(db: Session, run_batch: RunBatch, *, with_effective_start: bool = Fa
     # serializers.duplicate_groups) — spans ALL statuses so "1/3" stays stable as siblings
     # get scheduled off the backlog or complete.
     ext_ids = {
-        cu.sample.external_id
+        cu.sample.pool_id
         for c in cycles
         for cu in c.cell_uses
         if cu.sample is not None

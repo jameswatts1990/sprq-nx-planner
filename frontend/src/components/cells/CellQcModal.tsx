@@ -14,22 +14,30 @@ import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
 import type { AffectedSample, Disposition, QcPreviewOut, QcVerdict } from "@/types/qc";
 import { CELL_STATUS_LABEL, CELL_STATUS_TONE } from "@/utils/cellStatus";
 import { canRecordQcOutcome } from "@/utils/cellUseQc";
+import { DISPOSITION_HINT, DISPOSITION_SHORT } from "@/utils/qcDisposition";
+import { tractionUrl } from "@/utils/traction";
 
 import styles from "./CellQcModal.module.css";
 
 type RowChoice = Disposition | "keep";
 
-const REQUIRED_OPTIONS: SegmentedOption<Disposition>[] = [
-  { value: "lost", label: "Lost", hint: "Top-up" },
-  { value: "repeatable", label: "Repeatable", hint: "Backlog" },
-  { value: "recoverable", label: "Recoverable", hint: "Backlog" },
-];
+// The order deliberately runs Lost → the two repeat pathways (from complex, then library) →
+// Recoverable, so the cheap "Complex" repeat sits next to its volume readout.
+const DISPOSITION_ORDER: Disposition[] = ["lost", "repeatable_complex", "repeatable", "recoverable"];
+const REQUIRED_OPTIONS: SegmentedOption<Disposition>[] = DISPOSITION_ORDER.map((value) => ({
+  value,
+  label: DISPOSITION_SHORT[value],
+  hint: DISPOSITION_HINT[value],
+}));
 const FLAGGED_OPTIONS: SegmentedOption<RowChoice>[] = [
   { value: "keep", label: "Keep" },
-  { value: "lost", label: "Lost" },
-  { value: "repeatable", label: "Repeatable" },
-  { value: "recoverable", label: "Recoverable" },
+  ...DISPOSITION_ORDER.map((value) => ({ value, label: DISPOSITION_SHORT[value] })),
 ];
+
+/** How many µL of cleaned complex, rounded to 1 dp without a trailing ".0". */
+function fmtUl(n: number): string {
+  return `${+n.toFixed(1)}`;
+}
 
 export interface CellQcModalProps {
   cellId: number;
@@ -50,7 +58,8 @@ function fmtDate(iso: string | null): string {
  * The single Cell QC flow, keyed off a cell id so every entry point (grid ticket-stub, the
  * left tray overview, and the Cell detail page) opens the same dialog. Two phases: choose a
  * verdict (Fail / Fail-and-Stop / Retire), then - if the verdict costs any samples - decide
- * each one's fate (Lost -> top-up, Repeatable/Recoverable -> backlog). Preview is read-only and
+ * each one's fate (Lost -> top-up; repeat from Complex / Library or Recoverable -> backlog, each
+ * row showing its leftover cleaned-complex volume and a Traction link). Preview is read-only and
  * commit is atomic, so closing mid-flow applies nothing.
  */
 export function CellQcModal({ cellId, cellUseId, onClose, onApplied }: CellQcModalProps) {
@@ -109,8 +118,20 @@ export function CellQcModal({ cellId, cellUseId, onClose, onApplied }: CellQcMod
         commitMutation.mutate({ v, picks: {} });
         return;
       }
+      // Auto-suggest "repeat from complex" for a must-dispose sample when its recorded leftover
+      // cleaned complex is at/above the safe threshold; otherwise fall back to the neutral
+      // "recoverable". Flagged (ran-elsewhere) rows default to "keep".
       const init: Record<number, RowChoice> = {};
-      for (const a of data.affected_samples) init[a.sample_id] = a.disposition_required ? "recoverable" : "keep";
+      for (const a of data.affected_samples) {
+        if (!a.disposition_required) {
+          init[a.sample_id] = "keep";
+          continue;
+        }
+        const used = a.cleaned_complex_volume;
+        const remaining = used == null ? null : data.total_complex_ul - used;
+        const complexEligible = remaining != null && remaining >= data.repeat_safe_min_ul;
+        init[a.sample_id] = complexEligible ? "repeatable_complex" : "recoverable";
+      }
       setChoices(init);
       setPreview(data);
       setPhase("disposition");
@@ -135,11 +156,38 @@ export function CellQcModal({ cellId, cellUseId, onClose, onApplied }: CellQcMod
   const required = preview?.affected_samples.filter((a) => a.disposition_required) ?? [];
   const flagged = preview?.affected_samples.filter((a) => !a.disposition_required) ?? [];
 
+  // The cleaned-complex readout for a must-dispose row: how much was loaded, how much is left,
+  // and whether that leftover clears the safe threshold (so the operator can weigh the
+  // auto-suggested "Complex" repeat). Null when the sample has no recorded complex volume.
+  function renderComplex(a: AffectedSample) {
+    if (!preview) return null;
+    const used = a.cleaned_complex_volume;
+    if (used == null) {
+      return <div className={`${styles.complex} ${styles.complexMuted}`}>Cleaned complex volume not recorded</div>;
+    }
+    const remaining = preview.total_complex_ul - used;
+    const safe = remaining >= preview.repeat_safe_min_ul;
+    return (
+      <div className={`${styles.complex} ${safe ? styles.complexOk : styles.complexRisk}`}>
+        <span>
+          Cleaned complex: <b>{fmtUl(used)} µL</b> used · <b>{fmtUl(Math.max(0, remaining))} µL</b> left of{" "}
+          {fmtUl(preview.total_complex_ul)} µL
+        </span>
+        <span className={styles.complexTag}>
+          {safe
+            ? `✓ ≥ ${fmtUl(preview.repeat_safe_min_ul)} µL left — repeat straight from complex`
+            : `⚠ below ${fmtUl(preview.repeat_safe_min_ul)} µL — repeat from complex is at risk`}
+        </span>
+      </div>
+    );
+  }
+
   function renderRow(a: AffectedSample, options: SegmentedOption<RowChoice>[] | SegmentedOption<Disposition>[]) {
+    const tracHref = tractionUrl(a.pool_id, a.sanger_ids.length);
     return (
       <div key={a.cell_use_id} className={`${styles.sampleRow} ${a.barcode_clash ? styles.clash : ""}`}>
         <div className={styles.sampleHead}>
-          <span className={styles.sampleId}>{a.external_id ?? `Sample ${a.sample_id}`}</span>
+          <span className={styles.sampleId}>{a.pool_id ?? `Sample ${a.sample_id}`}</span>
           {a.role === "failed" && <Badge tone="orange">Failed run</Badge>}
           {a.role === "displaced" && <Badge tone="warning">Displaced</Badge>}
           {a.role === "reassigned" && <Badge tone="info">Reassigned</Badge>}
@@ -157,8 +205,14 @@ export function CellQcModal({ cellId, cellUseId, onClose, onApplied }: CellQcMod
             Planned {a.planned_cell_code ?? "?"} → ran on {a.actual_cell_code ?? "?"}
           </div>
         )}
+        {a.disposition_required && renderComplex(a)}
+        {tracHref && (
+          <a className={styles.tracLink} href={tracHref} target="_blank" rel="noreferrer">
+            View on Traction ↗
+          </a>
+        )}
         <SegmentedControl
-          ariaLabel={`Disposition for ${a.external_id ?? a.sample_id}`}
+          ariaLabel={`Disposition for ${a.pool_id ?? a.sample_id}`}
           options={options as SegmentedOption<RowChoice>[]}
           value={choices[a.sample_id] ?? "keep"}
           onChange={(v) => setChoices((prev) => ({ ...prev, [a.sample_id]: v }))}
@@ -250,8 +304,10 @@ export function CellQcModal({ cellId, cellUseId, onClose, onApplied }: CellQcMod
       {cell && phase === "disposition" && preview && (
         <>
           <p className={styles.intro}>
-            Decide what happens to each affected sample. Lost samples go to the top-up list; Repeatable and Recoverable
-            go back to the backlog above High priority.
+            Decide what happens to each affected sample. <b>Lost</b> goes to the top-up list. The repeat and recover
+            options go back to the backlog above High priority: <b>Complex</b> re-loads from the leftover cleaned
+            complex (suggested when enough remains), <b>Library</b> re-makes from library material in Traction, and{" "}
+            <b>Recoverable</b> is for data that can be salvaged.
           </p>
           {required.length > 0 && (
             <>

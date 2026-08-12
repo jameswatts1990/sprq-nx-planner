@@ -54,7 +54,7 @@ export function DraggableSampleCard({
   const backNav = useSampleBackNav();
   const data: SampleDragData = {
     kind: "sample",
-    sample: { id: sample.id, external_id: sample.external_id, barcodes: sample.barcodes },
+    sample: { id: sample.id, pool_id: sample.pool_id, barcodes: sample.barcodes },
   };
   const { setNodeRef, listeners, attributes, isDragging } = useDraggable({ id: sampleDragId(sample.id), data });
   // Every card gets a priority-coloured left edge, defaulting to grey for Standard / no
@@ -68,7 +68,7 @@ export function DraggableSampleCard({
       ref={setNodeRef}
       className={classes.join(" ")}
       style={{ ["--accent" as string]: accent }}
-      title={`Open ${sample.external_id}`}
+      title={`Open ${sample.pool_id}`}
       onClick={() => navigate(`/samples/${sample.id}`, { state: backNav })}
       {...(searchMatch ? { "data-search-match": "true" } : {})}
       {...listeners}
@@ -77,8 +77,8 @@ export function DraggableSampleCard({
       <button
         type="button"
         className={`btn icon sm ${styles.editBtn}`}
-        aria-label={`Edit sample ${sample.external_id}`}
-        title={`Edit ${sample.external_id}`}
+        aria-label={`Edit sample ${sample.pool_id}`}
+        title={`Edit ${sample.pool_id}`}
         onPointerDown={(e) => e.stopPropagation()}
         onClick={(e) => {
           e.stopPropagation();
@@ -88,9 +88,9 @@ export function DraggableSampleCard({
         <span aria-hidden="true">✎</span>
       </button>
       <div className={styles.cardHead}>
-        <span className={styles.ext}>{sample.external_id}</span>
+        <span className={styles.ext}>{sample.pool_id}</span>
         <DuplicateBadge index={sample.duplicate_index} total={sample.duplicate_total} />
-        {sample.parent_sample && <span className={styles.parent}>{sample.parent_sample}</span>}
+        {sample.plate_id && <span className={styles.parent}>{sample.plate_id}</span>}
         <Badge tone={priorityTone(sample.priority)}>{priorityLabel(sample.priority)}</Badge>
         <span className={styles.movie} title="Movie / acquisition time">
           ⏱ {sample.movie_time_hours ?? DEFAULT_MOVIE_HOURS} h

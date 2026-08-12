@@ -36,13 +36,13 @@ def test_import_tracker_layout_lands_pending_rows_in_backlog(client):
     body = resp.json()
 
     assert body["imported_count"] == 2
-    assert {s["external_id"] for s in body["samples"]} == {"TRAC-2-26256", "TRAC-2-26279"}
+    assert {s["pool_id"] for s in body["samples"]} == {"TRAC-2-26256", "TRAC-2-26279"}
     assert {s["status"] for s in body["samples"]} == {"backlog"}
     assert any("sequencing-tracker layout" in w for w in body["warnings"])
     assert any("TRAC-2-25815" in w and "already on instrument" in w for w in body["warnings"])
 
     backlog = client.get("/api/samples", params={"status": "backlog"}).json()
-    assert {s["external_id"] for s in backlog["items"]} == {"TRAC-2-26256", "TRAC-2-26279"}
+    assert {s["pool_id"] for s in backlog["items"]} == {"TRAC-2-26256", "TRAC-2-26279"}
 
 
 def test_default_format_still_imports_unchanged(client):

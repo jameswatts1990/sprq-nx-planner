@@ -25,7 +25,7 @@ export function CellsSection() {
       <p className={styles.subheading}>Search, filters, sort &amp; grouping</p>
       <p>
         The big <b>Search</b> box at the top matches <i>any</i> id associated with a cell — its own code, its tray
-        (type <b>T123</b> or just <b>123</b>), a container ID, a barcode, a run name or run number (<b>#45</b>), or the
+        (type <b>T123</b> or just <b>123</b>), a Pool ID, a barcode, a run name or run number (<b>#45</b>), or the
         instrument it ran on — so whatever id you have to hand finds the cell that touched it.
       </p>
       <p>
@@ -105,12 +105,12 @@ export function CellsSection() {
         PacBio-credit case, a <b>Cell life</b> timeline plotting when each use broke out across the 108-hour window, and
         a <b>Samples &amp; runs</b> list <i>grouped by run</i> — each run name heads its own line with the sample(s) it
         carried beneath, each tagged <b>[1]</b>/<b>[2]</b>/<b>[3]</b> for which use it was, its use status (so you can
-        tell an already-run use from one still <i>scheduled</i>), and its <b>container ID</b>.
+        tell an already-run use from one still <i>scheduled</i>), and its <b>Pool ID</b>.
       </p>
       <p>
         <b>Everything on the card links through:</b> the cell code to its detail page, the instrument to that
-        instrument&apos;s cells, the tray to <b>that tray&apos;s cells</b> (this tab filtered to the tray), each container
-        ID to that <b>sample&apos;s page</b>{" "}
+        instrument&apos;s cells, the tray to <b>that tray&apos;s cells</b> (this tab filtered to the tray), each Pool ID
+        to that <b>sample&apos;s page</b>{" "}
         (its full metadata and every cell/run it has touched), and each run to its <b>run page</b> — so you can hop
         straight from a cell to any sample or run associated with it and back.
       </p>
@@ -167,11 +167,30 @@ export function CellsSection() {
         <li>
           <b>What happens to the affected samples.</b> The instrument loads samples as a continuous queue, so stopping
           or retiring a cell shifts its later samples forward onto the tray&apos;s remaining cells — and the last one
-          or two may fall off the end. The dialog then asks you to decide each affected sample: <b>Lost</b> (needs
-          fresh material — goes to the <b>Top-up required</b> list on the Backlog) or <b>Repeatable</b> /{" "}
-          <b>Recoverable</b> (back to the Backlog above High priority, in its <b>Recoverable Samples</b> section).
-          Samples that simply ran on a <i>different</i> cell than planned are flagged for review — with a warning if
-          the shift created a barcode clash — and left as they are unless you choose to route them too.
+          or two may fall off the end. The dialog then asks you to decide each affected sample:
+          <ul>
+            <li>
+              <b>Lost</b> — needs fresh material; goes to the <b>Top-up required</b> list on the Backlog.
+            </li>
+            <li>
+              <b>Complex</b> (repeat from complex) — re-load straight from the leftover cleaned complex, no re-prep.
+              Each row shows how much complex was loaded and how much is left; when at least the{" "}
+              <i>safe repeat volume</i> remains (set in Settings → Scheduling) the row turns green and this option is
+              pre-selected, otherwise it&apos;s flagged amber “at risk” (you can still choose it). If no complex volume
+              was recorded, nothing is suggested.
+            </li>
+            <li>
+              <b>Library</b> (repeat from library) — re-make from the library material held in Traction. Use the{" "}
+              <b>View library on Traction</b> link on the row to check the remaining library volume first.
+            </li>
+            <li>
+              <b>Recoverable</b> — data that can be salvaged.
+            </li>
+          </ul>
+          Complex, Library and Recoverable all go back to the Backlog above High priority, in its{" "}
+          <b>Recoverable Samples</b> section. Samples that simply ran on a <i>different</i> cell than planned are
+          flagged for review — with a warning if the shift created a barcode clash — and left as they are unless you
+          choose to route them too.
         </li>
         <li>
           <b>When Fail / Fail-and-Stop are available:</b> as soon as that run is locked in — someone has clicked{" "}
@@ -182,7 +201,7 @@ export function CellsSection() {
         <li>
           <b>Use history</b> lists every run the cell has been in: run name if one was set, otherwise its number
           (links to the run), well, use status (with <b>reassigned</b> / <b>clash</b> flags when a QC action shifted a
-          sample onto this cell), container ID (links to that sample&apos;s page), barcodes, priority, target OPLC,
+          sample onto this cell), Pool ID (links to that sample&apos;s page), barcodes, priority, target OPLC,
           adaptive loading, full resolution base Q, include base kinetics, instrument, start/complete times, and
           outcome notes.
         </li>

@@ -176,7 +176,7 @@ export function RevioScreen({ serial, name, status, idle, runs, dataUpdatedAt }:
         cellRef: t.stage.cell_ref,
         useNumber: t.stage.use_number,
         usesLeft: Math.max(0, t.stage.cell_max_uses - t.stage.use_number),
-        sample: t.stage.sample_external_id,
+        sample: t.stage.sample_pool_id,
       });
     }
     return out;
@@ -294,7 +294,7 @@ export function RevioScreen({ serial, name, status, idle, runs, dataUpdatedAt }:
                           <span
                             key={t.stage.cell_use_id}
                             className={`${styles.pip} ${styles[classForUseIndex(t.stage.use_number)]} ${styles[`p_${phase}`]}`}
-                            title={`${t.stage.sample_external_id ?? t.stage.cell_ref} · use ${t.stage.use_number} · ${PHASE_LABEL[phase]}`}
+                            title={`${t.stage.sample_pool_id ?? t.stage.cell_ref} · use ${t.stage.use_number} · ${PHASE_LABEL[phase]}`}
                           />
                         ))}
                       </div>

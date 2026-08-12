@@ -2,9 +2,9 @@ import type { SampleStatus } from "./common";
 
 export interface SampleOut {
   id: number;
-  /** The sample identifier, shown to users as "Container ID". */
-  external_id: string;
-  parent_sample: string | null;
+  /** The sample identifier, shown to users as "Pool ID". */
+  pool_id: string;
+  plate_id: string | null;
   sanger_ids: string[];
   target_oplc: number | null;
   /** The achieved on-plate loading concentration (pM), distinct from the planned Target OPLC. */
@@ -25,14 +25,15 @@ export interface SampleOut {
    * admin-configured threshold drives the "[<5kb]" flag and Auto Schedule's first-use rule. */
   insert_size_bp: number | null;
   status: SampleStatus;
-  /** QC disposition tag ("repeatable"/"recoverable") when a Cell QC action returned this
-   * sample to the backlog - groups it into the Backlog's "Recoverable Samples" section. */
+  /** QC disposition tag ("repeatable_complex"/"repeatable"/"recoverable") when a Cell QC action
+   * returned this sample to the backlog - groups it into the Backlog's "Recoverable Samples"
+   * section. See utils/qcDisposition.ts for the human-readable labels. */
   qc_disposition: string | null;
   barcodes: string[];
   import_batch_id: number | null;
   created_at: string;
   updated_at: string;
-  /** Duplicate marker: when this Container ID is carried by more than one sample (across all
+  /** Duplicate marker: when this Pool ID is carried by more than one sample (across all
    * statuses, incl. completed), duplicate_total is that count and duplicate_index this copy's
    * 1-based position (oldest first). Both null/absent for a one-off — the "1/3" badge renders
    * only when duplicate_total is set. */
@@ -41,10 +42,10 @@ export interface SampleOut {
 }
 
 export interface SampleCreate {
-  external_id: string;
+  pool_id: string;
   barcodes: string[];
   sanger_ids?: string[];
-  parent_sample?: string | null;
+  plate_id?: string | null;
   target_oplc?: number | null;
   actual_oplc?: number | null;
   cleaned_complex_volume?: number | null;
@@ -57,9 +58,9 @@ export interface SampleCreate {
   insert_size_bp?: number | null;
 }
 
-/** Edit-a-backlog-sample payload: same editable fields as create, minus the Container ID
- * (external_id), which identifies the sample and is fixed once created. */
-export type SampleUpdate = Omit<SampleCreate, "external_id">;
+/** Edit-a-backlog-sample payload: same editable fields as create, minus the Pool ID
+ * (pool_id), which identifies the sample and is fixed once created. */
+export type SampleUpdate = Omit<SampleCreate, "pool_id">;
 
 export interface SampleCellUseOut {
   id: number;

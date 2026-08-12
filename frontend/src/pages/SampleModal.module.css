@@ -89,7 +89,7 @@
   color: var(--faint);
 }
 /* A light-grey clarifying sub-label sitting directly under a field's label (e.g. the
-   Container ID's "Unique ID e.g. Pool ID"). Pulled up so it hugs the label above the input. */
+   Pool ID's "Unique ID e.g. Pool ID"). Pulled up so it hugs the label above the input. */
 .sublabel {
   font-size: 11.5px;
   color: var(--faint);

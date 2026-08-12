@@ -74,9 +74,9 @@ export function HistorySection() {
       <p className={styles.subheading}>History → Samples</p>
       <p>
         <b>What it&apos;s for:</b> by default, every sample that has finished, either <b>completed</b> (green) or{" "}
-        <b>failed</b> (red). Search by Container ID, barcode, or parent sample. Each row shows the sample&apos;s{" "}
-        <b>Container ID</b> (click it to open its full detail page), status, barcodes, parent sample, Target OPLC,
-        Actual OPLC, priority, and last-updated time. A <b>1/3</b> badge by a Container ID marks a duplicate — the
+        <b>failed</b> (red). Search by Pool ID, barcode, or Plate ID. Each row shows the sample&apos;s{" "}
+        <b>Pool ID</b> (click it to open its full detail page), status, barcodes, Plate ID, Target OPLC,
+        Actual OPLC, priority, and last-updated time. A <b>1/3</b> badge by a Pool ID marks a duplicate — the
         same sample run across multiple cells (counted across every status, including completed). Click <i>any</i>{" "}
         column header to sort the list by that field (click again to reverse); it starts with the most recently
         updated first, and long lists are paged with the same <b>Previous</b>/<b>Next</b> control. Click a row to
@@ -88,7 +88,7 @@ export function HistorySection() {
         <b>Search everywhere (the failsafe):</b> typing or pasting anything into the search box switches the list to
         search <i>every</i> status at once — Backlog, Scheduled, In progress, Completed, Failed, and Cancelled —
         not just finished samples. This is the fastest way to find out where a specific sample actually is right
-        now: paste its Container ID and every matching row shows up with its current status badge. A row still in
+        now: paste its Pool ID and every matching row shows up with its current status badge. A row still in
         the <b>Backlog</b> badge means it hasn&apos;t been scheduled yet (expanding it says so plainly, rather than
         looking like an error); a <b>Scheduled</b>/<b>In progress</b> row&apos;s expanded cell-uses table links
         straight to the run and cell it&apos;s sitting on. Clear the search box to go back to the completed/failed
@@ -97,12 +97,12 @@ export function HistorySection() {
 
       <p className={styles.subheading}>Sample detail page</p>
       <p>
-        <b>What it&apos;s for:</b> a single sample (container) on its own page, reached by clicking a <b>container ID</b>{" "}
+        <b>What it&apos;s for:</b> a single sample (pool) on its own page, reached by clicking a <b>Pool ID</b>{" "}
         anywhere in the app — a cell card, a cell&apos;s use history, or a row in the Samples list above. It shows
-        the sample&apos;s full metadata (parent sample, priority, Target OPLC, Actual OPLC, movie time, loading
+        the sample&apos;s full metadata (Plate ID, priority, Target OPLC, Actual OPLC, movie time, loading
         options, barcodes, Sanger IDs, created/updated times) and a <b>Cell uses</b> table of every cell it has been
         placed on — the run (links to the run), plate, cell (links to the cell), well, use status, start/complete
-        times, and notes. This page works for a sample of any status, so it&apos;s the durable place a container ID
+        times, and notes. This page works for a sample of any status, so it&apos;s the durable place a Pool ID
         always links to.
       </p>
       <p>
@@ -112,7 +112,7 @@ export function HistorySection() {
       </p>
       <p>
         <b>Edit:</b> an <b>Edit</b> button next to the status badge opens the same form used elsewhere. A backlog
-        sample is fully editable (everything but its container ID, which is fixed for life); a sample already placed on
+        sample is fully editable (everything but its Pool ID, which is fixed for life); a sample already placed on
         the grid (scheduled or in progress) lets you adjust only its loading parameters, since its barcodes and
         identity are locked once placed. Finished samples (completed, failed, cancelled) are read-only history, so no
         Edit button is shown.

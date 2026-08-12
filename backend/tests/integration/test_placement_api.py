@@ -34,9 +34,9 @@ def _stages(run):
     return [s for p in run["plates"] for s in p["stages"]]
 
 
-def _sid(client, external_id: str) -> int:
+def _sid(client, pool_id: str) -> int:
     items = client.get("/api/samples", params={"page_size": 200}).json()["items"]
-    return next(s["id"] for s in items if s["external_id"] == external_id)
+    return next(s["id"] for s in items if s["pool_id"] == pool_id)
 
 
 def _place(
@@ -72,7 +72,7 @@ def test_place_sample_happy_path_creates_run_and_schedules_sample(client):
     stage = _stages(cycle)[0]
     assert stage["slot_index"] == 2
     assert stage["well"] == "C01"
-    assert stage["sample_external_id"] == "A1"
+    assert stage["sample_pool_id"] == "A1"
     assert stage["barcodes"] == ["bc1"]
 
     # sample flips backlog -> scheduled
@@ -103,7 +103,7 @@ def test_place_sample_flags_barcode_conflict_on_existing_cell_but_does_not_block
 
     r2 = _place(client, _sid(client, "A2"), tue, 0, {"mode": "existing", "cell_id": cell_id})
     assert r2.status_code == 201, r2.text
-    stage = next(s for s in _stages(r2.json()) if s["sample_external_id"] == "A2")
+    stage = next(s for s in _stages(r2.json()) if s["sample_pool_id"] == "A2")
     assert stage["cell_id"] == cell_id
     assert stage["barcode_clash"] is True
 
@@ -437,7 +437,7 @@ def test_a_tray_cell_can_be_loaded_into_any_plate_slot_in_its_carousel_position(
     # cell keeps its own identity (home_well B01) for the stub.
     placed = _place(client, _sid(client, "A2"), mon, 3, {"mode": "existing", "cell_id": sibling_id})
     assert placed.status_code == 201, placed.text
-    stage = next(s for s in _stages(placed.json()) if s["sample_external_id"] == "A2")
+    stage = next(s for s in _stages(placed.json()) if s["sample_pool_id"] == "A2")
     assert stage["cell_id"] == sibling_id
     assert stage["well"] == "D01"  # the plate loading position it was dropped onto
     assert stage["cell_home_well"] == "B01"  # the cell's own identity, drives the "B1" stub
@@ -578,7 +578,7 @@ def test_patch_cycle_aborted_cascades_started_uses_to_aborted_and_samples_to_bac
     r2 = _place(client, a2, mon, 4)
     # r2's response is the whole run (now Plate 1 + a fresh parallel Plate 2), so pick A2's
     # own stage by sample rather than assuming a flat position.
-    cell_id_2 = next(s["cell_id"] for s in _stages(r2.json()) if s["sample_external_id"] == "A2")
+    cell_id_2 = next(s["cell_id"] for s in _stages(r2.json()) if s["sample_pool_id"] == "A2")
 
     assert client.patch(f"/api/cycles/{cycle_id}", json={"status": "running"}).status_code == 200
 
@@ -617,7 +617,7 @@ def test_cancel_run_reverts_all_samples_and_deletes_run(client):
     # unused sibling of the tray slot 0 just opened, so a "new" placement there would now
     # collide with open_new_tray()'s box guard; slot 4 opens a genuinely separate tray.
     r2 = _place(client, a2, mon, 4)
-    cell_id_2 = next(s["cell_id"] for s in _stages(r2.json()) if s["sample_external_id"] == "A2")
+    cell_id_2 = next(s["cell_id"] for s in _stages(r2.json()) if s["sample_pool_id"] == "A2")
 
     resp = client.post(f"/api/cycles/{cycle_id}/cancel")
     assert resp.status_code == 204
@@ -653,7 +653,7 @@ def test_cancel_run_preserves_a_cancelled_stopped_cell_marker(client):
     # r2's response lists both stages on this shared cycle (sorted by well) - pick out B2's
     # own stage by sample rather than assuming position, since B1's stage (well A01) always
     # sorts first.
-    cell_id_2 = next(s["cell_id"] for s in _stages(r2.json()) if s["sample_external_id"] == "B2")
+    cell_id_2 = next(s["cell_id"] for s in _stages(r2.json()) if s["sample_pool_id"] == "B2")
 
     # Discard B1's tray siblings so the stop has nowhere to re-home B1's use onto - it overflows
     # to a permanent cancelled marker (the marker this test checks cancel_run preserves).
@@ -706,7 +706,7 @@ def test_cancel_run_rejected_when_not_planned(client):
 def test_place_inherits_the_samples_movie_time_when_run_time_omitted(client):
     """A manual drag-drop omits run_time_hours, so the placement runs for the sample's own
     movie time (Sample.movie_time_hours) - the per-sample-movie-time default."""
-    client.post("/api/samples", json={"external_id": "M1", "barcodes": ["bc9"], "movie_time_hours": 30})
+    client.post("/api/samples", json={"pool_id": "M1", "barcodes": ["bc9"], "movie_time_hours": 30})
     (mon,) = _weekdays(1)
     sid = _sid(client, "M1")
     resp = client.post(
