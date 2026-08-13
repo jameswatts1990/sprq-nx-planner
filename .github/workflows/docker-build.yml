@@ -41,5 +41,5 @@ jobs:
             context: ./frontend
             dockerfile: ./frontend/Dockerfile.dev
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: docker build -f ${{ matrix.dockerfile }} ${{ matrix.context }}
