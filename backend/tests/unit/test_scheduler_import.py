@@ -14,7 +14,8 @@ from app.engine.scheduler_import import (
 )
 
 # A representative subset of the scheduler-sheet header (order irrelevant — columns are
-# resolved by name). Includes Plate ID so we can assert it's carried through.
+# resolved by name). Includes Plate ID + a free-text column so we can assert every column is
+# carried through the pool collapse.
 HEADER = [
     "Pool ID",
     "Portion of SMRT Cell",
@@ -23,6 +24,7 @@ HEADER = [
     "Priority",
     "Target Loading Concentration (pM)",
     "Plate ID",
+    "Sequencing Comments",
 ]
 _INDEX = {name: i for i, name in enumerate(HEADER)}
 # kwargs can't spell the "(pM)" suffix, so allow the shorter name in _row(...).
@@ -44,15 +46,13 @@ def _sheet(rows: list[list[str]]) -> str:
     return buf.getvalue()
 
 
-def _by_pool(csv_text: str) -> dict[str, dict[str, str]]:
-    """Parse the emitted standard CSV back into {Pool ID: {header: value}}."""
-    rows = parse_csv(csv_text)
-    header = rows[0]
-    out: dict[str, dict[str, str]] = {}
-    for r in rows[1:]:
-        record = dict(zip(header, r))
-        out[record["Pool ID"]] = record
-    return out
+def _pools_by_id(result) -> dict[str, object]:
+    return {p.pool_id: p for p in result.pools}
+
+
+def _cell(result, pool, header_name: str) -> str:
+    """A collapsed pool's value under an (original) header name."""
+    return pool.row[result.columns.index(header_name)]
 
 
 # --- portion parsing -----------------------------------------------------------------------
@@ -78,35 +78,127 @@ def test_parse_portion_accepts_fractions_percents_and_wholes(raw, expected):
     assert parse_portion(raw) == expected
 
 
-# --- pooling --------------------------------------------------------------------------------
+# --- pooling by Pool ID --------------------------------------------------------------------
 
 
-def test_pools_individual_half_and_quarter_cells_into_containers():
+def test_blank_pool_id_rows_continue_the_pool_above():
     text = _sheet(
         [
             # a whole cell on its own
             _row(Pool_ID="POOL-A", Portion_of_SMRT_Cell="1", Complex_Batch_ID="bc01", Sanger_Sample_ID="DTOL1"),
-            # two halves -> one cell
+            # lead + a blank-Pool-ID continuation row -> one cell
             _row(Pool_ID="POOL-B", Portion_of_SMRT_Cell="0.5", Complex_Batch_ID="bc02", Sanger_Sample_ID="DTOL2"),
             _row(Portion_of_SMRT_Cell="0.5", Complex_Batch_ID="bc03", Sanger_Sample_ID="DTOL3"),
-            # quarter + quarter + half -> one cell (mixed)
-            _row(Pool_ID="POOL-C", Portion_of_SMRT_Cell="0.25", Complex_Batch_ID="bc04"),
-            _row(Portion_of_SMRT_Cell="0.25", Complex_Batch_ID="bc05"),
-            _row(Portion_of_SMRT_Cell="0.5", Complex_Batch_ID="bc06"),
         ]
     )
     result = convert_scheduler_csv(text)
-    assert result.pool_count == 3
-    assert result.source_row_count == 6
+    assert result.pool_count == 2
+    assert result.review_count == 0
+    assert result.source_row_count == 3
 
-    containers = _by_pool(result.csv)
-    assert set(containers) == {"POOL-A", "POOL-B", "POOL-C"}
+    pools = _pools_by_id(result)
+    assert set(pools) == {"POOL-A", "POOL-B"}
+    assert all(p.status == "ok" for p in result.pools)
     # barcodes are combined across the pool
-    assert containers["POOL-B"]["Barcodes"] == "bc02; bc03"
-    assert containers["POOL-C"]["Barcodes"] == "bc04; bc05; bc06"
+    assert _cell(result, pools["POOL-B"], "Complex Batch ID") == "bc02; bc03"
 
 
-def test_first_nonempty_wins_for_id_priority_oplc_and_sanger_combines():
+def test_repeated_pool_id_rows_continue_the_same_pool():
+    text = _sheet(
+        [
+            _row(Pool_ID="POOL-A", Portion_of_SMRT_Cell="0.33", Complex_Batch_ID="bc1"),
+            _row(Pool_ID="POOL-A", Portion_of_SMRT_Cell="0.33", Complex_Batch_ID="bc2"),
+            _row(Pool_ID="POOL-A", Portion_of_SMRT_Cell="0.33", Complex_Batch_ID="bc3"),
+        ]
+    )
+    result = convert_scheduler_csv(text)
+    assert result.pool_count == 1
+    pool = _pools_by_id(result)["POOL-A"]
+    assert pool.status == "ok"  # 99% is a whole cell within tolerance
+    assert pool.portion_percent == 99
+    assert len(pool.members) == 3
+    assert _cell(result, pool, "Complex Batch ID") == "bc1; bc2; bc3"
+
+
+def test_three_thirds_pool_is_auto_accepted_as_a_whole_cell():
+    text = _sheet(
+        [
+            _row(Pool_ID="POOL-3", Portion_of_SMRT_Cell="33%", Complex_Batch_ID="bc1"),
+            _row(Portion_of_SMRT_Cell="33%", Complex_Batch_ID="bc2"),
+            _row(Portion_of_SMRT_Cell="33%", Complex_Batch_ID="bc3"),
+        ]
+    )
+    result = convert_scheduler_csv(text)
+    assert result.review_count == 0
+    pool = _pools_by_id(result)["POOL-3"]
+    assert pool.status == "ok"
+    assert pool.portion_percent == 99
+    assert [m.portion_percent for m in pool.members] == [33, 33, 33]
+
+
+def test_a_new_pool_id_closes_the_previous_pool_no_cross_bleed():
+    """Two half-cells with DIFFERENT Pool IDs must NOT merge into one 100% pool — Pool ID, not
+    the running portion sum, defines the boundary."""
+    text = _sheet(
+        [
+            _row(Pool_ID="POOL-A", Portion_of_SMRT_Cell="0.5", Complex_Batch_ID="bc1"),
+            _row(Pool_ID="POOL-B", Portion_of_SMRT_Cell="0.5", Complex_Batch_ID="bc2"),
+        ]
+    )
+    result = convert_scheduler_csv(text)
+    assert result.pool_count == 2
+    assert result.review_count == 2  # each is only half a cell
+    pools = _pools_by_id(result)
+    assert pools["POOL-A"].status == "review"
+    assert pools["POOL-B"].status == "review"
+    assert pools["POOL-A"].portion_percent == 50
+
+
+def test_short_pool_is_flagged_for_review_not_dropped():
+    text = _sheet(
+        [
+            _row(Pool_ID="WHOLE", Portion_of_SMRT_Cell="1", Complex_Batch_ID="bc1"),
+            _row(Pool_ID="HALF", Portion_of_SMRT_Cell="0.5", Complex_Batch_ID="bc2"),
+        ]
+    )
+    result = convert_scheduler_csv(text)
+    assert result.pool_count == 2  # nothing dropped
+    pools = _pools_by_id(result)
+    assert pools["WHOLE"].status == "ok"
+    assert pools["HALF"].status == "review"
+    assert "50%" in (pools["HALF"].note or "")
+
+
+def test_oversubscribed_pool_is_flagged_for_review():
+    text = _sheet(
+        [
+            _row(Pool_ID="BIG", Portion_of_SMRT_Cell="0.5", Complex_Batch_ID="bc1"),
+            _row(Pool_ID="BIG", Portion_of_SMRT_Cell="0.75", Complex_Batch_ID="bc2"),  # 125%
+        ]
+    )
+    result = convert_scheduler_csv(text)
+    pool = _pools_by_id(result)["BIG"]
+    assert pool.status == "review"
+    assert pool.portion_percent == 125
+    assert "125%" in (pool.note or "")
+
+
+def test_unreadable_portion_flags_the_pool_for_review():
+    text = _sheet(
+        [
+            _row(Pool_ID="P1", Portion_of_SMRT_Cell="0.5", Complex_Batch_ID="bc1"),
+            _row(Pool_ID="P1", Portion_of_SMRT_Cell="n/a", Complex_Batch_ID="bc2"),
+        ]
+    )
+    pool = _pools_by_id(convert_scheduler_csv(text))["P1"]
+    assert pool.status == "review"
+    assert "couldn't be read" in (pool.note or "")
+
+
+# --- collapse / column preservation --------------------------------------------------------
+
+
+def test_first_nonempty_wins_for_scalars_and_sanger_combines():
     text = _sheet(
         [
             _row(
@@ -128,75 +220,54 @@ def test_first_nonempty_wins_for_id_priority_oplc_and_sanger_combines():
     )
     result = convert_scheduler_csv(text)
     assert result.pool_count == 1
-    rec = _by_pool(result.csv)["POOL-X"]
+    pool = _pools_by_id(result)["POOL-X"]
 
-    assert rec["Priority"] == "High"
-    assert rec["Target OPLC (pM)"] == "300"
-    assert rec["Barcodes"] == "bc10; bc11"
+    assert _cell(result, pool, "Priority") == "High"
+    assert _cell(result, pool, "Target Loading Concentration (pM)") == "300"
+    assert _cell(result, pool, "Complex Batch ID") == "bc10; bc11"
     # multiple Sanger IDs are emitted as a JSON array, deduped, source order preserved
-    assert json.loads(rec["Sanger Sample IDs"]) == ["DTOLa", "DTOLb", "DTOLc"]
+    assert json.loads(_cell(result, pool, "Sanger Sample ID")) == ["DTOLa", "DTOLb", "DTOLc"]
 
 
 def test_single_sanger_id_emitted_plain_not_as_json_array():
     text = _sheet([_row(Pool_ID="P1", Portion_of_SMRT_Cell="1", Complex_Batch_ID="bc1", Sanger_Sample_ID="DTOL1")])
-    rec = _by_pool(convert_scheduler_csv(text).csv)["P1"]
-    assert rec["Sanger Sample IDs"] == "DTOL1"
+    result = convert_scheduler_csv(text)
+    assert _cell(result, _pools_by_id(result)["P1"], "Sanger Sample ID") == "DTOL1"
 
 
-def test_overshoot_group_is_skipped_with_warning():
+def test_all_columns_are_carried_through_and_portion_column_is_dropped():
     text = _sheet(
         [
-            _row(Pool_ID="BAD", Portion_of_SMRT_Cell="0.5", Complex_Batch_ID="bc1"),
-            _row(Portion_of_SMRT_Cell="0.75", Complex_Batch_ID="bc2"),  # 0.5 + 0.75 = 125%
-            _row(Pool_ID="GOOD", Portion_of_SMRT_Cell="1", Complex_Batch_ID="bc3"),
+            _row(
+                Pool_ID="P1",
+                Portion_of_SMRT_Cell="1",
+                Complex_Batch_ID="bc1",
+                Plate_ID="PLATE-9",
+                Sequencing_Comments="run me first",
+            )
         ]
     )
     result = convert_scheduler_csv(text)
-    assert result.pool_count == 1
-    assert set(_by_pool(result.csv)) == {"GOOD"}
-    assert any("BAD" in w and "125%" in w for w in result.warnings)
-
-
-def test_incomplete_trailing_group_is_reported():
-    text = _sheet(
-        [
-            _row(Pool_ID="WHOLE", Portion_of_SMRT_Cell="1", Complex_Batch_ID="bc1"),
-            _row(Pool_ID="PARTIAL", Portion_of_SMRT_Cell="0.5", Complex_Batch_ID="bc2"),  # never completes
-        ]
-    )
-    result = convert_scheduler_csv(text)
-    assert result.pool_count == 1
-    assert any("PARTIAL" in w and "50%" in w for w in result.warnings)
+    # every original column except Portion survives, in order
+    assert "Portion of SMRT Cell" not in result.columns
+    assert result.columns == [h for h in HEADER if h != "Portion of SMRT Cell"]
+    pool = _pools_by_id(result)["P1"]
+    assert _cell(result, pool, "Plate ID") == "PLATE-9"
+    assert _cell(result, pool, "Sequencing Comments") == "run me first"
 
 
 def test_trailing_unrelated_row_is_ignored_silently():
     # A totals/notes row whose only value sits in an unrelated column (no Pool ID, no
-    # portion, no barcode) — the sheet is full of these and they must not warn.
-    header = HEADER + ["Sequencing Comments"]
-    good = [""] * len(header)
-    good[_INDEX["Pool ID"]] = "P1"
-    good[_INDEX["Portion of SMRT Cell"]] = "1"
-    good[_INDEX["Complex Batch ID"]] = "bc1"
-    totals = [""] * len(header)
-    totals[-1] = "Grand total for the plate"
-
-    buf = io.StringIO()
-    writer = csv.writer(buf, lineterminator="\r\n")
-    writer.writerows([header, good, totals])
-
-    result = convert_scheduler_csv(buf.getvalue())
-    assert result.pool_count == 1
-    assert not any("total" in w.lower() for w in result.warnings)
-
-
-def test_plate_id_column_is_carried_through():
-    """Plate ID now has a home in the app (the sample's Plate ID), so the scheduler-sheet
-    Plate ID column is carried into the emitted CSV rather than dropped."""
-    text = _sheet([_row(Pool_ID="P1", Portion_of_SMRT_Cell="1", Complex_Batch_ID="bc1", Plate_ID="PLATE-9")])
+    # portion, no barcode) — the sheet is full of these and they must not form a pool.
+    text = _sheet(
+        [
+            _row(Pool_ID="P1", Portion_of_SMRT_Cell="1", Complex_Batch_ID="bc1"),
+            _row(Sequencing_Comments="Grand total for the plate"),
+        ]
+    )
     result = convert_scheduler_csv(text)
-    assert "Plate ID" in result.csv.splitlines()[0]
-    assert _by_pool(result.csv)["P1"]["Plate ID"] == "PLATE-9"
-    assert not any("Plate ID" in w for w in result.warnings)
+    assert result.pool_count == 1
+    assert set(_pools_by_id(result)) == {"P1"}
 
 
 def test_missing_required_column_raises_format_error():
@@ -207,23 +278,27 @@ def test_missing_required_column_raises_format_error():
     assert "Pool ID" in msg and "Portion of SMRT Cell" in msg
 
 
-def test_emitted_csv_auto_maps_and_imports_through_the_normal_path():
-    """The converted CSV's headers must be recognised by the ordinary importer end-to-end."""
+# --- end-to-end through the ordinary importer ----------------------------------------------
+
+
+def _assemble(result) -> str:
+    """Rebuild the import CSV from the pools' rows, as the frontend does before commit."""
+    buf = io.StringIO()
+    writer = csv.writer(buf, lineterminator="\r\n")
+    writer.writerow(result.columns)
+    writer.writerows(p.row for p in result.pools)
+    return buf.getvalue()
+
+
+def test_pooled_rows_auto_map_and_import_through_the_normal_path():
     text = _sheet(
         [
-            _row(
-                Pool_ID="POOL-1",
-                Portion_of_SMRT_Cell="0.5",
-                Complex_Batch_ID="bc1",
-                Sanger_Sample_ID="DTOL1",
-            ),
+            _row(Pool_ID="POOL-1", Portion_of_SMRT_Cell="0.5", Complex_Batch_ID="bc1", Sanger_Sample_ID="DTOL1"),
             _row(Portion_of_SMRT_Cell="0.5", Complex_Batch_ID="bc2", Sanger_Sample_ID="DTOL2"),
         ]
     )
-    converted = convert_scheduler_csv(text).csv
-    rows = parse_csv(converted)
+    rows = parse_csv(_assemble(convert_scheduler_csv(text)))
     column_map = suggest_column_map(rows[0])
-    # the five emitted columns all auto-map
     assert column_map["pool_id"] is not None
     assert column_map["barcodes"] is not None
     assert column_map["sanger"] is not None
@@ -237,32 +312,22 @@ def test_emitted_csv_auto_maps_and_imports_through_the_normal_path():
 
 
 def test_loading_volumes_carry_from_the_scheduler_sheet_and_auto_map():
-    """The two stored dilution volumes (cleaned-complex, loading-buffer) are read from the
-    scheduler sheet's own headers, emitted into the standard CSV, and auto-map into the
-    batch-sheet-only ParsedSample fields. The "Library Volume Taken for Complex" and "Volume
-    of Control Dilution 3" columns are no longer stored, so they're dropped."""
+    """The scheduler sheet's own long-form dilution-volume headers are carried through unchanged
+    and still auto-map into the batch-sheet-only ParsedSample fields (fuzzy substring match)."""
     header = [
         "Pool ID",
         "Portion of SMRT Cell",
         "Complex Batch ID",
-        "Library Volume Taken for Complex (uL)",
         "Cleaned complex volume for desired OPLC (uL)",
         "Loading buffer volume (uL)",
-        "Volume of Control Dilution 3 (uL)",
     ]
-    row = ["POOL-1", "1", "bc1", "12", "8", "6", "2"]
+    row = ["POOL-1", "1", "bc1", "8", "6"]
     buf = io.StringIO()
     writer = csv.writer(buf, lineterminator="\r\n")
     writer.writerows([header, row])
 
-    converted = convert_scheduler_csv(buf.getvalue()).csv
-    rec = _by_pool(converted)["POOL-1"]
-    assert "Volume to Load (uL)" not in rec  # the library-volume column is dropped
-    assert "Control Dilution 3 Vol (uL)" not in rec  # fixed 1 µL now, no longer carried
-    assert rec["Cleaned Complex Vol (uL)"] == "8"
-    assert rec["Loading Buffer Vol (uL)"] == "6"
-
-    rows = parse_csv(converted)
+    result = convert_scheduler_csv(buf.getvalue())
+    rows = parse_csv(_assemble(result))
     normalized = normalize_with_map(rows[1:], suggest_column_map(rows[0]))
     sample = normalized.samples[0]
     assert sample.cleaned_complex_volume == 8

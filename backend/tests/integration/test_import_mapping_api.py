@@ -58,7 +58,7 @@ def test_fields_and_template_endpoints(client):
     assert tmpl.status_code == 200
     assert tmpl.headers["content-type"].startswith("text/csv")
     first_line = tmpl.text.splitlines()[0]
-    assert first_line.split(",")[0] == IMPORTABLE_FIELDS[0].label  # "Traction / External ID"
+    assert first_line.split(",")[0] == IMPORTABLE_FIELDS[0].label  # "Pool ID"
 
 
 def test_preview_suggests_mapping_without_committing(client):
@@ -72,6 +72,15 @@ def test_preview_suggests_mapping_without_committing(client):
     assert prev["unmatched_required"] == []
     # nothing was written
     assert client.get("/api/samples", params={"status": "backlog"}).json()["total"] == 0
+
+
+def test_preview_returns_every_row_not_a_truncated_head(client):
+    """The mapping preview must show every sample so the lab can verify the whole import,
+    not a capped first-N (the previous 8-row cap)."""
+    lines = ["Container,Barcodes"] + [f"TRAC-2-7{i:04d},bc{i}" for i in range(20)]
+    prev = client.post("/api/imports/preview", json={"raw_text": "\n".join(lines)}).json()
+    assert prev["row_count"] == 20
+    assert len(prev["sample_rows"]) == 20
 
 
 def test_commit_with_column_map_imports_renamed_headers_and_reports_skipped(client):

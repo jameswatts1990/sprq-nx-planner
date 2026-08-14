@@ -22,6 +22,10 @@ The app version is shown in the navbar (top right, low-contrast grey — see `fr
 
 Do this as part of the same change, not a separate step, so the deployed build is always identifiable at a glance.
 
+## RunNx Dependencies
+
+**Never downgrade a package version to work around an error — fix forward instead.** The tempting quick fix for a version-incompatibility or build/type error is sometimes to pin a package back to an older, known-good version; do not do this. Diagnose and fix against the version that's already declared. If a downgrade is genuinely the only correct fix (e.g. a released version is actually broken), stop and flag it explicitly with the reason rather than doing it silently. The same applies to accidental regressions: edit `package.json`/lockfiles in place, never regenerate them from memory, so pinned versions never drift backwards unintentionally. Dependabot upgrade PRs are a separate, human-reviewed workflow — leave them alone unless explicitly asked.
+
 ## RunNx Local Dev Environment
 
 This checkout lives on local disk (`c:\Users\jw24\dev\sprq-nx-planner`) — native dev is `npm run dev` (frontend, port 5173) + `uvicorn --reload` (backend, port 8000) against a local SQLite `backend/dev.db`. No Docker, no network-drive workarounds needed here.

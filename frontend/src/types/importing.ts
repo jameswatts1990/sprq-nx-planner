@@ -88,13 +88,36 @@ export interface SchedulerConvertRequest {
   raw_text: string;
 }
 
+/** One source row inside a pool, for the review breakdown ("3 samples at 33%"). */
+export interface SchedulerPoolMember {
+  label: string;
+  portion_percent: number;
+}
+
+/** A pool (one SMRT Cell) formed by grouping scheduler rows on Pool ID. `row` is the collapsed,
+ * importable line aligned to SchedulerConvertResult.columns; `status` is "ok" (a whole cell,
+ * auto-included) or "review" (portions don't add up to a whole cell — needs authorising). */
+export interface SchedulerPool {
+  pool_id: string;
+  status: "ok" | "review";
+  portion_percent: number;
+  note: string | null;
+  members: SchedulerPoolMember[];
+  row: string[];
+}
+
 export interface SchedulerConvertResult {
-  /** A standard import CSV (canonical headers) ready for the normal preview/mapping flow. */
-  csv: string;
+  /** Original scheduler headers (the Portion column removed); the UI builds the import CSV from
+   * these + the authorised pools' rows. */
+  columns: string[];
+  /** Pools formed by Pool ID, index-aligned to the CSV rows the UI builds. */
+  pools: SchedulerPool[];
   /** Rows read from the sheet (header excluded). */
   source_row_count: number;
-  /** Completed SMRT-cell pools turned into container rows. */
+  /** Pools formed (all statuses). */
   pool_count: number;
+  /** Pools needing authorisation. */
+  review_count: number;
   warnings: string[];
 }
 

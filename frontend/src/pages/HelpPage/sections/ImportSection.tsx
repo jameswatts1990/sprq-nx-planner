@@ -23,14 +23,13 @@ export function ImportSection() {
         <dd>
           Click the small arrow beside <b>Upload CSV</b> and choose <b>Upload from scheduler…</b> to load your
           scheduling sheet directly, as either a <b>.csv</b> or an <b>.xlsx</b> Excel file — no need to rename or
-          rearrange columns first. The planner reads the sheet&apos;s <i>Portion of SMRT Cell</i> column and{" "}
-          <b>pools</b> the rows that share a cell into one sample (identified by its Pool ID; barcodes and
-          Sanger IDs are combined). It then takes you straight to the mapping step with a note saying how many rows
-          became how many pools, plus a warning for any group that didn&apos;t add up to a whole cell (those
-          are left out). A Plate ID column, if present, is carried across too. The
-          complex-loading dilution volumes on the sheet — cleaned-complex and loading-buffer —
-          are carried across automatically and later pre-fill the batch sheet&apos;s loading-dilution worksheet
-          (Control Dilution 3 is always 1 µL, printed on the batch sheet).
+          rearrange columns first. The planner groups the sheet into <b>pools</b> by <b>Pool ID</b>: a pool&apos;s
+          first row carries the Pool ID and the rows beneath it either repeat it or leave it blank, so all the
+          samples that share one SMRT Cell become a single sample (barcodes and Sanger IDs are combined). It then
+          takes you straight to the mapping step. <b>Every column of your sheet is carried across</b> — nothing is
+          dropped — so you can map anything the planner stores (Movie time, Insert size, loading volumes, and so on).
+          The <i>Portion of SMRT Cell</i> column is used as a <b>sense-check</b> that each pool adds up to a whole
+          cell; pools that don&apos;t are flagged for review (see below) rather than silently left out.
         </dd>
         <dt>Download template</dt>
         <dd>Saves a blank CSV with the right column headers and one example row — fill it in and upload it back.</dd>
@@ -52,12 +51,26 @@ export function ImportSection() {
         Each field (Pool ID, Barcodes, Sanger Sample IDs, Target OPLC, priority, Movie time, Insert Size, True/False settings…) has a
         dropdown where you pick which column of your file feeds it. The planner <b>pre-fills its best guess</b>, so
         usually you just glance and confirm; correct any that are wrong, or set one to <i>“— not imported —”</i>. A
-        live preview of the first rows shows exactly what will be imported, and the mapping updates it as you change
+        live preview of <b>every row</b> shows exactly what will be imported, and the mapping updates it as you change
         a dropdown. Fields marked <span aria-hidden>*</span> are required — <b>Pool ID</b> and{" "}
         <b>Barcodes</b> must be mapped before the <b>Import</b> button enables. Rows with no barcode are skipped, and
         a note tells you how many. If the same Pool ID appears more than once in the file, a note flags it here
         too — fine when you mean to run a sample across several cells, worth a second look otherwise. Use <b>Back</b>{" "}
         to return to the text without losing it.
+      </p>
+      <p>
+        <b>Amber “≈” flag:</b> when the planner matched a field to a column whose heading isn&apos;t an exact name
+        match (for example the scheduler sheet&apos;s <i>Complex Batch ID</i> mapped to <b>Barcodes</b>), the dropdown
+        is tinted amber with a small <b>≈</b> mark. It&apos;s a nudge to double-check that&apos;s the right column —
+        the guess is usually correct, but hover the mark to see which heading it came from, and re-pick if needed.
+      </p>
+      <p>
+        <b>Pools to review (scheduler uploads):</b> each pooled row shows a <b>Cell</b> status — a green tick for a
+        whole cell, or an amber percentage when the portions don&apos;t add up to 100%. Any pool that isn&apos;t a
+        whole cell is listed above the preview with its samples and their portions; tick <b>Include</b> to import it
+        anyway. A pool of 3 samples at 33% (= 99%) is a whole cell and is included automatically; a pool that&apos;s
+        genuinely half-empty or over-subscribed waits for you to authorise it. Un-ticked pools are left out, and the
+        <b> Import</b> button counts only the pools that will be imported.
       </p>
       <p>
         A few fields — the complex-loading volumes (<i>cleaned-complex</i> and <i>loading-buffer</i>) — are optional

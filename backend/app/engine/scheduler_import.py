@@ -1,98 +1,46 @@
-"""Convert the lab's PacBio scheduler sheet into the app's standard import CSV.
+"""Convert the lab's PacBio scheduler sheet into structured, reviewable pools.
 
-The scheduler sheet (the same "sequencing tracker" layout described in tracker_columns.py)
-lists one row *per sample*, and several samples can share a single SMRT Cell — a row's
-"Portion of SMRT Cell" says how much of a cell it occupies (1 = a whole cell, 0.5 = half,
-0.25 = a quarter). Sequential rows whose portions add up to a whole cell are one *pool*:
-they run together on one physical cell and, in this app, become one sample (its Pool ID).
+The scheduler sheet (the "sequencing tracker" layout in tracker_columns.py) lists one row
+*per sample*. Several samples can share one SMRT Cell: a row's "Portion of SMRT Cell" says how
+much of a cell it occupies (1 = a whole cell, 0.5 = half, 0.25 = a quarter). Samples that share
+a cell form a *pool* — in this app they become one sample, keyed by its Pool ID.
 
-Where tracker_import.py imports this sheet one-row-per-sample (keyed by Traction ID, no
-pooling), this module implements the pooling described in the `refactor-pacbio-run-csv`
-skill: consolidate each completed pool into a single row (the pool's Pool ID, with
-barcodes/Sanger IDs combined across the pool) and emit a plain CSV with the app's
-canonical headers. That CSV then flows through the ordinary import preview/mapping wizard
-unchanged — every column auto-maps, so the lab never has to move columns by hand.
+Grouping is by **Pool ID**, matching how the sheet is actually laid out: a pool's lead row
+carries the Pool ID and the rows beneath it either repeat that Pool ID or leave it blank; a new,
+different Pool ID starts the next pool. The summed "Portion of SMRT Cell" is a **sense-check** on
+top of that grouping — a pool whose portions land near a whole cell is accepted automatically;
+one that's materially under- or over-subscribed (or has an unreadable portion) is flagged for the
+user to review and authorise, rather than silently dropped as an earlier portion-only version did.
 
-Pooling rules (mirrors the skill spec):
-  - Portion is read as a fraction (accepts "0.5", "50%", or a whole "50").
-  - Pools are built from *sequential* rows until the cumulative portion reaches 1
-    (±0.001). A group that overshoots 100%, hits an unreadable portion, or ends the file
-    part-way is reported and skipped rather than guessed at.
-  - Pool ID, Plate ID, Priority and Target OPLC take the first non-empty value in the pool.
-  - Barcodes and Sanger IDs combine every distinct non-empty value across the pool, in
-    source order (comma / JSON-array lists in a single cell are split into individuals).
+Every original column is carried through the pool collapse (only the consumed Portion column is
+dropped), so nothing the sheet holds is lost before the mapping-review wizard. Column detection
+reuses the ordinary importer's fuzzy matcher (`suggest_column_map`) rather than a private strict
+allow-list, so a renamed header still maps — and the wizard flags any non-exact match to confirm.
+
+Collapse rules:
+  - Barcodes and Sanger IDs combine every distinct value across the pool, in source order.
+  - Every other column takes the first non-empty value across the pool.
+  - Portion accepts "0.5", "50%" or a bare "50" (all -> 0.5); "1"/"100%"/"100" -> 1.0.
 """
 from __future__ import annotations
 
-import csv
-import io
 import json
 import re
 from dataclasses import dataclass, field
 
 from app.engine.csv_parse import parse_csv, split_barcodes
-from app.engine.import_fields import (
-    K_CLEANED_COMPLEX_VOL,
-    K_LOADING_BUFFER_VOL,
-)
-from app.engine.tracker_columns import (
-    K_BARCODES,
-    K_PLATE_ID,
-    K_POOL_ID,
-    K_PORTION,
-    K_PRIORITY,
-    K_SANGER,
-    K_TARGET_OPLC,
-    normalize_header,
-)
+from app.engine.import_fields import K_BARCODES, K_POOL_ID, K_SANGER, suggest_column_map
+from app.engine.tracker_columns import normalize_header
 
-# Tolerance around a whole SMRT Cell: 0.1 percentage-point, matching the skill spec.
-_TOLERANCE = 0.001
+# A pool's summed portion may drift this far from a whole cell (±2 percentage points) and still
+# auto-accept — enough to absorb equal-split rounding (3×33%=99%, 14×7%≈98%) without waving
+# through a genuinely under-/over-subscribed cell, which is surfaced for review instead. This is
+# the single knob for "how close to 100% counts as a whole cell".
+POOL_SUM_AUTO_TOLERANCE = 0.02
 
-# Canonical headers of the CSV we emit. Chosen to match IMPORTABLE_FIELDS labels so the
-# ordinary importer's suggest_column_map auto-maps every one of them. The three dilution
-# volume columns are batch-sheet-only fields carried straight from the scheduler sheet.
-OUT_HEADERS = [
-    "Pool ID",
-    "Barcodes",
-    "Sanger Sample IDs",
-    "Plate ID",
-    "Priority",
-    "Target OPLC (pM)",
-    "Cleaned Complex Vol (uL)",
-    "Loading Buffer Vol (uL)",
-]
-
-# field-key -> the normalized headers that feed it. Exact (whitespace-collapsed, lower-cased)
-# matches only — we never silently borrow an unrelated column. The strings cover both the
-# tracker sheet's own headers and the tidier variants the skill's output uses.
-_FIELD_ALIASES: dict[str, tuple[str, ...]] = {
-    K_POOL_ID: ("pool id",),
-    K_BARCODES: ("complex batch id", "barcodes"),
-    K_SANGER: ("sanger sample id", "sanger sample ids"),
-    K_PLATE_ID: ("plate id",),
-    K_PRIORITY: ("priority", "prioity"),
-    K_TARGET_OPLC: (
-        "target loading concentration (pm)",
-        "target loading concentration",
-        "target oplc (pm)",
-        "target oplc",
-    ),
-    K_PORTION: ("portion of smrt cell", "portion"),
-    # Batch-sheet-only loading volumes — exact-matched against the scheduler sheet's own
-    # headers (the lab's current column names).
-    K_CLEANED_COMPLEX_VOL: ("cleaned complex volume for desired oplc (ul)", "cleaned complex vol (ul)"),
-    K_LOADING_BUFFER_VOL: ("loading buffer volume (ul)", "loading buffer vol (ul)"),
-}
-
-# Without these three we can't produce importable pools: Pool ID is the sample's identity,
-# Complex Batch ID carries the barcodes, and Portion drives the pooling.
-_REQUIRED_FIELDS = (K_POOL_ID, K_BARCODES, K_PORTION)
-_REQUIRED_LABELS = {
-    K_POOL_ID: "Pool ID",
-    K_BARCODES: "Complex Batch ID (barcodes)",
-    K_PORTION: "Portion of SMRT Cell",
-}
+# "Portion of SMRT Cell" is scheduler-only (not a stored Sample field), so it isn't in
+# IMPORTABLE_FIELDS — resolve it here with the same normalized-substring rule the fuzzy matcher uses.
+_PORTION_ALIASES = ("portion of smrt cell", "portion")
 
 
 class SchedulerFormatError(ValueError):
@@ -102,37 +50,31 @@ class SchedulerFormatError(ValueError):
 
 
 @dataclass
-class SchedulerConversion:
-    csv: str
-    source_row_count: int  # data rows read (header excluded)
-    pool_count: int  # completed pools emitted as containers
-    warnings: list[str] = field(default_factory=list)
+class SchedulerPoolMember:
+    """One source row inside a pool, for the review breakdown ("3 samples at 33%")."""
+
+    label: str
+    portion_percent: int
 
 
 @dataclass
-class _Pool:
-    pool_id: str
-    barcodes: list[str]
-    sanger: list[str]
-    plate_id: str
-    priority: str
-    target_oplc: str
-    # Batch-sheet-only dilution volumes; first non-empty value across the pool (they describe
-    # how the shared cell is loaded, so they're the same for every row of a pool in practice).
-    cleaned_complex_volume: str
-    loading_buffer_volume: str
+class SchedulerPool:
+    pool_id: str  # first non-empty Pool ID in the pool ("" if none)
+    status: str  # "ok" (auto-accepted) | "review" (needs authorisation)
+    portion_percent: int  # summed share of a SMRT Cell, as a whole percent
+    note: str | None  # why it needs review (None when ok)
+    members: list[SchedulerPoolMember]
+    row: list[str]  # collapsed cells, aligned to SchedulerConversion.columns
 
 
-def _resolve_columns(header: list[str]) -> dict[str, int]:
-    """Best {field_key: column_index} for the sheet's header row (first match wins per field)."""
-    normalized = [normalize_header(h) for h in header]
-    cols: dict[str, int] = {}
-    for key, aliases in _FIELD_ALIASES.items():
-        for i, h in enumerate(normalized):
-            if h in aliases:
-                cols[key] = i
-                break
-    return cols
+@dataclass
+class SchedulerConversion:
+    columns: list[str]  # original scheduler headers (the Portion column removed)
+    pools: list[SchedulerPool]  # index-aligned to the rows the UI builds for preview/commit
+    source_row_count: int  # data rows read (header excluded)
+    pool_count: int  # pools formed (all statuses)
+    review_count: int  # pools needing authorisation
+    warnings: list[str] = field(default_factory=list)
 
 
 def parse_portion(raw: str | None) -> float | None:
@@ -150,9 +92,15 @@ def parse_portion(raw: str | None) -> float | None:
         value = float(s)
     except ValueError:
         return None
-    if had_percent or value > 1 + _TOLERANCE:
+    if had_percent or value > 1:
         value = value / 100
     return value
+
+
+def _cell(row: list[str], idx: int | None) -> str:
+    if idx is None:
+        return ""
+    return row[idx] if 0 <= idx < len(row) else ""
 
 
 def _split_ids(raw: str) -> list[str]:
@@ -171,158 +119,189 @@ def _split_ids(raw: str) -> list[str]:
     return [p.strip() for p in re.split(r"[;,]", raw) if p.strip()]
 
 
-def _cell(row: list[str], idx: int | None) -> str:
-    if idx is None:
-        return ""
-    return row[idx] if 0 <= idx < len(row) else ""
+def _resolve_portion_col(header: list[str]) -> int | None:
+    normalized = [normalize_header(h) for h in header]
+    for i, h in enumerate(normalized):
+        if any(alias in h for alias in _PORTION_ALIASES):
+            return i
+    return None
 
 
-def _finalize(group: list[list[str]], cols: dict[str, int]) -> _Pool:
-    def first_nonempty(key: str) -> str:
-        for row in group:
-            value = _cell(row, cols.get(key)).strip()
+@dataclass
+class _Group:
+    pool_id: str
+    rows: list[list[str]]
+
+
+def _has_signal(row: list[str], pool_col: int, portion_col: int, barcode_col: int) -> bool:
+    """True if the row is a real sample line rather than a totals/notes row: it carries a Pool
+    ID, a readable portion, or a barcode. A row filling only unrelated columns has none of these."""
+    if _cell(row, pool_col).strip():
+        return True
+    if parse_portion(_cell(row, portion_col)) is not None:
+        return True
+    if _cell(row, barcode_col).strip():
+        return True
+    return False
+
+
+def _group_by_pool_id(
+    data_rows: list[list[str]], pool_col: int, portion_col: int, barcode_col: int
+) -> list[_Group]:
+    """Group consecutive rows into pools by Pool ID: a non-blank Pool ID that differs from the
+    open pool's id closes it and starts the next; the same or a blank Pool ID continues it."""
+    groups: list[_Group] = []
+    current: _Group | None = None
+    for row in data_rows:
+        if not _has_signal(row, pool_col, portion_col, barcode_col):
+            continue  # totals / notes / blank separator row
+        pid = _cell(row, pool_col).strip()
+        if pid and current is not None and current.pool_id and pid != current.pool_id:
+            groups.append(current)
+            current = None
+        if current is None:
+            current = _Group(pool_id=pid, rows=[])
+        elif pid and not current.pool_id:
+            current.pool_id = pid  # a blank-led pool adopts the first Pool ID it sees
+        current.rows.append(row)
+    if current is not None:
+        groups.append(current)
+    return groups
+
+
+def _member_label(row: list[str], sanger_col: int | None, pool_col: int, barcode_col: int, index: int) -> str:
+    for idx in (sanger_col, pool_col, barcode_col):
+        value = _cell(row, idx).strip()
+        if value:
+            return value
+    return f"Row {index + 1}"
+
+
+def _finalize_pool(
+    group: _Group,
+    out_indices: list[int],
+    pool_col: int,
+    portion_col: int,
+    barcode_col: int,
+    sanger_col: int | None,
+) -> SchedulerPool:
+    rows = group.rows
+
+    def first_nonempty(col: int) -> str:
+        for row in rows:
+            value = _cell(row, col).strip()
             if value:
                 return value
         return ""
 
-    def combined(key: str, splitter) -> list[str]:
+    def combined(col: int | None, splitter) -> list[str]:
         out: list[str] = []
-        for row in group:
-            for value in splitter(_cell(row, cols.get(key))):
+        for row in rows:
+            for value in splitter(_cell(row, col)):
                 if value and value not in out:
                     out.append(value)
         return out
 
-    return _Pool(
-        pool_id=first_nonempty(K_POOL_ID),
-        barcodes=combined(K_BARCODES, split_barcodes),
-        sanger=combined(K_SANGER, _split_ids),
-        plate_id=first_nonempty(K_PLATE_ID),
-        priority=first_nonempty(K_PRIORITY),
-        target_oplc=first_nonempty(K_TARGET_OPLC),
-        cleaned_complex_volume=first_nonempty(K_CLEANED_COMPLEX_VOL),
-        loading_buffer_volume=first_nonempty(K_LOADING_BUFFER_VOL),
-    )
-
-
-def _has_mapped_data(row: list[str], cols: dict[str, int]) -> bool:
-    """True if the row carries any of the columns we care about — tells a real (if
-    portion-less) data row apart from a totals/notes row that only fills unrelated columns."""
-    return any(
-        _cell(row, cols.get(key)).strip()
-        for key in (K_POOL_ID, K_BARCODES, K_SANGER, K_TARGET_OPLC, K_PRIORITY, K_PLATE_ID)
-    )
-
-
-def _group_label(group: list[list[str]], cols: dict[str, int]) -> str:
-    for row in group:
-        pid = _cell(row, cols.get(K_POOL_ID)).strip()
-        if pid:
-            return f"pool '{pid}'"
-    return "a pool with no Pool ID"
-
-
-def _build_pools(data_rows: list[list[str]], cols: dict[str, int]) -> tuple[list[_Pool], list[str]]:
-    pools: list[_Pool] = []
-    warnings: list[str] = []
-    group: list[list[str]] = []
+    # Sum the pool's portions; an unreadable portion counts as 0 and flags the pool for review.
     running = 0.0
-
-    def reset() -> None:
-        nonlocal group, running
-        group = []
-        running = 0.0
-
-    for row in data_rows:
-        portion = parse_portion(_cell(row, cols.get(K_PORTION)))
-
+    had_unreadable = False
+    members: list[SchedulerPoolMember] = []
+    for i, row in enumerate(rows):
+        portion = parse_portion(_cell(row, portion_col))
         if portion is None:
-            if not _has_mapped_data(row, cols):
-                continue  # trailing / totals / notes row — silently ignored
-            if group:
-                warnings.append(
-                    f"{_group_label(group, cols)} was cut short by a row with an unreadable "
-                    "'Portion of SMRT Cell' value — skipped."
-                )
-                reset()
-            else:
-                pid = _cell(row, cols.get(K_POOL_ID)).strip() or "(no Pool ID)"
-                warnings.append(f"Row for '{pid}' has an unreadable 'Portion of SMRT Cell' value — skipped.")
-            continue
-
-        group.append(row)
+            had_unreadable = True
+            portion = 0.0
         running += portion
-
-        if running >= 1 - _TOLERANCE:
-            if running <= 1 + _TOLERANCE:
-                pools.append(_finalize(group, cols))
-            else:
-                warnings.append(
-                    f"{_group_label(group, cols)} adds up to {round(running * 100)}% of a SMRT Cell "
-                    "instead of 100% — skipped."
-                )
-            reset()
-
-    if group:
-        warnings.append(
-            f"{_group_label(group, cols)} only reaches {round(running * 100)}% of a SMRT Cell "
-            "(not a whole cell) — not imported."
+        members.append(
+            SchedulerPoolMember(
+                label=_member_label(row, sanger_col, pool_col, barcode_col, i),
+                portion_percent=round(portion * 100),
+            )
         )
 
-    return pools, warnings
+    barcodes = combined(barcode_col, split_barcodes)
+    sanger = combined(sanger_col, _split_ids) if sanger_col is not None else []
 
-
-def _pools_to_csv(pools: list[_Pool]) -> str:
-    buf = io.StringIO()
-    writer = csv.writer(buf, lineterminator="\r\n")
-    writer.writerow(OUT_HEADERS)
-    for pool in pools:
-        if len(pool.sanger) > 1:
-            sanger_cell = json.dumps(pool.sanger)  # JSON array so the importer re-splits it
+    row_out: list[str] = []
+    for col in out_indices:
+        if col == barcode_col:
+            row_out.append("; ".join(barcodes))
+        elif sanger_col is not None and col == sanger_col:
+            # JSON array so the importer re-splits it; a lone ID stays plain.
+            row_out.append(json.dumps(sanger) if len(sanger) > 1 else (sanger[0] if sanger else ""))
         else:
-            sanger_cell = pool.sanger[0] if pool.sanger else ""
-        writer.writerow(
-            [
-                pool.pool_id,
-                "; ".join(pool.barcodes),
-                sanger_cell,
-                pool.plate_id,
-                pool.priority,
-                pool.target_oplc,
-                pool.cleaned_complex_volume,
-                pool.loading_buffer_volume,
-            ]
-        )
-    return buf.getvalue()
+            row_out.append(first_nonempty(col))
+
+    percent = round(running * 100)
+    reasons: list[str] = []
+    if abs(running - 1.0) > POOL_SUM_AUTO_TOLERANCE:
+        reasons.append(f"these samples fill {percent}% of a SMRT Cell, not a whole cell")
+    if had_unreadable:
+        reasons.append("a sample's Portion of SMRT Cell couldn't be read")
+    note = None
+    if reasons:
+        joined = "; ".join(reasons)
+        note = joined[0].upper() + joined[1:] + "."
+
+    return SchedulerPool(
+        pool_id=group.pool_id or first_nonempty(pool_col),
+        status="review" if reasons else "ok",
+        portion_percent=percent,
+        note=note,
+        members=members,
+        row=row_out,
+    )
 
 
 def convert_scheduler_csv(raw_text: str | None) -> SchedulerConversion:
-    """Parse a scheduler-sheet CSV and return the pooled, import-ready standard CSV.
+    """Pool a scheduler-sheet CSV into structured, reviewable pools that carry every column.
 
     Raises SchedulerFormatError if the file doesn't carry the columns the sheet must have."""
     rows = parse_csv(raw_text)
     if not rows:
         raise SchedulerFormatError("The scheduler file appears to be empty.")
 
-    cols = _resolve_columns(rows[0])
-    missing = [_REQUIRED_LABELS[key] for key in _REQUIRED_FIELDS if key not in cols]
+    header = rows[0]
+    fmap = suggest_column_map(header)
+    pool_col = fmap.get(K_POOL_ID)
+    barcode_col = fmap.get(K_BARCODES)
+    sanger_col = fmap.get(K_SANGER)
+    portion_col = _resolve_portion_col(header)
+
+    missing = []
+    if pool_col is None:
+        missing.append("Pool ID")
+    if barcode_col is None:
+        missing.append("Complex Batch ID / Barcodes")
+    if portion_col is None:
+        missing.append("Portion of SMRT Cell")
     if missing:
         raise SchedulerFormatError(
             "This doesn't look like a scheduler sheet — couldn't find the column(s): "
             + ", ".join(missing)
             + ". Expected the lab's sequencing-tracker layout (Pool ID, Portion of SMRT Cell, "
-            "Complex Batch ID…)."
+            "Complex Batch ID…). Use ‘Upload CSV’ for a sheet that isn't pooled."
         )
 
     data_rows = rows[1:]
-    pools, warnings = _build_pools(data_rows, cols)
+    # Carry every original column through except the Portion column, which pooling consumes.
+    out_indices = [i for i in range(len(header)) if i != portion_col]
+    columns = [header[i] for i in out_indices]
 
+    groups = _group_by_pool_id(data_rows, pool_col, portion_col, barcode_col)
+    pools = [
+        _finalize_pool(g, out_indices, pool_col, portion_col, barcode_col, sanger_col) for g in groups
+    ]
+
+    warnings: list[str] = []
     if not pools:
-        warnings.append("No complete SMRT Cell (a pool of rows summing to 100%) was found — nothing to import.")
+        warnings.append("No sample rows were found in the sheet — nothing to import.")
 
     return SchedulerConversion(
-        csv=_pools_to_csv(pools),
+        columns=columns,
+        pools=pools,
         source_row_count=len(data_rows),
         pool_count=len(pools),
+        review_count=sum(1 for p in pools if p.status == "review"),
         warnings=warnings,
     )

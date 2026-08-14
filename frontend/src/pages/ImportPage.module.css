@@ -218,7 +218,15 @@ textarea::placeholder {
   color: var(--ink);
   font-weight: 600;
 }
+/* select + optional "not an exact match" flag sit on one row */
+.selectWrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
 .select {
+  flex: 1;
+  min-width: 0;
   font-family: var(--sans);
   font-size: var(--fs-base);
   border: 1px solid var(--line);
@@ -226,9 +234,25 @@ textarea::placeholder {
   padding: 7px 10px;
   background: #fff;
 }
+/* An auto-guessed mapping whose column header isn't an exact match to the field name — tinted
+   so the user gives it a second glance (matches the amber "warn" tone). */
+.selectFuzzy {
+  border-color: var(--amber);
+  background: var(--amber-tint);
+}
+.fuzzyFlag {
+  flex: none;
+  color: var(--amber);
+  font-weight: 800;
+  font-size: var(--fs-md);
+  cursor: help;
+}
 .previewWrap {
   margin-top: 12px;
-  overflow-x: auto;
+  overflow: auto;
+  max-height: 460px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-sm);
 }
 .table {
   width: 100%;
@@ -236,12 +260,16 @@ textarea::placeholder {
   font-size: var(--fs-md);
 }
 .table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
   text-align: left;
   font-size: var(--fs-xs);
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--grey);
   padding: 6px 8px;
+  background: #fff;
   border-bottom: 1px solid var(--line);
   white-space: nowrap;
 }
@@ -250,4 +278,66 @@ textarea::placeholder {
   border-bottom: 1px solid var(--line-soft);
   font-family: var(--mono);
   white-space: nowrap;
+}
+/* A review-pool row the user hasn't authorised — shown but visibly excluded from the import. */
+.rowExcluded {
+  opacity: 0.45;
+}
+.cellOk {
+  color: var(--green);
+  font-weight: 800;
+}
+
+/* Pool review + authorise (scheduler route) */
+.reviewPools {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.reviewCard {
+  border: 1px solid var(--amber);
+  border-radius: var(--r-sm);
+  background: var(--amber-tint);
+  padding: 10px 12px;
+}
+/* An authorised pool reads as settled — drop the amber alarm, keep a neutral card. */
+.reviewCardOn {
+  border-color: var(--line);
+  background: var(--line-soft);
+}
+.reviewCardHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.reviewInclude {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--fs-base);
+  color: var(--ink);
+  cursor: pointer;
+}
+.reviewNote {
+  margin: 6px 0 8px;
+  font-size: var(--fs-sm);
+  color: var(--grey);
+}
+.memberTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+}
+.memberTable td {
+  padding: 3px 8px;
+  font-family: var(--mono);
+  color: var(--ink);
+}
+.memberTable td:last-child {
+  text-align: right;
+  color: var(--grey);
+  width: 60px;
 }

@@ -31,13 +31,13 @@ from app.schemas.importing import (
     PreviewColumn,
     RejectedRow,
     SchedulerConvertResult,
+    SchedulerPool,
+    SchedulerPoolMember,
     SkippedRowOut,
     UndoImportResult,
 )
 from app.serializers import sample_out
 from app.services.sample_service import create_backlog_sample
-
-PREVIEW_ROW_LIMIT = 8
 
 
 class UndoNotAllowedError(Exception):
@@ -156,7 +156,10 @@ def import_samples(db: Session, req: ImportRequest) -> ImportResult:
 
 def preview_import(raw_text: str, has_header: bool = True) -> ImportPreviewResult:
     """Non-committing look at a paste/upload: the file's columns, an auto-suggested
-    field->column mapping, and the first few raw rows for the review UI to render."""
+    field->column mapping, and every raw data row for the review UI to render.
+
+    All rows are returned (not a sample) — the lab verifies each sample against the source
+    before importing, so the preview must show the whole file, not a truncated head."""
     rows = parse_csv(raw_text)
     if not rows:
         return ImportPreviewResult(
@@ -180,7 +183,7 @@ def preview_import(raw_text: str, has_header: bool = True) -> ImportPreviewResul
         has_header=has_header,
         columns=columns,
         suggested_map=suggested,
-        sample_rows=data[:PREVIEW_ROW_LIMIT],
+        sample_rows=data,
         row_count=len(data),
         unmatched_required=unmatched,
         within_file_duplicates=_within_file_duplicates(data, suggested.get(K_POOL_ID)),
@@ -209,15 +212,27 @@ def _within_file_duplicates(data: list[list[str]], ext_col: int | None) -> list[
 
 
 def scheduler_convert(raw_text: str) -> SchedulerConvertResult:
-    """Pool a scheduler-sheet CSV into the app's standard import CSV (non-committing).
+    """Pool a scheduler-sheet CSV into reviewable pools carrying every column (non-committing).
 
     Raises SchedulerFormatError (from the engine) when a required column is missing; the
     API layer turns that into a 400 the user can act on."""
     conversion = convert_scheduler_csv(raw_text)
     return SchedulerConvertResult(
-        csv=conversion.csv,
+        columns=conversion.columns,
+        pools=[
+            SchedulerPool(
+                pool_id=p.pool_id,
+                status=p.status,
+                portion_percent=p.portion_percent,
+                note=p.note,
+                members=[SchedulerPoolMember(label=m.label, portion_percent=m.portion_percent) for m in p.members],
+                row=p.row,
+            )
+            for p in conversion.pools
+        ],
         source_row_count=conversion.source_row_count,
         pool_count=conversion.pool_count,
+        review_count=conversion.review_count,
         warnings=conversion.warnings,
     )
 

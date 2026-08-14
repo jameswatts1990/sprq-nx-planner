@@ -111,6 +111,11 @@ export function HistorySection() {
         shared link or a browser refresh) falls back to the Samples list.
       </p>
       <p>
+        <b>View on Traction:</b> a <b>View on Traction</b> button next to the status badge opens the sample in
+        Traction — the pools view for a pool, the libraries view for a single — so you can check its remaining
+        library material without leaving your place. It only appears when the sample has a Pool ID to link to.
+      </p>
+      <p>
         <b>Edit:</b> an <b>Edit</b> button next to the status badge opens the same form used elsewhere. A backlog
         sample is fully editable (everything but its Pool ID, which is fixed for life); a sample already placed on
         the grid (scheduled or in progress) lets you adjust only its loading parameters, since its barcodes and

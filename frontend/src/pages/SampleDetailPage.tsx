@@ -14,6 +14,7 @@ import { plateWellFromPlate } from "@/utils/plateWell";
 import { resolveSampleBackNav } from "@/utils/sampleBackNav";
 import { runLabel } from "@/utils/runLabel";
 import { SAMPLE_STATUS_LABEL, SAMPLE_STATUS_TONE } from "@/utils/sampleStatus";
+import { tractionUrl } from "@/utils/traction";
 import { USE_STATUS_TONE } from "@/utils/useStatusTone";
 
 import { SampleModal } from "./SampleModal";
@@ -94,6 +95,7 @@ export function SampleDetailPage() {
   // A placed sample (scheduled/in_progress) can only have its loading params tweaked - its
   // barcodes/identity are frozen at placement; a backlog sample is fully editable.
   const isPlaced = sample.status === "scheduled" || sample.status === "in_progress";
+  const tracHref = tractionUrl(sample.pool_id, sample.sanger_ids.length);
 
   return (
     <div className={styles.page}>
@@ -106,6 +108,14 @@ export function SampleDetailPage() {
           badge={
             <span className={styles.headerActions}>
               <Badge tone={SAMPLE_STATUS_TONE[sample.status]}>{SAMPLE_STATUS_LABEL[sample.status]}</Badge>
+              {tracHref && (
+                // Open the library/pool in Traction (the LIMS holding its material). Pools link to
+                // Traction's pools view, singles to libraries — see utils/traction. Rendered as an
+                // anchor styled like a ghost button so middle-click / open-in-new-tab work.
+                <a className="btn ghost sm" href={tracHref} target="_blank" rel="noreferrer">
+                  View on Traction ↗
+                </a>
+              )}
               {canEdit && (
                 <Button size="sm" variant="ghost" onClick={() => setEditing(true)}>
                   Edit

@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel
 
@@ -105,12 +106,35 @@ class SchedulerConvertRequest(BaseModel):
     raw_text: str
 
 
+class SchedulerPoolMember(BaseModel):
+    """One source row inside a pool, powering the review breakdown ("3 samples at 33%")."""
+
+    label: str
+    portion_percent: int
+
+
+class SchedulerPool(BaseModel):
+    """A pool (one SMRT Cell) formed by grouping scheduler rows on Pool ID. `row` is the
+    collapsed, importable line aligned to SchedulerConvertResult.columns; `status` is "ok" when
+    the summed portion is a whole cell (auto-included) or "review" when it needs authorising."""
+
+    pool_id: str
+    status: Literal["ok", "review"]
+    portion_percent: int
+    note: str | None = None
+    members: list[SchedulerPoolMember]
+    row: list[str]
+
+
 class SchedulerConvertResult(BaseModel):
-    # A standard import CSV (canonical headers) built by pooling the scheduler rows; the UI
-    # drops it straight into the normal preview/mapping wizard.
-    csv: str
+    # The scheduler rows pooled by Pool ID and carrying every original column. The UI builds the
+    # standard import CSV from `columns` + the authorised pools' `row`s, then runs the normal
+    # preview/mapping wizard on it. `pools` is index-aligned to those CSV rows.
+    columns: list[str]  # original scheduler headers (the Portion column removed)
+    pools: list[SchedulerPool]
     source_row_count: int  # rows read from the sheet (header excluded)
-    pool_count: int  # completed SMRT-cell pools -> container rows emitted
+    pool_count: int  # pools formed (all statuses)
+    review_count: int  # pools needing authorisation
     warnings: list[str]
 
 

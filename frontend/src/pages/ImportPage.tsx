@@ -5,15 +5,23 @@ import { Link } from "react-router-dom";
 
 import { ApiError } from "@/api/client";
 import { importsApi, importTemplateUrl } from "@/api/imports";
+import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { Note } from "@/components/ui/Note";
 import { StatTile, StatTiles } from "@/components/shared/StatTile";
-import type { ImportField, ImportPreviewResult, ImportResult } from "@/types/importing";
+import type { ImportField, ImportPreviewResult, ImportResult, SchedulerPool } from "@/types/importing";
 import { readSpreadsheetFile } from "@/utils/readSpreadsheetFile";
+import { toCsv } from "@/utils/toCsv";
 
 import styles from "./ImportPage.module.css";
+
+/** Collapse whitespace + lowercase, mirroring the backend's normalize_header, so the mapping
+ * UI can tell an exact header match from a fuzzy/aliased guess (which it flags for the user). */
+function normalizeHeader(s: string): string {
+  return s.replace(/\s+/g, " ").trim().toLowerCase();
+}
 
 /** Info about a just-completed undo, shown as a one-off confirmation on the input screen. */
 interface UndoneInfo {
@@ -58,6 +66,12 @@ export function ImportPage() {
   const [hasHeader, setHasHeader] = useState(true);
   const [preview, setPreview] = useState<ImportPreviewResult | null>(null);
   const [columnMap, setColumnMap] = useState<Record<string, number>>({});
+  // Scheduler route only: the pools formed from the sheet (index-aligned to the preview rows),
+  // their original columns, and which review-pools the user has authorised. Cleared whenever a
+  // non-scheduler input (paste / CSV upload) replaces the text.
+  const [schedulerColumns, setSchedulerColumns] = useState<string[] | null>(null);
+  const [schedulerPools, setSchedulerPools] = useState<SchedulerPool[] | null>(null);
+  const [authorizedPools, setAuthorizedPools] = useState<Set<number>>(new Set());
   const [uploadMenuOpen, setUploadMenuOpen] = useState(false);
   const [readError, setReadError] = useState<string | null>(null);
   const [justUndone, setJustUndone] = useState<UndoneInfo | null>(null);
@@ -84,16 +98,37 @@ export function ImportPage() {
     },
   });
 
-  // Convert an uploaded scheduler sheet (already read to CSV text) into the standard import
-  // CSV by pooling its rows, then drop straight into the normal mapping-review step.
+  // Convert an uploaded scheduler sheet (already read to CSV text) into pools, then build the
+  // standard import CSV from those pools' rows and drop into the normal mapping-review step.
+  // Pools are index-aligned to the CSV rows, so pool status/authorisation overlays the preview.
   const schedulerMutation = useMutation({
     mutationFn: (rawText: string) => importsApi.schedulerConvert({ raw_text: rawText }),
     onSuccess: (data) => {
-      setText(data.csv);
+      setSchedulerColumns(data.columns);
+      setSchedulerPools(data.pools);
+      setAuthorizedPools(new Set());
+      const csv = toCsv(data.columns, data.pools.map((p) => p.row));
+      setText(csv);
       setHasHeader(true);
-      previewMutation.mutate({ raw: data.csv, header: true });
+      previewMutation.mutate({ raw: csv, header: true });
     },
   });
+
+  // A scheduler pool is imported when it's a whole cell ("ok") or a "review" pool the user
+  // authorised. Non-scheduler routes import every row.
+  function poolIncluded(index: number): boolean {
+    const pool = schedulerPools?.[index];
+    if (!pool) return true;
+    return pool.status === "ok" || authorizedPools.has(index);
+  }
+
+  // Drop the scheduler pooling context — called whenever a paste/CSV-upload replaces the text,
+  // so pool status never lingers over an unrelated file.
+  function clearSchedulerContext() {
+    setSchedulerColumns(null);
+    setSchedulerPools(null);
+    setAuthorizedPools(new Set());
+  }
 
   // Close the upload options menu on an outside click or Escape.
   useEffect(() => {
@@ -113,13 +148,20 @@ export function ImportPage() {
   }, [uploadMenuOpen]);
 
   const importMutation = useMutation({
-    mutationFn: () =>
-      importsApi.create({
-        raw_text: text,
+    mutationFn: () => {
+      // Scheduler route: import only the pools that are whole cells or the user authorised —
+      // rebuild the CSV from those rows (column indices are unchanged, so columnMap still applies).
+      const raw_text =
+        schedulerPools && schedulerColumns
+          ? toCsv(schedulerColumns, schedulerPools.filter((_, i) => poolIncluded(i)).map((p) => p.row))
+          : text;
+      return importsApi.create({
+        raw_text,
         filename: filename || null,
         has_header: hasHeader,
         column_map: columnMap,
-      }),
+      });
+    },
     onSuccess: () => {
       setJustUndone(null);
       void queryClient.invalidateQueries({ queryKey: ["samples"] });
@@ -138,6 +180,7 @@ export function ImportPage() {
     if (!file) return;
     setReadError(null);
     schedulerMutation.reset();
+    clearSchedulerContext();
     const reader = new FileReader();
     reader.onload = () => {
       setText(String(reader.result ?? ""));
@@ -179,6 +222,7 @@ export function ImportPage() {
     setReadError(null);
     setUploadMenuOpen(false);
     schedulerMutation.reset();
+    clearSchedulerContext();
     if (fileInputRef.current) fileInputRef.current.value = "";
     if (schedulerInputRef.current) schedulerInputRef.current.value = "";
     resetToInput();
@@ -192,7 +236,14 @@ export function ImportPage() {
       <div className={styles.notesList}>
         <Note tone="info" icon="i">
           Pooled <b>{conversion.source_row_count}</b> scheduler row{conversion.source_row_count === 1 ? "" : "s"} into{" "}
-          <b>{conversion.pool_count}</b> container{conversion.pool_count === 1 ? "" : "s"}.
+          <b>{conversion.pool_count}</b> pool{conversion.pool_count === 1 ? "" : "s"}
+          {conversion.review_count > 0 ? (
+            <>
+              {" "}
+              — <b>{conversion.review_count}</b> need{conversion.review_count === 1 ? "s" : ""} review
+            </>
+          ) : null}
+          .
         </Note>
         {conversion.warnings.map((w, i) => (
           <Note key={i} tone="warn" icon="!">
@@ -248,6 +299,25 @@ export function ImportPage() {
       });
     }
 
+    function toggleAuthorize(index: number) {
+      setAuthorizedPools((prev) => {
+        const next = new Set(prev);
+        if (next.has(index)) next.delete(index);
+        else next.add(index);
+        return next;
+      });
+    }
+
+    // Scheduler route: overlay per-row pool status onto the preview (pools are index-aligned to
+    // the rows), list the review-pools for authorisation, and count only the pools that will import.
+    const showPoolStatus = !!schedulerPools && schedulerPools.length === preview.sample_rows.length;
+    const reviewPools = schedulerPools
+      ? schedulerPools.map((pool, index) => ({ pool, index })).filter((x) => x.pool.status === "review")
+      : [];
+    const importCount = schedulerPools
+      ? schedulerPools.filter((_, i) => poolIncluded(i)).length
+      : preview.row_count;
+
     return (
       <div className={styles.page}>
         <Card>
@@ -262,27 +332,46 @@ export function ImportPage() {
             </p>
 
             <div className={styles.mapGrid}>
-              {fields.map((f) => (
-                <div key={f.key} className={styles.mapRow}>
-                  <label className={styles.mapLabel} htmlFor={`map-${f.key}`}>
-                    {f.label}
-                    {f.required && <span className={styles.req}> *</span>}
-                  </label>
-                  <select
-                    id={`map-${f.key}`}
-                    className={styles.select}
-                    value={columnMap[f.key] ?? ""}
-                    onChange={(e) => setField(f.key, e.target.value)}
-                  >
-                    <option value="">— not imported —</option>
-                    {preview.columns.map((c) => (
-                      <option key={c.index} value={c.index}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              ))}
+              {fields.map((f) => {
+                const mappedIdx = columnMap[f.key];
+                const mappedCol =
+                  mappedIdx !== undefined ? preview.columns.find((c) => c.index === mappedIdx) : undefined;
+                // Flag a mapping whose column header isn't an exact match to the field name —
+                // the auto-guess landed via a looser alias, so it's worth a human glance.
+                const nonExact = mappedCol ? normalizeHeader(mappedCol.name) !== normalizeHeader(f.label) : false;
+                return (
+                  <div key={f.key} className={styles.mapRow}>
+                    <label className={styles.mapLabel} htmlFor={`map-${f.key}`}>
+                      {f.label}
+                      {f.required && <span className={styles.req}> *</span>}
+                    </label>
+                    <div className={styles.selectWrap}>
+                      <select
+                        id={`map-${f.key}`}
+                        className={`${styles.select} ${nonExact ? styles.selectFuzzy : ""}`}
+                        value={columnMap[f.key] ?? ""}
+                        onChange={(e) => setField(f.key, e.target.value)}
+                      >
+                        <option value="">— not imported —</option>
+                        {preview.columns.map((c) => (
+                          <option key={c.index} value={c.index}>
+                            {c.name}
+                          </option>
+                        ))}
+                      </select>
+                      {nonExact && mappedCol && (
+                        <span
+                          className={styles.fuzzyFlag}
+                          title={`Guessed from the column “${mappedCol.name}” — not an exact name match. Check it's the right column.`}
+                          aria-label="Not an exact column-name match — please check"
+                        >
+                          ≈
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
 
             {unmatchedRequired.length > 0 && (
@@ -292,7 +381,7 @@ export function ImportPage() {
             )}
             {skippedInPreview > 0 && (
               <Note tone="info" icon="i">
-                {skippedInPreview} of the first {preview.sample_rows.length} rows have no barcode and will be skipped.
+                {skippedInPreview} of {preview.sample_rows.length} rows have no barcode and will be skipped.
               </Note>
             )}
             {preview.within_file_duplicates.length > 0 && (
@@ -305,27 +394,82 @@ export function ImportPage() {
               </Note>
             )}
 
+            {reviewPools.length > 0 && (
+              <div className={styles.reviewPools}>
+                <Note tone="warn" icon="!">
+                  <b>{reviewPools.length}</b> {reviewPools.length === 1 ? "pool doesn't" : "pools don't"} add up to a
+                  whole SMRT Cell. Check the samples in each and tick <b>Include</b> to import it anyway (e.g. 3
+                  samples at 33% = 99% is fine). Un-ticked pools are left out.
+                </Note>
+                {reviewPools.map(({ pool, index }) => (
+                  <div
+                    key={index}
+                    className={`${styles.reviewCard} ${authorizedPools.has(index) ? styles.reviewCardOn : ""}`}
+                  >
+                    <div className={styles.reviewCardHead}>
+                      <label className={styles.reviewInclude}>
+                        <input
+                          type="checkbox"
+                          checked={authorizedPools.has(index)}
+                          onChange={() => toggleAuthorize(index)}
+                        />
+                        Include <b>{pool.pool_id || "(no Pool ID)"}</b>
+                      </label>
+                      <Badge tone="warning">{pool.portion_percent}% of a cell</Badge>
+                    </div>
+                    {pool.note && <p className={styles.reviewNote}>{pool.note}</p>}
+                    <table className={styles.memberTable}>
+                      <tbody>
+                        {pool.members.map((m, mi) => (
+                          <tr key={mi}>
+                            <td>{m.label}</td>
+                            <td>{m.portion_percent}%</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {mappedFields.length > 0 && preview.sample_rows.length > 0 && (
               <div className={styles.previewWrap}>
                 <table className={styles.table}>
                   <thead>
                     <tr>
+                      {showPoolStatus && <th>Cell</th>}
                       {mappedFields.map((f) => (
                         <th key={f.key}>{f.label}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
-                    {preview.sample_rows.map((row, i) => (
-                      <tr key={i}>
-                        {mappedFields.map((f) => (
-                          <td key={f.key}>{row[columnMap[f.key]] ?? ""}</td>
-                        ))}
-                      </tr>
-                    ))}
+                    {preview.sample_rows.map((row, i) => {
+                      const pool = showPoolStatus ? schedulerPools![i] : undefined;
+                      const excluded = showPoolStatus ? !poolIncluded(i) : false;
+                      return (
+                        <tr key={i} className={excluded ? styles.rowExcluded : undefined}>
+                          {showPoolStatus && (
+                            <td>
+                              {pool?.status === "review" ? (
+                                <Badge tone="warning">{pool.portion_percent}%</Badge>
+                              ) : (
+                                <span className={styles.cellOk} title="A whole SMRT Cell" aria-label="Whole cell">
+                                  ✓
+                                </span>
+                              )}
+                            </td>
+                          )}
+                          {mappedFields.map((f) => (
+                            <td key={f.key}>{row[columnMap[f.key]] ?? ""}</td>
+                          ))}
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
-                <p className={styles.filehint}>Showing the first {preview.sample_rows.length} rows.</p>
+                <p className={styles.filehint}>Showing all {preview.sample_rows.length} rows.</p>
               </div>
             )}
 
@@ -344,9 +488,13 @@ export function ImportPage() {
               <Button
                 variant="primary"
                 onClick={() => importMutation.mutate()}
-                disabled={unmatchedRequired.length > 0 || importMutation.isPending}
+                disabled={
+                  unmatchedRequired.length > 0 ||
+                  importMutation.isPending ||
+                  (!!schedulerPools && importCount === 0)
+                }
               >
-                {importMutation.isPending ? "Importing…" : `Import ${preview.row_count} sample${preview.row_count === 1 ? "" : "s"}`}
+                {importMutation.isPending ? "Importing…" : `Import ${importCount} sample${importCount === 1 ? "" : "s"}`}
               </Button>
             </div>
           </CardBody>
@@ -410,7 +558,10 @@ export function ImportPage() {
               "TRAC-2-25402, bc2021 bc2066"
             }
             value={text}
-            onChange={(e) => setText(e.target.value)}
+            onChange={(e) => {
+              setText(e.target.value);
+              if (schedulerPools) clearSchedulerContext();
+            }}
           />
           <div className={styles.inputRow}>
             <div className={styles.splitButton} ref={uploadMenuRef}>
@@ -441,7 +592,7 @@ export function ImportPage() {
                   >
                     <span className={styles.uploadMenuItemTitle}>Upload from scheduler…</span>
                     <span className={styles.uploadMenuItemHint}>
-                      Your scheduling sheet (.csv or .xlsx) — rows are pooled into containers automatically
+                      Your scheduling sheet (.csv or .xlsx) — rows are pooled by Pool ID automatically
                     </span>
                   </button>
                 </div>
