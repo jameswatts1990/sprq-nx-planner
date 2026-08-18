@@ -24,10 +24,6 @@ jobs:
 
   frontend:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        node-version: ["25", "26"]
     defaults:
       run:
         working-directory: frontend
@@ -35,7 +31,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
-          node-version: ${{ matrix.node-version }}
+          node-version: "26"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
