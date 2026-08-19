@@ -106,8 +106,8 @@ def test_reuse_plate2_acquire_day_reflects_movie_length(client, run_time_hours):
     Plate 1's real timing rather than floated to an arbitrary slot day. For every allowed movie
     length (12/24/30h) loaded at the default noon start that lands the reuse the next weekday -
     Tuesday for a Monday load - never Wednesday. Regression for the reported 'Plate 2 shows Wed
-    when it should be Tue'. (The pure day arithmetic, incl. long movies and weekend rolls, is
-    covered by tests/unit/test_reuse_plate_window.py.)"""
+    when it should be Tue'. (The pure day arithmetic, incl. long movies and weekend acquisition,
+    is covered by tests/unit/test_reuse_plate_window.py.)"""
     mon, tue = _weekdays(2)
     client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1\nA2,bc2"})
     _place(client, _sid(client, "A1"), mon, 0, {"mode": "new"}, run_time_hours=run_time_hours)
@@ -122,25 +122,60 @@ def test_reuse_plate2_acquire_day_reflects_movie_length(client, run_time_hours):
     assert plate2["planned_start_at"].endswith("Z") or plate2["planned_start_at"].endswith("+00:00")
 
 
-def test_reuse_plate2_rolls_to_monday_when_it_would_land_on_the_weekend(client):
-    """A Friday-loaded reuse whose Plate 1 movie ends on the weekend can't run then - runs are
-    weekday-only and the operator isn't in - so the reuse rolls forward to the following
-    Monday's start hour rather than acquiring on a Saturday/Sunday."""
+def test_reuse_plate2_can_acquire_on_the_weekend(client):
+    """A Friday-loaded reuse whose Plate 1 movie ends on the weekend acquires THEN (Saturday),
+    not rolled forward to Monday: the operator loads on Friday (a weekday) and the machine
+    re-runs the reuse plate unattended over the weekend. Rolling to Monday used to push a
+    Friday-load reuse out of the cell's 108h window. Only LOAD dates are weekday-only; a reuse's
+    own sequencing day may fall on a weekend."""
     d = date.today()
     while d.weekday() != 4:  # next Friday
         d += timedelta(days=1)
-    fri, following_mon = d.isoformat(), (d + timedelta(days=3)).isoformat()
+    fri, following_sat = d.isoformat(), (d + timedelta(days=1)).isoformat()
 
     client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1\nA2,bc2"})
-    # 30h movie from Fri noon ends Sat 18:00; + wash -> Sat 18:45, a weekend -> rolls to Mon.
+    # 30h movie from Fri noon: Plate 1's movie ends Fri noon + 4h prep + 30h = Sat 22:00, where
+    # the reuse acquires - a weekend, no longer rolled forward to Monday.
     _place(client, _sid(client, "A1"), fri, 0, {"mode": "new"}, run_time_hours=30)
 
     r2 = _auto_place(client, _sid(client, "A2"), fri, 4, run_time_hours=30)
     assert r2.status_code == 201, r2.text
     plate2 = next(p for p in r2.json()["plates"] if p["plate_index"] == 2)
     assert plate2["is_reuse"] is True
-    assert plate2["acquire_date"] == following_mon
-    assert plate2["planned_start_at"].startswith(following_mon)
+    assert plate2["acquire_date"] == following_sat
+    assert plate2["planned_start_at"].startswith(following_sat)
+
+
+def test_prior_tray_reaches_use3_across_the_weekend_in_window(client):
+    """The reported case: a Friday-loaded run drives a part-used cell to its 3rd use on the
+    following Saturday. The cell's 108h clock is anchored on its Wednesday first use, so a Monday
+    reuse (the old weekend roll) would be ~120h out and get dropped as out-of-window - forcing a
+    fresh tray (Use 1). Acquiring Saturday (~72h in) instead lets the cell legitimately reach
+    Use 3. Proves both halves: the reuse lands on the weekend AND stays in-window."""
+    mon, tue, wed, thu, fri = _weekdays(5)
+    sat = (date.fromisoformat(fri) + timedelta(days=1)).isoformat()
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1\nA2,bc2\nA3,bc3"})
+
+    # Use 1 on Wednesday -> anchors the 108h window at Wed noon (deadline the following Mon 00:00).
+    r1 = _place(client, _sid(client, "A1"), wed, 0, {"mode": "new"})
+    cell_x = _stages(r1.json())[0]["cell_id"]
+
+    # Use 2: a cross-run reuse of the same idle cell on Friday (Plate 1 of the Friday run).
+    r2 = _auto_place(client, _sid(client, "A2"), fri, 0)
+    p1 = next(p for p in r2.json()["plates"] if p["plate_index"] == 1)
+    assert p1["stages"][0]["cell_id"] == cell_x
+    assert p1["stages"][0]["use_number"] == 2
+
+    # Use 3: reuse the same cell again into the Friday run's Plate 2 -> acquires Saturday, in-window
+    # (before weekend acquisition this rolled to Monday, fell out of window, and opened a fresh tray).
+    r3 = _auto_place(client, _sid(client, "A3"), fri, 4)
+    assert r3.status_code == 201, r3.text
+    p2 = next(p for p in r3.json()["plates"] if p["plate_index"] == 2)
+    stage = p2["stages"][0]
+    assert stage["cell_id"] == cell_x  # the SAME physical cell reused, NOT a fresh tray
+    assert stage["use_number"] == 3
+    assert p2["acquire_date"] == sat
+    assert p2["is_reuse"] is True
 
 
 def test_auto_place_cross_run_reuses_idle_cell(client):

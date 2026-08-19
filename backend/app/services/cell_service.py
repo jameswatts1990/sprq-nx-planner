@@ -427,8 +427,9 @@ def cleanup_tray_if_fully_unused(db: Session, cell: Cell) -> None:
 
 def last_use_run_date(cell: Cell, uses: list[CellUse] | None = None) -> date | None:
     """The run_date of the cell's most recent active use - the earliest calendar day its
-    *next* use could legally start is the following weekday (reuse is always a strictly
-    later date, never same-day - see docs/pacbio-sprq-nx-scheduling-reference.md #4)."""
+    *next* use could legally start is the following day (reuse is always a strictly later
+    date, never same-day - see docs/pacbio-sprq-nx-scheduling-reference.md #4). A reuse may
+    fall on a weekend; only fresh LOAD dates are weekday-only."""
     uses = active_uses(cell) if uses is None else uses
     if not uses:
         return None

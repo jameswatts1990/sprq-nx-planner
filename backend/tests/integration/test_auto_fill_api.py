@@ -726,6 +726,53 @@ def test_recalculate_bundles_a_reused_cells_second_use_into_the_same_run_as_plat
     assert plate1_sample_ids.isdisjoint(moved_sample_ids)
 
 
+def test_single_friday_autofill_drives_a_prior_tray_to_use3_over_the_weekend(client):
+    """The reported gap, now closed: a Friday-ONLY Auto Schedule drives a part-used tray to its
+    3rd use on the following Saturday. Its Use 2 loads Friday (Plate 1); its Use 3 is bundled as
+    Plate 2 of the SAME Friday run, acquiring Saturday (in-window) via a reuse-only continuation
+    slot. Before this, the single offered load day capped a prior cell to one new use
+    (available_days=1), so it only reached Use 2 and opened a fresh tray for the rest."""
+    fri = date.today()
+    while fri.weekday() != 4:  # next Friday
+        fri += timedelta(days=1)
+    thu = (fri - timedelta(days=1)).isoformat()  # the weekday before, for the prior Use 1
+    sat = (fri + timedelta(days=1)).isoformat()
+    fri = fri.isoformat()
+
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nP1,bc1\nP2,bc2\nP3,bc3"})
+
+    def _sid(pool_id):
+        items = client.get("/api/samples", params={"page_size": 200}).json()["items"]
+        return next(s["id"] for s in items if s["pool_id"] == pool_id)
+
+    # Prior Use 1 on Thursday -> the tray is now an in-window reuse candidate (consumed 1) for the
+    # Friday batch. Its 108h clock (anchored Thursday) still has Saturday comfortably inside it.
+    r1 = client.post(
+        "/api/cell-uses",
+        json={"sample_id": _sid("P1"), "instrument_serial": "84047", "load_date": thu, "slot_index": 0, "cell_choice": {"mode": "new"}},
+    )
+    assert r1.status_code == 201, r1.text
+    prior_cell_id = _stages(r1.json())[0]["cell_id"]
+
+    # Friday ONLY, 2 plates, full depth: the prior tray takes Use 2 (Fri) + Use 3 (Sat).
+    resp = _auto_fill(client, [{"instrument_serial": "84047", "load_date": fri}], objective="fewest", max_uses=3)
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert set(body["unplaced_sample_ids"]) == set(), "both backlog samples deepen the prior tray"
+
+    fri_run = next(r for r in body["runs"] if r["load_date"] == fri)
+    assert len(fri_run["plates"]) == 2, "Plate 1 (Use 2, Fri) + Plate 2 (Use 3, Sat) bundled into one run"
+    plate1 = next(p for p in fri_run["plates"] if p["plate_index"] == 1)
+    plate2 = next(p for p in fri_run["plates"] if p["plate_index"] == 2)
+    assert plate1["acquire_date"] == fri
+    assert plate2["acquire_date"] == sat  # the 3rd use acquires Saturday, NOT rolled to Monday
+    assert plate2["is_reuse"] is True
+    p1_stage = next(s for s in plate1["stages"] if s["cell_id"] == prior_cell_id)
+    p2_stage = next(s for s in plate2["stages"] if s["cell_id"] == prior_cell_id)
+    assert p1_stage["use_number"] == 2
+    assert p2_stage["use_number"] == 3  # the tray reaches Use 3 from a single Friday load
+
+
 def test_auto_fill_reuses_a_plate2_box_tray_in_a_one_plate_run(client, db_session):
     """Stage-1 regression (reported 2026-07-30): a 1-plate Autoschedule (cells_per_day=4) placed
     0 samples when the reusable cells physically sit in the Plate-2 box (home_well A02-D02),

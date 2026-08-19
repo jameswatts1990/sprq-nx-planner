@@ -240,11 +240,49 @@ def auto_fill(
     prior_cells = [
         pc for pc in prior_cells if pc.pinned_instrument_serial is None or pc.pinned_instrument_serial in offered_serials
     ]
-    # A cell can only be reused once per calendar day (see fill_slots), so a reuse depth
-    # deeper than the number of distinct days actually on offer can never be placed -
-    # capping it here spreads samples across fresh cells instead of packing depth that
-    # would just come back as unplaced.
-    available_days = len({s.run_date for s in empty_slots})
+    # Continuation (reuse-only) slots: a WEEKEND day right after an offered LOAD slot, on which a
+    # cell loaded that day may take its next use as a bundled Plate 2 - so a Friday load can drive
+    # a tray one use deeper (its reuse acquires Saturday, in-window) instead of that reuse being
+    # stranded for want of a second load slot. Deliberately WEEKEND-ONLY: a weekday reuse day the
+    # user actually wants is simply offered as a load slot (normal multi-day auto-fill already
+    # deepens across weekdays), but a weekend can never be a load slot, so it's the one gap that
+    # needs an implicit continuation. Only in 2-plate mode (the mode that bundles a reuse into
+    # Plate 2 - see the persist loop; 1-plate mode's reuse is a separate load, kept weekday-only).
+    # LOADS stay weekday-only: a continuation day is never a load, fill_slots refuses a fresh first
+    # use on it, and the persist loop never creates a run on a weekend (see the guard there). Added
+    # only when the day has no existing run and the instrument isn't down - like the load checks.
+    continuation_slots: list[SlotInput] = []
+    if cells_per_day == len(WELLS):
+        seen_cont: set[tuple[str, date]] = set()
+        for s in empty_slots:
+            cont_day = s.run_date + timedelta(days=1)
+            key = (s.instrument_serial, cont_day)
+            if cont_day.weekday() < 5 or key in seen_cont:
+                continue  # weekday reuse days are offered as load slots instead; dedupe the rest
+            seen_cont.add(key)
+            inst = instruments[s.instrument_serial]
+            if inst.down_from is not None and cont_day >= inst.down_from:
+                continue
+            cont_occupied = db.scalar(
+                select(CellUse.id)
+                .join(CellUse.cycle)
+                .join(Cycle.run_batch)
+                .where(
+                    RunBatch.instrument_id == inst.id,
+                    RunBatch.load_date == cont_day,
+                    CellUse.status != "cancelled",
+                )
+            )
+            if cont_occupied is not None:
+                continue
+            continuation_slots.append(SlotInput(instrument_serial=s.instrument_serial, run_date=cont_day, reuse_only=True))
+
+    # A cell can only be reused once per calendar day (see fill_slots), so a reuse depth deeper
+    # than the number of distinct days actually placeable can never land - capping it here spreads
+    # samples across fresh cells instead of packing depth that just comes back as unplaced. The
+    # continuation days count too: a cell loaded on an offered day can take one more (bundled)
+    # use on the following day, so those days are genuinely placeable reuse depth.
+    available_days = len({s.run_date for s in empty_slots} | {c.run_date for c in continuation_slots})
     # Lab-configurable scheduling rules read once here and passed into the pure engine so it
     # stays DB-free (same pattern for both the small-insert threshold and the movie-time rules).
     movie_rules = get_movie_rules(db)
@@ -261,7 +299,7 @@ def auto_fill(
         # Movie-time cell-position rules + default length (Settings > Movie scheduling).
         movie_rules=movie_rules,
     )
-    fill = fill_slots(pack.cells, empty_slots, cells_per_day=cells_per_day, movie_rules=movie_rules)
+    fill = fill_slots(pack.cells, empty_slots + continuation_slots, cells_per_day=cells_per_day, movie_rules=movie_rules)
 
     # PackedCell.id -> DB Cell (prior cells resolve to real rows; fresh cells created on first use)
     ref_to_cell: dict[str, Cell] = {pc.id: cells_by_id[pc.cell_id] for pc in pack.cells if pc.prior}
@@ -501,6 +539,13 @@ def auto_fill(
         load_date = load_date_of[id(a)]
         acquire_date = acquire_date_of[id(a)]
         plate_index = plate_index_of[id(a)]
+        # Never create a run loaded on a weekend. A bundled reuse keeps its origin's (weekday)
+        # load_date, so this only ever drops a continuation-slot use that did NOT bundle into a
+        # weekday Plate 2 (e.g. a cell whose own first use fell in the Plate 2 box, so its reuse
+        # has no Plate 1 of its own to pair with) - left unplaced rather than forced onto a
+        # weekend load.
+        if load_date.weekday() >= 5:
+            continue
         run_key = (a.instrument_serial, load_date)
         if run_key in skipped_keys:
             continue

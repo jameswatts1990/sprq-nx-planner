@@ -171,8 +171,11 @@ def fill_slots(
     window_flags: list[WindowFlag] = []
 
     for slot in slots_sorted:
+        # A reuse-only continuation slot is NOT a fresh load, so the instrument load-lock
+        # (which gates when a *new* run may load) never skips it - it only ever adds a bundled
+        # Plate 2 to a run that already loaded on the preceding day.
         open_from = instrument_open_from.get(slot.instrument_serial)
-        if open_from is not None and slot.run_date < open_from:
+        if not slot.reuse_only and open_from is not None and slot.run_date < open_from:
             continue
 
         wells_used = 0
@@ -182,6 +185,14 @@ def fill_slots(
                 break
             idx = next_idx[cell.id]
             if idx >= len(cell.uses):
+                continue
+            # A continuation (reuse-only) slot only hosts a cell's SECOND batch use (idx == 1) -
+            # the one the origin run bundles as its Plate 2. Never a fresh first load (idx == 0,
+            # which must land on a real weekday load slot), and never a THIRD+ use (idx >= 2): a
+            # run holds at most two plates, so a 3rd use needs its own separate load, which can't
+            # be a weekend continuation. Without this, a 3rd use placed here would fall through to
+            # a would-be weekend-loaded run and be dropped (see auto_fill's weekend guard).
+            if slot.reuse_only and idx != 1:
                 continue
             if cell.pinned_instrument_serial is not None and slot.instrument_serial != cell.pinned_instrument_serial:
                 continue
@@ -253,7 +264,9 @@ def fill_slots(
             last_placed_date[cell.id] = slot.run_date
             wells_used += 1
 
-        if wells_used > 0:
+        # A reuse-only continuation slot never advances the load-lock: it's part of a run that
+        # already loaded on the preceding day, not a new load whose prep re-reserves the machine.
+        if wells_used > 0 and not slot.reuse_only:
             lock_hours = slot_max_movie + LOCK_BUFFER_HOURS if wells_used > len(WELLS) // 2 else LOCK_BUFFER_HOURS
             gap_days = math.ceil(lock_hours / 24)
             instrument_open_from[slot.instrument_serial] = slot.run_date + timedelta(days=gap_days)

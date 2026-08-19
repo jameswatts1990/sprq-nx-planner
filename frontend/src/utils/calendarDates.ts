@@ -28,9 +28,11 @@ export function isWeekendUTC(date: Date): boolean {
   return wd === 0 || wd === 6;
 }
 
-/** The next Mon-Fri strictly after an ISO date (skips weekends) - where a reuse Plate 2
- * acquires, and the earliest a cell's next use can start. Mirrors the backend's
- * placement_service._next_weekday. */
+/** The next Mon-Fri strictly after an ISO date (skips weekends) - the earliest WEEKDAY a new
+ * reuse LOAD can start (loads are weekday-only). Used by the reuse-ghost's earliest/cutoff days
+ * (waitingCells.ts). Distinct from an intra-run reuse Plate 2's own SEQUENCING day, which chains
+ * off Plate 1's movie end and may fall on a weekend - that day is derived server-side by
+ * reuse_plate_window, not here (see the weekend-cadence note in the scheduling reference doc). */
 export function nextWeekdayIsoUTC(isoDate: string): string {
   let d = addDaysUTC(parseDateOnly(isoDate), 1);
   while (isWeekendUTC(d)) d = addDaysUTC(d, 1);

@@ -5,7 +5,10 @@ a fresh or reused SMRT-cell, and records the CellUse.
 
 A run holds 1-2 plates (Run->Plate model). Plate 1 acquires on the load day; a fresh Plate 2
 (a second tray) acquires the same day (parallel), while a Plate 2 that reuses Plate 1's cells
-acquires the next weekday (sequential, after the on-board wash) - all loaded in one session.
+acquires the next day (sequential, after the on-board wash) - all loaded in one session. That
+next day may be a weekend: the operator loads on a weekday, but the machine re-runs the reuse
+plate unattended the following calendar day (see the weekend-cadence note in
+docs/pacbio-sprq-nx-scheduling-reference.md). Only LOAD dates are weekday-only.
 
 Errors are raised as PlacementError(status_code, detail); the API layer maps them to
 HTTPExceptions. Validation is done read-only before any DB writes so a rejected request
@@ -58,13 +61,16 @@ class PlacementError(Exception):
         self.detail = detail
 
 
-def _next_weekday(d: date) -> date:
-    """The next Mon-Fri strictly after `d` - where a reuse Plate 2 acquires (the instrument
-    washes and re-runs the same cells the following working day; runs are weekday-only)."""
-    nxt = d + timedelta(days=1)
-    while nxt.weekday() >= 5:
-        nxt += timedelta(days=1)
-    return nxt
+def _next_day(d: date) -> date:
+    """The calendar day immediately after `d` - where a reuse Plate 2 acquires (the instrument
+    washes and re-runs the same cells the next day). This is a *sequencing* day, not a load day:
+    the operator loads both plates on the run's weekday `load_date`, and the reuse plate then
+    sequences the following calendar day even if that is a weekend - the machine runs unattended,
+    so a reuse acquisition is not weekday-bound the way a fresh load is (lab runs weekends; see
+    docs/pacbio-sprq-nx-scheduling-reference.md's weekend-cadence note). Load dates stay
+    weekday-only, guarded in place_sample/auto_fill. Only an advisory floor for the reuse window
+    check; the real acquire day/time is derived by reuse_plate_window off Plate 1's movie end."""
+    return d + timedelta(days=1)
 
 
 def planned_window(
@@ -85,17 +91,18 @@ def reuse_plate_window(
     reuse can't start before the cell physically stops sequencing its prior use). PREP_H is Plate
     1's first-use prep (the common case for the load-day plate); the reuse cell's own on-board wash
     is NOT added here - it's the reuse's own prep in cell_timing (REUSE_PREP_H on top of PREP_H),
-    counted once. A 24-30h movie loaded midday lands the reuse the following weekday; a late load or
-    long movie can push it a further day. If the reuse would start on a weekend it rolls forward to
-    the next weekday's start hour - runs are weekday-only, and the operator isn't there to load it
-    over the weekend. Returns (acquire_date, planned_start, planned_end). See
+    counted once. A 24-30h movie loaded midday lands the reuse the following day; a late load or
+    long movie can push it a further day.
+
+    The reuse acquisition may land on a WEEKEND: the operator loads both plates on the run's
+    weekday load_date, and the machine re-runs the reuse plate unattended when Plate 1's movie
+    ends, whatever day that falls on (lab runs weekends; see the weekend-cadence note in
+    docs/pacbio-sprq-nx-scheduling-reference.md). This is deliberately NOT rolled forward to a
+    weekday - doing so used to push a Friday load's reuse to Monday, out of the cell's 108h
+    window. Only LOAD dates stay weekday-only (guarded in place_sample/auto_fill), never a
+    reuse's own sequencing day. Returns (acquire_date, planned_start, planned_end). See
     docs/pacbio-sprq-nx-scheduling-reference.md's "Instrument load-lock timing"."""
     start = coarse_movie_end(plate1_start, plate1_movie_hours)
-    if start.weekday() >= 5:
-        rolled = start.date()
-        while rolled.weekday() >= 5:
-            rolled += timedelta(days=1)
-        start = datetime.combine(rolled, time(hour=DAY_START_HOUR), tzinfo=timezone.utc)
     return start.date(), start, start + timedelta(hours=reuse_movie_hours)
 
 
@@ -261,7 +268,7 @@ def _plate_target(
       acquires on the load day - Plate 1, or a fresh parallel Plate 2 (a second tray), or a
       cross-run reuse of a cell whose last use was in an earlier run."""
     if cell is not None and _cell_used_in_run(cell, instrument_id, load_date, exclude_use_id=exclude_use_id):
-        return 2, _next_weekday(load_date)
+        return 2, _next_day(load_date)
     plate_index = 1 if slot_index < PLATE_SIZE else 2
     return plate_index, load_date
 

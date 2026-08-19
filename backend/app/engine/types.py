@@ -169,10 +169,19 @@ class SlotInput:
     """A currently-empty grid cell offered to the auto-filler: an (instrument, day) run
     with all wells free by construction (occupied cells are never passed in). How many
     of its 8 wells `fill_slots` actually offers is capped by that call's own
-    `cells_per_day` argument, not by anything recorded here."""
+    `cells_per_day` argument, not by anything recorded here.
+
+    ``reuse_only`` marks a *continuation* slot: the calendar day after a load slot, on which
+    a cell already loaded on the preceding day may take its next (reuse) use as a bundled
+    Plate 2 - NOT a day on which a fresh first use may load. It exists so a single load day
+    can drive a tray one use deeper (Use N on the load day, Use N+1 the next day, incl. a
+    weekend), rather than the reuse being stranded for want of a second load slot. The
+    caller (auto_fill_service) keeps LOAD days weekday-only and never creates a run on a
+    reuse_only day - the continuation is always bundled into its origin run's Plate 2."""
 
     instrument_serial: str
     run_date: date
+    reuse_only: bool = False
 
 
 @dataclass

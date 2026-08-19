@@ -128,7 +128,7 @@ def _row_values(cell_use: CellUse, cycle: Cycle, serial: str) -> dict[str, str]:
     sample = cell_use.sample
     return {
         # The day THIS plate actually sequences (its acquire_date) - a reuse run's Plate 2
-        # exports the next weekday, not the load day.
+        # exports the next day (which may be a weekend), not the load day.
         K_DATE_RUN_STARTED: _fmt_date(cycle.acquire_date),
         # The run's identifier, mirroring the app's runLabel: the run-level run_name
         # (e.g. "TRACTION-RUN-1234") when set, otherwise the "#<run id>" fallback the grid

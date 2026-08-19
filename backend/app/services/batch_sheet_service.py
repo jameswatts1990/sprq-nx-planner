@@ -2,8 +2,9 @@
 instruments), one section per run listing everything needed to load it in one session -
 both plates, with their acquisition dates, and for each well which cell/sample goes where
 and what settings to dial in. Because it is keyed on the run's load day (not each plate's
-acquisition day), a reuse run's Plate 2 - loaded now but sequenced the next weekday - prints
-on the same sheet as Plate 1 instead of being stranded on a separate day's sheet."""
+acquisition day), a reuse run's Plate 2 - loaded now but sequenced the next day (which may be
+a weekend) - prints on the same sheet as Plate 1 instead of being stranded on a separate day's
+sheet."""
 from __future__ import annotations
 
 from datetime import date, timedelta

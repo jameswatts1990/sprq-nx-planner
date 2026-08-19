@@ -841,10 +841,13 @@ export function ScheduleSection() {
           <i>same</i> day (both Use 1, on different cells).
         </li>
         <li>
-          A <b>reuse run</b> reruns Plate 1&apos;s cells as Plate 2 on a <i>later</i> weekday (Use 2, after the
-          instrument&apos;s on-board wash). The day Plate 2 actually sequences is shown on <i>that</i> day&apos;s own
-          column (the <b>&quot;P2: [run name] @ [time]&quot;</b> marker described below) — hover Plate 2&apos;s heading
-          on the load day to see it there too —
+          A <b>reuse run</b> reruns Plate 1&apos;s cells as Plate 2 on a <i>later</i> day (Use 2, after the
+          instrument&apos;s on-board wash). That day is usually the next weekday, but it can be a{" "}
+          <b>weekend</b> — the machine reruns the reuse plate unattended when Plate 1&apos;s movie finishes, even
+          on a Saturday or Sunday (you still loaded the run on a weekday). When Plate 2 sequences on a shown
+          weekday, that day&apos;s column carries the <b>&quot;P2: [run name] @ [time]&quot;</b> marker described
+          below; when it sequences on a weekend (no column for it), you see the date on Plate 2&apos;s heading in
+          the load-day run instead — hover it to see the day and time —
           there&apos;s no separate &quot;reuse&quot; label because the cell stub already goes from <b>Use 1</b> to{" "}
           <b>Use 2</b>, which says the same thing — and the whole thing is still one run you loaded once — you don&apos;t reload anything for
           Plate 2. This is what a hand drop that reuses a cell already loaded in that day&apos;s run produces, and
