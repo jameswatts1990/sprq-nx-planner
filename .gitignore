@@ -27,5 +27,5 @@ trace.zip
 # any PNG dropped in the repo root
 /*.png
 
-# local-only working notes, not for commit
-docs/SCHEDULER_FOLLOWUP_TODO.md
+# local-only working notes and docs, not for commit
+docs/
