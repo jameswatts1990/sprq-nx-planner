@@ -51,6 +51,18 @@ def _next_saturday() -> str:
     return d.isoformat()
 
 
+def _next_monday() -> str:
+    """A single load day pinned to a Monday, so the day after is still a weekday and auto_fill
+    offers no weekend reuse-continuation slot (it injects one only when a load day's following
+    day is a weekend - see auto_fill_service.continuation_slots). Single-day tests must use this,
+    not _weekdays(1): that returns Friday whenever the suite runs on a Thursday, and Friday's
+    Saturday continuation silently deepens reuse and shifts every count."""
+    d = date.today()
+    while d.weekday() != 0:
+        d += timedelta(days=1)
+    return d.isoformat()
+
+
 def _stages(run):
     """All stages across a run's plates, flattened (plate 1 then plate 2). A single
     placement into slot 0-3 yields one plate; a fresh parallel/second-tray or reuse
@@ -111,7 +123,7 @@ def test_auto_fill_shares_one_physical_tray_across_fresh_cells_in_the_same_box(c
     must end up as exactly one CellTray with 4 Cell rows (all 4 used for tray-1's box; 2
     used + 2 untouched siblings for tray-2's box), never more than one tray per box."""
     client.post("/api/imports", json={"raw_text": SIX_DISJOINT})
-    (mon,) = _weekdays(1)
+    mon = _next_monday()
 
     resp = _auto_fill(client, [{"instrument_serial": "84047", "load_date": mon}])
     assert resp.status_code == 200, resp.text
@@ -663,7 +675,7 @@ def test_recalculate_bundles_a_reused_cells_second_use_into_the_same_run_as_plat
         "/api/imports",
         json={"raw_text": "sample,barcodes\n" + "\n".join(f"S{i},bcs{i}" for i in range(1, 9))},
     )
-    (mon,) = _weekdays(1)
+    mon = _next_monday()
 
     resp = _auto_fill(client, [{"instrument_serial": "84309", "load_date": mon}], objective="fewest", max_uses=3)
     assert resp.status_code == 200, resp.text
@@ -1235,7 +1247,7 @@ def test_auto_fill_reports_unplaced_pool_ids(client):
     2026-07-29) - unplaced_pool_ids names the actual Pool IDs so they can be found
     (in the Backlog, or via the Samples page's all-status search)."""
     client.post("/api/imports", json={"raw_text": TEN_DISJOINT})
-    (mon,) = _weekdays(1)  # one day on offer -> 8 wells, only 8 of the 10 samples fit
+    mon = _next_monday()  # one day on offer -> 8 wells, only 8 of the 10 samples fit
 
     resp = _auto_fill(client, [{"instrument_serial": "84047", "load_date": mon}])
     assert resp.status_code == 200, resp.text
