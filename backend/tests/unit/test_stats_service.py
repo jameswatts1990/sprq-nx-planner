@@ -34,6 +34,7 @@ def session():
         yield s
     finally:
         s.close()
+        engine.dispose()
 
 
 def _instr(session, serial: str) -> int:
