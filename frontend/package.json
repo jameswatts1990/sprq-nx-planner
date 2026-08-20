@@ -20,7 +20,7 @@
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.27.0",
     "read-excel-file": "^9.3.4",
-    "recharts": "^2.13.0"
+    "recharts": "^3.10.1"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
