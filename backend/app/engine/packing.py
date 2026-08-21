@@ -120,6 +120,7 @@ def pack_cells(
     objective: str,
     prior_cells: list[PriorCellInput] | None = None,
     available_days: int | None = None,
+    reuse_available_days: int | None = None,
     cells_per_day: int | None = None,
     insert_size_reuse_threshold: int = DEFAULT_INSERT_SIZE_REUSE_THRESHOLD_BP,
     movie_rules: MovieRules = DEFAULT_MOVIE_RULES,
@@ -145,6 +146,19 @@ def pack_cells(
     all 3 of its remaining uses onto one such cell, when only 1 could ever actually be
     placed that day, stranding the other 2 samples as unplaced instead of spreading them
     across other open cells/fresh cells that could have taken them today.
+
+    `reuse_available_days`, when given, is the depth cap for a *part-used* prior cell
+    (`uses_consumed >= 1`), used in place of `available_days` for it. It exists for the weekend
+    reuse-continuation case: a Friday load offers a Saturday continuation day that can host a
+    part-used tray's next (bundled Plate 2) use - keeping that tray inside its 108h window - but
+    never a fresh first load. That extra day must lift *reuse* depth without feeding the fresh
+    `cap`, or the greedy loop would deepen fresh cells and open fewer distinct ones on the single
+    load day, displacing first-use wells the user asked for (see auto_fill_service and
+    jmtcsngr/sprq-nx-planner#43). A *never-used* open sibling (`uses_consumed == 0`) stays on
+    `available_days` (the load days) - it has no window pressure, so it is not forced onto a
+    weekend continuation where its bundled reuse could be poisoned by a competing fresh cell and
+    dropped; its next use waits for the next real load day (see `_prior_allowance`). Defaults to
+    `available_days` (all cells share one budget) when the caller doesn't distinguish the two.
 
     `objective` only breaks ties between reuse candidates that are otherwise equally
     eligible: "fastest" prefers the least-used fresh cell (spreads samples across more
@@ -191,6 +205,12 @@ def pack_cells(
     but never reuses one; if the day fills up it's reported unplaced rather than forced onto a
     reuse."""
     cap = max_uses if available_days is None else min(max_uses, available_days)
+    # Prior (reuse) cells may run one day deeper than the fresh cap when a weekend
+    # reuse-continuation day is on offer: that day hosts a part-used tray's next use but
+    # never a fresh first load, so it lifts reuse depth without changing how many fresh
+    # cells a load day opens (see the docstring / jmtcsngr/sprq-nx-planner#43). Falls back
+    # to available_days when the caller doesn't split fresh vs reuse day budgets.
+    prior_available_days = available_days if reuse_available_days is None else reuse_available_days
 
     # "By Order": schedule strictly in the sequence samples were uploaded and, within each
     # upload, the order their rows appeared in the CSV. For cell CHOICE it behaves exactly like
@@ -267,10 +287,21 @@ def pack_cells(
         # must be reused at most once this batch, never stacked to 3 - otherwise the
         # "Max uses per cell" dial silently wouldn't apply to reuse candidates at all,
         # and auto_fill's post-run disposal (which closes a cell out once it reaches the
-        # dial) would have nothing coherent to cap against. Also capped by available_days
-        # for the same reason fresh cells are (a cell runs at most once per calendar day).
+        # dial) would have nothing coherent to cap against. Also capped by a day budget for
+        # the same reason fresh cells are (a cell runs at most once per calendar day):
+        #  - a genuinely PART-USED tray (uses_consumed >= 1) caps on prior_available_days,
+        #    which counts a weekend reuse-continuation day - it has real 108h-window pressure
+        #    to reach its next use before it expires, so the weekend run earns its keep;
+        #  - a NEVER-USED open sibling (uses_consumed == 0, e.g. one left behind when a
+        #    tray-mate was retired) caps on the LOAD days only. It has no window pressure, so
+        #    on a single load day it spreads across distinct cells instead of being deepened
+        #    onto a lone weekend continuation - where its bundled 2nd use can be poisoned by a
+        #    competing fresh cell and silently dropped (see jmtcsngr/sprq-nx-planner#43). Its
+        #    next use simply waits for the next real load day. Normal weekday depth is
+        #    untouched (a multi-day selection's load_days already meets or exceeds max_uses).
         allowance = min(c.remaining, max(0, max_uses - c.uses_consumed))
-        return allowance if available_days is None else min(allowance, available_days)
+        budget = prior_available_days if c.uses_consumed >= 1 else available_days
+        return allowance if budget is None else min(allowance, budget)
 
     unplaced: list[ParsedSample] = []
     for s in ordered:

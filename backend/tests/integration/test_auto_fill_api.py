@@ -63,24 +63,16 @@ def _next_weekday(weekday: int) -> str:
 # CI proves the single-day, no-reuse case holds Mon-Fri instead of only on whichever day the
 # suite happens to run. A FRIDAY load is the one case where auto_fill offers a Saturday
 # reuse-continuation slot (the day after it is a weekend - see auto_fill_service.
-# continuation_slots), which deepens available_days and shifts every single-day count. That
-# divergence is a known, still-open question (jmtcsngr/sprq-nx-planner#43), so the Friday case
-# is xfailed strictly - if a #43 fix makes Friday match the other days it will xpass and fail
-# here, prompting this marker's removal.
+# continuation_slots). That slot deliberately lifts the depth budget for *prior* (reuse) cells
+# only, never the fresh-cell cap (jmtcsngr/sprq-nx-planner#43, fixed), so a single Friday load
+# with no reuse candidates now fills fresh cells exactly like the other weekdays - which is why
+# Friday is a plain param here, not the strict xfail it used to carry.
 _SINGLE_DAY_LOADS = [
     pytest.param(0, id="mon"),
     pytest.param(1, id="tue"),
     pytest.param(2, id="wed"),
     pytest.param(3, id="thu"),
-    pytest.param(
-        4,
-        id="fri",
-        marks=pytest.mark.xfail(
-            reason="Friday load's Saturday reuse-continuation shifts single-day counts; "
-            "see jmtcsngr/sprq-nx-planner#43",
-            strict=True,
-        ),
-    ),
+    pytest.param(4, id="fri"),
 ]
 
 
@@ -248,15 +240,13 @@ def test_auto_fill_treats_a_stageless_cycle_shell_as_open(client, db_session):
     assert len(_stages(body["runs"][0])) == 6
 
 
-@pytest.mark.xfail(
-    reason="Run->Plate remodel: auto_fill_service's persist grouping (_resolve_well / _plate_of) "
-    "can't spill a well displaced by the cancelled A01 marker from a full tray-1 (Plate 1) into "
-    "tray-2 (Plate 2) - it reassigns within the whole WELLS range but never crosses the plate/cycle "
-    "boundary, so a fresh tray-2 cell lands in Plate 1 and 3 of the 7 samples are dropped. Genuine "
-    "backend bug in the new model; needs a plate-aware persist fix, out of scope for the test migration.",
-    strict=False,
-)
-def test_auto_fill_fills_around_a_cancelled_stopped_cell_marker_without_crashing(client):
+# Friday used to fail here (a retired cell's never-used tray-siblings were deepened onto the
+# weekend continuation, then dropped when a competing fresh cell poisoned Plate 2 - 4/7 placed).
+# The v0.55.2 fix gates the continuation depth-lift to genuinely part-used trays, so a never-used
+# sibling now spreads across the day's wells instead - every weekday places all 7. See
+# jmtcsngr/sprq-nx-planner#43 and packing._prior_allowance.
+@pytest.mark.parametrize("load_weekday", _SINGLE_DAY_LOADS)
+def test_auto_fill_fills_around_a_cancelled_stopped_cell_marker_without_crashing(client, load_weekday):
     """Reproduces the reported "clear a week with a stopped cell in it" bug's Auto Schedule
     half. Stopping a cell before its planned use runs cascades that use to "cancelled" -
     kept forever as a permanent marker occupying its exact well (see cell_service.
@@ -266,14 +256,14 @@ def test_auto_fill_fills_around_a_cancelled_stopped_cell_marker_without_crashing
     persistence must reassign around the one well that's actually taken rather than crash
     on its unique (cycle_id, well) constraint."""
     client.post("/api/imports", json={"raw_text": "sample,barcodes\nCM1,bccm1"})
-    (mon,) = _weekdays(1)
+    load_day = _next_weekday(load_weekday)
 
     r1 = client.post(
         "/api/cell-uses",
         json={
             "sample_id": _sid(client, "CM1"),
             "instrument_serial": "84047",
-            "load_date": mon,
+            "load_date": load_day,
             "slot_index": 0,
             "cell_choice": {"mode": "new"},
             "run_time_hours": 24,
@@ -298,7 +288,7 @@ def test_auto_fill_fills_around_a_cancelled_stopped_cell_marker_without_crashing
         "/api/imports", json={"raw_text": "sample,barcodes\n" + "\n".join(f"CM{i},bccm{i}" for i in range(2, 8))}
     )
 
-    resp = _auto_fill(client, [{"instrument_serial": "84047", "load_date": mon}])
+    resp = _auto_fill(client, [{"instrument_serial": "84047", "load_date": load_day}])
     assert resp.status_code == 200, resp.text
     body = resp.json()
 

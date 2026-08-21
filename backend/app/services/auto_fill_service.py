@@ -279,10 +279,17 @@ def auto_fill(
 
     # A cell can only be reused once per calendar day (see fill_slots), so a reuse depth deeper
     # than the number of distinct days actually placeable can never land - capping it here spreads
-    # samples across fresh cells instead of packing depth that just comes back as unplaced. The
-    # continuation days count too: a cell loaded on an offered day can take one more (bundled)
-    # use on the following day, so those days are genuinely placeable reuse depth.
-    available_days = len({s.run_date for s in empty_slots} | {c.run_date for c in continuation_slots})
+    # samples across fresh cells instead of packing depth that just comes back as unplaced.
+    #
+    # Fresh cells cap on the LOAD days only. A weekend continuation day can host a part-used
+    # tray's next use but never a fresh first load, so counting it toward the fresh cap would
+    # make the greedy packer deepen fresh cells and open fewer distinct ones on a single load
+    # day - displacing first-use wells the user asked for (esp. under "fastest"). Prior (reuse)
+    # cells DO get the continuation day (reuse_available_days below): that's the whole point of
+    # the continuation - a Friday-loaded tray reaching one more use over the weekend, in-window.
+    # See jmtcsngr/sprq-nx-planner#43.
+    load_days = len({s.run_date for s in empty_slots})
+    reuse_available_days = len({s.run_date for s in empty_slots} | {c.run_date for c in continuation_slots})
     # Lab-configurable scheduling rules read once here and passed into the pure engine so it
     # stays DB-free (same pattern for both the small-insert threshold and the movie-time rules).
     movie_rules = get_movie_rules(db)
@@ -291,7 +298,8 @@ def auto_fill(
         max_uses=max_uses,
         objective=objective,
         prior_cells=prior_cells,
-        available_days=available_days,
+        available_days=load_days,
+        reuse_available_days=reuse_available_days,
         cells_per_day=cells_per_day,
         # Small-insert (<5 kb) libraries are kept on a cell's first use only - threshold is
         # admin-configurable (settings_service), read here so the pure engine stays DB-free.
