@@ -20,7 +20,9 @@ jobs:
       - run: pip install -e ".[dev]"
       # Integration tests use in-memory SQLite (see tests/integration/conftest.py),
       # so no Postgres service is needed.
-      - run: pytest
+      # -v lists every test (and every parametrized case) with its outcome; -ra adds a
+      # summary of non-passing cases (xfail/xpass with reasons).
+      - run: pytest -v -ra
 
   frontend:
     runs-on: ubuntu-latest

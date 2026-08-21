@@ -51,6 +51,39 @@ def _next_saturday() -> str:
     return d.isoformat()
 
 
+def _next_weekday(weekday: int) -> str:
+    """The next date (>= tomorrow) falling on `weekday` (0=Mon .. 4=Fri), as an ISO string."""
+    d = date.today() + timedelta(days=1)
+    while d.weekday() != weekday:
+        d += timedelta(days=1)
+    return d.isoformat()
+
+
+# Load-day parametrization for the single-day auto-fill tests: exercise every working day, so
+# CI proves the single-day, no-reuse case holds Mon-Fri instead of only on whichever day the
+# suite happens to run. A FRIDAY load is the one case where auto_fill offers a Saturday
+# reuse-continuation slot (the day after it is a weekend - see auto_fill_service.
+# continuation_slots), which deepens available_days and shifts every single-day count. That
+# divergence is a known, still-open question (jmtcsngr/sprq-nx-planner#43), so the Friday case
+# is xfailed strictly - if a #43 fix makes Friday match the other days it will xpass and fail
+# here, prompting this marker's removal.
+_SINGLE_DAY_LOADS = [
+    pytest.param(0, id="mon"),
+    pytest.param(1, id="tue"),
+    pytest.param(2, id="wed"),
+    pytest.param(3, id="thu"),
+    pytest.param(
+        4,
+        id="fri",
+        marks=pytest.mark.xfail(
+            reason="Friday load's Saturday reuse-continuation shifts single-day counts; "
+            "see jmtcsngr/sprq-nx-planner#43",
+            strict=True,
+        ),
+    ),
+]
+
+
 def _stages(run):
     """All stages across a run's plates, flattened (plate 1 then plate 2). A single
     placement into slot 0-3 yields one plate; a fresh parallel/second-tray or reuse
@@ -102,7 +135,8 @@ def test_auto_fill_fills_only_requested_cell_and_reports_unplaced(client):
     assert client.get("/api/samples", params={"status": "backlog"}).json()["total"] == 0
 
 
-def test_auto_fill_shares_one_physical_tray_across_fresh_cells_in_the_same_box(client, db_session):
+@pytest.mark.parametrize("load_weekday", _SINGLE_DAY_LOADS)
+def test_auto_fill_shares_one_physical_tray_across_fresh_cells_in_the_same_box(client, db_session, load_weekday):
     """Reproduces a reported bug: auto-filling several *different* first-use samples into
     the same day's tray-1 box (wells A01-D01) opened a brand-new physical CellTray per
     sample instead of sharing the one tray box those 4 wells actually are - e.g. cell ids
@@ -111,9 +145,9 @@ def test_auto_fill_shares_one_physical_tray_across_fresh_cells_in_the_same_box(c
     must end up as exactly one CellTray with 4 Cell rows (all 4 used for tray-1's box; 2
     used + 2 untouched siblings for tray-2's box), never more than one tray per box."""
     client.post("/api/imports", json={"raw_text": SIX_DISJOINT})
-    (mon,) = _weekdays(1)
+    load_day = _next_weekday(load_weekday)
 
-    resp = _auto_fill(client, [{"instrument_serial": "84047", "load_date": mon}])
+    resp = _auto_fill(client, [{"instrument_serial": "84047", "load_date": load_day}])
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert len(body["placed_sample_ids"]) == 6
@@ -649,7 +683,8 @@ def test_auto_fill_disposes_a_tray_once_all_its_cells_reach_the_dial(client, db_
         assert cell.id in body["disposed_cell_ids"]
 
 
-def test_recalculate_bundles_a_reused_cells_second_use_into_the_same_run_as_plate_2(client, db_session):
+@pytest.mark.parametrize("load_weekday", _SINGLE_DAY_LOADS)
+def test_recalculate_bundles_a_reused_cells_second_use_into_the_same_run_as_plate_2(client, db_session, load_weekday):
     """Reported 2026-07-29: 8 disjoint samples all originally forced onto ONE single day (two
     trays, all Use 1, since that day alone can't reuse a cell same-day) - "fewest" plus the
     day-window-extension fix above SHOULD consolidate them onto far fewer physical cells, but
@@ -663,9 +698,9 @@ def test_recalculate_bundles_a_reused_cells_second_use_into_the_same_run_as_plat
         "/api/imports",
         json={"raw_text": "sample,barcodes\n" + "\n".join(f"S{i},bcs{i}" for i in range(1, 9))},
     )
-    (mon,) = _weekdays(1)
+    load_day = _next_weekday(load_weekday)
 
-    resp = _auto_fill(client, [{"instrument_serial": "84309", "load_date": mon}], objective="fewest", max_uses=3)
+    resp = _auto_fill(client, [{"instrument_serial": "84309", "load_date": load_day}], objective="fewest", max_uses=3)
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert len(body["placed_sample_ids"]) == 8
@@ -691,17 +726,17 @@ def test_recalculate_bundles_a_reused_cells_second_use_into_the_same_run_as_plat
 
     runs_by_load_date = {r["load_date"]: r for r in body2["runs"]}
     assert len(runs_by_load_date) == 2  # one run bundles Use 1 + Use 2; a separate run for Use 3
-    first_run = runs_by_load_date[mon]
+    first_run = runs_by_load_date[load_day]
     assert len(first_run["plates"]) == 2, "Plate 1 (Use 1) and Plate 2 (Use 2) bundled into ONE run"
     plate1 = next(p for p in first_run["plates"] if p["plate_index"] == 1)
     plate2 = next(p for p in first_run["plates"] if p["plate_index"] == 2)
-    assert plate1["acquire_date"] == mon
+    assert plate1["acquire_date"] == load_day
     assert plate1["is_reuse"] is False
     assert all(s["use_number"] == 1 for s in plate1["stages"])
     # Plate 2 acquires a LATER day (the machine doesn't get to it until the shared 4-lane
     # sequencer frees up) but is still part of THIS SAME run - the operator loaded both
     # plates in one session even though the instrument sequences them a day apart.
-    assert plate2["acquire_date"] > mon
+    assert plate2["acquire_date"] > load_day
     assert plate2["is_reuse"] is True
     assert all(s["use_number"] == 2 for s in plate2["stages"])
     # Plate 2 reuses the EXACT SAME wells as Plate 1 (the same physical cells), not a
@@ -711,7 +746,7 @@ def test_recalculate_bundles_a_reused_cells_second_use_into_the_same_run_as_plat
 
     # A cell's third use can't fit in the same run (a run holds at most 2 plates) - it
     # becomes its own separate, later run.
-    third_run = next(r for r in body2["runs"] if r["load_date"] != mon)
+    third_run = next(r for r in body2["runs"] if r["load_date"] != load_day)
     assert len(third_run["plates"]) == 1
     assert all(s["use_number"] == 3 for s in third_run["plates"][0]["stages"])
 
@@ -1230,14 +1265,15 @@ def test_auto_fill_large_insert_control_still_reuses_one_cell(client):
     assert sorted(s["use_number"] for s in stages) == [1, 2, 3]
 
 
-def test_auto_fill_reports_unplaced_pool_ids(client):
+@pytest.mark.parametrize("load_weekday", _SINGLE_DAY_LOADS)
+def test_auto_fill_reports_unplaced_pool_ids(client, load_weekday):
     """A bare unplaced COUNT left a user unable to find an affected sample anywhere (reported
     2026-07-29) - unplaced_pool_ids names the actual Pool IDs so they can be found
     (in the Backlog, or via the Samples page's all-status search)."""
     client.post("/api/imports", json={"raw_text": TEN_DISJOINT})
-    (mon,) = _weekdays(1)  # one day on offer -> 8 wells, only 8 of the 10 samples fit
+    load_day = _next_weekday(load_weekday)  # one day on offer -> 8 wells, only 8 of the 10 samples fit
 
-    resp = _auto_fill(client, [{"instrument_serial": "84047", "load_date": mon}])
+    resp = _auto_fill(client, [{"instrument_serial": "84047", "load_date": load_day}])
     assert resp.status_code == 200, resp.text
     body = resp.json()
 
