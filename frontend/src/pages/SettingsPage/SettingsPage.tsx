@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type JSX } from "react";
 
 import { CreditEmailPanel } from "./CreditEmailPanel";
 import { DeveloperTools } from "./DeveloperTools";
