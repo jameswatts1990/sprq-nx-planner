@@ -932,18 +932,31 @@ def rotate_tray(
         mark_cell_discarded(cell, reason, now)
     db.flush()
 
-    # 2. Mint the fresh tray in the same box; index its 4 cells by their fixed home well.
+    # 2. Mint the fresh tray in the same box; index its 4 cells by their fixed tray POSITION
+    #    (within_tray_pos, 0-3) - NOT by the CellUse's loading well. A cell keeps its tray
+    #    position for life and open_new_tray reproduces those same 4 positions, but a moved or
+    #    reused sample's CellUse.well is a plate LOADING position that legitimately differs from
+    #    its cell's own well (the loading-well != home-well split - see current_location /
+    #    open_new_tray). Position is the only stable key here; mirrors auto_fill_service's
+    #    fresh-tray resolution. (Keying by cu.well used to 409 "doesn't belong to this tray box"
+    #    whenever a tray whose samples had been moved to a differently-named plate well - e.g. a
+    #    bay-1 tray loaded onto a Plate-1 well - was discarded.)
     new_cells = open_new_tray(db, instrument_id, box_well)
-    new_by_well = {c.home_well: c for c in new_cells}
+    new_by_pos = {within_tray_pos(c.home_well): c for c in new_cells}
 
-    # 3. Re-point each moving use onto the fresh cell in its well (same day/well/sample/
-    #    barcodes). Assign via the relationship, not the raw FK - Cell.cell_uses has no
-    #    delete-orphan cascade, so this is safe and keeps both back_populates sides in sync.
+    # 3. Re-point each moving use onto the fresh cell at the SAME tray position as its old cell -
+    #    only the physical cell changes; the use keeps its day/loading well/sample/barcodes.
+    #    Assign via the relationship, not the raw FK - Cell.cell_uses has no delete-orphan
+    #    cascade, so this is safe and keeps both back_populates sides in sync. cu.cell is still
+    #    the OLD cell here (nothing above re-points it), so cu.cell.home_well is its real position.
     moved_sample_ids: list[int] = []
     for cu in moving:
-        target = new_by_well.get(cu.well)
-        if target is None:  # a well outside this box - impossible for a tray-linked cell
-            raise ValueError(f"Cell use in well {cu.well} doesn't belong to this tray box.")
+        home_well = cu.cell.home_well if cu.cell else None
+        target = new_by_pos.get(within_tray_pos(home_well)) if home_well else None
+        if target is None:  # a tray-linked cell always has a home well - None means malformed data
+            raise ValueError(
+                f"Cell use in well {cu.well} can't be moved to the fresh tray: its cell has no tray position."
+            )
         cu.cell = target
         if cu.sample_id is not None:
             moved_sample_ids.append(cu.sample_id)

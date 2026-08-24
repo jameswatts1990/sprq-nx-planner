@@ -128,6 +128,55 @@ def test_rotate_moves_trigger_day_and_later_uses_to_a_fresh_tray_keeping_earlier
         assert _sample(client, _sid(client, ext))["status"] == "scheduled"
 
 
+def test_rotate_discards_a_tray_whose_use_was_loaded_onto_a_differently_named_well(client):
+    """Regression for the reported "Cell use in well D01 doesn't belong to this tray box." 409.
+
+    A cell keeps its home well (its physical tray position) for life, but a CellUse.well is a
+    plate LOADING position that legitimately differs from it - e.g. a tray that lands in cell-tray
+    bay 1 (home wells A02-D02) yet loads onto a Plate-1 well (A01-D01), or any sample moved to a
+    differently-named well. Discarding such a tray must re-point the moving uses onto the fresh
+    tray by tray POSITION, not by matching the loading well against the new cells' home wells
+    (which no longer contains it) - so it succeeds instead of 409ing."""
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nG1,bc1\nG2,bc2"})
+    mon, tue = _weekdays(2)
+
+    # Occupy bay 0 so the next fresh tray is forced into bay 1 (home wells A02-D02).
+    r1 = _place(client, _sid(client, "G1"), mon, 0, {"mode": "new"})
+    assert r1.status_code == 201, r1.text
+
+    # Drop G2 onto Plate-1 well D01 (slot 3): the fresh tray lands in bay 1, so its cell's home
+    # well is A02 while the use loads into D01 - the loading-well != home-well split.
+    r2 = _place(client, _sid(client, "G2"), tue, 3, {"mode": "new"})
+    assert r2.status_code == 201, r2.text
+    d01_stage = _stage(r2.json(), well="D01")
+    assert d01_stage["cell_home_well"] == "A02"  # bay-1 tray's next-available cell...
+    assert d01_stage["well"] == "D01"            # ...loaded onto a Plate-1 well (the divergence)
+    old_cell_id = d01_stage["cell_id"]
+    tray_id = d01_stage["tray_id"]
+    tue_cycle_id = r2.json()["run_id"]
+
+    # Discard that bay-1 tray from G2's day. Before the fix this 409'd "doesn't belong to this
+    # tray box." because it looked the fresh cells up by the D01 loading well.
+    resp = client.post("/api/cells/rotate-tray", json={"tray_id": tray_id, "from_date": tue})
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["moved_count"] == 1
+
+    # G2's use moved onto the fresh cell at the SAME position (home well A02), keeping its D01
+    # loading well and restarting at Use 1.
+    new_cell_id = next(c["id"] for c in resp.json()["new_cells"] if c["current_well"] == "A02")
+    assert new_cell_id != old_cell_id
+    moved = _stage(client.get(f"/api/cycles/{tue_cycle_id}").json(), well="D01")
+    assert moved["cell_id"] == new_cell_id
+    assert moved["cell_home_well"] == "A02"
+    assert moved["well"] == "D01"
+    assert moved["use_number"] == 1
+
+    # G2's use was the tray's only (founding) use, so rotating from its day empties the old
+    # tray - it's removed rather than left as a discarded ghost - and the sample stays scheduled.
+    assert client.get(f"/api/cells/{old_cell_id}").status_code == 404
+    assert _sample(client, _sid(client, "G2"))["status"] == "scheduled"
+
+
 def test_rotate_on_the_trays_first_day_deletes_the_emptied_old_tray(client):
     """Rotating on the tray's very first scheduled day moves every use off it - the old tray
     keeps no history, so it's removed rather than left as an empty discarded ghost."""
