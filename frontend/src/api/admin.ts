@@ -6,6 +6,13 @@ export interface ListRowsParams {
   page_size?: number;
 }
 
+/** URL for the full-database JSON export. The endpoint sets Content-Disposition, so a hidden
+ * <a download> (or navigating to it) saves a file rather than rendering JSON — which is why
+ * this bypasses the JSON `api` client, same as scheduleExportUrl. */
+export function adminExportUrl(): string {
+  return "/api/admin/export.json";
+}
+
 export const adminApi = {
   listTables: () => api.get<TableInfo[]>("/api/admin/tables"),
   listRows: (table: string, params: ListRowsParams = {}) =>

@@ -8,7 +8,7 @@ from app.api.deps import ActorDep, SessionDep
 from app.models.instrument import Instrument
 from app.models.schedule import CYCLE_STATUSES, RunBatch
 from app.schemas.run import RunOut
-from app.services.placement_service import PlacementError, cancel_run, update_run_load_time
+from app.services.placement_service import PlacementError, cancel_run, reschedule_run, update_run_load_time
 from app.services.run_serializer import RUN_LOAD_OPTIONS, run_out
 from app.services.run_service import update_run_status
 
@@ -88,6 +88,26 @@ def patch_run(run_id: int, req: RunStatusUpdate, db: SessionDep, actor: ActorDep
         run_batch = update_run_status(db, run_batch, req.status, at, req.actor or actor, req.run_name)
     except ValueError as exc:
         raise HTTPException(409, str(exc)) from exc
+    run_batch = db.get(RunBatch, run_id, options=RUN_LOAD_OPTIONS)
+    return run_out(db, run_batch)
+
+
+class RunRescheduleRequest(BaseModel):
+    new_load_date: date
+    actor: str | None = None
+
+
+@router.post("/{run_id}/reschedule", response_model=RunOut)
+def reschedule_run_endpoint(run_id: int, req: RunRescheduleRequest, db: SessionDep, actor: ActorDep) -> RunOut:
+    """Move a whole planned run to another weekday - the "instrument failed to load, run it
+    another day" flow (moves both plates in one step instead of dragging every sample). A reuse
+    pushed past its cell's 108h window comes back flagged reuse_window_exceeded rather than being
+    silently re-trayed. See placement_service.reschedule_run for the gates (confirmed-loaded,
+    weekday, maintenance-down, whole-day lock, day-already-occupied)."""
+    try:
+        reschedule_run(db, run_id, req.new_load_date, req.actor or actor)
+    except PlacementError as exc:
+        raise HTTPException(exc.status_code, exc.detail) from exc
     run_batch = db.get(RunBatch, run_id, options=RUN_LOAD_OPTIONS)
     return run_out(db, run_batch)
 

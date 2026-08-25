@@ -77,6 +77,12 @@ class StageOut(BaseModel):
     # grid slot's expiry shading, per-cell (see docs/pacbio-sprq-nx-scheduling-reference.md
     # #2 - there is no shared tray-level clock, only this cell's own 108h deadline).
     window_hours_elapsed: float | None
+    # True when this is a REUSE (Use 2/3) whose plate's planned start has slipped past the cell's
+    # 108h reuse deadline (first-use anchor + 108h) - i.e. it can no longer physically start in
+    # time. Drives the grid card's "⚠ Window" flag and the slot/cell popover's out-of-window Note
+    # + "Load fresh tray" action. False for a first use and for any in-window reuse. Estimated
+    # until Use 1 is confirmed (see cell_service.reuse_window_exceeded / reuse_deadline).
+    reuse_window_exceeded: bool = False
     # Advisory only, never blocks a placement - hours by which this use's own start preceded
     # its cell's real physical readiness (the immediately-prior use's movie end + the on-board
     # reuse wash). None when this is the cell's first use, or the start was already safely

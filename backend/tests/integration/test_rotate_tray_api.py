@@ -61,10 +61,12 @@ def _stage(cycle_json, well="A01"):
     return next(s for s in _stages(cycle_json) if s["well"] == well)
 
 
-def test_rotate_moves_trigger_day_and_later_uses_to_a_fresh_tray_keeping_earlier_history(client):
-    """The reported bug scenario, plus a Use 3: a cell used Mon/Wed/Fri, rotated on Wed.
-    Wed+Fri move onto a fresh cell (Use 1, Use 2); Monday stays a normal Use 1 on the old
-    (now discarded) cell - never turned into a "Blocked" slot."""
+def test_discard_keeps_the_trigger_day_use_and_moves_only_strictly_later_uses(client):
+    """Discard is "after this plate is loaded": a cell used Mon/Wed/Fri, discarded from Wed.
+    Wednesday (the trigger day) STAYS on the current cell keeping its real Use 2 - only Friday,
+    the strictly-later use, moves onto a fresh cell and restarts at Use 1. Monday stays Use 1.
+    (Regression for "I discarded the plate and it turned to use one which should not have
+    happened" - the trigger day used to move and wrongly reset to Use 1.)"""
     client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1\nA2,bc2\nA3,bc3"})
     mon, _tue, wed, _thu, fri = _weekdays(5)
 
@@ -89,38 +91,41 @@ def test_rotate_moves_trigger_day_and_later_uses_to_a_fresh_tray_keeping_earlier
     resp = client.post("/api/cells/rotate-tray", json={"tray_id": tray_id, "from_date": wed})
     assert resp.status_code == 200, resp.text
     body = resp.json()
-    assert body["moved_count"] == 2
+    assert body["moved_count"] == 1  # only Friday (strictly after Wed) moves
     assert len(body["new_cells"]) == 4
     new_cell_id = next(c["id"] for c in body["new_cells"] if c["current_well"] == "A01")
     assert new_cell_id != old_cell_id
 
-    # Monday: untouched, still a normal (non-cancelled) Use 1 on the old cell.
+    # Monday + Wednesday (the trigger day): untouched, still their real Use 1 / Use 2 on the
+    # old cell - Wednesday no longer moves or resets to Use 1.
     mon_stage = _stage(client.get(f"/api/cycles/{mon_cycle_id}").json())
     assert mon_stage["cell_id"] == old_cell_id
     assert mon_stage["use_number"] == 1
     assert mon_stage["cell_use_status"] == "planned"
     assert mon_stage["sample_pool_id"] == "A1"
-
-    # Wednesday (the rotate day) + Friday: moved onto the fresh cell, renumbered from Use 1.
     wed_stage = _stage(client.get(f"/api/cycles/{wed_cycle_id}").json())
-    assert wed_stage["cell_id"] == new_cell_id
-    assert wed_stage["use_number"] == 1
+    assert wed_stage["cell_id"] == old_cell_id
+    assert wed_stage["use_number"] == 2
+    assert wed_stage["cell_use_status"] == "planned"
     assert wed_stage["sample_pool_id"] == "A2"
-    assert wed_stage["barcodes"] == ["bc2"]  # barcodes travel with the moved use
+
+    # Friday: the only strictly-later use, moved onto the fresh cell and renumbered to Use 1.
     fri_stage = _stage(client.get(f"/api/cycles/{fri_cycle_id}").json())
     assert fri_stage["cell_id"] == new_cell_id
-    assert fri_stage["use_number"] == 2
+    assert fri_stage["use_number"] == 1
+    assert fri_stage["sample_pool_id"] == "A3"
+    assert fri_stage["barcodes"] == ["bc3"]  # barcodes travel with the moved use
 
-    # Old cell: discarded/exhausted, but keeps Monday's use as real history.
+    # Old cell: discarded/exhausted, but keeps Monday's + Wednesday's uses as real history.
     old_cell = client.get(f"/api/cells/{old_cell_id}").json()
     assert old_cell["status"] == "exhausted"
     assert old_cell["discarded_at"] is not None
-    assert old_cell["uses_consumed"] == 1
+    assert old_cell["uses_consumed"] == 2
 
-    # New cell: open with the two moved uses.
+    # New cell: open with the single moved use.
     new_cell = client.get(f"/api/cells/{new_cell_id}").json()
     assert new_cell["status"] == "open"
-    assert new_cell["uses_consumed"] == 2
+    assert new_cell["uses_consumed"] == 1
 
     # No sample was bounced to the backlog - every one is still scheduled.
     assert client.get("/api/samples", params={"status": "backlog"}).json()["total"] == 0
@@ -128,58 +133,71 @@ def test_rotate_moves_trigger_day_and_later_uses_to_a_fresh_tray_keeping_earlier
         assert _sample(client, _sid(client, ext))["status"] == "scheduled"
 
 
-def test_rotate_discards_a_tray_whose_use_was_loaded_onto_a_differently_named_well(client):
+def test_discard_re_homes_a_strictly_later_use_loaded_onto_a_differently_named_well(client):
     """Regression for the reported "Cell use in well D01 doesn't belong to this tray box." 409.
 
     A cell keeps its home well (its physical tray position) for life, but a CellUse.well is a
     plate LOADING position that legitimately differs from it - e.g. a tray that lands in cell-tray
-    bay 1 (home wells A02-D02) yet loads onto a Plate-1 well (A01-D01), or any sample moved to a
-    differently-named well. Discarding such a tray must re-point the moving uses onto the fresh
-    tray by tray POSITION, not by matching the loading well against the new cells' home wells
-    (which no longer contains it) - so it succeeds instead of 409ing."""
-    client.post("/api/imports", json={"raw_text": "sample,barcodes\nG1,bc1\nG2,bc2"})
-    mon, tue = _weekdays(2)
+    bay 1 (home wells A02-D02) yet loads onto a Plate-1 well (A01-D01). When a strictly-later use
+    with such a divergent well moves during a discard, it must re-point onto the fresh tray by
+    tray POSITION, not by matching the loading well against the new cells' home wells (which no
+    longer contains it) - so it succeeds instead of 409ing."""
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nG1,bc1\nG2,bc2\nG3,bc3"})
+    mon, tue, wed = _weekdays(3)
 
     # Occupy bay 0 so the next fresh tray is forced into bay 1 (home wells A02-D02).
     r1 = _place(client, _sid(client, "G1"), mon, 0, {"mode": "new"})
     assert r1.status_code == 201, r1.text
 
     # Drop G2 onto Plate-1 well D01 (slot 3): the fresh tray lands in bay 1, so its cell's home
-    # well is A02 while the use loads into D01 - the loading-well != home-well split.
+    # well is A02 while the use loads into D01 - the loading-well != home-well split (Use 1, tue).
     r2 = _place(client, _sid(client, "G2"), tue, 3, {"mode": "new"})
     assert r2.status_code == 201, r2.text
-    d01_stage = _stage(r2.json(), well="D01")
-    assert d01_stage["cell_home_well"] == "A02"  # bay-1 tray's next-available cell...
-    assert d01_stage["well"] == "D01"            # ...loaded onto a Plate-1 well (the divergence)
-    old_cell_id = d01_stage["cell_id"]
-    tray_id = d01_stage["tray_id"]
+    tue_stage = _stage(r2.json(), well="D01")
+    assert tue_stage["cell_home_well"] == "A02"  # bay-1 tray's next-available cell...
+    assert tue_stage["well"] == "D01"            # ...loaded onto a Plate-1 well (the divergence)
+    bay1_cell_id = tue_stage["cell_id"]
+    tray_id = tue_stage["tray_id"]
     tue_cycle_id = r2.json()["run_id"]
 
-    # Discard that bay-1 tray from G2's day. Before the fix this 409'd "doesn't belong to this
-    # tray box." because it looked the fresh cells up by the D01 loading well.
+    # Reuse that same bay-1 cell on wed, again at D01 (Use 2) - the strictly-later use that will
+    # move when we discard from tue.
+    r3 = _place(client, _sid(client, "G3"), wed, 3, {"mode": "existing", "cell_id": bay1_cell_id})
+    assert r3.status_code == 201, r3.text
+    wed_cycle_id = r3.json()["run_id"]
+    assert _stage(r3.json(), well="D01")["use_number"] == 2
+
+    # Discard from tue: G2 (tue) stays, G3 (wed) moves. Before the fix the move 409'd "doesn't
+    # belong to this tray box." because it looked the fresh cell up by the D01 loading well.
     resp = client.post("/api/cells/rotate-tray", json={"tray_id": tray_id, "from_date": tue})
     assert resp.status_code == 200, resp.text
     assert resp.json()["moved_count"] == 1
 
-    # G2's use moved onto the fresh cell at the SAME position (home well A02), keeping its D01
-    # loading well and restarting at Use 1.
+    # G2 (tue) stays put on the now-discarded bay-1 cell, keeping its Use 1 and D01 loading well.
+    kept = _stage(client.get(f"/api/cycles/{tue_cycle_id}").json(), well="D01")
+    assert kept["cell_id"] == bay1_cell_id
+    assert kept["use_number"] == 1
+    assert kept["well"] == "D01"
+    old_cell = client.get(f"/api/cells/{bay1_cell_id}").json()
+    assert old_cell["discarded_at"] is not None
+    assert old_cell["uses_consumed"] == 1
+
+    # G3 (wed) re-homed onto the fresh cell at the SAME tray position (home well A02), keeping
+    # its D01 loading well and restarting at Use 1.
     new_cell_id = next(c["id"] for c in resp.json()["new_cells"] if c["current_well"] == "A02")
-    assert new_cell_id != old_cell_id
-    moved = _stage(client.get(f"/api/cycles/{tue_cycle_id}").json(), well="D01")
+    assert new_cell_id != bay1_cell_id
+    moved = _stage(client.get(f"/api/cycles/{wed_cycle_id}").json(), well="D01")
     assert moved["cell_id"] == new_cell_id
     assert moved["cell_home_well"] == "A02"
     assert moved["well"] == "D01"
     assert moved["use_number"] == 1
-
-    # G2's use was the tray's only (founding) use, so rotating from its day empties the old
-    # tray - it's removed rather than left as a discarded ghost - and the sample stays scheduled.
-    assert client.get(f"/api/cells/{old_cell_id}").status_code == 404
-    assert _sample(client, _sid(client, "G2"))["status"] == "scheduled"
+    assert _sample(client, _sid(client, "G3"))["status"] == "scheduled"
 
 
-def test_rotate_on_the_trays_first_day_deletes_the_emptied_old_tray(client):
-    """Rotating on the tray's very first scheduled day moves every use off it - the old tray
-    keeps no history, so it's removed rather than left as an empty discarded ghost."""
+def test_discard_after_the_trays_last_use_keeps_it_and_mints_no_fresh_tray(client):
+    """Discarding from the tray's only (last) use: nothing is strictly later, so nothing moves.
+    The use stays put on its current cell keeping Use 1, the cells are marked discarded so
+    nothing new reuses them, and NO fresh tray is minted (there's nothing to put on it)."""
     client.post("/api/imports", json={"raw_text": "sample,barcodes\nB1,bc1"})
     (mon,) = _weekdays(1)
 
@@ -191,16 +209,24 @@ def test_rotate_on_the_trays_first_day_deletes_the_emptied_old_tray(client):
 
     resp = client.post("/api/cells/rotate-tray", json={"tray_id": tray_id, "from_date": mon})
     assert resp.status_code == 200, resp.text
-    assert resp.json()["moved_count"] == 1
+    assert resp.json()["moved_count"] == 0
+    assert resp.json()["new_cells"] == []  # nothing to move -> no fresh tray minted
 
-    # Old cell (and its whole emptied tray) is gone; the sample now sits on a fresh cell.
-    assert client.get(f"/api/cells/{old_cell_id}").status_code == 404
+    # The sample stays on its original cell at Use 1; the cell is now discarded (no future reuse).
     mon_stage = _stage(client.get(f"/api/cycles/{mon_cycle_id}").json())
-    assert mon_stage["cell_id"] != old_cell_id
+    assert mon_stage["cell_id"] == old_cell_id
     assert mon_stage["use_number"] == 1
+    assert mon_stage["cell_use_status"] == "planned"
+    old_cell = client.get(f"/api/cells/{old_cell_id}").json()
+    assert old_cell["status"] == "exhausted"
+    assert old_cell["discarded_at"] is not None
+    assert old_cell["uses_consumed"] == 1
 
 
-def test_rotate_rejected_when_a_use_on_or_after_the_day_is_confirmed_loaded(client):
+def test_discard_rejected_when_a_strictly_later_use_is_confirmed_loaded(client):
+    """A strictly-later use whose run is already confirmed loaded can't be moved (its cells are
+    physically in the instrument) - discarding from an earlier day is rejected until it's
+    unlocked. Discard from Monday while Wednesday's later reuse is confirmed loaded."""
     client.post("/api/imports", json={"raw_text": "sample,barcodes\nC1,bc1\nC2,bc2"})
     mon, _tue, wed = _weekdays(3)
 
@@ -210,7 +236,7 @@ def test_rotate_rejected_when_a_use_on_or_after_the_day_is_confirmed_loaded(clie
     r_wed = _place(client, _sid(client, "C2"), wed, 0, {"mode": "existing", "cell_id": old_cell_id})
     assert _confirm_loaded(client, r_wed.json()["run_id"]).status_code == 200
 
-    resp = client.post("/api/cells/rotate-tray", json={"tray_id": tray_id, "from_date": wed})
+    resp = client.post("/api/cells/rotate-tray", json={"tray_id": tray_id, "from_date": mon})
     assert resp.status_code == 409
     assert "confirmed loaded" in resp.json()["detail"].lower()
 

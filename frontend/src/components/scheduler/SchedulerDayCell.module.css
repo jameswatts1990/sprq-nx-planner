@@ -170,6 +170,27 @@
   color: var(--magenta);
   background: var(--magenta-tint);
 }
+/* "Reschedule" (📅) - move the whole run to another weekday. A compact, understated icon button
+   next to Confirm loaded (same resting look as the tray-header .rotateBtn), so it's available for
+   a failed-load reschedule without crowding the header. */
+.rescheduleBtn {
+  font-size: var(--fs-sm);
+  line-height: 1;
+  border: none;
+  background: none;
+  cursor: pointer;
+  padding: 1px 3px;
+  border-radius: 4px;
+  opacity: 0.75;
+}
+.rescheduleBtn:hover:not(:disabled) {
+  opacity: 1;
+  background: var(--blue-tint);
+}
+.rescheduleBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
 .err {
   font-size: 10px;
   color: var(--red);

@@ -22,6 +22,8 @@ from app.schemas.cell import (
     CellStopRequest,
     TrayDiscardOut,
     TrayDiscardRequest,
+    TrayRestoreOut,
+    TrayRestoreRequest,
     TrayRotateOut,
     TrayRotateRequest,
     TraySkipReuseOut,
@@ -36,6 +38,7 @@ from app.services.cell_service import (
     discard_tray,
     receive_cell_credit,
     report_cell_to_pacbio,
+    restore_tray,
     rotate_tray,
     set_cell_credit_notes,
     set_cell_internal_report,
@@ -266,6 +269,21 @@ def rotate_tray_endpoint(req: TrayRotateRequest, db: SessionDep, actor: ActorDep
     except ValueError as exc:
         raise HTTPException(409, str(exc)) from exc
     return TrayRotateOut(new_cells=[serialize_cell(c) for c in new_cells], moved_count=moved_count)
+
+
+@router.post("/restore-tray", response_model=TrayRestoreOut)
+def restore_tray_endpoint(req: TrayRestoreRequest, db: SessionDep, actor: ActorDep) -> TrayRestoreOut:
+    """Bring a discarded tray back into service - un-discards its cells and, for a rotate discard,
+    moves the moved uses back and deletes the empty successor tray (drift-guarded). See
+    cell_service.restore_tray. Reports what drifted / any co-resident tray in the same bay."""
+    cells = list(db.scalars(select(Cell).where(Cell.tray_id == req.tray_id).options(*_DETAIL_OPTIONS)).unique())
+    if not cells:
+        raise HTTPException(404, "Tray not found or has no cells")
+    try:
+        cells, report = restore_tray(db, cells, req.actor or actor)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    return TrayRestoreOut(cells=[serialize_cell(c) for c in cells], **report)
 
 
 @router.post("/{cell_id}/internal-report", response_model=CellOut)

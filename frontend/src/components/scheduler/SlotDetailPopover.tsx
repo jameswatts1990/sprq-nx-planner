@@ -186,9 +186,38 @@ function SlotDetailBody({
     },
   });
 
+  // "Load fresh tray": this reuse (Use 2/3) has slipped past its cell's 108h window (see
+  // StageOut.reuse_window_exceeded) and can't start in time - drop it and re-place the sample
+  // onto a fresh tray (Use 1) at the same slot. Same remove-then-place shape as CellInfoPopover's
+  // "Use a new cell instead" (mode:"new"); two calls, so if the re-place fails the sample is back
+  // in the backlog - surfaced below and invalidated either way.
+  const [freshTrayRemoved, setFreshTrayRemoved] = useState(false);
+  const loadFreshTrayMutation = useMutation({
+    mutationFn: async () => {
+      await cellUsesApi.remove(stage.cell_use_id);
+      setFreshTrayRemoved(true);
+      return cellUsesApi.place({
+        sample_id: stage.sample_id as number,
+        instrument_serial: run.instrument_serial,
+        load_date: run.load_date,
+        slot_index: stage.slot_index,
+        run_time_hours: stage.run_time_hours,
+        cell_choice: { mode: "new" },
+      });
+    },
+    onSuccess: () => {
+      invalidateScheduleRelated(queryClient);
+      onClose();
+    },
+    onError: () => invalidateScheduleRelated(queryClient),
+  });
+
   const cell = cellQuery.data;
   const isCancelled = stage.cell_use_status === "cancelled";
   const canEditRunTime = run.status === "planned" && stage.cell_use_status === "planned";
+  // See loadFreshTrayMutation: only actionable while still planned with a live sample.
+  const windowExceeded = !!stage.reuse_window_exceeded && stage.cell_use_status === "planned";
+  const canLoadFreshTray = windowExceeded && run.status === "planned" && stage.sample_id !== null;
   const isDiscardBlocked = isCancelled && !!cell?.discarded_at;
   const showWindowMeter =
     !!cell &&
@@ -295,6 +324,13 @@ function SlotDetailBody({
           {smallInsertReuseWarning(insertThreshold)} This is a small-insert library (
           {stage.insert_size_bp?.toLocaleString()} bp) on <b>Use {stage.use_number}</b> of its cell — Auto Schedule
           keeps small inserts on a first use.
+        </Note>
+      )}
+      {windowExceeded && (
+        <Note tone="bad" icon="!">
+          This cell&apos;s <b>108h reuse window has closed</b> for this day, so its <b>Use {stage.use_number}</b> can no
+          longer start in time.{" "}
+          {canLoadFreshTray ? "Use Load fresh tray below to run it on a new tray." : "Reschedule it to an earlier day."}
         </Note>
       )}
       <div className={styles.details}>
@@ -423,6 +459,22 @@ function SlotDetailBody({
         </Note>
       )}
 
+      {loadFreshTrayMutation.isError && (
+        <Note tone="bad" icon="!">
+          {freshTrayRemoved ? (
+            <>
+              This reuse was dropped, but loading a fresh tray failed
+              {loadFreshTrayMutation.error instanceof ApiError ? ` (${loadFreshTrayMutation.error.message})` : ""} — the
+              sample is now back in the Backlog. Re-place it, or free a cell-tray bay first (discard the expiring tray).
+            </>
+          ) : loadFreshTrayMutation.error instanceof ApiError ? (
+            loadFreshTrayMutation.error.message
+          ) : (
+            "Couldn't load a fresh tray."
+          )}
+        </Note>
+      )}
+
       <ModalActions>
         <Button variant="ghost" onClick={onClose} disabled={returnToBacklogMutation.isPending}>
           Close
@@ -448,6 +500,15 @@ function SlotDetailBody({
             disabled={returnToBacklogMutation.isPending}
           >
             {returnToBacklogMutation.isPending ? "Returning…" : "Return to backlog"}
+          </Button>
+        )}
+        {canLoadFreshTray && (
+          <Button
+            variant="primary"
+            onClick={() => loadFreshTrayMutation.mutate()}
+            disabled={loadFreshTrayMutation.isPending}
+          >
+            {loadFreshTrayMutation.isPending ? "Loading…" : "Load fresh tray"}
           </Button>
         )}
       </ModalActions>

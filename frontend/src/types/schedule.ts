@@ -93,6 +93,11 @@ export interface StageOut {
    * slot's expiry shading. Per-cell, not per-tray - see docs/pacbio-sprq-nx-scheduling-
    * reference.md #2 (no shared tray-level clock). */
   window_hours_elapsed: number | null;
+  /** True when this is a REUSE (Use 2/3) whose plate's planned start has slipped past the cell's
+   * 108h reuse deadline - it can no longer physically start in time. Drives the card's "⚠ Window"
+   * flag and the slot/cell popover's out-of-window Note + "Load fresh tray" action. False for a
+   * first use and for any in-window reuse. Estimated until Use 1 is confirmed. */
+  reuse_window_exceeded?: boolean;
   /** Advisory only, never blocks a placement - hours by which this use's own start preceded
    * its cell's real physical readiness (the prior use's movie end + the on-board reuse wash).
    * null when this is the cell's first use, or the start was already safely at/after

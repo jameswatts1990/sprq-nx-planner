@@ -84,6 +84,12 @@ export function SettingsSection() {
         development data.
       </Note>
       <dl className={styles.terms}>
+        <dt>Export all tables</dt>
+        <dd>
+          Downloads every database table and all of its rows as a single timestamped JSON file — a quick backup or
+          off-line snapshot of the whole database. It reads the tables exactly as shown here (no filtering) and changes
+          nothing; disabled while the tables are still loading or when the database is empty.
+        </dd>
         <dt>Clear backlog</dt>
         <dd>
           Permanently deletes every sample currently in the backlog (and its barcodes) in one step. Scheduled,

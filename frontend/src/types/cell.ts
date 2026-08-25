@@ -173,3 +173,22 @@ export interface TrayRotateOut {
   /** How many uses moved from the old tray onto the new one. */
   moved_count: number;
 }
+
+export interface TrayRestoreRequest {
+  tray_id: number;
+}
+
+export interface TrayRestoreOut {
+  /** The tray's cells, now un-discarded (status re-derived from real capacity/window). */
+  cells: CellOut[];
+  /** Uses moved back onto this tray from a reversed rotate's successor tray. */
+  reversed_use_ids: number[];
+  /** Uses that couldn't be cleanly reversed (since confirmed loaded, cancelled, or moved off
+   * the successor tray) - left where they are, reported so the user knows what wasn't restored. */
+  drifted_use_ids: number[];
+  /** The successor tray deleted because reversing emptied it (null if none/kept). */
+  deleted_tray_id: number | null;
+  /** Another physical tray now resident in this tray's carousel bay - the user resolves which
+   * stays (null if the bay is clear). */
+  bay_conflict_tray_id: number | null;
+}

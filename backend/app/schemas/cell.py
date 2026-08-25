@@ -221,3 +221,23 @@ class TrayRotateOut(BaseModel):
     new_cells: list[CellOut]
     # How many uses were moved from the old tray onto the new one.
     moved_count: int
+
+
+class TrayRestoreRequest(BaseModel):
+    tray_id: int
+    actor: str | None = None
+
+
+class TrayRestoreOut(BaseModel):
+    # The tray's cells, now un-discarded (status re-derived from real capacity/window).
+    cells: list[CellOut]
+    # Uses moved back onto this tray from a reversed rotate's successor tray.
+    reversed_use_ids: list[int]
+    # Uses that couldn't be cleanly reversed (since confirmed-loaded, cancelled, or moved off the
+    # successor tray) - left where they are, reported so the user knows what wasn't restored.
+    drifted_use_ids: list[int]
+    # The successor tray deleted because reversing emptied it (null if none/kept).
+    deleted_tray_id: int | None = None
+    # Another physical tray now resident in this tray's carousel bay - the user must resolve which
+    # stays (null if the bay is clear).
+    bay_conflict_tray_id: int | None = None

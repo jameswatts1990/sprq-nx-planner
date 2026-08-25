@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
-import { adminApi } from "@/api/admin";
+import { adminApi, adminExportUrl } from "@/api/admin";
 import { ApiError } from "@/api/client";
 import { samplesApi } from "@/api/samples";
 import { Button } from "@/components/ui/Button";
@@ -41,6 +41,18 @@ export function DeveloperTools() {
 
   const tables = query.data ?? [];
   const backlogCount = backlogCountQuery.data?.total ?? 0;
+  const totalRows = tables.reduce((sum, t) => sum + t.row_count, 0);
+
+  function handleExportAll() {
+    // Server names the file (timestamped) via Content-Disposition — same pattern as the
+    // Schedule CSV export. A hidden <a download> triggers the save without leaving the page.
+    const a = document.createElement("a");
+    a.href = adminExportUrl();
+    a.download = "";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
 
   return (
     <div className={styles.devTools}>
@@ -48,6 +60,19 @@ export function DeveloperTools() {
         Database tools operate directly on raw tables and rows, bypassing the app&apos;s normal business logic. These
         are dev-only tools intended to be removed before a real production launch.
       </Note>
+
+      <div className={styles.actions}>
+        <div className={styles.actionText}>
+          <h2 className={styles.actionTitle}>Export all tables</h2>
+          <p className={styles.actionHelper}>
+            Downloads every table and all {totalRows} row{totalRows === 1 ? "" : "s"} as a single timestamped JSON file
+            — a quick backup or off-line snapshot of the whole database.
+          </p>
+        </div>
+        <Button variant="primary" onClick={handleExportAll} disabled={query.isLoading || totalRows === 0}>
+          Export all tables
+        </Button>
+      </div>
 
       <div className={styles.actions}>
         <div className={styles.actionText}>

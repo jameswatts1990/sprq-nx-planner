@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { Note } from "@/components/ui/Note";
 import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
-import type { CellOut } from "@/types/cell";
+import type { CellOut, TrayRestoreOut } from "@/types/cell";
 import { soonestTrayExpiry } from "@/utils/openTrays";
 import { FADE_MIN_HOURS } from "@/utils/windowFade";
 
@@ -39,6 +39,10 @@ function expiryText(hours: number): string {
 export function TrayPanel({ trayId, cells, currentCellId, showDiscard = true }: TrayPanelProps) {
   const queryClient = useQueryClient();
   const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const [confirmRestore, setConfirmRestore] = useState(false);
+  // Kept after a successful restore to surface any drift / bay conflict the modal can't (it
+  // closes on success). Null when there's nothing noteworthy to report.
+  const [restoreResult, setRestoreResult] = useState<TrayRestoreOut | null>(null);
 
   const discardMutation = useMutation({
     mutationFn: () => cellsApi.discardTray({ tray_id: trayId }),
@@ -48,11 +52,21 @@ export function TrayPanel({ trayId, cells, currentCellId, showDiscard = true }: 
     },
   });
 
+  const restoreMutation = useMutation({
+    mutationFn: () => cellsApi.restoreTray({ tray_id: trayId }),
+    onSuccess: (res) => {
+      invalidateScheduleRelated(queryClient);
+      setConfirmRestore(false);
+      setRestoreResult(res.drifted_use_ids.length > 0 || res.bay_conflict_tray_id != null ? res : null);
+    },
+  });
+
   const traySize = cells[0]?.tray_size ?? cells.length;
   const instrument = cells.find((c) => c.current_instrument_serial)?.current_instrument_serial ?? null;
   const soonest = soonestTrayExpiry(cells);
   const urgent = soonest !== null && soonest <= FADE_MIN_HOURS;
   const anyOpen = cells.some((c) => c.status === "open");
+  const anyDiscarded = cells.some((c) => c.discarded_at != null);
   const reuseSkipped = cells.some((c) => c.tray_reuse_disabled);
 
   return (
@@ -89,11 +103,18 @@ export function TrayPanel({ trayId, cells, currentCellId, showDiscard = true }: 
         ))}
       </div>
 
-      {showDiscard && anyOpen && (
+      {showDiscard && (anyOpen || anyDiscarded) && (
         <div className={styles.actions}>
-          <Button variant="ghost" onClick={() => setConfirmDiscard(true)}>
-            Discard all cells
-          </Button>
+          {anyOpen && (
+            <Button variant="ghost" onClick={() => setConfirmDiscard(true)}>
+              Discard all cells
+            </Button>
+          )}
+          {anyDiscarded && (
+            <Button variant="ghost" onClick={() => setConfirmRestore(true)}>
+              Restore tray
+            </Button>
+          )}
         </div>
       )}
 
@@ -115,10 +136,45 @@ export function TrayPanel({ trayId, cells, currentCellId, showDiscard = true }: 
         >
           <p>
             This marks every cell physically in this tray as exhausted, regardless of how many uses it has left. Any
-            not-yet-run placements for these cells are cancelled and their samples return to the backlog. This cannot be
-            undone.
+            not-yet-run placements for these cells are cancelled and their samples return to the backlog. You can bring
+            the cells back later with <b>Restore tray</b>, but the cancelled placements stay in the backlog to re-place.
           </p>
         </ConfirmModal>
+      )}
+
+      {confirmRestore && (
+        <ConfirmModal
+          title="Restore this tray?"
+          confirmLabel="Restore tray"
+          pendingLabel="Restoring…"
+          pending={restoreMutation.isPending}
+          error={
+            restoreMutation.isError
+              ? restoreMutation.error instanceof ApiError
+                ? restoreMutation.error.message
+                : "Failed to restore tray."
+              : null
+          }
+          onCancel={() => setConfirmRestore(false)}
+          onConfirm={() => restoreMutation.mutate()}
+        >
+          <Note tone="warn" icon="!">
+            This un-discards the tray so its cells can be reused again. If it was discarded with the grid&apos;s{" "}
+            <b>↻</b> button, any later uses that moved onto a fresh tray move back here — unless they&apos;ve since been{" "}
+            <b>Confirm loaded</b>. A hard &quot;Discard all cells&quot; cancelled its placements to the backlog; those
+            samples stay there to re-place.
+          </Note>
+        </ConfirmModal>
+      )}
+
+      {restoreResult && (
+        <Note tone="warn" icon="!">
+          Tray restored.
+          {restoreResult.drifted_use_ids.length > 0 &&
+            ` ${restoreResult.drifted_use_ids.length} use(s) couldn't be moved back (already Confirm loaded or changed since) — left where they are.`}
+          {restoreResult.bay_conflict_tray_id != null &&
+            ` Tray ${restoreResult.bay_conflict_tray_id} is now also in this carousel bay — discard one so a single physical tray occupies it.`}
+        </Note>
       )}
 
       {discardMutation.isError && !confirmDiscard && (

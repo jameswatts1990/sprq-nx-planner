@@ -10,6 +10,8 @@ import type {
   CellReportToPacbioRequest,
   TrayDiscardOut,
   TrayDiscardRequest,
+  TrayRestoreOut,
+  TrayRestoreRequest,
   TrayRotateOut,
   TrayRotateRequest,
   TraySkipReuseOut,
@@ -92,6 +94,10 @@ export const cellsApi = {
    * on the old (discarded) cells. 409 if a later run is confirmed loaded or a cell is
    * stopped/retired. */
   rotateTray: (req: TrayRotateRequest) => api.post<TrayRotateOut>("/api/cells/rotate-tray", req),
+  /** Bring a discarded tray back into service: un-discards its cells and, for a rotate discard,
+   * moves the moved uses back and deletes the empty successor tray (drift-guarded). Reports what
+   * drifted / any co-resident tray now in the same bay. 409 if the tray isn't discarded. */
+  restoreTray: (req: TrayRestoreRequest) => api.post<TrayRestoreOut>("/api/cells/restore-tray", req),
   /** Toggle a tray's reversible "skip reuse / planning disposal" flag. When on, autoschedule
    * and Recalculate stop offering any of the tray's cells for reuse; turning it off restores
    * reuse. Advisory - never changes cell status or cancels uses (unlike discardTray). */

@@ -535,8 +535,8 @@ export function ScheduleSection() {
         <b>Loading a fresh tray into an in-use position.</b> RunNx always prefers to reuse the cells already in a tray
         position before opening a new tray, so you don&apos;t normally choose the cell yourself. When you <i>do</i> want
         to retire a tray early and load a brand-new one into the same position — even though its cells still have
-        capacity — use the tray <b>Discard current tray</b> (<b>↻</b>) button (see Locking a run below). It moves
-        that day&apos;s samples and any later uses onto fresh cells, restarting at <b>Use 1</b>. There&apos;s no per-drop cell picker:
+        capacity — use the tray <b>Discard current tray</b> (<b>↻</b>) button (see Locking a run below). This plate
+        keeps its current cells; only <i>later</i> reuses move onto fresh cells, restarting at <b>Use 1</b>. There&apos;s no per-drop cell picker:
         the slot is a loading position, and the instrument decides the cell — but the seal popover offers two ways to
         override that choice after the fact, without dragging the sample anywhere:
       </p>
@@ -623,6 +623,16 @@ export function ScheduleSection() {
         reuse again; the same dialog later offers <b>Undo QC</b> to
         reverse the whole action (a top-up whose request was already sent is left in place). Cancelled uses stay
         visible as <b>Blocked</b> slots (see below) rather than disappearing.
+      </p>
+      <p>
+        <b>Out of window (⚠ Window):</b> a re-use only counts if it can start within its cell&apos;s <b>108-hour</b>{" "}
+        window (measured from the cell&apos;s first use). If a re-use (Use 2 or 3) is moved to a day so late that this
+        window has closed — most often after a run <b>failed to load</b> and slipped to a later day — that card is
+        flagged with a red bottom stripe and a <b>⚠ Window</b> label, and its Use number can no longer physically run.
+        The app <i>never</i> silently swaps the tray for you; instead, open the card (or its cell stub) and press{" "}
+        <b>Load fresh tray</b> to run those samples on a brand-new tray, restarting at Use 1. This is exactly the
+        &quot;the third use isn&apos;t possible any more, start a new tray&quot; case — the system spots it from the
+        dates so you don&apos;t have to.
       </p>
       <p>
         <b>Opening a placement:</b> clicking a filled slot&apos;s <b>card body</b> opens its detail popover, now titled
@@ -800,14 +810,33 @@ export function ScheduleSection() {
         <li>
           The <b>↻</b> button in a tray&apos;s top-right corner is <b>Discard current tray</b> — use it when you
           physically swap that tray for a fresh one (its cells are used up, expired, or you just want a clean tray from
-          this day on). It discards the current tray after this plate loads and moves <b>this day&apos;s samples, plus
-          any later uses of the tray</b>, onto a new tray&apos;s cells — each restarting at <b>Use 1</b> in the same
-          well. The confirmation lists the tray&apos;s current cells and how many uses each has left, with a link to
-          each cell&apos;s detail page. Uses on{" "}
-          <i>earlier</i> days stay exactly where they are on the old cells, which are then discarded (Exhausted).
-          So a sample that was, say, this cell&apos;s Use 3 becomes Use 1 on the fresh tray, and the days before it
-          are untouched. It can&apos;t be undone, and isn&apos;t available on a run that&apos;s already{" "}
-          <b>Confirm loaded</b> (unlock it first) — the cells are physically in the instrument by then.
+          the next run on). It discards the tray <b>after this plate has loaded</b>: <b>this plate keeps its current
+          cells and its real use number</b> (a sample that was Use 2 stays Use 2), and only <b>later</b> reuses of
+          these cells move onto a fresh tray, each restarting at <b>Use 1</b> in the same well. The confirmation lists
+          the tray&apos;s current cells and how many uses each has left, with a link to each cell&apos;s detail page.
+          Earlier uses are untouched; the current cells are then marked discarded (Exhausted) so nothing new reuses
+          them. If this plate was the tray&apos;s last use, nothing moves and no fresh tray is opened — the cells are
+          simply retired after it. It can be reversed later with <b>Restore tray</b> (see below), and isn&apos;t
+          available on a run that&apos;s already <b>Confirm loaded</b> (unlock it first) — the cells are physically in
+          the instrument by then. If a <i>later</i> reuse is itself already Confirm loaded, unlock that one first.
+        </li>
+        <li>
+          The <b>📅</b> button next to <b>Confirm loaded</b> is <b>Reschedule</b> — use it when a run <b>fails to load</b>
+          {" "}(instrument issue, etc.) and needs to move to another day. It moves the <b>whole run — both plates and all
+          its samples</b> — to a weekday you pick, in one step, instead of dragging every sample across. Use numbers stay
+          correct for the new dates, and a reuse Plate 2 re-chains off the new load day. If a reuse no longer fits its
+          cell&apos;s 108h window on the later day, that card is flagged <b>⚠ Window</b> (see the Colour &amp; flags
+          section) so you can load a fresh tray for it — the app never silently swaps the tray. It isn&apos;t offered on
+          a <b>Confirm loaded</b> run (unlock first), on a weekend, or onto a day that already has a run on that
+          instrument.
+        </li>
+        <li>
+          <b>Restore tray</b> brings a discarded tray back. It lives on the tray&apos;s page (open a cell&apos;s{" "}
+          <b>Tray</b> link, or click the tray in the instrument&apos;s left-hand tray overview). It un-discards the
+          cells so they can be reused again; if the tray was discarded with <b>↻</b>, the later uses that had moved onto
+          a fresh tray move back and the empty fresh tray is removed — unless one has since been <b>Confirm loaded</b>,
+          in which case it&apos;s left in place and you&apos;re told. If another tray has since loaded into the same
+          carousel bay, you&apos;re told which one so you can decide which physical tray really stays.
         </li>
         <li>
           The <b>✕</b> button next to <b>↻</b> in a plate&apos;s top-right corner is <b>Clear plate</b> — it removes

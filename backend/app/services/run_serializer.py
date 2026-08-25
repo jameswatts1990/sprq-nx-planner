@@ -21,6 +21,7 @@ from app.services.cell_service import (
     has_failed_use,
     is_duplicate_cell_reuse,
     reuse_not_ready_hours,
+    reuse_window_exceeded,
     use_sort_key,
     window_hours_elapsed,
 )
@@ -118,6 +119,11 @@ def _stage_out(
         tray_position=cell_use.cell.tray_position if cell_use.cell else None,
         tray_id=cell_use.cell.tray_id if cell_use.cell else None,
         window_hours_elapsed=window_hours_elapsed(cell_use.cell) if cell_use.cell else None,
+        # True when this is a reuse (Use 2/3) whose planned start has slipped past the cell's
+        # 108h deadline - so a rescheduled use that can no longer physically start in time is
+        # flagged on the card instead of silently rendering as a valid Use N. Estimated until
+        # Use 1 is confirmed. Cheap (works off the cell's own already-eager-loaded uses).
+        reuse_window_exceeded=reuse_window_exceeded(cell_use),
         # Advisory only, and only computed on placement/move/auto-fill responses
         # (with_reuse_timing, same gate as effective_start_at below) - a non-first use's real
         # readiness check needs its prior use's own cross-run timing, which isn't in the grid

@@ -22,7 +22,6 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from app.engine.constants import (
-    CELL_LIFETIME_H,
     DAY_START_HOUR,
     DEFAULT_MOVIE_HOURS,
     WELLS,
@@ -43,6 +42,7 @@ from app.services.cell_service import (
     first_use_planned_start_at,
     open_new_tray,
     recompute_status,
+    reuse_deadline,
     run_has_started,
     use_run_date,
     use_sort_key,
@@ -239,6 +239,106 @@ def update_run_load_time(db: Session, run_batch: RunBatch, start_hour: int, star
             # Same-day parallel Plate 2 (a second tray): loaded in the same session as Plate 1.
             plate.planned_start_at = new_start
             recompute_cycle_timing(db, plate)
+
+
+def reschedule_run(db: Session, run_id: int, new_load_date: date, actor: str | None = None) -> RunBatch:
+    """Move a whole planned run (both plates) to a different weekday - the "instrument failed to
+    load, run it another day" action, so the lab moves the run in one step instead of dragging
+    every sample. Each plate keeps its cells, samples, barcodes and per-cell run times; only the
+    day (and, for a reuse Plate 2, its chained acquire day/time) changes.
+
+    Use numbers are derived live, so they renumber themselves. A reuse pushed past its cell's 108h
+    window is deliberately NOT auto-changed here - it comes back flagged reuse_window_exceeded so
+    the user can load a fresh tray from the slot/cell popover (the "flag, don't silently swap"
+    product choice). Refuses (409) if the run is already confirmed loaded (its cells are physically
+    in the instrument - unlock first), if new_load_date isn't a weekday, if the instrument is
+    maintenance-down then, if a prior run locks the instrument all day, or if a run already exists
+    on (instrument, new_load_date) - merging two runs isn't modelled; clear one first. Commits."""
+    run_batch = db.scalar(
+        select(RunBatch)
+        .where(RunBatch.id == run_id)
+        .options(selectinload(RunBatch.cycles).selectinload(Cycle.cell_uses), selectinload(RunBatch.instrument))
+    )
+    if run_batch is None:
+        raise PlacementError(404, "Run not found.")
+    if new_load_date.weekday() >= 5:
+        raise PlacementError(409, "A run can only be loaded on a weekday.")
+    if any(c.status != "planned" for c in run_batch.cycles):
+        raise PlacementError(409, "This run is already confirmed loaded; unlock it before rescheduling.")
+    if new_load_date == run_batch.load_date:
+        return run_batch  # no-op
+
+    instrument = run_batch.instrument
+    if instrument.down_from is not None and new_load_date >= instrument.down_from:
+        raise PlacementError(
+            409,
+            f"Instrument {instrument.serial_number} is down for maintenance from {instrument.down_from.isoformat()}.",
+        )
+    clash = db.scalar(
+        select(RunBatch).where(RunBatch.instrument_id == instrument.id, RunBatch.load_date == new_load_date)
+    )
+    if clash is not None:
+        raise PlacementError(
+            409,
+            f"A run already exists on {instrument.serial_number} on {new_load_date.isoformat()} - "
+            "clear it first, or pick another day.",
+        )
+
+    # Preserve Plate 1's time-of-day and gate the new day against a prior run's whole-day loading
+    # lock, exactly as creating a fresh run there would (get_or_create_run). Only a lock spanning
+    # the whole target day blocks; a partial lock is advisory (see resolve_new_run_start).
+    plate1 = next((c for c in run_batch.cycles if c.plate_index == 1), None)
+    start_hour, start_minute = (
+        (plate1.planned_start_at.hour, plate1.planned_start_at.minute) if plate1 else (DAY_START_HOUR, 0)
+    )
+    longest = max((c.movie_hours for c in run_batch.cycles), default=DEFAULT_MOVIE_HOURS)
+    gate_start, _ = planned_window(new_load_date, longest, start_hour, start_minute)
+    if instrument_lock.resolve_new_run_start(db, instrument.id, new_load_date, gate_start) is None:
+        blocking = instrument_lock.latest_lock_until(db, instrument.id, new_load_date)
+        raise PlacementError(
+            409,
+            f"Instrument {instrument.serial_number} is locked until "
+            f"{blocking.isoformat() if blocking else '?'} by a prior run on {new_load_date.isoformat()}.",
+        )
+
+    # Capture which plates are a reuse (acquire > current load) BEFORE moving: once load_date
+    # jumps forward, a reuse's old acquire day can fall *before* the new load day, so the stale
+    # acquire_date can no longer classify it (unlike update_run_load_time's same-date edit, which
+    # can). Then move the run and re-derive every plate off the new day - Plate 1 (and a same-day
+    # parallel Plate 2) to the same time-of-day on the new date; a reuse Plate 2 re-chained off
+    # Plate 1's new movie end via reuse_plate_window. The plates' cells and their relative reuse
+    # priority are unchanged by a pure date shift, so no re-sequencing is needed.
+    was_reuse = {c.id: c.acquire_date > run_batch.load_date for c in run_batch.cycles}
+    new_start = datetime.combine(new_load_date, time(hour=start_hour, minute=start_minute), tzinfo=timezone.utc)
+    run_batch.load_date = new_load_date
+    if plate1 is not None:
+        plate1.acquire_date = new_load_date
+        plate1.planned_start_at = new_start
+        recompute_cycle_timing(db, plate1)
+    for cycle in run_batch.cycles:
+        if cycle.plate_index == 1:
+            continue
+        if was_reuse[cycle.id] and plate1 is not None:
+            acquire_date, start, end = reuse_plate_window(plate1.planned_start_at, plate1.movie_hours, cycle.movie_hours)
+            cycle.acquire_date = acquire_date
+            cycle.planned_start_at = start
+            cycle.planned_end_at = end
+        else:
+            cycle.acquire_date = new_load_date
+            cycle.planned_start_at = new_start
+            recompute_cycle_timing(db, cycle)
+    db.add(
+        AuditLog(
+            actor=actor or "unknown",
+            action="reschedule_run",
+            entity_type="run_batch",
+            entity_id=run_batch.id,
+            details_json={"new_load_date": new_load_date.isoformat()},
+        )
+    )
+    db.commit()
+    db.refresh(run_batch)
+    return run_batch
 
 
 def _cell_used_in_run(cell: Cell, instrument_id: int, load_date: date, *, exclude_use_id: int | None = None) -> bool:
@@ -582,11 +682,11 @@ def _reuse_window_open(
     advisory, flagged after the fact), so the auto-deriver must check it itself or it would
     silently auto-create an out-of-window reuse. Anchored on the real first-use start once
     confirmed (`first_use_started_at`), else the planned first-use start - mirrors the
-    frontend's reuseWindow (waitingCells.ts)."""
-    anchor = cell.first_use_started_at or first_use_planned_start_at(cell)
-    if anchor is None:
+    frontend's reuseWindow (waitingCells.ts). The deadline math is shared with the read-side
+    reuse_window_exceeded flag via cell_service.reuse_deadline, so the gate and the flag agree."""
+    deadline = reuse_deadline(cell)
+    if deadline is None:
         return True  # never used yet - no 108h clock running (not a reuse candidate in practice)
-    deadline = ensure_aware(anchor) + timedelta(hours=CELL_LIFETIME_H)
     reuse_start, _ = planned_window(acquire_date, run_time_hours, start_hour, start_minute)
     return reuse_start <= deadline
 

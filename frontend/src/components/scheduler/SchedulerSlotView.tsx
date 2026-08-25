@@ -168,6 +168,14 @@ export const SchedulerSlotView = memo(
   const insertSizeAlert = showStage && stage!.insert_size_bp != null && stage!.insert_size_bp <= insertThreshold;
   const insertSizeReuseRisk = insertSizeAlert && stage!.use_number >= 2;
 
+  // This reuse (Use 2/3) has slipped past its cell's 108h reuse deadline - it can no longer
+  // physically start in time (see StageOut.reuse_window_exceeded). Only flagged while the use is
+  // still "planned" (the actionable case - typically a run that failed to load and was pushed to
+  // a later day): a use that already ran or carries a QC outcome doesn't need this. Additive, like
+  // the insert-size stripe - it coexists with, never replaces, a clash/QC alert on the same card,
+  // and the slot/cell popover offers the one-click "Load fresh tray" fix.
+  const windowExceeded = showStage && !!stage!.reuse_window_exceeded && stage!.cell_use_status === "planned";
+
   // Colour groups by which physical cell is loaded (stage.use_number), not by well
   // position - so a cell reused across two wells in the same run shares one colour.
   const useClass = classForUseIndex(showStage ? stage!.use_number : slotIndex + 1);
@@ -222,6 +230,10 @@ export const SchedulerSlotView = memo(
     // so it never fights with a QC/clash alert also carried by the same card. Only shown on a
     // small-insert reuse (use_number >= 2); a first use carries just the InsertSizeFlag badge.
     if (insertSizeReuseRisk) classes.push(styles.insertFlag, styles.insertFlagRisk);
+    // Additive top-edge stripe (its own colour, distinct from the insert-size one) for a reuse
+    // that has slipped past its 108h window - never a border colour, so it can sit alongside a
+    // clash/QC alert on the same card.
+    if (windowExceeded) classes.push(styles.windowFlag, styles.windowFlagExceeded);
     // Shades toward the same fade as a waiting-cell ghost, but driven by this cell's own
     // elapsed time rather than time-to-deadline - "denote the passing of time until a
     // [cell's] expiry" (see docs/pacbio-sprq-nx-scheduling-reference.md #2: this is always
@@ -366,6 +378,14 @@ export const SchedulerSlotView = memo(
                 {qcAlert === "cancelled" ? "Blocked" : qcAlert === "stopped" ? "Stopped" : qcAlert === "failed" ? "Failed" : "Aborted"}
               </div>
             )
+          )}
+          {windowExceeded && (
+            <div
+              className={styles.windowExceededLabel}
+              title="Out of window - this cell's 108h reuse deadline has passed for this day, so this Use can no longer start in time. Open the slot for details, then load a fresh tray for it."
+            >
+              ⚠ Window
+            </div>
           )}
           <BarcodeChips barcodes={stage!.barcodes} variant={useClass} />
           {showStub && (

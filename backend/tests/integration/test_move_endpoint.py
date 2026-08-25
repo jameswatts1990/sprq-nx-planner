@@ -487,3 +487,40 @@ def test_move_onto_a_well_whose_tray_has_since_turned_over(client):
     assert stage["cell_id"] != old_cell_id
     assert stage["use_number"] == 2
     assert client.get(f"/api/cells/{new_cell_id}").json()["uses_consumed"] == 2
+
+
+def test_reschedule_past_the_108h_window_flags_the_reuse_out_of_window(client):
+    """A reuse dragged to a later day than its cell's 108h window allows comes back flagged
+    reuse_window_exceeded. The same-cell reschedule path keeps the cell and does no window
+    re-check, so without this flag an impossible Use 2/3 would silently render as valid - the
+    reported bug (a run that slipped from Friday to Monday kept showing a 3rd use that could no
+    longer run). The first use never flags: it anchors the clock."""
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nW1,bc1\nW2,bc2"})
+    mon, _tue, wed, _thu, _fri, next_mon = _weekdays(6)
+
+    # W1 opens a fresh tray on Monday (Use 1, anchors the 108h clock).
+    r1 = _place(client, _sid(client, "W1"), mon, 0, {"mode": "new"})
+    assert r1.status_code == 201, r1.text
+    cell_id = _stages(r1.json())[0]["cell_id"]
+
+    # W2 reuses W1's cell on Wednesday (Use 2) - well within 108h of Monday.
+    r2 = _place(client, _sid(client, "W2"), wed, 0, {"mode": "existing", "cell_id": cell_id})
+    assert r2.status_code == 201, r2.text
+    w2_stage = _stages(r2.json())[0]
+    w2_use_id = w2_stage["cell_use_id"]
+    assert w2_stage["use_number"] == 2
+    assert w2_stage["reuse_window_exceeded"] is False  # in window on Wed
+
+    # Reschedule W2 to the following Monday (168h after the anchor) - a same-cell reschedule
+    # (same loading well, later day) keeps it on W1's cell and does no window re-check, so it is
+    # now past the 108h deadline.
+    rm = _move(client, w2_use_id, next_mon, 0)
+    assert rm.status_code == 200, rm.text
+    moved = next(s for s in _stages(rm.json()) if s["cell_use_id"] == w2_use_id)
+    assert moved["cell_id"] == cell_id  # still the same physical cell - a reschedule, not a reassign
+    assert moved["use_number"] == 2
+    assert moved["reuse_window_exceeded"] is True
+
+    # W1 (the first use) never flags - it anchors the clock.
+    mon_run = client.get(f"/api/cycles/{r1.json()['run_id']}").json()
+    assert _stages(mon_run)[0]["reuse_window_exceeded"] is False

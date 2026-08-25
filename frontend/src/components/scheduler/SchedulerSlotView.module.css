@@ -850,6 +850,35 @@
   background: repeating-linear-gradient(45deg, var(--orange) 0 5px, var(--amber) 5px 10px);
 }
 
+/* Out-of-window flag: this reuse (Use 2/3) has slipped past its cell's 108h reuse deadline and
+   can no longer start in time (see StageOut.reuse_window_exceeded / cell_service.reuse_deadline).
+   Additive like .insertFlag, but painted on the BOTTOM edge (::after) so it never collides with
+   the insert-size top stripe (::before) when a card carries both, and reads distinctly from the
+   barcode-clash hazard tape / QC borders. Red dashed = "impossible as planned; load a fresh
+   tray" (the fix lives in the slot/cell popover). */
+.windowFlag {
+  position: relative;
+}
+.windowFlag::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  z-index: 2;
+}
+.windowFlagExceeded::after {
+  background: repeating-linear-gradient(90deg, var(--red) 0 6px, transparent 6px 11px);
+}
+.windowExceededLabel {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--red);
+}
+
 /* A drag is in progress and dropping onto this empty slot would clash a barcode already burned
    on the cell it would naturally reuse (see waitingCells.ghostWouldClashWithSample) - a
    predictive "danger zone" shown on every such slot for the whole drag, not just the one

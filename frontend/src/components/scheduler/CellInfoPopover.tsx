@@ -58,6 +58,11 @@ export function CellInfoPopover({ stage, run, onClose, onOpenQc }: CellInfoPopov
   // Broader than canOverride - available for any planned placement, reuse or not, not just
   // the auto-derived reuse case "Use a new cell instead" already covers.
   const canChooseCell = run.status === "planned" && stage.cell_use_status === "planned" && stage.sample_id !== null;
+  // This reuse has slipped past its cell's 108h window (see StageOut.reuse_window_exceeded) - it
+  // can't physically start in time, so a fresh tray is the fix. Broader than canOverride: a
+  // *cross-run* reuse sits on its own Plate 1 (is_reuse false), so canOverride would miss it.
+  const windowExceeded = !!stage.reuse_window_exceeded && stage.cell_use_status === "planned";
+  const canLoadFreshTray = windowExceeded && run.status === "planned" && stage.sample_id !== null;
   const [pickerOpen, setPickerOpen] = useState(false);
 
   // "Use a new cell instead": drop the reuse and re-place the sample fresh at the same slot.
@@ -183,6 +188,14 @@ export function CellInfoPopover({ stage, run, onClose, onOpenQc }: CellInfoPopov
 
       {cell && cell.window_hours_elapsed !== null && <WindowMeter windowHours={cell.window_hours_elapsed} />}
 
+      {windowExceeded && (
+        <Note tone="bad" icon="!">
+          This cell&apos;s <b>108h reuse window has closed</b> for this day, so its <b>Use {stage.use_number}</b> can no
+          longer start in time.{" "}
+          {canLoadFreshTray ? "Load a fresh tray for it below." : "Reschedule it earlier, or load a fresh tray."}
+        </Note>
+      )}
+
       {cell && cell.burned_barcodes.length > 0 && (
         <div className={styles.details}>
           <div className={styles.row}>
@@ -254,9 +267,15 @@ export function CellInfoPopover({ stage, run, onClose, onOpenQc }: CellInfoPopov
             Choose a specific cell…
           </Button>
         )}
-        {canOverride && (
+        {(canLoadFreshTray || canOverride) && (
           <Button variant="primary" onClick={() => useNewCell.mutate()} disabled={useNewCell.isPending}>
-            {useNewCell.isPending ? "Switching…" : "Use a new cell instead"}
+            {useNewCell.isPending
+              ? windowExceeded
+                ? "Loading…"
+                : "Switching…"
+              : windowExceeded
+                ? "Load fresh tray"
+                : "Use a new cell instead"}
           </Button>
         )}
       </ModalActions>

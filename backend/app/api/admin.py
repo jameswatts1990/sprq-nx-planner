@@ -10,6 +10,7 @@ from datetime import date, datetime
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
 from sqlalchemy import JSON, Column, Table, delete, func, select, update
 from sqlalchemy.exc import IntegrityError
@@ -153,6 +154,35 @@ def list_tables(db: SessionDep) -> list[TableInfo]:
             )
         )
     return result
+
+
+@router.get("/export.json")
+def export_database(db: SessionDep) -> Response:
+    """Dump every table (all rows, no pagination) into one JSON file for a quick backup or
+    off-line inspection. Like the other dev tools this is a raw read straight off the tables -
+    no business-logic filtering, every table included in the same shape the browse view uses.
+    Sets Content-Disposition so a hidden <a download> saves it as a file rather than the
+    browser rendering the JSON inline."""
+    now = utcnow()
+    tables = []
+    for name, table in sorted(Base.metadata.tables.items()):
+        pk_cols = list(table.primary_key.columns) or list(table.columns)[:1]
+        stmt = select(table).order_by(*pk_cols)
+        tables.append(
+            {
+                "name": name,
+                "columns": [c.name for c in table.columns],
+                "primary_key": _pk_columns(table),
+                "rows": [dict(r._mapping) for r in db.execute(stmt)],
+            }
+        )
+    body = json.dumps(jsonable_encoder({"exported_at": now, "tables": tables}), indent=2)
+    filename = f"runnx-db-export-{now:%Y%m%d-%H%M%S}.json"
+    return Response(
+        content=body,
+        media_type="application/json",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.get("/tables/{table_name}/rows")

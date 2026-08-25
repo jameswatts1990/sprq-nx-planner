@@ -34,4 +34,11 @@ export const cyclesApi = {
   updateStatus: (id: number, req: CycleStatusUpdate) => api.patch<RunOut>(`/api/cycles/${id}`, req),
   /** POST /api/cycles/{run_id}/cancel -> 204 no body. Cancels the whole run. */
   cancel: (id: number) => api.post<void>(`/api/cycles/${id}/cancel`),
+  /** POST /api/cycles/{run_id}/reschedule {new_load_date} -> updated RunOut. Moves a whole
+   * planned run (both plates) to another weekday - the "instrument failed to load" flow. A reuse
+   * pushed past its 108h window comes back flagged reuse_window_exceeded (see reschedule_run);
+   * 409 if the run is confirmed loaded, the day is a weekend/occupied, or the instrument is
+   * locked/maintenance-down then. */
+  reschedule: (id: number, newLoadDate: string) =>
+    api.post<RunOut>(`/api/cycles/${id}/reschedule`, { new_load_date: newLoadDate }),
 };

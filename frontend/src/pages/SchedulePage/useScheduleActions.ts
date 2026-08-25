@@ -55,6 +55,18 @@ function placementAdvisoryText(run: RunOut, insertThreshold: number): string | n
     p.stages.some((s) => s.use_number >= 2 && s.insert_size_bp != null && s.insert_size_bp <= insertThreshold),
   );
   if (smallOnReuse) parts.push(smallInsertReuseWarning(insertThreshold));
+  // A reuse (Use 2/3) whose planned start has slipped past its cell's 108h window - typically a
+  // run/sample dragged to a later day. It can no longer physically start in time; the card shows a
+  // "⚠ Window" flag too, but calling it out here means a stray drag is never silent. The fix is
+  // the slot/cell popover's "Load fresh tray" (see StageOut.reuse_window_exceeded).
+  const windowExceeded = run.plates.some((p) =>
+    p.stages.some((s) => s.reuse_window_exceeded && s.cell_use_status === "planned"),
+  );
+  if (windowExceeded) {
+    parts.push(
+      "A reused cell in this run is now past its 108h reuse window and can't start in time — open its card to load a fresh tray.",
+    );
+  }
   return parts.length > 0 ? parts.join(" ") : null;
 }
 

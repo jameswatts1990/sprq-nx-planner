@@ -157,17 +157,40 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
     },
   });
 
-  const [rotateTrayId, setRotateTrayId] = useState<number | null>(null);
+  // from_date is the discarded plate's OWN acquire day: the tray is discarded AFTER this plate,
+  // so this plate keeps its cells/use number and only strictly-later uses move to a fresh tray
+  // (rotate_tray uses `> from_date`). For Plate 1 acquire_date == loadDate; a reuse Plate 2's
+  // is its own later acquire day, so discarding from its header keeps Plate 2 too.
+  const [rotateTarget, setRotateTarget] = useState<{ trayId: number; fromDate: string } | null>(null);
   const rotateMutation = useMutation({
-    mutationFn: (trayId: number) => cellsApi.rotateTray({ tray_id: trayId, from_date: loadDate }),
+    mutationFn: ({ trayId, fromDate }: { trayId: number; fromDate: string }) =>
+      cellsApi.rotateTray({ tray_id: trayId, from_date: fromDate }),
     onSuccess: () => {
-      // The old tray's cells just went terminal and this day's (plus every later) use moved
-      // onto a freshly-minted tray - without this, the grid's real stages, waiting/terminal/
+      // The old tray's cells just went terminal and any strictly-later use moved onto a
+      // freshly-minted tray - without this, the grid's real stages, waiting/terminal/
       // vacated-tray ghosts (waitingCells.ts, fed by SchedulePage's ["cells", ...] queries)
-      // and the Backlog page would keep reading pre-rotate data until some unrelated
+      // and the Backlog page would keep reading pre-discard data until some unrelated
       // mutation happened to invalidate them.
       invalidateScheduleRelated(queryClient);
-      setRotateTrayId(null);
+      setRotateTarget(null);
+    },
+  });
+
+  // The whole-run "Reschedule to another day" flow: move both plates to another weekday in one
+  // step (the "instrument failed to load" case), instead of dragging every sample. Null when the
+  // picker is closed; else the chosen target date. The backend re-derives all plate timings and
+  // flags any reuse that no longer fits its 108h window (it never silently swaps a tray).
+  const [reschedulingTo, setReschedulingTo] = useState<string | null>(null);
+  const rescheduleMutation = useMutation({
+    mutationFn: (newLoadDate: string) => {
+      if (!run) throw new Error("No run to reschedule.");
+      return cyclesApi.reschedule(run.run_id, newLoadDate);
+    },
+    onSuccess: () => {
+      // Moving a run shifts both plates' days (and a reuse Plate 2's chained day), which the
+      // ["cells"]-fed ghosts/locks depend on - invalidate the whole schedule set like the others.
+      invalidateScheduleRelated(queryClient);
+      setReschedulingTo(null);
     },
   });
 
@@ -176,9 +199,9 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
   // jump to its detail page before committing. Same ["cells", { tray_id }] key shape as
   // CellDetailPage / OpenTraysAccordion, so it shares React Query's cache with them.
   const trayCellsQuery = useQuery({
-    queryKey: ["cells", { tray_id: rotateTrayId }],
-    queryFn: () => cellsApi.list({ tray_id: rotateTrayId as number, page_size: 10 }),
-    enabled: rotateTrayId !== null,
+    queryKey: ["cells", { tray_id: rotateTarget?.trayId ?? null }],
+    queryFn: () => cellsApi.list({ tray_id: rotateTarget!.trayId, page_size: 10 }),
+    enabled: rotateTarget !== null,
   });
 
   if (weekend) {
@@ -329,24 +352,35 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
               </>
             ) : (
               filledCount >= 1 && (
-                <button
-                  type="button"
-                  className={`${styles.ctrl} ${styles.confirm}`}
-                  disabled={statusMutation.isPending}
-                  onClick={() => {
-                    setRunName(run.run_name ?? "");
-                    // Default to right now, not the plan: pressing this button IS the physical
-                    // load event, and the cells start prepping immediately (see
-                    // cell_timing.run_is_acquiring) - defaulting to the earlier planned time let
-                    // an on-time-or-early load silently record a future load time, so the
-                    // Instruments page kept reading idle until that planned hour arrived. Still
-                    // freely editable for a genuine backdate (confirming after the fact).
-                    setLoadTime(formatLoadTime(new Date()));
-                    setConfirmingLoad(true);
-                  }}
-                >
-                  {statusMutation.isPending ? "Confirming…" : "Confirm loaded"}
-                </button>
+                <>
+                  <button
+                    type="button"
+                    className={`${styles.ctrl} ${styles.confirm}`}
+                    disabled={statusMutation.isPending}
+                    onClick={() => {
+                      setRunName(run.run_name ?? "");
+                      // Default to right now, not the plan: pressing this button IS the physical
+                      // load event, and the cells start prepping immediately (see
+                      // cell_timing.run_is_acquiring) - defaulting to the earlier planned time let
+                      // an on-time-or-early load silently record a future load time, so the
+                      // Instruments page kept reading idle until that planned hour arrived. Still
+                      // freely editable for a genuine backdate (confirming after the fact).
+                      setLoadTime(formatLoadTime(new Date()));
+                      setConfirmingLoad(true);
+                    }}
+                  >
+                    {statusMutation.isPending ? "Confirming…" : "Confirm loaded"}
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.rescheduleBtn}
+                    title="Reschedule — move this whole run (both plates) to another weekday, e.g. after a failed instrument load"
+                    aria-label="Reschedule this run to another day"
+                    onClick={() => setReschedulingTo(loadDate)}
+                  >
+                    📅
+                  </button>
+                </>
               )
             )}
           </>
@@ -415,7 +449,7 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
                         className={styles.rotateBtn}
                         title="Discard current tray — this will discard the current tray in this machine after this plate is loaded"
                         aria-label="Discard current tray — this will discard the current tray in this machine after this plate is loaded"
-                        onClick={() => setRotateTrayId(trayId)}
+                        onClick={() => setRotateTarget({ trayId, fromDate: plate?.acquire_date ?? loadDate })}
                       >
                         ↻
                       </button>
@@ -536,9 +570,46 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
         </ConfirmModal>
       )}
 
-      {rotateTrayId != null && (
+      {reschedulingTo != null && run && (
         <ConfirmModal
-          title={`Discard this Tray ${rotateTrayId}?`}
+          title="Reschedule this run?"
+          confirmLabel="Reschedule"
+          pendingLabel="Rescheduling…"
+          pending={rescheduleMutation.isPending}
+          confirmDisabled={!reschedulingTo || reschedulingTo === loadDate}
+          error={
+            rescheduleMutation.isError
+              ? rescheduleMutation.error instanceof ApiError
+                ? rescheduleMutation.error.message
+                : "Failed to reschedule."
+              : null
+          }
+          onCancel={() => setReschedulingTo(null)}
+          onConfirm={() => reschedulingTo && rescheduleMutation.mutate(reschedulingTo)}
+        >
+          <p>
+            Move this whole run — <b>both plates and all its samples</b> — to another weekday. Use numbers stay correct
+            for the new dates; any reuse that no longer fits its cell&apos;s 108h window is flagged (⚠ Window) so you can
+            load a fresh tray for it. Not available once a run is <b>Confirm loaded</b> (unlock it first).
+          </p>
+          <div className={styles.loadModalField}>
+            <label className={styles.loadModalLabel} htmlFor="reschedule-date">
+              New load day (weekday)
+            </label>
+            <input
+              id="reschedule-date"
+              type="date"
+              className={styles.loadModalInput}
+              value={reschedulingTo}
+              onChange={(e) => setReschedulingTo(e.target.value)}
+            />
+          </div>
+        </ConfirmModal>
+      )}
+
+      {rotateTarget != null && (
+        <ConfirmModal
+          title={`Discard this Tray ${rotateTarget.trayId}?`}
           confirmLabel="Discard tray"
           pendingLabel="Discarding…"
           pending={rotateMutation.isPending}
@@ -549,12 +620,13 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
                 : "Failed to discard tray."
               : null
           }
-          onCancel={() => setRotateTrayId(null)}
-          onConfirm={() => rotateMutation.mutate(rotateTrayId)}
+          onCancel={() => setRotateTarget(null)}
+          onConfirm={() => rotateMutation.mutate(rotateTarget)}
         >
           <p>
-            This will discard the cell tray in this Revio after this plate has been loaded. The next samples loaded
-            onto this machine will use a new tray. Earlier uses stay on the current cells. This cannot be undone.
+            This plate keeps its current cells and use number — the tray is discarded <b>after</b> it has loaded. Any{" "}
+            <b>later</b> reuse of these cells moves onto a fresh tray, restarting at Use 1; earlier uses are untouched.
+            The current cells are marked discarded so nothing new reuses them. This cannot be undone.
           </p>
           {trayCellsQuery.data && trayCellsQuery.data.items.length > 0 && (
             <>
