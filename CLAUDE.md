@@ -24,6 +24,8 @@ The version shows in the navbar (top-right, low-contrast grey — `frontend/src/
 
 **Never downgrade a package to dodge an error — fix forward against the declared version.** If a downgrade is genuinely the only correct fix (e.g. a release is actually broken), stop and flag it with the reason — never silently. Edit `package.json`/lockfiles in place, never regenerate them from memory, so pinned versions never drift backwards. Leave Dependabot upgrade PRs alone (a separate, human-reviewed workflow) unless explicitly asked.
 
+**Backend deps** live in `backend/pyproject.toml` as version **ranges**; `backend/requirements.txt` (runtime) and `requirements-dev.txt` (+ dev) are the pinned, hash-verified locks that Docker and CI install — compiled from pyproject with pip-tools, resolved for **Python 3.14**. After changing a backend dependency, regenerate both with pip-tools (never by hand): install `pip-tools` and re-run the `pip-compile` command printed at the top of each file — or `make lock` from `backend/` if you have GNU make — then commit them with the pyproject edit. A stale lock fails CI on the hash check.
+
 ## Local dev
 
 Native dev on local disk (`c:\Users\jw24\dev\sprq-nx-planner`): `npm run dev` (frontend, port 5173) + `uvicorn --reload` (backend, port 8000) against SQLite `backend/dev.db`. No Docker here. Use the `py` launcher or `backend/.venv/Scripts/python.exe` — **never bare `python`** (it resolves to a broken Windows Store stub). Process-hygiene, PATH, and Alembic-on-`dev.db` gotchas: read `docs/dev-notes.md` when a dev-env issue bites.

@@ -4,4 +4,6 @@ __pycache__/
 .pytest_cache/
 tests/
 *.db
-requirements.lock.txt
+# Dev-only lock + its regen recipe aren't needed in the prod image (only requirements.txt is).
+requirements-dev.txt
+Makefile
