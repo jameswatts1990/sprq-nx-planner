@@ -3,7 +3,7 @@ import { execSync } from "node:child_process";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
-import pkg from "./package.json";
+import pkg from "./package.json" with { type: "json" };
 
 // Last commit date/time, surfaced next to the version in the navbar so the
 // deployed build's age is visible at a glance. Falls back to build time if git
@@ -51,9 +51,15 @@ export default defineConfig({
         // they stay cached across deploys (app code changes far more often than these do).
         // Route-specific heavy deps (recharts, read-excel-file) are already split out by the
         // React.lazy route boundaries in App.tsx, so they don't need a manual entry here.
-        manualChunks: {
-          "react-vendor": ["react", "react-dom", "react-router-dom"],
-          "query-vendor": ["@tanstack/react-query"],
+        // Function form (not the object map): vite 8's Rolldown bundler only accepts a
+        // manualChunks function, unlike Rollup which took either.
+        manualChunks(id) {
+          if (/[\\/]node_modules[\\/](react|react-dom|react-router|react-router-dom|scheduler)[\\/]/.test(id)) {
+            return "react-vendor";
+          }
+          if (/[\\/]node_modules[\\/]@tanstack[\\/]react-query[\\/]/.test(id)) {
+            return "query-vendor";
+          }
         },
       },
     },

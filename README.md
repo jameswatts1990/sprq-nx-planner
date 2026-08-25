@@ -7,7 +7,7 @@ See `docs/revio-nx-planner.html` for the original planning-only prototype this r
 ## Stack
 
 - **Backend**: FastAPI + SQLAlchemy 2 + Alembic + Pydantic, Python 3.14+. PostgreSQL in production; SQLite by default for local runs.
-- **Frontend**: React 19 + TypeScript + Vite 5, plain CSS Modules (no Tailwind/UI kit) ported from the prototype's design system.
+- **Frontend**: React 19 + TypeScript + Vite 8, plain CSS Modules (no Tailwind/UI kit) ported from the prototype's design system.
 - **Deployment**: Docker Compose (nginx-served frontend + FastAPI backend + Postgres 16). nginx serves the built static frontend and reverse-proxies `/api` to the backend, so browser traffic is same-origin.
 
 ## Architecture
