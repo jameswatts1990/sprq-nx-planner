@@ -70,7 +70,7 @@ export type DragData = SampleDragData | FilledSlotDragData;
  * activatorEvent carries no pointer coordinates), so an unresolvable case falls back to the
  * pre-existing "outside the grid" behaviour rather than silently blocking a real off-grid
  * removal. */
-function isWithinGrid(event: DragEndEvent, gridAreaRef: RefObject<HTMLElement> | undefined): boolean {
+function isWithinGrid(event: DragEndEvent, gridAreaRef: RefObject<HTMLElement | null> | undefined): boolean {
   // gridAreaRef itself is a `display: contents` wrapper (SchedulePage's .gridArea - deliberately
   // boxless so it can scope the barcode/notes/density toggles without affecting layout), so its
   // OWN getBoundingClientRect is always a zero rect. Its child SchedulerGrid's own root (the
@@ -140,7 +140,7 @@ export function useSchedulerDnd(
   onAutoPlace: (sampleId: number, instrumentSerial: string, loadDate: string, slotIndex: SlotIndex) => void,
   onMove: (cellUseId: number, instrumentSerial: string, loadDate: string, slotIndex: SlotIndex) => void,
   onDropBlocked: (message: string) => void,
-  gridAreaRef?: RefObject<HTMLElement>,
+  gridAreaRef?: RefObject<HTMLElement | null>,
 ): SchedulerDnd {
   const [activeSample, setActiveSample] = useState<DragSampleRef | null>(null);
   const [placingSlotKey, setPlacingSlotKey] = useState<string | null>(null);

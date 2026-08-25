@@ -36,7 +36,7 @@ export interface HelpSearch {
  * through them (scrolling each into view). Ranges are painted with the CSS Custom Highlight
  * API rather than by injecting <mark> nodes, so React's DOM is never mutated out from under
  * it - the help sections stay exactly as rendered, including their live example components. */
-export function useHelpSearch(containerRef: RefObject<HTMLElement>, query: string): HelpSearch {
+export function useHelpSearch(containerRef: RefObject<HTMLElement | null>, query: string): HelpSearch {
   const [matches, setMatches] = useState<HelpMatch[]>([]);
   const [active, setActive] = useState(0);
 
