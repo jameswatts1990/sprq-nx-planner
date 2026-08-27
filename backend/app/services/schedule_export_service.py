@@ -160,13 +160,14 @@ def _row_values(cell_use: CellUse, cycle: Cycle, serial: str) -> dict[str, str]:
 def _pool_rows(cell_use: CellUse, cycle: Cycle, serial: str) -> list[dict[str, str]]:
     """Rows for one scheduled well.
 
-    A single-barcode well is one row, exactly as before. A multi-barcode *pool* is
-    exploded into one row per barcode — each carrying its own barcode, its positionally
-    paired Sanger ID, the pool's Traction ID in "Pool ID", and an equal "Portion of SMRT
-    Cell" (4 barcodes -> 25% each) — but ONLY when the barcode and Sanger-ID counts line
-    up cleanly. If they don't (e.g. 4 barcodes but 1 Sanger ID), the pool stays a single
-    collapsed row and a note is dropped in "Sequencing Comments" so the lab can see it
-    wasn't split rather than getting a silently mis-paired one-per-barcode expansion.
+    A single-barcode well (single-plex, not in a pool) is one row carrying "Portion of
+    SMRT Cell" = 100% — it takes the whole cell. A multi-barcode *pool* is exploded into
+    one row per barcode — each carrying its own barcode, its positionally paired Sanger ID,
+    the pool's Traction ID in "Pool ID", and an equal "Portion of SMRT Cell" (4 barcodes
+    -> 25% each) — but ONLY when the barcode and Sanger-ID counts line up cleanly. If they
+    don't (e.g. 4 barcodes but 1 Sanger ID), the pool stays a single collapsed row and a
+    note is dropped in "Sequencing Comments" so the lab can see it wasn't split rather than
+    getting a silently mis-paired one-per-barcode expansion.
     """
     base = _row_values(cell_use, cycle, serial)
     sample = cell_use.sample
@@ -174,6 +175,7 @@ def _pool_rows(cell_use: CellUse, cycle: Cycle, serial: str) -> list[dict[str, s
     sanger_ids = [s for s in (sample.sanger_ids if sample else []) if s]
 
     if len(barcodes) <= 1:
+        base[K_PORTION] = _fmt_portion(1)  # single-plex takes the whole cell -> "100%"
         return [base]
 
     if len(barcodes) != len(sanger_ids):

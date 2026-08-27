@@ -36,7 +36,7 @@ function placementAdvisoryText(run: RunOut, insertThreshold: number): string | n
     const plate1 = run.plates.find((p) => p.plate_index === 1) ?? run.plates[0];
     const loaded = plate1 ? formatTimeLocal(plate1.planned_start_at) : "your chosen time";
     parts.push(
-      `${run.instrument_serial} is busy — this run loads at ${loaded}, but its cells won't start sequencing until ${formatShortDateTimeLocal(run.effective_start_at)}.`,
+      `Revio ${run.instrument_serial} is busy, so this run has to queue: it's set to load at ${loaded}, but its cells won't start sequencing until ${formatShortDateTimeLocal(run.effective_start_at)}.`,
     );
   }
   // Advisory only, never blocks a placement - a distinct clock from the instrument-busy check
@@ -46,7 +46,7 @@ function placementAdvisoryText(run: RunOut, insertThreshold: number): string | n
   const shortfall = Math.max(0, ...run.plates.flatMap((p) => p.stages.map((s) => s.reuse_not_ready_hours ?? 0)));
   if (shortfall > 0) {
     parts.push(
-      `A reused cell in this run is scheduled about ${shortfall.toFixed(1)}h before its own wash-and-movie math says it can physically be ready.`,
+      `A cell you're reusing here is scheduled about ${shortfall.toFixed(1)} h too early — the previous run has to finish and the cell be washed before it can run again.`,
     );
   }
   // A small-insert (<= threshold) library on a cell's 2nd/3rd use. Auto Schedule avoids this
@@ -64,7 +64,7 @@ function placementAdvisoryText(run: RunOut, insertThreshold: number): string | n
   );
   if (windowExceeded) {
     parts.push(
-      "A reused cell in this run is now past its 108h reuse window and can't start in time — open its card to load a fresh tray.",
+      "A cell you're reusing here has gone past its 108-hour reuse window, so it can't start in time — open its card to load a fresh tray.",
     );
   }
   return parts.length > 0 ? parts.join(" ") : null;

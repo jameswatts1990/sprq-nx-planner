@@ -120,6 +120,24 @@ def test_export_splits_a_clean_multibarcode_pool_one_row_per_barcode(client):
         assert row[15] == ""  # no "not split" note
 
 
+def test_export_single_plex_portion_is_full_cell(client):
+    # A single-plex sample (one barcode, not in a pool) takes the whole cell -> 100%.
+    client.post(
+        "/api/imports",
+        json={"raw_text": "Sample,Sanger Sample IDs,Barcodes\nSINGLE1,S1,bc01"},
+    )
+    past = _past_weekday()
+    _place_running(client, "SINGLE1", "RUN-SINGLE1", past)
+
+    rows = _rows(client.get("/api/schedule/export.csv", params={"date_from": past, "date_to": past}).text)
+    data = rows[1:]
+    assert len(data) == 1  # single-plex is one row
+    row = data[0]
+    assert row[7] == ""  # Pool ID blank — single-plex is not a pool
+    assert row[8] == "100%"  # Portion of SMRT Cell — the whole cell
+    assert row[17] == "bc01"  # Complex Batch ID (barcode)
+
+
 def test_export_keeps_a_mismatched_pool_collapsed_and_flags_it(client):
     # 3 barcodes but only 1 Sanger ID -> can't pair cleanly, so one collapsed row + a flag.
     client.post(

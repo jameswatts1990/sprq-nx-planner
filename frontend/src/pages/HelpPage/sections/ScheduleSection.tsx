@@ -273,7 +273,8 @@ export function ScheduleSection() {
         <b>Pool ID</b>, and an equal <b>Portion of SMRT Cell</b> (four barcodes = 25% each). Splitting only happens when
         the number of barcodes matches the number of Sanger IDs; if they don&apos;t line up, the pool stays on a single
         row and a note in <b>Sequencing Comments</b> tells you it wasn&apos;t split (e.g. &quot;Not split: 4 barcodes /
-        1 Sanger IDs&quot;) so you can correct the sample and export again.
+        1 Sanger IDs&quot;) so you can correct the sample and export again. A <b>single-plex</b> sample (one barcode,
+        not in a pool) exports as a single row with <b>Portion of SMRT Cell</b> = <b>100%</b>, since it takes the whole cell.
       </p>
 
       <p className={styles.subheading}>Autoschedule (run design &amp; auto-fill)</p>
@@ -422,8 +423,8 @@ export function ScheduleSection() {
           click an hour, or press <b>Esc</b> to cancel without scheduling. Dropping onto a day that already has a run
           places straight away at that run&apos;s time. If the instrument is busy with other runs, the sample is still
           placed at your chosen time and a short amber note tells you when its cells will actually start sequencing —
-          they queue until one of the machine&apos;s four sequencing lanes frees. Reusing a cell sooner than its own
-          wash-and-movie math says it can physically be ready shows a similar heads-up note — the placement still
+          they queue until one of the machine&apos;s four sequencing lanes frees. Reusing a cell sooner than its
+          previous run can finish and be washed shows a similar heads-up note — the placement still
           stands, it&apos;s just flagged so you can double-check the timing before confirming that run is loaded.
         </li>
         <li>
@@ -590,9 +591,9 @@ export function ScheduleSection() {
           Some samples couldn&apos;t be placed, a cell&apos;s 108-hour window would be at risk, a{" "}
           <b>reuse-timing flag</b> was raised, or a <b>barcode conflict</b> was found (two backlog samples in this
           batch share a barcode — they&apos;re kept off the same cell automatically, but review them before placing
-          either). A <b>reuse-timing flag</b> means a scheduled reuse lands earlier than the cell&apos;s own
-          wash-and-movie math says it can physically be ready (the instrument needs the prior run&apos;s movie to
-          finish, plus a short wash, before it can reload that cell) — a different clock from the 108-hour window.
+          either). A <b>reuse-timing flag</b> means a scheduled reuse lands earlier than the cell can physically be
+          ready (the instrument needs the prior run&apos;s movie to finish, plus a short wash, before it can reload
+          that cell) — a different clock from the 108-hour window.
           This is a heads-up, not a block: the placement still stands, so double-check the day/time before
           confirming that run is loaded.
         </Note>
