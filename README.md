@@ -6,7 +6,7 @@ See `docs/revio-nx-planner.html` for the original planning-only prototype this r
 
 ## Stack
 
-- **Backend**: FastAPI + SQLAlchemy 2 + Alembic + Pydantic, Python 3.11+. PostgreSQL in production; SQLite by default for local runs.
+- **Backend**: FastAPI + SQLAlchemy 2 + Alembic + Pydantic, Python 3.14+. PostgreSQL in production; SQLite by default for local runs.
 - **Frontend**: React 19 + TypeScript + Vite 5, plain CSS Modules (no Tailwind/UI kit) ported from the prototype's design system.
 - **Deployment**: Docker Compose (nginx-served frontend + FastAPI backend + Postgres 16). nginx serves the built static frontend and reverse-proxies `/api` to the backend, so browser traffic is same-origin.
 
@@ -77,6 +77,8 @@ cp .env.example .env
 alembic upgrade head
 uvicorn app.main:app --reload
 ```
+
+`pip install -e ".[dev]"` resolves the pyproject ranges (fine for local dev). CI and the Docker image instead install the pinned, hash-verified `backend/requirements.txt` / `requirements-dev.txt`. `pyproject.toml` holds the ranges; after changing a backend dependency, regenerate the locks with [pip-tools](https://github.com/jazzband/pip-tools) — install `pip-tools` and re-run the `pip-compile` command printed at the top of each file (on Python 3.14, so the pins match the target), or `make lock` from `backend/` if you have GNU make — then commit them with the pyproject edit.
 
 ## Tests & CI
 
