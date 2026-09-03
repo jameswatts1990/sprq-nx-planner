@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { CellOut } from "@/types/cell";
 
@@ -7,6 +7,14 @@ import { cellsApi } from "./cells";
 function stubCell(id: number): CellOut {
   return { id, code: `CELL-${id}` } as CellOut;
 }
+
+// Restore the cellsApi.list spy after every test. Without this the spy (and its
+// call history) leaks across tests under vitest 4, which reuses an existing spy
+// rather than creating a fresh one per vi.spyOn - so toHaveBeenNthCalledWith /
+// toHaveBeenCalledTimes would count calls from earlier tests too.
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 describe("cellsApi.listAll", () => {
   it("makes a single request when everything fits on one page", async () => {
