@@ -2,8 +2,11 @@ FROM python:3.14-slim
 
 WORKDIR /app
 
+# libpq5: psycopg runtime. libatomic1: required by the Node 26 binary the
+# devcontainer installs (this image is the devcontainer base); slim lacks it.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 \
+    libatomic1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Pinned, hash-verified runtime deps first - this layer caches unless requirements.txt changes.

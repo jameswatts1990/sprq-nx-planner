@@ -1,0 +1,48 @@
+{
+  "name": "RunNx (Codespaces)",
+
+  // Reuse docker-compose.yml (db + backend) + a Codespaces override.
+  // docker-compose.dev.yml is excluded on purpose: its separate frontend
+  // container can't reach the vite /api -> localhost:8000 proxy. Both servers
+  // run in the attached container instead, so localhost:8000 resolves.
+  "dockerComposeFile": ["../docker-compose.yml", "compose.codespaces.yml"],
+  "service": "backend",
+  // Only bring up backend (+ its db dependency). docker-compose.yml also defines
+  // the prod "frontend" nginx on 8080; letting it run shadows the dind prod
+  // stack's 8080 with a frontend whose backend is asleep (sleep infinity) -> 502.
+  "runServices": ["backend", "db"],
+  "workspaceFolder": "/workspace",
+
+  // Create .env on the host before Compose parses ${POSTGRES_*}. postCreate is
+  // too late. .env is gitignored; values are throwaway dev creds.
+  "initializeCommand": "cp -n .env.example .env || true",
+
+  // Backend image is Python-only; add Node for the frontend toolchain.
+  // Version matches frontend/Dockerfile(.dev) (node:26-alpine) so dev == build.
+  // docker-in-docker lets us build and run the production docker-compose stack
+  // from inside the Codespace (docker compose up --build -> port 8080).
+  // moby:false installs Docker CE instead of Moby - the backend's python:*-slim
+  // is Debian trixie, where the Moby apt packages aren't available.
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": { "version": "26" },
+    "ghcr.io/devcontainers/features/docker-in-docker:2": { "moby": false }
+  },
+
+  "forwardPorts": [5173, 8000, 8080],
+  "portsAttributes": {
+    "5173": { "label": "Frontend (Vite)", "onAutoForward": "openBrowser" },
+    "8000": { "label": "Backend API", "onAutoForward": "silent" },
+    "8080": { "label": "App (prod containers)", "onAutoForward": "silent" }
+  },
+
+  // Install backend + frontend deps from the lockfiles, same as CI and the prod
+  // images (--require-hashes / npm ci), so the dev env matches what ships; the app
+  // itself stays editable (--no-deps -e .). Then run migrations.
+  "postCreateCommand": "cd backend && pip install --require-hashes -r requirements-dev.txt && pip install --no-deps -e . && alembic upgrade head && cd ../frontend && npm ci",
+
+  "customizations": {
+    "vscode": {
+      "extensions": ["ms-python.python", "dbaeumer.vscode-eslint"]
+    }
+  }
+}

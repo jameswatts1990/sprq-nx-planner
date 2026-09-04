@@ -1,0 +1,18 @@
+# Codespaces override, layered on docker-compose.yml.
+# Keeps backend idle so VS Code can attach; source is bind-mounted for hot reload.
+# Dev servers (hot reload):
+#   backend:  cd backend && uvicorn app.main:app --reload --port 8000
+#   frontend: cd frontend && npm run dev -- --host
+# Run the production stack from built containers (needs the docker-in-docker feature):
+#   docker compose up --build      # then open the forwarded port 8080
+services:
+  backend:
+    command: sleep infinity
+    working_dir: /workspace
+    # docker-in-docker feature needs a privileged container to run its daemon.
+    privileged: true
+    volumes:
+      # "." is the Compose project dir = the first dockerComposeFile's dir (repo
+      # root), so this mounts the repo root at /workspace. ".." would resolve to
+      # the repo's parent and nest the repo one level too deep.
+      - .:/workspace:cached
