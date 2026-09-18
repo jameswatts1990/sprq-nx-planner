@@ -59,6 +59,13 @@ export function ImportSection() {
         to return to the text without losing it.
       </p>
       <p>
+        <b>Scheduler-sheet headings:</b> the tracker sheet names three fields differently, and the planner maps them
+        for you — <i>Loading Conc. (pM)</i> → <b>Actual OPLC</b> (not <i>Target Loading Concentration</i> or{" "}
+        <i>Max possible Loading Conc.</i>), <i>Library Size (bp)</i> → <b>Insert Size</b>, and{" "}
+        <i>Pre Extention time (Mins)</i> → <b>Adaptive Loading</b>, where a cell reading <i>adaptive</i> imports as{" "}
+        <b>True</b>. All three carry the amber “≈” flag below, so glance at them before importing.
+      </p>
+      <p>
         <b>Amber “≈” flag:</b> when the planner matched a field to a column whose heading isn&apos;t an exact name
         match (for example the scheduler sheet&apos;s <i>Complex Batch ID</i> mapped to <b>Barcodes</b>), the dropdown
         is tinted amber with a small <b>≈</b> mark. It&apos;s a nudge to double-check that&apos;s the right column —

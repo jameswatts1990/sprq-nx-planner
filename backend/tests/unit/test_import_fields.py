@@ -39,6 +39,30 @@ def test_suggest_map_tracker_header_maps_pool_id_plate_id_and_complex_batch_id()
     assert TRACKER_HEADER[m["sanger"]] == "Sanger Sample ID"
 
 
+def test_suggest_map_tracker_header_maps_the_scheduler_sheet_value_columns():
+    # The tracker sheet names three of the app's fields differently; each must land on the
+    # right column and not on a similarly-named neighbour.
+    m = suggest_column_map(TRACKER_HEADER)
+    # "Loading Conc." is the achieved value; the sheet also has "Target Loading Concentration"
+    # (earlier) and "Max possible Loading Conc." (immediately before) that must not win.
+    assert TRACKER_HEADER[m["actual_oplc"]] == "Loading Conc.\n(pM)"
+    assert TRACKER_HEADER[m["target_oplc"]] == "Target Loading Concentration (pM)"
+    assert TRACKER_HEADER[m["insert_size_bp"]] == "Library Size\n(bp)"
+    assert TRACKER_HEADER[m["adaptive_loading"]] == "Pre Extention time (Mins)"
+
+
+def test_suggest_map_adaptive_loading_accepts_tidied_pre_extension_spellings():
+    for header in ("Pre Extension Time (Mins)", "Pre-extension time", "Pre-Extention Time"):
+        assert suggest_column_map(["Pool ID", "Barcodes", header])["adaptive_loading"] == 2
+
+
+def test_tracker_pre_extension_cell_reading_adaptive_imports_as_true():
+    # The lab writes "adaptive" in the pre-extension column when adaptive loading was used.
+    m = {"pool_id": 0, "barcodes": 1, "adaptive_loading": 2}
+    result = normalize_with_map([["TRAC-1", "bc1", "Adaptive"], ["TRAC-2", "bc1", ""]], m)
+    assert [s.adaptive_loading for s in result.samples] == ["True", None]
+
+
 def test_suggest_map_renamed_header_still_finds_barcodes_and_id():
     m = suggest_column_map(["Sample Name", "My Barcodes", "Notes"])
     assert m["pool_id"] == 0
