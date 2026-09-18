@@ -6,11 +6,14 @@ This single spec drives everything on the input side so they can never drift:
   - the downloadable template CSV (headers + example row),
   - the manual "Add to backlog" form.
 
-`aliases` are the substring synonyms used to *pre-fill* the mapping from a file's headers;
-they mirror the old `_find` needles in normalize.py plus a couple that let the sequencing
-tracker sheet auto-map ("traction id" -> pool_id, "complex batch id" -> barcodes).
-The user always sees and can correct the suggestion, so substring matching being loose is
-fine here.
+`aliases` are the synonyms used to *pre-fill* the mapping from a file's headers; they mirror
+the old `_find` needles in normalize.py plus the ones that let the sequencing tracker sheet
+auto-map ("traction id" -> pool_id, "complex batch id" -> barcodes, "library size" ->
+insert_size_bp, "pre extention" -> adaptive_loading). Matching prefers a header that *starts*
+with an alias before falling back to a substring hit anywhere in the header, so a qualified
+column can't shadow the plain one it qualifies ("Target Loading Concentration" /
+"Max possible Loading Conc." vs the actual "Loading Conc."). The user always sees and can
+correct the suggestion, so the fallback being loose is fine here.
 """
 from __future__ import annotations
 
@@ -78,10 +81,19 @@ IMPORTABLE_FIELDS: list[ImportField] = [
     ),
     ImportField(
         K_ACTUAL_OPLC, "Actual OPLC (pM)", "285", kind="number",
-        aliases=("actual oplc", "loading conc", "loading concentration", "actual loading concentration"),
+        # "loading conc" resolves to the tracker sheet's "Loading Conc. (pM)" column (the
+        # achieved value) rather than "Target Loading Concentration" or "Max possible Loading Conc.",
+        # because a header starting with the alias wins over a substring hit — see
+        # suggest_column_map.
+        aliases=("actual oplc", "actual loading concentration", "loading conc", "loading concentration"),
     ),
+    # The tracker sheet records adaptive loading in its "Pre Extention time (Mins)" column
+    # [sic - the sheet misspells "Extension"]; a cell reading "adaptive" imports as True (see
+    # normalize._TRUE_TOKENS). Both spellings, hyphenated or not, are covered so a tidied-up
+    # sheet keeps auto-mapping.
     ImportField(K_ADAPTIVE_LOADING, "Adaptive Loading", "True", kind="boolean",
-                aliases=("adaptive loading",)),
+                aliases=("adaptive loading", "pre extention", "pre extension",
+                         "pre-extention", "pre-extension")),
     ImportField(K_FULL_RES_BASE_Q, "Full-Resolution Base Q", "False", kind="boolean",
                 aliases=("full resolution", "full-resolution")),
     ImportField(K_PRIORITY, "Priority", "High (1)", kind="select", choices=CANONICAL_PRIORITIES,
@@ -94,7 +106,9 @@ IMPORTABLE_FIELDS: list[ImportField] = [
     ),
     ImportField(
         K_INSERT_SIZE, "Insert Size (bp)", "15000", kind="number",
-        aliases=("insert size", "fragment size", "insert length", "fragment length", "insert"),
+        # "library size" is the tracker sheet's name for the same thing ("Library Size (bp)").
+        aliases=("insert size", "library size", "fragment size", "insert length",
+                 "fragment length", "insert"),
     ),
     # Loading-dilution volumes that pre-fill the batch sheet's SOP 7.3 worksheet. Optional,
     # mappable from a normal CSV and carried automatically from the scheduler sheet; aliases
@@ -117,14 +131,23 @@ REQUIRED_KEYS: tuple[str, ...] = tuple(f.key for f in IMPORTABLE_FIELDS if f.req
 def suggest_column_map(header: list[str]) -> dict[str, int]:
     """Best-guess {field_key: column_index} for a file's header row.
 
-    For each field, aliases are tried in priority order; the first header (in column order)
-    whose normalized text contains the alias wins. Fields with no match are omitted."""
+    For each field, aliases are tried in priority order, and each alias first looks for a
+    header that *starts* with it before accepting one that merely contains it. That ordering
+    is what keeps a qualified column from shadowing the plain one: "loading conc" picks
+    "Loading Conc. (pM)" over the earlier "Target Loading Concentration (pM)" and
+    "Max possible Loading Conc. (pM)". The first header in column order wins within a pass.
+    Fields with no match are omitted."""
     normalized = [normalize_header(h) for h in header]
     mapping: dict[str, int] = {}
     for f in IMPORTABLE_FIELDS:
-        for alias in f.aliases:
-            idx = next((i for i, h in enumerate(normalized) if alias in h), -1)
+        idx = -1
+        for match in (str.startswith, str.__contains__):
+            for alias in f.aliases:
+                idx = next((i for i, h in enumerate(normalized) if match(h, alias)), -1)
+                if idx >= 0:
+                    break
             if idx >= 0:
-                mapping[f.key] = idx
                 break
+        if idx >= 0:
+            mapping[f.key] = idx
     return mapping
