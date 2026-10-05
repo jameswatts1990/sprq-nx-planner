@@ -1,13 +1,9 @@
 import { api, buildQuery } from "./client";
 import type {
   CellBootstrapRequest,
-  CellConfirmCreditRequest,
-  CellCreditNotesRequest,
   CellDetailOut,
   CellDiscardRequest,
-  CellInternalReportRequest,
   CellOut,
-  CellReportToPacbioRequest,
   TrayDiscardOut,
   TrayDiscardRequest,
   TrayRestoreOut,
@@ -18,6 +14,12 @@ import type {
   TraySkipReuseRequest,
 } from "@/types/cell";
 import type { Page } from "@/types/common";
+import type {
+  CreditConfirmRequest,
+  CreditInternalReportRequest,
+  CreditNotesRequest,
+  CreditReportToPacbioRequest,
+} from "@/types/credit";
 import type { QcCommitOut, QcCommitRequest, QcPreviewOut, QcPreviewRequest, QcUndoOut } from "@/types/qc";
 
 export interface ListCellsParams {
@@ -72,16 +74,16 @@ export const cellsApi = {
   qcUndo: (id: number) => api.post<QcUndoOut>(`/api/cells/${id}/qc/undo`),
   /** Save the lab's internal-report ID (e.g. 26_NC_S_004). The first save stamps the
    * internal-report timestamp, completing that stage of the credit workflow. */
-  setInternalReport: (id: number, req: CellInternalReportRequest) =>
+  setInternalReport: (id: number, req: CreditInternalReportRequest) =>
     api.post<CellOut>(`/api/cells/${id}/internal-report`, req),
-  reportToPacbio: (id: number, req: CellReportToPacbioRequest) =>
+  reportToPacbio: (id: number, req: CreditReportToPacbioRequest) =>
     api.post<CellOut>(`/api/cells/${id}/report-to-pacbio`, req),
   /** Record how many acquisitions PacBio confirmed they will credit, completing the
    * credit-confirmed stage. */
-  confirmCredit: (id: number, req: CellConfirmCreditRequest) =>
+  confirmCredit: (id: number, req: CreditConfirmRequest) =>
     api.post<CellOut>(`/api/cells/${id}/confirm-credit`, req),
   /** Set the credit case's free-text note. Editable at any stage; empty clears it. */
-  setCreditNotes: (id: number, req: CellCreditNotesRequest) =>
+  setCreditNotes: (id: number, req: CreditNotesRequest) =>
     api.post<CellOut>(`/api/cells/${id}/credit-notes`, req),
   receiveCredit: (id: number) => api.post<CellOut>(`/api/cells/${id}/receive-credit`, {}),
   /** Force a single cell to "exhausted" regardless of its actual remaining use count. */

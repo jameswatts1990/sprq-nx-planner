@@ -5,6 +5,7 @@ import { Link, useParams } from "react-router-dom";
 import { ApiError } from "@/api/client";
 import { cellsApi } from "@/api/cells";
 import { CellQcModal } from "@/components/cells/CellQcModal";
+import { CreditCaseActions } from "@/components/cells/CreditCaseActions";
 import { PacbioCreditTracker } from "@/components/cells/PacbioCreditTracker";
 import { WindowMeter } from "@/components/cells/WindowMeter";
 import { BarcodeChips } from "@/components/shared/BarcodeChips";
@@ -13,6 +14,7 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Note } from "@/components/ui/Note";
 import { CELL_STATUS_LABEL, CELL_STATUS_TONE } from "@/utils/cellStatus";
+import { cellFailureAt } from "@/utils/creditCase";
 import { plateWellFromPlate, plateWellFromWell } from "@/utils/plateWell";
 import { runLabel } from "@/utils/runLabel";
 import { useSampleBackNav } from "@/utils/sampleBackNav";
@@ -239,7 +241,13 @@ export function CellDetailPage() {
     </Card>
   );
 
-  const creditCard = showCreditCard && <PacbioCreditTracker cell={cell} />;
+  const creditCard = showCreditCard && (
+    <PacbioCreditTracker
+      credit={cell}
+      failureAt={cellFailureAt(cell)}
+      actions={<CreditCaseActions cell={cell} detail={cell} />}
+    />
+  );
 
   return (
     <div className={styles.page}>

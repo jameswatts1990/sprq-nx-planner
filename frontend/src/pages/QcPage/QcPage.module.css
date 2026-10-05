@@ -167,3 +167,118 @@
 .detailStatus {
   color: var(--grey);
 }
+
+/* Page header: title + the "Add case without a cell" entry point (same layout as Instruments). */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.title {
+  font-size: 18px;
+  font-weight: 800;
+  margin: 0;
+}
+.spacer {
+  margin-left: auto;
+}
+
+/* A no-cell case's identity in its row: the typed-in summary stands where a cell code would. */
+.summary {
+  font-weight: 700;
+  color: var(--ink);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+/* On a phone a long summary would wrap onto its own line, stranding the chevron above it -
+   let it fill the chevron's line instead (the badge/date flow onto the next). */
+@media (max-width: 560px) {
+  .summary {
+    flex: 1 1 calc(100% - 3rem);
+  }
+}
+.metaText {
+  font-size: var(--fs-sm);
+  color: var(--grey);
+}
+
+/* Expanded no-cell case: its typed-in details + Edit/Delete, above the stage actions. */
+.caseDetails {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.detailList {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px 18px;
+  margin: 0;
+}
+.detailItem dt {
+  font-size: var(--fs-2xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--grey);
+  margin-bottom: 2px;
+}
+.detailItem dd {
+  margin: 0;
+  font-size: var(--fs-base);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.detailActions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Add / edit case form (field look matches the Instruments and Cells modals). */
+.form {
+  margin-top: 14px;
+}
+.fieldGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 14px;
+}
+@media (max-width: 560px) {
+  .fieldGrid {
+    grid-template-columns: 1fr;
+  }
+}
+.field {
+  margin-bottom: 14px;
+}
+.fieldLabel {
+  display: block;
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--grey);
+  margin-bottom: 7px;
+}
+.field input,
+.field select,
+.field textarea {
+  width: 100%;
+  font-family: var(--sans);
+  font-size: var(--fs-lg);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 8px 10px;
+  background: var(--card);
+  color: var(--ink);
+}
+.field textarea {
+  min-height: 56px;
+  resize: vertical;
+}
+.helper {
+  font-size: var(--fs-md);
+  color: var(--grey);
+  margin: 0 0 14px;
+}

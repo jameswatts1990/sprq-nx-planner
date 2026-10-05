@@ -1,4 +1,5 @@
 import type { CellStatus } from "./common";
+import type { CreditCaseState } from "./credit";
 
 export interface CellUseHistoryOut {
   id: number;
@@ -54,7 +55,7 @@ export interface CellUseSummaryOut {
   breakout_anchor_at: string | null;
 }
 
-export interface CellOut {
+export interface CellOut extends CreditCaseState {
   id: number;
   code: string;
   max_uses: number;
@@ -83,14 +84,6 @@ export interface CellOut {
   has_failed_use: boolean;
   needs_qc_report: boolean;
   awaiting_credit: boolean;
-  internal_report_id: string | null;
-  internal_report_at: string | null;
-  pacbio_case_number: string | null;
-  pacbio_reported_at: string | null;
-  pacbio_credit_confirmed_at: string | null;
-  credit_acquisitions: number | null;
-  credit_notes: string | null;
-  credit_received_at: string | null;
   // Physical SPRQ-Nx SMRT Cell tray (4 cells) this cell belongs to - null for cells
   // created before this feature, or via the one-off bootstrap cutover tool.
   tray_id: number | null;
@@ -120,24 +113,6 @@ export interface CellDiscardRequest {
   reason?: string | null;
 }
 
-export interface CellReportToPacbioRequest {
-  case_number: string;
-}
-
-export interface CellInternalReportRequest {
-  /** The report ID the failure is filed under internally (e.g. 26_NC_S_004). */
-  report_id: string;
-}
-
-export interface CellConfirmCreditRequest {
-  /** Number of acquisitions PacBio confirmed they will credit for this case. */
-  acquisitions: number;
-}
-
-export interface CellCreditNotesRequest {
-  /** Free-text note on the credit case, editable at any stage. Empty clears it. */
-  notes: string | null;
-}
 
 export interface TrayDiscardRequest {
   tray_id: number;

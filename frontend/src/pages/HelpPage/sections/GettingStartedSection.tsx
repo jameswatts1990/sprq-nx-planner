@@ -25,9 +25,9 @@ export function GettingStartedSection() {
           lifetime window is left.
         </li>
         <li>
-          <b>QC</b> gathers every cell chasing a PacBio credit after a failure or stop, grouped by stage, so you can
-          action each one — report to PacBio, log the internal report, confirm and receive the credit — from one
-          place.
+          <b>QC</b> gathers every PacBio credit case — each cell chasing a credit after a failure or stop, plus any
+          case you log there without a cell — grouped by stage, so you can action each one (report to PacBio, log the
+          internal report, confirm and receive the credit) from one place.
         </li>
         <li>
           <b>Instruments</b> is where you add, rename or remove your Revios and mark one down for maintenance (which

@@ -11,14 +11,9 @@ from app.models.instrument import Instrument
 from app.models.sample import Sample
 from app.models.schedule import CellUse, CellUseBarcode, Cycle, RunBatch
 from app.schemas.cell import (
-    CellActorRequest,
     CellBootstrapRequest,
-    CellConfirmCreditRequest,
-    CellCreditNotesRequest,
     CellDetailOut,
-    CellInternalReportRequest,
     CellOut,
-    CellReportToPacbioRequest,
     CellStopRequest,
     TrayDiscardOut,
     TrayDiscardRequest,
@@ -30,6 +25,13 @@ from app.schemas.cell import (
     TraySkipReuseRequest,
 )
 from app.schemas.common import Page
+from app.schemas.credit import (
+    CreditActorRequest,
+    CreditConfirmRequest,
+    CreditInternalReportRequest,
+    CreditNotesRequest,
+    CreditReportToPacbioRequest,
+)
 from app.schemas.qc import QcCommitOut, QcCommitRequest, QcPreviewOut, QcPreviewRequest, QcUndoOut
 from app.services.cell_service import (
     bootstrap_cell,
@@ -288,7 +290,7 @@ def restore_tray_endpoint(req: TrayRestoreRequest, db: SessionDep, actor: ActorD
 
 @router.post("/{cell_id}/internal-report", response_model=CellOut)
 def set_cell_internal_report_endpoint(
-    cell_id: int, req: CellInternalReportRequest, db: SessionDep, actor: ActorDep
+    cell_id: int, req: CreditInternalReportRequest, db: SessionDep, actor: ActorDep
 ) -> CellOut:
     cell = db.get(Cell, cell_id, options=_DETAIL_OPTIONS)
     if cell is None:
@@ -302,7 +304,7 @@ def set_cell_internal_report_endpoint(
 
 @router.post("/{cell_id}/report-to-pacbio", response_model=CellOut)
 def report_cell_to_pacbio_endpoint(
-    cell_id: int, req: CellReportToPacbioRequest, db: SessionDep, actor: ActorDep
+    cell_id: int, req: CreditReportToPacbioRequest, db: SessionDep, actor: ActorDep
 ) -> CellOut:
     cell = db.get(Cell, cell_id, options=_DETAIL_OPTIONS)
     if cell is None:
@@ -316,7 +318,7 @@ def report_cell_to_pacbio_endpoint(
 
 @router.post("/{cell_id}/confirm-credit", response_model=CellOut)
 def confirm_cell_credit_endpoint(
-    cell_id: int, req: CellConfirmCreditRequest, db: SessionDep, actor: ActorDep
+    cell_id: int, req: CreditConfirmRequest, db: SessionDep, actor: ActorDep
 ) -> CellOut:
     cell = db.get(Cell, cell_id, options=_DETAIL_OPTIONS)
     if cell is None:
@@ -330,7 +332,7 @@ def confirm_cell_credit_endpoint(
 
 @router.post("/{cell_id}/credit-notes", response_model=CellOut)
 def set_cell_credit_notes_endpoint(
-    cell_id: int, req: CellCreditNotesRequest, db: SessionDep, actor: ActorDep
+    cell_id: int, req: CreditNotesRequest, db: SessionDep, actor: ActorDep
 ) -> CellOut:
     cell = db.get(Cell, cell_id, options=_DETAIL_OPTIONS)
     if cell is None:
@@ -343,7 +345,7 @@ def set_cell_credit_notes_endpoint(
 
 
 @router.post("/{cell_id}/receive-credit", response_model=CellOut)
-def receive_cell_credit_endpoint(cell_id: int, req: CellActorRequest, db: SessionDep, actor: ActorDep) -> CellOut:
+def receive_cell_credit_endpoint(cell_id: int, req: CreditActorRequest, db: SessionDep, actor: ActorDep) -> CellOut:
     cell = db.get(Cell, cell_id, options=_DETAIL_OPTIONS)
     if cell is None:
         raise HTTPException(404, "Cell not found")

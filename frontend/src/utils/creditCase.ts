@@ -1,5 +1,6 @@
 import type { BadgeTone } from "@/components/ui/Badge";
-import type { CellOut } from "@/types/cell";
+import type { CellDetailOut, CellOut } from "@/types/cell";
+import type { CreditCaseState } from "@/types/credit";
 
 /** The PacBio credit workflow stages, in workflow order. "failure" is the always-done entry
  * point (the run that failed / the cell being stopped); the other four are the recovery steps.
@@ -23,6 +24,14 @@ export interface CreditStages {
   allDone: boolean;
 }
 
+/** A YYYY-MM-DD date-only value (e.g. a no-cell case's occurred_on) as LOCAL midnight, so local
+ * date formatting shows the same calendar day in every timezone (`new Date("2026-10-05")` is UTC
+ * midnight, which reads as the previous day west of Greenwich). */
+export function localDateOnly(isoDate: string): Date {
+  const [y, m, d] = isoDate.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
 /** The triggering use of a credit case: the most recent Failed use, or (for a Stopped cell with
  * no Failed use) the most recent use overall. Generic over the use shape so it works with both
  * CellOut.uses (CellUseSummaryOut, the list rows) and CellDetailOut.use_history (the full
@@ -42,6 +51,13 @@ export function failUseNumber<T extends { id: number; status: string }>(uses: T[
   return idx === -1 ? null : idx + 1;
 }
 
+/** When a cell's case "failed": the triggering use's completion (else start) time, else the stop
+ * time - the Failure stage's timestamp and the report's Date of Occurrence. */
+export function cellFailureAt(cell: CellDetailOut): string | null {
+  const use = triggeringUse(cell.use_history);
+  return use?.completed_at ?? use?.started_at ?? cell.stopped_at ?? null;
+}
+
 /** Expected acquisition reimbursement for a failed cell: the failed acquisition plus every
  * acquisition the cell could still have run — `max_uses + 1 − (fail use number)`. "Remaining"
  * is always measured against the cell's max capacity, ignoring any early tray discard, per the
@@ -53,11 +69,11 @@ export function expectedReimbursement(cell: CellOut): number | null {
   return Math.max(1, cell.max_uses + 1 - n);
 }
 
-/** Derive the five credit stages purely from a cell's credit timestamps (all present on CellOut,
- * so this works for both the list and detail views). `failureAt` is supplied by the caller - the
- * triggering use's completion time, or the cell's stopped_at - since it's the one stage timestamp
- * not stored directly on the cell; pass null where only progression (done/current) matters. */
-export function getCreditStages(cell: CellOut, failureAt: string | null = null): CreditStages {
+/** Derive the five credit stages purely from a case's credit timestamps - works for a cell's case
+ * (list or detail view) and a case logged without a cell alike. `failureAt` is supplied by the
+ * caller (cellFailureAt for a cell, the occurred-on date for a no-cell case) since it's the one
+ * stage timestamp not stored with the credit fields; pass null where only progression matters. */
+export function getCreditStages(cell: CreditCaseState, failureAt: string | null = null): CreditStages {
   const stages: CreditStageState[] = [
     { key: "failure", at: failureAt, done: true },
     { key: "pacbio", at: cell.pacbio_reported_at, done: !!cell.pacbio_reported_at },
@@ -74,11 +90,11 @@ export function getCreditStages(cell: CellOut, failureAt: string | null = null):
   };
 }
 
-/** Which QC-page stage group a cell sits in. Mutually exclusive and exhaustive over cells in the
- * credit workflow: received wins, then confirmed, then reported (awaiting), else not-yet-reported. */
+/** Which QC-page stage group a case sits in. Mutually exclusive and exhaustive over every credit
+ * case: received wins, then confirmed, then reported (awaiting), else not-yet-reported. */
 export type CreditBucket = "needs_report" | "awaiting" | "confirmed" | "received";
 
-export function creditBucket(cell: CellOut): CreditBucket {
+export function creditBucket(cell: CreditCaseState): CreditBucket {
   if (cell.credit_received_at) return "received";
   if (cell.pacbio_credit_confirmed_at) return "confirmed";
   if (cell.pacbio_reported_at) return "awaiting";
@@ -110,3 +126,7 @@ export const CREDIT_NEXT_STEP_LABEL: Record<Exclude<CreditStageKey, "failure">, 
   confirmed: "Record credit",
   received: "Mark received in lab",
 };
+
+/** The marker for a credit case logged without a RunNx cell - on its QC row and in the Help
+ * legend. Orange (caution) so it reads as "this one is different" without borrowing a stage tone. */
+export const NO_CELL_BADGE: { tone: BadgeTone; label: string } = { tone: "orange", label: "No cell link" };

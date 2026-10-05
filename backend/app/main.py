@@ -11,6 +11,7 @@ from app.api import (
     cycles,
     imports,
     instruments,
+    pacbio_cases,
     samples,
     schedule_export,
     settings as settings_api,
@@ -38,6 +39,7 @@ app.include_router(schedule_export.router)
 app.include_router(cell_uses.router)
 app.include_router(cells.router)
 app.include_router(topups.router)
+app.include_router(pacbio_cases.router)
 app.include_router(instruments.router)
 app.include_router(stats.router)
 app.include_router(audit.router)

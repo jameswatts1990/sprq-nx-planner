@@ -46,20 +46,22 @@ export function SettingsSection() {
 
       <p className={styles.subheading}>Email template</p>
       <p>
-        Customises the one email the app sends: the PacBio credit request opened by <b>Generate email…</b> on a failed
-        cell&apos;s credit case. Edit the <b>To</b>, <b>Cc</b>, <b>Subject</b> and <b>Body</b>, then press{" "}
+        Customises the one email the app sends: the PacBio credit request opened by <b>Generate email…</b> on a credit
+        case. Edit the <b>To</b>, <b>Cc</b>, <b>Subject</b> and <b>Body</b>, then press{" "}
         <b>Save email template</b>. To drop in a value that changes per case — the sample name, run, and so on — click
         one of the <b>Insert variable</b> chips and it&apos;s added where your cursor is. Each variable (in angle
-        brackets, e.g. <code>&lt;sample name&gt;</code>) is replaced with the real value from the failing cell when the
-        email is generated. The <b>Preview</b> underneath shows the whole email filled in with example values and lists
+        brackets, e.g. <code>&lt;sample name&gt;</code>) is replaced with the real value from the failing cell — or, for a
+        case logged without a cell, from what was typed in on the QC tab — when the email is generated. The <b>Preview</b> underneath shows the whole email filled in with example values and lists
         what each variable stands for.
       </p>
       <p>
         One variable is worked out for you: <code>&lt;reimbursement&gt;</code> is the{" "}
         <b>expected number of acquisitions to credit</b> — the failed acquisition plus the cell&apos;s remaining
-        acquisitions. Two variables — <code>&lt;well&gt;</code> and <code>&lt;cell code&gt;</code> — are this
+        acquisitions (for a case without a cell, the number entered on it). <code>&lt;summary&gt;</code> is what
+        happened: a case&apos;s own summary, or a cell&apos;s fail/stop reason. Two variables — <code>&lt;well&gt;</code> and <code>&lt;cell code&gt;</code> — are this
         app&apos;s internal tray/cell identifiers, which PacBio&apos;s support desk won&apos;t recognise; leave them out
-        of an email going to PacBio and identify the cell by its sample and run instead.
+        of an email going to PacBio and identify the cell by its sample and run instead (a case without a cell has
+        neither, so they show as —).
       </p>
 
       <p className={styles.subheading}>Instrument &amp; scheduling facts</p>

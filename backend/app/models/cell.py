@@ -6,11 +6,15 @@ from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, fun
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
+from app.models.credit_case import CreditCaseMixin
 
 CELL_STATUSES = ("open", "exhausted", "window_expired", "retired", "stopped")
 
 
-class Cell(Base):
+class Cell(CreditCaseMixin, Base):
+    """A physical SPRQ-Nx SMRT Cell. Its PacBio credit case (one per cell, opened by a Failed use
+    or a Stop) lives on the row itself via CreditCaseMixin."""
+
     __tablename__ = "cells"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -35,23 +39,6 @@ class Cell(Base):
     # reopened just because its use count says otherwise.
     discarded_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     discarded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-
-    # QC: PacBio credit tracking. One open case per physical cell at a time, cross
-    # referenced by the case number PacBio issues when a quality log is raised.
-    # The internal report is the lab's own write-up of the failure, identified by the
-    # report ID it's filed under (e.g. 26_NC_S_004) - raised before PacBio is contacted,
-    # the first actionable step of the credit workflow after a Failure is flagged.
-    internal_report_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    internal_report_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    pacbio_case_number: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
-    pacbio_reported_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    pacbio_credit_confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    # How many acquisitions PacBio confirmed they will credit for this case, recorded at
-    # the confirm step (stamped alongside pacbio_credit_confirmed_at). credit_notes is an
-    # optional free-text note captured at the same step (e.g. what PacBio agreed to).
-    credit_acquisitions: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    credit_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    credit_received_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Physical SPRQ-Nx SMRT Cell tray (4 cells) this cell belongs to, and its 1-4 position
     # within it. Null for cells created before this feature or via the one-off

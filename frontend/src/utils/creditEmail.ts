@@ -1,12 +1,14 @@
 import type { CreditEmailTemplate } from "@/api/settings";
 import type { CellDetailOut } from "@/types/cell";
-import { expectedReimbursement, triggeringUse } from "@/utils/creditCase";
+import type { PacbioCaseOut } from "@/types/pacbioCase";
+import { expectedReimbursement, localDateOnly, triggeringUse } from "@/utils/creditCase";
 import { plateWellFromPlate } from "@/utils/plateWell";
 import { runLabel } from "@/utils/runLabel";
 
 /** The one email the app sends — the PacBio SMRT-cell credit request — is template-driven:
  * its to/cc/subject/body live in an editable AppSetting and may embed <angle-bracket>
- * variables that are filled from the failing cell's triggering use when the email is built.
+ * variables that are filled when the email is built — from the failing cell's triggering use,
+ * or from the details typed in for a case logged without a cell.
  *
  * This module is the single source of truth for that variable set, so the admin "Email
  * template" panel (which previews the tokens against example values) and the real email
@@ -16,9 +18,10 @@ function formatDateTime(iso: string | null): string {
   return iso ? new Date(iso).toLocaleString() : "—";
 }
 
-/** The values a template's tokens resolve against — either a real failing cell or the
- * example values shown in the admin preview. */
+/** The values a template's tokens resolve against — a real failing cell, a case logged without a
+ * cell, or the example values shown in the admin preview. */
 export interface CreditEmailContext {
+  summary: string;
   sampleName: string;
   run: string;
   instrument: string;
@@ -43,6 +46,7 @@ interface CreditEmailToken {
  * recognise, so they're offered but left out of the default template (the Help tab explains
  * this). */
 export const CREDIT_EMAIL_TOKENS: readonly CreditEmailToken[] = [
+  { token: "<summary>", label: "What happened", field: "summary" },
   { token: "<sample name>", label: "Sample name", field: "sampleName" },
   { token: "<run>", label: "Run", field: "run" },
   { token: "<instrument>", label: "Instrument serial", field: "instrument" },
@@ -56,6 +60,7 @@ export const CREDIT_EMAIL_TOKENS: readonly CreditEmailToken[] = [
 /** Example values for the admin preview — chosen to look like real lab data so the user can
  * confirm each token resolves to the field they expect before saving. */
 export const EXAMPLE_CONTEXT: CreditEmailContext = {
+  summary: "Low P1 on loading",
   sampleName: "HG01234",
   run: "TRACTION-RUN-1234",
   instrument: "R-84021",
@@ -92,6 +97,7 @@ export function buildCreditEmailContext(cell: CellDetailOut): CreditEmailContext
   const use = triggeringUse(cell.use_history);
   const reimbursement = expectedReimbursement(cell);
   return {
+    summary: use?.outcome_notes || cell.stopped_reason || "Failed SMRT Cell",
     sampleName: use?.sample_pool_id || "—",
     run: use ? runLabel({ run_id: use.run_batch_id, run_name: use.run_name }) : "—",
     instrument: use?.instrument_serial ?? "—",
@@ -100,6 +106,22 @@ export function buildCreditEmailContext(cell: CellDetailOut): CreditEmailContext
     caseNumber: cell.pacbio_case_number ?? "—",
     well: use ? plateWellFromPlate(use.plate_index, use.well, { qualified: true }) : "—",
     cellCode: cell.code,
+  };
+}
+
+/** The same fill-in values for a case logged without a cell, from what was typed in. There's no
+ * cell, so the internal well/cell-code tokens have nothing to show. */
+export function buildPacbioCaseEmailContext(pc: PacbioCaseOut): CreditEmailContext {
+  return {
+    summary: pc.summary,
+    sampleName: pc.pool_id || "—",
+    run: pc.run_name || "—",
+    instrument: pc.instrument_serial ?? "—",
+    runDate: localDateOnly(pc.occurred_on).toLocaleDateString(),
+    reimbursement: pc.expected_acquisitions == null ? "—" : String(pc.expected_acquisitions),
+    caseNumber: pc.pacbio_case_number ?? "—",
+    well: "—",
+    cellCode: "—",
   };
 }
 

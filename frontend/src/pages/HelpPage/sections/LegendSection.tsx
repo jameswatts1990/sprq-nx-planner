@@ -12,6 +12,7 @@ import type { CellStatus, CellUseStatus, CycleStatus, SampleStatus } from "@/typ
 import { CELL_QC_FLAG_LABEL, CELL_QC_FLAG_TONE } from "@/utils/cellQcFlag";
 import type { CellQcFlag } from "@/utils/cellQcFlag";
 import { CELL_STATUS_LABEL, CELL_STATUS_TONE } from "@/utils/cellStatus";
+import { NO_CELL_BADGE } from "@/utils/creditCase";
 import { CYCLE_STATUS_TONE } from "@/utils/cycleStatus";
 import { priorityTone } from "@/utils/priority";
 import { SAMPLE_STATUS_LABEL, SAMPLE_STATUS_TONE } from "@/utils/sampleStatus";
@@ -135,6 +136,19 @@ export function LegendSection() {
             <span>{CELL_QC_FLAG_MEANING[f]}</span>
           </div>
         ))}
+      </div>
+
+      <p className={styles.subheading}>Credit case flag (QC)</p>
+      <div className={styles.legendGrid}>
+        <div className={styles.legendRow}>
+          <span className={styles.legendSwatchLabel}>
+            <Badge tone={NO_CELL_BADGE.tone}>{NO_CELL_BADGE.label}</Badge>
+          </span>
+          <span>
+            A PacBio credit case logged by hand on the QC tab, not linked to any cell - it never changes a cell, a sample
+            or the schedule.
+          </span>
+        </div>
       </div>
 
       <p className={styles.subheading}>Run status (History, Schedule)</p>
