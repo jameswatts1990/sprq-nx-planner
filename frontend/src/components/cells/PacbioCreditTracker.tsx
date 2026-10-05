@@ -2,10 +2,9 @@ import type { ReactNode } from "react";
 
 import { Badge } from "@/components/ui/Badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
-import type { CellDetailOut } from "@/types/cell";
-import { type CreditStageKey, getCreditStages, triggeringUse } from "@/utils/creditCase";
+import type { CreditCaseState } from "@/types/credit";
+import { type CreditStageKey, getCreditStages, localDateOnly } from "@/utils/creditCase";
 
-import { CreditCaseActions } from "./CreditCaseActions";
 import styles from "./PacbioCreditTracker.module.css";
 
 function formatDateTime(iso: string | null): string {
@@ -74,17 +73,33 @@ const STAGE_META: Record<CreditStageKey, { label: string; icon: ReactNode }> = {
 };
 
 export interface PacbioCreditTrackerProps {
-  cell: CellDetailOut;
+  /** A cell's case (CellOut) or a case logged without a cell (PacbioCaseOut). */
+  credit: CreditCaseState;
+  /** The Failure stage's timestamp - cellFailureAt() for a cell, occurred_on for a no-cell case. */
+  failureAt: string | null;
+  /** `failureAt` is a YYYY-MM-DD day, not an instant - show it as a date only. */
+  failureDateOnly?: boolean;
+  /** Optional content between the track and the actions (a no-cell case's typed-in details). */
+  children?: ReactNode;
+  /** The stage-actions panel: CreditCaseActions (cell) or PacbioCaseActions (no cell). */
+  actions: ReactNode;
 }
 
-/** Restyles the PacBio credit case as a parcel-tracking-style progress tracker: a row of five
+/** Restyles a PacBio credit case as a parcel-tracking-style progress tracker: a row of five
  * connected stage nodes (Failure → PacBio report → Internal report → Credit confirmed → Credit
- * received) above a focused action panel (CreditCaseActions) for whichever stage is next. The
- * action panel is shared with the QC page's worklist, so acting here or there is identical. */
-export function PacbioCreditTracker({ cell }: PacbioCreditTrackerProps) {
-  const use = triggeringUse(cell.use_history);
-  const failureAt = use?.completed_at ?? use?.started_at ?? cell.stopped_at ?? null;
-  const { stages, currentIndex, allDone } = getCreditStages(cell, failureAt);
+ * received) above a focused action panel for whichever stage is next. The same card serves a
+ * cell's case (cell detail page, QC rows) and a case logged without a cell (QC rows), and the
+ * action panels are shared with the QC page's compact rows, so acting anywhere is identical. */
+export function PacbioCreditTracker({
+  credit,
+  failureAt,
+  failureDateOnly,
+  children,
+  actions,
+}: PacbioCreditTrackerProps) {
+  const { stages, currentIndex, allDone } = getCreditStages(credit, failureAt);
+  const stageTime = (key: CreditStageKey, at: string | null) =>
+    key === "failure" && failureDateOnly && at ? localDateOnly(at).toLocaleDateString() : formatDateTime(at);
 
   return (
     <Card>
@@ -108,17 +123,17 @@ export function PacbioCreditTracker({ cell }: PacbioCreditTrackerProps) {
                 </span>
                 <span className={styles.stepLabel}>{meta.label}</span>
                 <span className={styles.stepTime}>
-                  {stage.done ? formatDateTime(stage.at) : state === "current" ? "Next step" : "Pending"}
+                  {stage.done ? stageTime(stage.key, stage.at) : state === "current" ? "Next step" : "Pending"}
                 </span>
-                {stage.key === "internal" && cell.internal_report_id && (
-                  <span className={styles.stepMeta}>Report {cell.internal_report_id}</span>
+                {stage.key === "internal" && credit.internal_report_id && (
+                  <span className={styles.stepMeta}>Report {credit.internal_report_id}</span>
                 )}
-                {stage.key === "pacbio" && cell.pacbio_case_number && (
-                  <span className={styles.stepMeta}>Case {cell.pacbio_case_number}</span>
+                {stage.key === "pacbio" && credit.pacbio_case_number && (
+                  <span className={styles.stepMeta}>Case {credit.pacbio_case_number}</span>
                 )}
-                {stage.key === "confirmed" && cell.credit_acquisitions != null && (
+                {stage.key === "confirmed" && credit.credit_acquisitions != null && (
                   <span className={styles.stepMeta}>
-                    {cell.credit_acquisitions} acquisition{cell.credit_acquisitions === 1 ? "" : "s"} credited
+                    {credit.credit_acquisitions} acquisition{credit.credit_acquisitions === 1 ? "" : "s"} credited
                   </span>
                 )}
               </li>
@@ -126,7 +141,8 @@ export function PacbioCreditTracker({ cell }: PacbioCreditTrackerProps) {
           })}
         </ol>
 
-        <CreditCaseActions cell={cell} detail={cell} />
+        {children}
+        {actions}
       </CardBody>
     </Card>
   );

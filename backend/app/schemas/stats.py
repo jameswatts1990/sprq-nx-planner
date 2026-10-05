@@ -81,7 +81,8 @@ class FailureRatePoint(BaseModel):
 
 
 class CreditFunnel(BaseModel):
-    needs_report: int  # failed/stopped cell, not yet raised with PacBio
+    # Counts every PacBio credit case: failed/stopped cells' own cases + cases logged without a cell.
+    needs_report: int  # not yet raised with PacBio
     reported: int  # ever raised with PacBio
     awaiting: int  # raised, credit not yet received
     received: int  # credit landed

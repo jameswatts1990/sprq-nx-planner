@@ -158,33 +158,6 @@ class CellUndoStopOut(BaseModel):
     drifted_cell_use_ids: list[int] = []
 
 
-class CellReportToPacbioRequest(BaseModel):
-    case_number: str
-    actor: str | None = None
-
-
-class CellInternalReportRequest(BaseModel):
-    # The report ID the failure is filed under internally (e.g. 26_NC_S_004).
-    report_id: str
-    actor: str | None = None
-
-
-class CellConfirmCreditRequest(BaseModel):
-    # Number of acquisitions PacBio confirmed they will credit for this case.
-    acquisitions: int
-    actor: str | None = None
-
-
-class CellCreditNotesRequest(BaseModel):
-    # Free-text note on the credit case, editable at any stage. Empty clears it.
-    notes: str | None = None
-    actor: str | None = None
-
-
-class CellActorRequest(BaseModel):
-    actor: str | None = None
-
-
 class TrayDiscardRequest(BaseModel):
     tray_id: int
     reason: str | None = None

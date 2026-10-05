@@ -236,7 +236,7 @@ export function CellsSection() {
           own email client, filled in from the failing cell — by default the affected sample, run, instrument, date
           and the expected acquisitions to credit (taken from the Failed use, or the most recent use if the cell was
           Stopped without one). The recipients, subject and wording all come from the editable template on the{" "}
-          <b>Admin → Email template</b> tab, so you can change them there. Review the draft — including who it&apos;s
+          <b>Settings</b> tab&apos;s <b>Email template</b>, so you can change them there. Review the draft — including who it&apos;s
           addressed to — before sending.
         </li>
         <li>
@@ -265,6 +265,10 @@ export function CellsSection() {
         <b>any stage</b>, from Failure through Credit received. Type your note and press <b>Save note</b> (it reads{" "}
         <b>Update note</b> once one exists); it&apos;s kept with the case as it moves through the workflow. (On the QC
         worklist, expand a row with the <b>▸</b> to edit its note.)
+      </p>
+      <p>
+        A credit that isn&apos;t tied to a cell RunNx tracks is logged on the <b>QC</b> tab with{" "}
+        <b>+ Add case without a cell</b> instead — see the QC section.
       </p>
     </div>
   );

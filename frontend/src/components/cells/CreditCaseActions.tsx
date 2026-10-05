@@ -1,19 +1,31 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { ApiError } from "@/api/client";
 import { cellsApi } from "@/api/cells";
 import { instrumentsApi } from "@/api/instruments";
+import { pacbioCasesApi } from "@/api/pacbioCases";
 import { settingsApi } from "@/api/settings";
 import { Button } from "@/components/ui/Button";
 import { Modal, ModalActions } from "@/components/ui/Modal";
 import { Note } from "@/components/ui/Note";
 import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
 import type { CellDetailOut, CellOut } from "@/types/cell";
+import type { CreditCaseState } from "@/types/credit";
 import type { InstrumentOut } from "@/types/instrument";
-import { expectedReimbursement, failUseNumber, getCreditStages, triggeringUse } from "@/utils/creditCase";
+import type { PacbioCaseOut } from "@/types/pacbioCase";
+import {
+  cellFailureAt,
+  expectedReimbursement,
+  failUseNumber,
+  getCreditStages,
+  localDateOnly,
+  triggeringUse,
+} from "@/utils/creditCase";
 import {
   buildCreditEmailContext,
+  buildPacbioCaseEmailContext,
+  type CreditEmailContext,
   creditEmailMailto,
   DEFAULT_CREDIT_EMAIL,
   renderCreditEmail,
@@ -27,9 +39,8 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
 
 /** DD-Mon-YYYY (e.g. 24-Jul-2026) for the exported "Date of Occurrence" column, matching the
  * date format the lab's issue-tracking sheet expects. */
-function formatOccurrenceDate(iso: string | null): string {
-  if (!iso) return "";
-  const d = new Date(iso);
+function formatOccurrenceDate(d: Date | null): string {
+  if (!d) return "";
   return `${String(d.getDate()).padStart(2, "0")}-${MONTHS[d.getMonth()]}-${d.getFullYear()}`;
 }
 
@@ -38,34 +49,62 @@ interface ReportField {
   value: string;
 }
 
-/** The failed-cell issue report as an ordered list of {column header, value} pairs, matching the
- * lab's central issue-tracking spreadsheet exactly. Verbatim constants (team, owner, N/A, the
- * notified manager) come straight from the lab's agreed template; the variable fields are filled
- * from the triggering use, the cell's PacBio case, and the instrument's asset/location record.
- * Columns the sheet fills itself (Reported by, Study ID, Make/Model/Serial "auto fill") stay blank. */
-function buildReportFields(cell: CellDetailOut, instrument: InstrumentOut | undefined): ReportField[] {
+/** The case-specific inputs to the issue report - derived from a cell's triggering use, or taken
+ * from what was typed in for a case logged without a cell. */
+interface IssueReportContext {
+  occurredOn: Date | null;
+  problem: string;
+  caseNumber: string | null;
+  sampleId: string;
+  instrumentSerial: string | null;
+}
+
+function cellReportContext(cell: CellDetailOut): IssueReportContext {
   const use = triggeringUse(cell.use_history);
   const well = use ? plateWellFromPlate(use.plate_index, use.well, { qualified: true }) : "";
   const run = use ? runLabel({ run_id: use.run_batch_id, run_name: use.run_name }) : "";
-  const failureAt = use?.completed_at ?? use?.started_at ?? cell.stopped_at ?? null;
+  const failureAt = cellFailureAt(cell);
   // Use number = the triggering use's 1-based position in the (chronological) use history.
   const useIndex = use ? cell.use_history.findIndex((u) => u.id === use.id) : -1;
   const useNo = useIndex === -1 ? "" : `use ${useIndex + 1}`;
-  const problem = ["Failed Cell", run, well, useNo].filter(Boolean).join(" ");
+  return {
+    occurredOn: failureAt ? new Date(failureAt) : null,
+    problem: ["Failed Cell", run, well, useNo].filter(Boolean).join(" "),
+    caseNumber: cell.pacbio_case_number,
+    sampleId: use?.sample_pool_id ?? "",
+    instrumentSerial: use?.instrument_serial ?? null,
+  };
+}
 
+function pacbioCaseReportContext(pc: PacbioCaseOut): IssueReportContext {
+  return {
+    occurredOn: localDateOnly(pc.occurred_on),
+    problem: [pc.summary, pc.run_name].filter(Boolean).join(" – "),
+    caseNumber: pc.pacbio_case_number,
+    sampleId: pc.pool_id ?? "",
+    instrumentSerial: pc.instrument_serial,
+  };
+}
+
+/** The issue report as an ordered list of {column header, value} pairs, matching the lab's
+ * central issue-tracking spreadsheet exactly. Verbatim constants (team, owner, N/A, the notified
+ * manager) come straight from the lab's agreed template; the variable fields come from the case
+ * context and the instrument's asset/location record. Columns the sheet fills itself (Reported
+ * by, Study ID, Make/Model/Serial "auto fill") stay blank. */
+function buildReportFields(ctx: IssueReportContext, instrument: InstrumentOut | undefined): ReportField[] {
   return [
-    { label: "Date of Occurrence", value: formatOccurrenceDate(failureAt) },
+    { label: "Date of Occurrence", value: formatOccurrenceDate(ctx.occurredOn) },
     { label: "Reported by (Sanger ID)", value: "" },
     { label: "Team who identified the issue", value: "Long_Read" },
     { label: "Issue Owner", value: "Long_Read" },
     { label: "Project / Product Line", value: "PacBio" },
     { label: "Stage of Process Issue Identified", value: "Sequencing" },
     { label: "Source of Issue", value: "Consumables/Reagents" },
-    { label: "Problem Statement", value: problem },
-    { label: "Vendor/RT Support Ticket", value: cell.pacbio_case_number ?? "" },
+    { label: "Problem Statement", value: ctx.problem },
+    { label: "Vendor/RT Support Ticket", value: ctx.caseNumber ?? "" },
     { label: "Equipment Software name (if applicable)", value: "N/A" },
     { label: "Equipment Program (If applicable)", value: "N/A" },
-    { label: "Sample ID(s) e.g. Plate or Tube Barcode ID", value: use?.sample_pool_id ?? "" },
+    { label: "Sample ID(s) e.g. Plate or Tube Barcode ID", value: ctx.sampleId },
     { label: "4 digit Study ID(s)", value: "" },
     { label: "Equipment Owner", value: "Long_Read" },
     { label: "Equipment Asset Number", value: instrument?.asset_number ?? "" },
@@ -151,7 +190,7 @@ type ReportResult = "copied" | "copy-failed" | "downloaded";
  * tab-separated row (to append to the tracking sheet) or download it as a CSV file. Either action
  * opens a confirmation popup that also previews every column/value, so the lab can eyeball the
  * report and - if an insecure-context copy silently failed - select and copy the text by hand. */
-function GenerateReportMenu({ fields, cellCode }: { fields: ReportField[]; cellCode: string }) {
+function GenerateReportMenu({ fields, filename }: { fields: ReportField[]; filename: string }) {
   const [open, setOpen] = useState(false);
   const [result, setResult] = useState<ReportResult | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -180,7 +219,7 @@ function GenerateReportMenu({ fields, cellCode }: { fields: ReportField[]; cellC
 
   function onDownload() {
     setOpen(false);
-    downloadCsv(`pacbio-credit-${cellCode}.csv`, reportCsv(fields));
+    downloadCsv(filename, reportCsv(fields));
     setResult("downloaded");
   }
 
@@ -236,123 +275,134 @@ function GenerateReportMenu({ fields, cellCode }: { fields: ReportField[]; cellC
   );
 }
 
-/** Plain-language explanation of how the expected reimbursement was derived, shown on hover so
- * the figure is never a mystery number (Transparent: why, at a glance). */
-function reimbursementTitle(cell: CellOut, amount: number): string {
-  const failNo = failUseNumber(cell.uses);
-  const basis = failNo == null ? "" : ` (max ${cell.max_uses} + 1 − use ${failNo} = ${amount})`;
-  return (
-    `The failed acquisition plus the cell's remaining acquisitions${basis}. ` +
-    "Remaining always counts to the cell's max, ignoring any early tray discard."
-  );
+/** The report + email helpers' inputs. */
+interface GeneratorInput {
+  report: IssueReportContext;
+  email: CreditEmailContext;
+  reportFilename: string;
 }
 
-export interface CreditCaseActionsProps {
-  cell: CellOut;
-  /** Full detail for the triggering cell. Required only to render the report/email generators
-   * (they read the use history + the instrument's asset/location record). Omit it on the QC
-   * worklist rows, which carry a CellOut only: the case-number/link inputs and the one-click
-   * confirm/receive buttons still work; just the generators are hidden. */
-  detail?: CellDetailOut;
-  /** Compact layout for the QC worklist rows: drops the recessed panel border and the
-   * explanatory lead line so the control sits tight in a list. The tracker card leaves this
-   * off, keeping its full look. */
-  compact?: boolean;
+interface Generators {
+  reportFields: ReportField[];
+  reportFilename: string;
+  emailHref: string;
 }
 
-/** The interactive half of a PacBio credit case: the single control for whatever stage the case
- * is at next (report to PacBio → add internal report → confirm → receive). Shared by the cell
- * detail page's PacbioCreditTracker (with `detail`, so the report/email generators show) and the
- * QC page's worklist rows (CellOut only). Every mutation invalidates the schedule-related query
- * families, so any list showing this case refreshes itself. */
-export function CreditCaseActions({ cell, detail, compact = false }: CreditCaseActionsProps) {
-  const queryClient = useQueryClient();
-  const [caseNumber, setCaseNumber] = useState("");
-  const [reportId, setReportId] = useState("");
-  const [acquisitions, setAcquisitions] = useState("");
-  // Seeded from the cell so the editor shows the saved note; re-synced when the persisted
-  // value changes (e.g. after a save invalidates and the cell prop refreshes).
-  const [creditNotes, setCreditNotes] = useState(cell.credit_notes ?? "");
-  useEffect(() => {
-    setCreditNotes(cell.credit_notes ?? "");
-  }, [cell.credit_notes]);
-
-  const invalidate = () => invalidateScheduleRelated(queryClient);
-
-  // Instruments carry the asset number and location the exported report needs; the use only
-  // stores the serial, so map serial -> instrument here. Only needed for the generators, so it's
-  // gated on `detail` (the QC rows don't fetch it). Cached under the shared ["instruments", false].
+/** Build the Generate report / Generate email helpers for a case. Instruments carry the asset
+ * number and location the report needs (a case only knows the serial); the admin-editable email
+ * template falls back to the built-in default while it loads so the button always works. Both
+ * queries only run when `input` is given. Cached under the shared ["instruments", false]. */
+function useCreditGenerators(input: GeneratorInput | null): Generators | undefined {
   const { data: instruments } = useQuery({
     queryKey: ["instruments", false],
     queryFn: () => instrumentsApi.list(false),
-    enabled: !!detail,
+    enabled: !!input,
   });
-
-  // The admin-editable credit-email template. Fetched only where the email button shows
-  // (i.e. when `detail` is present); falls back to the built-in default while it loads so
-  // the button always produces a usable email.
   const { data: emailTemplate } = useQuery({
     queryKey: ["credit-email-template"],
     queryFn: () => settingsApi.getCreditEmail(),
-    enabled: !!detail,
+    enabled: !!input,
   });
+  if (!input) return undefined;
+  const instrument = instruments?.find((i) => i.serial_number === input.report.instrumentSerial);
+  return {
+    reportFields: buildReportFields(input.report, instrument),
+    reportFilename: input.reportFilename,
+    emailHref: creditEmailMailto(renderCreditEmail(emailTemplate ?? DEFAULT_CREDIT_EMAIL, input.email)),
+  };
+}
+
+/** The five stage mutations a case owner supplies. The cell and no-cell APIs share request shapes,
+ * so only the endpoint differs. */
+interface CreditCaseOps {
+  reportToPacbio: (caseNumber: string) => Promise<unknown>;
+  setInternalReport: (reportId: string) => Promise<unknown>;
+  confirmCredit: (acquisitions: number) => Promise<unknown>;
+  setCreditNotes: (notes: string | null) => Promise<unknown>;
+  receiveCredit: () => Promise<unknown>;
+}
+
+/** What to claim back, with the hover explanation and the one-line basis under the figure. */
+interface Reimbursement {
+  amount: number;
+  title: string;
+  hint: string;
+}
+
+interface CreditStageActionsProps {
+  credit: CreditCaseState;
+  /** Unique per case - scopes the notes field's element id. */
+  idKey: string;
+  ops: CreditCaseOps;
+  /** Refreshes whichever lists show this case after a mutation. */
+  onChanged: () => void;
+  reimbursement: Reimbursement | null;
+  /** Report/email helpers; omitted where their inputs aren't loaded. */
+  generators?: Generators;
+  compact: boolean;
+}
+
+/** The interactive half of a PacBio credit case: the single control for whatever stage the case
+ * is at next (report to PacBio → add internal report → confirm → receive), plus the case note.
+ * Kind-agnostic - CreditCaseActions (a cell's case) and PacbioCaseActions (a case logged without
+ * a cell) wrap it with their own endpoints and helpers, so both kinds act identically. */
+function CreditStageActions({
+  credit,
+  idKey,
+  ops,
+  onChanged,
+  reimbursement,
+  generators,
+  compact,
+}: CreditStageActionsProps) {
+  const [caseNumber, setCaseNumber] = useState("");
+  const [reportId, setReportId] = useState("");
+  const [acquisitions, setAcquisitions] = useState("");
+  // Seeded from the case so the editor shows the saved note; re-synced when the persisted
+  // value changes (e.g. after a save invalidates and the prop refreshes).
+  const [creditNotes, setCreditNotes] = useState(credit.credit_notes ?? "");
+  useEffect(() => {
+    setCreditNotes(credit.credit_notes ?? "");
+  }, [credit.credit_notes]);
 
   const internalReportMutation = useMutation({
-    mutationFn: (id: string) => cellsApi.setInternalReport(cell.id, { report_id: id }),
+    mutationFn: ops.setInternalReport,
     onSuccess: () => {
-      invalidate();
+      onChanged();
       setReportId("");
     },
   });
   const reportMutation = useMutation({
-    mutationFn: (caseNum: string) => cellsApi.reportToPacbio(cell.id, { case_number: caseNum }),
+    mutationFn: ops.reportToPacbio,
     onSuccess: () => {
-      invalidate();
+      onChanged();
       setCaseNumber("");
     },
   });
   const confirmCreditMutation = useMutation({
-    mutationFn: (count: number) => cellsApi.confirmCredit(cell.id, { acquisitions: count }),
+    mutationFn: ops.confirmCredit,
     onSuccess: () => {
-      invalidate();
+      onChanged();
       setAcquisitions("");
     },
   });
-  const creditNotesMutation = useMutation({
-    mutationFn: (notes: string) => cellsApi.setCreditNotes(cell.id, { notes: notes || null }),
-    onSuccess: invalidate,
-  });
-  const receiveCreditMutation = useMutation({
-    mutationFn: () => cellsApi.receiveCredit(cell.id),
-    onSuccess: invalidate,
-  });
+  const creditNotesMutation = useMutation({ mutationFn: ops.setCreditNotes, onSuccess: onChanged });
+  const receiveCreditMutation = useMutation({ mutationFn: ops.receiveCredit, onSuccess: onChanged });
 
-  const { currentKey, allDone } = getCreditStages(cell);
-
-  // Expected acquisitions PacBio should credit for this failure — the failed acquisition plus
-  // the cell's remaining acquisitions. Derived from cell.uses/max_uses, so it's available in
-  // both the full tracker and the compact QC rows without needing the full detail.
-  const reimbursement = expectedReimbursement(cell);
-
-  const use = detail ? triggeringUse(detail.use_history) : null;
-  const instrument = detail ? instruments?.find((i) => i.serial_number === use?.instrument_serial) : undefined;
-  const reportFields = detail ? buildReportFields(detail, instrument) : [];
-  const emailHref = detail
-    ? creditEmailMailto(renderCreditEmail(emailTemplate ?? DEFAULT_CREDIT_EMAIL, buildCreditEmailContext(detail)))
-    : "";
+  const { currentKey, allDone } = getCreditStages(credit);
 
   return (
     <div className={compact ? styles.actionsBare : styles.actions}>
       {/* Expected reimbursement: a transparent, at-a-glance figure of what to claim, shown on
           the full tracker while the case is still open. Compact QC rows stay tight — expand a
           row (or read the generated email) to see it. */}
-      {!compact && !allDone && reimbursement != null && (
-        <div className={styles.reimburse} title={reimbursementTitle(cell, reimbursement)}>
+      {!compact && !allDone && reimbursement && (
+        <div className={styles.reimburse} title={reimbursement.title}>
           <span className={styles.reimburseLabel}>Expected reimbursement</span>
           <span className={styles.reimburseValue}>
-            {reimbursement} acquisition{reimbursement === 1 ? "" : "s"}
+            {reimbursement.amount} acquisition{reimbursement.amount === 1 ? "" : "s"}
           </span>
-          <span className={styles.reimburseHint}>failed + remaining, to the cell&apos;s max</span>
+          <span className={styles.reimburseHint}>{reimbursement.hint}</span>
         </div>
       )}
 
@@ -368,6 +418,7 @@ export function CreditCaseActions({ cell, detail, compact = false }: CreditCaseA
               value={caseNumber}
               onChange={(e) => setCaseNumber(e.target.value)}
               placeholder="Case number, e.g. CS-000123"
+              maxLength={64}
             />
             <Button
               variant="primary"
@@ -376,8 +427,8 @@ export function CreditCaseActions({ cell, detail, compact = false }: CreditCaseA
             >
               {reportMutation.isPending ? "Saving…" : "Add case number"}
             </Button>
-            {detail && (
-              <a className="btn ghost" href={emailHref}>
+            {generators && (
+              <a className="btn ghost" href={generators.emailHref}>
                 Generate email…
               </a>
             )}
@@ -390,7 +441,7 @@ export function CreditCaseActions({ cell, detail, compact = false }: CreditCaseA
           {!compact && (
             <div className={styles.actionLead}>
               Raise the internal report (now that you have the PacBio case number), then record its report ID here.
-              {detail && " Generate report copies the issue row to your clipboard or downloads it as a CSV."}
+              {generators && " Generate report copies the issue row to your clipboard or downloads it as a CSV."}
             </div>
           )}
           <div className={styles.actionRow}>
@@ -400,6 +451,7 @@ export function CreditCaseActions({ cell, detail, compact = false }: CreditCaseA
               value={reportId}
               onChange={(e) => setReportId(e.target.value)}
               placeholder="Report ID, e.g. 26_NC_S_004"
+              maxLength={64}
             />
             <Button
               variant="primary"
@@ -408,7 +460,9 @@ export function CreditCaseActions({ cell, detail, compact = false }: CreditCaseA
             >
               {internalReportMutation.isPending ? "Saving…" : "Add report ID"}
             </Button>
-            {detail && <GenerateReportMenu fields={reportFields} cellCode={cell.code} />}
+            {generators && (
+              <GenerateReportMenu fields={generators.reportFields} filename={generators.reportFilename} />
+            )}
           </div>
         </>
       )}
@@ -428,7 +482,7 @@ export function CreditCaseActions({ cell, detail, compact = false }: CreditCaseA
               className={styles.input}
               value={acquisitions}
               onChange={(e) => setAcquisitions(e.target.value)}
-              placeholder={`Acquisitions credited, e.g. ${reimbursement ?? 1}`}
+              placeholder={`Acquisitions credited, e.g. ${reimbursement?.amount ?? 1}`}
             />
             <Button
               variant="primary"
@@ -455,9 +509,9 @@ export function CreditCaseActions({ cell, detail, compact = false }: CreditCaseA
 
       {allDone && (
         <Note tone="good" icon="✓">
-          Credit received in lab{cell.pacbio_case_number ? ` — case ${cell.pacbio_case_number}` : ""}
-          {cell.credit_acquisitions
-            ? ` (${cell.credit_acquisitions} acquisition${cell.credit_acquisitions === 1 ? "" : "s"} credited)`
+          Credit received in lab{credit.pacbio_case_number ? ` — case ${credit.pacbio_case_number}` : ""}
+          {credit.credit_acquisitions
+            ? ` (${credit.credit_acquisitions} acquisition${credit.credit_acquisitions === 1 ? "" : "s"} credited)`
             : ""}
           . This case is closed.
         </Note>
@@ -468,11 +522,11 @@ export function CreditCaseActions({ cell, detail, compact = false }: CreditCaseA
           row to edit its note. */}
       {!compact && (
         <div className={styles.notesBlock}>
-          <label className={styles.notesLabel} htmlFor={`credit-notes-${cell.id}`}>
+          <label className={styles.notesLabel} htmlFor={`credit-notes-${idKey}`}>
             Case notes
           </label>
           <textarea
-            id={`credit-notes-${cell.id}`}
+            id={`credit-notes-${idKey}`}
             className={styles.notesArea}
             value={creditNotes}
             onChange={(e) => setCreditNotes(e.target.value)}
@@ -482,10 +536,10 @@ export function CreditCaseActions({ cell, detail, compact = false }: CreditCaseA
           <div className={styles.actionRow}>
             <Button
               variant="ghost"
-              onClick={() => creditNotesMutation.mutate(creditNotes.trim())}
-              disabled={creditNotes.trim() === (cell.credit_notes ?? "") || creditNotesMutation.isPending}
+              onClick={() => creditNotesMutation.mutate(creditNotes.trim() || null)}
+              disabled={creditNotes.trim() === (credit.credit_notes ?? "") || creditNotesMutation.isPending}
             >
-              {creditNotesMutation.isPending ? "Saving…" : cell.credit_notes ? "Update note" : "Save note"}
+              {creditNotesMutation.isPending ? "Saving…" : credit.credit_notes ? "Update note" : "Save note"}
             </Button>
           </div>
         </div>
@@ -526,5 +580,117 @@ export function CreditCaseActions({ cell, detail, compact = false }: CreditCaseA
         </Note>
       )}
     </div>
+  );
+}
+
+/** Plain-language explanation of how the expected reimbursement was derived, shown on hover so
+ * the figure is never a mystery number (Transparent: why, at a glance). */
+function reimbursementTitle(cell: CellOut, amount: number): string {
+  const failNo = failUseNumber(cell.uses);
+  const basis = failNo == null ? "" : ` (max ${cell.max_uses} + 1 − use ${failNo} = ${amount})`;
+  return (
+    `The failed acquisition plus the cell's remaining acquisitions${basis}. ` +
+    "Remaining always counts to the cell's max, ignoring any early tray discard."
+  );
+}
+
+export interface CreditCaseActionsProps {
+  cell: CellOut;
+  /** Full detail for the triggering cell. Required only to render the report/email generators
+   * (they read the use history). Without it the case-number/link inputs and the one-click
+   * confirm/receive buttons still work; just the generators are hidden. */
+  detail?: CellDetailOut;
+  /** Compact layout for the QC worklist rows: drops the recessed panel border and the
+   * explanatory lead line so the control sits tight in a list. The tracker card leaves this
+   * off, keeping its full look. */
+  compact?: boolean;
+}
+
+/** A cell's PacBio credit case actions - on the cell detail page's PacbioCreditTracker (with
+ * `detail`) and the QC page's worklist rows. Every mutation invalidates the schedule-related
+ * query families, so any list showing this cell refreshes itself. */
+export function CreditCaseActions({ cell, detail, compact = false }: CreditCaseActionsProps) {
+  const queryClient = useQueryClient();
+  const ops = useMemo<CreditCaseOps>(
+    () => ({
+      reportToPacbio: (n) => cellsApi.reportToPacbio(cell.id, { case_number: n }),
+      setInternalReport: (id) => cellsApi.setInternalReport(cell.id, { report_id: id }),
+      confirmCredit: (count) => cellsApi.confirmCredit(cell.id, { acquisitions: count }),
+      setCreditNotes: (notes) => cellsApi.setCreditNotes(cell.id, { notes }),
+      receiveCredit: () => cellsApi.receiveCredit(cell.id),
+    }),
+    [cell.id],
+  );
+  const generators = useCreditGenerators(
+    detail
+      ? {
+          report: cellReportContext(detail),
+          email: buildCreditEmailContext(detail),
+          reportFilename: `pacbio-credit-${cell.code}.csv`,
+        }
+      : null,
+  );
+  // Expected acquisitions PacBio should credit — the failed acquisition plus the cell's remaining
+  // acquisitions, derived from cell.uses/max_uses.
+  const amount = expectedReimbursement(cell);
+
+  return (
+    <CreditStageActions
+      credit={cell}
+      idKey={`cell-${cell.id}`}
+      ops={ops}
+      onChanged={() => invalidateScheduleRelated(queryClient)}
+      reimbursement={
+        amount == null
+          ? null
+          : { amount, title: reimbursementTitle(cell, amount), hint: "failed + remaining, to the cell's max" }
+      }
+      generators={generators}
+      compact={compact}
+    />
+  );
+}
+
+/** A credit case logged without a cell - same actions as a cell's case, from the details typed in
+ * on the case. Its generators always show (everything they need is on the case itself), and the
+ * expected reimbursement is the lab's own estimate rather than a computed figure. */
+export function PacbioCaseActions({ pacbioCase, compact = false }: { pacbioCase: PacbioCaseOut; compact?: boolean }) {
+  const queryClient = useQueryClient();
+  const id = pacbioCase.id;
+  const ops = useMemo<CreditCaseOps>(
+    () => ({
+      reportToPacbio: (n) => pacbioCasesApi.reportToPacbio(id, { case_number: n }),
+      setInternalReport: (rid) => pacbioCasesApi.setInternalReport(id, { report_id: rid }),
+      confirmCredit: (count) => pacbioCasesApi.confirmCredit(id, { acquisitions: count }),
+      setCreditNotes: (notes) => pacbioCasesApi.setCreditNotes(id, { notes }),
+      receiveCredit: () => pacbioCasesApi.receiveCredit(id),
+    }),
+    [id],
+  );
+  const generators = useCreditGenerators({
+    report: pacbioCaseReportContext(pacbioCase),
+    email: buildPacbioCaseEmailContext(pacbioCase),
+    reportFilename: `pacbio-credit-case-${id}.csv`,
+  });
+  const amount = pacbioCase.expected_acquisitions;
+
+  return (
+    <CreditStageActions
+      credit={pacbioCase}
+      idKey={`case-${id}`}
+      ops={ops}
+      onChanged={() => void queryClient.invalidateQueries({ queryKey: ["pacbio-cases"] })}
+      reimbursement={
+        amount == null
+          ? null
+          : {
+              amount,
+              title: "Entered on the case — with no cell linked, the app can't work this out for you.",
+              hint: "your estimate, entered on the case",
+            }
+      }
+      generators={generators}
+      compact={compact}
+    />
   );
 }

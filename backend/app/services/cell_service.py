@@ -25,6 +25,7 @@ from app.models.cell_tray import CellTray
 from app.models.instrument import Instrument
 from app.models.schedule import CellUse, CellUseBarcode, Cycle, RunBatch
 from app.schemas.cell import CellBootstrapRequest, CellDetailOut, CellOut, CellUseHistoryOut, CellUseSummaryOut
+from app.services import credit_service
 from app.services.cell_timing import cell_use_movie_end_at
 from app.timeutil import ensure_aware, utcnow
 
@@ -547,16 +548,22 @@ def has_barcode_clash(cell_use: CellUse) -> bool:
     return foreign_barcode_clash(owners, my_ext, mine)
 
 
+def in_credit_workflow(cell: Cell) -> bool:
+    """A Failed use or a Stop opens the cell's PacBio credit case. Deliberately not a
+    Retire-without-failure (see has_failed_use for why Aborted doesn't count either)."""
+    return cell.status == "stopped" or has_failed_use(cell)
+
+
 def needs_qc_report(cell: Cell) -> bool:
-    """True once a cell has a Failed use or is Stopped, until someone raises a PacBio
-    case for it - drives the "unreported cells" list."""
-    return (cell.status == "stopped" or has_failed_use(cell)) and cell.pacbio_reported_at is None
+    """True once a cell is in the credit workflow, until someone raises a PacBio case for
+    it - drives the "unreported cells" list."""
+    return in_credit_workflow(cell) and credit_service.needs_report(cell)
 
 
 def awaiting_credit(cell: Cell) -> bool:
     """True once a cell has been reported to PacBio but the credit hasn't physically
     landed in the lab yet - drives the "awaiting credit" list."""
-    return cell.pacbio_reported_at is not None and cell.credit_received_at is None
+    return credit_service.awaiting_credit(cell)
 
 
 def cell_use_summary(cell: Cell, uses: list[CellUse] | None = None) -> list[CellUseSummaryOut]:
@@ -1168,102 +1175,47 @@ def restore_tray(db: Session, cells: list[Cell], actor: str | None) -> tuple[lis
     return cells, report
 
 
-def set_cell_internal_report(db: Session, cell: Cell, report_id: str, actor: str | None) -> Cell:
-    """Record the lab's internal report of a cell failure - the report ID it's filed under
-    (e.g. 26_NC_S_004). Stamps internal_report_at the first time an ID is saved (that
-    completes the stage); later edits update the ID but keep the original raised-at time."""
-    if cell.status != "stopped" and not has_failed_use(cell):
-        raise ValueError("Cell has no failed or stopped use to report internally.")
-    cell.internal_report_id = report_id
-    if cell.internal_report_at is None:
-        cell.internal_report_at = utcnow()
+def _require_credit_case(cell: Cell) -> None:
+    if not in_credit_workflow(cell):
+        raise ValueError("Cell has no failed or stopped use, so it has no PacBio credit case.")
+
+
+def _commit_credit_step(db: Session, cell: Cell, action: str, details: dict, actor: str | None) -> Cell:
     db.add(
-        AuditLog(
-            actor=actor or "unknown",
-            action="set_cell_internal_report",
-            entity_type="cell",
-            entity_id=cell.id,
-            details_json={"report_id": report_id},
-        )
+        AuditLog(actor=actor or "unknown", action=action, entity_type="cell", entity_id=cell.id, details_json=details)
     )
     db.commit()
     db.refresh(cell)
     return cell
+
+
+# The cell's PacBio credit case. Stage rules live in credit_service (shared with cases logged
+# without a cell); these add the cell's own precondition and audit trail.
+
+
+def set_cell_internal_report(db: Session, cell: Cell, report_id: str, actor: str | None) -> Cell:
+    _require_credit_case(cell)
+    credit_service.stamp_internal_report(cell, report_id)
+    return _commit_credit_step(db, cell, "set_cell_internal_report", {"report_id": cell.internal_report_id}, actor)
 
 
 def report_cell_to_pacbio(db: Session, cell: Cell, case_number: str, actor: str | None) -> Cell:
-    if cell.status != "stopped" and not has_failed_use(cell):
-        raise ValueError("Cell has no failed or stopped use to report to PacBio.")
-    cell.pacbio_case_number = case_number
-    cell.pacbio_reported_at = utcnow()
-    db.add(
-        AuditLog(
-            actor=actor or "unknown",
-            action="report_cell_to_pacbio",
-            entity_type="cell",
-            entity_id=cell.id,
-            details_json={"case_number": case_number},
-        )
-    )
-    db.commit()
-    db.refresh(cell)
-    return cell
+    _require_credit_case(cell)
+    credit_service.stamp_pacbio_report(cell, case_number)
+    return _commit_credit_step(db, cell, "report_cell_to_pacbio", {"case_number": cell.pacbio_case_number}, actor)
 
 
 def set_cell_credit_notes(db: Session, cell: Cell, notes: str | None, actor: str | None) -> Cell:
-    """Set the free-text note on a credit case. Editable at any stage of the workflow (from
-    failure through credit received), so it's not tied to any one step's timestamp."""
-    if cell.status != "stopped" and not has_failed_use(cell):
-        raise ValueError("Cell has no failed or stopped use to note against.")
-    cell.credit_notes = (notes or "").strip() or None
-    db.add(
-        AuditLog(
-            actor=actor or "unknown",
-            action="set_cell_credit_notes",
-            entity_type="cell",
-            entity_id=cell.id,
-            details_json={"notes": cell.credit_notes},
-        )
-    )
-    db.commit()
-    db.refresh(cell)
-    return cell
+    _require_credit_case(cell)
+    credit_service.set_notes(cell, notes)
+    return _commit_credit_step(db, cell, "set_cell_credit_notes", {"notes": cell.credit_notes}, actor)
 
 
 def confirm_cell_credit(db: Session, cell: Cell, acquisitions: int, actor: str | None) -> Cell:
-    if cell.pacbio_case_number is None:
-        raise ValueError("Cell has not been reported to PacBio yet.")
-    if acquisitions < 1:
-        raise ValueError("Credited acquisitions must be a positive number.")
-    cell.credit_acquisitions = acquisitions
-    cell.pacbio_credit_confirmed_at = utcnow()
-    db.add(
-        AuditLog(
-            actor=actor or "unknown",
-            action="confirm_cell_credit",
-            entity_type="cell",
-            entity_id=cell.id,
-            details_json={"acquisitions": acquisitions},
-        )
-    )
-    db.commit()
-    db.refresh(cell)
-    return cell
+    credit_service.stamp_credit_confirmed(cell, acquisitions)
+    return _commit_credit_step(db, cell, "confirm_cell_credit", {"acquisitions": acquisitions}, actor)
 
 
 def receive_cell_credit(db: Session, cell: Cell, actor: str | None) -> Cell:
-    if cell.pacbio_reported_at is None:
-        raise ValueError("Cell has not been reported to PacBio yet.")
-    cell.credit_received_at = utcnow()
-    db.add(
-        AuditLog(
-            actor=actor or "unknown",
-            action="receive_cell_credit",
-            entity_type="cell",
-            entity_id=cell.id,
-            details_json={},
-        )
-    )
-    db.commit()
-    db.refresh(cell)
-    return cell
+    credit_service.stamp_credit_received(cell)
+    return _commit_credit_step(db, cell, "receive_cell_credit", {}, actor)

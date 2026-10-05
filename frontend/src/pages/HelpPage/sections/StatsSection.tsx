@@ -26,7 +26,7 @@ export function StatsSection() {
         <li><b>Reaching Use 3</b> — the share of finished cells that got all 3 uses before their window closed.</li>
         <li><b>Failure rate</b> — of all samples sequenced (everything that has gone on the instrument, including runs still in progress), the share marked <i>failed</i> (a data/cell problem, not an instrument abort). Samples still waiting to be loaded don&apos;t count.</li>
         <li><b>Well fill</b> — how full runs were, out of the 8 wells a run can hold.</li>
-        <li><b>Awaiting credit / Credits received</b> — cells reported to PacBio still waiting for a replacement credit, and credits that have landed.</li>
+        <li><b>Awaiting credit / Credits received</b> — PacBio credit cases reported but still waiting for the credit, and credits that have landed. Counts cases logged on the QC tab without a cell too.</li>
       </ul>
 
       <p className={styles.subheading}>Throughput &amp; run rate</p>
@@ -46,8 +46,10 @@ export function StatsSection() {
       <p className={styles.subheading}>Failures &amp; credits</p>
       <p>
         <b>Run outcomes</b> breaks cell-uses into completed / failed / aborted. <b>Failure rate %</b> tracks the
-        failed share of samples sequenced week by week. The <b>PacBio credit funnel</b> shows where failed/stopped cells are in the
-        replacement process: needing a report → reported → awaiting credit → received.
+        failed share of samples sequenced week by week. The <b>PacBio credit funnel</b> shows where every credit case is in the
+        replacement process: needing a report → reported → awaiting credit → received. It covers failed/stopped cells
+        and the cases logged on the QC tab without a cell; with an instrument picked, a case without a cell counts only
+        if that instrument was entered on it.
       </p>
 
       <p className={styles.subheading}>Inventory &amp; backlog</p>

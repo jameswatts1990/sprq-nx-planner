@@ -17,6 +17,8 @@ Scoping rules (mirrored in the Help copy):
 - Cell status, sample funnel and the credit funnel are current "now" snapshots (not date
   filtered): they describe outstanding state, which doesn't stop mattering just because it
   predates the window.
+- The credit funnel counts every PacBio credit case: cells' own cases plus cases logged
+  without a cell (PacbioCase), the latter scoped to an instrument by the one entered on it.
 """
 from __future__ import annotations
 
@@ -30,6 +32,7 @@ from app.engine.constants import CELLS_PER_TRAY
 from app.models.cell import Cell
 from app.models.importing import ImportBatch
 from app.models.instrument import Instrument
+from app.models.pacbio_case import PacbioCase
 from app.models.sample import SAMPLE_STATUSES, Sample
 from app.models.schedule import CellUse, Cycle, RunBatch
 from app.schemas.stats import (
@@ -59,6 +62,7 @@ from app.services.cell_service import (
     last_use_run_date,
     needs_qc_report,
 )
+from app.services import credit_service
 from app.timeutil import ensure_aware
 
 WELLS_PER_PLATE = CELLS_PER_TRAY  # well capacity per plate (a cycle is one plate / one tray now)
@@ -337,5 +341,16 @@ def _credit_funnel(db, instrument_serial) -> CreditFunnel:
         if awaiting_credit(cell):
             awaiting += 1
         if cell.credit_received_at is not None:
+            received += 1
+    for case in db.scalars(select(PacbioCase).options(selectinload(PacbioCase.instrument))):
+        if instrument_serial and (case.instrument is None or case.instrument.serial_number != instrument_serial):
+            continue
+        if credit_service.needs_report(case):
+            needs += 1
+        else:
+            reported += 1
+        if credit_service.awaiting_credit(case):
+            awaiting += 1
+        if case.credit_received_at is not None:
             received += 1
     return CreditFunnel(needs_report=needs, reported=reported, awaiting=awaiting, received=received)
