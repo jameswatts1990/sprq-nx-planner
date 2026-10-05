@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta, timezone
 
-from sqlalchemy import select
+from sqlalchemy import ColumnElement, and_, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.engine.constants import (
@@ -554,6 +554,21 @@ def in_credit_workflow(cell: Cell) -> bool:
     return cell.status == "stopped" or has_failed_use(cell)
 
 
+def credit_status_clause(qc_status: str) -> ColumnElement[bool]:
+    """SQL twin of in_credit_workflow / needs_qc_report / awaiting_credit, so a qc_status list
+    (the QC page, the Cells page's Unreported / Awaiting chips) filters in the query instead of
+    serializing every cell first - serialize_cell runs the per-run timing model, which is the
+    expensive part. Keep in step with the three Python predicates."""
+    in_workflow = or_(Cell.status == "stopped", Cell.cell_uses.any(CellUse.status == "failed"))
+    if qc_status == "in_workflow":
+        return in_workflow
+    if qc_status == "unreported":
+        return and_(in_workflow, Cell.pacbio_reported_at.is_(None))
+    if qc_status == "awaiting_credit":
+        return and_(Cell.pacbio_reported_at.is_not(None), Cell.credit_received_at.is_(None))
+    raise ValueError(f"Unknown qc_status '{qc_status}'")
+
+
 def needs_qc_report(cell: Cell) -> bool:
     """True once a cell is in the credit workflow, until someone raises a PacBio case for
     it - drives the "unreported cells" list."""
@@ -589,6 +604,11 @@ def cell_use_summary(cell: Cell, uses: list[CellUse] | None = None) -> list[Cell
                 status=cu.status,
                 run_started=run_has_started(cu),
                 breakout_anchor_at=ensure_aware(anchor) if anchor else None,
+                plate_index=cu.cycle.plate_index if cu.cycle else None,
+                instrument_serial=run_batch.instrument.serial_number if run_batch and run_batch.instrument else None,
+                started_at=cu.started_at,
+                completed_at=cu.completed_at,
+                outcome_notes=cu.outcome_notes,
             )
         )
     return summary
@@ -671,6 +691,7 @@ def serialize_cell(cell: Cell, as_of: datetime | None = None) -> CellOut:
         credit_acquisitions=cell.credit_acquisitions,
         credit_notes=cell.credit_notes,
         credit_received_at=cell.credit_received_at,
+        credit_owner=cell.credit_owner,
         tray_id=cell.tray_id,
         tray_position=cell.tray_position,
         tray_size=CELLS_PER_TRAY,
@@ -1209,6 +1230,12 @@ def set_cell_credit_notes(db: Session, cell: Cell, notes: str | None, actor: str
     _require_credit_case(cell)
     credit_service.set_notes(cell, notes)
     return _commit_credit_step(db, cell, "set_cell_credit_notes", {"notes": cell.credit_notes}, actor)
+
+
+def set_cell_credit_owner(db: Session, cell: Cell, owner: str | None, actor: str | None) -> Cell:
+    _require_credit_case(cell)
+    credit_service.set_owner(cell, owner)
+    return _commit_credit_step(db, cell, "set_cell_credit_owner", {"owner": cell.credit_owner}, actor)
 
 
 def confirm_cell_credit(db: Session, cell: Cell, acquisitions: int, actor: str | None) -> Cell:

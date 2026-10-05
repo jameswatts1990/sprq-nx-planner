@@ -91,8 +91,16 @@
   font-size: var(--fs-sm);
   color: var(--link);
 }
-.date {
+/* Right-aligned facts on a row's head line: case #, acquisitions, owner, age/overdue, date. */
+.facts {
   margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.date {
   font-size: var(--fs-sm);
   color: var(--grey);
   white-space: nowrap;
@@ -183,6 +191,74 @@
 .spacer {
   margin-left: auto;
 }
+/* The page title doubles as the overview strip's show/hide toggle (chevron beside it). */
+.titleToggle {
+  appearance: none;
+  border: none;
+  background: none;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  color: var(--ink);
+}
+.search {
+  font-family: var(--sans);
+  font-size: var(--fs-base);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 7px 10px;
+  width: 280px;
+  max-width: 100%;
+  background: var(--card);
+  color: var(--ink);
+}
+
+/* Operations overview: one slim line of totals (label + value pairs) that wraps on a phone. */
+.overview {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 20px;
+  padding: 8px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md, 10px);
+  background: var(--card);
+}
+.ovItem {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  white-space: nowrap;
+}
+.ovLabel {
+  font-size: var(--fs-2xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--grey);
+  font-weight: 700;
+}
+.ovValue {
+  font-size: var(--fs-lg);
+  font-weight: 800;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.ovItem[data-alert="true"] .ovValue {
+  color: var(--red);
+}
+.ovSep {
+  width: 1px;
+  height: 18px;
+  background: var(--line);
+}
+/* Once the strip wraps on a phone, a divider can strand at a line start - drop them there. */
+@media (max-width: 560px) {
+  .ovSep {
+    display: none;
+  }
+}
 
 /* A no-cell case's identity in its row: the typed-in summary stands where a cell code would. */
 .summary {
@@ -201,6 +277,11 @@
 .metaText {
   font-size: var(--fs-sm);
   color: var(--grey);
+}
+/* A fact not recorded yet (No case # / No owner) - same size as the facts, fainter. */
+.metaMuted {
+  font-size: var(--fs-sm);
+  color: var(--faint);
 }
 
 /* Expanded no-cell case: its typed-in details + Edit/Delete, above the stage actions. */
@@ -281,4 +362,29 @@
   font-size: var(--fs-md);
   color: var(--grey);
   margin: 0 0 14px;
+}
+
+/* "Already progressed?" group on the add-case form - backfill an old case's done stages. */
+.progressed {
+  border: 1px dashed var(--line);
+  border-radius: var(--r-sm);
+  padding: 10px 12px 0;
+  margin: 0 0 14px;
+}
+.check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--fs-base);
+  color: var(--ink);
+  margin-bottom: 14px;
+  align-self: end;
+  min-height: 38px;
+  cursor: pointer;
+}
+.check input {
+  width: auto;
+}
+.formProblem {
+  margin-bottom: 14px;
 }

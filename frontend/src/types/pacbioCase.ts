@@ -29,8 +29,13 @@ export interface PacbioCaseDetailsIn {
   expected_acquisitions: number | null;
 }
 
+/** Backfilling an already-progressed case: any stage the lab already has is stamped up front, in
+ * stage order, so the case lands at its real stage. */
 export interface PacbioCaseCreate extends PacbioCaseDetailsIn {
-  /** Already raised with PacBio? Starts the case past "Needs report". */
   pacbio_case_number: string | null;
+  internal_report_id: string | null;
+  credit_acquisitions: number | null;
+  credit_received: boolean;
+  credit_owner: string | null;
   credit_notes: string | null;
 }

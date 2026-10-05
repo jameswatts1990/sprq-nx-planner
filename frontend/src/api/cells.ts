@@ -18,6 +18,7 @@ import type {
   CreditConfirmRequest,
   CreditInternalReportRequest,
   CreditNotesRequest,
+  CreditOwnerRequest,
   CreditReportToPacbioRequest,
 } from "@/types/credit";
 import type { QcCommitOut, QcCommitRequest, QcPreviewOut, QcPreviewRequest, QcUndoOut } from "@/types/qc";
@@ -83,6 +84,9 @@ export const cellsApi = {
   confirmCredit: (id: number, req: CreditConfirmRequest) =>
     api.post<CellOut>(`/api/cells/${id}/confirm-credit`, req),
   /** Set the credit case's free-text note. Editable at any stage; empty clears it. */
+  /** Set who is chasing the case (free text). Editable at any stage; empty clears it. */
+  setCreditOwner: (id: number, req: CreditOwnerRequest) =>
+    api.post<CellOut>(`/api/cells/${id}/credit-owner`, req),
   setCreditNotes: (id: number, req: CreditNotesRequest) =>
     api.post<CellOut>(`/api/cells/${id}/credit-notes`, req),
   receiveCredit: (id: number) => api.post<CellOut>(`/api/cells/${id}/receive-credit`, {}),

@@ -1,0 +1,55 @@
+/* A saved value with an in-place ✎ editor (see InlineEditField.tsx). Sized to sit in a row of
+   several such fields - e.g. the credit tracker's "Recorded" line. */
+.field {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  min-height: 30px;
+}
+.label {
+  font-size: var(--fs-2xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--grey);
+  font-weight: 700;
+}
+.value {
+  font-size: var(--fs-base);
+  color: var(--ink);
+  font-weight: 600;
+}
+.empty {
+  font-size: var(--fs-base);
+  color: var(--faint);
+}
+.edit {
+  appearance: none;
+  border: none;
+  background: none;
+  padding: 2px 4px;
+  cursor: pointer;
+  color: var(--grey);
+  font-size: var(--fs-base);
+  line-height: 1;
+  border-radius: var(--r-sm);
+}
+.edit:hover,
+.edit:focus-visible {
+  color: var(--ink);
+  background: var(--bg);
+}
+.input {
+  font-family: var(--sans);
+  font-size: var(--fs-base);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 4px 8px;
+  width: 160px;
+  background: var(--card);
+  color: var(--ink);
+}
+.error {
+  font-size: var(--fs-sm);
+  color: var(--red);
+}

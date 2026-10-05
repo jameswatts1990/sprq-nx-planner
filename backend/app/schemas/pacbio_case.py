@@ -16,9 +16,14 @@ class PacbioCaseDetailsIn(BaseModel):
 
 
 class PacbioCaseCreate(PacbioCaseDetailsIn):
-    # Already raised with PacBio? Logging the case number up front starts the case past the
-    # "Needs report" stage, the same as Add case number would straight afterwards.
+    # Backfilling a case that's already progressed: every stage the lab already has can be given
+    # up front and is stamped in stage order through the same credit_service rules (so e.g.
+    # credited acquisitions without a case number is refused), landing the case at its real stage.
     pacbio_case_number: str | None = None
+    internal_report_id: str | None = None
+    credit_acquisitions: int | None = None
+    credit_received: bool = False
+    credit_owner: str | None = None
     credit_notes: str | None = None
     actor: str | None = None
 
@@ -47,3 +52,4 @@ class PacbioCaseOut(BaseModel):
     credit_acquisitions: int | None
     credit_notes: str | None
     credit_received_at: datetime | None
+    credit_owner: str | None

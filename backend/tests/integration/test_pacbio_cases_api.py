@@ -144,3 +144,50 @@ def test_cases_without_a_cell_count_in_the_stats_credit_funnel(client):
     # An instrument filter keeps only the case logged against that instrument.
     scoped = client.get("/api/stats", params={"instrument_serial": "84047"}).json()["failures"]["credit_funnel"]
     assert scoped == {"needs_report": 0, "reported": 1, "awaiting": 1, "received": 0}
+
+
+def test_create_backfills_every_stage_the_lab_already_has(client, db_session):
+    r = _create(
+        client,
+        pacbio_case_number="00316913",
+        internal_report_id="26_NC_S_040",
+        credit_acquisitions=3,
+        credit_received=True,
+        credit_owner=" jw24 ",
+    )
+    assert r.status_code == 201, r.text
+    case = r.json()
+    assert case["pacbio_reported_at"] and case["internal_report_at"]
+    assert case["pacbio_credit_confirmed_at"] and case["credit_received_at"]
+    assert case["credit_acquisitions"] == 3
+    assert case["credit_owner"] == "jw24"
+    assert _audit_actions(db_session, case["id"]) == ["create_pacbio_case"]
+
+
+def test_create_backfill_refuses_stages_out_of_order(client):
+    assert _create(client, credit_acquisitions=2).status_code == 400  # credited, never reported
+    assert _create(client, credit_received=True).status_code == 400  # received, never reported
+    assert _create(client, pacbio_case_number="CS-1", credit_acquisitions=0).status_code == 400
+    assert client.get("/api/pacbio-cases").json() == []
+
+
+def test_owner_is_set_trimmed_and_cleared(client):
+    case_id = _create(client).json()["id"]
+    base = f"/api/pacbio-cases/{case_id}/credit-owner"
+    assert client.post(base, json={"owner": "  Paola V  "}).json()["credit_owner"] == "Paola V"
+    assert client.post(base, json={"owner": "x" * 121}).status_code == 409
+    assert client.post(base, json={"owner": "   "}).json()["credit_owner"] is None
+
+
+def test_correcting_a_done_stage_keeps_when_it_happened(client):
+    case_id = _create(client).json()["id"]
+    base = f"/api/pacbio-cases/{case_id}"
+    reported = client.post(f"{base}/report-to-pacbio", json={"case_number": "0031691"}).json()
+    fixed = client.post(f"{base}/report-to-pacbio", json={"case_number": "00316913"}).json()
+    assert fixed["pacbio_case_number"] == "00316913"
+    assert fixed["pacbio_reported_at"] == reported["pacbio_reported_at"]
+
+    confirmed = client.post(f"{base}/confirm-credit", json={"acquisitions": 2}).json()
+    recount = client.post(f"{base}/confirm-credit", json={"acquisitions": 3}).json()
+    assert recount["credit_acquisitions"] == 3
+    assert recount["pacbio_credit_confirmed_at"] == confirmed["pacbio_credit_confirmed_at"]

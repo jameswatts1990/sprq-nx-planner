@@ -7,7 +7,9 @@ import { pacbioCasesApi } from "@/api/pacbioCases";
 import { Button } from "@/components/ui/Button";
 import { Modal, ModalActions } from "@/components/ui/Modal";
 import { Note } from "@/components/ui/Note";
+import { invalidateCreditCases } from "@/lib/invalidateCreditCases";
 import type { PacbioCaseDetailsIn, PacbioCaseOut } from "@/types/pacbioCase";
+import { readRememberedOwner, rememberOwner } from "@/utils/rememberedOwner";
 
 import styles from "./QcPage.module.css";
 
@@ -16,6 +18,8 @@ function todayIso(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
+
+const isWholeAtLeastOne = (v: string) => v === "" || (Number.isInteger(Number(v)) && Number(v) >= 1);
 
 export interface PacbioCaseModalProps {
   /** Edit this case's details; omit to log a new case. */
@@ -27,9 +31,13 @@ export interface PacbioCaseModalProps {
 /** Log a PacBio credit case WITHOUT a cell, or edit one's details. Opens with a warning Note on
  * create so it's unmistakable the case won't be linked to a cell (and what that means). Only the
  * summary and date are required; the rest feeds the generated email/report and the expected
- * reimbursement a cell's case would otherwise work out itself. Edit sends the full detail set
- * (a full replace), so clearing a field really clears it. The case number and note are create-
- * only here - afterwards they're edited through the case's own stage actions. */
+ * reimbursement a cell's case would otherwise work out itself.
+ *
+ * Create also takes the owner and an "Already progressed?" group - every stage the lab already
+ * has (case number, internal report ID, acquisitions credited, received) - so backfilling an old
+ * case is one step instead of clicking through each stage afterwards. Edit sends the full detail
+ * set (a full replace, so clearing a field really clears it); owner and stage values are
+ * corrected from the case's own "Recorded" line instead. */
 export function PacbioCaseModal({ existing, onClose, onSaved }: PacbioCaseModalProps) {
   const queryClient = useQueryClient();
   const [summary, setSummary] = useState(existing?.summary ?? "");
@@ -38,7 +46,11 @@ export function PacbioCaseModal({ existing, onClose, onSaved }: PacbioCaseModalP
   const [runName, setRunName] = useState(existing?.run_name ?? "");
   const [poolId, setPoolId] = useState(existing?.pool_id ?? "");
   const [expected, setExpected] = useState(existing?.expected_acquisitions?.toString() ?? "");
+  const [owner, setOwner] = useState(() => (existing ? "" : readRememberedOwner()));
   const [caseNumber, setCaseNumber] = useState("");
+  const [reportId, setReportId] = useState("");
+  const [credited, setCredited] = useState("");
+  const [received, setReceived] = useState(false);
   const [notes, setNotes] = useState("");
 
   const { data: instruments } = useQuery({
@@ -46,8 +58,17 @@ export function PacbioCaseModal({ existing, onClose, onSaved }: PacbioCaseModalP
     queryFn: () => instrumentsApi.list(false),
   });
 
-  const expectedValid = expected === "" || (Number.isInteger(Number(expected)) && Number(expected) >= 1);
-  const canSave = summary.trim() !== "" && occurredOn !== "" && expectedValid;
+  // A credit can only be confirmed / received against a case raised with PacBio - the same rule
+  // the backend enforces, caught here so the form says why instead of failing on save.
+  const needsCaseNumber = (credited !== "" || received) && caseNumber.trim() === "";
+  const problem = !isWholeAtLeastOne(expected)
+    ? "Acquisitions to claim must be a whole number of 1 or more."
+    : !isWholeAtLeastOne(credited)
+      ? "Acquisitions credited must be a whole number of 1 or more."
+      : needsCaseNumber
+        ? "Enter the PacBio case number - a credit can only be confirmed or received for a case raised with PacBio."
+        : null;
+  const canSave = summary.trim() !== "" && occurredOn !== "" && problem === null;
 
   const mutation = useMutation({
     mutationFn: () => {
@@ -63,11 +84,16 @@ export function PacbioCaseModal({ existing, onClose, onSaved }: PacbioCaseModalP
       return pacbioCasesApi.create({
         ...details,
         pacbio_case_number: caseNumber.trim() || null,
+        internal_report_id: reportId.trim() || null,
+        credit_acquisitions: credited ? Number(credited) : null,
+        credit_received: received,
+        credit_owner: owner.trim() || null,
         credit_notes: notes.trim() || null,
       });
     },
     onSuccess: (saved) => {
-      void queryClient.invalidateQueries({ queryKey: ["pacbio-cases"] });
+      rememberOwner(saved.credit_owner);
+      invalidateCreditCases(queryClient);
       onSaved(saved);
     },
   });
@@ -81,7 +107,7 @@ export function PacbioCaseModal({ existing, onClose, onSaved }: PacbioCaseModalP
     <Modal
       onClose={mutation.isPending ? () => {} : onClose}
       title={existing ? "Edit case details" : "Add case without a cell"}
-      maxWidth={600}
+      maxWidth={640}
     >
       {!existing && (
         <Note tone="warn" icon="!">
@@ -175,20 +201,86 @@ export function PacbioCaseModal({ existing, onClose, onSaved }: PacbioCaseModalP
           </div>
           {!existing && (
             <div className={styles.field}>
-              <label className={styles.fieldLabel} htmlFor="pc-case-number">
-                PacBio case number (optional)
+              <label className={styles.fieldLabel} htmlFor="pc-owner">
+                Owner (optional)
               </label>
               <input
-                id="pc-case-number"
+                id="pc-owner"
                 type="text"
-                value={caseNumber}
-                onChange={(e) => setCaseNumber(e.target.value)}
-                placeholder="Already raised? e.g. CS-000123"
-                maxLength={64}
+                value={owner}
+                onChange={(e) => setOwner(e.target.value)}
+                placeholder="Sanger ID or name, e.g. jw24"
+                maxLength={120}
               />
             </div>
           )}
         </div>
+
+        {!existing && (
+          <fieldset className={styles.progressed}>
+            <legend className={styles.fieldLabel}>Already progressed? (optional)</legend>
+            <p className={styles.helper}>
+              Fill in any step you&apos;ve already done and the case starts there — no need to click each one through
+              afterwards.
+            </p>
+            <div className={styles.fieldGrid}>
+              <div className={styles.field}>
+                <label className={styles.fieldLabel} htmlFor="pc-case-number">
+                  PacBio case number
+                </label>
+                <input
+                  id="pc-case-number"
+                  type="text"
+                  value={caseNumber}
+                  onChange={(e) => setCaseNumber(e.target.value)}
+                  placeholder="e.g. 00316913"
+                  maxLength={64}
+                />
+              </div>
+              <div className={styles.field}>
+                <label className={styles.fieldLabel} htmlFor="pc-report-id">
+                  Internal report ID
+                </label>
+                <input
+                  id="pc-report-id"
+                  type="text"
+                  value={reportId}
+                  onChange={(e) => setReportId(e.target.value)}
+                  placeholder="e.g. 26_NC_S_004"
+                  maxLength={64}
+                />
+              </div>
+              <div className={styles.field}>
+                <label className={styles.fieldLabel} htmlFor="pc-credited">
+                  Acquisitions credited
+                </label>
+                <input
+                  id="pc-credited"
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={credited}
+                  onChange={(e) => setCredited(e.target.value)}
+                  placeholder={expected ? `e.g. ${expected}` : "PacBio confirmed, e.g. 3"}
+                />
+              </div>
+              <label className={styles.check}>
+                <input type="checkbox" checked={received} onChange={(e) => setReceived(e.target.checked)} />
+                Credit already received in lab
+              </label>
+            </div>
+          </fieldset>
+        )}
+
+        {/* Right under the fields it's about, so it's in view when Add case greys out. */}
+        {problem && (
+          <div className={styles.formProblem}>
+            <Note tone="bad" icon="!">
+              {problem}
+            </Note>
+          </div>
+        )}
+
         {!existing && (
           <div className={styles.field}>
             <label className={styles.fieldLabel} htmlFor="pc-notes">
@@ -199,14 +291,9 @@ export function PacbioCaseModal({ existing, onClose, onSaved }: PacbioCaseModalP
         )}
         <p className={styles.helper}>
           The run, sample, instrument and acquisitions fill the <b>Generate email…</b> and <b>Generate report</b>{" "}
-          helpers. The acquisitions PacBio actually credit are recorded later, at the Credit confirmed step.
+          helpers; the owner fills the report&apos;s <b>Reported by</b>.
         </p>
 
-        {!expectedValid && (
-          <Note tone="bad" icon="!">
-            Acquisitions to claim must be a whole number of 1 or more.
-          </Note>
-        )}
         {mutation.isError && (
           <Note tone="bad" icon="!">
             {mutation.error instanceof ApiError ? mutation.error.message : "Failed to save the case."}

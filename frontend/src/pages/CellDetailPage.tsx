@@ -245,7 +245,7 @@ export function CellDetailPage() {
     <PacbioCreditTracker
       credit={cell}
       failureAt={cellFailureAt(cell)}
-      actions={<CreditCaseActions cell={cell} detail={cell} />}
+      actions={<CreditCaseActions cell={cell} />}
     />
   );
 

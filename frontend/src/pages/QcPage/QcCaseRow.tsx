@@ -1,17 +1,20 @@
-import { useQuery } from "@tanstack/react-query";
-import { type ReactNode, useState } from "react";
+import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 
-import { ApiError } from "@/api/client";
-import { cellsApi } from "@/api/cells";
 import { CreditCaseActions } from "@/components/cells/CreditCaseActions";
 import { PacbioCreditTracker } from "@/components/cells/PacbioCreditTracker";
 import { Badge } from "@/components/ui/Badge";
-import { Note } from "@/components/ui/Note";
 import type { CellOut } from "@/types/cell";
 import type { CreditCaseState } from "@/types/credit";
 import { CELL_STATUS_LABEL, CELL_STATUS_TONE } from "@/utils/cellStatus";
-import { cellFailureAt, getCreditStages, triggeringUse } from "@/utils/creditCase";
+import {
+  type CreditCaseAge,
+  CREDIT_OVERDUE_DAYS,
+  cellFailureAt,
+  getCreditStages,
+  OVERDUE_BADGE,
+  triggeringUse,
+} from "@/utils/creditCase";
 import { runLabel } from "@/utils/runLabel";
 import { useSampleBackNav } from "@/utils/sampleBackNav";
 
@@ -40,10 +43,61 @@ function MiniStageStrip({ credit }: { credit: CreditCaseState }) {
   );
 }
 
-export interface CaseRowFrameProps {
+/** The at-a-glance facts on the right of a row's head line: PacBio case number, acquisitions
+ * (expected until PacBio confirm, then credited), owner, days open - plus an Overdue badge once
+ * the current stage has stalled. Missing values read as muted placeholders so a gap is obvious. */
+function CaseMeta({ credit, expected, age }: { credit: CreditCaseState; expected: number | null; age: CreditCaseAge | null }) {
+  const credited = credit.pacbio_credit_confirmed_at ? credit.credit_acquisitions : null;
+  return (
+    <>
+      {credit.pacbio_case_number ? (
+        <span className={styles.metaText}>Case {credit.pacbio_case_number}</span>
+      ) : (
+        <span className={styles.metaMuted}>No case #</span>
+      )}
+      {credited != null ? (
+        <span className={styles.metaText}>{credited} acq credited</span>
+      ) : expected != null ? (
+        <span className={styles.metaText}>{expected} acq expected</span>
+      ) : null}
+      {credit.credit_owner ? (
+        <span className={styles.metaText}>{credit.credit_owner}</span>
+      ) : (
+        <span className={styles.metaMuted}>No owner</span>
+      )}
+      {age &&
+        (age.overdue ? (
+          <span
+            title={`No progress for ${age.waitDays} days (next: ${age.waitingFor}) - over the ${CREDIT_OVERDUE_DAYS}-day limit, so it needs chasing. Open ${age.daysOpen} days in all.`}
+          >
+            <Badge tone={OVERDUE_BADGE.tone}>
+              {OVERDUE_BADGE.label} · {age.waitDays} d
+            </Badge>
+          </span>
+        ) : (
+          <span className={styles.metaText} title={`Waiting ${age.waitDays} days for: ${age.waitingFor}`}>
+            {age.daysOpen} d open
+          </span>
+        ))}
+    </>
+  );
+}
+
+/** Expansion is owned by the QC page (keyed by case), not the row: an action moves a case to
+ * another stage group, which remounts its row - a row-local state would snap it shut mid-task. */
+export interface RowExpansion {
+  open: boolean;
+  onToggle: () => void;
+}
+
+export interface CaseRowFrameProps extends RowExpansion {
   credit: CreditCaseState;
-  /** Identity line after the expand chevron: code/summary, badges, location, date. */
+  /** Identity after the expand chevron: cell code + status + location, or the case summary. */
   head: ReactNode;
+  /** Right-aligned failure date. */
+  date: string;
+  expected: number | null;
+  age: CreditCaseAge | null;
   /** Context line under it (failed run + sample, or the typed-in run/sample). */
   ctx: ReactNode;
   /** The compact next-step action, shown inline while collapsed. */
@@ -52,11 +106,21 @@ export interface CaseRowFrameProps {
   renderDetail: () => ReactNode;
 }
 
-/** The shared shell of one QC worklist row - chevron + identity, context, the mini stage strip
- * with the next action inline, and the full tracker on expand - so a cell's case and a case
+/** The shared shell of one QC worklist row - chevron + identity + facts, context, the mini stage
+ * strip with the next action inline, and the full tracker on expand - so a cell's case and a case
  * logged without a cell read and behave the same in the list. */
-export function CaseRowFrame({ credit, head, ctx, action, renderDetail }: CaseRowFrameProps) {
-  const [open, setOpen] = useState(false);
+export function CaseRowFrame({
+  credit,
+  head,
+  date,
+  expected,
+  age,
+  ctx,
+  action,
+  renderDetail,
+  open,
+  onToggle,
+}: CaseRowFrameProps) {
   return (
     <div className={styles.row} data-open={open}>
       <div className={styles.head}>
@@ -65,13 +129,17 @@ export function CaseRowFrame({ credit, head, ctx, action, renderDetail }: CaseRo
           className={styles.expand}
           aria-expanded={open}
           aria-label={open ? "Hide credit tracker" : "Show credit tracker"}
-          onClick={() => setOpen((v) => !v)}
+          onClick={onToggle}
         >
           <span className={styles.cx} data-open={open}>
             ▸
           </span>
         </button>
         {head}
+        <span className={styles.facts}>
+          <CaseMeta credit={credit} expected={expected} age={age} />
+          <span className={styles.date}>{date}</span>
+        </span>
       </div>
 
       <div className={styles.ctx}>{ctx}</div>
@@ -88,19 +156,26 @@ export function CaseRowFrame({ credit, head, ctx, action, renderDetail }: CaseRo
 }
 
 /** A cell's credit case in the QC worklist: cell code + status + location, the failed run and
- * sample, and the next credit action inline (including the Generate email/report helpers). The
- * row fetches the cell's detail so those helpers - which read the use history - work inline; the
- * expanded tracker reuses that same cached query. */
-export function CellCaseRow({ cell }: { cell: CellOut }) {
+ * sample, and the next credit action inline. Everything - including the Generate email/report
+ * helpers and the expanded tracker - comes from the list view's CellOut, so no row fetches the
+ * cell's detail. */
+export function CellCaseRow({
+  cell,
+  expected,
+  age,
+  ...expansion
+}: { cell: CellOut; expected: number | null; age: CreditCaseAge | null } & RowExpansion) {
   const backNav = useSampleBackNav();
   const use = triggeringUse(cell.uses);
-
-  const detailQuery = useQuery({ queryKey: ["cell", cell.id], queryFn: () => cellsApi.get(cell.id) });
-  const detail = detailQuery.data;
+  const failureAt = cellFailureAt(cell);
 
   return (
     <CaseRowFrame
+      {...expansion}
       credit={cell}
+      expected={expected}
+      age={age}
+      date={formatDate(failureAt ?? cell.last_use_run_date)}
       head={
         <>
           <Link to={`/cells/${cell.id}`} className={styles.code}>
@@ -121,7 +196,6 @@ export function CellCaseRow({ cell }: { cell: CellOut }) {
               Tray {cell.tray_id}
             </Link>
           )}
-          <span className={styles.date}>{formatDate(cell.stopped_at ?? cell.last_use_run_date)}</span>
         </>
       }
       ctx={
@@ -150,22 +224,10 @@ export function CellCaseRow({ cell }: { cell: CellOut }) {
           )}
         </>
       }
-      action={<CreditCaseActions cell={cell} detail={detail} compact />}
-      renderDetail={() =>
-        detailQuery.isLoading ? (
-          <span className={styles.detailStatus}>Loading credit tracker…</span>
-        ) : detailQuery.isError ? (
-          <Note tone="bad" icon="!">
-            {detailQuery.error instanceof ApiError ? detailQuery.error.message : "Failed to load the cell."}
-          </Note>
-        ) : detail ? (
-          <PacbioCreditTracker
-            credit={detail}
-            failureAt={cellFailureAt(detail)}
-            actions={<CreditCaseActions cell={detail} detail={detail} />}
-          />
-        ) : null
-      }
+      action={<CreditCaseActions cell={cell} compact />}
+      renderDetail={() => (
+        <PacbioCreditTracker credit={cell} failureAt={failureAt} actions={<CreditCaseActions cell={cell} />} />
+      )}
     />
   );
 }

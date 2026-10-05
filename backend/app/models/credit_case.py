@@ -28,3 +28,6 @@ class CreditCaseMixin:
     # Free-text case note, editable at any stage.
     credit_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     credit_received_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Who is chasing the case (free text - a Sanger ID or a name; the app has no auth). Shown on
+    # the QC worklist and fills the issue report's "Reported by (Sanger ID)" column.
+    credit_owner: Mapped[str | None] = mapped_column(String(120), nullable=True)

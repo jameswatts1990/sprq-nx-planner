@@ -12,7 +12,7 @@ import type { CellStatus, CellUseStatus, CycleStatus, SampleStatus } from "@/typ
 import { CELL_QC_FLAG_LABEL, CELL_QC_FLAG_TONE } from "@/utils/cellQcFlag";
 import type { CellQcFlag } from "@/utils/cellQcFlag";
 import { CELL_STATUS_LABEL, CELL_STATUS_TONE } from "@/utils/cellStatus";
-import { NO_CELL_BADGE } from "@/utils/creditCase";
+import { CREDIT_OVERDUE_DAYS, NO_CELL_BADGE, OVERDUE_BADGE } from "@/utils/creditCase";
 import { CYCLE_STATUS_TONE } from "@/utils/cycleStatus";
 import { priorityTone } from "@/utils/priority";
 import { SAMPLE_STATUS_LABEL, SAMPLE_STATUS_TONE } from "@/utils/sampleStatus";
@@ -147,6 +147,15 @@ export function LegendSection() {
           <span>
             A PacBio credit case logged by hand on the QC tab, not linked to any cell - it never changes a cell, a sample
             or the schedule.
+          </span>
+        </div>
+        <div className={styles.legendRow}>
+          <span className={styles.legendSwatchLabel}>
+            <Badge tone={OVERDUE_BADGE.tone}>{OVERDUE_BADGE.label} · 45 d</Badge>
+          </span>
+          <span>
+            An open credit case that has made no progress for more than {CREDIT_OVERDUE_DAYS} days at its current
+            stage - it needs chasing. The number is how long it has been waiting.
           </span>
         </div>
       </div>

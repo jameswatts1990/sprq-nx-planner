@@ -9,11 +9,12 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { Note } from "@/components/ui/Note";
+import { invalidateCreditCases } from "@/lib/invalidateCreditCases";
 import type { PacbioCaseOut } from "@/types/pacbioCase";
-import { localDateOnly, NO_CELL_BADGE } from "@/utils/creditCase";
+import { type CreditCaseAge, localDateOnly, NO_CELL_BADGE } from "@/utils/creditCase";
 
 import { PacbioCaseModal } from "./PacbioCaseModal";
-import { CaseRowFrame } from "./QcCaseRow";
+import { CaseRowFrame, type RowExpansion } from "./QcCaseRow";
 import styles from "./QcPage.module.css";
 
 /** The typed-in details of a no-cell case, shown above its stage actions when expanded, with
@@ -24,7 +25,7 @@ function CaseDetails({ pacbioCase }: { pacbioCase: PacbioCaseOut }) {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const del = useMutation({
     mutationFn: () => pacbioCasesApi.del(pacbioCase.id),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["pacbio-cases"] }),
+    onSuccess: () => invalidateCreditCases(queryClient),
   });
 
   const rows: [string, string | null][] = [
@@ -89,10 +90,18 @@ function CaseDetails({ pacbioCase }: { pacbioCase: PacbioCaseOut }) {
 
 /** A credit case logged without a cell, in the QC worklist: its summary stands where a cell's
  * code would, flagged No cell link, with the typed-in run/sample as context. */
-export function PacbioCaseRow({ pacbioCase }: { pacbioCase: PacbioCaseOut }) {
+export function PacbioCaseRow({
+  pacbioCase,
+  age,
+  ...expansion
+}: { pacbioCase: PacbioCaseOut; age: CreditCaseAge | null } & RowExpansion) {
   return (
     <CaseRowFrame
+      {...expansion}
       credit={pacbioCase}
+      expected={pacbioCase.expected_acquisitions}
+      age={age}
+      date={localDateOnly(pacbioCase.occurred_on).toLocaleDateString()}
       head={
         <>
           <span className={styles.summary}>{pacbioCase.summary}</span>
@@ -100,7 +109,6 @@ export function PacbioCaseRow({ pacbioCase }: { pacbioCase: PacbioCaseOut }) {
             <Badge tone={NO_CELL_BADGE.tone}>{NO_CELL_BADGE.label}</Badge>
           </span>
           {pacbioCase.instrument_serial && <span className={styles.metaText}>{pacbioCase.instrument_serial}</span>}
-          <span className={styles.date}>{localDateOnly(pacbioCase.occurred_on).toLocaleDateString()}</span>
         </>
       }
       ctx={

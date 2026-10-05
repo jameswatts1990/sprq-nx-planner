@@ -65,6 +65,14 @@ class CellUseSummaryOut(BaseModel):
     # cell's uses have actually broken out by a given instant, rather than counting every
     # scheduled use up front. None when the use has no cycle to anchor to.
     breakout_anchor_at: datetime | None = None
+    # What a failed use's PacBio credit email / issue report quote (plate-qualified well, the
+    # instrument, when it ran, the fail reason) - carried on the list view so the QC worklist can
+    # build them without fetching every cell's detail.
+    plate_index: int | None = None
+    instrument_serial: str | None = None
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+    outcome_notes: str | None = None
 
 
 class CellOut(BaseModel):
@@ -107,6 +115,7 @@ class CellOut(BaseModel):
     credit_acquisitions: int | None
     credit_notes: str | None
     credit_received_at: datetime | None
+    credit_owner: str | None
     # Physical SPRQ-Nx SMRT Cell tray (4 cells) this cell belongs to - null for cells
     # created before this feature, or via the one-off bootstrap_cell() cutover tool.
     tray_id: int | None

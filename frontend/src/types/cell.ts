@@ -53,6 +53,13 @@ export interface CellUseSummaryOut {
   // live "now" reading count how many of a cell's uses have actually broken out by a given
   // instant. null when the use has no cycle to anchor to.
   breakout_anchor_at: string | null;
+  // What a failed use's credit email / issue report quote - on the list view so the QC worklist
+  // builds them without fetching each cell's detail.
+  plate_index: number | null;
+  instrument_serial: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  outcome_notes: string | null;
 }
 
 export interface CellOut extends CreditCaseState {

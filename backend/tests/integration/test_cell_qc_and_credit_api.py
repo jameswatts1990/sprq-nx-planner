@@ -532,3 +532,29 @@ def test_aborted_still_rejected_before_run_started(client):
     abort = client.patch(f"/api/cell-uses/{use_id}", json={"status": "aborted"})
     assert abort.status_code == 409, abort.text
     assert "started" in abort.json()["detail"].lower()
+
+
+def test_qc_list_carries_the_failed_use_context_and_a_case_owner(client):
+    """The QC worklist builds a cell's credit email/report from the list view alone (no per-row
+    detail fetch), so each use summary carries the plate, instrument, times and fail reason. A
+    case owner can be set on a cell in the credit workflow - never on a healthy cell."""
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nO1,bco1"})
+    r1 = _place(client, _sid(client, "O1"), _past_weekday(), 0, {"mode": "new"})
+    stage = _stages(r1.json())[0]
+    cell_id = stage["cell_id"]
+    sibling_id = next(cid for cid in _tray_cells_by_well(client, stage["tray_id"]).values() if cid != cell_id)
+    assert client.patch(f"/api/cycles/{r1.json()['run_id']}", json={"status": "running"}).status_code == 200
+    qc_commit(client, cell_id, "fail", stage["cell_use_id"], {_sid(client, "O1"): "lost"}, reason="Low P1")
+
+    items = client.get("/api/cells", params={"qc_status": "in_workflow"}).json()["items"]
+    use = next(c for c in items if c["id"] == cell_id)["uses"][0]
+    assert use["plate_index"] == 1
+    assert use["instrument_serial"] == "84047"
+    assert use["completed_at"] is not None
+    assert use["outcome_notes"] == "Low P1"
+
+    owned = client.post(f"/api/cells/{cell_id}/credit-owner", json={"owner": " jw24 "})
+    assert owned.status_code == 200, owned.text
+    assert owned.json()["credit_owner"] == "jw24"
+    assert client.post(f"/api/cells/{cell_id}/credit-owner", json={"owner": ""}).json()["credit_owner"] is None
+    assert client.post(f"/api/cells/{sibling_id}/credit-owner", json={"owner": "jw24"}).status_code == 409

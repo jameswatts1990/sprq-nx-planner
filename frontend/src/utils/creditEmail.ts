@@ -1,5 +1,5 @@
 import type { CreditEmailTemplate } from "@/api/settings";
-import type { CellDetailOut } from "@/types/cell";
+import type { CellOut } from "@/types/cell";
 import type { PacbioCaseOut } from "@/types/pacbioCase";
 import { expectedReimbursement, localDateOnly, triggeringUse } from "@/utils/creditCase";
 import { plateWellFromPlate } from "@/utils/plateWell";
@@ -93,8 +93,8 @@ export const DEFAULT_CREDIT_EMAIL: CreditEmailTemplate = {
  * PacBio's support desk doesn't know our internal tray/well/cell codes, so the customer
  * sample and vendor-visible fields (run, serial, date) are the ones the default template
  * uses — the internal codes are only available for labs that want them. */
-export function buildCreditEmailContext(cell: CellDetailOut): CreditEmailContext {
-  const use = triggeringUse(cell.use_history);
+export function buildCreditEmailContext(cell: CellOut): CreditEmailContext {
+  const use = triggeringUse(cell.uses);
   const reimbursement = expectedReimbursement(cell);
   return {
     summary: use?.outcome_notes || cell.stopped_reason || "Failed SMRT Cell",

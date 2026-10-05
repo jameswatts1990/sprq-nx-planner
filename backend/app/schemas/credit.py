@@ -27,5 +27,11 @@ class CreditNotesRequest(BaseModel):
     actor: str | None = None
 
 
+class CreditOwnerRequest(BaseModel):
+    # Who is chasing the case (a Sanger ID or a name). Empty clears it.
+    owner: str | None = None
+    actor: str | None = None
+
+
 class CreditActorRequest(BaseModel):
     actor: str | None = None
