@@ -252,8 +252,8 @@ export function CellsSection() {
         </li>
         <li>
           <b>Credit confirmed</b> — once PacBio confirms how many acquisitions they will credit, enter that number
-          and press <b>Record credit</b>. The box is pre-hinted with the expected figure, but record what PacBio
-          actually confirm. The count is shown under the stage (e.g. <b>2 acquisitions credited</b>).
+          and press <b>Record credit</b>. The box is pre-filled with the expected figure — change it if PacBio
+          confirmed a different number. The count is shown under the stage (e.g. <b>2 acquisitions credited</b>).
         </li>
         <li>
           <b>Credit received</b> — <b>Mark as received in lab</b> once the credit has physically landed. Until this
@@ -265,6 +265,13 @@ export function CellsSection() {
         <b>any stage</b>, from Failure through Credit received. Type your note and press <b>Save note</b> (it reads{" "}
         <b>Update note</b> once one exists); it&apos;s kept with the case as it moves through the workflow. (On the QC
         worklist, expand a row with the <b>▸</b> to edit its note.)
+      </p>
+      <p>
+        <b>Owner and corrections</b> — above the notes, a <b>Recorded</b> line shows the case&apos;s <b>Owner</b>{" "}
+        (whoever is chasing it, as a Sanger ID or a name) and each value already saved: the case number, report ID and
+        acquisitions credited. Click <b>✎</b> beside any of them to fix it in place — correcting a value never changes
+        the date that step was done. The owner also shows on the QC worklist and fills the <b>Reported by (Sanger
+        ID)</b> column of <b>Generate report</b>; your browser offers the last owner you saved as a suggestion.
       </p>
       <p>
         A credit that isn&apos;t tied to a cell RunNx tracks is logged on the <b>QC</b> tab with{" "}

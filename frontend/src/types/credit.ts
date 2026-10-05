@@ -10,6 +10,8 @@ export interface CreditCaseState {
   credit_acquisitions: number | null;
   credit_notes: string | null;
   credit_received_at: string | null;
+  /** Who is chasing the case (a Sanger ID or a name) - free text, the app has no auth. */
+  credit_owner: string | null;
 }
 
 // Stage-action request bodies - identical for /api/cells/{id}/... and /api/pacbio-cases/{id}/...
@@ -26,6 +28,11 @@ export interface CreditInternalReportRequest {
 export interface CreditConfirmRequest {
   /** Number of acquisitions PacBio confirmed they will credit for this case. */
   acquisitions: number;
+}
+
+export interface CreditOwnerRequest {
+  /** Empty clears it. */
+  owner: string | null;
 }
 
 export interface CreditNotesRequest {

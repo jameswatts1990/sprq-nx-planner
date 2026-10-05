@@ -16,8 +16,11 @@ def _required(value: str, what: str) -> str:
 
 
 def stamp_pacbio_report(case: CreditCaseMixin, case_number: str) -> None:
+    """Record the PacBio case number. Saving it again corrects the number but keeps the original
+    reported-at time - a typo fix shouldn't move when the case was raised."""
     case.pacbio_case_number = _required(case_number, "A PacBio case number")
-    case.pacbio_reported_at = utcnow()
+    if case.pacbio_reported_at is None:
+        case.pacbio_reported_at = utcnow()
 
 
 def stamp_internal_report(case: CreditCaseMixin, report_id: str) -> None:
@@ -34,13 +37,23 @@ def stamp_credit_confirmed(case: CreditCaseMixin, acquisitions: int) -> None:
     if acquisitions < 1:
         raise ValueError("Credited acquisitions must be a positive number.")
     case.credit_acquisitions = acquisitions
-    case.pacbio_credit_confirmed_at = utcnow()
+    # Re-confirming corrects the count; the confirmed-at time stays when it first happened.
+    if case.pacbio_credit_confirmed_at is None:
+        case.pacbio_credit_confirmed_at = utcnow()
 
 
 def stamp_credit_received(case: CreditCaseMixin) -> None:
     if case.pacbio_reported_at is None:
         raise ValueError("This case has not been reported to PacBio yet.")
     case.credit_received_at = utcnow()
+
+
+def set_owner(case: CreditCaseMixin, owner: str | None) -> None:
+    """Editable at any stage. Blank clears it."""
+    owner = (owner or "").strip() or None
+    if owner is not None and len(owner) > 120:
+        raise ValueError("Owner must be 120 characters or fewer.")
+    case.credit_owner = owner
 
 
 def set_notes(case: CreditCaseMixin, notes: str | None) -> None:

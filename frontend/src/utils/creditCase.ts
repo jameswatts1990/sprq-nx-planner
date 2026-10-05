@@ -1,5 +1,5 @@
 import type { BadgeTone } from "@/components/ui/Badge";
-import type { CellDetailOut, CellOut } from "@/types/cell";
+import type { CellOut } from "@/types/cell";
 import type { CreditCaseState } from "@/types/credit";
 
 /** The PacBio credit workflow stages, in workflow order. "failure" is the always-done entry
@@ -52,9 +52,10 @@ export function failUseNumber<T extends { id: number; status: string }>(uses: T[
 }
 
 /** When a cell's case "failed": the triggering use's completion (else start) time, else the stop
- * time - the Failure stage's timestamp and the report's Date of Occurrence. */
-export function cellFailureAt(cell: CellDetailOut): string | null {
-  const use = triggeringUse(cell.use_history);
+ * time - the Failure stage's timestamp and the report's Date of Occurrence. Reads the list view's
+ * use summaries, so the QC worklist never needs a cell's detail for it. */
+export function cellFailureAt(cell: CellOut): string | null {
+  const use = triggeringUse(cell.uses);
   return use?.completed_at ?? use?.started_at ?? cell.stopped_at ?? null;
 }
 
@@ -130,3 +131,60 @@ export const CREDIT_NEXT_STEP_LABEL: Record<Exclude<CreditStageKey, "failure">, 
 /** The marker for a credit case logged without a RunNx cell - on its QC row and in the Help
  * legend. Orange (caution) so it reads as "this one is different" without borrowing a stage tone. */
 export const NO_CELL_BADGE: { tone: BadgeTone; label: string } = { tone: "orange", label: "No cell link" };
+
+/** PacBio credits acquisitions translated to cells: 1 cell = 3 acquisitions = 0.25 tray (the lab's
+ * confirmed basis). Their FOC tracker reports the tray fraction, so totals show both. */
+export const ACQUISITIONS_PER_CELL = 3;
+export const CELLS_PER_TRAY = 4;
+
+export function acquisitionsToCells(acquisitions: number): number {
+  return acquisitions / ACQUISITIONS_PER_CELL;
+}
+
+export function acquisitionsToTrays(acquisitions: number): number {
+  return acquisitions / (ACQUISITIONS_PER_CELL * CELLS_PER_TRAY);
+}
+
+/** A cell/tray quantity to at most 2 decimals, without trailing zeros (0.75, 0.5, 1). */
+export function formatQuantity(n: number): string {
+  return String(Math.round(n * 100) / 100);
+}
+
+/** A case is flagged overdue once its current stage has waited longer than this. */
+export const CREDIT_OVERDUE_DAYS = 30;
+
+export const OVERDUE_BADGE: { tone: BadgeTone; label: string } = { tone: "danger", label: "Overdue" };
+
+const DAY_MS = 86_400_000;
+
+export interface CreditCaseAge {
+  /** Whole days since the failure. */
+  daysOpen: number;
+  /** Whole days the current stage has been waiting - since the latest completed step. */
+  waitDays: number;
+  overdue: boolean;
+  /** The step it's waiting on, e.g. "Record credit". */
+  waitingFor: string;
+}
+
+/** How long an open case has been open and stuck at its current stage; null once settled or when
+ * the failure time is unknown. The wait runs from the latest completed step (or the failure),
+ * so it reads correctly even for a backfilled case whose steps were recorded out of order. */
+export function creditCaseAge(
+  credit: CreditCaseState,
+  failureMs: number | null,
+  nowMs: number = Date.now(),
+): CreditCaseAge | null {
+  const { currentKey } = getCreditStages(credit);
+  if (currentKey === null || failureMs === null) return null;
+  const stepMs = [credit.pacbio_reported_at, credit.internal_report_at, credit.pacbio_credit_confirmed_at]
+    .map((iso) => (iso ? Date.parse(iso) : NaN))
+    .filter((t) => !Number.isNaN(t));
+  const waitDays = Math.floor((nowMs - Math.max(failureMs, ...stepMs)) / DAY_MS);
+  return {
+    daysOpen: Math.floor((nowMs - failureMs) / DAY_MS),
+    waitDays,
+    overdue: waitDays > CREDIT_OVERDUE_DAYS,
+    waitingFor: CREDIT_NEXT_STEP_LABEL[currentKey],
+  };
+}

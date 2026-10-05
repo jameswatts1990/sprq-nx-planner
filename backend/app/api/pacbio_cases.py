@@ -8,6 +8,7 @@ from app.schemas.credit import (
     CreditConfirmRequest,
     CreditInternalReportRequest,
     CreditNotesRequest,
+    CreditOwnerRequest,
     CreditReportToPacbioRequest,
 )
 from app.schemas.pacbio_case import PacbioCaseCreate, PacbioCaseOut, PacbioCaseUpdate
@@ -85,6 +86,15 @@ def confirm_credit(case_id: int, req: CreditConfirmRequest, db: SessionDep, acto
 @router.post("/{case_id}/credit-notes", response_model=PacbioCaseOut)
 def set_notes(case_id: int, req: CreditNotesRequest, db: SessionDep, actor: ActorDep) -> PacbioCaseOut:
     return svc.set_notes(db, _get_case(db, case_id), req.notes, req.actor or actor)
+
+
+@router.post("/{case_id}/credit-owner", response_model=PacbioCaseOut)
+def set_owner(case_id: int, req: CreditOwnerRequest, db: SessionDep, actor: ActorDep) -> PacbioCaseOut:
+    case = _get_case(db, case_id)
+    try:
+        return svc.set_owner(db, case, req.owner, req.actor or actor)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
 
 
 @router.post("/{case_id}/receive-credit", response_model=PacbioCaseOut)

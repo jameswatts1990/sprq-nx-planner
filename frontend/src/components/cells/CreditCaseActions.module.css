@@ -70,6 +70,18 @@
   border-color: var(--line-hover);
 }
 
+/* "Recorded" line - the owner and each completed stage's value, each with an in-place ✎
+   correction. Wraps on narrow screens. */
+.recorded {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 22px;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line-soft);
+}
+
 /* Case-notes editor - a persistent free-text note on the credit case, editable at any
    stage. Sits under the current step's action, separated by a light rule. */
 .notesBlock {

@@ -30,12 +30,14 @@ from app.schemas.credit import (
     CreditConfirmRequest,
     CreditInternalReportRequest,
     CreditNotesRequest,
+    CreditOwnerRequest,
     CreditReportToPacbioRequest,
 )
 from app.schemas.qc import QcCommitOut, QcCommitRequest, QcPreviewOut, QcPreviewRequest, QcUndoOut
 from app.services.cell_service import (
     bootstrap_cell,
     confirm_cell_credit,
+    credit_status_clause,
     discard_cell,
     discard_tray,
     receive_cell_credit,
@@ -43,6 +45,7 @@ from app.services.cell_service import (
     restore_tray,
     rotate_tray,
     set_cell_credit_notes,
+    set_cell_credit_owner,
     set_cell_internal_report,
     serialize_cell,
     set_tray_reuse_disabled,
@@ -58,11 +61,21 @@ router = APIRouter(prefix="/api/cells", tags=["cells"])
 # Everything serialize_cell() reads: each use's cycle->run_batch->instrument (for
 # current_location/last_use_run_date/first_use_planned_start_at), its barcodes (burned set),
 # its sample (for the card's linked container-id list, cell_use_summary), and the cell's own
-# tray->instrument (for a zero-use sibling's location).
+# tray->instrument (for a zero-use sibling's location). Plus the whole run graph behind each use
+# (run -> its plates -> their uses -> each use's cell -> that cell's uses): cell_ready_at runs the
+# per-run timing model over every cell in the run, which otherwise lazy-loads it one row at a time
+# (~8 queries per cell - 320 for a 40-case QC page).
 _LIST_OPTIONS = [
     selectinload(Cell.cell_uses).selectinload(CellUse.cycle).selectinload(Cycle.run_batch).selectinload(
         RunBatch.instrument
     ),
+    selectinload(Cell.cell_uses)
+    .selectinload(CellUse.cycle)
+    .selectinload(Cycle.run_batch)
+    .selectinload(RunBatch.cycles)
+    .selectinload(Cycle.cell_uses)
+    .selectinload(CellUse.cell)
+    .selectinload(Cell.cell_uses),
     selectinload(Cell.cell_uses).selectinload(CellUse.barcodes),
     selectinload(Cell.cell_uses).selectinload(CellUse.sample),
     selectinload(Cell.tray).selectinload(CellTray.instrument),
@@ -96,8 +109,10 @@ def list_cells(
                 raise HTTPException(400, f"Unknown status '{s}'. Valid: {', '.join(CELL_STATUSES)}")
         if as_of is None:
             stmt = stmt.where(Cell.status.in_(statuses))
-    if qc_status and qc_status not in QC_STATUSES:
-        raise HTTPException(400, f"Unknown qc_status '{qc_status}'. Valid: {', '.join(QC_STATUSES)}")
+    if qc_status:
+        if qc_status not in QC_STATUSES:
+            raise HTTPException(400, f"Unknown qc_status '{qc_status}'. Valid: {', '.join(QC_STATUSES)}")
+        stmt = stmt.where(credit_status_clause(qc_status))
     if q:
         # Search any id associated with a cell, not just its own code: its tray, and - via
         # its uses - the Pool ID (sample external id), burned barcodes, run name/id, and
@@ -138,15 +153,6 @@ def list_cells(
         serialized = [c for c in serialized if c.status in wanted]
     if instrument_serial:
         serialized = [c for c in serialized if c.current_instrument_serial == instrument_serial]
-    if qc_status == "unreported":
-        serialized = [c for c in serialized if c.needs_qc_report]
-    elif qc_status == "awaiting_credit":
-        serialized = [c for c in serialized if c.awaiting_credit]
-    elif qc_status == "in_workflow":
-        # Every cell that has entered the PacBio credit workflow, at any stage (needs report ..
-        # credit received) - the QC page's worklist derives each cell's stage itself. Matches
-        # CellDetailPage's showCreditCard condition; a retire-without-failure never enters it.
-        serialized = [c for c in serialized if c.has_failed_use or c.status == "stopped"]
     if tray_id is not None:
         # Position order (1-4), not the list's default newest-first - "ensure the cell
         # number stays in order" for the Cell Detail page's tray sibling listing.
@@ -339,6 +345,20 @@ def set_cell_credit_notes_endpoint(
         raise HTTPException(404, "Cell not found")
     try:
         cell = set_cell_credit_notes(db, cell, req.notes, req.actor or actor)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    return serialize_cell(cell)
+
+
+@router.post("/{cell_id}/credit-owner", response_model=CellOut)
+def set_cell_credit_owner_endpoint(
+    cell_id: int, req: CreditOwnerRequest, db: SessionDep, actor: ActorDep
+) -> CellOut:
+    cell = db.get(Cell, cell_id, options=_DETAIL_OPTIONS)
+    if cell is None:
+        raise HTTPException(404, "Cell not found")
+    try:
+        cell = set_cell_credit_owner(db, cell, req.owner, req.actor or actor)
     except ValueError as exc:
         raise HTTPException(409, str(exc)) from exc
     return serialize_cell(cell)

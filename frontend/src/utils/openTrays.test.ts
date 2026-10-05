@@ -35,6 +35,7 @@ function baseCell(overrides: Partial<CellOut> = {}): CellOut {
     credit_acquisitions: null,
     credit_notes: null,
     credit_received_at: null,
+    credit_owner: null,
     discarded_reason: null,
     discarded_at: null,
     tray_id: 1,

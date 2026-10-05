@@ -38,6 +38,7 @@ def serialize_case(case: PacbioCase) -> PacbioCaseOut:
         credit_acquisitions=case.credit_acquisitions,
         credit_notes=case.credit_notes,
         credit_received_at=case.credit_received_at,
+        credit_owner=case.credit_owner,
     )
 
 
@@ -89,12 +90,28 @@ def _commit(db: Session, case: PacbioCase, action: str, details: dict, actor: st
 def create_case(db: Session, req: PacbioCaseCreate, actor: str | None) -> PacbioCaseOut:
     case = PacbioCase(created_by=actor or "unknown")
     _apply_details(db, case, req)
+    # Backfill: stamp whatever stages the lab already has, in stage order, through the shared
+    # rules - so the case lands at its real stage instead of being clicked through afterwards.
     if (req.pacbio_case_number or "").strip():
         credit_service.stamp_pacbio_report(case, req.pacbio_case_number)
+    if (req.internal_report_id or "").strip():
+        credit_service.stamp_internal_report(case, req.internal_report_id)
+    if req.credit_acquisitions is not None:
+        credit_service.stamp_credit_confirmed(case, req.credit_acquisitions)
+    if req.credit_received:
+        credit_service.stamp_credit_received(case)
+    credit_service.set_owner(case, req.credit_owner)
     credit_service.set_notes(case, req.credit_notes)
     db.add(case)
     db.flush()
-    details = _snapshot(case) | {"pacbio_case_number": case.pacbio_case_number, "notes": case.credit_notes}
+    details = _snapshot(case) | {
+        "pacbio_case_number": case.pacbio_case_number,
+        "internal_report_id": case.internal_report_id,
+        "credit_acquisitions": case.credit_acquisitions,
+        "credit_received": case.credit_received_at is not None,
+        "owner": case.credit_owner,
+        "notes": case.credit_notes,
+    }
     return _commit(db, case, "create_pacbio_case", details, actor)
 
 
@@ -131,6 +148,11 @@ def set_internal_report(db: Session, case: PacbioCase, report_id: str, actor: st
 def report_to_pacbio(db: Session, case: PacbioCase, case_number: str, actor: str | None) -> PacbioCaseOut:
     credit_service.stamp_pacbio_report(case, case_number)
     return _commit(db, case, "report_case_to_pacbio", {"case_number": case.pacbio_case_number}, actor)
+
+
+def set_owner(db: Session, case: PacbioCase, owner: str | None, actor: str | None) -> PacbioCaseOut:
+    credit_service.set_owner(case, owner)
+    return _commit(db, case, "set_case_credit_owner", {"owner": case.credit_owner}, actor)
 
 
 def set_notes(db: Session, case: PacbioCase, notes: str | None, actor: str | None) -> PacbioCaseOut:
