@@ -62,8 +62,8 @@ export type DragData = SampleDragData | FilledSlotDragData;
  * starting clientX/Y, plus dnd-kit's own accumulated `delta` - the standard way to recover a
  * drop's true final position, since `active.rect.current.translated` is not reliably
  * up to date by the time onDragEnd fires) overlaps the grid container. Distinguishes "aimed at
- * the grid but hit a non-interactive area" (a locked run, a permanently blocked well, a
- * weekend/down/no-run day - none of which register a droppable, see SchedulerSlot/
+ * the grid but hit a non-interactive area" (a locked run, a weekend/down/no-run day - none
+ * of which register a droppable, see SchedulerSlot/
  * SchedulerDayCell) from "genuinely dragged off the grid entirely" - only the latter should
  * ever mean "remove this placement" (see onDragEnd below). Returns false (never "within the
  * grid") when the container is unavailable or the drag was keyboard-activated (its
@@ -120,7 +120,7 @@ export interface SchedulerDnd {
  * @param onDropBlocked Called with a human-readable reason whenever a drop is rejected without
  * ever reaching the backend: a backlog sample dropped onto an already-occupied slot (nothing to
  * swap with), or any drop that lands within the grid's own bounds but not on a registered
- * droppable (a locked run, a permanently blocked well, a weekend/down/no-run day - see
+ * droppable (a locked run, a weekend/down/no-run day - see
  * isWithinGrid). Every one of these used to be a silent no-op (or, for an already-placed
  * sample, silently deleted it via onRemoveOutside - see the docstring there) with no visible
  * cause; this is the single channel that now surfaces one.
@@ -168,11 +168,11 @@ export function useSchedulerDnd(
       if (!overData || (overData.kind !== "slot" && overData.kind !== "occupiedSlot")) {
         // Dropped outside any registered slot. If the pointer/keyboard-drag is still within
         // the grid's own bounds, it landed on a non-interactive area that never registers a
-        // droppable at all (a locked run, a permanently blocked well, a weekend/down/no-run
-        // day) - that's a rejected drop, never a removal, and must not fall through to the
-        // "dragged off the grid entirely" meaning below (which deletes a placed sample).
+        // droppable at all (a locked run, a weekend/down/no-run day) - that's a rejected
+        // drop, never a removal, and must not fall through to the "dragged off the grid
+        // entirely" meaning below (which deletes a placed sample).
         if (activeData && isWithinGrid(event, gridAreaRef)) {
-          onDropBlocked("Can't drop here - this day/slot is locked, blocked, or not open for scheduling.");
+          onDropBlocked("Can't drop here - this day/slot is locked or not open for scheduling.");
           return;
         }
         // Genuinely outside the whole grid: a backlog sample was never placed, so there's

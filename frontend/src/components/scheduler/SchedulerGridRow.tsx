@@ -11,12 +11,6 @@ import { SchedulerDayCell } from "./SchedulerDayCell";
 import { InstrumentTrayMap } from "./InstrumentTrayMap";
 import type { InstrumentTrayMap as InstrumentTrayMapData } from "./instrumentTrayMaps";
 import styles from "./SchedulerGrid.module.css";
-import type { CellGhost } from "./waitingCells";
-
-// Stable empty references so a day with nothing to show doesn't hand SchedulerDayCell a new
-// object identity on every render.
-const EMPTY_GHOSTS: CellGhost[] = [];
-const EMPTY_BLOCKED_WELLS: Set<string> = new Set();
 
 export interface SchedulerGridRowProps {
   serial: string;
@@ -36,9 +30,6 @@ export interface SchedulerGridRowProps {
   slotSelection: SlotSelection;
   onExtendSelect: (stage: StageOut, coord: { r: number; c: number }) => void;
   onDragSelectStart: (stage: StageOut, coord: { r: number; c: number }) => void;
-  waitingCellsByDate: Map<string, CellGhost[]>;
-  /** Wells on this instrument permanently blocked by a stopped cell, per day. */
-  blockedWellsByDate: Map<string, Set<string>>;
   /** Projected on-instrument tray map (as of the latest scheduled day this week), shown
    * beneath the serial. Undefined when the instrument has no tray-linked cells at all. */
   trayMap: InstrumentTrayMapData | undefined;
@@ -65,8 +56,6 @@ export const SchedulerGridRow = memo(function SchedulerGridRow({
   slotSelection,
   onExtendSelect,
   onDragSelectStart,
-  waitingCellsByDate,
-  blockedWellsByDate,
   trayMap,
   onRecalculate,
 }: SchedulerGridRowProps) {
@@ -163,8 +152,6 @@ export const SchedulerGridRow = memo(function SchedulerGridRow({
             slotSelection={slotSelection}
             onExtendSelect={onExtendSelect}
             onDragSelectStart={onDragSelectStart}
-            waitingCells={waitingCellsByDate.get(date) ?? EMPTY_GHOSTS}
-            blockedWells={blockedWellsByDate.get(date) ?? EMPTY_BLOCKED_WELLS}
           />
         );
       })}

@@ -54,7 +54,7 @@ export function DraggableSampleCard({
   const backNav = useSampleBackNav();
   const data: SampleDragData = {
     kind: "sample",
-    sample: { id: sample.id, pool_id: sample.pool_id, barcodes: sample.barcodes },
+    sample: { id: sample.id, pool_id: sample.pool_id },
   };
   const { setNodeRef, listeners, attributes, isDragging } = useDraggable({ id: sampleDragId(sample.id), data });
   // Every card gets a priority-coloured left edge, defaulting to grey for Standard / no

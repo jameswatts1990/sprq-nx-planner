@@ -60,7 +60,9 @@ def fill_slots(
     # Free wells per slot, filled A01..D01 in order. `cells_per_day` restricts this to
     # tray 1 only (WELLS[:4]) when the user has capped auto-fill to one tray/day - see
     # docs/pacbio-sprq-nx-scheduling-reference.md's "Instrument load-lock timing" section.
-    free_wells: dict[SlotInput, list[str]] = {s: list(WELLS[:cells_per_day]) for s in slots_sorted}
+    free_wells: dict[SlotInput, list[str]] = {
+        s: [w for w in WELLS[:cells_per_day] if w not in s.taken_wells] for s in slots_sorted
+    }
 
     # Per-cell placement progress: index of the next not-yet-placed use, plus the date
     # of its most recent placement (a physical cell can't run twice on the same day, or
@@ -198,6 +200,10 @@ def fill_slots(
                 continue
             last_date = last_placed_date[cell.id]
             if last_date is not None and slot.run_date <= last_date:
+                continue
+            # A real cell's own existing uses also block days: one use per cell per day, never
+            # ahead of a started use, never out of its 108h window (see PriorCellInput.blocked_dates).
+            if slot.run_date in cell.blocked_dates:
                 continue
 
             # A cell keeps its tray POSITION (the well's A/B/C/D letter) for life, but NOT its

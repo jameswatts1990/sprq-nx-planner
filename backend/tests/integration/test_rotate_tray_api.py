@@ -297,10 +297,10 @@ def test_return_to_backlog_clears_a_discard_blocked_slot(client):
     assert client.get(f"/api/cell-uses/{wed_use_id}").status_code == 404
 
 
-def test_return_to_backlog_rejects_a_stop_originated_block(client):
-    """A cancellation from a QC Stop is a deliberate permanent marker (a dead well) - it
-    must NOT be clearable this way, or the QC trail is lost. Told apart from a discard by the
-    cell being 'stopped' (no discarded_at)."""
+def test_return_to_backlog_clears_a_stop_originated_block(client):
+    """A Blocked marker left by a QC Stop used to be kept forever, so its well could never be
+    loaded again - a stop must only cost the stopped cell's own future uses. It's now clearable
+    like a discard's; the QC trail lives in the audit log, and Undo QC reports it as drifted."""
     client.post("/api/imports", json={"raw_text": "sample,barcodes\nF1,bc1\nF2,bc2"})
     mon, _tue, wed = _weekdays(3)
 
@@ -325,5 +325,15 @@ def test_return_to_backlog_rejects_a_stop_originated_block(client):
     assert client.get(f"/api/cell-uses/{wed_use_id}").json()["status"] == "cancelled"
 
     resp = client.post(f"/api/cell-uses/{wed_use_id}/return-to-backlog")
-    assert resp.status_code == 409
-    assert "stop cell" in resp.json()["detail"].lower()
+    assert resp.status_code == 200, resp.text
+    assert client.get(f"/api/cell-uses/{wed_use_id}").status_code == 404
+
+    # The well is free again: a fresh sample can be loaded into it.
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nF3,bc3"})
+    again = _place(client, _sid(client, "F3"), wed, 0, None)
+    assert again.status_code == 201, again.text
+
+    # Undo QC on the stopped cell reports the cleared marker as drifted rather than resurrecting it.
+    undo = client.post(f"/api/cells/{cell_id}/qc/undo")
+    assert undo.status_code == 200, undo.text
+    assert wed_use_id in undo.json()["drifted_cell_use_ids"]

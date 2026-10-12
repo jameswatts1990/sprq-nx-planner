@@ -129,6 +129,5 @@ export interface RunDesignState {
 export interface DragSampleRef {
   id: number;
   pool_id: string;
-  barcodes: string[];
 }
 

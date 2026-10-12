@@ -338,9 +338,9 @@ export function LegendSection() {
             <SchedulerSlotView stage={STAGE_EXAMPLE_CANCELLED} slotIndex={0} />
           </div>
           <span>
-            Blocked - this placement was cancelled before it ever ran and its sample is back in the Backlog. From a
-            Stop cell it&apos;s a permanent marker; from a cell discard it can be cleared with Return to backlog (open
-            the slot). Shares Stopped&apos;s red severity, with an added cross-hatch texture since it&apos;s the more
+            Blocked - this placement was cancelled before it ever ran and its sample is back in the Backlog. Open the
+            slot to clear it (Clear slot after a Stop cell, Return to backlog after a cell discard) and free the well.
+            Shares Stopped&apos;s red severity, with an added cross-hatch texture since it&apos;s the more
             actionable claim (a slot you might otherwise expect to still happen).
           </span>
         </div>
@@ -351,25 +351,11 @@ export function LegendSection() {
           <span>
             Barcode clash - the most severe marking, outranking every other QC alert. This cell has burned this exact
             barcode with a <b>different</b> sample, so the two can&apos;t be reliably told apart in the sequencing
-            output. Most often this is a manual drop or move kept on the well&apos;s natural next cell to preserve
-            the tray&apos;s loading order (cells are always taken in sequence - a barcode clash is never a reason to
-            skip one), rather than being silently rerouted; it can also come from a rarer Cell QC tray re-zip.
-            Pulses so it&apos;s never missed - check the clashing cell and its slot detail before this run proceeds.
-          </span>
-        </div>
-      </div>
-
-      <p className={styles.subheading}>Clash warning while dragging (Weekly schedule)</p>
-      <div className={styles.legendGrid}>
-        <div className={styles.legendRow}>
-          <div className={styles.ghostExampleSwatch}>
-            <SchedulerSlotView stage={null} slotIndex={0} dragClashWarning />
-          </div>
-          <span>
-            While dragging a sample, every empty well whose natural next cell already carries a clashing barcode gets
-            this dashed red &quot;⚠ clash risk&quot; treatment - a heads-up shown for the whole drag so you can see
-            every affected well at a glance, not just the one under the pointer. It&apos;s a preview, not a
-            rejection: dropping there still works, and lands the sample with the Barcode clash marking above.
+            output. Most often this is a manual drop or move that landed on the tray&apos;s next cell in loading order
+            (cells are always taken in sequence - a barcode clash is never a reason to skip one), rather than being
+            silently rerouted; it can also come from a rarer Cell QC tray re-zip. It appears as soon as the drop
+            lands (there&apos;s no warning while dragging, since the cell is chosen after the drop). Pulses so
+            it&apos;s never missed - check the clashing cell and its slot detail before this run proceeds.
           </span>
         </div>
       </div>

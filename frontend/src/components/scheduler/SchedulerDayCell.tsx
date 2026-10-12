@@ -9,7 +9,7 @@ import { TraySiblingList } from "@/components/cells/TraySiblingList";
 import { formatLoadTime, isValidLoadTime, parseLoadTime } from "@/components/scheduler/loadTime";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
-import type { SlotIndex, RunOut, StageOut } from "@/types/schedule";
+import type { RunOut, StageOut } from "@/types/schedule";
 import { formatShortDateTimeLocal, formatShortDateUTC, formatTimeLocal, localWallTimeToUtcParts, parseDateOnly, shortWeekdayUTC } from "@/utils/calendarDates";
 import { runLabel } from "@/utils/runLabel";
 
@@ -18,7 +18,6 @@ import { allStages, padStages, type Continuation } from "./groupCyclesByInstrume
 import { SchedulerSlot } from "./SchedulerSlot";
 import styles from "./SchedulerDayCell.module.css";
 import type { SlotSelection } from "./useSlotSelection";
-import { pinGhostsToSlots, WELL_ORDER, type CellGhost } from "./waitingCells";
 
 export interface SchedulerDayCellProps {
   instrumentSerial: string;
@@ -54,14 +53,6 @@ export interface SchedulerDayCellProps {
   /** Ctrl/cmd-mousedown on a filled slot - starts a click-and-drag rectangle selection
    * (see SchedulePage.onDragSelectStart). */
   onDragSelectStart: (stage: StageOut, coord: { r: number; c: number }) => void;
-  /** Waiting, reusable cells eligible to load on this instrument+day (see waitingCells.ts).
-   * Ignored while the day's run is locked, since it can no longer accept placements. */
-  waitingCells: CellGhost[];
-  /** Wells on this instrument permanently blocked by a stopped cell on this day (see
-   * waitingCells.computeBlockedWellsByInstrumentAndDay) - rendered as a non-droppable
-   * "blocked" placeholder instead of the plain "+" so this well never reads as an ordinary
-   * free slot. */
-  blockedWells: Set<string>;
 }
 
 /** The padlock marker for a locked day - a teal rounded-rect chip (the grid's neutral
@@ -111,8 +102,6 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
     slotSelection,
     onExtendSelect,
     onDragSelectStart,
-    waitingCells,
-    blockedWells,
   } = props;
   const queryClient = useQueryClient();
 
@@ -123,8 +112,8 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
     },
     onSuccess: () => {
       // Confirming a run "running" anchors each cell's 108h clock (first_use_started_at),
-      // and Unlock recomputes it - both change the ["cells"]-fed waiting/terminal ghost
-      // markers (deadline dates, tray founding, window shading), not just the run itself.
+      // and Unlock recomputes it - both change the ["cells"]-fed tray panel (deadline dates,
+      // tray founding, window shading), not just the run itself.
       // So invalidate the whole schedule-related set, not only ["cycles"], the same way the
       // rotate mutation below does.
       invalidateScheduleRelated(queryClient);
@@ -167,10 +156,9 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
       cellsApi.rotateTray({ tray_id: trayId, from_date: fromDate }),
     onSuccess: () => {
       // The old tray's cells just went terminal and any strictly-later use moved onto a
-      // freshly-minted tray - without this, the grid's real stages, waiting/terminal/
-      // vacated-tray ghosts (waitingCells.ts, fed by SchedulePage's ["cells", ...] queries)
-      // and the Backlog page would keep reading pre-discard data until some unrelated
-      // mutation happened to invalidate them.
+      // freshly-minted tray - without this, the grid's real stages, the tray panel (fed by
+      // SchedulePage's ["cells", ...] queries) and the Backlog page would keep reading
+      // pre-discard data until some unrelated mutation happened to invalidate them.
       invalidateScheduleRelated(queryClient);
       setRotateTarget(null);
     },
@@ -188,7 +176,7 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
     },
     onSuccess: () => {
       // Moving a run shifts both plates' days (and a reuse Plate 2's chained day), which the
-      // ["cells"]-fed ghosts/locks depend on - invalidate the whole schedule set like the others.
+      // ["cells"]-fed tray panel and locks depend on - invalidate the whole schedule set like the others.
       invalidateScheduleRelated(queryClient);
       setReschedulingTo(null);
     },
@@ -234,9 +222,9 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
 
   // A day with no run of its own is still effectively locked if an earlier run's continuation
   // occupies it (continuation) - the instrument is running that run's later plate, or is still
-  // locked - so every slot below must render as a read-only marker (or non-droppable ghost),
-  // same as a genuinely locked run, rather than falling through to a live, droppable "+" just
-  // because this exact day has no run row of its own yet (see isCellOpen, which gates
+  // locked - so every slot below must render as a read-only marker, same as a genuinely locked
+  // run, rather than falling through to a live, droppable "+" just because this exact day has
+  // no run row of its own yet (see isCellOpen, which gates
   // selectability the same way).
   const locked = (run !== undefined && run.status !== "planned") || (run === undefined && continuation !== undefined);
   const filledCount = run ? allStages(run).length : 0;
@@ -248,31 +236,6 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
     run === undefined && continuation?.acquiresToday
       ? continuation.run.plates.find((p) => p.acquire_date === loadDate)
       : undefined;
-
-  // A locked day can no longer accept placements, so every ghost renders purely
-  // informationally there (SchedulerSlot never wraps a locked slot in a droppable, even
-  // when a ghost is passed through) rather than being dropped from the grid entirely -
-  // the expiry/"not yet used"/"scheduled" information a ghost carries is still accurate
-  // and useful on a locked day (see "Never-yet-used tray cells" in the Schedule help
-  // section), it's only the placement *offer* that a locked day can't honour.
-  // Each waiting cell is pinned to the exact slot matching its own last-used well
-  // (WELL_ORDER) - cells stay in the same physical tray/well position for every reuse, never
-  // just "the next open slot" - so a ghost only shows if that specific slot is free. When two
-  // different waiting cells both last sat in the same well letter and are eligible the same
-  // day, a cell whose physical tray is actually present today beats one from a tray not yet
-  // founded as of this day (see pinGhostsToSlots); otherwise the first in waitingCells order
-  // wins and the other simply has no ghost that day.
-  const ghostBySlot = pinGhostsToSlots(waitingCells, slots);
-
-  // A well left behind by a stopped cell (see waitingCells.computeBlockedWellsByInstrumentAndDay)
-  // never gets a ghost (stop_cell excludes it from reuse) and never gets a stage again, so
-  // without this it would silently fall through to the plain "+" placeholder below and
-  // read as an ordinary free slot - even though the physical well is permanently dead.
-  const blockedSlotSet = new Set<SlotIndex>();
-  WELL_ORDER.forEach((well, i) => {
-    const slot = i as SlotIndex;
-    if (slots[slot] === null && !ghostBySlot.has(slot) && blockedWells.has(well)) blockedSlotSet.add(slot);
-  });
 
   function onCellClick(e: MouseEvent<HTMLTableCellElement>) {
     if (selectable) onSelect(rowIndex, colIndex, e.shiftKey, e.ctrlKey || e.metaKey);
@@ -493,8 +456,6 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
                   onToggleSelect={(stage) => slotSelection.toggle(stage, { r: rowIndex, c: colIndex })}
                   onExtendSelect={(stage) => onExtendSelect(stage, { r: rowIndex, c: colIndex })}
                   onDragSelectStart={(stage) => onDragSelectStart(stage, { r: rowIndex, c: colIndex })}
-                  ghost={ghostBySlot.get(i)}
-                  blocked={blockedSlotSet.has(i)}
                 />
               ))}
             </div>

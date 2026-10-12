@@ -274,9 +274,14 @@ def test_auto_fill_fills_around_a_cancelled_stopped_cell_marker_without_crashing
     cycle_id = r1.json()["run_id"]
     cell_id = _stages(r1.json())[0]["cell_id"]
 
-    # Retire the cell before its use runs - CM1 bounces back to backlog, and well A01 is kept
-    # forever as a cancelled marker occupying that one slot. (Fail-and-Stop needs a started
-    # run; Retire produces the same cancelled marker without one.)
+    # Discard the tray siblings first so the retire has no idle cell to re-home CM1 onto (it
+    # would otherwise take the next cell, like the instrument). Then retire the cell before its
+    # use runs - CM1 bounces back to backlog, and well A01 is left as a cancelled marker
+    # occupying that one slot. (Fail-and-Stop needs a started run; Retire produces the same
+    # cancelled marker without one.)
+    tray_id = client.get(f"/api/cells/{cell_id}").json()["tray_id"]
+    for sib in [c["id"] for c in client.get("/api/cells", params={"tray_id": tray_id}).json()["items"] if c["id"] != cell_id]:
+        client.post(f"/api/cells/{sib}/discard", json={"reason": "test"})
     from tests.integration._qc_helpers import qc_retire
 
     stop = qc_retire(client, cell_id)

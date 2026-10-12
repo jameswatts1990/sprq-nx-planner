@@ -15,13 +15,10 @@ import type { InstrumentTrayMap } from "./instrumentTrayMaps";
 import styles from "./SchedulerGrid.module.css";
 import type { Coord, GridSelection } from "./useGridSelection";
 import type { SlotSelection } from "./useSlotSelection";
-import type { CellGhost } from "./waitingCells";
 
-// Stable empty references for instruments with nothing to show, so the memoized
+// Stable empty reference for instruments with nothing to show, so the memoized
 // SchedulerGridRow doesn't see a new object identity on every render.
 const EMPTY_CYCLES_BY_DATE: Map<string, RunOut> = new Map();
-const EMPTY_WAITING_BY_DATE: Map<string, CellGhost[]> = new Map();
-const EMPTY_BLOCKED_BY_DATE: Map<string, Set<string>> = new Map();
 
 export interface SchedulerGridProps {
   instrumentSerials: string[];
@@ -40,11 +37,6 @@ export interface SchedulerGridProps {
   slotSelection: SlotSelection;
   onExtendSelect: (stage: StageOut, coord: { r: number; c: number }) => void;
   onDragSelectStart: (stage: StageOut, coord: { r: number; c: number }) => void;
-  waitingGrouped: Map<string, Map<string, CellGhost[]>>;
-  /** Wells permanently blocked by a stopped cell, keyed by instrument then day (see
-   * waitingCells.computeBlockedWellsByInstrumentAndDay - day-aware because a later tray
-   * reuses the same well once the stopped cell's tray leaves). */
-  blockedGrouped: Map<string, Map<string, Set<string>>>;
   /** Projected on-instrument tray map per instrument serial (see
    * instrumentTrayMap.computeInstrumentTrayMaps), shown beneath each serial. */
   trayMaps: Map<string, InstrumentTrayMap>;
@@ -123,8 +115,6 @@ export function SchedulerGrid({
   slotSelection,
   onExtendSelect,
   onDragSelectStart,
-  waitingGrouped,
-  blockedGrouped,
   trayMaps,
   onRecalculate,
 }: SchedulerGridProps) {
@@ -227,8 +217,6 @@ export function SchedulerGrid({
               slotSelection={slotSelection}
               onExtendSelect={onExtendSelect}
               onDragSelectStart={onDragSelectStart}
-              waitingCellsByDate={waitingGrouped.get(serial) ?? EMPTY_WAITING_BY_DATE}
-              blockedWellsByDate={blockedGrouped.get(serial) ?? EMPTY_BLOCKED_BY_DATE}
               trayMap={trayMaps.get(serial)}
               onRecalculate={onRecalculate}
             />

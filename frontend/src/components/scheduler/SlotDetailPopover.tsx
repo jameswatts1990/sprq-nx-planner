@@ -175,9 +175,9 @@ function SlotDetailBody({
     onError: () => setRunTime(savedRunTime),
   });
 
-  // Recover a slot left "Blocked" by a tray/cell discard: delete the dead placement and
-  // return its sample to the Backlog. Only offered for a discard-origin block; a QC-origin
-  // block is a permanent marker, reversed via the Cell QC modal's Undo instead.
+  // Recover a slot left "Blocked" by a tray/cell discard or a Cell QC stop/retire: delete the
+  // dead placement so its well can be loaded again (a stop only costs the stopped cell's own
+  // uses). Its sample was already routed - backlog, or failed + top-up - and stays there.
   const returnToBacklogMutation = useMutation({
     mutationFn: () => cellUsesApi.returnToBacklog(stage.cell_use_id),
     onSuccess: () => {
@@ -288,7 +288,8 @@ function SlotDetailBody({
             <>
               This placement was cancelled
               {cell?.stopped_reason ? ` when its cell was stopped: ${cell.stopped_reason}` : " by a Cell QC action"} before
-              it could run. Its sample was routed to the backlog or a top-up.
+              it could run. Its sample was routed to the backlog or a top-up — use <b>Clear slot</b> below to free this
+              well for another sample.
             </>
           )}
         </Note>
@@ -493,13 +494,17 @@ function SlotDetailBody({
             Cell QC
           </Button>
         )}
-        {isDiscardBlocked && (
+        {isCancelled && (
           <Button
             variant="primary"
             onClick={() => returnToBacklogMutation.mutate()}
             disabled={returnToBacklogMutation.isPending}
           >
-            {returnToBacklogMutation.isPending ? "Returning…" : "Return to backlog"}
+            {returnToBacklogMutation.isPending
+              ? "Clearing…"
+              : isDiscardBlocked
+                ? "Return to backlog"
+                : "Clear slot"}
           </Button>
         )}
         {canLoadFreshTray && (

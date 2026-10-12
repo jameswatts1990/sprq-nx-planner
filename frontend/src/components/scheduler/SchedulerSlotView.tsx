@@ -43,17 +43,6 @@ export interface SchedulerSlotViewProps extends HTMLAttributes<HTMLDivElement> {
   linked?: boolean;
   /** A hover/pin target is active and this slot is neither the source nor a peer. */
   dimmed?: boolean;
-  /** This well is permanently blocked by a stopped cell - greyed out with a cross instead
-   * of the plain "+", since placing a new cell here isn't possible. Ignored when `stage`
-   * or `ghost` is set. */
-  blocked?: boolean;
-  /** A drag is currently in progress and dropping the dragged sample onto THIS empty slot
-   * would clash a barcode already burned on the cell it would naturally reuse (see
-   * waitingCells.ghostWouldClashWithSample) - a best-effort, predictive warning shown on every
-   * such slot for the whole drag, not just the one currently hovered, so the danger zones are
-   * visible before the user commits. It never blocks anything: the drop still succeeds and the
-   * authoritative clash is then shown via the placed card's own barcode-clash marking. */
-  dragClashWarning?: boolean;
   /** This filled slot is the one grid placement the Schedule page's unified search is
    * currently focused on (see searchHighlight.ts) - given a pulsing ring and marked
    * data-search-match so the page can scroll it into view when the search cycles here. */
@@ -108,8 +97,6 @@ export const SchedulerSlotView = memo(
       linkSource,
       linked,
       dimmed,
-      blocked,
-      dragClashWarning,
       searchMatch,
       onOpenCell,
       className,
@@ -239,14 +226,11 @@ export const SchedulerSlotView = memo(
     // [cell's] expiry" (see docs/pacbio-sprq-nx-scheduling-reference.md #2: this is always
     // per-cell, never a shared tray-level clock).
     if (stage!.window_hours_elapsed !== null) classes.push(styles.windowShaded);
-  } else if (blocked) {
-    classes.push(styles.blocked);
   } else {
     classes.push(styles.empty);
   }
   if (locked) classes.push(styles.locked);
   if (placing) classes.push(styles.placing);
-  if (dragClashWarning) classes.push(styles.dragClashWarning);
   if (showStub) classes.push(styles.hasStub);
   if (over) {
     if (dragging) {
@@ -283,7 +267,7 @@ export const SchedulerSlotView = memo(
     mergedStyle = { ...mergedStyle, ["--window-opacity" as string]: expiryFadeOpacity(hoursRemaining) };
   }
 
-  // The mouse-follow tilt is only for actual placed cards, not the empty "+"/locked/blocked
+  // The mouse-follow tilt is only for actual placed cards, not the empty "+"/locked
   // grid structure - composed with (not replacing) any onMouseMove/onMouseLeave the caller
   // already wired up (e.g. DraggableSlot/ClickableSlot's cross-time cell-link hover).
   const handleMouseMove = showStage
@@ -418,34 +402,12 @@ export const SchedulerSlotView = memo(
             </button>
           )}
         </>
-      ) : blocked ? (
-        <span
-          className={styles.blockedIcon}
-          title="This well is blocked - its cell was stopped and can't be reused here"
-          aria-hidden="true"
-        >
-          ✕
-        </span>
       ) : (
         <span
-          className={dragClashWarning ? styles.dragClashWarningLabel : styles.placeholder}
-          title={
-            dragClashWarning
-              ? "Dropping here will clash a barcode already burned on the cell this well would reuse - the drop still works, but the sample will be flagged as clashing."
-              : locked && !placing
-                ? "This run is locked - it can't accept new placements or moves."
-                : undefined
-          }
+          className={styles.placeholder}
+          title={locked && !placing ? "This run is locked - it can't accept new placements or moves." : undefined}
         >
-          {placing
-            ? "placing…"
-            : dragging
-              ? over
-                ? "stays here"
-                : ""
-              : dragClashWarning
-                ? "⚠ clash risk"
-                : `+ ${plateWellFromSlot(slotIndex)}`}
+          {placing ? "placing…" : dragging ? (over ? "stays here" : "") : `+ ${plateWellFromSlot(slotIndex)}`}
         </span>
       )}
       {showStage && placing && <div className={styles.shimmer}>placing…</div>}

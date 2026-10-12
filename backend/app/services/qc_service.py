@@ -21,6 +21,7 @@ from datetime import date, datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.engine.cell_window import window_allows
 from app.engine.constants import (
     DEFAULT_REPEAT_SAFE_MIN_UL,
     DEFAULT_TOTAL_COMPLEX_UL,
@@ -106,7 +107,14 @@ def _planned_use_number(cu: CellUse) -> int:
 
 def _compute(cell: Cell, verdict: str, trigger: CellUse | None) -> _Recompute:
     """Re-zip the tray's loading queue with `cell` removed from the pool. Pure: computes each
-    row's new backing cell without mutating anything, so preview and commit agree exactly."""
+    row's new backing cell without mutating anything, so preview and commit agree exactly.
+
+    Plate by plate, never as one flat cross-day queue: each plate is its own load, where the
+    instrument hands its wells (A->D) the next available cells of that tray - so a plate that
+    loses the stopped cell's use shifts its later wells forward onto that plate's own surviving
+    cells (then any other tray cell free that day with capacity and 108h window to spare), and
+    only that plate's tail is displaced. A flat queue would slide a row onto a cell already
+    backing another well of the same plate, or onto a second use the same day."""
     lost_use = trigger if verdict in ("fail", "fail_and_stop") else None
 
     # Plain Fail never shifts - the cell is physically fine and keeps its other uses; only the
@@ -115,23 +123,71 @@ def _compute(cell: Cell, verdict: str, trigger: CellUse | None) -> _Recompute:
         return _Recompute(lost_use=lost_use, plans=[])
 
     all_rows = _tray_rows(cell)
-    lost_rows = {lost_use.id} if lost_use is not None else set()
-    # A stopped/retired cell contributes NO future cell-uses: its planned rows leave the pool.
-    # Its already-run (completed/started) rows stay - stopping doesn't undo an earlier success.
-    removed_rows = set(lost_rows)
-    for row in all_rows:
-        if row.cell_id == cell.id and row.status == "planned":
-            removed_rows.add(row.id)
+    lost_id = lost_use.id if lost_use is not None else None
+    # A stopped/retired cell contributes NO future cell-uses: its planned rows AFTER the trigger
+    # leave the pool (Retire's own anchor still runs; Retire with no anchor drops every planned
+    # row). Its earlier rows stay - stopping doesn't undo an earlier use.
+    anchor = _loading_key(trigger) if trigger is not None else None
+    removed_ids = {
+        r.id
+        for r in all_rows
+        if r.cell_id == cell.id and r.status == "planned" and r.id != lost_id and (anchor is None or _loading_key(r) > anchor)
+    }
+    affected_cycle_ids = {r.cycle_id for r in all_rows if r.id in removed_ids}
+    rezip_ids = {
+        r.id for r in all_rows if r.cycle_id in affected_cycle_ids and r.status == "planned" and r.id != lost_id
+    }
 
-    non_lost_rows = [r for r in all_rows if r.id not in lost_rows]
-    surviving_slots = [r for r in all_rows if r.id not in removed_rows]
+    tray_cells = cell.tray.cells if cell.tray is not None else [cell]
+    surviving = sorted(
+        (
+            c
+            for c in tray_cells
+            if c.id != cell.id and c.status not in ("stopped", "retired") and c.discarded_at is None
+        ),
+        key=lambda c: c.tray_position if c.tray_position is not None else 99,
+    )
+    # Each surviving cell's uses that stay put (everything not being re-zipped), as
+    # (acquire day, planned start) - the capacity / one-use-per-day / 108h budget a re-zipped row
+    # is checked against. Grows as rows are assigned.
+    occupancy: dict[int, list[tuple[date, datetime]]] = {c.id: [] for c in surviving}
+    for r in all_rows:
+        if r.cell_id in occupancy and r.id not in rezip_ids and r.cycle is not None:
+            occupancy[r.cell_id].append((use_run_date(r), ensure_aware(r.cycle.planned_start_at)))
+
+    def _can_take(c: Cell, day: date, start: datetime) -> bool:
+        taken = occupancy[c.id]
+        anchor_at = ensure_aware(c.first_use_started_at) if c.first_use_started_at else None
+        return (
+            len(taken) < c.max_uses
+            and all(d != day for d, _ in taken)
+            and window_allows([s for _, s in taken], start, anchor_at)
+        )
+
+    new_cell_by_row: dict[int, Cell | None] = {}
+    for cycle_id in sorted(affected_cycle_ids, key=lambda cid: min(_loading_key(r) for r in all_rows if r.cycle_id == cid)):
+        plate_rows = [r for r in all_rows if r.cycle_id == cycle_id and r.id != lost_id]
+        busy = {r.cell_id for r in plate_rows if r.id not in rezip_ids}
+        to_place = sorted((r for r in plate_rows if r.id in rezip_ids), key=lambda r: within_tray_pos(r.well))
+        own = [r.cell for r in to_place if r.cell is not None and r.cell.id in occupancy]
+        candidates = list(dict.fromkeys(own + [c for c in surviving if c not in own]))
+        for row in to_place:
+            day = use_run_date(row)
+            start = ensure_aware(row.cycle.planned_start_at)
+            pick = next((c for c in candidates if c.id not in busy and _can_take(c, day, start)), None)
+            new_cell_by_row[row.id] = pick
+            if pick is not None:
+                busy.add(pick.id)
+                occupancy[pick.id].append((day, start))
 
     plans: list[_RowPlan] = []
     # Group post-shift barcodes per new cell so a reassignment onto a cell that already burned a
     # clashing barcode is flagged. Built from the final assignment, so it reflects reality.
     new_cell_barcodes: dict[int, list[tuple[int, set[str]]]] = {}
-    for i, row in enumerate(non_lost_rows):
-        new_cell = surviving_slots[i].cell if i < len(surviving_slots) else None
+    for row in all_rows:
+        if row.id == lost_id:
+            continue
+        new_cell = new_cell_by_row[row.id] if row.id in new_cell_by_row else row.cell
         reassigned = new_cell is not None and new_cell.id != row.cell_id
         plans.append(_RowPlan(row=row, old_cell_id=row.cell_id, new_cell=new_cell, reassigned=reassigned, clash=False))
         if new_cell is not None:
@@ -289,6 +345,7 @@ def commit_qc(
             "prior_outcome_notes": cu.outcome_notes,
             "prior_cell_id": cu.cell_id,
             "prior_reassigned_from": cu.reassigned_from_cell_id,
+            "sample_id": cu.sample_id,
         }
 
     # 1. The failed acquisition (fail / fail_and_stop): mark it failed, stays on its own cell.
@@ -307,8 +364,12 @@ def commit_qc(
     touched_cell_ids: set[int] = set()
     for plan in rc.plans:
         if plan.new_cell is None:
+            # The displaced tail lost its slot to `cell`'s stop, so its "Blocked" marker is recorded
+            # against that cell - never left on a healthy sibling whose history it isn't part of.
             snapshot_use(plan.row)
             plan.row.status = "cancelled"
+            plan.row.cell = cell
+            touched_cell_ids.add(plan.old_cell_id)
             displaced_uses.append(plan.row)
             continue
         if plan.reassigned:
@@ -446,9 +507,13 @@ def undo_qc(db: Session, cell: Cell, actor: str | None) -> QcUndoOut:
 
     use_ids = [int(k) for k in details.get("uses", {})]
     uses = {cu.id: cu for cu in db.scalars(select(CellUse).where(CellUse.id.in_(use_ids)))} if use_ids else {}
+    drifted_sample_ids: set[int] = set()
     for key, snap in details.get("uses", {}).items():
         cu = uses.get(int(key))
-        if cu is None:
+        if cu is None or ("sample_id" in snap and cu.sample_id != snap["sample_id"]):
+            # Its Blocked marker was cleared since (see placement_service.return_cancelled_use_to_backlog)
+            # - the id may even have been reused by a newer placement, which must not be touched.
+            drifted.append(int(key))
             continue
         prior_status = snap.get("prior_status", "planned")
         prior_cell_id = snap.get("prior_cell_id")
@@ -463,7 +528,20 @@ def undo_qc(db: Session, cell: Cell, actor: str | None) -> QcUndoOut:
             cu.reassigned_from_cell_id = snap.get("prior_reassigned_from")
             reverted.append(cu.id)
             continue
-        # Failed trigger or displaced/cancelled use -> restore its prior status/timestamps.
+        # A failed/displaced sample that has since been placed again elsewhere has moved on -
+        # restoring this use too would schedule it twice. Leave it (and the sample) as they are.
+        if cu.sample_id is not None and db.scalar(
+            select(CellUse.id).where(CellUse.sample_id == cu.sample_id, CellUse.status != "cancelled", CellUse.id != cu.id)
+        ):
+            drifted.append(cu.id)
+            drifted_sample_ids.add(cu.sample_id)
+            continue
+        # Failed trigger or displaced/cancelled use -> restore its prior status/timestamps (and,
+        # for a displaced use, the cell it was on before its marker was recorded on the stopped cell).
+        if prior_cell_id is not None and cu.cell_id != prior_cell_id:
+            touched_cell_ids.add(cu.cell_id)
+            touched_cell_ids.add(prior_cell_id)
+            cu.cell_id = prior_cell_id
         cu.status = prior_status
         started = snap.get("prior_started_at")
         cu.started_at = ensure_aware(datetime.fromisoformat(started)) if started else None
@@ -475,14 +553,16 @@ def undo_qc(db: Session, cell: Cell, actor: str | None) -> QcUndoOut:
 
     for key, snap in details.get("samples", {}).items():
         sample = db.get(Sample, int(key))
-        if sample is None:
+        if sample is None or sample.id in drifted_sample_ids:
             continue
         topup_id = snap.get("topup_id")
         if topup_id is not None:
             topup = db.get(SampleTopup, topup_id)
             if topup is not None:
                 if topup.request_sent_at is not None:
-                    drifted.append(int(key))
+                    via = snap.get("via_cell_use_id")
+                    if via is not None:
+                        drifted.append(int(via))
                     continue  # a sent request is a real action - leave sample failed + topup intact
                 db.delete(topup)
                 deleted_topups.append(topup_id)
