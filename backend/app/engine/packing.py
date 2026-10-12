@@ -268,6 +268,8 @@ def pack_cells(
                 pinned_well=pc.pinned_well,
                 barcode_owners={b: set(exts) for b, exts in pc.barcode_owners.items()},
                 tray_id=pc.tray_id,
+                blocked_dates=pc.blocked_dates,
+                usable_days=pc.usable_days,
             )
         )
 
@@ -299,9 +301,14 @@ def pack_cells(
         #    competing fresh cell and silently dropped (see jmtcsngr/sprq-nx-planner#43). Its
         #    next use simply waits for the next real load day. Normal weekday depth is
         #    untouched (a multi-day selection's load_days already meets or exceeds max_uses).
+        # Finally capped by the cell's own usable_days: offered dates it can't take a use on
+        # (already running that day, or out of its 108h window - see PriorCellInput.blocked_dates)
+        # never count, so an expired or fully-booked cell claims no samples it would strand.
         allowance = min(c.remaining, max(0, max_uses - c.uses_consumed))
         budget = prior_available_days if c.uses_consumed >= 1 else available_days
-        return allowance if budget is None else min(allowance, budget)
+        if budget is not None:
+            allowance = min(allowance, budget)
+        return allowance if c.usable_days is None else min(allowance, c.usable_days)
 
     unplaced: list[ParsedSample] = []
     for s in ordered:

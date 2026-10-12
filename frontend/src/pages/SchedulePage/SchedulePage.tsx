@@ -27,13 +27,7 @@ import { CellLinkContext, useCellLinkHighlight } from "@/components/scheduler/us
 import { useGridSelection } from "@/components/scheduler/useGridSelection";
 import { useSchedulerDnd } from "@/components/scheduler/useSchedulerDnd";
 import { useSlotSelection } from "@/components/scheduler/useSlotSelection";
-import {
-  computeBlockedWellsByInstrumentAndDay,
-  computeTrayEvictionDates,
-  computeTrayFoundingDates,
-  computeVacatedTrayIds,
-  groupWaitingCellsByInstrumentAndDay,
-} from "@/components/scheduler/waitingCells";
+import { computeTrayEvictionDates, computeTrayFoundingDates } from "@/components/scheduler/waitingCells";
 import { SectionHeading, UseLegend } from "@/components/shared/SectionHeading";
 import { Button } from "@/components/ui/Button";
 import { Note } from "@/components/ui/Note";
@@ -261,29 +255,26 @@ export function SchedulePage() {
     refetchInterval: 60_000,
   });
 
-  // Every open cell still holding unused capacity, regardless of instrument - drives the
-  // weekly grid's "waiting cell" ghost indicators (see waitingCells.ts). No dedicated
-  // invalidation needed: every mutation that can change a cell's state (place/remove/move/
-  // retire) already invalidates the ["cells"] query-key prefix.
-  const waitingCellsQuery = useQuery({
-    queryKey: ["cells", "waiting-ghosts"],
+  // Every cell on every instrument, fetched in three status slices that together make the full
+  // tray-linked cell universe (allTrayCells below) behind the left-column tray panel and the tray
+  // founding/eviction maps. Open cells also feed the Autoschedule drawer's reuse-candidate trays.
+  // No dedicated invalidation needed: every mutation that can change a cell's state (place/
+  // remove/move/retire/QC) already invalidates the ["cells"] query-key prefix.
+  const openCellsQuery = useQuery({
+    queryKey: ["cells", "open-tray-cells"],
     queryFn: () => cellsApi.listAll({ status: "open" }),
   });
-
-  // Every stopped cell, regardless of instrument - drives the "blocked well" placeholder
-  // (see waitingCells.groupBlockedWellsByInstrument) so a permanently dead well doesn't
-  // look like an ordinary free "+" slot. Same invalidation story as waitingCellsQuery.
-  const blockedCellsQuery = useQuery({
-    queryKey: ["cells", "blocked-wells"],
+  // QC-stopped cells: shown red (0 uses left) in their tray's panel tile, and still anchor their
+  // tray's founding date / residency. A stopped cell never marks a plate slot - it simply isn't
+  // offered again, and a drop resolves to another cell server-side (derive_best_cell).
+  const stoppedCellsQuery = useQuery({
+    queryKey: ["cells", "stopped-tray-cells"],
     queryFn: () => cellsApi.listAll({ status: "stopped" }),
   });
-
-  // Every cell that's gone terminal by ordinary attrition (not a QC stop) - drives the
-  // "terminal ghost" marker (see waitingCells.computeTerminalGhost) so a well that simply
-  // ran out of lawful uses or 108h capacity doesn't silently look identical to one that
-  // never held anything. Same invalidation story as waitingCellsQuery.
+  // Cells spent by ordinary attrition (used up / window expired / retired): a fully-spent tray
+  // stays in its tray-panel slot, depleted, until a successor tray evicts it.
   const terminalCellsQuery = useQuery({
-    queryKey: ["cells", "terminal-wells"],
+    queryKey: ["cells", "terminal-tray-cells"],
     queryFn: () => cellsApi.listAll({ status: "exhausted,window_expired,retired" }),
   });
 
@@ -302,57 +293,27 @@ export function SchedulePage() {
   );
   const runs = useMemo(() => cyclesQuery.data ?? [], [cyclesQuery.data]);
   const grouped = useMemo(() => groupCyclesByInstrumentAndDay(runs), [runs]);
-  // The full tray-linked cell universe (open + terminal + stopped) - several tray-level
-  // derivations below need visibility into every status a tray-linked cell can be in, not
-  // just the open+terminal cells the reuse ghosts are built from: a since-terminal or
-  // stopped sibling still anchors its tray's founding date and its vacated/occupied state,
-  // and a stopped well's block must know when a *later* tray takes the well over.
+  // The full tray-linked cell universe (open + terminal + stopped): a since-terminal or stopped
+  // sibling still anchors its tray's founding date and residency, and still shows in the tray panel.
   const allTrayCells = useMemo(
-    () => [...(waitingCellsQuery.data ?? []), ...(terminalCellsQuery.data ?? []), ...(blockedCellsQuery.data ?? [])],
-    [waitingCellsQuery.data, terminalCellsQuery.data, blockedCellsQuery.data],
+    () => [...(openCellsQuery.data ?? []), ...(terminalCellsQuery.data ?? []), ...(stoppedCellsQuery.data ?? [])],
+    [openCellsQuery.data, terminalCellsQuery.data, stoppedCellsQuery.data],
   );
-  // Whether a terminal cell's physical tray has been fully vacated (see
-  // waitingCells.computeVacatedTrayIds) - a still-open or stopped sibling missing from the
-  // check would wrongly read as "no capacity left anywhere in this tray".
-  const vacatedTrayIds = useMemo(() => computeVacatedTrayIds(allTrayCells), [allTrayCells]);
-  // A tray's founding cell may itself have since gone terminal or been stopped, and its
-  // planned first-use date must still anchor its still-open siblings' ghosts (see
-  // waitingCells.computeTrayFoundingDates).
+  // A tray's founding cell may itself have since gone terminal or been stopped, and its first-use
+  // date must still anchor the tray (see waitingCells.computeTrayFoundingDates).
   const trayFoundingDates = useMemo(() => computeTrayFoundingDates(allTrayCells), [allTrayCells]);
   // The day each physical tray is evicted by a successor tray founded in the same carousel
-  // position - past it, none of that tray's cells can be reused or shown, since a cell keeps a
-  // fixed tray/well position for life and two trays never share a position (see
-  // waitingCells.computeTrayEvictionDates).
+  // position - a cell keeps a fixed tray/well position for life and two trays never share a
+  // position (see waitingCells.computeTrayEvictionDates).
   const trayEvictionDates = useMemo(
     () => computeTrayEvictionDates(allTrayCells, trayFoundingDates),
     [allTrayCells, trayFoundingDates],
   );
-  const waitingGrouped = useMemo(
-    () =>
-      groupWaitingCellsByInstrumentAndDay(
-        [...(waitingCellsQuery.data ?? []), ...(terminalCellsQuery.data ?? [])],
-        win.days,
-        vacatedTrayIds,
-        trayFoundingDates,
-        trayEvictionDates,
-      ),
-    [waitingCellsQuery.data, terminalCellsQuery.data, win.days, vacatedTrayIds, trayFoundingDates, trayEvictionDates],
-  );
-  // Wells permanently dead from a stopped cell, per (instrument, day). Day-aware because a
-  // later tray legitimately reuses the same well letter once the stopped cell's own tray has
-  // left the instrument (see computeBlockedWellsByInstrumentAndDay) - so the block can't be a
-  // single all-days set per instrument.
-  const blockedGrouped = useMemo(
-    () => computeBlockedWellsByInstrumentAndDay(allTrayCells, win.days, trayFoundingDates),
-    [allTrayCells, win.days, trayFoundingDates],
-  );
   // The physical-tray map for each instrument's left-column header: the tray resident by the
   // END of the viewed week per carousel position (see instrumentTrayMaps.ts), so a mid-week
   // turnover shows the successor actually on the deck by week's end, matching the panel's "by
-  // end of week" caption. Reuses the same tray founding/eviction maps the grid ghosts do, so
-  // tray residency agrees exactly. Unlike the ghosts it does NOT drop a fully-terminal tray (no
-  // vacatedTrayIds) - a used-up tray with no successor stays a depleted resident until an
-  // operator swaps it, since it's still physically in the bay.
+  // end of week" caption. A fully-terminal tray with no successor stays a depleted resident until
+  // an operator swaps it, since it's still physically in the bay.
   const trayMaps = useMemo(
     () => computeInstrumentTrayMaps(allTrayCells, win.days, trayFoundingDates, trayEvictionDates),
     [allTrayCells, win.days, trayFoundingDates, trayEvictionDates],
@@ -874,8 +835,6 @@ export function SchedulePage() {
                     slotSelection={slotSelection}
                     onExtendSelect={onExtendSlotSelect}
                     onDragSelectStart={onDragSelectStart}
-                    waitingGrouped={waitingGrouped}
-                    blockedGrouped={blockedGrouped}
                     trayMaps={trayMaps}
                     onRecalculate={actions.onRequestRecalculate}
                   />
@@ -968,7 +927,7 @@ export function SchedulePage() {
           weekPlannedCount={weekPlannedStages.length}
           onRequestClearSchedule={actions.onRequestClearSchedule}
           note={actions.runDesignNote}
-          reuseCandidateCells={waitingCellsQuery.data ?? []}
+          reuseCandidateCells={openCellsQuery.data ?? []}
           onClose={() => setAutoscheduleOpen(false)}
         />
       )}

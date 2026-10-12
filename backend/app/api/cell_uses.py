@@ -219,9 +219,9 @@ def bulk_remove_cell_uses(req: BulkRemoveRequest, db: SessionDep, actor: ActorDe
 
 @router.post("/{cell_use_id}/return-to-backlog")
 def return_to_backlog(cell_use_id: int, db: SessionDep, actor: ActorDep) -> dict:
-    """Recover a cancelled ("Blocked") slot left behind by a cell discard: delete the dead
-    placement and put its sample back in the backlog. 409 if the block came from a Stop cell
-    (a permanent QC marker - use Undo stop instead) rather than a discard."""
+    """Recover a cancelled ("Blocked") slot left behind by a cell discard or a Cell QC
+    Stop/Retire: delete the dead placement (freeing its well) and put its sample back in the
+    backlog. 409 if the placement isn't a cancelled one."""
     try:
         sample_id = return_cancelled_use_to_backlog(db, cell_use_id, actor)
     except PlacementError as exc:

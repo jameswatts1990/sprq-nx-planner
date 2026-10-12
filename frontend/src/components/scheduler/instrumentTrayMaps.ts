@@ -9,26 +9,6 @@ import { WELL_ORDER } from "./waitingCells";
  * (amber). One weekday of head-room. */
 export const EXPIRY_SOON_HOURS = 24;
 
-/** The physical breakout stagger: the instrument removes a tray's 4 cells one at a time, ~2h
- * apart, so within one tray cell N breaks out (N-1)*2h after the tray is loaded (a 4-cell run
- * breaks out at T+0/+2/+4/+6). Its 108h clock starts at *its own* breakout, not the load, so a
- * tray's cells expire on a 2h-staggered ladder rather than one shared date. See
- * docs/pacbio-sprq-nx-scheduling-reference.md. */
-export const BREAKOUT_STAGGER_H = 2;
-
-/** The gap between an 8-cell load's two trays: the Plate-2 tray (carousel 1) breaks out ~24h
- * after the Plate-1 tray. Both parallel trays share one load anchor (they acquire the same day -
- * see placement_service.py's module docstring), but the instrument works Plate 1 first
- * (T+0..+6) then Plate 2 (T+24..+30), so carousel 1 carries a +24h base offset on top of its
- * own 2h intra-tray ladder. */
-export const PLATE_LOAD_GAP_H = 24;
-
-/** A cell's breakout offset from its tray's load anchor, in hours: which carousel box it sits in
- * (0 = Plate 1, 1 = Plate 2) plus its 1-based position within that tray. */
-export function breakoutOffsetH(carousel: 0 | 1, cellNumber: number): number {
-  return carousel * PLATE_LOAD_GAP_H + Math.max(0, cellNumber - 1) * BREAKOUT_STAGGER_H;
-}
-
 /** One cell's slot within a tray box (its fixed A/B/C/D position), carrying the reference-time-
  * independent facts the panel needs to shade it at any instant (end-of-week or live "now"). */
 export interface TrayPositionView {
@@ -46,15 +26,14 @@ export interface TrayPositionView {
   usesRemaining: number;
   /** The cell's total use capacity (3) - the ceiling usesRemainingAt() counts down from. */
   maxUses: number;
-  /** Each still-live (non-cancelled) use's own physical breakout instant, in epoch ms: the
-   * use's run anchor plus this cell's staggered breakout offset. Sorted ascending. Lets
-   * usesRemainingAt() count how many uses have broken out by a reference instant. Empty for a
-   * terminal/stopped cell (no usable capacity to count). */
+  /** Each still-live (non-cancelled) use's breakout instant, in epoch ms (the backend's
+   * breakout_anchor_at: the use's confirmed start, else its plate's planned start). Sorted
+   * ascending. Lets usesRemainingAt() count how many uses have broken out by a reference instant. */
   useBreakoutsMs: number[];
   status: CellStatus;
-  /** ISO datetime this specific cell is removed from the tray (its own 108h clock starts): the
-   * tray's load anchor + its staggered breakout offset. null when the cell has no running or
-   * planned first use yet (nothing on the clock). */
+  /** ISO datetime this cell's own 108h clock starts - the same anchor the backend's reuse-window
+   * check uses (first_use_started_at ?? first_use_planned_start_at). null when the cell has no
+   * running or planned first use yet (nothing on the clock). */
   breakoutAt: string | null;
   /** ISO datetime this cell's 108h window closes (breakoutAt + 108h), or null (no anchor). */
   expiryAt: string | null;
@@ -162,36 +141,28 @@ function cellNumberOf(cell: CellOut): number {
   return cell.current_well ? cell.current_well.charCodeAt(0) - 64 : 0; // "A" (65) -> 1 .. "D" -> 4
 }
 
-function positionView(cell: CellOut, carousel: 0 | 1, weekEndMs: number): TrayPositionView {
+function positionView(cell: CellOut, weekEndMs: number): TrayPositionView {
   const cellNumber = cellNumberOf(cell);
-  // The instrument breaks a tray's 4 cells out ~2h apart (a Plate-2 tray a further ~24h later),
-  // so each cell's 108h clock starts at its OWN breakout, not the shared load time. WHERE that
-  // breakout instant comes from depends on whether the load is confirmed:
-  //   - CONFIRMED (first_use_started_at, and a started use's started_at): the backend already
-  //     bakes the per-cell stagger into that timestamp at Confirm-loaded (run_service.py -
-  //     load + run_breakout_offsets[cell]), so it is the real, already-staggered anchor and must
-  //     be used as-is. Adding breakoutOffsetH again here would stagger it a SECOND time.
-  //   - PLANNED-only (first_use_planned_start_at, a not-yet-started use): still the single shared
-  //     plate timestamp all four cells quote, so it is staggered here as a provisional estimate.
-  // (This mirrors waitingCells / CellLifeGantt, which already read the confirmed anchor directly.)
-  const plannedOffsetMs = breakoutOffsetH(carousel, cellNumber) * 3_600_000;
-  const confirmed = cell.first_use_started_at;
-  const anchor = confirmed ?? cell.first_use_planned_start_at;
-  const breakoutMs = anchor ? new Date(anchor).getTime() + (confirmed ? 0 : plannedOffsetMs) : null;
+  // The 108h clock anchor, read exactly as the backend's reuse-window check and ⚠ Window flag
+  // read it (cell_service.reuse_deadline): the confirmed first_use_started_at once loaded -
+  // Confirm-loaded already bakes this cell's own breakout stagger into it - else the planned start
+  // of the plate holding its first use (first_use_planned_start_at; a reuse Plate 2's later,
+  // movie-length-dependent start is already in that timestamp). Nothing is added on top: a guessed
+  // stagger here would put the panel's expiry hours away from the day the scheduler actually stops
+  // offering the cell for reuse.
+  const anchor = cell.first_use_started_at ?? cell.first_use_planned_start_at;
+  const breakoutMs = anchor ? new Date(anchor).getTime() : null;
   const breakoutAt = breakoutMs !== null ? new Date(breakoutMs).toISOString() : null;
   const expiryAt = breakoutMs !== null ? new Date(breakoutMs + CELL_LIFETIME_H * 3_600_000).toISOString() : null;
   // Each committed use's breakout instant. A cancelled use (a permanent Stop marker) never ran,
   // so it's excluded, matching how the backend's uses_remaining counts capacity. Computed for
   // terminal cells too, not just open ones: a cell can be marked exhausted the moment its whole
   // week is *scheduled*, before those uses have physically broken out (a tray disposed at the
-  // max-uses dial, or the last of a staggered breakout ladder), and the live "now" view needs
-  // these instants to tell which of a terminal cell's uses have actually happened yet. As above:
-  // a *started* use's breakout_anchor_at is its real, already-staggered started_at (use as-is);
-  // a still-planned use quotes the shared plate planned_start_at, so only that provisional
-  // estimate gets the stagger applied here.
+  // max-uses dial), and the live "now" view needs these instants to tell which of a terminal
+  // cell's uses have actually happened yet.
   const useBreakoutsMs = cell.uses
     .filter((u) => u.status !== "cancelled" && u.breakout_anchor_at !== null)
-    .map((u) => new Date(u.breakout_anchor_at as string).getTime() + (u.run_started ? 0 : plannedOffsetMs))
+    .map((u) => new Date(u.breakout_anchor_at as string).getTime())
     .sort((a, b) => a - b);
   // Usable uses still available here, bounded to the viewed week's end - counts down from
   // full capacity by how many uses have actually broken out by then, the same week-scoped
@@ -238,10 +209,8 @@ function positionView(cell: CellOut, carousel: 0 | 1, weekEndMs: number): TrayPo
  * dropped when it is still the position's end-of-week resident (no successor has evicted it) -
  * it stays in its carousel slot, rendered fully depleted (its cells project to "spent"/"expired"
  * and read 0 uses), because the physical tray is still sitting in the bay until an operator swaps
- * it. This is the one place the overview parts ways with the grid's ghost logic (which treats a
- * fully-terminal tray as gone, freeing its wells to load onto) - hence no `vacatedTrayIds` here:
- * only a *successor* tray founded in the same carousel position (via `trayEvictionDates`) evicts
- * the depleted one from the slot.
+ * it. Only a *successor* tray founded in the same carousel position (via `trayEvictionDates`)
+ * evicts the depleted one from the slot.
  *
  * `allCells` should be the wide open+terminal+stopped universe (SchedulePage's three cell
  * queries), and `trayFoundingDates`/`trayEvictionDates` the same maps SchedulePage already
@@ -318,7 +287,7 @@ export function computeInstrumentTrayMaps(
       if (!resident) continue;
       const positions = [...resident.siblings]
         .sort((a, b) => (a.tray_position ?? 0) - (b.tray_position ?? 0))
-        .map((c) => positionView(c, pos, weekEndMs));
+        .map((c) => positionView(c, weekEndMs));
       carousel[pos] = { trayId: resident.trayId, carousel: pos, positions };
     }
 

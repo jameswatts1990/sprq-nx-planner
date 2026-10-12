@@ -80,6 +80,14 @@ class PriorCellInput:
     # fill_slots' tray-cohesion guard to keep a single sample plate backed by one tray even when
     # a cell reuses into a different plate box than its home box. None for a tray-less legacy cell.
     tray_id: int | None = None
+    # Offered dates this real cell can't take a use on: it already runs that day (one use per
+    # cell per day), it would land ahead of an already-started use, or it would break its 108h
+    # window. Computed by the service layer (which knows the cell's existing uses and the batch's
+    # start time) so this engine stays DB-free; fill_slots skips these dates for the cell, and
+    # pack_cells caps the cell's allowance at the dates left (`usable_days`) so it never claims
+    # samples it could only strand as unplaced.
+    blocked_dates: frozenset[date] = frozenset()
+    usable_days: int | None = None
 
 
 @dataclass
@@ -107,6 +115,8 @@ class PackedCell:
         pinned_well: str | None = None,
         barcode_owners: dict[str, set[str]] | None = None,
         tray_id: int | None = None,
+        blocked_dates: frozenset[date] = frozenset(),
+        usable_days: int | None = None,
     ) -> None:
         self.id = id
         self.prior = prior
@@ -121,6 +131,9 @@ class PackedCell:
         # Physical tray (CellTray.id) for a prior cell - fill_slots' cohesion guard keeps one
         # sample plate backed by a single tray. None for fresh or tray-less legacy cells.
         self.tray_id = tray_id
+        # See PriorCellInput.blocked_dates / usable_days. Always empty / None for a fresh cell.
+        self.blocked_dates = blocked_dates
+        self.usable_days = usable_days
         # barcode -> Pool ID(s) that burned it on this cell so far (prior history plus
         # every use pack_cells has appended this batch) - see PriorCellInput.barcode_owners
         # and engine/packing.py's _foreign_clash.
@@ -182,6 +195,8 @@ class SlotInput:
     instrument_serial: str
     run_date: date
     reuse_only: bool = False
+    # Wells already occupied on this day by a cancelled ("Blocked") marker - never offered.
+    taken_wells: frozenset[str] = frozenset()
 
 
 @dataclass

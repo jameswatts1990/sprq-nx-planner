@@ -115,7 +115,7 @@ export function useScheduleActions({
   const [runDesignNote, setRunDesignNote] = useState<AccordionNote | null>(null);
   const [removeSlotsError, setRemoveSlotsError] = useState<string | null>(null);
   // A drop rejected before ever reaching the backend - a backlog sample dropped onto an
-  // already-occupied slot, or any drop landing on a locked/blocked/weekend/down area (see
+  // already-occupied slot, or any drop landing on a locked/weekend/down area (see
   // useSchedulerDnd's onDropBlocked). These used to be silent no-ops (or, worse, a silent
   // deletion - see onRemoveOutside); this is the message that now explains why nothing (or
   // something destructive) didn't happen. Cleared on the next successful drag-driven mutation

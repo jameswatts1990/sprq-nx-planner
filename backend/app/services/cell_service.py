@@ -11,6 +11,7 @@ from datetime import date, datetime, time, timedelta, timezone
 from sqlalchemy import ColumnElement, and_, or_, select
 from sqlalchemy.orm import Session, selectinload
 
+from app.engine.cell_window import window_allows
 from app.engine.constants import (
     CELL_LIFETIME_H,
     CELL_MAX_USES,
@@ -148,6 +149,44 @@ def active_uses(cell: Cell) -> list[CellUse]:
     return [cu for cu in cell.cell_uses if cu.status != "cancelled"]
 
 
+def same_day_use(cell: Cell, acquire_date: date, *, exclude_use_id: int | None = None) -> CellUse | None:
+    """Another active use of `cell` acquiring on `acquire_date`, if any. A physical cell runs at
+    most once per calendar day - reuse is always a strictly later date (see
+    docs/pacbio-sprq-nx-scheduling-reference.md #4) - so a second use that day is impossible on
+    every path (manual drop, move, reschedule, auto-fill, QC re-zip). `exclude_use_id` skips the
+    use being moved/re-zipped itself."""
+    for cu in active_uses(cell):
+        if cu.id != exclude_use_id and use_run_date(cu) == acquire_date:
+            return cu
+    return None
+
+
+def started_use_after(cell: Cell, acquire_date: date, *, exclude_use_id: int | None = None) -> CellUse | None:
+    """An already-started (Confirm-loaded) active use of `cell` on a day later than
+    `acquire_date`, if any. Reuse is strictly sequential once a use has really run (see
+    docs/pacbio-sprq-nx-scheduling-reference.md #4), so no path may put a use ahead of it."""
+    for other in active_uses(cell):
+        if other.id == exclude_use_id:
+            continue
+        other_date = use_run_date(other)
+        if other_date is not None and other_date > acquire_date and run_has_started(other):
+            return other
+    return None
+
+
+def reuse_window_allows(cell: Cell, new_start: datetime, *, exclude_use_id: int | None = None) -> bool:
+    """Whether `cell` can take a use starting at `new_start` and keep every currently in-window
+    use inside its single 108h window - including when the new use lands EARLIER than the cell's
+    existing ones and so becomes its new Use 1 (see engine.cell_window.window_allows)."""
+    starts = [
+        ensure_aware(cu.cycle.planned_start_at)
+        for cu in active_uses(cell)
+        if cu.id != exclude_use_id and cu.cycle is not None
+    ]
+    anchor = ensure_aware(cell.first_use_started_at) if cell.first_use_started_at else None
+    return window_allows(starts, ensure_aware(new_start), anchor)
+
+
 def use_sort_key(cell_use: CellUse) -> tuple[date, int]:
     """Chronological ordering key for a cell's uses - acquire date (see use_run_date), then
     insertion id as a stable tie-break. A use with no scheduled date sorts as the distant past
@@ -282,8 +321,9 @@ def open_new_tray(db: Session, instrument_id: int, well: str, *, founding_date: 
     "Tray-of-4 eager population" bug history for why silently minting a second physical tray in a
     bay instead of raising is how a tray ends up with non-continuous/duplicated cell ids. A bay
     whose every cell has gone terminal (stopped/exhausted/window_expired/retired) is *not* occupied
-    - the physical tray has genuinely left the instrument, mirroring the frontend's own
-    waitingCells.computeVacatedTrayIds - so a brand-new tray can be loaded into it again.
+    once none of them has a use left to run on/after `founding_date` - the physical tray has
+    genuinely left the instrument - so a brand-new tray can be loaded into it again. (Terminal-by-scheduling is not enough: a
+    tray whose last uses are booked for Thursday is still in its bay on Tuesday.)
 
     **Tray turnover on expiry (`founding_date`).** When `founding_date` is given (the acquire
     day of the placement this tray is being opened for), an open cell whose 108h reuse window
@@ -316,34 +356,55 @@ def open_new_tray(db: Session, instrument_id: int, well: str, *, founding_date: 
     pos = within_tray_pos(well)  # 0-3, the tray position the sample occupies (kept for life)
     bay_count = len(WELLS) // CELLS_PER_TRAY  # 2
 
-    # Every open cell on this instrument, so each cell-tray bay's occupancy can be tested.
-    open_cells = (
+    # Every cell on this instrument whose tray may still be physically in a bay: open cells, plus
+    # (with a founding_date) any cell - exhausted, stopped, discarded, skip-reuse flagged - that
+    # still has an active use on or after that day. A cell's status flips to "exhausted" the moment
+    # its last use is *scheduled*, so status alone would free a bay days before the tray's final
+    # run and let a second tray be minted into it.
+    resident_filter = Cell.status == "open"
+    if founding_date is not None:
+        resident_filter = or_(
+            resident_filter,
+            Cell.cell_uses.any(
+                and_(CellUse.status != "cancelled", CellUse.cycle.has(Cycle.acquire_date >= founding_date))
+            ),
+        )
+    resident_cells = (
         db.scalars(
             select(Cell)
             .join(Cell.tray)
-            .where(CellTray.instrument_id == instrument_id, Cell.status == "open")
+            .where(CellTray.instrument_id == instrument_id, resident_filter)
             .options(selectinload(Cell.cell_uses).selectinload(CellUse.cycle))
         )
         .unique()
         .all()
     )
 
+    def _still_running_on_or_after(cell: Cell, day: date) -> bool:
+        return any((use_run_date(cu) or date.min) >= day for cu in active_uses(cell))
+
     def _bay_blocked(bay: int) -> bool:
-        # A still-open cell blocks reloading a bay only while genuinely resident: with a
-        # founding_date, one whose 108h window has closed by then counts as physically removed
-        # (turnover - see _cell_resident_on); without one, every open cell blocks. A cell whose
-        # tray is flagged "skip reuse / planning disposal" (CellTray.reuse_disabled_at) never
-        # blocks: the lab has declared it's binning that tray, so the bay is free for a fresh
-        # tray - the same "being removed" model as an expired tray. (Predicate byte-identical to
-        # the former single-box guard; only its scope is now per-bay.)
+        # A tray with a use still to run on/after the founding day is physically in its bay
+        # regardless of status or skip-reuse flag. Otherwise a still-open cell blocks only while
+        # genuinely resident: with a founding_date, one whose 108h window has closed by then counts
+        # as physically removed (turnover - see _cell_resident_on); without one, every open cell
+        # blocks. A tray flagged "skip reuse / planning disposal" (CellTray.reuse_disabled_at) with
+        # no uses left to run never blocks: the lab has declared it's binning that tray, so the bay
+        # is free for a fresh tray - the same "being removed" model as an expired tray.
         lo = bay * CELLS_PER_TRAY
         bay_wells = set(WELLS[lo : lo + CELLS_PER_TRAY])
-        return any(
-            (c.tray is None or c.tray.reuse_disabled_at is None)
-            and (founding_date is None or _cell_resident_on(c, founding_date))
-            for c in open_cells
-            if c.home_well in bay_wells
-        )
+        for c in resident_cells:
+            if c.home_well not in bay_wells:
+                continue
+            if founding_date is not None and _still_running_on_or_after(c, founding_date):
+                return True
+            if (
+                c.status == "open"
+                and (c.tray is None or c.tray.reuse_disabled_at is None)
+                and (founding_date is None or _cell_resident_on(c, founding_date))
+            ):
+                return True
+        return False
 
     # A cell tray and a sample plate are independent instrument positions: a fresh tray loads into
     # a free cell-tray BAY, not necessarily the drop well's own. Prefer the drop well's own bay
@@ -478,8 +539,8 @@ def reuse_window_exceeded(cell_use: CellUse) -> bool:
     plate's planned start falls after the cell's 108h reuse deadline - i.e. this use can no
     longer physically start in time. The cell's FIRST use never exceeds (it anchors the clock),
     and a cell with no deadline (no anchor) never flags. Estimated until Use 1 is confirmed
-    loaded (the anchor is the planned first-use start until then), mirroring the frontend's
-    reuseWindow deadlineIsEstimated. The read-side counterpart of _reuse_window_open: that gate
+    loaded (the anchor is the planned first-use start until then). The read-side counterpart of
+    _reuse_window_open: that gate
     asks "would a hypothetical use on this date still fit?"; this asks "does this already-placed
     use still fit?" - both off the same reuse_deadline, so a reschedule that pushes a planned
     Use 2/3 past the window is now visible instead of silently rendering as valid."""
@@ -955,8 +1016,8 @@ def rotate_tray(
 
     Because the old cells go terminal and any fresh tray's earliest use is strictly after
     `from_date`, the grid's existing tray-turnover rendering takes over with no special-casing:
-    the old tray reads as vacated (computeVacatedTrayIds) and a successor founds on the moved
-    use's day (computeTrayFoundingDates) - see docs/pacbio-sprq-nx-scheduling-reference.md.
+    the old tray is evicted by a successor founded on the moved use's day
+    (computeTrayFoundingDates / computeTrayEvictionDates) - see docs/pacbio-sprq-nx-scheduling-reference.md.
 
     Raises ValueError (mapped to 409 by the endpoint) if the tray has a cell that's stopped/
     retired/already-discarded (resolve that first - a mixed-QC tray isn't a clean discard), or

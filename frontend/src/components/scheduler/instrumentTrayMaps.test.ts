@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import type { CellOut } from "@/types/cell";
 
 import {
-  breakoutOffsetH,
   cellExpiryState,
   computeInstrumentTrayMaps,
   usesRemainingAt,
@@ -165,7 +164,7 @@ describe("computeInstrumentTrayMaps", () => {
     expect(tray.positions.map((p) => p.usesRemaining)).toEqual([2, 2, 2, 2]);
   });
 
-  it("derives each cell's per-use breakout instants (staggered) for the live count", () => {
+  it("derives each cell's per-use breakout instants for the live count", () => {
     const cells = trayCells(1, "01", [
       {
         uses_consumed: 2,
@@ -181,7 +180,7 @@ describe("computeInstrumentTrayMaps", () => {
       },
     ]);
     const tray = build(cells).get(SERIAL)!.carousel[0]!;
-    const cell1 = tray.positions[0]; // cellNumber 1, offset 0 -> anchors unchanged
+    const cell1 = tray.positions[0];
     expect(cell1.maxUses).toBe(3);
     expect(cell1.useBreakoutsMs).toEqual([Date.parse("2026-07-20T12:00:00Z"), Date.parse("2026-07-24T12:00:00Z")]);
     // Committed-plan figure preserved; live count is higher before the 2nd use breaks out.
@@ -189,10 +188,9 @@ describe("computeInstrumentTrayMaps", () => {
     expect(usesRemainingAt(cell1, Date.parse("2026-07-20T14:00:00Z"))).toBe(2);
   });
 
-  it("only staggers a use's breakout when it is still planned, not once it has started", () => {
-    // Cell 2 (offset +2h). Its started Use 1 already carries the backend stagger in started_at, so
-    // its breakout_anchor_at is used as-is; a still-planned Use 2 quotes the shared plate start, so
-    // the +2h estimate is applied to it here.
+  it("reads every use's breakout anchor as-is - started or planned, no frontend stagger", () => {
+    // Cell 2. Its started Use 1 already carries the backend stagger in started_at; a still-planned
+    // Use 2 quotes its plate's planned start, exactly as the backend's own timing reads it.
     const cells = trayCells(1, "01", [
       {}, // cell 1
       {
@@ -208,8 +206,8 @@ describe("computeInstrumentTrayMaps", () => {
     ]);
     const cell2 = build(cells).get(SERIAL)!.carousel[0]!.positions[1];
     expect(cell2.useBreakoutsMs).toEqual([
-      Date.parse("2026-07-20T14:00:00Z"), // started: anchor as-is, no extra offset
-      Date.parse("2026-07-24T14:00:00Z"), // planned: shared plate start + 2h stagger estimate
+      Date.parse("2026-07-20T14:00:00Z"), // started: the backend-staggered start
+      Date.parse("2026-07-24T12:00:00Z"), // planned: its plate's planned start, unshifted
     ]);
   });
 
@@ -245,24 +243,28 @@ describe("computeInstrumentTrayMaps", () => {
     expect(map.carousel[1]!.positions[3].expiryAt).toBe("2026-07-26T06:00:00.000Z");
   });
 
-  it("staggers a still-PLANNED tray's expiry on the fly (2h apart; +24h for Plate 2)", () => {
-    // Before Confirm-loaded there is no per-cell anchor yet - all four cells quote the single
-    // shared plate planned_start_at - so the map itself applies the breakout ladder as a
-    // provisional estimate (this is what breakoutOffsetH is still for).
-    const planned = { uses_consumed: 0, uses_remaining: 3, last_use_run_date: null, first_use_started_at: null, first_use_planned_start_at: "2026-07-20T12:00:00Z" };
+  it("anchors a still-PLANNED cell's expiry on its planned first-use start + 108h, as the backend's reuse check does", () => {
+    // Before Confirm-loaded the backend's reuse-window gate and ⚠ Window flag anchor every cell
+    // on first_use_planned_start_at (its first use's plate planned start) with no stagger - so the
+    // panel must too, whichever tray bay the cell sits in. A same-day parallel Plate 2 shares Plate
+    // 1's planned start, so a bay-2 tray loaded that day expires the SAME day, not a day later.
+    const planned = { uses_consumed: 1, uses_remaining: 2, last_use_run_date: "2026-07-20", first_use_started_at: null, first_use_planned_start_at: "2026-07-20T12:00:00Z" };
     const p1 = trayCells(1, "01", [planned, planned, planned, planned]);
     const p2 = trayCells(2, "02", [planned, planned, planned, planned]);
     const map = build([...p1, ...p2]).get(SERIAL)!;
-    expect(map.carousel[0]!.positions.map((p) => p.expiryAt)).toEqual([
-      "2026-07-25T00:00:00.000Z",
-      "2026-07-25T02:00:00.000Z",
-      "2026-07-25T04:00:00.000Z",
-      "2026-07-25T06:00:00.000Z",
-    ]);
-    expect(map.carousel[0]!.positions.every((p) => p.provisional)).toBe(true);
-    // Plate 2 tray shares the same planned load anchor but its cells break out ~24h later.
-    expect(map.carousel[1]!.positions[0].expiryAt).toBe("2026-07-26T00:00:00.000Z");
-    expect(map.carousel[1]!.positions[3].expiryAt).toBe("2026-07-26T06:00:00.000Z");
+    for (const tray of [map.carousel[0]!, map.carousel[1]!]) {
+      expect(tray.positions.map((p) => p.expiryAt)).toEqual(Array(4).fill("2026-07-25T00:00:00.000Z"));
+      expect(tray.positions.every((p) => p.provisional)).toBe(true);
+    }
+  });
+
+  it("reads a reuse Plate 2's own later planned start as-is (its movie-length offset is already in it)", () => {
+    // A bay-2 tray whose first use is a reuse Plate 2 chained off a 24h movie: the backend already
+    // set that plate's planned_start_at ~28h after Plate 1, so first_use_planned_start_at carries
+    // the offset. The map must not add a guessed bay offset on top of it.
+    const reusePlate2 = { uses_consumed: 1, uses_remaining: 2, last_use_run_date: "2026-07-21", first_use_started_at: null, first_use_planned_start_at: "2026-07-21T16:00:00Z" };
+    const map = build(trayCells(3, "02", [reusePlate2])).get(SERIAL)!;
+    expect(map.carousel[1]!.positions[0].expiryAt).toBe("2026-07-26T04:00:00.000Z");
   });
 
   it("marks a planned-but-unconfirmed first use's expiry as provisional", () => {
@@ -485,12 +487,5 @@ describe("usesRemainingAt", () => {
     expect(usesRemainingAt(terminal, Date.parse("2026-07-20T00:00:00Z"))).toBe(2); // neither broken out
     expect(usesRemainingAt(terminal, Date.parse("2026-07-21T00:00:00Z"))).toBe(1); // only the first
     expect(usesRemainingAt(terminal, Date.parse("2026-07-24T23:59:59Z"))).toBe(0); // both broken out
-  });
-});
-
-describe("breakoutOffsetH", () => {
-  it("adds 2h per position within a tray and 24h for the Plate 2 carousel", () => {
-    expect([1, 2, 3, 4].map((n) => breakoutOffsetH(0, n))).toEqual([0, 2, 4, 6]);
-    expect([1, 2, 3, 4].map((n) => breakoutOffsetH(1, n))).toEqual([24, 26, 28, 30]);
   });
 });

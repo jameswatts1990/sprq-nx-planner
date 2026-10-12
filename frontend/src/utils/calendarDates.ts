@@ -1,10 +1,5 @@
 const DAY_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-/** The default loading start hour (UTC), mirroring the backend's DAY_START_HOUR. Single
- * frontend source for both the reuse-window "day start" comparison (waitingCells) and the
- * radial load-time dial's default, so they can't drift apart. */
-export const DAY_START_HOUR = 12;
-
 /**
  * Parses a `YYYY-MM-DD` string as a UTC date-only value. All day-offset arithmetic in
  * the calendar must go through UTC-based helpers so that adding `day_idx` days never
@@ -26,26 +21,6 @@ export function addDaysUTC(date: Date, days: number): Date {
 export function isWeekendUTC(date: Date): boolean {
   const wd = date.getUTCDay();
   return wd === 0 || wd === 6;
-}
-
-/** The next Mon-Fri strictly after an ISO date (skips weekends) - the earliest WEEKDAY a new
- * reuse LOAD can start (loads are weekday-only). Used by the reuse-ghost's earliest/cutoff days
- * (waitingCells.ts). Distinct from an intra-run reuse Plate 2's own SEQUENCING day, which chains
- * off Plate 1's movie end and may fall on a weekend - that day is derived server-side by
- * reuse_plate_window, not here (see the weekend-cadence note in the scheduling reference doc). */
-export function nextWeekdayIsoUTC(isoDate: string): string {
-  let d = addDaysUTC(parseDateOnly(isoDate), 1);
-  while (isWeekendUTC(d)) d = addDaysUTC(d, 1);
-  return toIsoDateUTC(d);
-}
-
-/** The nearest Mon-Fri on OR after an ISO date-only value (returns the date itself when it's
- * already a weekday). Contrast nextWeekdayIsoUTC, which is strictly after - used for the earliest
- * day a cell is physically free to reuse, which can be the free-time's own day. */
-export function weekdayOnOrAfterIsoUTC(isoDate: string): string {
-  let d = parseDateOnly(isoDate);
-  while (isWeekendUTC(d)) d = addDaysUTC(d, 1);
-  return toIsoDateUTC(d);
 }
 
 /** The nearest Mon-Fri strictly before an ISO date (skips weekends). */

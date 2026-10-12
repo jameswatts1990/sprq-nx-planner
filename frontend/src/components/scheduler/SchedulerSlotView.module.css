@@ -29,25 +29,6 @@
   white-space: nowrap;
 }
 
-/* A well permanently blocked by a stopped cell (see waitingCells.
-   groupBlockedWellsByInstrument) - reads as clearly dead, not just "not yet used": grey
-   fill (never tinted by use number - the cell that lived here is gone) plus a red cross
-   instead of the "+" affordance, since this well can never accept a new placement. */
-.blocked {
-  border: 1.5px dashed var(--line);
-  background: var(--tray-card-bg);
-  align-items: center;
-  justify-content: center;
-  cursor: default;
-  opacity: 0.75;
-}
-.blockedIcon {
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--red);
-  opacity: 0.8;
-}
-
 /* Filled chip, colour-coded by the loaded cell's use number (Use 1/2/3). */
 .filled {
   border: 1px solid var(--line);
@@ -394,152 +375,7 @@
     background-position: -250.2px -276.8px;
   }
 }
-/* Waiting/reusable-cell ghost: a tinted placeholder in the same slot a real placement
-   would occupy, colour-coded by the use number it's waiting to become. --ghost-opacity is
-   set inline per-day by waitingCells.ts's fade calculation (1 = just eligible/full colour,
-   fading toward FADE_MIN_OPACITY as the 108h deadline approaches). */
-.ghost {
-  border: 1.5px dashed var(--line);
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  cursor: pointer;
-  opacity: var(--ghost-opacity, 1);
-}
-.u1.ghost {
-  background: var(--magenta-tint);
-  border-color: #f2b8d6;
-}
-.u2.ghost {
-  background: var(--blue-tint);
-  border-color: #cfe6f5;
-}
-.u3.ghost {
-  background: var(--teal-tint);
-  border-color: #bfe8e8;
-}
-.ghostCode {
-  font-size: 10px;
-  font-weight: 800;
-  font-family: var(--mono);
-  color: var(--ink);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 100%;
-}
-.ghostLabel {
-  font-size: 9px;
-  font-weight: 700;
-  color: var(--grey);
-}
-/* The actual last day this cell could still start its next use - a fixed, fully-opaque
-   "act now" look instead of continuing the fade, so the final chance never reads as
-   "about to disappear". */
-.ghostCutoff {
-  border: 1.5px solid var(--amber);
-  background: var(--amber-tint);
-  animation: ghostCutoffPulse 1.8s ease-in-out infinite;
-}
-.ghostCutoff .ghostLabel {
-  color: var(--amber);
-  font-weight: 800;
-}
-@keyframes ghostCutoffPulse {
-  0%, 100% {
-    box-shadow: 0 0 0 0 rgba(199, 119, 0, 0.25);
-  }
-  50% {
-    box-shadow: 0 0 0 3px rgba(199, 119, 0, 0);
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .ghostCutoff {
-    animation: none;
-  }
-}
-
-/* A tray sibling that's real (has its own ID and reserved well) but has never been used -
-   deliberately NOT tinted by use number (unlike .u1/.u2/.u3.ghost) since it hasn't been
-   used yet - a muted neutral grey instead, so it never reads as "this is already Use 1"
-   and doesn't clash with the real Use 1 tint elsewhere on the grid. Also a quieter, static
-   dotted look instead of the fading "next up for reuse" treatment - no 108h clock is
-   running yet, so there's nothing to fade toward. */
-.ghostUnused {
-  border-style: dotted;
-  border-color: var(--tray-card-border);
-  background: var(--tray-card-bg);
-  opacity: 0.85;
-}
-.ghostUnused .ghostCode {
-  color: var(--grey);
-}
-.ghostUnused .ghostLabel {
-  color: var(--faint);
-}
-
-/* A cell that's gone terminal by ordinary attrition (exhausted/window_expired/retired -
-   see CellGhost.terminalStatus) - still shown in its old well as an informational marker,
-   for as long as some sibling in its physical tray still holds real capacity (see
-   waitingCells.computeTerminalGhost/computeVacatedTrayIds; once every sibling has also gone
-   terminal, that function stops returning a ghost at all and the well reverts to a plain
-   droppable "+" instead of this card). Never a live reuse target, so no "solid + glow" hover
-   preview ever applies to it - it stays a plain, static informational card, and
-   cursor:default here (rather than the ordinary .ghost pointer) reflects that clicking/
-   dropping never does anything through this card. */
-.ghostTerminal {
-  border-style: dotted;
-  opacity: 0.85;
-  cursor: default;
-}
-/* Exhausted: every lawful use spent. Window expired: capacity was left on the table
-   because the 108h deadline shut before it could be reused. Both carry the same red
-   severity (matching --red/--red-tint elsewhere in the app, e.g. Badge's "danger" tone) -
-   in both cases this physical cell's capacity is permanently gone, same as a QC problem
-   elsewhere on the grid (see .qcAlert). */
-.terminalExhausted,
-.terminalExpired {
-  border-color: var(--red);
-  background: var(--red-tint);
-}
-.terminalExhausted .ghostCode,
-.terminalExpired .ghostCode {
-  color: var(--grey);
-}
-.terminalExhausted .ghostLabel,
-.terminalExpired .ghostLabel {
-  color: var(--red);
-  font-weight: 800;
-}
-/* Retired: a deliberate manual write-off - the same amber severity CELL_STATUS_TONE gives
-   it elsewhere (a step milder than the red statuses, since nothing was "lost" unexpectedly). */
-.terminalRetired {
-  border-color: var(--amber);
-  background: var(--amber-tint);
-}
-.terminalRetired .ghostCode {
-  color: var(--grey);
-}
-.terminalRetired .ghostLabel {
-  color: var(--amber);
-  font-weight: 800;
-}
-
-/* Dragging a sample directly over a ghost placeholder previews an exact-match reuse of
-   that cell - keep the ghost's own colour (still reads as "this cell"), just switch to a
-   solid, thicker border and add a glow to signal "drop here to reuse this cell". Only
-   sets border-style/-width and box-shadow, not border-color/background, so the
-   .u1/.u2/.u3.ghost tint underneath still shows through. */
-.ghostOver {
-  opacity: 1;
-  border-style: solid;
-  border-width: 2px;
-  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.12);
-}
-
-/* A dragged sample hovering a droppable slot must still read as a valid drop target even
-   when the slot underneath is a coloured ghost - .slot.over (two classes) ties the
-   specificity of .u1/.u2/.u3.ghost so this wins regardless of source order. */
+/* A dragged sample hovering a droppable slot reads as a valid drop target. */
 .slot.over {
   border-style: solid;
   border-color: var(--magenta);
@@ -640,8 +476,8 @@
   color: var(--teal-deep);
 }
 /* Shades a filled slot by how far its cell has travelled through its own 108h window -
-   --window-opacity is set inline per-slot by SchedulerSlotView's fade calculation (same
-   curve as a waiting-cell ghost's fade, see utils/windowFade.ts): ~1 (full colour) fresh
+   --window-opacity is set inline per-slot by SchedulerSlotView's fade calculation (see
+   utils/windowFade.ts): ~1 (full colour) fresh
    after Use 1, fading toward FADE_MIN_OPACITY as the cell's own deadline approaches. This
    is always the cell's own clock, never a shared tray-level one. */
 .windowShaded {
@@ -879,41 +715,8 @@
   color: var(--red);
 }
 
-/* A drag is in progress and dropping onto this empty slot would clash a barcode already burned
-   on the cell it would naturally reuse (see waitingCells.ghostWouldClashWithSample) - a
-   predictive "danger zone" shown on every such slot for the whole drag, not just the one
-   currently hovered. Dashed, not solid, and calm: this never blocks the drop (it still
-   succeeds), so it must read as a heads-up, not a rejection. */
-.dragClashWarning {
-  border-style: dashed !important;
-  border-color: var(--red) !important;
-  border-width: 2px !important;
-  background-image: repeating-linear-gradient(
-    45deg,
-    rgba(220, 53, 69, 0.12),
-    rgba(220, 53, 69, 0.12) 5px,
-    transparent 5px,
-    transparent 10px
-  );
-  animation: dragClashWarningPulse 1.4s ease-in-out infinite;
-}
-@keyframes dragClashWarningPulse {
-  0%, 100% {
-    box-shadow: 0 0 0 1px rgba(220, 53, 69, 0.25);
-  }
-  50% {
-    box-shadow: 0 0 0 3px rgba(220, 53, 69, 0.45);
-  }
-}
-.dragClashWarningLabel {
-  font-size: 10px;
-  font-weight: 800;
-  color: var(--red);
-  white-space: nowrap;
-}
 @media (prefers-reduced-motion: reduce) {
-  .barcodeClash,
-  .dragClashWarning {
+  .barcodeClash {
     animation: none;
     box-shadow: var(--shadow-sm), 0 0 0 3px var(--red);
   }

@@ -36,18 +36,22 @@ from app.models.sample import Sample
 from app.models.schedule import CellUse, CellUseBarcode, Cycle, RunBatch
 from app.services import instrument_lock
 from app.services.cell_service import (
+    active_uses,
     cleanup_tray_if_fully_unused,
     current_location,
     derive_cell_state,
     first_use_planned_start_at,
     open_new_tray,
     recompute_status,
-    reuse_deadline,
+    reuse_window_allows,
     run_has_started,
+    same_day_use,
+    started_use_after,
     use_run_date,
     use_sort_key,
 )
 from app.services.engine_bridge import load_prior_cells
+from app.services.settings_service import get_default_movie_hours
 from app.timeutil import ensure_aware, utcnow
 
 # A run's two loading positions (deck trays). slot_index 0-3 = Plate 1, 4-7 = Plate 2.
@@ -252,12 +256,20 @@ def reschedule_run(db: Session, run_id: int, new_load_date: date, actor: str | N
     the user can load a fresh tray from the slot/cell popover (the "flag, don't silently swap"
     product choice). Refuses (409) if the run is already confirmed loaded (its cells are physically
     in the instrument - unlock first), if new_load_date isn't a weekday, if the instrument is
-    maintenance-down then, if a prior run locks the instrument all day, or if a run already exists
-    on (instrument, new_load_date) - merging two runs isn't modelled; clear one first. Commits."""
+    maintenance-down then, if a prior run locks the instrument all day, if a run already exists
+    on (instrument, new_load_date) - merging two runs isn't modelled; clear one first - or if one
+    of its cells would then run twice on one day or ahead of an already-started use. Commits."""
     run_batch = db.scalar(
         select(RunBatch)
         .where(RunBatch.id == run_id)
-        .options(selectinload(RunBatch.cycles).selectinload(Cycle.cell_uses), selectinload(RunBatch.instrument))
+        .options(
+            selectinload(RunBatch.cycles)
+            .selectinload(Cycle.cell_uses)
+            .selectinload(CellUse.cell)
+            .selectinload(Cell.cell_uses)
+            .selectinload(CellUse.cycle),
+            selectinload(RunBatch.instrument),
+        )
     )
     if run_batch is None:
         raise PlacementError(404, "Run not found.")
@@ -310,6 +322,40 @@ def reschedule_run(db: Session, run_id: int, new_load_date: date, actor: str | N
     # priority are unchanged by a pure date shift, so no re-sequencing is needed.
     was_reuse = {c.id: c.acquire_date > run_batch.load_date for c in run_batch.cycles}
     new_start = datetime.combine(new_load_date, time(hour=start_hour, minute=start_minute), tzinfo=timezone.utc)
+
+    # Each cell in this run must still run at most once per day and never ahead of one of its
+    # already-started uses once the run lands on its new day(s) - checked against the cell's uses
+    # in OTHER runs (its uses in this run all move together). A reuse pushed past the 108h window
+    # is still only flagged, never refused (see the docstring).
+    new_acquire: dict[int, date] = {}
+    for cycle in run_batch.cycles:
+        if was_reuse[cycle.id] and plate1 is not None:
+            new_acquire[cycle.id] = reuse_plate_window(new_start, plate1.movie_hours, cycle.movie_hours)[0]
+        else:
+            new_acquire[cycle.id] = new_load_date
+    run_use_ids = {cu.id for c in run_batch.cycles for cu in c.cell_uses}
+    for cycle in run_batch.cycles:
+        for cu in cycle.cell_uses:
+            if cu.status == "cancelled" or cu.cell is None:
+                continue
+            day = new_acquire[cycle.id]
+            for other in active_uses(cu.cell):
+                if other.id in run_use_ids:
+                    continue
+                other_day = use_run_date(other)
+                if other_day == day:
+                    raise PlacementError(
+                        409,
+                        f"Cell {cu.cell.code} already runs on {day.isoformat()} in another run - a cell can "
+                        "only be used once per day. Pick another day.",
+                    )
+                if other_day is not None and other_day > day and run_has_started(other):
+                    raise PlacementError(
+                        409,
+                        f"Cell {cu.cell.code} already has a started use on {other_day.isoformat()}; this run "
+                        "can't move ahead of it.",
+                    )
+
     run_batch.load_date = new_load_date
     if plate1 is not None:
         plate1.acquire_date = new_load_date
@@ -361,13 +407,22 @@ def _plate_target(
     """Work out (plate_index, acquire_date) for a placement/move into a given grid slot.
 
     - A cell already loaded in this run (intra-run reuse) is the run's sequential second
-      plate: Plate 2, acquiring a later day. The date returned here (the next weekday) is only
-      an advisory floor: get_or_create_run recomputes the real reuse day from Plate 1's movie
-      length + on-board wash (see reuse_plate_window), so a long movie can push it out further.
+      plate: Plate 2, acquiring a later day - the day get_or_create_run will actually give it
+      (an existing Plate 2's own day, else chained off Plate 1's movie end via
+      reuse_plate_window), so the same-day and 108h checks run against the real acquire day, not
+      a flat "next day" that a long movie or late load pushes out further.
     - Otherwise the plate comes from the slot block (0-3 -> Plate 1, 4-7 -> Plate 2) and it
       acquires on the load day - Plate 1, or a fresh parallel Plate 2 (a second tray), or a
       cross-run reuse of a cell whose last use was in an earlier run."""
     if cell is not None and _cell_used_in_run(cell, instrument_id, load_date, exclude_use_id=exclude_use_id):
+        plate1 = _load_existing_cycle(db, instrument_id=instrument_id, load_date=load_date, plate_index=1)
+        plate2 = _load_existing_cycle(db, instrument_id=instrument_id, load_date=load_date, plate_index=2)
+        if plate2 is not None:
+            # Where get_or_create_run will put it - even a same-day parallel Plate 2, which the
+            # same-day check then correctly refuses for a cell already on Plate 1.
+            return 2, plate2.acquire_date
+        if plate1 is not None:
+            return 2, reuse_plate_window(plate1.planned_start_at, plate1.movie_hours, plate1.movie_hours)[0]
         return 2, _next_day(load_date)
     plate_index = 1 if slot_index < PLATE_SIZE else 2
     return plate_index, load_date
@@ -514,7 +569,7 @@ def get_or_create_run(
     return cycle
 
 
-def _cleanup_emptied_plate(db: Session, cycle: Cycle) -> tuple[bool, bool]:
+def cleanup_emptied_plate(db: Session, cycle: Cycle) -> tuple[bool, bool]:
     """After a plate loses a use, delete the plate (Cycle) if it has no cell_uses left, then
     delete the run (RunBatch) if that leaves it with no plates. A run holds 1-2 plates now,
     so an emptied plate no longer implies an emptied run - the *other* plate may still be
@@ -566,6 +621,7 @@ def _resolve_cell_choice(
     acquire_date: date,
     load_date: date,
     plate_index: int,
+    exclude_use_id: int | None = None,
 ) -> Cell:
     """Shared "which cell hosts this sample" resolution, shared by place_sample and
     move_sample's cell-reassignment path: mode "new" opens a fresh tray at plate position
@@ -625,27 +681,28 @@ def _resolve_cell_choice(
                 f"This plate is already loaded from tray T{committed_tray_id}; cell {cell.code} "
                 "belongs to a different tray and can't be added to the same plate.",
             )
-        # A cell's next use may already be scheduled for a later day than `acquire_date` (see
-        # waitingCells.ts's pendingReuseStatus ghost, the "Scheduled" placeholder the grid
-        # lets a sample be dropped onto ahead of that later use). Inserting this use only
+        clash_day = same_day_use(cell, acquire_date, exclude_use_id=exclude_use_id)
+        if clash_day is not None:
+            raise PlacementError(
+                409,
+                f"Cell {cell.code} already runs on {acquire_date.isoformat()} - a cell can only be "
+                "used once per day. Pick another day or cell.",
+            )
+        # A cell's next use may already be scheduled for a later day than `acquire_date`.
+        # Inserting this use only
         # bumps the later one to a higher Use N - it's never removed, and use numbering is
         # already derived live by acquire_date order (run_serializer._use_number) - so this is
         # only safe while that later use is still pure planning. Reuse must stay strictly
         # sequential once a use has actually started in the lab (see
         # docs/pacbio-sprq-nx-scheduling-reference.md #4), so any other use already running
         # blocks an earlier insert ahead of it, regardless of which use that is.
-        for other in cell.cell_uses:
-            if other.status == "cancelled":
-                continue
-            other_date = use_run_date(other)
-            if other_date is None or other_date <= acquire_date:
-                continue
-            if run_has_started(other):
-                raise PlacementError(
-                    409,
-                    f"Cell {cell.code} already has a use on {other_date.isoformat()} that has "
-                    f"started; cannot insert an earlier use ahead of it.",
-                )
+        started = started_use_after(cell, acquire_date, exclude_use_id=exclude_use_id)
+        if started is not None:
+            raise PlacementError(
+                409,
+                f"Cell {cell.code} already has a use on {use_run_date(started).isoformat()} that has "
+                f"started; cannot insert an earlier use ahead of it.",
+            )
         return cell
     elif mode == "new":
         # Only guard tray cohesion when the target WELL is actually free - a same-well retry
@@ -677,18 +734,15 @@ def _resolve_cell_choice(
 def _reuse_window_open(
     cell: Cell, acquire_date: date, run_time_hours: float, start_hour: int, start_minute: int
 ) -> bool:
-    """Whether `cell`'s 108h reuse window is still open for a use acquiring on `acquire_date`.
-    load_prior_cells / the batch engine deliberately DON'T window-filter (there the window is
-    advisory, flagged after the fact), so the auto-deriver must check it itself or it would
-    silently auto-create an out-of-window reuse. Anchored on the real first-use start once
-    confirmed (`first_use_started_at`), else the planned first-use start - mirrors the
-    frontend's reuseWindow (waitingCells.ts). The deadline math is shared with the read-side
-    reuse_window_exceeded flag via cell_service.reuse_deadline, so the gate and the flag agree."""
-    deadline = reuse_deadline(cell)
-    if deadline is None:
-        return True  # never used yet - no 108h clock running (not a reuse candidate in practice)
+    """Whether `cell`'s 108h reuse window is still open for a use acquiring on `acquire_date`, so
+    the auto-deriver never silently creates an out-of-window reuse (auto-fill applies the same
+    rule via PriorCellInput.blocked_dates). Anchored on the real first-use start once
+    confirmed (`first_use_started_at`), else the planned first-use start. Also refuses a use landing EARLIER than the cell's
+    existing ones when it would become the new Use 1 and push an already-planned later use past
+    the window (e.g. a drop this Wednesday onto next Monday's tray) - see
+    cell_service.reuse_window_allows."""
     reuse_start, _ = planned_window(acquire_date, run_time_hours, start_hour, start_minute)
-    return reuse_start <= deadline
+    return reuse_window_allows(cell, reuse_start)
 
 
 def _reuse_eligible(
@@ -702,8 +756,8 @@ def _reuse_eligible(
     start_minute: int,
 ) -> bool:
     """Bool predicate for the auto-deriver, mirroring _resolve_cell_choice's "existing cell"
-    guards (open, capacity left, same instrument, not inserting ahead of an already-started
-    later use) PLUS the 108h window check. Well/position pinning is enforced by how candidates
+    guards (open, capacity left, same instrument, no other use that same day, not inserting
+    ahead of an already-started later use) PLUS the 108h window check. Well/position pinning is enforced by how candidates
     are gathered in derive_best_cell, so it isn't re-checked here.
 
     Deliberately NOT barcode-aware. A tray breaks its cells out in a fixed physical order, so
@@ -724,14 +778,8 @@ def _reuse_eligible(
     serial, _well = current_location(cell)
     if serial is not None and serial != instrument_serial:
         return False
-    for other in cell.cell_uses:
-        if other.status == "cancelled":
-            continue
-        other_date = use_run_date(other)
-        if other_date is None or other_date <= acquire_date:
-            continue
-        if run_has_started(other):
-            return False
+    if same_day_use(cell, acquire_date) is not None or started_use_after(cell, acquire_date) is not None:
+        return False
     return _reuse_window_open(cell, acquire_date, run_time_hours, start_hour, start_minute)
 
 
@@ -922,10 +970,10 @@ def place_sample(
     sample_barcodes = sample.barcode_list
 
     # A plain drag-drop omits run_time_hours so the sample runs for its own imported/edited
-    # movie time (Sample.movie_time_hours, default 24h - see engine.constants). An explicit
+    # movie time (Sample.movie_time_hours, else the Settings default movie length). An explicit
     # value (a re-place that carries an existing per-cell run time) still wins.
     if run_time_hours is None:
-        run_time_hours = sample.movie_time_hours or DEFAULT_MOVIE_HOURS
+        run_time_hours = sample.movie_time_hours or get_default_movie_hours(db)
 
     # No explicit cell choice (or an explicit "auto") -> the engine derives the cell, applying
     # the same reuse-before-new rule as auto-fill (see derive_best_cell). This is the default
@@ -1112,7 +1160,7 @@ def _remove_one(db: Session, cell_use_id: int, actor: str | None = None) -> None
     db.delete(cell_use)
     db.flush()
 
-    plate_deleted, _run_deleted = _cleanup_emptied_plate(db, cycle)
+    plate_deleted, _run_deleted = cleanup_emptied_plate(db, cycle)
     if not plate_deleted:
         # The plate lost a well; re-zip its remaining wells onto its cells so it still reads
         # ascending (see _resequence_plate).
@@ -1142,7 +1190,7 @@ def remove_samples(
 ) -> tuple[list[int], list[tuple[int, str]]]:
     """Atomically remove many planned placements in ONE transaction - the bulk "Clear
     schedule" and multi-select "Remove from schedule" actions. Because every delete + cleanup
-    runs sequentially in a single transaction, _cleanup_emptied_plate always sees a consistent
+    runs sequentially in a single transaction, cleanup_emptied_plate always sees a consistent
     stage count, so an emptied plate/run is always fully deleted - unlike the previous
     one-concurrent-DELETE-per-stage path, which could race that count check and strand an
     orphaned empty cycle (a stale instrument lock, reported by the lab owner). A use that
@@ -1161,16 +1209,15 @@ def remove_samples(
 
 
 def return_cancelled_use_to_backlog(db: Session, cell_use_id: int, actor: str | None = None) -> int | None:
-    """Recover a placement left stuck as a cancelled ("Blocked") slot by a cell *discard*:
-    delete the dead CellUse row so it stops rendering in the weekly grid, and make sure its
-    sample is back in the backlog. Returns the reverted sample id (None if the use carried
-    no sample).
+    """Recover a placement left stuck as a cancelled ("Blocked") slot - by a cell discard or a
+    Cell QC Stop/Retire whose re-zip displaced it: delete the dead CellUse row so it stops
+    occupying its well, and make sure its sample is back in the backlog. Returns the reverted
+    sample id (None if the use carried no sample).
 
-    Only discard-originated cancellations qualify. A cancellation from a QC Stop (see
-    cell_service.stop_cell) is a deliberate, permanent marker of a dead well - refused here
-    (409) so the QC trail stays intact; that one is reversed with Undo stop instead. The two
-    are told apart by cell.discarded_at, which only a discard ever sets. Plate/run cleanup
-    mirrors remove_sample."""
+    A QC marker used to be kept forever, but it sits on whatever (often healthy) cell backed that
+    well, so the well could never be loaded again - a stop must only ever cost the stopped cell's
+    own future uses. The QC trail lives in the qc_commit AuditLog, not in the marker; Undo QC
+    reports a cleared marker as drifted. Plate/run cleanup mirrors remove_sample."""
     cell_use = db.get(
         CellUse,
         cell_use_id,
@@ -1185,14 +1232,6 @@ def return_cancelled_use_to_backlog(db: Session, cell_use_id: int, actor: str | 
     if cell_use.status != "cancelled":
         raise PlacementError(409, "Only a cancelled (Blocked) placement can be returned to the backlog this way.")
 
-    cell = cell_use.cell
-    if cell is None or cell.discarded_at is None:
-        raise PlacementError(
-            409,
-            "This Blocked slot was created by a Stop cell action, not a discard, so it's kept as a "
-            "permanent record. Use Undo stop on the cell instead.",
-        )
-
     cycle = cell_use.cycle
     sample = cell_use.sample
     sample_id = cell_use.sample_id
@@ -1205,20 +1244,20 @@ def return_cancelled_use_to_backlog(db: Session, cell_use_id: int, actor: str | 
     db.delete(cell_use)  # cascades this use's own barcodes
     db.flush()
 
-    # The discard already bounced the sample to the backlog, but it may have been
-    # rescheduled since - only force it back if it has no other live (non-cancelled)
-    # placement, so a sample that's legitimately scheduled elsewhere isn't clobbered.
-    if sample is not None:
+    # The discard / QC action already routed the sample (backlog, or failed + top-up), but it
+    # may have been rescheduled since - only put a stale "scheduled" sample back in the backlog,
+    # and only if it has no other live (non-cancelled) placement. A QC "lost" sample stays failed.
+    if sample is not None and sample.status == "scheduled":
         active = db.scalar(
             select(func.count())
             .select_from(CellUse)
             .where(CellUse.sample_id == sample.id, CellUse.status != "cancelled")
         )
-        if active == 0 and sample.status != "backlog":
+        if active == 0:
             sample.status = "backlog"
 
     if cycle is not None:
-        _cleanup_emptied_plate(db, cycle)
+        cleanup_emptied_plate(db, cycle)
 
     db.add(
         AuditLog(
@@ -1382,6 +1421,23 @@ def move_sample(
         reassign_to_new_cell = True
     if not reassign_to_new_cell and explicit_override:
         reassign_to_new_cell = True
+    if not reassign_to_new_cell:
+        # A same-well move to another day keeps its cell only if that cell could legally take a
+        # use there; otherwise the instrument would reach for a different cell, so derive it like
+        # any other move. Catches a cell since stopped/retired/discarded, a destination plate
+        # already loaded from another tray (one tray per plate), a second use of the cell that
+        # same day, and an insert ahead of an already-started later use.
+        dest_tray_id = _established_tray_id(
+            _load_existing_cycle(db, instrument_id=instrument.id, load_date=load_date, plate_index=dest_plate_index)
+        )
+        if (
+            cell.discarded_at is not None
+            or cell.status in ("stopped", "retired")
+            or (dest_tray_id is not None and cell.tray_id is not None and cell.tray_id != dest_tray_id)
+            or same_day_use(cell, dest_acquire_date, exclude_use_id=cell_use.id) is not None
+            or started_use_after(cell, dest_acquire_date, exclude_use_id=cell_use.id) is not None
+        ):
+            reassign_to_new_cell = True
 
     if reassign_to_new_cell and cell_choice is None:
         # No explicit target cell - derive the next-in-order cell at the destination, same as a
@@ -1446,7 +1502,7 @@ def move_sample(
     dest_run_batch_id = dest_cycle.run_batch_id
     plate_deleted = False
     if not same_cycle:
-        plate_deleted, _run_deleted = _cleanup_emptied_plate(db, old_cycle)
+        plate_deleted, _run_deleted = cleanup_emptied_plate(db, old_cycle)
         if not plate_deleted:
             _resequence_plate(db, old_cycle)  # the plate this sample left may now read out of order
 
@@ -1546,6 +1602,7 @@ def _move_sample_to_new_cell(
         acquire_date=acquire_date,
         load_date=load_date,
         plate_index=plate_index,
+        exclude_use_id=cell_use.id,
     )
 
     old_cycle_id = old_cycle.id
@@ -1573,7 +1630,7 @@ def _move_sample_to_new_cell(
     db.flush()
 
     if old_cycle_id != dest_cycle.id:
-        plate_deleted, _run_deleted = _cleanup_emptied_plate(db, old_cycle)
+        plate_deleted, _run_deleted = cleanup_emptied_plate(db, old_cycle)
         if not plate_deleted:
             _resequence_plate(db, old_cycle)  # the plate this sample left may now read out of order
 
@@ -1610,7 +1667,8 @@ def _move_sample_to_new_cell(
 def swap_samples(db: Session, *, cell_use_id_a: int, cell_use_id_b: int, actor: str | None = None) -> list[RunBatch]:
     """Exchange which sample is loaded onto two already-placed CellUses - dragging a placed
     sample onto a *different* occupied slot in the weekly grid. Deliberately never touches
-    cycle_id/well/cell_id on either row: only sample_id and its barcode snapshot move. So
+    cycle_id/well/cell_id on either row: only sample_id, its barcode snapshot and its run time
+    (the sample's own movie time) move. So
     neither cell gains or loses a use, no use's acquire_date changes, and the well each cell
     is pinned to is untouched on both sides - the 3-use cap, 108h window, and the (cycle_id,
     well) unique constraint all stay structurally unaffected. Each side's cell was already an
@@ -1668,6 +1726,10 @@ def swap_samples(db: Session, *, cell_use_id_a: int, cell_use_id_b: int, actor: 
     # introduce a new clash anyway (they already share one burned-barcode set); a swap across
     # cells can, and that is left to the has_barcode_clash flag to report.
     use_a.sample_id, use_b.sample_id = sample_b_id, sample_a_id
+    # A well's run time is its sample's movie time (place/move/auto-fill all carry it with the
+    # sample), so it travels with the sample here too - otherwise a 12h sample swapped into a 30h
+    # well would silently run for 30h. Each plate's representative timing is re-derived below.
+    use_a.run_time_hours, use_b.run_time_hours = use_b.run_time_hours, use_a.run_time_hours
     for row in list(use_a.barcodes) + list(use_b.barcodes):
         db.delete(row)
     db.flush()
@@ -1675,6 +1737,9 @@ def swap_samples(db: Session, *, cell_use_id_a: int, cell_use_id_b: int, actor: 
         db.add(CellUseBarcode(cell_use_id=use_a.id, barcode=bc))
     for bc in sample_a_barcodes:
         db.add(CellUseBarcode(cell_use_id=use_b.id, barcode=bc))
+    db.flush()
+    for cycle in {use_a.cycle, use_b.cycle}:
+        recompute_cycle_timing(db, cycle)
 
     db.add(
         AuditLog(

@@ -11,12 +11,12 @@ from datetime import date, datetime, timedelta
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session, selectinload
 
+from app.engine.cell_window import window_allows
 from app.engine.constants import (
     CELL_LIFETIME_H,
     CELL_MAX_USES,
     CELLS_PER_TRAY,
     DAY_START_HOUR,
-    DEFAULT_MOVIE_HOURS,
     WELLS,
     within_tray_pos,
 )
@@ -29,12 +29,20 @@ from app.models.instrument import Instrument
 from app.models.sample import Sample
 from app.models.schedule import CellUse, CellUseBarcode, Cycle, RunBatch
 from app.services import instrument_lock
-from app.services.cell_service import mark_cell_discarded, open_new_tray, recompute_status
+from app.services.cell_service import (
+    mark_cell_discarded,
+    open_new_tray,
+    recompute_status,
+    reuse_window_allows,
+    same_day_use,
+    started_use_after,
+)
 from app.services.cell_timing import coarse_movie_end
 from app.services.engine_bridge import load_backlog_samples, load_prior_cells, to_parsed_samples
 from app.services.settings_service import get_insert_size_reuse_threshold, get_movie_rules
 from app.services.placement_service import (
     PlacementError,
+    cleanup_emptied_plate,
     get_or_create_run,
     planned_window,
     recompute_cycle_timing,
@@ -96,21 +104,22 @@ def _dispose_tray_if_fully_used(db: Session, tray_id: int, max_uses: int, now: d
     "open", and recompute_status() alone never does that for a dial below the physical
     3-use cap), and again in the end-of-batch sweep further down, for any tray that
     reached the dial but was never fought over mid-batch. Idempotent - a tray already
-    disposed, not yet fully used, or under manual QC hold (retired/stopped) is left
-    untouched - so calling it twice on the same tray_id is always safe. Returns the ids of
-    cells this call actually disposed (empty if none)."""
+    disposed or not yet fully used is left untouched - so calling it twice on the same tray_id
+    is always safe. A stopped/retired cell (QC) is out of service with nothing left to give, so
+    it's left out of the "every cell reached the dial" test rather than holding its whole tray
+    open. Returns the ids of cells this call actually disposed (empty if none)."""
     tray_cells = db.scalars(select(Cell).where(Cell.tray_id == tray_id)).all()
     for cell in tray_cells:
         db.refresh(cell, attribute_names=["cell_uses"])
-    # A stopped/retired cell means the tray needs manual attention - never auto-bin it.
-    if any(cell.status in ("retired", "stopped") for cell in tray_cells):
-        return []
 
     def _active_uses(cell: Cell) -> int:
         return len([cu for cu in cell.cell_uses if cu.status != "cancelled"])
 
-    # Not fully spent yet (some cell hasn't reached the dial) - leave the whole tray open.
-    if not all(_active_uses(cell) >= max_uses for cell in tray_cells):
+    # Not fully spent yet (some live cell hasn't reached the dial) - leave the whole tray open. A
+    # stopped/retired cell is already out of service with no uses to give, so it never holds the
+    # rest of its tray back: a QC stop costs only that cell's own future uses.
+    live = [cell for cell in tray_cells if cell.status not in ("retired", "stopped")]
+    if not live or not all(_active_uses(cell) >= max_uses for cell in live):
         return []
     # Every cell reached the dial: bin the tray as one unit. Cells already terminal by
     # natural exhaustion (dial == 3) carry no leftover capacity and need no flag or count;
@@ -143,12 +152,17 @@ def auto_fill(
     # sample's movie time, and 12h/30h samples are confined to cell 1/cell 4 respectively
     # (see engine/packing.cell_allowed_positions and engine/slot_scheduling.fill_slots).
     movie_set = set(movie_times)
+    # Lab-configurable scheduling rules (Settings > Movie scheduling), read once and passed into
+    # the pure engine so it stays DB-free. Its default length is what a sample with no movie time
+    # of its own runs for - here exactly as in the engine and manual placement.
+    movie_rules = get_movie_rules(db)
+    default_hours = movie_rules.default_hours
     # A single conservative length only for the new-run lock gate below (which just needs "does
     # a prior lock span the whole load day"): the longest ticked movie can't under-reserve.
-    probe_hours = max(movie_times) if movie_times else DEFAULT_MOVIE_HOURS
+    probe_hours = max(movie_times) if movie_times else default_hours
 
     def _movie(sample) -> int:
-        return sample.movie_time or DEFAULT_MOVIE_HOURS
+        return sample.movie_time or default_hours
 
     # --- validation ---
     for c in cells:
@@ -216,7 +230,17 @@ def auto_fill(
             # whole batch, matching the existing "already occupied" skip UX.
             skipped.append((serial, run_date))
         else:
-            empty_slots.append(SlotInput(instrument_serial=serial, run_date=run_date))
+            # A cancelled-only day still has its markers' wells taken - tell the engine so it never
+            # plans a sample onto one (persisting would otherwise have to shuffle wells around it).
+            marker_wells = frozenset(
+                db.scalars(
+                    select(CellUse.well)
+                    .join(CellUse.cycle)
+                    .join(Cycle.run_batch)
+                    .where(RunBatch.instrument_id == inst.id, RunBatch.load_date == run_date)
+                ).all()
+            )
+            empty_slots.append(SlotInput(instrument_serial=serial, run_date=run_date, taken_wells=marker_wells))
 
     # --- engine ---
     # Only the ticked movie times are scheduled; the rest stay in the backlog (a sample with no
@@ -227,7 +251,7 @@ def auto_fill(
     # samples it just unscheduled from one instrument - never invite the wider backlog to
     # compete for the freed slots).
     samples = [
-        s for s in load_backlog_samples(db, sample_ids) if (s.movie_time_hours or DEFAULT_MOVIE_HOURS) in movie_set
+        s for s in load_backlog_samples(db, sample_ids) if (s.movie_time_hours or default_hours) in movie_set
     ]
     parsed = to_parsed_samples(samples)
     prior_cells, cells_by_id = load_prior_cells(db, [])
@@ -290,9 +314,29 @@ def auto_fill(
     # See jmtcsngr/sprq-nx-planner#43.
     load_days = len({s.run_date for s in empty_slots})
     reuse_available_days = len({s.run_date for s in empty_slots} | {c.run_date for c in continuation_slots})
-    # Lab-configurable scheduling rules read once here and passed into the pure engine so it
-    # stays DB-free (same pattern for both the small-insert threshold and the movie-time rules).
-    movie_rules = get_movie_rules(db)
+
+    # A real prior cell's own existing uses rule some offered days out for it: it already runs
+    # that day (one use per cell per day), a use there would land ahead of one already started, or
+    # it would break the cell's 108h window - incl. landing EARLIER than its booked uses and pushing
+    # one of them out. Mirrors manual placement's _reuse_eligible, so auto-fill never plans a reuse
+    # a drag would refuse; the engine skips those days and packs no samples onto a cell with none
+    # left (see PriorCellInput.blocked_dates / usable_days).
+    offered_days: dict[str, set[date]] = defaultdict(set)
+    for s in empty_slots + continuation_slots:
+        offered_days[s.instrument_serial].add(s.run_date)
+    all_offered_days = set().union(*offered_days.values()) if offered_days else set()
+    for pc in prior_cells:
+        prior_cell = cells_by_id[pc.cell_id]
+        days = offered_days.get(pc.pinned_instrument_serial, set()) if pc.pinned_instrument_serial else all_offered_days
+        pc.blocked_dates = frozenset(
+            d
+            for d in days
+            if same_day_use(prior_cell, d) is not None
+            or started_use_after(prior_cell, d) is not None
+            or not reuse_window_allows(prior_cell, planned_window(d, default_hours, start_hour, start_minute)[0])
+        )
+        pc.usable_days = len(days) - len(pc.blocked_dates)
+
     pack = pack_cells(
         parsed,
         max_uses=max_uses,
@@ -521,6 +565,24 @@ def auto_fill(
     # position later in the same batch).
     well_claimant: dict[tuple[int, str], str] = {}
     now = utcnow()
+    # Plates this batch created or joined, by id (for the real-day re-check below).
+    cycles_by_id: dict[int, Cycle] = {}
+    # Cell id -> (acquire day, planned start) of each of its active uses, seeded from the DB on
+    # first touch and kept current as this batch writes uses (the ORM collection goes stale - this
+    # loop inserts CellUse rows by id).
+    cell_slot_cache: dict[int, list[tuple[date, datetime]]] = {}
+
+    def _cell_use_slots(cell: Cell) -> list[tuple[date, datetime]]:
+        slots = cell_slot_cache.get(cell.id)
+        if slots is None:
+            rows = db.execute(
+                select(Cycle.acquire_date, Cycle.planned_start_at)
+                .join(CellUse, CellUse.cycle_id == Cycle.id)
+                .where(CellUse.cell_id == cell.id, CellUse.status != "cancelled")
+            ).all()
+            slots = [(day, ensure_aware(start)) for day, start in rows]
+            cell_slot_cache[cell.id] = slots
+        return slots
 
     def _resolve_well(cycle_id: int, requested_well: str) -> str | None:
         taken = occupied_wells.get(cycle_id)
@@ -583,6 +645,7 @@ def auto_fill(
                 continue
             cycle_id = cyc.id
             run_plate_cycles[plate_key] = cycle_id
+            cycles_by_id[cycle_id] = cyc
             run_ids.add(cyc.run_batch_id)
 
         well = _resolve_well(cycle_id, a.well)
@@ -670,6 +733,22 @@ def auto_fill(
             db_cell = box_cells[within_tray_pos(well)]
             ref_to_cell[a.cell.id] = db_cell
 
+        # The engine plans by day, but a bundled Plate 2's real acquire day/time is only known
+        # once get_or_create_run chains it off Plate 1's movie end (a late load or long movie can
+        # push it a further day). Re-check against the plate's REAL day before writing: never two
+        # uses of one cell that day, and a prior cell never out of its 108h window. Left unplaced
+        # rather than written impossible.
+        cyc = cycles_by_id[cycle_id]
+        use_slots = _cell_use_slots(db_cell)
+        if any(day == cyc.acquire_date for day, _ in use_slots):
+            continue
+        if a.cell.prior and not window_allows(
+            [start for _, start in use_slots],
+            ensure_aware(cyc.planned_start_at),
+            ensure_aware(db_cell.first_use_started_at) if db_cell.first_use_started_at else None,
+        ):
+            continue
+
         cell_use = CellUse(
             cycle_id=cycle_id,
             cell_id=db_cell.id,
@@ -686,6 +765,7 @@ def auto_fill(
         db.add(cell_use)
         db.flush()
         occupied_wells[cycle_id].add(well)
+        use_slots.append((cyc.acquire_date, ensure_aware(cyc.planned_start_at)))
         for bc in a.sample.barcodes:
             db.add(CellUseBarcode(cell_use_id=cell_use.id, barcode=bc))
         touched_cells.add(db_cell)
@@ -693,8 +773,17 @@ def auto_fill(
             placed_sample_ids.append(a.sample.sample_id)
             # The day this sample actually ACQUIRES (sequences), not the run's own load_date -
             # for a bundled Plate 2 these differ, and it's the acquire day that matters to a
-            # lab user (see AutoFillResult.sample_acquire_dates / day_changed_sample_ids).
-            sample_acquire_dates[a.sample.sample_id] = acquire_date
+            # lab user (see AutoFillResult.sample_acquire_dates / day_changed_sample_ids). The
+            # plate's real day, which can be later than the packer's planned day.
+            sample_acquire_dates[a.sample.sample_id] = cyc.acquire_date
+
+    # A plate this batch created can end up empty when the re-check above refused every use
+    # planned onto it - drop it (and an emptied run) rather than leave a stage-less plate behind.
+    for cyc in cycles_by_id.values():
+        run_batch_id = cyc.run_batch_id
+        _plate_deleted, run_deleted = cleanup_emptied_plate(db, cyc)
+        if run_deleted:
+            run_ids.discard(run_batch_id)
 
     if placed_sample_ids:
         # Also clear any Cell-QC "recoverable"/"repeatable" tag, mirroring place_sample's own
@@ -765,7 +854,7 @@ def auto_fill(
         # the later use starts (see docs/pacbio-sprq-nx-scheduling-reference.md #2 and
         # _reuse_window_open), so planned_window()[0] (start), not [1] (end). The movie length
         # passed here is irrelevant - only [0] (the start) is read - so any value serves.
-        planned_start = planned_window(last_date_by_ref[pc.id], DEFAULT_MOVIE_HOURS, start_hour, start_minute)[0]
+        planned_start = planned_window(last_date_by_ref[pc.id], default_hours, start_hour, start_minute)[0]
         span_h = (planned_start - ensure_aware(started)).total_seconds() / 3600
         if span_h > CELL_LIFETIME_H:
             _bump(db_cell.code, span_h)

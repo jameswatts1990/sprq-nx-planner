@@ -9,8 +9,7 @@ import { slotKey } from "./gridKeys";
 import { SchedulerSlotView } from "./SchedulerSlotView";
 import { SearchHighlightContext } from "./searchHighlight";
 import { CellLinkContext } from "./useCellLinkHighlight";
-import type { DragData, FilledSlotDragData, OccupiedSlotDropData, SlotDropData } from "./useSchedulerDnd";
-import { ghostWouldClashWithSample, type CellGhost } from "./waitingCells";
+import type { FilledSlotDragData, OccupiedSlotDropData, SlotDropData } from "./useSchedulerDnd";
 
 export interface SchedulerSlotProps {
   stage: StageOut | null;
@@ -37,13 +36,6 @@ export interface SchedulerSlotProps {
    * selection instead of (dnd-kit) moving the sample - see SchedulePage's
    * onDragSelectStart. */
   onDragSelectStart: (stage: StageOut) => void;
-  /** A spent-well marker (terminal cell still occupying its well) to render non-droppably;
-   * or a reuse ghost whose only job now is to carry its resident cell's id to the drop (see
-   * DroppableSlot / SchedulerSlotView - reuse offers are no longer drawn as cards). */
-  ghost?: CellGhost;
-  /** This well is permanently blocked by a stopped cell (see waitingCells.
-   * groupBlockedWellsByInstrument) - read-only, never a drop target. */
-  blocked?: boolean;
 }
 
 /**
@@ -54,15 +46,9 @@ export interface SchedulerSlotProps {
  * leaf components (React swaps them on transition).
  */
 export function SchedulerSlot(props: SchedulerSlotProps) {
-  const { stage, locked, blocked } = props;
+  const { stage, locked } = props;
 
   if (!stage) {
-    // A stopped cell's well is a permanent, read-only marker - never droppable, and
-    // blocked regardless of the day's own lock state (see waitingCells.
-    // groupBlockedWellsByInstrument / cell_service.stop_cell).
-    if (blocked) {
-      return <SchedulerSlotView stage={null} slotIndex={props.slotIndex} blocked />;
-    }
     if (locked) {
       // A grid slot is a plate LOADING position, not a cell: an un-loaded slot on a locked run
       // is just a plain locked placeholder. Cell state (a spent/exhausted resident) never blocks
@@ -70,11 +56,11 @@ export function SchedulerSlot(props: SchedulerSlotProps) {
       // (derive_best_cell), so there's nothing cell-shaped to paint here.
       return <SchedulerSlotView stage={null} slotIndex={props.slotIndex} locked placing={props.placing} />;
     }
-    // Every empty, unlocked slot is a plain droppable "+": a slot is a loading position, so it
-    // never carries cell state. A spent/exhausted/terminal resident cell no longer blocks it -
-    // the drop resolves to the next-usable cell in that tray (reuse-before-new) via the backend
-    // derive_best_cell, made visible only afterwards by the loaded card's stub. The only thing
-    // that still blocks a slot is the instrument lock (handled above) or a stopped-cell well.
+    // Every empty, unlocked slot is a plain droppable "+": a slot is a plate loading position,
+    // independent of the cell trays, so it never carries cell state. A spent, expired or
+    // QC-stopped cell never blocks it - the backend (derive_best_cell) simply picks another
+    // usable cell for the drop, shown afterwards on the loaded card's stub. Only the
+    // instrument lock (above) makes an empty slot non-droppable.
     return <DroppableSlot {...props} />;
   }
 
@@ -94,7 +80,6 @@ function DroppableSlot({
   instrumentSerial,
   loadDate,
   placing,
-  ghost,
 }: SchedulerSlotProps) {
   // A slot is a plate LOADING position, not a cell: a drop never targets a specific resident
   // cell. Which physical cell it lands on is derived server-side (reuse-before-new, the
@@ -106,30 +91,15 @@ function DroppableSlot({
     load_date: loadDate,
     slot_index: slotIndex,
   };
+  // No pre-drop barcode-clash hint here: which cell a drop gets is decided server-side
+  // (derive_best_cell, then the plate is re-zipped ascending), independent of this slot's
+  // index, so any slot-based guess warns on the wrong wells. The real clash is flagged on the
+  // placed card (StageOut.barcode_clash) the moment the drop lands.
   const { setNodeRef, isOver } = useDroppable({
     id: slotKey(instrumentSerial, loadDate, slotIndex),
     data,
   });
-  // A live drag's own sample, read directly from dnd-kit's shared context rather than threaded
-  // down as a prop - `active` only changes at drag start/end, so every slot in the grid
-  // subscribing to it costs two re-renders per drag, not one per pointer move. Combined with
-  // this slot's own reuse ghost (already computed by SchedulerDayCell) to warn, the moment a
-  // drag starts, about every well whose natural next cell would clash - not just the one
-  // currently hovered (see ghostWouldClashWithSample).
-  const { active } = useDndContext();
-  const dragged = active?.data.current as DragData | undefined;
-  const draggedSample = dragged?.kind === "sample" || dragged?.kind === "filledSlot" ? dragged.sample : undefined;
-  const dragClashWarning = !!draggedSample && ghostWouldClashWithSample(ghost, draggedSample);
-  return (
-    <SchedulerSlotView
-      ref={setNodeRef}
-      stage={null}
-      slotIndex={slotIndex}
-      over={isOver}
-      placing={placing}
-      dragClashWarning={dragClashWarning}
-    />
-  );
+  return <SchedulerSlotView ref={setNodeRef} stage={null} slotIndex={slotIndex} over={isOver} placing={placing} />;
 }
 
 function DraggableSlot({
@@ -150,7 +120,6 @@ function DraggableSlot({
     sample: {
       id: stage.sample_id as number,
       pool_id: stage.sample_pool_id ?? "",
-      barcodes: stage.barcodes,
     },
     cell_use_id: stage.cell_use_id,
     cell_id: stage.cell_id,

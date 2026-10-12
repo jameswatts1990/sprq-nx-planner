@@ -7,7 +7,7 @@ import type { RunDesignFieldsProps } from "./RunDesignFields";
 
 export interface AutoscheduleDrawerProps extends RunDesignFieldsProps {
   onClose: () => void;
-  /** Every open cell (SchedulePage's waiting-ghosts query), grouped into the reuse-candidate
+  /** Every open cell (SchedulePage's open-cells query), grouped into the reuse-candidate
    * tray list with its per-tray "Skip reuse" toggle. */
   reuseCandidateCells: CellOut[];
 }

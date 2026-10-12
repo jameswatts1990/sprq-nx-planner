@@ -55,7 +55,7 @@ function expiryText(hours: number): string {
 }
 
 export interface AutoscheduleReuseTraysProps {
-  /** Every open cell (SchedulePage's waiting-ghosts query) - grouped into reuse-candidate trays here. */
+  /** Every open cell (SchedulePage's open-cells query) - grouped into reuse-candidate trays here. */
   cells: CellOut[];
 }
 

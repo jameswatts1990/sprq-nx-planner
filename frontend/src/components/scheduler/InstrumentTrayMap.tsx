@@ -229,8 +229,9 @@ export interface InstrumentTrayMapProps {
  * the instrument serial in the schedule grid's left column. Mirrors the two-plate deck:
  * carousel[0] = Plate 1 tray, carousel[1] = Plate 2. Each slot shows the tray resident by the
  * END of the viewed week (so a mid-week turnover shows the successor, not the departed tray),
- * and each cell is shaded by its own precise 108h expiry (each of a tray's 4 cells breaks out
- * ~2h apart, so they expire on a staggered ladder). By default every cell's state is projected
+ * and each cell is shaded by its own 108h expiry (once a run is confirmed loaded, each of a
+ * tray's 4 cells breaks out ~2h apart, so they expire on a staggered ladder; before that every
+ * cell reads the plate's planned start, as the backend's reuse-window check does). By default every cell's state is projected
  * to the end of the viewed week; hovering the panel flips it to a live "now" reading, flagged by
  * a green "NOW" pill. Read-only; each tray header links to that tray's own page. */
 export const InstrumentTrayMap = memo(function InstrumentTrayMap({ map }: InstrumentTrayMapProps) {

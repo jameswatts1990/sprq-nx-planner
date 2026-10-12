@@ -150,9 +150,12 @@ export function ScheduleSection() {
           <b>dotted underline</b> (it firms up once the run is confirmed loaded).
         </li>
         <li>
-          <b>Each cell has its own deadline, not one shared date.</b> The instrument breaks a tray&apos;s four cells out
-          about <b>2 hours apart</b> (and a second tray about <b>a day</b> after the first), and a cell&apos;s 108-hour
-          clock starts at <i>its own</i> breakout — so the four cells expire on a staggered ladder, cell 1 first.
+          <b>Each cell has its own deadline, not one shared date.</b> A cell&apos;s 108-hour clock starts at its own
+          first use. Until that run is confirmed loaded, the date is an estimate from the planned load time of the
+          plate that first uses it (dotted underline) — the same date the scheduler checks before offering the cell
+          for reuse. Once you confirm the load, each cell takes its real breakout time (the instrument breaks a
+          tray&apos;s four cells out about <b>2 hours apart</b>), so the four cells expire on a staggered ladder, cell 1
+          first.
         </li>
         <li>
           Colour and icon show each cell&apos;s state at a glance: <b>green</b> = comfortably in window; <b>amber</b> =
@@ -454,8 +457,12 @@ export function ScheduleSection() {
         physical SMRT cell it runs on automatically — the same rule the instrument uses: <b>reuse an already-open cell
         before opening a new one</b>, taking the cell nearest its 108-hour deadline first. It looks across the whole
         tray in that position (all four cells, <b>▣1–▣4</b>), not just the well you dropped on: if a used-up cell sits
-        in that slot, the drop simply routes to the next usable cell in the tray. Only when no cell in the tray has
-        capacity left does a fresh tray of 4 open. The card stays in the slot you dropped on; its <b>stub</b> tells you
+        in that slot, the drop simply routes to the next usable cell in the tray. A cell only counts as usable for that
+        day if it isn&apos;t already running that day and taking the sample wouldn&apos;t break its 108-hour window —
+        including dropping onto an <i>earlier</i> day than a tray&apos;s booked runs, which would push those runs out
+        of the window. <b>Auto Schedule</b> follows exactly the same rules. Only when no cell in the tray is usable
+        does a fresh tray of 4 open, into a bay whose old tray has finished its last run. The card stays in the slot
+        you dropped on; its <b>stub</b> tells you
         which cell it actually landed on (e.g. <i>▣2</i>). No <i>cell</i> picker ever interrupts the drop — the
         instrument chooses the cell — though the first sample onto a brand-new run day still opens the radial{" "}
         <b>load-time dial</b> (defaulting to your Run design load time) to set when that run loads, as described under{" "}
@@ -472,9 +479,9 @@ export function ScheduleSection() {
         moves your sample to a different well behind your back. A drop always lands on whichever cell the tray would
         naturally give that slot, even if that cell already burned this exact barcode with a <i>different</i> sample —
         the placement still succeeds and the card gets the hazard-striped <b>⚠ Clash</b> marking (see the Colour &amp;
-        Status Legend), with the slot detail explaining why. While you&apos;re dragging, every empty well whose natural
-        next cell would clash lights up with a dashed red warning first, so you can see the danger zones before you
-        drop. If a clash shouldn&apos;t happen, move one of the two samples to a different slot, day, or plate. This is
+        Status Legend), with the slot detail explaining why. Which cell a drop gets doesn&apos;t depend on the well you
+        aim at, so there&apos;s no warning while you drag — the clash shows on the card the moment it lands. If a clash
+        shouldn&apos;t happen, move one of the two samples to a different slot, day, or plate. This is
         true on <b>every</b> manual action — a plain drop, naming a specific cell yourself (the cell stub&apos;s
         &quot;choose a specific cell&quot; override), or swapping two placed samples: none of them is ever blocked for
         a clash, they warn and let you decide. A <b>duplicate</b> sample (same Pool ID as an earlier copy) is the
@@ -562,7 +569,8 @@ export function ScheduleSection() {
         stub names that cell. Either way the destination plate always stays in ascending cell order — you can never
         end up with a later cell sitting in an earlier well ahead of an available one. Dropping a sample back onto the
         exact slot it came from does nothing. Dropping an already-placed sample onto a slot that already holds a <i>different</i> sample{" "}
-        <b>swaps the two</b> — they trade places, and a swap preview highlights the target as you hover. Dropping a{" "}
+        <b>swaps the two</b> — they trade places (each keeping its own movie time), and a swap preview highlights the
+        target as you hover. Dropping a{" "}
         <i>backlog</i> sample onto an occupied slot, by contrast, is <b>rejected</b> — it never overwrites what&apos;s
         there: hovering shows a dashed red outline instead of the swap preview, and letting go shows a short note
         explaining the slot is already taken rather than silently doing nothing.
@@ -571,8 +579,9 @@ export function ScheduleSection() {
         <b>No manual action is ever blocked by a barcode clash</b> — a plain place, a move, a swap, and naming a
         specific cell yourself all go through and simply flag the clash on the card (the <b>⚠ Clash</b> marking) for
         you to check and rectify. See <b>Cells fill in order</b> above. The only things that genuinely stop a
-        placement are a cell with no uses left (its 3-use cap) or an expired 108-hour window — real, physical limits,
-        not a clash.
+        placement are real, physical limits, not a clash: a cell with no uses left (its 3-use cap), an expired
+        108-hour window, or a cell that already runs that day — a cell is used at most once per day, so the app picks
+        another cell for you (and naming that cell yourself is refused with a note saying why).
       </p>
       <p>
         <b>Auto-schedule result</b> summarises the outcome, e.g. &quot;12 placed · 3 unplaced (TRAC-2-26296,
@@ -614,7 +623,10 @@ export function ScheduleSection() {
       </p>
       <p>
         Because loading is a continuous queue, stopping or retiring a cell shifts its later samples onto the
-        tray&apos;s remaining cells and the tail may drop off. The dialog then asks you to decide each affected sample
+        tray&apos;s remaining cells, one plate at a time: on each later plate that loses the stopped cell, the wells
+        after it move up onto that plate&apos;s other cells (or onto a tray cell that&apos;s free that day), and only
+        that plate&apos;s last sample can drop off. A stop only ever costs the stopped cell&apos;s own future uses —
+        a cell is never doubled up on one plate or one day. The dialog then asks you to decide each affected sample
         — <b>Lost</b> (→ the Backlog&apos;s <b>Top-up required</b> list), or <b>Repeatable</b> / <b>Recoverable</b>{" "}
         (→ the Backlog&apos;s <b>Recoverable Samples</b> section, above High priority). Samples that simply ran on a
         <i>different</i> cell than planned are flagged for review — with a warning if the shift created a barcode
@@ -623,7 +635,7 @@ export function ScheduleSection() {
         scanning the week (see <b>Barcode clash</b> in the Legend tab). A stopped/retired cell is never offered for
         reuse again; the same dialog later offers <b>Undo QC</b> to
         reverse the whole action (a top-up whose request was already sent is left in place). Cancelled uses stay
-        visible as <b>Blocked</b> slots (see below) rather than disappearing.
+        visible as <b>Blocked</b> slots (see below) rather than disappearing, until you clear them.
       </p>
       <p>
         <b>Out of window (⚠ Window):</b> a re-use only counts if it can start within its cell&apos;s <b>108-hour</b>{" "}
@@ -695,8 +707,9 @@ export function ScheduleSection() {
         slot popover&apos;s <b>Cell QC</b> on the schedule, or on the cell&apos;s detail page (which the instrument
         cell map opens) — and choose <b>Undo QC</b>. It reopens the
         cell and restores every sample the action affected — reassigned samples move back, cancelled ones become
-        planned again, and backlog/top-up moves are reversed — except a sample that has since moved on, or a top-up
-        whose request was already marked sent, which are left as they are.
+        planned again, and backlog/top-up moves are reversed — except a sample that has since been placed again,
+        a <b>Blocked</b> slot you&apos;ve since cleared, or a top-up whose request was already marked sent, which are
+        left as they are (so nothing is ever scheduled twice).
       </p>
       <p>
         <b>Failed/Aborted/Stopped/Blocked indicator</b> on the grid flags a QC problem without opening the slot,
@@ -736,8 +749,9 @@ export function ScheduleSection() {
           </div>
           <span>
             <b>Blocked</b> (red, cross-hatched) — a placement cancelled before it ever ran; its sample is back in the
-            Backlog. From a <b>Stop cell</b> it&apos;s a permanent, read-only marker (no drag, no Remove); from a
-            <b> cell discard</b> you can clear it by opening the slot and clicking <b>Return to backlog</b>.
+            Backlog (or on the top-up list). It can&apos;t be dragged or removed, but it doesn&apos;t hold the well
+            forever: open the slot and click <b>Clear slot</b> (from a Stop cell) or <b>Return to backlog</b> (from a
+            cell discard) to free the well for another sample.
           </span>
         </div>
       </div>
@@ -781,7 +795,7 @@ export function ScheduleSection() {
         <li>
           <b>Drag a placed sample off the grid</b> (drop it anywhere that isn&apos;t a slot) to remove it from the
           schedule the same way — while you&apos;re holding it, the slot it came from shows its empty <b>+</b>{" "}
-          placeholder as a preview of that removal. Dropping it onto a locked run, a blocked well, or any other
+          placeholder as a preview of that removal. Dropping it onto a locked run, or any other
           non-droppable spot <i>inside</i> the grid never removes it by mistake — only letting go genuinely outside
           the whole grid does that. Landing on one of those non-droppable spots instead shows a short note saying the
           drop couldn&apos;t land there, and the sample stays exactly where it was.
@@ -829,7 +843,8 @@ export function ScheduleSection() {
           cell&apos;s 108h window on the later day, that card is flagged <b>⚠ Window</b> (see the Colour &amp; flags
           section) so you can load a fresh tray for it — the app never silently swaps the tray. It isn&apos;t offered on
           a <b>Confirm loaded</b> run (unlock first), on a weekend, or onto a day that already has a run on that
-          instrument.
+          instrument; and it&apos;s refused (with a note naming the cell) if one of the run&apos;s cells already runs
+          on the new day in another run, or would land ahead of one of its uses that has already started.
         </li>
         <li>
           <b>Restore tray</b> brings a discarded tray back. It lives on the tray&apos;s page (open a cell&apos;s{" "}
@@ -974,17 +989,15 @@ export function ScheduleSection() {
         across the grid doesn&apos;t flash highlights, and the highlight is suspended while dragging a sample.
       </p>
 
-      <p className={styles.subheading}>Blocked wells</p>
+      <p className={styles.subheading}>Stopped and used-up cells</p>
       <div className={styles.legendGrid}>
         <div className={styles.legendRow}>
-          <div className={styles.ghostExampleSwatch}>
-            <SchedulerSlotView stage={null} slotIndex={0} blocked />
-          </div>
           <span>
-            <b>Blocked:</b> once a physical cell is stopped (a QC action), its well is retired for the rest of that
-            tray&apos;s time on the instrument — a greyed <b>✕</b>, and no new cell can be loaded into that exact
-            slot. The block lifts only once that physical tray leaves and a brand-new tray is loaded into the same
-            bay on a later day, since that later tray&apos;s cell is a different physical object.
+            <b>A stopped cell only loses its own future uses.</b> Once a physical cell is stopped (a Cell QC action), it&apos;s
+            simply never offered again: its tile in the instrument&apos;s tray overview (left
+            column) turns <b>red</b> with <b>0</b> uses left. The plate&apos;s wells are untouched — plate wells and
+            cell trays are separate things, so every empty well stays a normal droppable <b>+</b>, and a sample
+            dropped there is given the next usable cell automatically (the card&apos;s stub shows which one).
           </span>
         </div>
         <div className={styles.legendRow}>
