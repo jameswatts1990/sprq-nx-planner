@@ -9,13 +9,16 @@ export interface SectionHeadingProps {
    * ending in the RunNx brand dot - used on the weekly schedule to show how far through
    * the displayed week today is. Left as the plain fading rule when omitted. */
   progress?: number;
+  /** Tighter top/bottom margins for a heading that sits right under a toolbar (the Schedule
+   * page) rather than between page sections. */
+  compact?: boolean;
 }
 
 /** Ports the prototype's .sec-head: a title, a fading rule line, and an optional
  * right-aligned legend. Shared between SchedulePage and RunDetailPage. */
-export function SectionHeading({ title, legend, progress }: SectionHeadingProps) {
+export function SectionHeading({ title, legend, progress, compact }: SectionHeadingProps) {
   return (
-    <div className={styles.secHead}>
+    <div className={compact ? `${styles.secHead} ${styles.compact}` : styles.secHead}>
       <h2>{title}</h2>
       {progress == null ? (
         <div className={styles.rule} />

@@ -1,0 +1,84 @@
+/* Follows PrintBatchSheetModal.module.css's field + fieldset/label choice-list convention. */
+.intro {
+  margin: 0 0 14px;
+  font-size: var(--fs-md);
+  color: var(--grey);
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 14px;
+}
+.label {
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--grey);
+}
+.textarea {
+  width: 100%;
+  min-height: 70px;
+  resize: vertical;
+  font-family: var(--sans);
+  font-size: var(--fs-lg);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 8px 10px;
+}
+.counter {
+  align-self: flex-end;
+  font-size: var(--fs-xs);
+  color: var(--faint);
+}
+.choices {
+  border: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.choices legend {
+  margin-bottom: 4px;
+}
+.choice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 8px 10px;
+  cursor: pointer;
+}
+.choice:has(input:checked) {
+  border-color: var(--blue);
+  background: var(--blue-tint);
+}
+/* "All instruments" spans the full row above the per-instrument pairs. */
+.allChoice {
+  grid-column: 1 / -1;
+}
+.choiceMain {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  font-weight: 700;
+}
+.meta {
+  font-size: var(--fs-sm);
+  font-weight: 400;
+  color: var(--grey);
+}
+.hint {
+  margin: 8px 0 0;
+  font-size: var(--fs-sm);
+  color: var(--amber);
+}
+/* Delete sits apart on the left of the footer, away from Save. */
+.deleteBtn {
+  margin-right: auto;
+}

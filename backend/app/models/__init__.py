@@ -6,6 +6,7 @@ from app.models.instrument import Instrument
 from app.models.pacbio_case import PacbioCase
 from app.models.sample import Sample, SampleBarcode
 from app.models.schedule import CellUse, CellUseBarcode, Cycle, RunBatch
+from app.models.schedule_note import ScheduleNote
 from app.models.settings import AppSetting
 from app.models.topup import SampleTopup
 
@@ -21,6 +22,7 @@ __all__ = [
     "SampleBarcode",
     "SampleTopup",
     "RunBatch",
+    "ScheduleNote",
     "Cycle",
     "CellUse",
     "CellUseBarcode",

@@ -2,6 +2,7 @@ import { memo, type KeyboardEvent, type MouseEvent } from "react";
 
 import { Button } from "@/components/ui/Button";
 import type { RunOut, StageOut } from "@/types/schedule";
+import type { ScheduleNoteOut } from "@/types/scheduleNote";
 import { isWeekendUTC, parseDateOnly } from "@/utils/calendarDates";
 
 import { resolveCell } from "./groupCyclesByInstrumentAndDay";
@@ -35,6 +36,9 @@ export interface SchedulerGridRowProps {
   trayMap: InstrumentTrayMapData | undefined;
   /** "Recalculate" next to the serial - opens the confirm modal for this instrument. */
   onRecalculate: (serial: string) => void;
+  /** This instrument's day notes for the visible week, keyed by date. */
+  notesByDate: Map<string, ScheduleNoteOut[]>;
+  onEditNote: (note: ScheduleNoteOut) => void;
 }
 
 /** One instrument row: sticky-left <th> serial, then one SchedulerDayCell per day.
@@ -58,6 +62,8 @@ export const SchedulerGridRow = memo(function SchedulerGridRow({
   onDragSelectStart,
   trayMap,
   onRecalculate,
+  notesByDate,
+  onEditNote,
 }: SchedulerGridRowProps) {
   // Everything each day-cell needs, derived once per day. continuation is the only costly
   // bit (it scans cyclesByDate) and used to be computed twice per day - here it's computed
@@ -152,6 +158,8 @@ export const SchedulerGridRow = memo(function SchedulerGridRow({
             slotSelection={slotSelection}
             onExtendSelect={onExtendSelect}
             onDragSelectStart={onDragSelectStart}
+            notes={notesByDate.get(date)}
+            onEditNote={onEditNote}
           />
         );
       })}

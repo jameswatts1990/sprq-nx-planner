@@ -39,3 +39,10 @@
   border-radius: 4px;
   font-size: var(--fs-sm);
 }
+.sm {
+  padding: 4px 7px;
+  gap: 6px;
+  font-size: var(--fs-2xs);
+  line-height: 1.35;
+  margin-bottom: 0;
+}

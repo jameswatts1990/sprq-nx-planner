@@ -97,7 +97,7 @@ export function ViewOptionsMenu({
           <p className={styles.hint}>Show or hide the barcode chips on each sample card in the grid.</p>
 
           <div className={styles.row}>
-            <span className={styles.label}>Notes</span>
+            <span className={styles.label}>Sample notes</span>
             <SegmentedControl
               ariaLabel="Show or hide the note marker on sample cards"
               value={showNotes ? "show" : "hide"}
@@ -108,7 +108,9 @@ export function ViewOptionsMenu({
               ]}
             />
           </div>
-          <p className={styles.hint}>Show a small ✎ marker on cards that carry a note — hover it to read the note.</p>
+          <p className={styles.hint}>
+            Show a small ✎ marker on cards that carry a note — hover it to read the note. Day-note banners always show.
+          </p>
 
           <div className={styles.row}>
             <span className={styles.label}>Cell use number</span>

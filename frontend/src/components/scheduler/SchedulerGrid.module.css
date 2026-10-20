@@ -149,6 +149,34 @@
 .todayTh .dn {
   color: var(--magenta-deep);
 }
+/* Weekday header: the day label left, its "+ Note" button right. */
+.dayHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+/* Understated pill until hovered, in the same blue info tone as the note banners it creates. */
+.addNoteBtn {
+  font-family: var(--sans);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--grey);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 3px 8px;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.addNoteBtn:hover,
+.addNoteBtn:focus-visible {
+  color: var(--blue-deep);
+  border-color: var(--blue);
+  background: var(--blue-tint);
+}
 .dn {
   font-size: 14px;
   font-weight: 800;

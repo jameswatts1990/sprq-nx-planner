@@ -99,6 +99,29 @@ export function ScheduleSection() {
         clears the search.
       </p>
 
+      <p className={styles.subheading}>Day notes</p>
+      <p>
+        Pin a note to a day for one or more instruments — e.g. <i>&quot;Engineer visit — don&apos;t load before
+        14:00&quot;</i> or <i>&quot;Bring a fresh tray of cells up from the freezer&quot;</i>. Click <b>+ Note</b> at the
+        right of a day&apos;s header, write the note, tick each instrument it applies to (or <b>All instruments</b>), and
+        click <b>Add note</b>. It then shows as a blue <b>📌 banner</b> across the top of that day&apos;s cell for every
+        instrument you ticked, above the run&apos;s header. Everyone sees it, and it never changes the schedule itself.
+      </p>
+      <ul>
+        <li>
+          A long note is cut to two lines on the grid — <b>hover</b> the banner to read all of it.
+        </li>
+        <li>
+          <b>Click a banner</b> to edit the note. Changing the text updates it on every instrument it&apos;s on;{" "}
+          <b>untick an instrument</b> and save to take the note off just that one. <b>Delete note</b> removes it from
+          every instrument at once (the button says how many when it&apos;s on more than one).
+        </li>
+        <li>
+          Day notes can go on any weekday, including past days and days an instrument is down — handy for recording
+          what happened. Several notes on the same day stack, oldest first.
+        </li>
+      </ul>
+
       <p className={styles.subheading}>View options</p>
       <p>
         <b>View options</b> at the far right of the date toolbar opens a small menu of display toggles that change
@@ -111,8 +134,9 @@ export function ScheduleSection() {
           busy view when you don&apos;t need the barcodes.
         </li>
         <li>
-          <b>Notes: Show / Hide</b> — a small <b>✎</b> marker appears on any card that carries a note (shown by
-          default); hover it to read the note. Hide it if you don&apos;t want the markers on the grid.
+          <b>Sample notes: Show / Hide</b> — a small <b>✎</b> marker appears on any card that carries a note (shown by
+          default); hover it to read the note. Hide it if you don&apos;t want the markers on the grid. This only affects
+          sample notes — <b>day notes</b> (the 📌 banners, see above) always show.
         </li>
         <li>
           <b>Cell use number: Show / Hide</b> — off by default. When on, each filled card shows a large faint number

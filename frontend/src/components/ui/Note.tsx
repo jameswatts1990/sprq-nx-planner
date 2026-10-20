@@ -7,6 +7,9 @@ export type NoteTone = "warn" | "info" | "bad" | "good";
 export interface NoteProps {
   tone: NoteTone;
   icon: string;
+  /** "sm" is the compact in-grid variant (Schedule day-note banners): same tones, tighter box,
+   * smaller text, no trailing margin. */
+  size?: "md" | "sm";
   children: ReactNode;
 }
 
@@ -17,9 +20,9 @@ const TONE_CLASS: Record<NoteTone, string> = {
   good: styles.good,
 };
 
-export function Note({ tone, icon, children }: NoteProps) {
+export function Note({ tone, icon, size = "md", children }: NoteProps) {
   return (
-    <div className={`${styles.note} ${TONE_CLASS[tone]}`}>
+    <div className={[styles.note, TONE_CLASS[tone], size === "sm" ? styles.sm : ""].filter(Boolean).join(" ")}>
       <span className={styles.ni}>{icon}</span>
       <div>{children}</div>
     </div>

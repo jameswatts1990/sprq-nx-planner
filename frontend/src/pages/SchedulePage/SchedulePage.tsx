@@ -8,6 +8,7 @@ import { cellsApi } from "@/api/cells";
 import { cyclesApi } from "@/api/cycles";
 import { instrumentsApi } from "@/api/instruments";
 import { scheduleExportUrl } from "@/api/scheduleExport";
+import { scheduleNotesApi } from "@/api/scheduleNotes";
 import { settingsApi } from "@/api/settings";
 import { CellQcModal } from "@/components/cells/CellQcModal";
 import { CellInfoPopover } from "@/components/scheduler/CellInfoPopover";
@@ -33,11 +34,13 @@ import { Button } from "@/components/ui/Button";
 import { Note } from "@/components/ui/Note";
 import type { RunOut, SlotIndex, StageOut } from "@/types/schedule";
 import type { GridCellRef, RunDesignState } from "@/types/schedulerGrid";
+import type { ScheduleNoteOut } from "@/types/scheduleNote";
 import { addDaysUTC, formatShortDateUTC, isWeekendUTC, localWallTimeToUtcParts, parseDateOnly, todayIsoUTC, toIsoDateUTC } from "@/utils/calendarDates";
 
 import { AutoscheduleDrawer } from "./AutoscheduleDrawer";
 import { BacklogPanel, readBacklogOpenPref, writeBacklogOpenPref } from "./BacklogPanel";
 import { ClearScheduleModal } from "./ClearScheduleModal";
+import { DayNoteModal } from "./DayNoteModal";
 import { PrintBatchSheetModal } from "./PrintBatchSheetModal";
 import styles from "./SchedulePage.module.css";
 import { ScheduleSearchBar } from "./ScheduleSearchBar";
@@ -158,6 +161,9 @@ export function SchedulePage() {
   const [autoscheduleOpen, setAutoscheduleOpen] = useState(false);
   const [detail, setDetail] = useState<DetailTarget | null>(null);
   const [printSheetOpen, setPrintSheetOpen] = useState(false);
+  // The day-note modal: a day header's "+ Note" opens it empty for that date (note null); a
+  // banner click opens that note for edit/delete.
+  const [noteEditor, setNoteEditor] = useState<{ date: string; note: ScheduleNoteOut | null } | null>(null);
   // Grid display-only toggles (see ViewOptionsMenu): none change the plan, only how the grid
   // is drawn. All are applied via a CSS scope on the grid area (data-* attributes below),
   // never by re-rendering the grid. Barcodes + notes default on, remaining-uses off,
@@ -254,6 +260,31 @@ export function SchedulePage() {
     // anyone leaving this page open, without a client-side clock re-deriving it.
     refetchInterval: 60_000,
   });
+
+  // Day notes for the visible week, polled like the runs so a note another user adds shows up
+  // without a reload. Indexed serial -> date -> notes for the grid; one note pinned to several
+  // instruments appears under each of them.
+  const notesQuery = useQuery({
+    queryKey: ["schedule-notes", { date_from: win.dateFrom, date_to: win.dateTo }],
+    queryFn: () => scheduleNotesApi.list({ date_from: win.dateFrom, date_to: win.dateTo }),
+    refetchInterval: 60_000,
+  });
+  const notesByInstrument = useMemo(() => {
+    const out = new Map<string, Map<string, ScheduleNoteOut[]>>();
+    for (const note of notesQuery.data ?? []) {
+      for (const serial of note.instrument_serials) {
+        let byDate = out.get(serial);
+        if (!byDate) out.set(serial, (byDate = new Map()));
+        byDate.set(note.note_date, [...(byDate.get(note.note_date) ?? []), note]);
+      }
+    }
+    return out;
+  }, [notesQuery.data]);
+  const handleAddNote = useCallback((date: string) => setNoteEditor({ date, note: null }), []);
+  const handleEditNote = useCallback(
+    (note: ScheduleNoteOut) => setNoteEditor({ date: note.note_date, note }),
+    [],
+  );
 
   // Every cell on every instrument, fetched in three status slices that together make the full
   // tray-linked cell universe (allTrayCells below) behind the left-column tray panel and the tray
@@ -510,6 +541,7 @@ export function SchedulePage() {
       cellInfo ||
       qcTarget ||
       printSheetOpen ||
+      noteEditor ||
       actions.clearConfirmOpen ||
       actions.recalculateTarget ||
       autoscheduleOpen
@@ -537,6 +569,7 @@ export function SchedulePage() {
     cellInfo,
     qcTarget,
     printSheetOpen,
+    noteEditor,
     actions.clearConfirmOpen,
     actions.recalculateTarget,
     autoscheduleOpen,
@@ -803,7 +836,7 @@ export function SchedulePage() {
                 data-use-number={showUseNumber ? "shown" : undefined}
                 data-density={density === "compact" ? "compact" : undefined}
               >
-                <SectionHeading title="Weekly schedule" legend={<UseLegend />} progress={weekProgress} />
+                <SectionHeading title="Weekly schedule" legend={<UseLegend />} progress={weekProgress} compact />
 
                 {instrumentsQuery.isLoading && <div className={styles.status}>Loading instruments…</div>}
                 {instrumentsQuery.isError && (
@@ -819,6 +852,11 @@ export function SchedulePage() {
                 {cyclesQuery.isError && (
                   <Note tone="bad" icon="!">
                     {cyclesQuery.error instanceof ApiError ? cyclesQuery.error.message : "Failed to load schedule."}
+                  </Note>
+                )}
+                {notesQuery.isError && (
+                  <Note tone="bad" icon="!">
+                    Couldn&apos;t load this week&apos;s day notes — the schedule is shown without them.
                   </Note>
                 )}
 
@@ -837,6 +875,9 @@ export function SchedulePage() {
                     onDragSelectStart={onDragSelectStart}
                     trayMaps={trayMaps}
                     onRecalculate={actions.onRequestRecalculate}
+                    notesByInstrument={notesByInstrument}
+                    onAddNote={handleAddNote}
+                    onEditNote={handleEditNote}
                   />
                 )}
               </div>
@@ -915,6 +956,15 @@ export function SchedulePage() {
 
       {printSheetOpen && (
         <PrintBatchSheetModal instruments={instrumentsQuery.data ?? []} onClose={() => setPrintSheetOpen(false)} />
+      )}
+
+      {noteEditor && (
+        <DayNoteModal
+          date={noteEditor.date}
+          note={noteEditor.note}
+          instruments={instrumentsQuery.data ?? []}
+          onClose={() => setNoteEditor(null)}
+        />
       )}
 
       {autoscheduleOpen && (

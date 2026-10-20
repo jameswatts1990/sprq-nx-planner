@@ -41,6 +41,34 @@
   box-shadow: inset 0 0 0 2px var(--magenta);
 }
 
+/* Day-note banners (DayNoteBanners), stacked above the run header at full cell width. The
+   shared Note carries the info tone; this only adds the click affordance and a two-line clamp. */
+.dayNotes {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 5px;
+  /* The Down cell centres its label - keep note text left-aligned regardless. */
+  text-align: left;
+}
+.dayNote {
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+.dayNote:hover > div,
+.dayNote:focus-visible > div {
+  border-color: var(--blue);
+}
+.dayNoteText {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+  font-weight: 600;
+}
+
 .head {
   display: flex;
   align-items: center;
@@ -346,6 +374,10 @@
   gap: 4px;
   margin-bottom: 2px;
   min-height: 0;
+}
+:global([data-density="compact"]) .dayNotes {
+  gap: 3px;
+  margin-bottom: 3px;
 }
 :global([data-density="compact"]) .slots {
   gap: 4px;

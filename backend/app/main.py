@@ -14,6 +14,7 @@ from app.api import (
     pacbio_cases,
     samples,
     schedule_export,
+    schedule_notes,
     settings as settings_api,
     stats,
     topups,
@@ -36,6 +37,7 @@ app.include_router(auto_fill.router)
 app.include_router(cycles.router)
 app.include_router(batch_sheet.router)
 app.include_router(schedule_export.router)
+app.include_router(schedule_notes.router)
 app.include_router(cell_uses.router)
 app.include_router(cells.router)
 app.include_router(topups.router)

@@ -8,8 +8,10 @@ import { cyclesApi } from "@/api/cycles";
 import { TraySiblingList } from "@/components/cells/TraySiblingList";
 import { formatLoadTime, isValidLoadTime, parseLoadTime } from "@/components/scheduler/loadTime";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import { Note } from "@/components/ui/Note";
 import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
 import type { RunOut, StageOut } from "@/types/schedule";
+import type { ScheduleNoteOut } from "@/types/scheduleNote";
 import { formatShortDateTimeLocal, formatShortDateUTC, formatTimeLocal, localWallTimeToUtcParts, parseDateOnly, shortWeekdayUTC } from "@/utils/calendarDates";
 import { runLabel } from "@/utils/runLabel";
 
@@ -53,6 +55,9 @@ export interface SchedulerDayCellProps {
   /** Ctrl/cmd-mousedown on a filled slot - starts a click-and-drag rectangle selection
    * (see SchedulePage.onDragSelectStart). */
   onDragSelectStart: (stage: StageOut, coord: { r: number; c: number }) => void;
+  /** Day notes pinned to this instrument on this day, shown as banners atop the cell. */
+  notes?: ScheduleNoteOut[];
+  onEditNote: (note: ScheduleNoteOut) => void;
 }
 
 /** The padlock marker for a locked day - a teal rounded-rect chip (the grid's neutral
@@ -73,6 +78,39 @@ function LockChip({ until }: { until: string }) {
         {time}
       </span>
     </span>
+  );
+}
+
+/** Day-note banners at the top of a cell, oldest first. Each opens the note for edit/delete;
+ * clicks and keys stop propagating so they never also toggle the cell's own selection. The text
+ * is clamped to two lines here - the full note is in the tooltip and the edit modal. */
+function DayNoteBanners({ notes, onEdit }: { notes: ScheduleNoteOut[]; onEdit: (note: ScheduleNoteOut) => void }) {
+  return (
+    <div className={styles.dayNotes}>
+      {notes.map((note) => (
+        <div
+          key={note.id}
+          role="button"
+          tabIndex={0}
+          className={styles.dayNote}
+          title={`${note.body}\n\nClick to edit or delete this note.`}
+          onClick={(e) => {
+            e.stopPropagation();
+            onEdit(note);
+          }}
+          onKeyDown={(e) => {
+            if (e.key !== "Enter" && e.key !== " ") return;
+            e.preventDefault();
+            e.stopPropagation();
+            onEdit(note);
+          }}
+        >
+          <Note tone="info" icon="📌" size="sm">
+            <span className={styles.dayNoteText}>{note.body}</span>
+          </Note>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -102,6 +140,8 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
     slotSelection,
     onExtendSelect,
     onDragSelectStart,
+    notes,
+    onEditNote,
   } = props;
   const queryClient = useQueryClient();
 
@@ -215,6 +255,7 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
         data-row={rowIndex}
         data-col={colIndex}
       >
+        {notes && <DayNoteBanners notes={notes} onEdit={onEditNote} />}
         <span className={styles.downLabel}>Down</span>
       </td>
     );
@@ -263,6 +304,8 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
       data-row={rowIndex}
       data-col={colIndex}
     >
+      {notes && <DayNoteBanners notes={notes} onEdit={onEditNote} />}
+
       {/* Always rendered (even with nothing to show) so every cell's plate/placeholder
           area starts at the same vertical offset within the row, whether or not this
           particular cell has a badge above it. */}

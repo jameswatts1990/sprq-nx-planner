@@ -1,6 +1,7 @@
 import type { KeyboardEvent, MouseEvent } from "react";
 
 import type { RunOut, StageOut } from "@/types/schedule";
+import type { ScheduleNoteOut } from "@/types/scheduleNote";
 import {
   formatShortDateUTC,
   isWeekendUTC,
@@ -19,6 +20,7 @@ import type { SlotSelection } from "./useSlotSelection";
 // Stable empty reference for instruments with nothing to show, so the memoized
 // SchedulerGridRow doesn't see a new object identity on every render.
 const EMPTY_CYCLES_BY_DATE: Map<string, RunOut> = new Map();
+const EMPTY_NOTES_BY_DATE: Map<string, ScheduleNoteOut[]> = new Map();
 
 export interface SchedulerGridProps {
   instrumentSerials: string[];
@@ -42,6 +44,12 @@ export interface SchedulerGridProps {
   trayMaps: Map<string, InstrumentTrayMap>;
   /** "Recalculate" next to an instrument's name - opens the confirm modal for that serial. */
   onRecalculate: (serial: string) => void;
+  /** Day notes for the visible week, keyed serial -> date -> notes (banners atop each cell). */
+  notesByInstrument: Map<string, Map<string, ScheduleNoteOut[]>>;
+  /** A day header's "+ Note" - opens the add-note modal for that date. */
+  onAddNote: (date: string) => void;
+  /** A note banner click - opens it for edit / delete. */
+  onEditNote: (note: ScheduleNoteOut) => void;
 }
 
 function SchedulerDayHeader({
@@ -50,6 +58,7 @@ function SchedulerDayHeader({
   selectable,
   dayStatus,
   onSelectColumn,
+  onAddNote,
 }: {
   date: string;
   colIndex: number;
@@ -58,6 +67,7 @@ function SchedulerDayHeader({
    * (grey = past, rose = today, white = future) so the week reads at a glance. */
   dayStatus: "past" | "today" | "future";
   onSelectColumn: (colIndex: number, ctrl: boolean) => void;
+  onAddNote: (date: string) => void;
 }) {
   const d = parseDateOnly(date);
   const weekend = isWeekendUTC(d);
@@ -93,8 +103,24 @@ function SchedulerDayHeader({
       {weekend ? (
         <div className={styles.dn}>{shortWeekdayUTC(d)}</div>
       ) : (
-        <div className={styles.dn}>
-          {shortWeekdayUTC(d)} <span className={styles.dd}>{formatShortDateUTC(d)}</span>
+        <div className={styles.dayHead}>
+          <div className={styles.dn}>
+            {shortWeekdayUTC(d)} <span className={styles.dd}>{formatShortDateUTC(d)}</span>
+          </div>
+          {/* Stops propagation so adding a note never also selects the whole column. */}
+          <button
+            type="button"
+            className={styles.addNoteBtn}
+            title="Add a note to this day — pick which instruments it shows on"
+            aria-label={`Add a note for ${shortWeekdayUTC(d)} ${formatShortDateUTC(d)}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onAddNote(date);
+            }}
+            onKeyDown={(e) => e.stopPropagation()}
+          >
+            + Note
+          </button>
         </div>
       )}
     </th>
@@ -117,6 +143,9 @@ export function SchedulerGrid({
   onDragSelectStart,
   trayMaps,
   onRecalculate,
+  notesByInstrument,
+  onAddNote,
+  onEditNote,
 }: SchedulerGridProps) {
   function isDown(serial: string, date: string): boolean {
     const downFrom = instrumentMeta.get(serial)?.downFrom ?? null;
@@ -196,6 +225,7 @@ export function SchedulerGrid({
                 selectable={!isWeekendUTC(parseDateOnly(date))}
                 dayStatus={date < today ? "past" : date === today ? "today" : "future"}
                 onSelectColumn={onSelectColumn}
+                onAddNote={onAddNote}
               />
             ))}
           </tr>
@@ -219,6 +249,8 @@ export function SchedulerGrid({
               onDragSelectStart={onDragSelectStart}
               trayMap={trayMaps.get(serial)}
               onRecalculate={onRecalculate}
+              notesByDate={notesByInstrument.get(serial) ?? EMPTY_NOTES_BY_DATE}
+              onEditNote={onEditNote}
             />
           ))}
         </tbody>
