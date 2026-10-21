@@ -18,6 +18,21 @@ def _weekdays(n: int) -> list[str]:
     return out
 
 
+def _mon_wed() -> tuple[str, str]:
+    """Next Monday and the Wednesday after it (pair with _confirm_running_at_planned_start)."""
+    d = date.today() + timedelta(days=1)
+    while d.weekday() != 0:
+        d += timedelta(days=1)
+    return d.isoformat(), (d + timedelta(days=2)).isoformat()
+
+
+def _confirm_running_at_planned_start(client, run_id: int):
+    """Confirm-load a run as of its planned start. Without `at` the cell's 108h window anchors to
+    the wall clock, so a reuse a few days out drops out of window depending on the run day."""
+    start = client.get(f"/api/cycles/{run_id}").json()["plates"][0]["planned_start_at"]
+    return client.patch(f"/api/cycles/{run_id}", json={"status": "running", "at": start})
+
+
 def _past_weekday() -> str:
     d = date.today() - timedelta(days=1)
     while d.weekday() >= 5:
@@ -69,7 +84,7 @@ def _build_worked_example(client):
         "/api/imports",
         json={"raw_text": "sample,barcodes\n" + "\n".join(f"P{p}{w},bc{p}{w}" for p in (1, 2) for w in "ABCD")},
     )
-    mon, _tue, wed = _weekdays(3)
+    mon, wed = _mon_wed()
 
     r = _place(client, _sid(client, "P1A"), mon, 0, {"mode": "new"})
     assert r.status_code == 201, r.text
@@ -81,7 +96,7 @@ def _build_worked_example(client):
         rr = _place(client, _sid(client, f"P1{well[0]}"), mon, slot, {"mode": "existing", "cell_id": cells[well]})
         assert rr.status_code == 201, rr.text
     # confirm Monday's Use-1 run loaded (so a QC verdict can anchor on it)
-    assert client.patch(f"/api/cycles/{mon_run_id}", json={"status": "running"}).status_code == 200
+    assert _confirm_running_at_planned_start(client, mon_run_id).status_code == 200
 
     wed_run_id = None
     for slot, well in ((0, "A01"), (1, "B01"), (2, "C01"), (3, "D01")):
@@ -279,7 +294,7 @@ def test_shift_onto_a_cell_with_a_clashing_burned_barcode_is_flagged(client):
     rows = [("P1A", "bcaa"), ("P1B", "bcSHARED"), ("P1C", "bccc"), ("P1D", "bcdd"),
             ("P2A", "bcSHARED"), ("P2B", "bcbb2"), ("P2C", "bccc2"), ("P2D", "bcdd2")]
     client.post("/api/imports", json={"raw_text": "sample,barcodes\n" + "\n".join(f"{s},{b}" for s, b in rows)})
-    mon, _tue, wed = _weekdays(3)
+    mon, wed = _mon_wed()
 
     r = _place(client, _sid(client, "P1A"), mon, 0, {"mode": "new"})
     cellA = _stages(r.json())[0]["cell_id"]
@@ -287,7 +302,7 @@ def test_shift_onto_a_cell_with_a_clashing_burned_barcode_is_flagged(client):
     cells = _tray_cells_by_well(client, _stages(r.json())[0]["tray_id"])
     for slot, well in ((1, "B01"), (2, "C01"), (3, "D01")):
         _place(client, _sid(client, f"P1{well[0]}"), mon, slot, {"mode": "existing", "cell_id": cells[well]})
-    assert client.patch(f"/api/cycles/{mon_run_id}", json={"status": "running"}).status_code == 200
+    assert _confirm_running_at_planned_start(client, mon_run_id).status_code == 200
     for slot, well in ((0, "A01"), (1, "B01"), (2, "C01"), (3, "D01")):
         _place(client, _sid(client, f"P2{well[0]}"), wed, slot, {"mode": "existing", "cell_id": cells[well]})
     mon_use1_A = next(s["cell_use_id"] for s in _stages(client.get(f"/api/cycles/{mon_run_id}").json()) if s["cell_id"] == cellA)
