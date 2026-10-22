@@ -4,6 +4,29 @@
   font-size: var(--fs-base);
 }
 
+.dispLegend {
+  margin: 0 0 12px;
+  display: grid;
+  gap: 4px;
+  font-size: var(--fs-sm);
+  color: var(--grey);
+}
+
+.dispLegend dt {
+  display: inline;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.dispLegend dt::after {
+  content: ": ";
+}
+
+.dispLegend dd {
+  display: inline;
+  margin: 0;
+}
+
 .reason {
   width: 100%;
   min-height: 60px;

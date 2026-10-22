@@ -4,6 +4,8 @@ export interface SegmentedOption<T extends string | number> {
   value: T;
   label: string;
   hint?: string;
+  /** Hover tooltip explaining the option. */
+  title?: string;
 }
 
 export interface SegmentedControlProps<T extends string | number> {
@@ -31,6 +33,7 @@ export function SegmentedControl<T extends string | number>({
           type="button"
           className={styles.segOpt}
           aria-pressed={opt.value === value}
+          title={opt.title}
           onClick={() => onChange(opt.value)}
         >
           {opt.label}

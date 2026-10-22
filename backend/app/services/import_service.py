@@ -260,7 +260,7 @@ def template_csv() -> str:
 #
 # An import can be reversed - but only while it's still exactly as it landed: the most recent
 # batch, with every sample it created still an untouched backlog row. Once any of those
-# samples has been *progressed* (scheduled onto a run, cancelled, completed, top-up requested,
+# samples has been *progressed* (scheduled onto a run, cancelled, completed, resupply requested,
 # flagged by Cell QC) or *edited*, undoing would silently discard real downstream work, so it's
 # refused. This mirrors the product rule the lab asked for: undo is a safety net for a wrong
 # file / bad mapping caught immediately, not a way to unwind samples already in flight.
@@ -285,7 +285,7 @@ def _sample_touched(sample: Sample, *, edited: bool) -> bool:
 
     - status != backlog: scheduled/completed/failed/cancelled - progressed off the backlog.
     - any cell_uses: currently placed on the grid.
-    - any topups: a lost-sample top-up was requested against it.
+    - any topups: a lost-sample resupply request was raised against it.
     - qc_disposition set: a Cell QC action tagged it.
     - updated_at > created_at: the row was mutated at least once (an edit, or a
       schedule-then-clear that bounced it back to the backlog).

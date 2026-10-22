@@ -25,7 +25,7 @@ export function CellsSection() {
       <p className={styles.subheading}>Search, filters, sort &amp; grouping</p>
       <p>
         The big <b>Search</b> box at the top matches <i>any</i> id associated with a cell — its own code, its tray
-        (type <b>T123</b> or just <b>123</b>), a Pool ID, a barcode, a run name or run number (<b>#45</b>), or the
+        (type <b>T123</b> or just <b>123</b>), a Pool ID, Sanger ID or Plate ID, a barcode, a run name or run number (<b>#45</b>), or the
         instrument it ran on — so whatever id you have to hand finds the cell that touched it.
       </p>
       <p>
@@ -170,24 +170,24 @@ export function CellsSection() {
           or two may fall off the end. The dialog then asks you to decide each affected sample:
           <ul>
             <li>
-              <b>Lost</b> — needs fresh material; goes to the <b>Top-up required</b> list on the Backlog.
+              <b>Lost</b> — no usable material left; the sample is marked failed and goes to the Backlog&apos;s <b>Resupply requests</b> list so you can ask the supplier for fresh sample.
             </li>
             <li>
-              <b>Complex</b> (repeat from complex) — re-load straight from the leftover cleaned complex, no re-prep.
+              <b>Complex</b> (Repeatable — from complex) — re-load straight from the leftover cleaned complex, no re-prep. The sample carries a 30-day countdown chip on the Backlog as a reminder to use the complex while it is fresh.
               Each row shows how much complex was loaded and how much is left; when at least the{" "}
               <i>safe repeat volume</i> remains (set in Settings → Scheduling) the row turns green and this option is
               pre-selected, otherwise it&apos;s flagged amber “at risk” (you can still choose it). If no complex volume
               was recorded, nothing is suggested.
             </li>
             <li>
-              <b>Library</b> (repeat from library) — re-make from the library material held in Traction. Use the{" "}
+              <b>Library</b> (Repeatable — from library) — not enough complex left, so re-make the complex from the library material held in Traction, then re-load. Use the{" "}
               <b>View library on Traction</b> link on the row to check the remaining library volume first.
             </li>
             <li>
-              <b>Recoverable</b> — data that can be salvaged.
+              <b>Instrument</b> (Recoverable — from instrument) — the run&apos;s data can still be recovered from the instrument, so no new prep is needed; it goes back to the Backlog at Recoverable priority so it stays visible until dealt with.
             </li>
           </ul>
-          Complex, Library and Recoverable all go back to the Backlog above High priority, in its{" "}
+          Complex, Library and Instrument all go back to the Backlog above High priority, in its{" "}
           <b>Recoverable Samples</b> section. Samples that simply ran on a <i>different</i> cell than planned are
           flagged for review — with a warning if the shift created a barcode clash — and left as they are unless you
           choose to route them too.
@@ -196,7 +196,7 @@ export function CellsSection() {
           <b>When Fail / Fail-and-Stop are available:</b> as soon as that run is locked in — someone has clicked{" "}
           <b>Confirm loaded</b> on the schedule grid. Retire is available on any open cell. Once a cell is stopped or
           retired the same button offers <b>Undo QC</b>, which reopens the cell and restores the samples it affected
-          (a top-up whose request was already sent is left in place).
+          (a resupply request already marked sent is left in place).
         </li>
         <li>
           <b>Use history</b> lists every run the cell has been in: run name if one was set, otherwise its number

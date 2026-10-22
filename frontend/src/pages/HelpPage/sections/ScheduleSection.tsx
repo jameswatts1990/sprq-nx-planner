@@ -86,7 +86,7 @@ export function ScheduleSection() {
       <p>
         The <b>search box</b> in the toolbar (just right of <b>Export schedule</b>) finds a sample or run anywhere — it
         looks across both the <b>Backlog</b> and everything already <b>planned on the grid</b> at once. Type a{" "}
-        <b>Pool ID</b>, a <b>barcode</b>, a <b>run name</b>, or a bare <b>run number</b> (e.g. <i>123</i> or{" "}
+        <b>Pool ID</b>, a <b>Sanger ID</b>, a <b>Plate ID</b>, a <b>barcode</b>, a <b>run name</b>, or a bare <b>run number</b> (e.g. <i>123</i> or{" "}
         <i>#123</i>): the Backlog tray narrows to the matching samples as you type, and a counter shows how many
         appearances were found.
       </p>
@@ -145,7 +145,9 @@ export function ScheduleSection() {
         </li>
         <li>
           <b>Density: Comfortable / Compact</b> — Compact trims the spacing on every card so more of the week fits on
-          screen without scrolling; Comfortable is the roomier default.
+          screen without scrolling; Comfortable is the roomier default. In either view a card&apos;s Pool ID is never
+          cut off: if it doesn&apos;t fit on one line it wraps after its last hyphen (e.g. <i>TRAC-2-</i> /{" "}
+          <i>28339</i>) and the card grows to fit.
         </li>
         <li>
           <b>Backlog: Top / Left / Right</b> — where the Backlog tray sits. <b>Top</b> (default) pins it across the top
@@ -306,7 +308,8 @@ export function ScheduleSection() {
 
       <p className={styles.subheading}>Autoschedule (run design &amp; auto-fill)</p>
       <p>
-        The pink <b>✦ Autoschedule</b> button in the <b>Backlog</b> panel header opens the <b>Autoschedule</b>{" "}
+        The pink <b>✦ Autoschedule</b> button in the <b>Backlog</b> panel header (just a pink <b>✦</b> square when
+        the backlog is docked to the side) opens the <b>Autoschedule</b>{" "}
         panel — a pop-out from the left edge — which sets the parameters used for both single placements and auto-fill.
         Close it with the <b>✕</b>, the <b>Esc</b> key, or by clicking outside it; your grid selection stays put while
         it&apos;s open. The same controls are shown live below:
@@ -416,17 +419,31 @@ export function ScheduleSection() {
         choice is remembered next time); when open, its card list scrolls on its own so it never hides the grid beneath
         it. As you keep scrolling, the grid&apos;s <b>day-header row</b> (the weekday and date for each column) catches
         just under the Backlog and stays pinned there, so you can always tell which day a slot is in; the rows slide up
-        and disappear beneath it. Its <b>priority filter, sort control, and page controls</b> sit in the header bar (to
-        the right of <b>✦ Autoschedule</b>) rather than above the cards, leaving the body as just the sample list. They
-        work exactly like the same controls on the Backlog tab. The search box used to live here — it&apos;s now the
-        unified <b>Find</b> box up in the toolbar (see <i>Find a sample or run</i> above), which searches the grid as
-        well as the backlog.
+        and disappear beneath it. Its <b>priority filter</b> and <b>sort control</b> sit in the header bar (to the
+        right of <b>✦ Autoschedule</b>) rather than above the cards, leaving the body as just the sample list. They
+        work exactly like the same controls on the Backlog tab. There are no pages: the tray lists{" "}
+        <b>every backlog sample</b> in one scrolling list (if the backlog ever grows past 200 samples, a note at the
+        end says how many aren&apos;t shown — filter by priority to narrow it). The search box used to live here —
+        it&apos;s now the unified <b>Find</b> box up in the toolbar (see <i>Find a sample or run</i> above), which
+        searches the grid as well as the backlog.
+      </p>
+      <p>
+        Each backlog card is two lines. The first has the <b>Pool ID</b> (and any duplicate badge), then its{" "}
+        <b>priority</b> (shortened to <i>High</i>, <i>Medium</i>, <i>Standard</i>… — hover it for the full label)
+        and <b>⏱ movie time</b> on the right; the card&apos;s left edge is tinted in the same priority colour. The second has the <b>Plate ID</b>, any warning flags (such as a small-insert <b>&lt;5kb</b>{" "}
+        or a <b>⌛ Complex</b> countdown), then the <b>barcodes</b>. A Pool ID or Plate ID too long for the card ends
+        in <b>…</b> — hover the card for the full ID. Barcodes that don&apos;t fit on the line fold into a grey{" "}
+        <b>+N</b> chip; hover it to list them.
       </p>
       <p>
         Prefer the backlog down one side? <b>View options → Backlog → Left</b> or <b>Right</b> docks it as a narrow,
-        one-card-wide panel that <b>pushes the grid across</b> to make room, its cards stacked in a single column;
-        collapse it to a thin rail with the panel&apos;s <b>‹ / ›</b> toggle when you want the width back. Either way
-        it&apos;s the same backlog — same controls, cards and drag behaviour — just in a different place.
+        one-card-wide panel against the edge of the screen that <b>pushes the grid across</b> to make room, its cards
+        stacked in a single column; collapse it to a thin rail with the panel&apos;s <b>‹ / ›</b> toggle when you want
+        the width back. Its header is kept to two rows: <b>Backlog</b> with the sample count, the warning chips, the
+        pink <b>✦</b> Autoschedule button and the <b>‹ / ›</b> toggle; then the priority filter and sort. The warning
+        chips are the top tray&apos;s warning badges in short form — a red <b>⚠ 3</b> counts aborted samples back in
+        the backlog, an amber <b>⚠ 5</b> counts unscheduled High-priority-or-above samples; hover either to see what
+        it counts. Otherwise it&apos;s the same backlog — same cards and drag behaviour — just in a different place.
       </p>
       <p>
         <b>Editing and adding samples from the tray:</b> hover a backlog card (or tab to it) and an <b>✎ edit</b> button
@@ -530,7 +547,8 @@ export function ScheduleSection() {
         <i>▣2</i> with a boxed <i>2</i> = cell 2, Use 2) — the cell it&apos;s running on, which can differ from
         the slot it sits in — and its base colour is the Use 1 / 2 / 3 palette (magenta / blue / teal, the same Use
         colours as the legend). The small number along the bottom of the seal is the cell&apos;s <b>tray id</b> — shared by
-        every cell in the same physical tray — while the shimmering foil pattern is <b>unique to that one physical SMRT
+        every cell in the same physical tray (on a short card, e.g. Compact with barcodes hidden, it&apos;s left off so it
+        never covers the use number; the tray id is still in the card&apos;s <i>C01-T285</i> line) — while the shimmering foil pattern is <b>unique to that one physical SMRT
         cell</b> — so if you see the <i>same</i> foil on two different days, it&apos;s literally
         the same cell being reused; a <i>different</i> foil means a different cell, even when two seals share a label
         like <i>▣2</i>. That&apos;s the quickest read of whether Monday&apos;s <i>▣2</i> and Tuesday&apos;s{" "}
@@ -651,14 +669,15 @@ export function ScheduleSection() {
         after it move up onto that plate&apos;s other cells (or onto a tray cell that&apos;s free that day), and only
         that plate&apos;s last sample can drop off. A stop only ever costs the stopped cell&apos;s own future uses —
         a cell is never doubled up on one plate or one day. The dialog then asks you to decide each affected sample
-        — <b>Lost</b> (→ the Backlog&apos;s <b>Top-up required</b> list), or <b>Repeatable</b> / <b>Recoverable</b>{" "}
+        — <b>Lost</b> (→ the Backlog&apos;s <b>Resupply requests</b> list), or <b>Repeatable — from complex</b> /{" "}
+        <b>from library</b> / <b>Recoverable — from instrument</b>{" "}
         (→ the Backlog&apos;s <b>Recoverable Samples</b> section, above High priority). Samples that simply ran on a
         <i>different</i> cell than planned are flagged for review — with a warning if the shift created a barcode
         clash. That clash also marks the card itself directly on the weekly schedule — a pulsing red hazard-striped
         border and a <b>⚠ Clash</b> label, the most severe marking the grid shows, so it can&apos;t be missed while
         scanning the week (see <b>Barcode clash</b> in the Legend tab). A stopped/retired cell is never offered for
         reuse again; the same dialog later offers <b>Undo QC</b> to
-        reverse the whole action (a top-up whose request was already sent is left in place). Cancelled uses stay
+        reverse the whole action (a resupply request already marked sent is left in place). Cancelled uses stay
         visible as <b>Blocked</b> slots (see below) rather than disappearing, until you clear them.
       </p>
       <p>
@@ -731,8 +750,8 @@ export function ScheduleSection() {
         slot popover&apos;s <b>Cell QC</b> on the schedule, or on the cell&apos;s detail page (which the instrument
         cell map opens) — and choose <b>Undo QC</b>. It reopens the
         cell and restores every sample the action affected — reassigned samples move back, cancelled ones become
-        planned again, and backlog/top-up moves are reversed — except a sample that has since been placed again,
-        a <b>Blocked</b> slot you&apos;ve since cleared, or a top-up whose request was already marked sent, which are
+        planned again, and backlog/resupply moves are reversed — except a sample that has since been placed again,
+        a <b>Blocked</b> slot you&apos;ve since cleared, or a resupply request already marked sent, which are
         left as they are (so nothing is ever scheduled twice).
       </p>
       <p>
@@ -773,7 +792,7 @@ export function ScheduleSection() {
           </div>
           <span>
             <b>Blocked</b> (red, cross-hatched) — a placement cancelled before it ever ran; its sample is back in the
-            Backlog (or on the top-up list). It can&apos;t be dragged or removed, but it doesn&apos;t hold the well
+            Backlog (or on the Resupply requests list). It can&apos;t be dragged or removed, but it doesn&apos;t hold the well
             forever: open the slot and click <b>Clear slot</b> (from a Stop cell) or <b>Return to backlog</b> (from a
             cell discard) to free the well for another sample.
           </span>

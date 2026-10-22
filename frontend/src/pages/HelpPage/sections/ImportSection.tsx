@@ -137,7 +137,7 @@ export function ImportSection() {
         <dt>When it&apos;s allowed</dt>
         <dd>
           Only the <b>single most recent</b> import can be undone, and only while <b>none of its samples have been
-          touched</b> — nothing scheduled onto a run, cancelled, edited, flagged in Cell QC, or given a top-up. As
+          touched</b> — nothing scheduled onto a run, cancelled, edited, flagged in Cell QC, or given a resupply request. As
           soon as you start working with the imported samples, undo is no longer offered (the banner disappears), so
           it can never quietly discard work already in progress. Importing again afterwards makes that new batch the
           one you can undo.

@@ -111,7 +111,7 @@ export function HistorySamplesPage() {
           <input
             type="search"
             className={styles.search}
-            placeholder="Search by Pool ID, barcode, or Plate ID…"
+            placeholder="Search by Pool ID, Sanger ID, barcode, or Plate ID…"
             value={qInput}
             onChange={(e) => {
               setQInput(e.target.value);

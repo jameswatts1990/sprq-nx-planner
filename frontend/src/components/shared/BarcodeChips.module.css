@@ -4,6 +4,18 @@
   flex-wrap: wrap;
   margin-top: 3px;
 }
+/* One-line variant (see BarcodeChips singleRow): chips that don't fit are folded into "+N" by
+   measurement; nowrap + overflow keep a stray sub-pixel overflow from wrapping meanwhile. */
+.singleRow {
+  flex-wrap: nowrap;
+  overflow: hidden;
+  margin-top: 0;
+  min-width: 0;
+}
+.singleRow .bc {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
 .bc {
   font-family: var(--mono);
   font-size: 9.5px;

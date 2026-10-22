@@ -9,7 +9,7 @@ from app.schemas.cell import CellOut
 # tray's loading queue (see services/qc_service.py).
 QC_VERDICTS = ("fail", "fail_and_stop", "retire")
 # Per-sample fate chosen in the disposition step.
-#   lost               - no material left; goes to the Top-up list (a fresh-material request).
+#   lost               - no material left; goes to the Resupply requests list (a fresh-material request).
 #   repeatable_complex - re-load straight from the leftover cleaned complex (no re-prep); the
 #                        cheap repeat, offered when enough complex remains (see qc_service /
 #                        the QC modal's volume readout). New in the two-way repeat split.
@@ -100,6 +100,6 @@ class QcUndoOut(BaseModel):
     cell: CellOut
     reverted_cell_use_ids: list[int] = []
     # Uses/samples whose state had drifted since the commit (e.g. a sample requeued, or a
-    # top-up already sent) and so were deliberately left as-is rather than reverted.
+    # resupply request already sent) and so were deliberately left as-is rather than reverted.
     drifted_cell_use_ids: list[int] = []
     deleted_topup_ids: list[int] = []

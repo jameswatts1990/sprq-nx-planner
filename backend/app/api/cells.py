@@ -8,7 +8,7 @@ from app.api.deps import ActorDep, SessionDep
 from app.models.cell import CELL_STATUSES, Cell
 from app.models.cell_tray import CellTray
 from app.models.instrument import Instrument
-from app.models.sample import Sample
+from app.models.sample import sample_id_matches
 from app.models.schedule import CellUse, CellUseBarcode, Cycle, RunBatch
 from app.schemas.cell import (
     CellBootstrapRequest,
@@ -115,14 +115,14 @@ def list_cells(
         stmt = stmt.where(credit_status_clause(qc_status))
     if q:
         # Search any id associated with a cell, not just its own code: its tray, and - via
-        # its uses - the Pool ID (sample external id), burned barcodes, run name/id, and
-        # the instrument it ran on. So typing a Pool ID, a Traction run id, or a barcode
-        # finds every cell that touched it, the same box that finds a cell code or "T123".
+        # its uses - the sample's Pool ID / Plate ID / Sanger IDs, burned barcodes, run name/id,
+        # and the instrument it ran on. So typing a Pool ID, a Sanger ID, a Traction run id, or a
+        # barcode finds every cell that touched it, the same box that finds a cell code or "T123".
         term = q.strip()
         like = f"%{term}%"
         conditions = [
             Cell.code.ilike(like),
-            Cell.cell_uses.any(CellUse.sample.has(Sample.pool_id.ilike(like))),
+            Cell.cell_uses.any(CellUse.sample.has(sample_id_matches(like))),
             Cell.cell_uses.any(CellUse.barcodes.any(CellUseBarcode.barcode.ilike(like))),
             Cell.cell_uses.any(
                 CellUse.cycle.has(Cycle.run_batch.has(RunBatch.run_name.ilike(like)))
@@ -207,7 +207,7 @@ def qc_preview_endpoint(cell_id: int, req: QcPreviewRequest, db: SessionDep) -> 
 def qc_commit_endpoint(cell_id: int, req: QcCommitRequest, db: SessionDep, actor: ActorDep) -> QcCommitOut:
     """Atomically apply a QC verdict + the per-sample dispositions: mark the failed use, re-zip
     the tray's loading queue (reassign shifted cells, cancel the displaced tail), set the cell's
-    terminal status, and route each lost/displaced sample to a top-up or the backlog."""
+    terminal status, and route each lost/displaced sample to a resupply request or the backlog."""
     cell = db.get(Cell, cell_id, options=_DETAIL_OPTIONS)
     if cell is None:
         raise HTTPException(404, "Cell not found")

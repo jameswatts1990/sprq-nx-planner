@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { cyclesApi } from "@/api/cycles";
 import { samplesApi } from "@/api/samples";
 import { slotKey } from "@/components/scheduler/gridKeys";
-import type { RunOut, SlotIndex } from "@/types/schedule";
+import type { RunOut, SlotIndex, StageOut } from "@/types/schedule";
 import type { SampleOut } from "@/types/sample";
 import { runLabel } from "@/utils/runLabel";
 import { useDebouncedValue } from "@/utils/useDebouncedValue";
@@ -42,12 +42,12 @@ function runMatches(run: RunOut, ql: string, qDigits: string): boolean {
   return false;
 }
 
-/** A placed well matches on its sample's Pool ID or any of its barcodes - the same
- * fields the backlog's own text search covers, so the two halves of the unified search feel
- * like one search. */
-function stageMatches(poolId: string | null, barcodes: string[], ql: string): boolean {
-  if (poolId && poolId.toLowerCase().includes(ql)) return true;
-  return barcodes.some((b) => b.toLowerCase().includes(ql));
+/** A placed well matches on any of its sample's ids (Pool ID, Plate ID, Sanger IDs) or
+ * barcodes - the same ids the backlog's own text search covers (backend sample_id_matches), so
+ * the two halves of the unified search feel like one search. */
+function stageMatches(stage: StageOut, ql: string): boolean {
+  const ids = [stage.sample_pool_id, stage.sample_plate_id, ...stage.sample_sanger_ids, ...stage.barcodes];
+  return ids.some((id) => id != null && id.toLowerCase().includes(ql));
 }
 
 export interface ScheduleSearch {
@@ -125,7 +125,7 @@ export function useScheduleSearch(): ScheduleSearch {
       const runHit = runMatches(run, ql, qDigits);
       for (const plate of run.plates) {
         for (const stage of plate.stages) {
-          if (!(runHit || stageMatches(stage.sample_pool_id, stage.barcodes, ql))) continue;
+          if (!(runHit || stageMatches(stage, ql))) continue;
           const sk = slotKey(run.instrument_serial, run.load_date, stage.slot_index);
           if (seen.has(sk)) continue;
           seen.add(sk);

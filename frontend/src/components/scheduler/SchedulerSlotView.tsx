@@ -83,6 +83,22 @@ function resetSlotTilt(e: MouseEvent<HTMLDivElement>) {
   e.currentTarget.style.setProperty("--tilt-y", "0deg");
 }
 
+/** Pool IDs share a long prefix ("TRAC-2-") and differ in the trailing digits, so a card too
+ * narrow for the whole ID wraps it after the last hyphen ("TRAC-2-" / "28339") rather than
+ * truncating away the part that tells samples apart. A "-2" never breaks on its own (Unicode
+ * treats it as a negative number), hence the explicit <wbr>. */
+function breakablePoolId(id: string) {
+  const cut = id.lastIndexOf("-") + 1;
+  if (cut <= 1 || cut >= id.length) return id;
+  return (
+    <>
+      {id.slice(0, cut)}
+      <wbr />
+      {id.slice(cut)}
+    </>
+  );
+}
+
 export const SchedulerSlotView = memo(
   forwardRef<HTMLDivElement, SchedulerSlotViewProps>(function SchedulerSlotView(
     {
@@ -309,7 +325,7 @@ export const SchedulerSlotView = memo(
             {stage!.use_number}
           </span>
           <div className={styles.ext} title={stage!.sample_pool_id ?? stage!.cell_ref}>
-            {stage!.sample_pool_id ?? "—"}
+            {stage!.sample_pool_id ? breakablePoolId(stage!.sample_pool_id) : "—"}
           </div>
           <div className={styles.cellref}>
             {stage!.cell_ref}

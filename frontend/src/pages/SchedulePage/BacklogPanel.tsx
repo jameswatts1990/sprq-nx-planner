@@ -15,7 +15,10 @@ import { AddSampleCard, DraggableSampleCard } from "./BacklogCards";
 import styles from "./BacklogPanel.module.css";
 import { SampleModal } from "../SampleModal";
 
-const DEFAULT_PAGE_SIZE = 25;
+/** The tray always lists the whole backlog (no pager) - fetched as one page at the API's
+ * page_size cap (backend api/deps.py pagination, le=200), the same cap the header search uses.
+ * A backlog bigger than this shows a "first 200 of N" note so nothing is silently hidden. */
+const BACKLOG_LIST_LIMIT = 200;
 /** Persist whether the pinned (top-position) backlog tray is open. Collapsed by default;
  * guarded so a locked-down browser (localStorage throwing) simply falls back to that default.
  * Only used by the top-position accordion — the side panel's collapse is owned by SchedulePage
@@ -41,7 +44,6 @@ export function writeBacklogOpenPref(open: boolean): void {
  * utils/priority.ts). Passed as a comma-list to the /api/samples `priority` filter. */
 const HIGH_OR_ABOVE_PRIORITIES = [RECOVERABLE_PRIORITY, REPEATABLE_PRIORITY, ABORTED_PRIORITY, "High (1)"].join(",");
 
-const PAGE_SIZE_OPTIONS = [25, 50, 100, 200];
 const SORT_OPTIONS: { value: SampleSortBy; label: string }[] = [
   { value: "created_at", label: "Created" },
   { value: "pool_id", label: "Pool ID" },
@@ -98,8 +100,6 @@ export function BacklogPanel({
   const isSide = mode === "left" || mode === "right";
 
   const [priority, setPriority] = useState("");
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   // Defaults to priority order (High first) rather than created_at, so the most urgent
   // backlog samples surface without the user having to sort; matches the Backlog tab.
   const [sortBy, setSortBy] = useState<SampleSortBy>("priority");
@@ -109,7 +109,7 @@ export function BacklogPanel({
   const [addOpen, setAddOpen] = useState(false);
   const [editSample, setEditSample] = useState<SampleOut | null>(null);
 
-  // Whether the browse controls (priority filter, sort, pager) are on screen - only then is
+  // Whether the browse controls (priority filter, sort) are on screen - only then is
   // the priority list worth fetching. Hidden entirely while searching (the text search
   // supersedes them) and while the tray is closed/collapsed.
   const trayExpanded = isSide ? !collapsed : open;
@@ -134,47 +134,47 @@ export function BacklogPanel({
   });
   const highPriorityCount = highPriorityQuery.data?.total ?? 0;
 
-  // The browsable, filtered/paged list - the tray's normal (not-searching) content. Runs even
-  // while collapsed so the header count badge stays live. Skipped while searching, when the
-  // pre-fetched search matches are shown instead.
+  // The browsable, filtered list - the tray's normal (not-searching) content. Runs even while
+  // collapsed so the header count stays live. Skipped while searching, when the pre-fetched
+  // search matches are shown instead.
   const browseQuery = useQuery({
-    queryKey: ["samples", { status: "backlog", q: "", priority, sortBy, sortDir, page, page_size: pageSize }],
+    queryKey: ["samples", { status: "backlog", q: "", priority, sortBy, sortDir, page: 1, page_size: BACKLOG_LIST_LIMIT }],
     queryFn: () =>
       samplesApi.list({
         status: "backlog",
         priority: priority || undefined,
         sort_by: sortBy,
         sort_dir: sortDir,
-        page,
-        page_size: pageSize,
+        page: 1,
+        page_size: BACKLOG_LIST_LIMIT,
       }),
     enabled: !searching,
   });
 
   const items = searching ? searchItems ?? [] : browseQuery.data?.items ?? [];
   const total = searching ? searchTotal : browseQuery.data?.total ?? 0;
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const listLoading = searching ? searchLoading : browseQuery.isLoading;
   const listError = searching ? null : browseQuery.error;
 
-  const autoscheduleButton = onOpenAutoschedule && (
-    <Button
-      variant="primary"
-      size="sm"
-      onClick={onOpenAutoschedule}
-      aria-label="Open Autoschedule"
-      title="Autoschedule — set the run design and auto-fill selected cells from the backlog"
-    >
-      <span className={styles.sparkleIcon} aria-hidden="true">
-        ✦
-      </span>
-      Autoschedule
-    </Button>
-  );
+  const autoscheduleTitle = "Autoschedule — set the run design and auto-fill selected cells from the backlog";
+  // Labelled in the roomy top header; a square pink ✦ icon in the narrow side header.
+  const autoscheduleButton =
+    onOpenAutoschedule &&
+    (isSide ? (
+      <Button variant="primary" size="sm" icon onClick={onOpenAutoschedule} aria-label="Open Autoschedule" title={autoscheduleTitle}>
+        <span aria-hidden="true">✦</span>
+      </Button>
+    ) : (
+      <Button variant="primary" size="sm" onClick={onOpenAutoschedule} aria-label="Open Autoschedule" title={autoscheduleTitle}>
+        <span className={styles.sparkleIcon} aria-hidden="true">
+          ✦
+        </span>
+        Autoschedule
+      </Button>
+    ));
 
-  /** Priority filter + sort + rows-per-page + pager, shared by both layouts (the wrapping
-   * container class differs: a right-aligned row in the top header, a vertical stack in the
-   * side drawer). Only rendered while browsing (not searching). */
+  /** Priority filter + sort, shared by both layouts (a right-aligned group in the top header,
+   * one compact row in the side drawer). Only rendered while browsing (not searching). */
   const browseControls = (
     <>
       <select
@@ -182,12 +182,9 @@ export function BacklogPanel({
         aria-label="Filter by priority"
         title="Filter by priority"
         value={priority}
-        onChange={(e) => {
-          setPriority(e.target.value);
-          setPage(1);
-        }}
+        onChange={(e) => setPriority(e.target.value)}
       >
-        <option value="">All priorities</option>
+        <option value="">{isSide ? "All" : "All priorities"}</option>
         {(prioritiesQuery.data ?? []).map((p) => (
           <option key={p} value={p}>
             {p}
@@ -200,10 +197,7 @@ export function BacklogPanel({
           aria-label="Sort by"
           title="Sort by"
           value={sortBy}
-          onChange={(e) => {
-            setSortBy(e.target.value as SampleSortBy);
-            setPage(1);
-          }}
+          onChange={(e) => setSortBy(e.target.value as SampleSortBy)}
         >
           {SORT_OPTIONS.map((opt) => (
             <option key={opt.value} value={opt.value}>
@@ -221,51 +215,6 @@ export function BacklogPanel({
           {sortDir === "asc" ? "▲" : "▼"}
         </Button>
       </div>
-      {/* Rows-per-page + pager grouped so they stay on one row in the narrow side drawer
-          (and sit together at the end of the top-header controls). */}
-      <div className={styles.pageGroup}>
-        <select
-          className={styles.select}
-          aria-label="Rows per page"
-          title="Rows per page"
-          value={pageSize}
-          onChange={(e) => {
-            setPageSize(Number(e.target.value));
-            setPage(1);
-          }}
-        >
-          {PAGE_SIZE_OPTIONS.map((n) => (
-            <option key={n} value={n}>
-              {n} / page
-            </option>
-          ))}
-        </select>
-        <div className={styles.pager}>
-          <Button
-            size="sm"
-            variant="ghost"
-            aria-label="Previous page"
-            title="Previous page"
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={page <= 1}
-          >
-            ‹
-          </Button>
-          <span className={styles.pageInfo}>
-            {page} / {totalPages}
-          </span>
-          <Button
-            size="sm"
-            variant="ghost"
-            aria-label="Next page"
-            title="Next page"
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            disabled={page >= totalPages}
-          >
-            ›
-          </Button>
-        </div>
-      </div>
     </>
   );
 
@@ -275,16 +224,48 @@ export function BacklogPanel({
     </span>
   );
 
+  const abortedTitle = `${abortedCount} aborted sample${abortedCount === 1 ? "" : "s"} back in the backlog after a stopped cell, waiting to be re-placed`;
+  const highPriorityTitle = `${highPriorityCount} backlog sample${highPriorityCount === 1 ? "" : "s"} rated High priority or above (Aborted/Recoverable/Repeatable rank above High) that haven't been placed on the schedule yet`;
+
+  // Top header: spelled-out warning badges + the count.
   const badge = (
     <span className={styles.badgeGroup}>
-      {abortedCount > 0 && <Badge tone="danger">⚠ {abortedCount} aborted</Badge>}
+      {abortedCount > 0 && (
+        <span title={abortedTitle}>
+          <Badge tone="danger">⚠ {abortedCount} aborted</Badge>
+        </span>
+      )}
       {highPriorityCount > 0 && (
-        <span title="Backlog samples rated High priority or above (Aborted/Recoverable/Repeatable rank above High) that haven't been placed on the schedule yet">
+        <span title={highPriorityTitle}>
           <Badge tone="warning">⚠ {highPriorityCount} high priority+ unscheduled</Badge>
         </span>
       )}
       {searching ? `${total} match${total === 1 ? "" : "es"}` : `${total} sample${total === 1 ? "" : "s"}`}
     </span>
+  );
+
+  // Side header: the same warnings as compact ⚠N chips in the title row - colour says which
+  // (red = aborted, amber = high priority+), the tooltip spells it out.
+  const sideWarnings = (
+    <>
+      {abortedCount > 0 && (
+        <span title={abortedTitle} aria-label={abortedTitle}>
+          <Badge tone="danger">⚠{abortedCount}</Badge>
+        </span>
+      )}
+      {highPriorityCount > 0 && (
+        <span title={highPriorityTitle} aria-label={highPriorityTitle}>
+          <Badge tone="warning">⚠{highPriorityCount}</Badge>
+        </span>
+      )}
+    </>
+  );
+
+  // Only the first BACKLOG_LIST_LIMIT samples are fetched - say so rather than hide the rest.
+  const truncatedNote = !searching && total > items.length && (
+    <div className={styles.status}>
+      Showing the first {items.length} of {total} — filter by priority to narrow.
+    </div>
   );
 
   // The card list body, shared by both layouts. The trailing "+ Add sample" card is always
@@ -310,6 +291,7 @@ export function BacklogPanel({
               searchMatch={sample.id === highlightSampleId}
             />
           ))}
+          {truncatedNote}
           <AddSampleCard onClick={() => setAddOpen(true)} />
         </div>
       )}
@@ -348,9 +330,19 @@ export function BacklogPanel({
     }
     return (
       <aside className={sideClasses.join(" ")} aria-label="Backlog" data-backlog-panel="">
+        {/* Two rows: title + count + ⚠ chips + ✦ + collapse, then filter + sort (or the
+            match count while the header search is active). */}
         <div className={styles.sideHeader}>
           <div className={styles.sideTitleRow}>
             <h2 className={styles.sideTitle}>Backlog</h2>
+            {!searching && (
+              <span className={styles.sideCount} title={`${total} backlog sample${total === 1 ? "" : "s"}`}>
+                {total}
+              </span>
+            )}
+            {sideWarnings}
+            <span className={styles.sideSpacer} />
+            {autoscheduleButton}
             <button
               type="button"
               className={styles.collapseToggle}
@@ -361,8 +353,6 @@ export function BacklogPanel({
               {mode === "right" ? "›" : "‹"}
             </button>
           </div>
-          {badge}
-          {autoscheduleButton}
           {searching ? matchNote : <div className={styles.sideControls}>{browseControls}</div>}
         </div>
         <div className={styles.sideBody}>{cardList}</div>
@@ -380,9 +370,8 @@ export function BacklogPanel({
       titleAfter={
         <>
           {autoscheduleButton}
-          {/* Filter / sort / pagination live in the header so the tray body is nothing but the
-              scrollable card list. Only while open (a closed tray has no list to page) and not
-              searching (the text search supersedes the browse controls). */}
+          {/* Filter / sort live in the header so the tray body is nothing but the scrollable
+              card list. Only while open and not searching (the text search supersedes them). */}
           {open && (searching ? matchNote : <div className={styles.headControls}>{browseControls}</div>)}
         </>
       }

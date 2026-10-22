@@ -56,6 +56,7 @@ def sample_out(
         insert_size_bp=sample.insert_size_bp,
         status=sample.status,
         qc_disposition=sample.qc_disposition,
+        qc_disposition_at=sample.qc_disposition_at,
         barcodes=sample.barcode_list,
         import_batch_id=sample.import_batch_id,
         created_at=sample.created_at,

@@ -10,12 +10,14 @@ import type { SampleSortBy, SampleSortDir } from "@/api/samples";
 import { samplesApi } from "@/api/samples";
 import { topupsApi } from "@/api/topups";
 import { BarcodeChips } from "@/components/shared/BarcodeChips";
+import { ComplexCountdownChip } from "@/components/shared/ComplexCountdownChip";
 import { DuplicateBadge } from "@/components/shared/DuplicateBadge";
 import { Pagination } from "@/components/shared/Pagination";
 import { SortableColumnHeader } from "@/components/shared/SortableColumnHeader";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { Note } from "@/components/ui/Note";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import type { SegmentedOption } from "@/components/ui/SegmentedControl";
@@ -23,7 +25,7 @@ import type { SampleOut } from "@/types/sample";
 import type { SampleTopupOut } from "@/types/topup";
 import { useDebouncedValue } from "@/utils/useDebouncedValue";
 import { ABORTED_PRIORITY, priorityLabel, priorityRank, priorityTone } from "@/utils/priority";
-import { qcDispositionLabel } from "@/utils/qcDisposition";
+import { qcDispositionDescription, qcDispositionLabel } from "@/utils/qcDisposition";
 import { useClientSort } from "@/utils/useClientSort";
 import { useSampleBackNav } from "@/utils/sampleBackNav";
 
@@ -63,13 +65,14 @@ const SAMPLE_SORT_ACCESSORS: Record<SampleSortBy, (s: SampleOut) => string | num
   base_kinetics: (s) => s.base_kinetics,
 };
 
-/** Column keys for the client-sorted Top-up table (fully loaded, no pagination). */
-type TopupSortKey = "container" | "barcode" | "from" | "requested";
-const TOPUP_SORT_ACCESSORS: Record<TopupSortKey, (t: SampleTopupOut) => string | number | null> = {
+/** Column keys for the client-sorted Resupply requests table (pending only, fully loaded, no pagination). */
+type ResupplySortKey = "container" | "sanger" | "barcode" | "from" | "raised";
+const RESUPPLY_SORT_ACCESSORS: Record<ResupplySortKey, (t: SampleTopupOut) => string | number | null> = {
   container: (t) => t.pool_id ?? `Sample ${t.sample_id}`,
+  sanger: (t) => t.sanger_ids[0] ?? null,
   barcode: (t) => t.barcodes[0] ?? null,
   from: (t) => t.source_run_name ?? null,
-  requested: (t) => t.request_sent_at ?? null,
+  raised: (t) => t.created_at,
 };
 
 interface SampleColumnDeps {
@@ -120,8 +123,16 @@ function buildSampleColumns({ renderHeader, backNav, onEdit, onCancel, cancelPen
         // — "Repeatable — from complex" vs "from library" both carry the rank-0 Repeatable badge,
         // so the priority label alone can't tell them apart. Main-backlog rows have no
         // qc_disposition, so they keep the plain priority label.
-        const disp = qcDispositionLabel(info.row.original.qc_disposition);
-        return <Badge tone={priorityTone(v)}>{disp ?? priorityLabel(v)}</Badge>;
+        const { qc_disposition, qc_disposition_at } = info.row.original;
+        const disp = qcDispositionLabel(qc_disposition);
+        return (
+          <span className={styles.badgeGroup}>
+            <span title={qcDispositionDescription(qc_disposition)}>
+              <Badge tone={priorityTone(v)}>{disp ?? priorityLabel(v)}</Badge>
+            </span>
+            <ComplexCountdownChip qcDisposition={qc_disposition} qcDispositionAt={qc_disposition_at} />
+          </span>
+        );
       },
     }),
     columnHelper.accessor("target_oplc", {
@@ -210,6 +221,7 @@ export function BacklogPage() {
   const [sortDir, setSortDir] = useState<SampleSortDir>("asc");
   const [addOpen, setAddOpen] = useState(false);
   const [editSample, setEditSample] = useState<SampleOut | null>(null);
+  const [confirmSent, setConfirmSent] = useState<SampleTopupOut | null>(null);
   const q = useDebouncedValue(qInput, 350);
   const queryClient = useQueryClient();
 
@@ -244,8 +256,12 @@ export function BacklogPage() {
   });
   const recoverableItems = recoverableQuery.data?.items ?? [];
 
-  const topupsQuery = useQuery({ queryKey: ["topups"], queryFn: () => topupsApi.list() });
-  const topups = topupsQuery.data ?? [];
+  // Pending only - a request marked sent drops off here and lives on the sample's detail page.
+  const resupplyQuery = useQuery({
+    queryKey: ["topups", { status: "pending" }],
+    queryFn: () => topupsApi.list({ status: "pending" }),
+  });
+  const resupplies = resupplyQuery.data ?? [];
 
   // Lightweight count-only check (page_size 1, just reading .total) for the warning badge.
   const abortedQuery = useQuery({
@@ -261,11 +277,11 @@ export function BacklogPage() {
     },
   });
 
-  const topupSentMutation = useMutation({
+  const resupplySentMutation = useMutation({
     mutationFn: (id: number) => topupsApi.requestSent(id),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["topups"] }),
   });
-  const topupCancelMutation = useMutation({
+  const resupplyCancelMutation = useMutation({
     mutationFn: (id: number) => topupsApi.cancel(id),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["topups"] }),
   });
@@ -308,8 +324,8 @@ export function BacklogPage() {
     [recSortBy, recSortDir, recToggle],
   );
 
-  // Top-up list is fully loaded too, so it sorts client-side like the Recoverable band.
-  const topupSort = useClientSort(topups, TOPUP_SORT_ACCESSORS, { by: "container", dir: "asc" });
+  // The resupply list is fully loaded too, so it sorts client-side like the Recoverable band.
+  const resupplySort = useClientSort(resupplies, RESUPPLY_SORT_ACCESSORS, { by: "container", dir: "asc" });
 
   const { mutate: cancelSample, isPending: cancelPending } = cancelMutation;
   const backNav = useSampleBackNav();
@@ -356,7 +372,8 @@ export function BacklogPage() {
           </CardHeader>
           <CardBody>
             <p className={styles.sectionHint}>
-              Samples returned to the backlog by a Cell QC action — bumped above High priority. Reschedule them from
+              Samples returned to the backlog by a Cell QC action — bumped above High priority. Hover a priority to see
+              what that outcome means; a ⌛ chip counts down the 30 days to use leftover complex. Reschedule them from
               the grid like any backlog sample.
             </p>
             <SampleTableView table={recoverableTable} />
@@ -381,7 +398,7 @@ export function BacklogPage() {
             <input
               type="search"
               className={styles.search}
-              placeholder="Search by Pool ID, barcode, Plate ID, or priority…"
+              placeholder="Search by Pool ID, Sanger ID, barcode, Plate ID, or priority…"
               value={qInput}
               onChange={(e) => {
                 setQInput(e.target.value);
@@ -443,18 +460,30 @@ export function BacklogPage() {
         </CardBody>
       </Card>
 
-      {topups.length > 0 && (
+      {resupplies.length > 0 && (
         <Card>
-          <CardHeader badge={<Badge tone="warning">{topups.length} top-up{topups.length === 1 ? "" : "s"}</Badge>}>
-            <h2>Top-up required</h2>
+          <CardHeader
+            badge={
+              <Badge tone="warning">
+                {resupplies.length} resupply request{resupplies.length === 1 ? "" : "s"}
+              </Badge>
+            }
+          >
+            <h2>Resupply requests</h2>
           </CardHeader>
           <CardBody>
             <p className={styles.sectionHint}>
-              Samples lost to a Cell QC action that need fresh material. Confirm when the top-up request has been sent,
-              or cancel to remove it from this list.
+              Samples dispositioned <b>Lost</b> in a Cell QC action — there is no material left, so fresh sample is
+              needed from the supplier. Press <b>Request sent</b> once you&apos;ve emailed the supplier; the request then
+              leaves this list and stays on the sample&apos;s own page. <b>Cancel</b> removes a request that isn&apos;t
+              needed.
             </p>
-            {topupCancelMutation.isError && (
-              <Note tone="bad" icon="!">Failed to cancel the top-up.</Note>
+            {(resupplyCancelMutation.isError || resupplySentMutation.isError) && (
+              <Note tone="bad" icon="!">
+                {resupplyCancelMutation.isError
+                  ? "Failed to cancel the resupply request."
+                  : "Failed to mark the resupply request as sent."}
+              </Note>
             )}
             <table className={styles.table}>
               <thead>
@@ -462,44 +491,55 @@ export function BacklogPage() {
                   <th>
                     <SortableColumnHeader
                       label="Pool ID"
-                      active={topupSort.sortBy === "container"}
-                      dir={topupSort.sortDir}
-                      onClick={() => topupSort.toggle("container")}
+                      active={resupplySort.sortBy === "container"}
+                      dir={resupplySort.sortDir}
+                      onClick={() => resupplySort.toggle("container")}
+                    />
+                  </th>
+                  <th>
+                    <SortableColumnHeader
+                      label="Sanger IDs"
+                      active={resupplySort.sortBy === "sanger"}
+                      dir={resupplySort.sortDir}
+                      onClick={() => resupplySort.toggle("sanger")}
                     />
                   </th>
                   <th>
                     <SortableColumnHeader
                       label="Barcodes"
-                      active={topupSort.sortBy === "barcode"}
-                      dir={topupSort.sortDir}
-                      onClick={() => topupSort.toggle("barcode")}
+                      active={resupplySort.sortBy === "barcode"}
+                      dir={resupplySort.sortDir}
+                      onClick={() => resupplySort.toggle("barcode")}
                     />
                   </th>
                   <th>
                     <SortableColumnHeader
                       label="From"
-                      active={topupSort.sortBy === "from"}
-                      dir={topupSort.sortDir}
-                      onClick={() => topupSort.toggle("from")}
+                      active={resupplySort.sortBy === "from"}
+                      dir={resupplySort.sortDir}
+                      onClick={() => resupplySort.toggle("from")}
                     />
                   </th>
                   <th>
                     <SortableColumnHeader
-                      label="Requested"
-                      active={topupSort.sortBy === "requested"}
-                      dir={topupSort.sortDir}
-                      onClick={() => topupSort.toggle("requested")}
+                      label="Raised"
+                      active={resupplySort.sortBy === "raised"}
+                      dir={resupplySort.sortDir}
+                      onClick={() => resupplySort.toggle("raised")}
                     />
                   </th>
                   <th></th>
                 </tr>
               </thead>
               <tbody>
-                {topupSort.sorted.map((t) => (
+                {resupplySort.sorted.map((t) => (
                   <tr key={t.id}>
                     <td>
-                      {t.pool_id ? <b>{t.pool_id}</b> : `Sample ${t.sample_id}`}
+                      <Link to={`/samples/${t.sample_id}`} state={backNav} className="link">
+                        <b>{t.pool_id ?? `Sample ${t.sample_id}`}</b>
+                      </Link>
                     </td>
+                    <td>{t.sanger_ids.length ? t.sanger_ids.join(", ") : "—"}</td>
                     <td>
                       <BarcodeChips barcodes={t.barcodes} />
                     </td>
@@ -507,24 +547,22 @@ export function BacklogPage() {
                       {t.source_run_name ?? "—"}
                       {t.source_cell_code ? ` · ${t.source_cell_code}` : ""}
                     </td>
-                    <td>{t.request_sent_at ? new Date(t.request_sent_at).toLocaleDateString() : "—"}</td>
+                    <td>{new Date(t.created_at).toLocaleDateString()}</td>
                     <td>
                       <div className={styles.rowActions}>
-                        {!t.request_sent_at && (
-                          <Button
-                            size="sm"
-                            variant="primary"
-                            onClick={() => topupSentMutation.mutate(t.id)}
-                            disabled={topupSentMutation.isPending}
-                          >
-                            Request Sent
-                          </Button>
-                        )}
+                        <Button
+                          size="sm"
+                          variant="primary"
+                          onClick={() => setConfirmSent(t)}
+                          disabled={resupplySentMutation.isPending}
+                        >
+                          Request sent
+                        </Button>
                         <Button
                           size="sm"
                           variant="ghost"
-                          onClick={() => topupCancelMutation.mutate(t.id)}
-                          disabled={topupCancelMutation.isPending}
+                          onClick={() => resupplyCancelMutation.mutate(t.id)}
+                          disabled={resupplyCancelMutation.isPending}
                         >
                           Cancel
                         </Button>
@@ -536,6 +574,25 @@ export function BacklogPage() {
             </table>
           </CardBody>
         </Card>
+      )}
+
+      {confirmSent && (
+        <ConfirmModal
+          title="Confirm resupply request sent"
+          confirmLabel="Request sent"
+          pendingLabel="Saving…"
+          pending={resupplySentMutation.isPending}
+          onCancel={() => setConfirmSent(null)}
+          onConfirm={() => resupplySentMutation.mutate(confirmSent.id, { onSuccess: () => setConfirmSent(null) })}
+        >
+          <p>
+            Confirm that you have emailed the supplier to resend additional sample for{" "}
+            <b>{confirmSent.pool_id ?? `Sample ${confirmSent.sample_id}`}</b> before pressing <b>Request sent</b>.
+          </p>
+          <p className={styles.sectionHint}>
+            This records today&apos;s date and removes it from this list — it stays visible on the sample&apos;s page.
+          </p>
+        </ConfirmModal>
       )}
 
       {addOpen && <SampleModal onClose={() => setAddOpen(false)} />}

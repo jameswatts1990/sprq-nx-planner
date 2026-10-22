@@ -94,14 +94,17 @@
    SchedulerSlotView / CellInfoPopover. */
 .hasStub {
   /* Reserve the right strip so the card's text/barcodes never underlap the stub. */
-  padding-right: 30px;
+  padding-right: 27px;
 }
 .stub {
   position: absolute;
   top: 0;
   right: 0;
   bottom: 0;
-  width: 28px;
+  width: 26px;
+  /* Size container (its box is fixed by the card, never by its content), so the microprint
+     below can drop out on a card too short to fit it beneath the label. */
+  container: stub / size;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -258,6 +261,15 @@
   overflow: hidden;
   pointer-events: none;
   user-select: none;
+}
+/* The label takes ~34px from the top and the microprint ~12px from the bottom, so on a shorter
+   card (Compact, barcodes hidden) they would collide and the microprint would sit over the use
+   number. The use number matters more, and the tray id is already in the card's
+   "C01-T285" line, so the microprint is the one that goes. */
+@container stub (max-height: 46px) {
+  .stubMicro {
+    display: none;
+  }
 }
 /* The readable label: the cell number "▣1" stacked over the use number in its own boxed
    square, both in the top band above the microprint. */
@@ -417,12 +429,16 @@
   cursor: not-allowed;
 }
 
+/* The Pool ID is the card's identity, so it is never truncated: sized so a standard
+   "TRAC-2-12345" fits on one line at the default 268px day column, and anything longer (or a
+   narrower column) wraps after the last hyphen (see breakablePoolId) and the card grows taller.
+   overflow-wrap is the last resort for an ID with no hyphen at all. */
 .ext {
-  font-size: 11.5px;
+  font-size: 11px;
   font-weight: 800;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
   color: var(--ink);
 }
 .cellref {
@@ -759,8 +775,9 @@
    View options → Density: Compact. Opt-in, scoped by the [data-density="compact"]
    attribute SchedulePage sets on the grid area (:global so this module can react to the
    ancestor without prop-threading). Trims the fixed paddings/min-heights/fonts so more of
-   the week fits; the sample name still ellipsis-truncates (never wraps) and the ticket stub
-   just narrows. Nothing here runs unless the toggle is on. */
+   the week fits; the Pool ID still wraps rather than truncates, and the ticket stub just
+   narrows (its microprint drops out on these shorter cards - see the @container stub rule).
+   Nothing here runs unless the toggle is on. */
 :global([data-density="compact"]) .slot {
   min-height: 40px;
   padding: 3px 4px;

@@ -56,6 +56,19 @@ def test_search_matches_on_priority(client):
     assert body["items"][0]["pool_id"] == "A1"
 
 
+def test_search_matches_on_sanger_id_and_plate_id(client):
+    for pool_id, sanger, plate in (("P1", ["SQPP-111-A"], "PLATE-9"), ("P2", ["SQPP-222-B"], None)):
+        resp = client.post(
+            "/api/samples",
+            json={"pool_id": pool_id, "barcodes": [f"bc-{pool_id}"], "sanger_ids": sanger, "plate_id": plate},
+        )
+        assert resp.status_code in (200, 201), resp.text
+
+    for q in ("sqpp-111", "PLATE-9"):
+        body = client.get("/api/samples", params={"q": q}).json()
+        assert [s["pool_id"] for s in body["items"]] == ["P1"], q
+
+
 def test_sort_by_priority_orders_by_rank_not_object_identity(client):
     _import(
         client,

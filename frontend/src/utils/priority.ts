@@ -29,6 +29,13 @@ export function priorityLabel(priority: string | null): string {
   return priority && priority.trim() ? priority : DEFAULT_PRIORITY;
 }
 
+/** priorityLabel without the trailing " (N)" rank - for tight spaces (the Schedule backlog
+ * cards) where the badge colour already conveys the rank. Pair it with the full label as a
+ * tooltip. */
+export function priorityShortLabel(priority: string | null): string {
+  return priorityLabel(priority).replace(PRIORITY_RANK_RE, "").trim();
+}
+
 export function priorityTone(priority: string | null): BadgeTone {
   // Colour scale, low urgency → high: Standard (grey) → Medium (light blue) → High (dark
   // blue). Aborted and the QC-return-to-backlog labels (Recoverable/Repeatable) share

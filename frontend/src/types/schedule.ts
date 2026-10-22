@@ -58,6 +58,9 @@ export interface StageOut {
   run_time_hours: RunTimeHours;
   sample_id: number | null;
   sample_pool_id: string | null;
+  /** The sample's other ids (Plate ID, Sanger IDs) - matched by the Schedule's unified search. */
+  sample_plate_id: string | null;
+  sample_sanger_ids: string[];
   /** Library insert / fragment size (bp) of the sample in this slot, or null if not recorded.
    * Drives the grid card's "[<5kb]" flag and the small-insert-on-reuse warning (a small-insert
    * sample sitting on use_number >= 2). The threshold is admin-configurable (read client-side). */

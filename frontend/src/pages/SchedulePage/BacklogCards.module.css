@@ -4,7 +4,7 @@
   border-radius: var(--r-sm);
   background: var(--card);
   box-shadow: var(--shadow-sm);
-  padding: 10px 12px;
+  padding: 6px 8px;
   cursor: grab;
   touch-action: none;
 }
@@ -26,8 +26,8 @@
    positioning, understated grey colour, and reveal-on-hover are component-specific. */
 .editBtn {
   position: absolute;
-  top: 6px;
-  right: 6px;
+  top: 3px;
+  right: 3px;
   color: var(--grey);
   opacity: 0;
   transition: opacity 0.12s, color 0.12s, border-color 0.12s;
@@ -40,14 +40,14 @@
   color: var(--ink);
 }
 /* Trailing "add a sample" placeholder - a dashed card that shares the grid track sizing
-   with the sample cards, so it reads as the natural next slot in the list. */
+   with the sample cards, so it reads as the natural next slot in the list. One line, about a
+   sample card's height. */
 .addCard {
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  min-height: 64px;
+  gap: 6px;
+  min-height: 36px;
   font-family: var(--sans);
   font-size: var(--fs-md);
   font-weight: 700;
@@ -68,7 +68,7 @@
   outline-offset: 2px;
 }
 .addPlus {
-  font-size: var(--fs-display);
+  font-size: var(--fs-2xl);
   font-weight: 400;
   line-height: 1;
 }
@@ -103,27 +103,71 @@
     box-shadow: 0 0 0 2px var(--magenta), 0 0 0 5px rgba(230, 0, 126, 0.35);
   }
 }
+/* Line 1: Pool ID (+ duplicate badge) on the left, priority + movie time pinned right. Never
+   wraps - the Pool ID gives way with an ellipsis instead (full ID in the card tooltip). */
 .cardHead {
   display: flex;
-  align-items: baseline;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-bottom: 6px;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+.cardHead > * {
+  flex: 0 0 auto;
 }
 .ext {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: var(--fs-base);
   font-weight: 800;
   color: var(--ink);
 }
+.headEnd {
+  margin-left: auto;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+/* The tooltip wrapper round the priority Badge - flex, so it adds no inline line-box height. */
+.headEnd > span {
+  display: inline-flex;
+}
+/* Line 2: Plate ID, the advisory flags, then as many barcodes as fit (BarcodeChips singleRow
+   folds the rest into "+N"). Collapses entirely when a sample has none of them. */
+.cardSub {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+  min-width: 0;
+  margin-top: 3px;
+}
+.cardSub:empty {
+  display: none;
+}
+.cardSub > * {
+  flex: 0 0 auto;
+}
+.cardSub > [data-barcode-chips] {
+  flex: 1 1 0;
+}
 .parent {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: var(--fs-xs);
   color: var(--faint);
   font-weight: 600;
 }
-/* Movie / acquisition time chip, pushed to the right of the head row so it lines up down the
+/* Movie / acquisition time chip, at the right end of the head row so it lines up down the
    card list. Quiet by default - it's reference info, not a status. */
 .movie {
-  margin-left: auto;
   font-size: var(--fs-xs);
   font-weight: 700;
   color: var(--grey);

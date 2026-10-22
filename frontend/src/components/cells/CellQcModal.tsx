@@ -14,7 +14,7 @@ import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
 import type { AffectedSample, Disposition, QcPreviewOut, QcVerdict } from "@/types/qc";
 import { CELL_STATUS_LABEL, CELL_STATUS_TONE } from "@/utils/cellStatus";
 import { canRecordQcOutcome } from "@/utils/cellUseQc";
-import { DISPOSITION_HINT, DISPOSITION_SHORT } from "@/utils/qcDisposition";
+import { DISPOSITION_DESCRIPTION, DISPOSITION_HINT, DISPOSITION_LABEL, DISPOSITION_SHORT } from "@/utils/qcDisposition";
 import { tractionUrl } from "@/utils/traction";
 
 import styles from "./CellQcModal.module.css";
@@ -22,16 +22,17 @@ import styles from "./CellQcModal.module.css";
 type RowChoice = Disposition | "keep";
 
 // The order deliberately runs Lost → the two repeat pathways (from complex, then library) →
-// Recoverable, so the cheap "Complex" repeat sits next to its volume readout.
+// Recoverable from instrument, so the cheap "Complex" repeat sits next to its volume readout.
 const DISPOSITION_ORDER: Disposition[] = ["lost", "repeatable_complex", "repeatable", "recoverable"];
 const REQUIRED_OPTIONS: SegmentedOption<Disposition>[] = DISPOSITION_ORDER.map((value) => ({
   value,
   label: DISPOSITION_SHORT[value],
   hint: DISPOSITION_HINT[value],
+  title: DISPOSITION_DESCRIPTION[value],
 }));
 const FLAGGED_OPTIONS: SegmentedOption<RowChoice>[] = [
   { value: "keep", label: "Keep" },
-  ...DISPOSITION_ORDER.map((value) => ({ value, label: DISPOSITION_SHORT[value] })),
+  ...DISPOSITION_ORDER.map((value) => ({ value, label: DISPOSITION_SHORT[value], title: DISPOSITION_DESCRIPTION[value] })),
 ];
 
 /** How many µL of cleaned complex, rounded to 1 dp without a trailing ".0". */
@@ -58,7 +59,7 @@ function fmtDate(iso: string | null): string {
  * The single Cell QC flow, keyed off a cell id so every entry point (grid ticket-stub, the
  * left tray overview, and the Cell detail page) opens the same dialog. Two phases: choose a
  * verdict (Fail / Fail-and-Stop / Retire), then - if the verdict costs any samples - decide
- * each one's fate (Lost -> top-up; repeat from Complex / Library or Recoverable -> backlog, each
+ * each one's fate (Lost -> resupply request; repeat from Complex / Library or recover from Instrument -> backlog, each
  * row showing its leftover cleaned-complex volume and a Traction link). Preview is read-only and
  * commit is atomic, so closing mid-flow applies nothing.
  */
@@ -238,7 +239,7 @@ export function CellQcModal({ cellId, cellUseId, onClose, onApplied }: CellQcMod
             <>
               <Note tone="warn" icon="!">
                 This cell is <b>{CELL_STATUS_LABEL[cell.status]}</b>. Undo reopens it and restores the samples this
-                QC action affected (any top-up whose request was already sent is left in place).
+                QC action affected (any resupply request already marked sent is left in place).
               </Note>
               {errorText && <Note tone="bad" icon="!">{errorText}</Note>}
               <ModalActions>
@@ -303,12 +304,19 @@ export function CellQcModal({ cellId, cellUseId, onClose, onApplied }: CellQcMod
 
       {cell && phase === "disposition" && preview && (
         <>
-          <p className={styles.intro}>
-            Decide what happens to each affected sample. <b>Lost</b> goes to the top-up list. The repeat and recover
-            options go back to the backlog above High priority: <b>Complex</b> re-loads from the leftover cleaned
-            complex (suggested when enough remains), <b>Library</b> re-makes from library material in Traction, and{" "}
-            <b>Recoverable</b> is for data that can be salvaged.
-          </p>
+          <p className={styles.intro}>Decide what happens to each affected sample:</p>
+          <dl className={styles.dispLegend}>
+            {DISPOSITION_ORDER.map((d) => (
+              <div key={d}>
+                {/* Name the matching row button when it's abbreviated, so the legend maps onto it. */}
+                <dt>
+                  {DISPOSITION_LABEL[d]}
+                  {DISPOSITION_SHORT[d] !== DISPOSITION_LABEL[d] && ` (“${DISPOSITION_SHORT[d]}”)`}
+                </dt>
+                <dd>{DISPOSITION_DESCRIPTION[d]}</dd>
+              </div>
+            ))}
+          </dl>
           {required.length > 0 && (
             <>
               <div className={styles.groupTitle}>Needs a decision</div>

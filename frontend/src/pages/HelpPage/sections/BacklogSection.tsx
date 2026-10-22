@@ -1,5 +1,7 @@
+import { COMPLEX_COUNTDOWN_AMBER_DAYS, COMPLEX_COUNTDOWN_RED_DAYS } from "@/components/shared/ComplexCountdownChip";
 import { Badge } from "@/components/ui/Badge";
 import { ABORTED_PRIORITY, RECOVERABLE_PRIORITY, REPEATABLE_PRIORITY, priorityTone } from "@/utils/priority";
+import { COMPLEX_REPEAT_WINDOW_DAYS, DISPOSITION_DESCRIPTION, DISPOSITION_LABEL } from "@/utils/qcDisposition";
 
 import styles from "../HelpPage.module.css";
 
@@ -22,7 +24,7 @@ export function BacklogSection() {
 
       <p className={styles.subheading}>Filters &amp; search</p>
       <p>
-        <b>Search</b> by Pool ID, barcode, Plate ID, or priority; results narrow as you type. Use the{" "}
+        <b>Search</b> by Pool ID, Sanger ID, barcode, Plate ID, or priority; results narrow as you type. Use the{" "}
         <b>priority dropdown</b> to narrow the list to one priority value — it only lists priorities that are
         actually present in the backlog, so a choice never comes back empty. The <b>rows-per-page</b> control (25 /
         50 / 100 / 200, defaulting to 50) sets how many samples are shown at once.
@@ -66,22 +68,41 @@ export function BacklogSection() {
       <p className={styles.subheading}>Recoverable Samples (above the backlog)</p>
       <p>
         When a <b>Cell QC</b> action (see the Schedule and Cells tabs&apos; help) takes a cell out of service, the
-        samples on its later uses shift onto the tray&apos;s other cells and the tail may drop off. Any sample you
-        dispositioned to repeat — <b>from complex</b> or <b>from library</b> — or as <b>Recoverable</b> comes back here
-        into a <b>Recoverable Samples</b> section shown <i>above</i> the main backlog, bumped above High priority so
-        it&apos;s rescheduled first. The <b>Priority</b> column shows which pathway was chosen (for example{" "}
-        <i>Repeatable — from complex</i>) so you know how to re-prep it. Rescuing one is no different from scheduling
-        any other backlog sample: drag it (or place it via Auto Schedule) onto a cell. A{" "}
+        samples on its later uses shift onto the tray&apos;s other cells and the tail may drop off. Every affected sample
+        gets one of four outcomes; the three that can still be run come back here into a <b>Recoverable Samples</b>{" "}
+        section shown <i>above</i> the main backlog, bumped above High priority so they&apos;re rescheduled first:
+      </p>
+      <ul>
+        {(["repeatable_complex", "repeatable", "recoverable"] as const).map((d) => (
+          <li key={d}>
+            <b>{DISPOSITION_LABEL[d]}</b> — {DISPOSITION_DESCRIPTION[d]}
+          </li>
+        ))}
+      </ul>
+      <p>
+        The <b>Priority</b> column shows which outcome was chosen (hover it for what that means) so you know how to
+        re-prep the sample. A <b>Repeatable — from complex</b> sample also carries a countdown chip — for example{" "}
+        <Badge tone="blue">⌛ Complex 23d left</Badge> — counting down {COMPLEX_REPEAT_WINDOW_DAYS} days from the date
+        its QC was recorded, as a reminder to use the leftover complex while it is fresh. It turns{" "}
+        <Badge tone="warning">amber</Badge> with {COMPLEX_COUNTDOWN_AMBER_DAYS} days or fewer left and{" "}
+        <Badge tone="danger">red</Badge> with {COMPLEX_COUNTDOWN_RED_DAYS} or fewer (then reads &quot;… d over&quot; once
+        it passes zero). It is a warning only — nothing is blocked or changed when it runs out. The same chip shows on
+        the Schedule tab&apos;s Backlog cards and on the sample&apos;s page. Rescuing a sample is no different from
+        scheduling any other backlog sample: drag it (or place it via Auto Schedule) onto a cell. A{" "}
         <Badge tone="info">N recoverable</Badge> count appears in the header while any are waiting. Its column headers
         are clickable to sort, just like the main backlog (it starts sorted by priority).
       </p>
-      <p className={styles.subheading}>Top-up required (below the backlog)</p>
+      <p className={styles.subheading}>Resupply requests (below the backlog)</p>
       <p>
-        Samples you dispositioned <b>Lost</b> (their material is gone and needs re-requesting) appear in a{" "}
-        <b>Top-up required</b> list <i>below</i> the backlog, showing the run/cell the loss came from. Click{" "}
-        <b>Request Sent</b> once you&apos;ve asked the submitter for fresh material — it records today&apos;s date on
-        the entry — or <b>Cancel</b> to remove it from the list. This is separate from the cell-level PacBio credit
-        workflow (which recovers the wasted <i>cell</i>, not the sample). Click any column header to sort this list.
+        The fourth outcome, <b>Lost</b>, means {DISPOSITION_DESCRIPTION.lost.charAt(0).toLowerCase()}
+        {DISPOSITION_DESCRIPTION.lost.slice(1)} The <b>Resupply requests</b> list <i>below</i> the backlog shows each
+        sample&apos;s Pool ID (click it to open the sample), Sanger IDs, barcodes, the run/cell the loss came from, and
+        the date the request was raised. Once you&apos;ve emailed the supplier asking them to resend sample, click{" "}
+        <b>Request sent</b> and confirm in the pop-up: it records today&apos;s date and the request <b>leaves this
+        list</b>. Sent requests stay visible in a <b>Resupply requests</b> card on the sample&apos;s own page (with the
+        date raised and the date sent). <b>Cancel</b> removes a request that isn&apos;t needed. This is separate from the
+        cell-level PacBio credit workflow (which recovers the wasted <i>cell</i>, not the sample). Click any column
+        header to sort this list.
       </p>
       <p>
         <b>Aborted</b> is a legacy top-priority label: if any sample carries it, a red{" "}
@@ -150,7 +171,8 @@ export function BacklogSection() {
       </p>
       <p>
         The same backlog also appears as draggable cards inside the Schedule tab&apos;s Backlog panel, with the same
-        search, priority filter, and rows-per-page controls. Sorting there is a compact dropdown (Created, Pool ID,
+        priority filter (searching is done with the Schedule toolbar&apos;s <b>Find</b> box), listing every backlog
+        sample in one scrolling list rather than page by page. Sorting there is a compact dropdown (Created, Pool ID,
         Barcode, or Priority) plus a direction button rather than clickable column headers, since that panel is a
         card list, not a table. Each card shows the sample&apos;s Plate ID, a coloured <b>priority</b> badge, and
         its <b>movie time</b> (e.g. ⏱ 24 h), with a coloured left edge matching its priority. Drag a card onto a slot to

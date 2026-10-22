@@ -12,7 +12,7 @@ export interface SortableColumnHeaderProps {
 
 /** A table header rendered as a button so any column can be clicked to sort. Shows an
  * arrow (▲ asc / ▼ desc) on the active column. Shared by the server-sorted sample tables
- * and the client-sorted (Top-up, cell-use) tables so sorting looks and behaves the same
+ * and the client-sorted (Resupply requests, cell-use) tables so sorting looks and behaves the same
  * everywhere. */
 export function SortableColumnHeader({ label, active, dir, onClick }: SortableColumnHeaderProps) {
   return (

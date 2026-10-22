@@ -39,6 +39,10 @@ class StageOut(BaseModel):
     run_time_hours: int
     sample_id: int | None
     sample_pool_id: str | None
+    # The sample's other ids, so the Schedule's unified search finds a placed well by any id the
+    # backlog search accepts (Plate ID, Sanger IDs), not just its Pool ID.
+    sample_plate_id: str | None = None
+    sample_sanger_ids: list[str] = []
     # Library insert / fragment size (bp) of the sample in this slot, or null if not recorded.
     # Drives the grid card's "[<5kb]" flag and the small-insert-on-reuse warning (a small-insert
     # sample sitting on use_number >= 2). Threshold is admin-configurable (read client-side).

@@ -29,6 +29,9 @@ export interface SampleOut {
    * returned this sample to the backlog - groups it into the Backlog's "Recoverable Samples"
    * section. See utils/qcDisposition.ts for the human-readable labels. */
   qc_disposition: string | null;
+  /** When that Cell QC was recorded (ISO) - starts the "Repeatable — from complex" 30-day
+   * countdown chip. Null when untagged or tagged before this was recorded. */
+  qc_disposition_at?: string | null;
   barcodes: string[];
   import_batch_id: number | null;
   created_at: string;

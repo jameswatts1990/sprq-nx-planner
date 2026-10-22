@@ -17,6 +17,8 @@ function stage(slotIndex: number, runTimeHours: 12 | 24 | 30, cellUseId: number)
     run_time_hours: runTimeHours,
     sample_id: cellUseId,
     sample_pool_id: `S${cellUseId}`,
+    sample_plate_id: null,
+    sample_sanger_ids: [],
     insert_size_bp: null,
     barcodes: [],
     cell_use_status: "planned",

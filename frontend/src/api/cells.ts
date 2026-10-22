@@ -68,10 +68,10 @@ export const cellsApi = {
   qcPreview: (id: number, req: QcPreviewRequest) => api.post<QcPreviewOut>(`/api/cells/${id}/qc/preview`, req),
   /** Atomically apply a QC verdict + per-sample dispositions: fail the triggering use,
    * re-zip the tray's loading queue, set the cell's terminal status, and route each
-   * lost/displaced sample to a top-up or the backlog. */
+   * lost/displaced sample to a resupply request or the backlog. */
   qcCommit: (id: number, req: QcCommitRequest) => api.post<QcCommitOut>(`/api/cells/${id}/qc/commit`, req),
   /** Reverse the most recent QC verdict on a cell - reopen it and restore the uses/samples
-   * it touched (skipping any that have since drifted, e.g. a top-up already sent). */
+   * it touched (skipping any that have since drifted, e.g. a resupply request already sent). */
   qcUndo: (id: number) => api.post<QcUndoOut>(`/api/cells/${id}/qc/undo`),
   /** Save the lab's internal-report ID (e.g. 26_NC_S_004). The first save stamps the
    * internal-report timestamp, completing that stage of the credit workflow. */

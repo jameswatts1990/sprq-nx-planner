@@ -88,6 +88,8 @@ class SampleOut(BaseModel):
     # returned this sample to the backlog - drives the Backlog "Recoverable Samples" section
     # grouping. See schemas/qc.py DISPOSITIONS for the full set and their meanings.
     qc_disposition: str | None = None
+    # When that QC action was recorded - the start of the from-complex 30-day countdown chip.
+    qc_disposition_at: datetime | None = None
     barcodes: list[str]
     import_batch_id: int | None
     created_at: datetime

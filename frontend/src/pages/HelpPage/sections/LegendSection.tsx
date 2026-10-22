@@ -2,6 +2,11 @@ import { SchedulerSlotView } from "@/components/scheduler/SchedulerSlotView";
 import { CellStatusCard } from "@/components/cells/CellStatusCard";
 import { TraySiblingList } from "@/components/cells/TraySiblingList";
 import { WindowMeter } from "@/components/cells/WindowMeter";
+import {
+  COMPLEX_COUNTDOWN_AMBER_DAYS,
+  COMPLEX_COUNTDOWN_RED_DAYS,
+  ComplexCountdownChip,
+} from "@/components/shared/ComplexCountdownChip";
 import { DuplicateBadge } from "@/components/shared/DuplicateBadge";
 import { InsertSizeFlag } from "@/components/shared/InsertSizeFlag";
 import { UseLegend } from "@/components/shared/SectionHeading";
@@ -15,6 +20,7 @@ import { CELL_STATUS_LABEL, CELL_STATUS_TONE } from "@/utils/cellStatus";
 import { CREDIT_OVERDUE_DAYS, NO_CELL_BADGE, OVERDUE_BADGE } from "@/utils/creditCase";
 import { CYCLE_STATUS_TONE } from "@/utils/cycleStatus";
 import { priorityTone } from "@/utils/priority";
+import { COMPLEX_REPEAT_WINDOW_DAYS } from "@/utils/qcDisposition";
 import { SAMPLE_STATUS_LABEL, SAMPLE_STATUS_TONE } from "@/utils/sampleStatus";
 import { USE_STATUS_TONE } from "@/utils/useStatusTone";
 
@@ -73,13 +79,33 @@ const CELL_QC_FLAG_MEANING: Record<CellQcFlag, string> = {
 };
 const CELL_QC_FLAGS: CellQcFlag[] = ["unreported", "awaiting_credit"];
 
+/** A QC timestamp `n` days before now, so the legend renders the live countdown chip at each
+ * colour band rather than re-describing its colours in prose. */
+function qcDaysAgo(n: number): string {
+  return new Date(Date.now() - n * 86_400_000).toISOString();
+}
+const COMPLEX_COUNTDOWN_EXAMPLES: { daysAgo: number; meaning: string }[] = [
+  {
+    daysAgo: 7,
+    meaning: `A "Repeatable - from complex" sample: days left of the ${COMPLEX_REPEAT_WINDOW_DAYS}-day window, counted from the date its Cell QC was recorded, to use the leftover complex.`,
+  },
+  {
+    daysAgo: COMPLEX_REPEAT_WINDOW_DAYS - COMPLEX_COUNTDOWN_AMBER_DAYS,
+    meaning: `${COMPLEX_COUNTDOWN_AMBER_DAYS} days or fewer left - plan it in soon.`,
+  },
+  {
+    daysAgo: COMPLEX_REPEAT_WINDOW_DAYS + 2,
+    meaning: `${COMPLEX_COUNTDOWN_RED_DAYS} days or fewer left, or past the window ("d over"). A warning only - nothing is blocked or changed.`,
+  },
+];
+
 // Priority is free text imported from the sample sheet (no fixed set of values), so
 // these are illustrative examples - the colouring itself comes from the real
 // priorityTone() function, keyed off the same "(N)" rank convention as the backend.
 const PRIORITY_EXAMPLES: { label: string; meaning: string }[] = [
   {
     label: "Recoverable (0)",
-    meaning: "Rank 0 - returned to the backlog by a Cell QC action (data recoverable); shown in the Recoverable Samples section, above High.",
+    meaning: "Rank 0 - returned to the backlog by a Cell QC action as Recoverable - from instrument (the run's data can still be recovered from the instrument); shown in the Recoverable Samples section, above High.",
   },
   {
     label: "Repeatable (0)",
@@ -204,6 +230,18 @@ export function LegendSection() {
               <Badge tone={priorityTone(p.label)}>{p.label}</Badge>
             </span>
             <span>{p.meaning}</span>
+          </div>
+        ))}
+      </div>
+
+      <p className={styles.subheading}>Leftover-complex countdown (Backlog, Schedule, Sample detail)</p>
+      <div className={styles.legendGrid}>
+        {COMPLEX_COUNTDOWN_EXAMPLES.map((ex) => (
+          <div className={styles.legendRow} key={ex.daysAgo}>
+            <span className={styles.legendSwatchLabel}>
+              <ComplexCountdownChip qcDisposition="repeatable_complex" qcDispositionAt={qcDaysAgo(ex.daysAgo)} />
+            </span>
+            <span>{ex.meaning}</span>
           </div>
         ))}
       </div>

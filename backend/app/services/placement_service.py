@@ -1085,6 +1085,7 @@ def place_sample(
     # requeued-then-rescheduled sample doesn't linger in the Backlog's "Recoverable Samples"
     # section if it ever returns to the backlog by another path. See services/qc_service.py.
     sample.qc_disposition = None
+    sample.qc_disposition_at = None
 
     # Lay this plate's wells onto its cells in ascending order (see _resequence_plate) so the
     # freshly-placed sample never leaves the plate reading an out-of-order cell number.
@@ -1244,7 +1245,7 @@ def return_cancelled_use_to_backlog(db: Session, cell_use_id: int, actor: str | 
     db.delete(cell_use)  # cascades this use's own barcodes
     db.flush()
 
-    # The discard / QC action already routed the sample (backlog, or failed + top-up), but it
+    # The discard / QC action already routed the sample (backlog, or failed + resupply request), but it
     # may have been rescheduled since - only put a stale "scheduled" sample back in the backlog,
     # and only if it has no other live (non-cancelled) placement. A QC "lost" sample stays failed.
     if sample is not None and sample.status == "scheduled":

@@ -791,7 +791,9 @@ def auto_fill(
         # here by Auto Schedule/Recalculate keeps a stale tag even though it's genuinely
         # scheduled again.
         db.execute(
-            update(Sample).where(Sample.id.in_(placed_sample_ids)).values(status="scheduled", qc_disposition=None)
+            update(Sample)
+            .where(Sample.id.in_(placed_sample_ids))
+            .values(status="scheduled", qc_disposition=None, qc_disposition_at=None)
         )
 
     # A run can now mix movie times well-by-well (a 12h cell 1 beside a 30h cell 4), so each

@@ -141,6 +141,9 @@ def test_fail_cell_loses_only_its_sample_and_keeps_the_cell_open(client):
     # Lost -> a top-up entry now exists for F1
     topups = client.get("/api/topups").json()
     assert [t["sample_id"] for t in topups] == [f1_id]
+    # The sample detail page lists only that sample's resupply requests.
+    assert [t["sample_id"] for t in client.get("/api/topups", params={"sample_id": f1_id}).json()] == [f1_id]
+    assert client.get("/api/topups", params={"sample_id": f1_id + 999}).json() == []
 
 
 def test_repeat_from_complex_surfaces_volumes_and_returns_to_backlog(client):
@@ -174,6 +177,7 @@ def test_repeat_from_complex_surfaces_volumes_and_returns_to_backlog(client):
     assert s["status"] == "backlog"
     assert s["qc_disposition"] == "repeatable_complex"
     assert s["priority"] == "Repeatable (0)"
+    assert s["qc_disposition_at"] is not None  # starts the 30-day from-complex countdown chip
 
 
 def test_qc_preview_reflects_configured_complex_volumes(client):
@@ -353,6 +357,7 @@ def test_undo_qc_reopens_the_cell_and_restores_uses_and_samples(client):
     assert wed_stages["P2D"]["cell_use_status"] == "planned"
     assert _sample(client, _sid(client, "P2D"))["status"] == "scheduled"
     assert _sample(client, _sid(client, "P2D"))["qc_disposition"] is None
+    assert _sample(client, _sid(client, "P2D"))["qc_disposition_at"] is None
     assert client.get("/api/topups").json() == []
 
 

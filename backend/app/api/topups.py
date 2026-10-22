@@ -21,13 +21,17 @@ def _get_topup(db: SessionDep, topup_id: int) -> SampleTopup:
         ],
     )
     if topup is None:
-        raise HTTPException(404, "Top-up not found")
+        raise HTTPException(404, "Resupply request not found")
     return topup
 
 
 @router.get("", response_model=list[SampleTopupOut])
-def list_topups_endpoint(db: SessionDep, status: str | None = None) -> list[SampleTopupOut]:
-    """The Backlog's "Top-up required" list. status=pending (not yet requested) / sent."""
+def list_topups_endpoint(
+    db: SessionDep, status: str | None = None, sample_id: int | None = None
+) -> list[SampleTopupOut]:
+    """Resupply requests (internally "top-ups": table/API/audit names keep that spelling).
+    The Backlog's "Resupply requests" list asks for status=pending (not yet sent); a sample's
+    detail page asks for all of its own (sample_id), which is where sent requests stay visible."""
     only_pending: bool | None = None
     if status == "pending":
         only_pending = True
@@ -35,19 +39,19 @@ def list_topups_endpoint(db: SessionDep, status: str | None = None) -> list[Samp
         only_pending = False
     elif status is not None:
         raise HTTPException(400, "status must be 'pending' or 'sent'")
-    return list_topups(db, only_pending=only_pending)
+    return list_topups(db, only_pending=only_pending, sample_id=sample_id)
 
 
 @router.post("/{topup_id}/request-sent", response_model=SampleTopupOut)
 def request_sent_endpoint(topup_id: int, db: SessionDep, actor: ActorDep) -> SampleTopupOut:
-    """Confirm the top-up request went out - stamps today's date on the entry."""
+    """Confirm the resupply request went out - stamps today's date on the entry."""
     topup = _get_topup(db, topup_id)
     return mark_topup_request_sent(db, topup, actor)
 
 
 @router.delete("/{topup_id}", status_code=204)
 def cancel_topup_endpoint(topup_id: int, db: SessionDep, actor: ActorDep) -> Response:
-    """Cancel (delete) a top-up requirement. The sample itself is untouched."""
+    """Cancel (delete) a resupply request. The sample itself is untouched."""
     topup = _get_topup(db, topup_id)
     cancel_topup(db, topup, actor)
     return Response(status_code=204)

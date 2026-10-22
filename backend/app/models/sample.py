@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import JSON, DateTime, Float, ForeignKey, Integer, String, UniqueConstraint, func
+from sqlalchemy import JSON, ColumnElement, DateTime, Float, ForeignKey, Integer, String, UniqueConstraint, cast, func, or_
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -49,13 +49,17 @@ class Sample(Base):
     status: Mapped[str] = mapped_column(String(20), default="backlog", index=True)
     # QC disposition tag when a Cell QC action sends this sample back to the backlog:
     # None | "repeatable_complex" | "repeatable" | "recoverable" (the full set is schemas/qc.py
-    # DISPOSITIONS minus "lost", which goes to the top-up list instead). An edit-proof grouping
+    # DISPOSITIONS minus "lost", which goes to the Resupply requests list instead). An edit-proof grouping
     # key for the Backlog's "Recoverable Samples" section (priority is free-text/user-editable and
     # shares rank 0 with "Aborted (0)", so it can't be relied on for grouping). Paired with a
     # rank-0 priority label (REPEATABLE_PRIORITY for either repeat pathway, RECOVERABLE_PRIORITY
     # for "recoverable") that drives the ordering. Cleared when the sample is next placed. See
     # services/qc_service.py.
     qc_disposition: Mapped[str | None] = mapped_column(String(20), nullable=True, index=True)
+    # When the Cell QC action that set qc_disposition was recorded. Drives the advisory 30-day
+    # leftover-complex countdown chip on "repeatable_complex" samples (display only - nothing
+    # happens on expiry). Set/cleared/undone together with qc_disposition.
+    qc_disposition_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
@@ -73,6 +77,18 @@ class Sample(Base):
     @property
     def barcode_list(self) -> list[str]:
         return [b.barcode for b in self.barcodes]
+
+
+def sample_id_matches(like: str) -> ColumnElement[bool]:
+    """Case-insensitive match of an ILIKE pattern against every id a sample carries: Pool ID,
+    Plate ID and Sanger IDs. Shared by every server-side search box that finds samples (Backlog,
+    History, the Schedule's backlog half, Cells) so they all accept the same ids. Sanger IDs are a
+    JSON list, so they're matched on the column's text form (works on SQLite and Postgres)."""
+    return or_(
+        Sample.pool_id.ilike(like),
+        Sample.plate_id.ilike(like),
+        cast(Sample.sanger_ids, String).ilike(like),
+    )
 
 
 class SampleBarcode(Base):

@@ -413,6 +413,7 @@ def commit_qc(
             "prior_status": sample.status,
             "prior_priority": sample.priority,
             "prior_qc_disposition": sample.qc_disposition,
+            "prior_qc_disposition_at": sample.qc_disposition_at.isoformat() if sample.qc_disposition_at else None,
             "via_cell_use_id": by_sample[sid].cell_use_id if sid in by_sample else None,
             "topup_id": None,
         }
@@ -431,10 +432,12 @@ def commit_qc(
         else:  # repeatable_complex / repeatable / recoverable - all return to the backlog
             sample.status = "backlog"
             # The two repeat pathways (from complex, from library) share Repeatable(0); only
-            # "recoverable" (data recoverable) gets Recoverable(0). qc_disposition keeps the
-            # exact pathway so the Backlog's Recoverable section and reporting can tell them apart.
+            # "recoverable" (recoverable from the instrument) gets Recoverable(0). qc_disposition
+            # keeps the exact pathway so the Backlog's Recoverable section and reporting can tell
+            # them apart; qc_disposition_at starts the from-complex 30-day countdown chip.
             sample.priority = RECOVERABLE_PRIORITY if disp == "recoverable" else REPEATABLE_PRIORITY
             sample.qc_disposition = disp
+            sample.qc_disposition_at = at
             backlog_sample_ids.append(sid)
 
     for a in affected:
@@ -489,7 +492,7 @@ def commit_qc(
 def undo_qc(db: Session, cell: Cell, actor: str | None) -> QcUndoOut:
     """Reverse the most recent qc_commit on this cell - reopen it and restore every use and
     sample it touched, unless an item has since drifted (a sample requeued elsewhere, or a
-    top-up whose request was already sent - a real-world action we won't silently undo)."""
+    resupply request already marked sent - a real-world action we won't silently undo)."""
     last = db.scalars(
         select(AuditLog)
         .where(AuditLog.entity_type == "cell", AuditLog.entity_id == cell.id, AuditLog.action == "qc_commit")
@@ -569,6 +572,8 @@ def undo_qc(db: Session, cell: Cell, actor: str | None) -> QcUndoOut:
         sample.status = snap.get("prior_status", sample.status)
         sample.priority = snap.get("prior_priority")
         sample.qc_disposition = snap.get("prior_qc_disposition")
+        prior_disp_at = snap.get("prior_qc_disposition_at")
+        sample.qc_disposition_at = ensure_aware(datetime.fromisoformat(prior_disp_at)) if prior_disp_at else None
 
     cell.status = details.get("cell", {}).get("prior_status", "open")
     prior_stopped_at = details.get("cell", {}).get("prior_stopped_at")
@@ -604,7 +609,7 @@ def undo_qc(db: Session, cell: Cell, actor: str | None) -> QcUndoOut:
 
 
 # --------------------------------------------------------------------------------------
-# Top-up list ops
+# Resupply request (internal: "top-up") list ops
 # --------------------------------------------------------------------------------------
 
 
@@ -615,6 +620,7 @@ def _topup_out(topup: SampleTopup) -> SampleTopupOut:
         id=topup.id,
         sample_id=topup.sample_id,
         pool_id=sample.pool_id if sample else None,
+        sanger_ids=list(sample.sanger_ids or []) if sample else [],
         barcodes=sample.barcode_list if sample else [],
         priority=sample.priority if sample else None,
         created_at=topup.created_at,
@@ -640,8 +646,12 @@ def _topup_source(topup: SampleTopup) -> tuple[str | None, str | None, str | Non
     )
 
 
-def list_topups(db: Session, only_pending: bool | None = None) -> list[SampleTopupOut]:
+def list_topups(
+    db: Session, only_pending: bool | None = None, sample_id: int | None = None
+) -> list[SampleTopupOut]:
     stmt = select(SampleTopup)
+    if sample_id is not None:
+        stmt = stmt.where(SampleTopup.sample_id == sample_id)
     if only_pending is True:
         stmt = stmt.where(SampleTopup.request_sent_at.is_(None))
     elif only_pending is False:

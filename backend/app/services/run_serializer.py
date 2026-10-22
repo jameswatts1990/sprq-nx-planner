@@ -108,6 +108,8 @@ def _stage_out(
         run_time_hours=cell_use.run_time_hours,
         sample_id=cell_use.sample_id,
         sample_pool_id=cell_use.sample.pool_id if cell_use.sample else None,
+        sample_plate_id=cell_use.sample.plate_id if cell_use.sample else None,
+        sample_sanger_ids=list(cell_use.sample.sanger_ids or []) if cell_use.sample else [],
         insert_size_bp=cell_use.sample.insert_size_bp if cell_use.sample else None,
         duplicate_index=dup_index,
         duplicate_total=dup_total,

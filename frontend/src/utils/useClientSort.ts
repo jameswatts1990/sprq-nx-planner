@@ -14,7 +14,7 @@ export interface ClientSort<K extends string> {
 
 /**
  * Client-side table sorting for tables whose rows are all loaded at once (no server
- * pagination) — the Backlog's Top-up list and the History cell-use lists. Give it the rows
+ * pagination) — the Backlog's Resupply requests list and the History cell-use lists. Give it the rows
  * and one accessor per sortable column; it returns the rows in sorted order plus the state a
  * {@link SortableColumnHeader} needs. Strings sort case-insensitively; empty cells sink to
  * the bottom regardless of direction, matching the server-sorted sample tables.

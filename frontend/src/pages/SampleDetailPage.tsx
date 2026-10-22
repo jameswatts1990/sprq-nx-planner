@@ -4,7 +4,9 @@ import { Link, useLocation, useParams } from "react-router-dom";
 
 import { ApiError } from "@/api/client";
 import { samplesApi } from "@/api/samples";
+import { topupsApi } from "@/api/topups";
 import { BarcodeChips } from "@/components/shared/BarcodeChips";
+import { ComplexCountdownChip } from "@/components/shared/ComplexCountdownChip";
 import { DuplicateBadge } from "@/components/shared/DuplicateBadge";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -61,6 +63,14 @@ export function SampleDetailPage() {
     queryFn: () => samplesApi.get(id),
     enabled: idIsValid,
   });
+  // Every resupply request this sample has had - the only place a sent one stays visible
+  // (the Backlog lists pending requests only).
+  const resupplyQuery = useQuery({
+    queryKey: ["topups", { sample_id: id }],
+    queryFn: () => topupsApi.list({ sample_id: id }),
+    enabled: idIsValid,
+  });
+  const resupplies = resupplyQuery.data ?? [];
 
   if (!idIsValid) {
     return (
@@ -141,7 +151,10 @@ export function SampleDetailPage() {
             </div>
             <div>
               <span className={styles.label}>Priority</span>
-              <span className={styles.value}>{sample.priority ?? "—"}</span>
+              <span className={styles.value}>
+                {sample.priority ?? "—"}{" "}
+                <ComplexCountdownChip qcDisposition={sample.qc_disposition} qcDispositionAt={sample.qc_disposition_at} />
+              </span>
             </div>
             <div>
               <span className={styles.label}>Target OPLC</span>
@@ -257,6 +270,51 @@ export function SampleDetailPage() {
           )}
         </CardBody>
       </Card>
+
+      {resupplies.length > 0 && (
+        <Card>
+          <CardHeader>
+            <h2>Resupply requests</h2>
+          </CardHeader>
+          <CardBody>
+            <div className={styles.tableWrap}>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th>Status</th>
+                    <th>From</th>
+                    <th>Raised</th>
+                    <th>Request sent</th>
+                    <th>Raised by</th>
+                    <th>Notes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {resupplies.map((t) => (
+                    <tr key={t.id}>
+                      <td>
+                        {t.request_sent_at ? (
+                          <Badge tone="success">Sent</Badge>
+                        ) : (
+                          <Badge tone="warning">Pending — on the Backlog</Badge>
+                        )}
+                      </td>
+                      <td>
+                        {t.source_run_name ?? "—"}
+                        {t.source_cell_code ? ` · ${t.source_cell_code}` : ""}
+                      </td>
+                      <td>{new Date(t.created_at).toLocaleDateString()}</td>
+                      <td>{t.request_sent_at ? new Date(t.request_sent_at).toLocaleDateString() : "—"}</td>
+                      <td>{t.created_by ?? "—"}</td>
+                      <td>{t.note ?? "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardBody>
+        </Card>
+      )}
 
       {editing && (
         <SampleModal

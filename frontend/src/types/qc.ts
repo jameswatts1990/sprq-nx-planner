@@ -4,11 +4,11 @@ import type { CellOut } from "./cell";
 export type QcVerdict = "fail" | "fail_and_stop" | "retire";
 
 /** Per-sample fate chosen in the disposition step.
- *  - "lost": no material left → the Top-up list.
+ *  - "lost": no material left → the Resupply requests list.
  *  - "repeatable_complex": re-load straight from the leftover cleaned complex (the cheap repeat,
  *    auto-suggested when enough complex remains) → backlog at Repeatable(0).
  *  - "repeatable": repeat from the library material held in Traction → backlog at Repeatable(0).
- *  - "recoverable": data recoverable → backlog at Recoverable(0).
+ *  - "recoverable": recoverable from the instrument (data still on it) → backlog at Recoverable(0).
  * The three non-"lost" values all appear in the Backlog's "Recoverable Samples" section. */
 export type Disposition = "lost" | "repeatable_complex" | "repeatable" | "recoverable";
 

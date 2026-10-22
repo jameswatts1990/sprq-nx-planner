@@ -241,7 +241,9 @@
   border: 1px solid var(--tray-card-border);
   border-radius: var(--r-sm);
   background: var(--tray-card-bg);
-  padding: 6px 6px 4px;
+  /* 5px sides (not 6) buy the slot the width a full "TRAC-2-12345" Pool ID needs at the
+     default day-column width - see .ext in SchedulerSlotView.module.css. */
+  padding: 6px 5px 4px;
 }
 .trayHeader {
   display: flex;

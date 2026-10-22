@@ -2,6 +2,7 @@ import { useDraggable } from "@dnd-kit/core";
 import { useNavigate } from "react-router-dom";
 
 import { BarcodeChips } from "@/components/shared/BarcodeChips";
+import { ComplexCountdownChip } from "@/components/shared/ComplexCountdownChip";
 import { DuplicateBadge } from "@/components/shared/DuplicateBadge";
 import { InsertSizeFlag } from "@/components/shared/InsertSizeFlag";
 import { sampleDragId } from "@/components/scheduler/gridKeys";
@@ -9,7 +10,7 @@ import type { SampleDragData } from "@/components/scheduler/useSchedulerDnd";
 import { Badge } from "@/components/ui/Badge";
 import type { BadgeTone } from "@/components/ui/Badge";
 import type { SampleOut } from "@/types/sample";
-import { priorityLabel, priorityTone } from "@/utils/priority";
+import { priorityLabel, priorityShortLabel, priorityTone } from "@/utils/priority";
 import { useSampleBackNav } from "@/utils/sampleBackNav";
 
 import styles from "./BacklogCards.module.css";
@@ -68,7 +69,7 @@ export function DraggableSampleCard({
       ref={setNodeRef}
       className={classes.join(" ")}
       style={{ ["--accent" as string]: accent }}
-      title={`Open ${sample.pool_id}`}
+      title={`Open ${sample.pool_id}${sample.plate_id ? ` (${sample.plate_id})` : ""}`}
       onClick={() => navigate(`/samples/${sample.id}`, { state: backNav })}
       {...(searchMatch ? { "data-search-match": "true" } : {})}
       {...listeners}
@@ -87,17 +88,28 @@ export function DraggableSampleCard({
       >
         <span aria-hidden="true">✎</span>
       </button>
+      {/* Two nowrap lines so every card is the same compact height: identity + priority +
+          movie time, then plate and the advisory flags ahead of the barcodes. A long Pool ID /
+          Plate ID ellipsizes (both are in the card tooltip) and barcodes that don't fit fold
+          into "+N". */}
       <div className={styles.cardHead}>
         <span className={styles.ext}>{sample.pool_id}</span>
         <DuplicateBadge index={sample.duplicate_index} total={sample.duplicate_total} />
-        {sample.plate_id && <span className={styles.parent}>{sample.plate_id}</span>}
-        <Badge tone={priorityTone(sample.priority)}>{priorityLabel(sample.priority)}</Badge>
-        <span className={styles.movie} title="Movie / acquisition time">
-          ⏱ {sample.movie_time_hours ?? DEFAULT_MOVIE_HOURS} h
+        <span className={styles.headEnd}>
+          <span title={`Priority: ${priorityLabel(sample.priority)}`}>
+            <Badge tone={priorityTone(sample.priority)}>{priorityShortLabel(sample.priority)}</Badge>
+          </span>
+          <span className={styles.movie} title="Movie / acquisition time">
+            ⏱ {sample.movie_time_hours ?? DEFAULT_MOVIE_HOURS} h
+          </span>
         </span>
-        <InsertSizeFlag sizeBp={sample.insert_size_bp} />
       </div>
-      <BarcodeChips barcodes={sample.barcodes} />
+      <div className={styles.cardSub}>
+        {sample.plate_id && <span className={styles.parent}>{sample.plate_id}</span>}
+        <InsertSizeFlag sizeBp={sample.insert_size_bp} />
+        <ComplexCountdownChip qcDisposition={sample.qc_disposition} qcDispositionAt={sample.qc_disposition_at} />
+        <BarcodeChips barcodes={sample.barcodes} singleRow />
+      </div>
     </div>
   );
 }

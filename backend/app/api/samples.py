@@ -8,7 +8,7 @@ from app.api.deps import ActorDep, SessionDep, pagination
 from app.engine.csv_parse import split_barcodes
 from app.engine.packing import pool_id_sort_key, priority_rank
 from app.models.audit import AuditLog
-from app.models.sample import SAMPLE_STATUSES, Sample, SampleBarcode
+from app.models.sample import SAMPLE_STATUSES, Sample, SampleBarcode, sample_id_matches
 from app.schemas.common import Page
 from app.schemas.sample import SampleCreate, SampleDetailOut, SampleOut, SampleUpdate
 from app.serializers import duplicate_groups, duplicate_marker, sample_detail_out, sample_out
@@ -117,8 +117,7 @@ def list_samples(
         like = f"%{q}%"
         stmt = stmt.where(
             or_(
-                Sample.pool_id.ilike(like),
-                Sample.plate_id.ilike(like),
+                sample_id_matches(like),
                 Sample.priority.ilike(like),
                 Sample.barcodes.any(SampleBarcode.barcode.ilike(like)),
             )
