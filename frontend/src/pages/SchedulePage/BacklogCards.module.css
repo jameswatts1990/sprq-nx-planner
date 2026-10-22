@@ -115,29 +115,24 @@
 .cardHead > * {
   flex: 0 0 auto;
 }
+/* The Pool ID is always shown in full - it has line 1 to itself apart from the small duplicate
+   badge and movie time. An exceptionally long ID wraps (the card grows) rather than being cut. */
 .ext {
   flex: 0 1 auto;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
   font-size: var(--fs-base);
   font-weight: 800;
   color: var(--ink);
 }
-.headEnd {
-  margin-left: auto;
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-/* The tooltip wrapper round the priority Badge - flex, so it adds no inline line-box height. */
-.headEnd > span {
+/* Tooltip wrappers round line 2's Badges (priority, <5kb, ⌛ Complex) - flex, so they add no
+   inline line-box height and every card keeps the same height. Not the Plate ID: its
+   ellipsis needs a plain text box. */
+.cardSub > span:not(.parent) {
   display: inline-flex;
 }
-/* Line 2: Plate ID, the advisory flags, then as many barcodes as fit (BarcodeChips singleRow
-   folds the rest into "+N"). Collapses entirely when a sample has none of them. */
+/* Line 2: priority, Plate ID, the advisory flags, then as many barcodes as fit (BarcodeChips
+   singleRow folds the rest into "+N"). */
 .cardSub {
   display: flex;
   align-items: center;
@@ -145,9 +140,6 @@
   flex-wrap: nowrap;
   min-width: 0;
   margin-top: 3px;
-}
-.cardSub:empty {
-  display: none;
 }
 .cardSub > * {
   flex: 0 0 auto;
@@ -168,6 +160,7 @@
 /* Movie / acquisition time chip, at the right end of the head row so it lines up down the
    card list. Quiet by default - it's reference info, not a status. */
 .movie {
+  margin-left: auto;
   font-size: var(--fs-xs);
   font-weight: 700;
   color: var(--grey);

@@ -428,12 +428,13 @@ export function ScheduleSection() {
         searches the grid as well as the backlog.
       </p>
       <p>
-        Each backlog card is two lines. The first has the <b>Pool ID</b> (and any duplicate badge), then its{" "}
-        <b>priority</b> (shortened to <i>High</i>, <i>Medium</i>, <i>Standard</i>… — hover it for the full label)
-        and <b>⏱ movie time</b> on the right; the card&apos;s left edge is tinted in the same priority colour. The second has the <b>Plate ID</b>, any warning flags (such as a small-insert <b>&lt;5kb</b>{" "}
-        or a <b>⌛ Complex</b> countdown), then the <b>barcodes</b>. A Pool ID or Plate ID too long for the card ends
-        in <b>…</b> — hover the card for the full ID. Barcodes that don&apos;t fit on the line fold into a grey{" "}
-        <b>+N</b> chip; hover it to list them.
+        Each backlog card is two lines. The first is the full <b>Pool ID</b> (never shortened), any duplicate badge,
+        and the <b>⏱ movie time</b> on the right. The second starts with its <b>priority</b> (shortened to{" "}
+        <i>High</i>, <i>Medium</i>, <i>Standard</i>… — hover it for the full label; the card&apos;s left edge is
+        tinted in the same colour), then the <b>Plate ID</b>, any warning flags (such as a small-insert{" "}
+        <b>&lt;5kb</b> or a <b>⌛ Complex</b> countdown), then the <b>barcodes</b>. A Plate ID too long for the
+        line ends in <b>…</b> — hover the card for it in full. Barcodes that don&apos;t fit on the line fold into a
+        grey <b>+N</b> chip; hover it to list them.
       </p>
       <p>
         Prefer the backlog down one side? <b>View options → Backlog → Left</b> or <b>Right</b> docks it as a narrow,

@@ -88,23 +88,21 @@ export function DraggableSampleCard({
       >
         <span aria-hidden="true">✎</span>
       </button>
-      {/* Two nowrap lines so every card is the same compact height: identity + priority +
-          movie time, then plate and the advisory flags ahead of the barcodes. A long Pool ID /
-          Plate ID ellipsizes (both are in the card tooltip) and barcodes that don't fit fold
-          into "+N". */}
+      {/* Two compact lines. Line 1 is the full Pool ID (never truncated - schedulers read the
+          whole TRAC id) with its duplicate badge and movie time; line 2 is priority, plate and
+          the advisory flags ahead of the barcodes. Line 2 never wraps: a long Plate ID
+          ellipsizes (it's in the card tooltip) and barcodes that don't fit fold into "+N". */}
       <div className={styles.cardHead}>
         <span className={styles.ext}>{sample.pool_id}</span>
         <DuplicateBadge index={sample.duplicate_index} total={sample.duplicate_total} />
-        <span className={styles.headEnd}>
-          <span title={`Priority: ${priorityLabel(sample.priority)}`}>
-            <Badge tone={priorityTone(sample.priority)}>{priorityShortLabel(sample.priority)}</Badge>
-          </span>
-          <span className={styles.movie} title="Movie / acquisition time">
-            ⏱ {sample.movie_time_hours ?? DEFAULT_MOVIE_HOURS} h
-          </span>
+        <span className={styles.movie} title="Movie / acquisition time">
+          ⏱ {sample.movie_time_hours ?? DEFAULT_MOVIE_HOURS} h
         </span>
       </div>
       <div className={styles.cardSub}>
+        <span title={`Priority: ${priorityLabel(sample.priority)}`}>
+          <Badge tone={priorityTone(sample.priority)}>{priorityShortLabel(sample.priority)}</Badge>
+        </span>
         {sample.plate_id && <span className={styles.parent}>{sample.plate_id}</span>}
         <InsertSizeFlag sizeBp={sample.insert_size_bp} />
         <ComplexCountdownChip qcDisposition={sample.qc_disposition} qcDispositionAt={sample.qc_disposition_at} />

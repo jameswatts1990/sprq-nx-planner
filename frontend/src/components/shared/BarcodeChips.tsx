@@ -6,7 +6,7 @@ import styles from "./BarcodeChips.module.css";
 
 const MAX_SHOWN = 4;
 /** Room held back for the "+N" chip when single-row trimming hides any codes (gap + chip). */
-const MORE_CHIP_RESERVE_PX = 30;
+const MORE_CHIP_RESERVE_PX = 24;
 
 export interface BarcodeChipsProps {
   barcodes: string[];
