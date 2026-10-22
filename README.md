@@ -100,3 +100,7 @@ These are known, deliberate gaps for the current internal-use stage — flagged 
 - **Developer/admin tools are ungated.** The **Settings → Developer tools** section (and its `backend/app/api/admin.py` router) can inspect and mutate the database directly, bypassing all service-layer validation. It is not restricted by environment or auth. **Remove or gate it before any real production launch** (add an `environment` flag to `backend/app/config.py`, conditionally include the router in `main.py`, and conditionally render the frontend section).
 - **Data persistence & backup.** Postgres data lives in the `dbdata` named Docker volume. Back this volume up; removing it (`docker compose down -v`) permanently destroys all data.
 - **No live Benchling API integration.** Sample import is manual CSV paste/upload, matching the original prototype's workflow.
+
+## Licence
+
+MIT, copyright Genome Research Ltd. See [LICENSE](LICENSE).

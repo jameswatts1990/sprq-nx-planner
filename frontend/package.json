@@ -2,6 +2,7 @@
   "name": "runnx-frontend",
   "private": true,
   "version": "0.61.1",
+  "license": "MIT",
   "type": "module",
   "engines": {
     "node": ">=26"
