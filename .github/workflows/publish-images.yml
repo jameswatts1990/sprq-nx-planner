@@ -71,6 +71,20 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - id: desc
+        env:
+          NAME: ${{ matrix.name }}
+        run: |
+          # Image description comes from the component's own package metadata.
+          case "$NAME" in
+            backend)  d=$(python3 -c 'import tomllib; print(tomllib.load(open("backend/pyproject.toml", "rb"))["project"]["description"])') ;;
+            frontend) d=$(jq -r '.description // empty' frontend/package.json) ;;
+          esac
+          if [[ -z "$d" ]]; then
+            echo "::error::No description for $NAME (pyproject.toml / package.json)."
+            exit 1
+          fi
+          echo "description=$d" >> "$GITHUB_OUTPUT"
       - id: meta
         uses: docker/metadata-action@v6
         with:
@@ -79,11 +93,15 @@ jobs:
           flavor: latest=${{ needs.check-tag.outputs.is_release }}
           labels: |
             org.opencontainers.image.title=runnx-${{ matrix.name }}
+            org.opencontainers.image.description=${{ steps.desc.outputs.description }}
+            org.opencontainers.image.url=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.documentation=${{ github.server_url }}/${{ github.repository }}/blob/${{ github.ref_name }}/README.md
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.licenses=${{ github.event.repository.license.spdx_id || 'NOASSERTION' }}
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.version=${{ needs.check-tag.outputs.version }}
             org.opencontainers.image.created=${{ needs.check-tag.outputs.created }}
-            org.opencontainers.image.vendor=sanger.ac.uk
+            org.opencontainers.image.vendor=Genome Research Ltd.
       - uses: docker/build-push-action@v7
         with:
           context: ${{ matrix.context }}
