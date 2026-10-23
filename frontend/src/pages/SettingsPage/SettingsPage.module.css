@@ -152,7 +152,8 @@
 }
 .layout {
   display: grid;
-  grid-template-columns: 220px 1fr;
+  /* minmax(0, …) so a wide table scrolls inside the rows panel instead of stretching it off-page. */
+  grid-template-columns: 220px minmax(0, 1fr);
   gap: 18px;
   align-items: start;
 }
@@ -237,8 +238,50 @@
   padding: 24px 4px;
   text-align: center;
 }
+/* Dev-tools row browser: scrolls both ways inside the panel so a 1000-row page keeps its
+   column headers (sticky) and the pager in view. */
 .tableScroll {
-  overflow-x: auto;
+  overflow: auto;
+  max-height: 65vh;
+}
+.tableScroll .table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--card);
+  /* border-bottom doesn't travel with a sticky cell under border-collapse; a shadow does. */
+  box-shadow: inset 0 -1px 0 var(--line);
+}
+.rowsToolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.rowsSearch {
+  flex: 1 1 260px;
+  max-width: 420px;
+  font-family: var(--sans);
+  font-size: var(--fs-base);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 8px 12px;
+}
+.pageSizeLabel {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--fs-md);
+  color: var(--grey);
+}
+.pageSizeSelect {
+  font-family: var(--sans);
+  font-size: var(--fs-base);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 6px 8px;
 }
 .table {
   width: 100%;
@@ -266,12 +309,6 @@
 }
 .mono {
   font-family: var(--mono);
-}
-.pagination {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-top: 16px;
 }
 .pageInfo {
   font-size: var(--fs-md);

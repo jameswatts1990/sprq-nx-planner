@@ -69,6 +69,8 @@ export interface BacklogPanelProps {
   searchLoading: boolean;
   /** The backlog sample the header search is currently cycled to - given a pulsing ring. */
   highlightSampleId: number | null;
+  /** View options "Barcodes" toggle - adds each card's one-line barcode row. */
+  showBarcodes: boolean;
   /** Top mode only: open/closed, lifted to SchedulePage so a backlog search match can force
    * the tray open. */
   open?: boolean;
@@ -91,6 +93,7 @@ export function BacklogPanel({
   searchTotal,
   searchLoading,
   highlightSampleId,
+  showBarcodes,
   open = false,
   onToggleOpen,
   collapsed = false,
@@ -289,6 +292,7 @@ export function BacklogPanel({
               sample={sample}
               onEdit={setEditSample}
               searchMatch={sample.id === highlightSampleId}
+              showBarcodes={showBarcodes}
             />
           ))}
           {truncatedNote}

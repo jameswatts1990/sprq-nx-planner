@@ -2,7 +2,6 @@ import { useDraggable } from "@dnd-kit/core";
 import { useNavigate } from "react-router-dom";
 
 import { BarcodeChips } from "@/components/shared/BarcodeChips";
-import { ComplexCountdownChip } from "@/components/shared/ComplexCountdownChip";
 import { DuplicateBadge } from "@/components/shared/DuplicateBadge";
 import { InsertSizeFlag } from "@/components/shared/InsertSizeFlag";
 import { sampleDragId } from "@/components/scheduler/gridKeys";
@@ -11,6 +10,7 @@ import { Badge } from "@/components/ui/Badge";
 import type { BadgeTone } from "@/components/ui/Badge";
 import type { SampleOut } from "@/types/sample";
 import { priorityLabel, priorityShortLabel, priorityTone } from "@/utils/priority";
+import { COMPLEX_REPEAT_WINDOW_DAYS, complexDaysLeft } from "@/utils/qcDisposition";
 import { useSampleBackNav } from "@/utils/sampleBackNav";
 
 import styles from "./BacklogCards.module.css";
@@ -41,15 +41,18 @@ const TONE_ACCENT_VAR: Record<BadgeTone, string> = {
  * so editing never trips the drag sensor or the card's navigate. A movie-time chip and a
  * priority-tinted left edge make each card's run time and priority readable at a glance.
  * `searchMatch` flags the one card the Schedule page's unified search is cycled to - given a
- * pulsing ring and marked data-search-match so the page can scroll it into view. */
+ * pulsing ring and marked data-search-match so the page can scroll it into view.
+ * `showBarcodes` mirrors the Schedule page's View options "Barcodes" toggle. */
 export function DraggableSampleCard({
   sample,
   onEdit,
   searchMatch = false,
+  showBarcodes = true,
 }: {
   sample: SampleOut;
   onEdit: (sample: SampleOut) => void;
   searchMatch?: boolean;
+  showBarcodes?: boolean;
 }) {
   const navigate = useNavigate();
   const backNav = useSampleBackNav();
@@ -61,6 +64,16 @@ export function DraggableSampleCard({
   // Every card gets a priority-coloured left edge, defaulting to grey for Standard / no
   // priority - so the accent always reads as "this is its priority", never an absent chip.
   const accent = TONE_ACCENT_VAR[priorityTone(sample.priority)];
+  // Row 2 is reserved for priority | fragment size, so a "Repeatable — from complex" sample's
+  // countdown (the ⌛ chip elsewhere) rides in the priority badge's tooltip instead.
+  const complexLeft = complexDaysLeft(sample.qc_disposition, sample.qc_disposition_at);
+  const priorityTitle =
+    `Priority: ${priorityLabel(sample.priority)}` +
+    (complexLeft == null
+      ? ""
+      : complexLeft >= 0
+        ? ` · leftover complex: ${complexLeft}d left of ${COMPLEX_REPEAT_WINDOW_DAYS}`
+        : ` · leftover complex: ${-complexLeft}d past the ${COMPLEX_REPEAT_WINDOW_DAYS}-day window`);
   const classes = [styles.card, styles.prioritised];
   if (isDragging) classes.push(styles.dragging);
   if (searchMatch) classes.push(styles.searchMatch);
@@ -69,7 +82,7 @@ export function DraggableSampleCard({
       ref={setNodeRef}
       className={classes.join(" ")}
       style={{ ["--accent" as string]: accent }}
-      title={`Open ${sample.pool_id}${sample.plate_id ? ` (${sample.plate_id})` : ""}`}
+      title={`Open ${sample.pool_id}`}
       onClick={() => navigate(`/samples/${sample.id}`, { state: backNav })}
       {...(searchMatch ? { "data-search-match": "true" } : {})}
       {...listeners}
@@ -88,10 +101,10 @@ export function DraggableSampleCard({
       >
         <span aria-hidden="true">✎</span>
       </button>
-      {/* Two compact lines. Line 1 is the full Pool ID (never truncated - schedulers read the
-          whole TRAC id) with its duplicate badge and movie time; line 2 is priority, plate and
-          the advisory flags ahead of the barcodes. Line 2 never wraps: a long Plate ID
-          ellipsizes (it's in the card tooltip) and barcodes that don't fit fold into "+N". */}
+      {/* Fixed rows (user-specified): 1 = the full Pool ID (never truncated - schedulers read
+          the whole TRAC id), duplicate badge, movie time; 2 = priority | fragment size, nothing
+          else (no Plate ID); 3 = the barcodes on one line ending in "…", only while the View
+          options "Barcodes" toggle is on. */}
       <div className={styles.cardHead}>
         <span className={styles.ext}>{sample.pool_id}</span>
         <DuplicateBadge index={sample.duplicate_index} total={sample.duplicate_total} />
@@ -100,14 +113,12 @@ export function DraggableSampleCard({
         </span>
       </div>
       <div className={styles.cardSub}>
-        <span title={`Priority: ${priorityLabel(sample.priority)}`}>
+        <span title={priorityTitle}>
           <Badge tone={priorityTone(sample.priority)}>{priorityShortLabel(sample.priority)}</Badge>
         </span>
-        {sample.plate_id && <span className={styles.parent}>{sample.plate_id}</span>}
         <InsertSizeFlag sizeBp={sample.insert_size_bp} />
-        <ComplexCountdownChip qcDisposition={sample.qc_disposition} qcDispositionAt={sample.qc_disposition_at} />
-        <BarcodeChips barcodes={sample.barcodes} singleRow />
       </div>
+      {showBarcodes && <BarcodeChips barcodes={sample.barcodes} singleLine />}
     </div>
   );
 }

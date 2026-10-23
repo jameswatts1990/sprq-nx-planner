@@ -100,8 +100,12 @@ export function SettingsSection() {
         </dd>
         <dt>Browsing tables</dt>
         <dd>
-          The table list shows every database table with its row count. Selecting one shows its rows 50 at a time, with
-          an <b>Edit</b> and a <b>Delete</b> button on each row.
+          The table list shows every database table with its row count. Selecting one shows its rows 100 at a time
+          (change this with <b>Rows per page</b>, up to 1,000), with an <b>Edit</b> and a <b>Delete</b> button on each
+          row. Type in <b>Search all columns</b> to show only rows where any column contains that text (not
+          case-sensitive — IDs, dates and JSON values match too). Click any column heading to sort by it; click again
+          to reverse the order (▲ ascending / ▼ descending). Column headings stay visible as you scroll a long page.
+          <b> Clear table</b> always empties the whole table, not just the rows matching a search.
         </dd>
         <dt>Edit (a single row)</dt>
         <dd>

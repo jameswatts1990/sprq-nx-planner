@@ -700,6 +700,7 @@ export function SchedulePage() {
                 searchTotal={search.backlogTotal}
                 searchLoading={search.backlogLoading}
                 highlightSampleId={search.highlightSampleId}
+                showBarcodes={showBarcodes}
                 collapsed={sideCollapsed}
                 onToggleCollapsed={handleToggleSideCollapsed}
               />
@@ -796,6 +797,7 @@ export function SchedulePage() {
                     searchTotal={search.backlogTotal}
                     searchLoading={search.backlogLoading}
                     highlightSampleId={search.highlightSampleId}
+                    showBarcodes={showBarcodes}
                     open={backlogOpen}
                     onToggleOpen={handleToggleBacklogOpen}
                   />

@@ -103,8 +103,7 @@
     box-shadow: 0 0 0 2px var(--magenta), 0 0 0 5px rgba(230, 0, 126, 0.35);
   }
 }
-/* Line 1: Pool ID (+ duplicate badge) on the left, priority + movie time pinned right. Never
-   wraps - the Pool ID gives way with an ellipsis instead (full ID in the card tooltip). */
+/* Row 1: the full Pool ID (+ duplicate badge) on the left, movie time pinned right. */
 .cardHead {
   display: flex;
   align-items: center;
@@ -125,37 +124,22 @@
   font-weight: 800;
   color: var(--ink);
 }
-/* Tooltip wrappers round line 2's Badges (priority, <5kb, ⌛ Complex) - flex, so they add no
-   inline line-box height and every card keeps the same height. Not the Plate ID: its
-   ellipsis needs a plain text box. */
-.cardSub > span:not(.parent) {
-  display: inline-flex;
-}
-/* Line 2: priority, Plate ID, the advisory flags, then as many barcodes as fit (BarcodeChips
-   singleRow folds the rest into "+N"). */
+/* Row 2: priority | fragment size (the <5kb flag, when small) - nothing else, so it never
+   overflows. */
 .cardSub {
   display: flex;
   align-items: center;
   gap: 6px;
-  flex-wrap: nowrap;
-  min-width: 0;
   margin-top: 3px;
 }
-.cardSub > * {
-  flex: 0 0 auto;
+/* The Badges' tooltip wrappers - flex, so they add no inline line-box height and every card
+   keeps the same height. */
+.cardSub > span {
+  display: inline-flex;
 }
-.cardSub > [data-barcode-chips] {
-  flex: 1 1 0;
-}
-.parent {
-  flex: 0 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: var(--fs-xs);
-  color: var(--faint);
-  font-weight: 600;
+/* Row 3 (Barcodes: Show): BarcodeChips singleLine, one line ending in "…". */
+.card > [data-barcode-chips] {
+  margin-top: 3px;
 }
 /* Movie / acquisition time chip, at the right end of the head row so it lines up down the
    card list. Quiet by default - it's reference info, not a status. */

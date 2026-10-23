@@ -7,17 +7,28 @@ RunNx Admin notes).
 
 import json
 from datetime import date, datetime
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, HTTPException, Query, Response
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
-from sqlalchemy import JSON, Column, Table, delete, func, select, update
+from sqlalchemy import (
+    JSON,
+    Column,
+    String,
+    Table,
+    cast,
+    delete,
+    func,
+    or_,
+    select,
+    update,
+)
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from app import models  # noqa: F401  ensures every model is registered on Base.metadata
-from app.api.deps import SessionDep, pagination
+from app.api.deps import SessionDep
 from app.db import Base
 from app.models.cell import Cell
 from app.models.sample import SAMPLE_TERMINAL_STATUSES, Sample
@@ -187,13 +198,36 @@ def export_database(db: SessionDep) -> Response:
 
 @router.get("/tables/{table_name}/rows")
 def list_rows(
-    table_name: str, db: SessionDep, page_info: Annotated[tuple[int, int], Depends(pagination)]
+    table_name: str,
+    db: SessionDep,
+    page: Annotated[int, Query(ge=1)] = 1,
+    # Higher cap than the shared `pagination` dep: this is a dev browser for eyeballing whole tables.
+    page_size: Annotated[int, Query(ge=1, le=1000)] = 100,
+    q: Annotated[str | None, Query(max_length=200)] = None,
+    sort: str | None = None,
+    order: Literal["asc", "desc"] = "asc",
 ) -> RowPage:
+    """One page of raw rows. `q` is a case-insensitive substring match against every column
+    (each cast to text, so ids/dates/JSON match too); `sort` orders by any column, with the
+    primary key as a tiebreak so paging stays stable when the sort column has duplicates."""
     table = _get_table(table_name)
-    page, page_size = page_info
     pk_cols = list(table.primary_key.columns) or list(table.columns)[:1]
-    total = db.execute(select(func.count()).select_from(table)).scalar_one()
-    stmt = select(table).order_by(*pk_cols).limit(page_size).offset((page - 1) * page_size)
+
+    where = []
+    if q and q.strip():
+        like = f"%{q.strip()}%"
+        where.append(or_(*(cast(c, String).ilike(like) for c in table.columns)))
+
+    order_by = []
+    if sort:
+        sort_col = table.columns.get(sort)
+        if sort_col is None:
+            raise HTTPException(400, f"Unknown column '{sort}' in table '{table_name}'")
+        order_by.append(sort_col.desc() if order == "desc" else sort_col.asc())
+    order_by.extend(pk_cols)
+
+    total = db.execute(select(func.count()).select_from(table).where(*where)).scalar_one()
+    stmt = select(table).where(*where).order_by(*order_by).limit(page_size).offset((page - 1) * page_size)
     rows = [dict(r._mapping) for r in db.execute(stmt)]
     return RowPage(
         table=table_name,

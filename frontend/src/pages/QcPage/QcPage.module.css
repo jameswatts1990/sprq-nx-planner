@@ -142,30 +142,6 @@
   flex: 1 1 320px;
 }
 
-/* Mini five-dot stage strip - same order/tint semantics as the detail page's tracker. */
-.strip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  flex: 0 0 auto;
-}
-.dot {
-  width: 11px;
-  height: 11px;
-  border-radius: 50%;
-  border: 2px solid var(--line);
-  background: var(--card);
-}
-.dot[data-state="done"] {
-  background: var(--green);
-  border-color: var(--green);
-}
-.dot[data-state="current"] {
-  background: var(--magenta);
-  border-color: var(--magenta);
-  box-shadow: 0 0 0 3px var(--magenta-tint);
-}
-
 /* Expanded region: the full PacbioCreditTracker for this case. */
 .detail {
   border-top: 1px dashed var(--line);

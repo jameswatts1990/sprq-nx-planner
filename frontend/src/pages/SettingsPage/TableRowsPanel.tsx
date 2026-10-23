@@ -1,17 +1,21 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 
 import { adminApi } from "@/api/admin";
 import { ApiError } from "@/api/client";
+import { Pagination } from "@/components/shared/Pagination";
+import { SortableColumnHeader, type SortDir } from "@/components/shared/SortableColumnHeader";
 import { Button } from "@/components/ui/Button";
 import { Modal, ModalActions } from "@/components/ui/Modal";
 import { Note } from "@/components/ui/Note";
+import { useDebouncedValue } from "@/utils/useDebouncedValue";
 
 import { ClearTableModal } from "./ClearTableModal";
 import { RowEditModal } from "./RowEditModal";
 import styles from "./SettingsPage.module.css";
 
-const PAGE_SIZE = 50;
+const PAGE_SIZE_OPTIONS = [50, 100, 250, 500, 1000];
+const DEFAULT_PAGE_SIZE = 100;
 
 function formatCellValue(value: unknown): string {
   if (value === null || value === undefined) return "—";
@@ -21,19 +25,42 @@ function formatCellValue(value: unknown): string {
 
 export interface TableRowsPanelProps {
   table: string;
+  /** Unfiltered row count (from the tables list) — what "Clear table" acts on, regardless of search. */
+  rowCount: number;
 }
 
-export function TableRowsPanel({ table }: TableRowsPanelProps) {
+/** Server-side search/sort/paging over one raw table. Render with `key={table}` so switching
+ * tables resets page, search and sort (a sort column from one table won't exist in another). */
+export function TableRowsPanel({ table, rowCount }: TableRowsPanelProps) {
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [qInput, setQInput] = useState("");
+  const [sort, setSort] = useState<string | null>(null);
+  const [order, setOrder] = useState<SortDir>("asc");
   const [rowPendingDelete, setRowPendingDelete] = useState<string | null>(null);
   const [rowPendingEdit, setRowPendingEdit] = useState<Record<string, unknown> | null>(null);
   const [clearModalOpen, setClearModalOpen] = useState(false);
   const queryClient = useQueryClient();
+  const q = useDebouncedValue(qInput.trim(), 300);
 
   const query = useQuery({
-    queryKey: ["admin", "rows", table, page],
-    queryFn: () => adminApi.listRows(table, { page, page_size: PAGE_SIZE }),
+    queryKey: ["admin", "rows", table, { page, pageSize, q, sort, order }],
+    queryFn: () =>
+      adminApi.listRows(table, { page, page_size: pageSize, q, sort: sort ?? undefined, order }),
+    // Keep the current rows on screen while the next page/search/sort loads, instead of
+    // flashing "Loading rows…" on every keystroke.
+    placeholderData: keepPreviousData,
   });
+
+  function toggleSort(column: string) {
+    setPage(1);
+    if (sort === column) {
+      setOrder((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSort(column);
+      setOrder("asc");
+    }
+  }
 
   function invalidate() {
     void queryClient.invalidateQueries({ queryKey: ["admin", "rows", table] });
@@ -71,22 +98,64 @@ export function TableRowsPanel({ table }: TableRowsPanelProps) {
   const total = data?.total ?? 0;
   const columns = data?.columns ?? [];
   const pkColumn = data?.primary_key[0];
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const firstShown = total === 0 ? 0 : (page - 1) * pageSize + 1;
+  const lastShown = Math.min(total, page * pageSize);
+  const searching = q !== "";
+
+  // A delete/clear (or a narrower search) can leave the current page past the end.
+  useEffect(() => {
+    if (data && page > totalPages) setPage(totalPages);
+  }, [data, page, totalPages]);
 
   return (
     <div>
       <div className={styles.panelHeader}>
         <h2>
-          {table} <span className={styles.rowCount}>({total} row{total === 1 ? "" : "s"})</span>
+          {table} <span className={styles.rowCount}>({rowCount} row{rowCount === 1 ? "" : "s"})</span>
         </h2>
-        <Button
-          variant="danger"
-          onClick={() => setClearModalOpen(true)}
-          disabled={total === 0}
-        >
+        <Button variant="danger" onClick={() => setClearModalOpen(true)} disabled={rowCount === 0}>
           Clear table
         </Button>
       </div>
+
+      {rowCount > 0 && (
+        <div className={styles.rowsToolbar}>
+          <input
+            type="search"
+            className={styles.rowsSearch}
+            placeholder="Search all columns…"
+            aria-label={`Search ${table}`}
+            value={qInput}
+            onChange={(e) => {
+              setQInput(e.target.value);
+              setPage(1);
+            }}
+          />
+          <span className={styles.pageInfo} aria-live="polite">
+            {searching
+              ? `${total} match${total === 1 ? "" : "es"}${total > 0 ? ` · showing ${firstShown}–${lastShown}` : ""}`
+              : `Showing ${firstShown}–${lastShown} of ${total}`}
+          </span>
+          <label className={styles.pageSizeLabel}>
+            Rows per page
+            <select
+              className={styles.pageSizeSelect}
+              value={pageSize}
+              onChange={(e) => {
+                setPageSize(Number(e.target.value));
+                setPage(1);
+              }}
+            >
+              {PAGE_SIZE_OPTIONS.map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      )}
 
       {query.isLoading && <div className={styles.status}>Loading rows…</div>}
       {query.isError && (
@@ -100,7 +169,9 @@ export function TableRowsPanel({ table }: TableRowsPanelProps) {
         </Note>
       )}
       {!query.isLoading && !query.isError && rows.length === 0 && (
-        <div className={styles.status}>This table has no rows.</div>
+        <div className={styles.status}>
+          {searching ? <>No rows in {table} match &ldquo;{q}&rdquo;.</> : "This table has no rows."}
+        </div>
       )}
 
       {rows.length > 0 && (
@@ -110,7 +181,14 @@ export function TableRowsPanel({ table }: TableRowsPanelProps) {
               <thead>
                 <tr>
                   {columns.map((c) => (
-                    <th key={c}>{c}</th>
+                    <th key={c}>
+                      <SortableColumnHeader
+                        label={c}
+                        active={sort === c}
+                        dir={order}
+                        onClick={() => toggleSort(c)}
+                      />
+                    </th>
                   ))}
                   <th />
                 </tr>
@@ -151,22 +229,7 @@ export function TableRowsPanel({ table }: TableRowsPanelProps) {
             </table>
           </div>
 
-          <div className={styles.pagination}>
-            <Button size="sm" variant="ghost" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}>
-              Previous
-            </Button>
-            <span className={styles.pageInfo}>
-              Page {page} of {totalPages}
-            </span>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              disabled={page >= totalPages}
-            >
-              Next
-            </Button>
-          </div>
+          {totalPages > 1 && <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />}
         </>
       )}
 

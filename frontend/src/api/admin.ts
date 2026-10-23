@@ -4,6 +4,10 @@ import type { ClearBacklogResult, ClearResult, RowPage, TableInfo } from "@/type
 export interface ListRowsParams {
   page?: number;
   page_size?: number;
+  /** Case-insensitive substring match across every column. */
+  q?: string;
+  sort?: string;
+  order?: "asc" | "desc";
 }
 
 /** URL for the full-database JSON export. The endpoint sets Content-Disposition, so a hidden

@@ -22,6 +22,7 @@ import { plateWellFromSlot } from "@/utils/plateWell";
 import { runLabel } from "@/utils/runLabel";
 import { useSampleBackNav } from "@/utils/sampleBackNav";
 
+import { CreditClaimRow, isCreditCaseUse } from "./CreditClaimRow";
 import styles from "./SlotDetailPopover.module.css";
 
 const RUN_TIME_OPTIONS = [
@@ -385,6 +386,7 @@ function SlotDetailBody({
             </b>
           </div>
         )}
+        {cell && isCreditCaseUse(cell, stage.cell_use_id) && <CreditClaimRow cell={cell} />}
         <div className={`${styles.row} ${styles.runTimeRow}`}>
           <span className={styles.label}>Run time</span>
           {canEditRunTime ? (

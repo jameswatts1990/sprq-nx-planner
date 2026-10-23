@@ -115,7 +115,11 @@ export function DeveloperTools() {
 
         <div className={styles.main}>
           {selectedTable ? (
-            <TableRowsPanel table={selectedTable} />
+            <TableRowsPanel
+              key={selectedTable}
+              table={selectedTable}
+              rowCount={tables.find((t) => t.name === selectedTable)?.row_count ?? 0}
+            />
           ) : (
             <div className={styles.status}>Select a table to view its rows.</div>
           )}

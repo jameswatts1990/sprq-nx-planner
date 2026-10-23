@@ -17,6 +17,7 @@ import { CELL_STATUS_LABEL, CELL_STATUS_TONE } from "@/utils/cellStatus";
 import { plateWellFromSlot, plateWellFromWell } from "@/utils/plateWell";
 
 import { CellChoicePicker } from "./CellChoicePicker";
+import { CreditClaimRow, hasCreditCase } from "./CreditClaimRow";
 import styles from "./SlotDetailPopover.module.css";
 
 export interface CellInfoPopoverProps {
@@ -142,6 +143,7 @@ export function CellInfoPopover({ stage, run, onClose, onOpenQc }: CellInfoPopov
             {cell ? <Badge tone={CELL_STATUS_TONE[cell.status]}>{CELL_STATUS_LABEL[cell.status]}</Badge> : "…"}
           </span>
         </div>
+        {cell && hasCreditCase(cell) && <CreditClaimRow cell={cell} showTrigger />}
         <div className={styles.row}>
           <span className={styles.label}>This load</span>
           <b className={styles.value}>

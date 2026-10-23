@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 
 import { CreditCaseActions } from "@/components/cells/CreditCaseActions";
+import { CreditStageStrip } from "@/components/cells/CreditStageStrip";
 import { PacbioCreditTracker } from "@/components/cells/PacbioCreditTracker";
 import { Badge } from "@/components/ui/Badge";
 import type { CellOut } from "@/types/cell";
@@ -11,7 +12,6 @@ import {
   type CreditCaseAge,
   CREDIT_OVERDUE_DAYS,
   cellFailureAt,
-  getCreditStages,
   OVERDUE_BADGE,
   triggeringUse,
 } from "@/utils/creditCase";
@@ -24,23 +24,6 @@ function formatDate(iso: string | null): string {
   if (!iso) return "—";
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? "—" : d.toLocaleDateString();
-}
-
-/** Mini five-dot progress strip mirroring the full PacbioCreditTracker, so a case reads the same
- * at a glance in the worklist as it does expanded. */
-function MiniStageStrip({ credit }: { credit: CreditCaseState }) {
-  const { stages, currentIndex } = getCreditStages(credit);
-  return (
-    <div
-      className={styles.strip}
-      title="Failure → PacBio report → Internal report → Credit confirmed → Credit received"
-    >
-      {stages.map((s, i) => {
-        const state = s.done ? "done" : i === currentIndex ? "current" : "pending";
-        return <span key={s.key} className={styles.dot} data-state={state} />;
-      })}
-    </div>
-  );
 }
 
 /** The at-a-glance facts on the right of a row's head line: PacBio case number, acquisitions
@@ -145,7 +128,7 @@ export function CaseRowFrame({
       <div className={styles.ctx}>{ctx}</div>
 
       <div className={styles.progress}>
-        <MiniStageStrip credit={credit} />
+        <CreditStageStrip credit={credit} />
         {/* Inline next-step action while collapsed; when expanded the full tracker below owns it. */}
         {!open && <div className={styles.action}>{action}</div>}
       </div>

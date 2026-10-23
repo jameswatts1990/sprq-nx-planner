@@ -71,6 +71,41 @@ def test_list_rows_unknown_table_404s(client):
     assert resp.status_code == 404
 
 
+def test_list_rows_search_matches_any_column_case_insensitively(client):
+    rows = client.get("/api/admin/tables/instruments/rows").json()["rows"]
+    serial = rows[0]["serial_number"]
+
+    body = client.get("/api/admin/tables/instruments/rows", params={"q": serial.lower()}).json()
+    assert body["total"] == 1
+    assert body["rows"][0]["serial_number"] == serial
+
+    # Non-text columns are searchable too (cast to text), e.g. the integer id.
+    by_id = client.get("/api/admin/tables/instruments/rows", params={"q": str(rows[0]["id"])}).json()
+    assert rows[0]["id"] in {r["id"] for r in by_id["rows"]}
+
+    none = client.get("/api/admin/tables/instruments/rows", params={"q": "no-such-value-xyz"}).json()
+    assert none["total"] == 0 and none["rows"] == []
+
+
+def test_list_rows_sorts_by_any_column_and_rejects_unknown(client):
+    desc = client.get("/api/admin/tables/instruments/rows", params={"sort": "id", "order": "desc"}).json()
+    ids = [r["id"] for r in desc["rows"]]
+    assert ids == sorted(ids, reverse=True)
+
+    asc = client.get("/api/admin/tables/instruments/rows", params={"sort": "serial_number"}).json()
+    serials = [r["serial_number"] for r in asc["rows"]]
+    assert serials == sorted(serials)
+
+    bad = client.get("/api/admin/tables/instruments/rows", params={"sort": "not_a_column"})
+    assert bad.status_code == 400
+
+
+def test_list_rows_allows_large_pages_up_to_1000(client):
+    assert client.get("/api/admin/tables/instruments/rows").json()["page_size"] == 100
+    assert client.get("/api/admin/tables/instruments/rows", params={"page_size": 1000}).status_code == 200
+    assert client.get("/api/admin/tables/instruments/rows", params={"page_size": 1001}).status_code == 422
+
+
 def test_delete_row_removes_it_then_404s_on_repeat(client):
     instruments = client.get("/api/admin/tables/instruments/rows", params={"page_size": 1}).json()
     row_id = instruments["rows"][0]["id"]

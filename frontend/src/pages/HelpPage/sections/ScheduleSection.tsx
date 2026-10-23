@@ -130,8 +130,9 @@ export function ScheduleSection() {
       </p>
       <ul>
         <li>
-          <b>Barcodes: Show / Hide</b> — shows or hides the barcode chips on every sample card, for a cleaner, less
-          busy view when you don&apos;t need the barcodes.
+          <b>Barcodes: Show / Hide</b> — shows or hides the barcode chips on every sample card — in the grid and in
+          the Backlog panel, where they&apos;re each card&apos;s third row — for a cleaner, less busy view when you
+          don&apos;t need the barcodes.
         </li>
         <li>
           <b>Sample notes: Show / Hide</b> — a small <b>✎</b> marker appears on any card that carries a note (shown by
@@ -428,13 +429,14 @@ export function ScheduleSection() {
         searches the grid as well as the backlog.
       </p>
       <p>
-        Each backlog card is two lines. The first is the full <b>Pool ID</b> (never shortened), any duplicate badge,
-        and the <b>⏱ movie time</b> on the right. The second starts with its <b>priority</b> (shortened to{" "}
-        <i>High</i>, <i>Medium</i>, <i>Standard</i>… — hover it for the full label; the card&apos;s left edge is
-        tinted in the same colour), then the <b>Plate ID</b>, any warning flags (such as a small-insert{" "}
-        <b>&lt;5kb</b> or a <b>⌛ Complex</b> countdown), then the <b>barcodes</b>. A Plate ID too long for the
-        line ends in <b>…</b> — hover the card for it in full. Barcodes that don&apos;t fit on the line fold into a
-        grey <b>+N</b> chip; hover it to list them.
+        Every backlog card has the same compact rows. The first is the full <b>Pool ID</b> (never shortened), any
+        duplicate badge, and the <b>⏱ movie time</b> on the right. The second is just its <b>priority</b> (shortened
+        to <i>High</i>, <i>Medium</i>, <i>Standard</i>… — the card&apos;s left edge is tinted in the same colour) and,
+        for a small-insert library, the orange <b>&lt;5kb</b> fragment-size flag. Hover the priority for the full
+        label — and, for a <i>Repeatable — from complex</i> sample, how many days of the 30-day leftover-complex
+        window remain. With <b>View options → Barcodes → Show</b>, a third row lists the <b>barcodes</b> on one
+        line; if they don&apos;t all fit, it ends in <b>…</b> — hover the row to see them all. <b>Hide</b> drops that
+        row, so more cards fit.
       </p>
       <p>
         Prefer the backlog down one side? <b>View options → Backlog → Left</b> or <b>Right</b> docks it as a narrow,
@@ -754,6 +756,15 @@ export function ScheduleSection() {
         planned again, and backlog/resupply moves are reversed — except a sample that has since been placed again,
         a <b>Blocked</b> slot you&apos;ve since cleared, or a resupply request already marked sent, which are
         left as they are (so nothing is ever scheduled twice).
+      </p>
+      <p>
+        <b>QC claim progress:</b> once a cell has a PacBio credit claim (it failed a run or was stopped), its cell
+        popover shows a <b>QC claim</b> row under Status — the same five-dot progress strip and stage badge as the{" "}
+        <b>QC</b> tab (Needs report → Awaiting PacBio credit → Confirmed → Received), which use raised it, the PacBio
+        case number, the next step, and how long it&apos;s been open (or a red <b>Overdue</b> badge once a step has
+        stalled for over 30 days). The slot popover shows the same row, but only on the sample whose run raised the
+        claim. It&apos;s read-only here: <b>Credit tracker →</b> opens the cell&apos;s page, where the full tracker
+        and its report/credit actions live.
       </p>
       <p>
         <b>Failed/Aborted/Stopped/Blocked indicator</b> on the grid flags a QC problem without opening the slot,

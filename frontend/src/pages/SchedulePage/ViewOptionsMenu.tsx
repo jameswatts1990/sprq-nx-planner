@@ -94,7 +94,7 @@ export function ViewOptionsMenu({
               ]}
             />
           </div>
-          <p className={styles.hint}>Show or hide the barcode chips on each sample card in the grid.</p>
+          <p className={styles.hint}>Show or hide the barcode chips on each sample card in the grid and the backlog.</p>
 
           <div className={styles.row}>
             <span className={styles.label}>Sample notes</span>
