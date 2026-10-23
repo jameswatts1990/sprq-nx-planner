@@ -20,6 +20,17 @@ The version shows in the navbar (top-right, low-contrast grey — `frontend/src/
 - **MINOR** (`0.2.0`→`0.3.0`): a genuinely **new**, backwards-compatible user-facing feature or capability — not an enhancement to an existing one.
 - **MAJOR** (`0.2.0`→`1.0.0`): breaking changes or a deliberate release milestone — only when explicitly intended.
 
+### Tags and releases
+
+Pushing a tag builds the frontend and backend container images and publishes them under the tag's version. Tags are plain semver, **never prefixed with `v`** (the navbar's "v" is display only):
+
+- **Release — `X.Y.Z`, only on a commit already on `main`.** Publishes images tagged `X.Y.Z` and `latest`. Tag the merge commit after the PR lands, never a branch commit. A plain `X.Y.Z` tag off `main` is a mistake: delete it, don't publish from it.
+- **Release candidate — `X.Y.Z-alpha.N` / `X.Y.Z-beta.N`, any branch.** Publishes images tagged with that exact version, never `latest`. Use the version it's heading to (`0.61.0-beta.0` before `0.61.0`).
+- **A tag's `X.Y.Z` must equal `frontend/package.json`'s `version`** at the tagged commit, so the navbar shows what was published. This is not enforced; check before tagging.
+- Never move or reuse a tag once pushed — cut the next version instead.
+
+**Claude never creates or pushes tags unless explicitly asked.** When asked, first confirm the commit is on `main` (for a release) and that `package.json` matches the tag.
+
 ## Dependencies
 
 **Never downgrade a package to dodge an error — fix forward against the declared version.** If a downgrade is genuinely the only correct fix (e.g. a release is actually broken), stop and flag it with the reason — never silently. Edit `package.json`/lockfiles in place, never regenerate them from memory, so pinned versions never drift backwards. Leave Dependabot upgrade PRs alone (a separate, human-reviewed workflow) unless explicitly asked.
