@@ -141,9 +141,11 @@
 .card > [data-barcode-chips] {
   margin-top: 3px;
 }
-/* Movie / acquisition time chip, at the right end of the head row so it lines up down the
-   card list. Quiet by default - it's reference info, not a status. */
+/* Movie / acquisition time, at the right end of the head row so it lines up down the card list.
+   Quiet grey text for the default length; a non-default one holds a solid MovieTimeFlag
+   instead. Flex (not inline) so the flag's tooltip wrapper adds no line-box height. */
 .movie {
+  display: inline-flex;
   margin-left: auto;
   font-size: var(--fs-xs);
   font-weight: 700;

@@ -5,7 +5,7 @@ from pydantic import BaseModel
 
 class ScheduleNoteUpdate(BaseModel):
     """Edit is a full replace of the text and the instrument set - unticking an instrument
-    unpins the note from it; the day itself is fixed once created."""
+    unpins the note from it. The day only changes by dragging the banner (ScheduleNoteMove)."""
 
     body: str
     instrument_ids: list[int]
@@ -14,6 +14,16 @@ class ScheduleNoteUpdate(BaseModel):
 
 class ScheduleNoteCreate(ScheduleNoteUpdate):
     note_date: date
+
+
+class ScheduleNoteMove(BaseModel):
+    """A banner dragged in the Schedule grid from its row (from_instrument_serial) onto another
+    instrument/day cell. Serials, not ids: the grid keys its rows by serial."""
+
+    note_date: date
+    from_instrument_serial: str
+    to_instrument_serial: str
+    actor: str | None = None
 
 
 class ScheduleNoteOut(BaseModel):

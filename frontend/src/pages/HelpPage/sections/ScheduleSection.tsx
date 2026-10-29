@@ -117,8 +117,16 @@ export function ScheduleSection() {
           every instrument at once (the button says how many when it&apos;s on more than one).
         </li>
         <li>
-          Day notes can go on any weekday, including past days and days an instrument is down — handy for recording
-          what happened. Several notes on the same day stack, oldest first.
+          <b>Drag a banner</b> to move the note — the cell you&apos;re over lights up blue. Drop it on another day and
+          the note moves to that day; drop it on another instrument&apos;s row and it moves off the row you picked it up
+          from and onto that one. A note on several instruments is still one note, so moving it to a new day moves it
+          on <b>all</b> of them (its other banners fade while you drag to show this); its other instruments stay as
+          they are. Let go anywhere that isn&apos;t a day cell and the note simply stays where it was — dragging
+          never deletes a note.
+        </li>
+        <li>
+          Day notes can go on any weekday, including past days, loaded days and days an instrument is down — handy
+          for recording what happened. Several notes on the same day stack, oldest first.
         </li>
       </ul>
 

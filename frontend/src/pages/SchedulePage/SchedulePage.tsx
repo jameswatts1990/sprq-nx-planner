@@ -514,12 +514,21 @@ export function SchedulePage() {
         { onSettled: () => dnd.setPlacingSlotKey(null) },
       );
     },
+    (note, fromSerial, toSerial, toDate) => {
+      const toInstrumentId = instrumentsQuery.data?.find((i) => i.serial_number === toSerial)?.id;
+      if (toInstrumentId == null) return;
+      actions.moveNote.mutate({
+        note,
+        move: { note_date: toDate, from_instrument_serial: fromSerial, to_instrument_serial: toSerial },
+        toInstrumentId,
+      });
+    },
     actions.onDropBlocked,
     gridAreaRef,
   );
-  // Suppressed during any drag (backlog-sample or filled-slot move) so the hover/pin
+  // Suppressed during any drag (backlog sample, filled-slot move or day note) so the hover/pin
   // highlight never fights the drag/drop visuals - see useCellLinkHighlight.tsx.
-  const cellLink = useCellLinkHighlight(dnd.activeSample !== null);
+  const cellLink = useCellLinkHighlight(dnd.activeSample !== null || dnd.activeNote !== null);
 
   // Clicking anywhere outside the weekly schedule grid deselects both selections - lets
   // users click away (blank page, etc.) to dismiss a selection without hunting for the
@@ -684,6 +693,7 @@ export function SchedulePage() {
         collisionDetection={dnd.collisionDetection}
         onDragStart={dnd.onDragStart}
         onDragEnd={dnd.onDragEnd}
+        onDragCancel={dnd.onDragCancel}
       >
         <CellLinkContext.Provider value={cellLink}>
           <SearchHighlightContext.Provider value={search.highlightSlotKey}>
@@ -887,6 +897,20 @@ export function SchedulePage() {
 
             <DragOverlay dropAnimation={null}>
               {dnd.activeSample ? <div className={styles.dragChip}>{dnd.activeSample.pool_id || "sample"}</div> : null}
+              {dnd.activeNote ? (
+                <div className={styles.noteDragChip}>
+                  <Note tone="info" icon="📌" size="sm">
+                    <span className={styles.noteDragText}>{dnd.activeNote.body}</span>
+                    {/* One note, one day: a new day moves it on every instrument it's on - its
+                        other banners fade to match (SchedulerDayCell's DayNoteBanner). */}
+                    {dnd.activeNote.instrument_serials.length > 1 && (
+                      <span className={styles.noteDragMeta}>
+                        On {dnd.activeNote.instrument_serials.length} instruments — a new day moves it on all of them
+                      </span>
+                    )}
+                  </Note>
+                </div>
+              ) : null}
             </DragOverlay>
           </SearchHighlightContext.Provider>
         </CellLinkContext.Provider>

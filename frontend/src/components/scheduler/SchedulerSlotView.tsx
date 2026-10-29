@@ -4,6 +4,7 @@ import type { CSSProperties, HTMLAttributes, MouseEvent } from "react";
 import { BarcodeChips } from "@/components/shared/BarcodeChips";
 import { DuplicateBadge } from "@/components/shared/DuplicateBadge";
 import { InsertSizeFlag } from "@/components/shared/InsertSizeFlag";
+import { MovieTimeFlag } from "@/components/shared/MovieTimeFlag";
 import { useInsertSizeThreshold } from "@/hooks/useInsertSizeThreshold";
 import type { SlotIndex, StageOut } from "@/types/schedule";
 import { classForUseIndex } from "@/utils/useIndexClass";
@@ -333,6 +334,7 @@ export const SchedulerSlotView = memo(
               index={stage!.duplicate_index}
               total={stage!.duplicate_total}
               selfReuse={stage!.duplicate_cell_reuse}
+              compact
             />
             {stage!.notes && (
               <span
@@ -344,7 +346,9 @@ export const SchedulerSlotView = memo(
                 ✎
               </span>
             )}
-            <InsertSizeFlag sizeBp={stage!.insert_size_bp} />
+            <InsertSizeFlag sizeBp={stage!.insert_size_bp} compact />
+            {/* This well's own run time (per-cell, editable in the slot popover), not the sample's. */}
+            <MovieTimeFlag hours={stage!.run_time_hours} compact />
           </div>
           {barcodeClash ? (
             <div

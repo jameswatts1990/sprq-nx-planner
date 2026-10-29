@@ -1,5 +1,6 @@
+import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { memo, useState, type KeyboardEvent, type MouseEvent } from "react";
+import { memo, useState, type KeyboardEvent, type MouseEvent, type PointerEvent } from "react";
 
 import { cellsApi } from "@/api/cells";
 import { cellUsesApi } from "@/api/cellUses";
@@ -15,10 +16,11 @@ import type { ScheduleNoteOut } from "@/types/scheduleNote";
 import { formatShortDateTimeLocal, formatShortDateUTC, formatTimeLocal, localWallTimeToUtcParts, parseDateOnly, shortWeekdayUTC } from "@/utils/calendarDates";
 import { runLabel } from "@/utils/runLabel";
 
-import { PLATE_INDICES, slotKey } from "./gridKeys";
+import { noteCellDropId, noteDragId, PLATE_INDICES, slotKey } from "./gridKeys";
 import { allStages, padStages, type Continuation } from "./groupCyclesByInstrumentAndDay";
 import { SchedulerSlot } from "./SchedulerSlot";
 import styles from "./SchedulerDayCell.module.css";
+import type { NoteCellDropData, NoteDragData } from "./useSchedulerDnd";
 import type { SlotSelection } from "./useSlotSelection";
 
 export interface SchedulerDayCellProps {
@@ -81,36 +83,73 @@ function LockChip({ until }: { until: string }) {
   );
 }
 
-/** Day-note banners at the top of a cell, oldest first. Each opens the note for edit/delete;
- * clicks and keys stop propagating so they never also toggle the cell's own selection. The text
- * is clamped to two lines here - the full note is in the tooltip and the edit modal. */
-function DayNoteBanners({ notes, onEdit }: { notes: ScheduleNoteOut[]; onEdit: (note: ScheduleNoteOut) => void }) {
+interface DayNoteBannersProps {
+  notes: ScheduleNoteOut[];
+  instrumentSerial: string;
+  onEdit: (note: ScheduleNoteOut) => void;
+}
+
+/** Day-note banners at the top of a cell, oldest first. */
+function DayNoteBanners({ notes, instrumentSerial, onEdit }: DayNoteBannersProps) {
   return (
     <div className={styles.dayNotes}>
       {notes.map((note) => (
-        <div
-          key={note.id}
-          role="button"
-          tabIndex={0}
-          className={styles.dayNote}
-          title={`${note.body}\n\nClick to edit or delete this note.`}
-          onClick={(e) => {
-            e.stopPropagation();
-            onEdit(note);
-          }}
-          onKeyDown={(e) => {
-            if (e.key !== "Enter" && e.key !== " ") return;
-            e.preventDefault();
-            e.stopPropagation();
-            onEdit(note);
-          }}
-        >
-          <Note tone="info" icon="📌" size="sm">
-            <span className={styles.dayNoteText}>{note.body}</span>
-          </Note>
-        </div>
+        <DayNoteBanner key={note.id} note={note} instrumentSerial={instrumentSerial} onEdit={onEdit} />
       ))}
     </div>
+  );
+}
+
+/** One banner: click (or Enter/Space) opens the note for edit/delete; drag it onto another
+ * weekday cell to move it (see useSchedulerDnd). Clicks and keys stop propagating so they never
+ * also toggle the cell's own selection. The text is clamped to two lines - the full note is in
+ * the tooltip and the edit modal. Pointer-drag only: the keyboard keeps Enter/Space for edit, and
+ * the grid's pointerWithin collision has no target for a keyboard drag anyway. */
+function DayNoteBanner({ note, instrumentSerial, onEdit }: Omit<DayNoteBannersProps, "notes"> & { note: ScheduleNoteOut }) {
+  const data: NoteDragData = { kind: "note", note, instrument_serial: instrumentSerial };
+  const { setNodeRef, listeners, isDragging, active } = useDraggable({ id: noteDragId(note.id, instrumentSerial), data });
+  // The same note's banners on other rows fade too - a new day moves them all.
+  const activeData = active?.data.current as NoteDragData | undefined;
+  const moving = isDragging || (activeData?.kind === "note" && activeData.note.id === note.id);
+  return (
+    <div
+      ref={setNodeRef}
+      role="button"
+      tabIndex={0}
+      className={moving ? `${styles.dayNote} ${styles.dayNoteMoving}` : styles.dayNote}
+      title={`${note.body}\n\nClick to edit or delete this note — or drag it to another day or instrument.`}
+      onPointerDown={listeners?.onPointerDown as ((e: PointerEvent<HTMLDivElement>) => void) | undefined}
+      onClick={(e) => {
+        e.stopPropagation();
+        onEdit(note);
+      }}
+      onKeyDown={(e) => {
+        if (e.key !== "Enter" && e.key !== " ") return;
+        e.preventDefault();
+        e.stopPropagation();
+        onEdit(note);
+      }}
+    >
+      <Note tone="info" icon="📌" size="sm">
+        <span className={styles.dayNoteText}>{note.body}</span>
+      </Note>
+    </div>
+  );
+}
+
+/** The whole weekday cell as a drop target for a dragged day note (a note belongs to the day,
+ * not a slot). Its own leaf so only it - not the whole day cell - re-renders as a drag passes
+ * over; it overlays the cell without catching the pointer, and a sample drag never targets it
+ * (useSchedulerDnd's collision filter). */
+function NoteDropZone({ instrumentSerial, date }: { instrumentSerial: string; date: string }) {
+  const data: NoteCellDropData = { kind: "noteCell", instrument_serial: instrumentSerial, date };
+  const { setNodeRef, isOver } = useDroppable({ id: noteCellDropId(instrumentSerial, date), data });
+  return (
+    <div
+      ref={setNodeRef}
+      className={isOver ? `${styles.noteDropZone} ${styles.noteDropOver}` : styles.noteDropZone}
+      aria-hidden="true"
+    />
   );
 }
 
@@ -255,8 +294,9 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
         data-row={rowIndex}
         data-col={colIndex}
       >
-        {notes && <DayNoteBanners notes={notes} onEdit={onEditNote} />}
+        {notes && <DayNoteBanners notes={notes} instrumentSerial={instrumentSerial} onEdit={onEditNote} />}
         <span className={styles.downLabel}>Down</span>
+        <NoteDropZone instrumentSerial={instrumentSerial} date={loadDate} />
       </td>
     );
   }
@@ -304,7 +344,7 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
       data-row={rowIndex}
       data-col={colIndex}
     >
-      {notes && <DayNoteBanners notes={notes} onEdit={onEditNote} />}
+      {notes && <DayNoteBanners notes={notes} instrumentSerial={instrumentSerial} onEdit={onEditNote} />}
 
       {/* Always rendered (even with nothing to show) so every cell's plate/placeholder
           area starts at the same vertical offset within the row, whether or not this
@@ -665,6 +705,9 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
           </p>
         </ConfirmModal>
       )}
+
+      {/* Last child, so its drop highlight paints over the cell's own positioned slot cards. */}
+      <NoteDropZone instrumentSerial={instrumentSerial} date={loadDate} />
     </td>
   );
 });

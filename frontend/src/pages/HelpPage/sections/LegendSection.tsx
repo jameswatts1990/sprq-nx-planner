@@ -9,6 +9,7 @@ import {
 } from "@/components/shared/ComplexCountdownChip";
 import { DuplicateBadge } from "@/components/shared/DuplicateBadge";
 import { InsertSizeFlag } from "@/components/shared/InsertSizeFlag";
+import { MovieTimeFlag } from "@/components/shared/MovieTimeFlag";
 import { UseLegend } from "@/components/shared/SectionHeading";
 import { Badge } from "@/components/ui/Badge";
 import { Note, type NoteTone } from "@/components/ui/Note";
@@ -293,6 +294,26 @@ export function LegendSection() {
             reuse is visible at a glance without reading the small tag text. On a <b>first use</b> the card carries only
             the flag, no stripe.
           </span>
+        </div>
+      </div>
+
+      <p className={styles.subheading}>Movie time flag (Backlog, Schedule)</p>
+      <div className={styles.legendGrid}>
+        <div className={styles.legendRow}>
+          <span className={styles.legendSwatchLabel}>
+            <MovieTimeFlag hours={12} />
+          </span>
+          <span>
+            The sample (or, on the schedule, that one cell) runs a movie time other than the default set in{" "}
+            <b>Settings → Movie scheduling</b> (normally 24&nbsp;h), so short and long runs stand out at a glance. Hover
+            it to see which cell Auto Schedule loads that length on. It&apos;s information only - nothing is blocked.
+          </span>
+        </div>
+        <div className={styles.legendRow}>
+          <span className={styles.legendSwatchLabel}>
+            <MovieTimeFlag hours={30} />
+          </span>
+          <span>The same flag for a 30&nbsp;h movie. A default-length movie shows no flag.</span>
         </div>
       </div>
 

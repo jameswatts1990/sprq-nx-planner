@@ -17,6 +17,16 @@ export function sampleDragId(sampleId: number): string {
   return `sample::${sampleId}`;
 }
 
+/** dnd-kit draggable id for one day-note banner - per row, since one note shows on several. */
+export function noteDragId(noteId: number, instrumentSerial: string): string {
+  return `note::${noteId}::${instrumentSerial}`;
+}
+
+/** dnd-kit droppable id for a cell's day-note drop zone. */
+export function noteCellDropId(instrumentSerial: string, date: string): string {
+  return `noteCell::${cellKey(instrumentSerial, date)}`;
+}
+
 export const SLOT_INDICES: SlotIndex[] = [0, 1, 2, 3, 4, 5, 6, 7];
 
 /** The two loading positions of a run: Plate 1 = slots 0-3, Plate 2 = slots 4-7. (This grid

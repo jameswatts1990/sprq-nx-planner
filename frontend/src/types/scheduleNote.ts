@@ -12,7 +12,8 @@ export interface ScheduleNoteOut {
   updated_at: string;
 }
 
-/** Edit is a full replace of the text and the instrument set (unticking unpins); the day is fixed. */
+/** Edit is a full replace of the text and the instrument set (unticking unpins); the day only
+ * changes by dragging the banner (ScheduleNoteMove). */
 export interface ScheduleNoteUpdate {
   body: string;
   instrument_ids: number[];
@@ -20,4 +21,12 @@ export interface ScheduleNoteUpdate {
 
 export interface ScheduleNoteCreate extends ScheduleNoteUpdate {
   note_date: string;
+}
+
+/** A banner dragged from its grid row onto another instrument/day cell: the whole note takes
+ * the new day, and the target instrument takes the dragged row's place (see moveNoteLocally). */
+export interface ScheduleNoteMove {
+  note_date: string;
+  from_instrument_serial: string;
+  to_instrument_serial: string;
 }

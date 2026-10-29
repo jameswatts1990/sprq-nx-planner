@@ -154,3 +154,26 @@
   box-shadow: var(--shadow);
   cursor: grabbing;
 }
+/* A dragged day note: the same 📌 banner it was picked up as (DragOverlay sizes it to that
+   banner's width), lifted with a shadow. */
+.noteDragChip {
+  border-radius: var(--r-sm);
+  box-shadow: var(--shadow);
+  cursor: grabbing;
+}
+.noteDragText {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+  font-weight: 600;
+}
+.noteDragMeta {
+  display: block;
+  margin-top: 2px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--blue-deep);
+}

@@ -12,15 +12,19 @@ import { Badge } from "@/components/ui/Badge";
  * small ↻ to the badge when this copy is intentionally sharing a physical cell with an earlier
  * copy of the same Pool ID (StageOut.duplicate_cell_reuse) - allowed, since it's the same
  * physical material either way, but worth showing at a glance rather than leaving it a silent
- * exception to the barcode-clash rule. */
+ * exception to the barcode-clash rule.
+ *
+ * `compact` sizes it to the schedule card's cell line, alongside InsertSizeFlag/MovieTimeFlag. */
 export function DuplicateBadge({
   index,
   total,
   selfReuse = false,
+  compact = false,
 }: {
   index?: number | null;
   total?: number | null;
   selfReuse?: boolean;
+  compact?: boolean;
 }) {
   if (index == null || total == null || total <= 1) return null;
   const title = selfReuse
@@ -28,7 +32,7 @@ export function DuplicateBadge({
     : `Copy ${index} of ${total} — this Pool ID appears on ${total} samples (including completed runs). The same sample is run across multiple SMRT cells.`;
   return (
     <span title={title}>
-      <Badge tone="purple">
+      <Badge tone="purple" compact={compact}>
         {index}/{total}
         {selfReuse ? " ↻" : ""}
       </Badge>

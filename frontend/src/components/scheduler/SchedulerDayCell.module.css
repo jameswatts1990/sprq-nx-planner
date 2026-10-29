@@ -2,6 +2,8 @@
    Column width itself comes from SchedulerGrid's <colgroup> (.dayCol/.weekendCol under
    table-layout: fixed) so every weekday column stays the same width. */
 .cell {
+  /* Containing block for the day-note drop zone; no z-index, so no new stacking context. */
+  position: relative;
   padding: 6px;
   background: var(--card);
   vertical-align: top;
@@ -53,11 +55,26 @@
 }
 .dayNote {
   border-radius: var(--r-sm);
-  cursor: pointer;
+  cursor: grab;
 }
 .dayNote:hover > div,
 .dayNote:focus-visible > div {
   border-color: var(--blue);
+}
+/* This note is mid-drag: its banner on every row it's on fades (a new day moves them all). */
+.dayNoteMoving {
+  opacity: 0.45;
+}
+/* Covers the whole weekday cell as a day-note drop target; never catches the pointer, so
+   clicks and slot drops underneath are unaffected. Only visible while a note is over it. */
+.noteDropZone {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.noteDropOver {
+  background: color-mix(in srgb, var(--blue) 8%, transparent);
+  box-shadow: inset 0 0 0 2px var(--blue);
 }
 .dayNoteText {
   display: -webkit-box;

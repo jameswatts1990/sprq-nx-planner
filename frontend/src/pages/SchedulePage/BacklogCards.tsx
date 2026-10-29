@@ -4,19 +4,18 @@ import { useNavigate } from "react-router-dom";
 import { BarcodeChips } from "@/components/shared/BarcodeChips";
 import { DuplicateBadge } from "@/components/shared/DuplicateBadge";
 import { InsertSizeFlag } from "@/components/shared/InsertSizeFlag";
+import { MovieTimeFlag } from "@/components/shared/MovieTimeFlag";
 import { sampleDragId } from "@/components/scheduler/gridKeys";
 import type { SampleDragData } from "@/components/scheduler/useSchedulerDnd";
 import { Badge } from "@/components/ui/Badge";
 import type { BadgeTone } from "@/components/ui/Badge";
+import { useMovieRules } from "@/hooks/useMovieRules";
 import type { SampleOut } from "@/types/sample";
 import { priorityLabel, priorityShortLabel, priorityTone } from "@/utils/priority";
 import { COMPLEX_REPEAT_WINDOW_DAYS, complexDaysLeft } from "@/utils/qcDisposition";
 import { useSampleBackNav } from "@/utils/sampleBackNav";
 
 import styles from "./BacklogCards.module.css";
-
-/** Default movie time shown when a sample has none (mirrors the backend's 24h default). */
-export const DEFAULT_MOVIE_HOURS = 24;
 
 /** The palette var each priority tone maps to, for the card's left-edge accent. References
  * the same CSS custom properties the shared Badge tone map uses (see Badge.module.css) - a
@@ -30,6 +29,7 @@ const TONE_ACCENT_VAR: Record<BadgeTone, string> = {
   info: "var(--blue-deep)",
   blue: "var(--blue)",
   purple: "var(--purple)",
+  ink: "var(--ink)",
 };
 
 /** Draggable backlog sample card - doubles as the drag source for placing onto a slot.
@@ -38,8 +38,9 @@ const TONE_ACCENT_VAR: Record<BadgeTone, string> = {
  * sample's detail page. Hovering (or keyboard-focusing the card) reveals an ✎ edit button
  * pinned top-right that opens the same Add/Edit modal the Backlog tab uses, so a scheduler can
  * fix a sample's details without leaving the grid. The button stops its own pointerdown/click
- * so editing never trips the drag sensor or the card's navigate. A movie-time chip and a
- * priority-tinted left edge make each card's run time and priority readable at a glance.
+ * so editing never trips the drag sensor or the card's navigate. The movie time (a solid
+ * MovieTimeFlag when it isn't the configured default) and a priority-tinted left edge make each
+ * card's run time and priority readable at a glance.
  * `searchMatch` flags the one card the Schedule page's unified search is cycled to - given a
  * pulsing ring and marked data-search-match so the page can scroll it into view.
  * `showBarcodes` mirrors the Schedule page's View options "Barcodes" toggle. */
@@ -64,6 +65,9 @@ export function DraggableSampleCard({
   // Every card gets a priority-coloured left edge, defaulting to grey for Standard / no
   // priority - so the accent always reads as "this is its priority", never an absent chip.
   const accent = TONE_ACCENT_VAR[priorityTone(sample.priority)];
+  // A sample with no movie time of its own runs for the configured default.
+  const { defaultHours } = useMovieRules();
+  const movieHours = sample.movie_time_hours ?? defaultHours;
   // Row 2 is reserved for priority | fragment size, so a "Repeatable — from complex" sample's
   // countdown (the ⌛ chip elsewhere) rides in the priority badge's tooltip instead.
   const complexLeft = complexDaysLeft(sample.qc_disposition, sample.qc_disposition_at);
@@ -108,9 +112,15 @@ export function DraggableSampleCard({
       <div className={styles.cardHead}>
         <span className={styles.ext}>{sample.pool_id}</span>
         <DuplicateBadge index={sample.duplicate_index} total={sample.duplicate_total} />
-        <span className={styles.movie} title="Movie / acquisition time">
-          ⏱ {sample.movie_time_hours ?? DEFAULT_MOVIE_HOURS} h
-        </span>
+        {movieHours === defaultHours ? (
+          <span className={styles.movie} title="Movie / acquisition time">
+            ⏱ {movieHours} h
+          </span>
+        ) : (
+          <span className={styles.movie}>
+            <MovieTimeFlag hours={movieHours} />
+          </span>
+        )}
       </div>
       <div className={styles.cardSub}>
         <span title={priorityTitle}>

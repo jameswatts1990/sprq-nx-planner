@@ -3,6 +3,7 @@ import { useCallback, useState } from "react";
 
 import { ApiError } from "@/api/client";
 import { cellUsesApi } from "@/api/cellUses";
+import { scheduleNotesApi } from "@/api/scheduleNotes";
 import { schedulerApi } from "@/api/schedulerGrid";
 import type { NoteTone } from "@/components/ui/Note";
 import type { GridSelection } from "@/components/scheduler/useGridSelection";
@@ -10,8 +11,11 @@ import type { SlotSelection } from "@/components/scheduler/useSlotSelection";
 import { smallInsertReuseWarning, useInsertSizeThreshold } from "@/hooks/useInsertSizeThreshold";
 import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
 import type { RunOut, SlotIndex, StageOut } from "@/types/schedule";
+import type { ScheduleNoteMove, ScheduleNoteOut } from "@/types/scheduleNote";
 import type { GridCellRef, RunDesignState } from "@/types/schedulerGrid";
 import { formatShortDateTimeLocal, formatTimeLocal, localWallTimeToUtcParts } from "@/utils/calendarDates";
+
+import { moveNoteLocally, sortNotes } from "./noteMove";
 
 export interface AccordionNote {
   tone: NoteTone;
@@ -23,6 +27,14 @@ export interface AccordionNote {
 interface SwapVars {
   a: number;
   b: number;
+}
+
+/** A dropped day-note banner. toInstrumentId keeps the optimistic note's ids in step with its
+ * serials (the edit modal reads ids). */
+interface MoveNoteVars {
+  note: ScheduleNoteOut;
+  move: ScheduleNoteMove;
+  toInstrumentId: number;
 }
 
 /** One or two advisory sentences for a just-placed/moved run, combining two independent,
@@ -187,6 +199,30 @@ export function useScheduleActions({
       // is flagged on the card). Any error here is something else (locked run, etc.).
       setRemoveSlotsError(err instanceof ApiError ? err.message : "Failed to swap samples.");
     },
+  });
+
+  // Dragging a day-note banner onto another instrument/day cell. Optimistic, so the banner lands
+  // where it was dropped instead of snapping back for a round trip; a failure puts it back.
+  const moveNote = useMutation({
+    mutationFn: ({ note, move }: MoveNoteVars) => scheduleNotesApi.move(note.id, move),
+    onMutate: async ({ note, move, toInstrumentId }: MoveNoteVars) => {
+      await queryClient.cancelQueries({ queryKey: ["schedule-notes"] });
+      const previous = queryClient.getQueriesData<ScheduleNoteOut[]>({ queryKey: ["schedule-notes"] });
+      const moved = moveNoteLocally(note, move, toInstrumentId);
+      queryClient.setQueriesData<ScheduleNoteOut[]>({ queryKey: ["schedule-notes"] }, (notes) =>
+        notes ? sortNotes(notes.map((n) => (n.id === note.id ? moved : n))) : notes,
+      );
+      return { previous };
+    },
+    onSuccess: () => {
+      setRemoveSlotsError(null);
+      setDropBlockedMessage(null);
+    },
+    onError: (err, _vars, context) => {
+      context?.previous.forEach(([key, data]) => queryClient.setQueryData(key, data));
+      setRemoveSlotsError(err instanceof ApiError ? err.message : "Failed to move the note.");
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["schedule-notes"] }),
   });
 
   // Bulk-remove every planned (unlocked) sample in the currently-viewed week - gated
@@ -447,6 +483,7 @@ export function useScheduleActions({
     swap,
     autoPlace,
     move,
+    moveNote,
     clearSchedule,
     autoFill,
     recalculate,

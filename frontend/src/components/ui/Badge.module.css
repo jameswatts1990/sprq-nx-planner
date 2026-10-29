@@ -8,6 +8,15 @@
   line-height: 1.4;
   white-space: nowrap;
 }
+/* Inherits font family/size/line-height from its line instead of the badge's own sans 11px,
+   so a pill sitting in a text row (the schedule card's mono cell line) centres on the same
+   glyph metrics as that row's text - and follows it into the grid's compact density. */
+.compact {
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  padding: 1px 5px;
+}
 .default {
   color: var(--grey);
   background: var(--line-soft);
@@ -43,4 +52,10 @@
 .purple {
   color: var(--purple);
   background: var(--highlight-tint);
+}
+/* Solid ink - the non-default movie-time label (MovieTimeFlag). A plain fact, not a status,
+   so it borrows no status hue and reads on every Use 1/2/3 card tint. */
+.ink {
+  color: #fff;
+  background: var(--ink);
 }

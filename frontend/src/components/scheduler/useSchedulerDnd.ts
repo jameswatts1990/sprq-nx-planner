@@ -4,12 +4,14 @@ import {
   pointerWithin,
   useSensor,
   useSensors,
+  type CollisionDetection,
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { useCallback, useState, type RefObject } from "react";
 
 import type { SlotIndex } from "@/types/schedule";
+import type { ScheduleNoteOut } from "@/types/scheduleNote";
 import type { DragSampleRef } from "@/types/schedulerGrid";
 
 import { gridCoordinateGetter } from "./gridKeyboardCoordinates";
@@ -36,7 +38,15 @@ export interface OccupiedSlotDropData {
   slot_index: SlotIndex;
 }
 
-export type DropData = SlotDropData | OccupiedSlotDropData;
+/** Payload attached to each weekday cell's day-note drop zone (SchedulerDayCell's
+ * NoteDropZone) - the whole cell, not a slot, since a note belongs to the day. */
+export interface NoteCellDropData {
+  kind: "noteCell";
+  instrument_serial: string;
+  date: string;
+}
+
+export type DropData = SlotDropData | OccupiedSlotDropData | NoteCellDropData;
 
 /** Payload attached to a backlog sample card's useDraggable. */
 export interface SampleDragData {
@@ -55,7 +65,29 @@ export interface FilledSlotDragData {
   slot_index: SlotIndex;
 }
 
-export type DragData = SampleDragData | FilledSlotDragData;
+/** Payload attached to a day-note banner's useDraggable. `instrument_serial` is the row it was
+ * picked up from: one note shows on several rows, and a drop onto another row swaps just that one. */
+export interface NoteDragData {
+  kind: "note";
+  note: ScheduleNoteOut;
+  instrument_serial: string;
+}
+
+export type DragData = SampleDragData | FilledSlotDragData | NoteDragData;
+
+/** pointerWithin, limited to the targets the active drag can land on: a day note only on a
+ * cell's note drop zone, a sample only on slots. pointerWithin ranks every zone under the
+ * pointer, so without this the whole-cell note zone would swallow a sample drop that misses a
+ * slot (or a slot would catch a note). */
+const collisionDetection: CollisionDetection = (args) => {
+  const activeIsNote = (args.active.data.current as DragData | undefined)?.kind === "note";
+  return pointerWithin({
+    ...args,
+    droppableContainers: args.droppableContainers.filter(
+      (c) => ((c.data.current as DropData | undefined)?.kind === "noteCell") === activeIsNote,
+    ),
+  });
+};
 
 /** Whether a drag ended within the grid's own bounds even though it didn't land on any
  * registered droppable - the pointer's final position (the drag's own activatorEvent, its
@@ -88,11 +120,15 @@ function isWithinGrid(event: DragEndEvent, gridAreaRef: RefObject<HTMLElement | 
 
 export interface SchedulerDnd {
   sensors: ReturnType<typeof useSensors>;
-  collisionDetection: typeof pointerWithin;
+  collisionDetection: CollisionDetection;
   onDragStart: (event: DragStartEvent) => void;
   onDragEnd: (event: DragEndEvent) => void;
+  /** Esc mid-drag: nothing moves, just clear the active chip. */
+  onDragCancel: () => void;
   /** The sample currently being dragged (for a DragOverlay chip). */
   activeSample: DragSampleRef | null;
+  /** The day note currently being dragged (for its DragOverlay banner). */
+  activeNote: ScheduleNoteOut | null;
   /** slotKey of a slot with an in-flight place/remove, for the "placing…" shimmer. */
   placingSlotKey: string | null;
   setPlacingSlotKey: (k: string | null) => void;
@@ -117,6 +153,8 @@ export interface SchedulerDnd {
  * day, slot) - the backend keeps its cell only for a same-well reschedule (same slot, another
  * day) and auto-derives the destination slot's own cell otherwise (see move_sample), so no
  * picker is shown here either.
+ * @param onMoveNote Called when a day-note banner is dropped on a different instrument/day cell,
+ * with the row it was dragged from. Never removes a note: let go anywhere else and it stays put.
  * @param onDropBlocked Called with a human-readable reason whenever a drop is rejected without
  * ever reaching the backend: a backlog sample dropped onto an already-occupied slot (nothing to
  * swap with), or any drop that lands within the grid's own bounds but not on a registered
@@ -139,10 +177,12 @@ export function useSchedulerDnd(
   ) => void,
   onAutoPlace: (sampleId: number, instrumentSerial: string, loadDate: string, slotIndex: SlotIndex) => void,
   onMove: (cellUseId: number, instrumentSerial: string, loadDate: string, slotIndex: SlotIndex) => void,
+  onMoveNote: (note: ScheduleNoteOut, fromInstrumentSerial: string, toInstrumentSerial: string, toDate: string) => void,
   onDropBlocked: (message: string) => void,
   gridAreaRef?: RefObject<HTMLElement | null>,
 ): SchedulerDnd {
   const [activeSample, setActiveSample] = useState<DragSampleRef | null>(null);
+  const [activeNote, setActiveNote] = useState<ScheduleNoteOut | null>(null);
   const [placingSlotKey, setPlacingSlotKey] = useState<string | null>(null);
 
   // A small distance activation constraint so a click on a filled slot still opens its
@@ -156,15 +196,38 @@ export function useSchedulerDnd(
     const data = event.active.data.current as DragData | undefined;
     if (data && (data.kind === "sample" || data.kind === "filledSlot")) {
       setActiveSample(data.sample);
+    } else if (data?.kind === "note") {
+      setActiveNote(data.note);
     }
+  }, []);
+
+  const onDragCancel = useCallback(() => {
+    setActiveSample(null);
+    setActiveNote(null);
   }, []);
 
   const onDragEnd = useCallback(
     (event: DragEndEvent) => {
       setActiveSample(null);
+      setActiveNote(null);
       const activeData = event.active.data.current as DragData | undefined;
       const over = event.over;
       const overData = over?.data.current as DropData | undefined;
+
+      // A day note: informational only, so it can go on any day cell (locked, down or past
+      // included) and is never removed by a drag - dropped anywhere else it stays put.
+      if (activeData?.kind === "note") {
+        if (overData?.kind === "noteCell") {
+          const { note, instrument_serial: from } = activeData;
+          if (overData.instrument_serial === from && overData.date === note.note_date) return; // back onto itself
+          onMoveNote(note, from, overData.instrument_serial, overData.date);
+        } else if (isWithinGrid(event, gridAreaRef)) {
+          // The instrument column or the day-header row - the only in-grid spots with no cell.
+          onDropBlocked("To move a note, drop it onto an instrument's day cell.");
+        }
+        return;
+      }
+
       if (!overData || (overData.kind !== "slot" && overData.kind !== "occupiedSlot")) {
         // Dropped outside any registered slot. If the pointer/keyboard-drag is still within
         // the grid's own bounds, it landed on a non-interactive area that never registers a
@@ -222,15 +285,17 @@ export function useSchedulerDnd(
 
       onMove(activeData.cell_use_id, overData.instrument_serial, overData.load_date, overData.slot_index);
     },
-    [onRemoveOutside, onSwap, onAutoPlace, onMove, onDropBlocked, gridAreaRef],
+    [onRemoveOutside, onSwap, onAutoPlace, onMove, onMoveNote, onDropBlocked, gridAreaRef],
   );
 
   return {
     sensors,
-    collisionDetection: pointerWithin,
+    collisionDetection,
     onDragStart,
     onDragEnd,
+    onDragCancel,
     activeSample,
+    activeNote,
     placingSlotKey,
     setPlacingSlotKey,
   };

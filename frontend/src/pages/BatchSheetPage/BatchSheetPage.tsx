@@ -69,20 +69,20 @@ function WellRow({ well, defaults }: { well: BatchSheetWellOut; defaults?: Sampl
   return (
     <tr>
       <td>{plateWellFromSlot(well.slot_index, { qualified: true })}</td>
-      <td>
-        <div className={styles.cellCode}>{well.cell_ref}</div>
-        <div className={styles.meta}>
-          Use {well.use_number} of 3
+      {/* Cell code, use and reuse deadline (or the expired warning) on one line, so an 8-well run's
+          table stays short enough for the whole run to print on one page. */}
+      <td className={styles.nowrap}>
+        <span className={styles.cellCode}>{well.cell_ref}</span>
+        <span className={styles.meta}>
+          {" · "}Use {well.use_number} of 3
           {!well.window_breached &&
             well.cell_window_deadline &&
             ` · reuse by ${formatShortDateTimeLocal(well.cell_window_deadline)}`}
-        </div>
-        {well.window_breached && <div className={styles.warn}>⚠ 108h window expired</div>}
+        </span>
+        {well.window_breached && <span className={styles.warn}> · ⚠ 108h window expired</span>}
       </td>
-      <td>
-        <div>{well.sample_pool_id ?? "—"}</div>
-      </td>
-      <td>{well.plate_id ?? "—"}</td>
+      <td className={styles.nowrap}>{well.sample_pool_id ?? "—"}</td>
+      <td className={styles.nowrap}>{well.plate_id ?? "—"}</td>
       <td className={styles.settingsCell}>
         <span>Movie {well.run_time_hours}h</span>
         <SettingSpan label="Adaptive" value={well.adaptive_loading} defaultValue={defaults?.adaptive_loading} />
@@ -153,7 +153,7 @@ function DilutionWorksheet({ plate }: { plate: BatchSheetPlateOut }) {
           {plate.wells.map((w) => (
             <tr key={w.slot_index}>
               <td>{plateWellFromSlot(w.slot_index, { qualified: true })}</td>
-              <td>{w.sample_pool_id ?? "—"}</td>
+              <td className={styles.nowrap}>{w.sample_pool_id ?? "—"}</td>
               {/* Pre-filled from import when the scheduler sheet supplied a value; otherwise a
                   blank box to hand-write at the bench. */}
               <WorksheetVolumeCell value={w.cleaned_complex_volume} />
@@ -182,10 +182,12 @@ function PlateLoadingChecklist({ plate }: { plate: BatchSheetPlateOut }) {
     <div className={styles.plateBlock}>
       <div className={styles.sectionSub}>7.4 · Plate loading — {plateHeading(plate)}</div>
       <div className={styles.qrLine}>
-        Plate QR / serial no.: <span className={styles.qrBlank} />
-      </div>
-      <div className={styles.qrLine}>
-        Time loaded: <span className={styles.qrBlankShort} />
+        <span>
+          Plate QR / serial no.: <span className={styles.qrBlank} />
+        </span>
+        <span>
+          Time loaded: <span className={styles.qrBlankShort} />
+        </span>
       </div>
       <div className={styles.prepChecks}>
         <span>
@@ -220,7 +222,7 @@ function PlateLoadingChecklist({ plate }: { plate: BatchSheetPlateOut }) {
           {plate.wells.map((w) => (
             <tr key={w.slot_index}>
               <td>{plateWellFromSlot(w.slot_index, { qualified: true })}</td>
-              <td>{w.sample_pool_id ?? "—"}</td>
+              <td className={styles.nowrap}>{w.sample_pool_id ?? "—"}</td>
               <td>
                 <span className={styles.check} />
               </td>

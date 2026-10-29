@@ -38,9 +38,11 @@ h3 {
   max-width: none;
 }
 @media print {
-  /* The nav is hidden when printing, so drop the offset that reserves space for it. */
+  /* The nav is hidden when printing, so drop the offset that reserves space for it; the @page
+     margins already give the printed gutter, and a leftover bottom padding can spill onto an
+     extra blank page. */
   .wrap {
-    padding-top: 0;
+    padding: 0;
   }
 }
 

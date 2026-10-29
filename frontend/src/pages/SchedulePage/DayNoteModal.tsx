@@ -16,7 +16,7 @@ import styles from "./DayNoteModal.module.css";
 const MAX_BODY_LEN = 500;
 
 export interface DayNoteModalProps {
-  /** The day the note sits on (fixed once created). */
+  /** The day the note sits on (changed only by dragging its banner in the grid). */
   date: string;
   /** The note being edited, or null to add a new one. */
   note: ScheduleNoteOut | null;

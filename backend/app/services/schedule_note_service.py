@@ -1,6 +1,6 @@
 """Day notes pinned to instruments in the Schedule grid (models/schedule_note.py): list a date
-range, create, edit (text + which instruments), delete. Audit-logged like other domain actions;
-nothing here touches runs, cells or samples."""
+range, create, edit (text + which instruments), move (a grid drag), delete. Audit-logged like
+other domain actions; nothing here touches runs, cells or samples."""
 from __future__ import annotations
 
 from datetime import date
@@ -13,6 +13,7 @@ from app.models.instrument import Instrument
 from app.models.schedule_note import ScheduleNote
 from app.schemas.schedule_note import (
     ScheduleNoteCreate,
+    ScheduleNoteMove,
     ScheduleNoteOut,
     ScheduleNoteUpdate,
 )
@@ -63,11 +64,17 @@ def _apply(db: Session, note: ScheduleNote, req: ScheduleNoteUpdate) -> None:
 
 
 def _snapshot(note: ScheduleNote) -> dict:
+    # Sorted: a freshly-assigned instrument list isn't in the relationship's serial order until
+    # refresh, and an unsorted "after" would log a spurious instruments change.
     return {
         "note_date": note.note_date.isoformat(),
         "body": note.body,
-        "instruments": [i.serial_number for i in note.instruments],
+        "instruments": sorted(i.serial_number for i in note.instruments),
     }
+
+
+def _diff(before: dict, after: dict) -> dict:
+    return {k: {"from": before[k], "to": after[k]} for k in before if before[k] != after[k]}
 
 
 def _commit(db: Session, note: ScheduleNote, action: str, details: dict, actor: str | None) -> ScheduleNoteOut:
@@ -90,9 +97,24 @@ def create_note(db: Session, req: ScheduleNoteCreate, actor: str | None) -> Sche
 def update_note(db: Session, note: ScheduleNote, req: ScheduleNoteUpdate, actor: str | None) -> ScheduleNoteOut:
     before = _snapshot(note)
     _apply(db, note, req)
-    after = _snapshot(note)
-    changed = {k: {"from": before[k], "to": after[k]} for k in before if before[k] != after[k]}
-    return _commit(db, note, "update_schedule_note", changed, actor)
+    return _commit(db, note, "update_schedule_note", _diff(before, _snapshot(note)), actor)
+
+
+def move_note(db: Session, note: ScheduleNote, req: ScheduleNoteMove, actor: str | None) -> ScheduleNoteOut:
+    """A banner dragged to another instrument/day cell. The whole note takes the new day (it's
+    one note, so every instrument it's on moves with it) and the target instrument takes the
+    dragged row's place in its set - a merge if the note is already on the target. Applied to
+    the live instrument set, so a concurrent edit to the text or other instruments survives."""
+    target = db.scalar(select(Instrument).where(Instrument.serial_number == req.to_instrument_serial))
+    if target is None:
+        raise ValueError("That instrument no longer exists - reload and try again.")
+    before = _snapshot(note)
+    instruments = [i for i in note.instruments if i.serial_number != req.from_instrument_serial]
+    if target not in instruments:
+        instruments.append(target)
+    note.instruments = instruments
+    note.note_date = req.note_date
+    return _commit(db, note, "move_schedule_note", _diff(before, _snapshot(note)), actor)
 
 
 def delete_note(db: Session, note: ScheduleNote, actor: str | None) -> None:

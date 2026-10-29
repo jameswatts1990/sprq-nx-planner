@@ -93,3 +93,58 @@ def test_deleting_an_instrument_unpins_it_from_notes(client):
 
     assert client.delete(f"/api/instruments/{spare['id']}").status_code == 204
     assert client.get("/api/schedule-notes").json()[0]["instrument_serials"] == ["84047"]
+
+
+def _move(client, note, note_date, from_serial, to_serial):
+    return client.post(
+        f"/api/schedule-notes/{note['id']}/move",
+        json={"note_date": note_date, "from_instrument_serial": from_serial, "to_instrument_serial": to_serial},
+    )
+
+
+def test_drag_note_to_another_day_moves_it_on_every_instrument(client):
+    note = _create(client, serials=("84047", "84093")).json()
+
+    res = _move(client, note, "2026-10-21", "84047", "84047")
+    assert res.status_code == 200, res.text
+    assert res.json()["note_date"] == "2026-10-21"
+    assert res.json()["instrument_serials"] == ["84047", "84093"]
+    assert res.json()["body"] == note["body"]
+
+
+def test_drag_note_to_another_instrument_swaps_just_that_row(client):
+    spare = client.post("/api/instruments", json={"serial_number": "99999"}).json()
+    note = _create(client, serials=("84047", "84093")).json()
+
+    res = _move(client, note, "2026-10-20", "84047", spare["serial_number"])
+    assert res.status_code == 200, res.text
+    assert res.json()["note_date"] == "2026-10-20"
+    assert res.json()["instrument_serials"] == ["84093", "99999"]
+
+    # Onto a row the note is already on: the two copies merge rather than duplicating.
+    merged = _move(client, res.json(), "2026-10-20", "99999", "84093").json()
+    assert merged["instrument_serials"] == ["84093"]
+
+
+def test_move_keeps_a_concurrent_text_edit_and_refuses_an_unknown_instrument(client):
+    note = _create(client).json()
+    client.put(f"/api/schedule-notes/{note['id']}", json={"body": "edited elsewhere", "instrument_ids": note["instrument_ids"]})
+
+    moved = _move(client, note, "2026-10-22", "84047", "84047").json()
+    assert moved["body"] == "edited elsewhere"
+
+    assert _move(client, note, "2026-10-23", "84047", "nope").status_code == 400
+    assert client.get("/api/schedule-notes").json()[0]["note_date"] == "2026-10-22"
+    assert _move(client, {"id": 99999}, "2026-10-23", "84047", "84047").status_code == 404
+
+
+def test_note_move_is_audit_logged(client):
+    note = _create(client, serials=("84047", "84093")).json()
+    _move(client, note, "2026-10-21", "84093", "84047")
+
+    audit = client.get("/api/audit-log", params={"entity_type": "schedule_note", "entity_id": note["id"]}).json()
+    rows = {row["action"]: row["details_json"] for row in audit["items"]}
+    assert rows["move_schedule_note"] == {
+        "note_date": {"from": "2026-10-19", "to": "2026-10-21"},
+        "instruments": {"from": ["84047", "84093"], "to": ["84047"]},
+    }

@@ -7,6 +7,7 @@ from app.api.deps import ActorDep, SessionDep
 from app.models.schedule_note import ScheduleNote
 from app.schemas.schedule_note import (
     ScheduleNoteCreate,
+    ScheduleNoteMove,
     ScheduleNoteOut,
     ScheduleNoteUpdate,
 )
@@ -41,6 +42,15 @@ def update_note(note_id: int, req: ScheduleNoteUpdate, db: SessionDep, actor: Ac
     note = _get_note(db, note_id)
     try:
         return svc.update_note(db, note, req, req.actor or actor)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@router.post("/{note_id}/move", response_model=ScheduleNoteOut)
+def move_note(note_id: int, req: ScheduleNoteMove, db: SessionDep, actor: ActorDep) -> ScheduleNoteOut:
+    note = _get_note(db, note_id)
+    try:
+        return svc.move_note(db, note, req, req.actor or actor)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
 

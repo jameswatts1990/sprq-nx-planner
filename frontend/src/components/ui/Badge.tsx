@@ -2,10 +2,22 @@ import type { ReactNode } from "react";
 
 import styles from "./Badge.module.css";
 
-export type BadgeTone = "default" | "success" | "danger" | "warning" | "orange" | "info" | "blue" | "purple";
+export type BadgeTone =
+  | "default"
+  | "success"
+  | "danger"
+  | "warning"
+  | "orange"
+  | "info"
+  | "blue"
+  | "purple"
+  | "ink";
 
 export interface BadgeProps {
   tone?: BadgeTone;
+  /** Small pill that takes its font from the surrounding line (e.g. the schedule card's mono
+   * cell line), so pill text and line text share font metrics and centre exactly. */
+  compact?: boolean;
   children: ReactNode;
 }
 
@@ -18,8 +30,11 @@ const TONE_CLASS: Record<BadgeTone, string> = {
   info: styles.info,
   blue: styles.blue,
   purple: styles.purple,
+  ink: styles.ink,
 };
 
-export function Badge({ tone = "default", children }: BadgeProps) {
-  return <span className={`${styles.badge} ${TONE_CLASS[tone]}`}>{children}</span>;
+export function Badge({ tone = "default", compact = false, children }: BadgeProps) {
+  const classes = [styles.badge, TONE_CLASS[tone]];
+  if (compact) classes.push(styles.compact);
+  return <span className={classes.join(" ")}>{children}</span>;
 }
