@@ -1,7 +1,7 @@
 {
   "name": "runnx-frontend",
   "private": true,
-  "version": "0.64.0",
+  "version": "0.64.5",
   "description": "Web UI for RunNx, a scheduling LIMS for Revio SPRQ-Nx sequencing runs",
   "license": "MIT",
   "type": "module",

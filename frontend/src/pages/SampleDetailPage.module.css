@@ -4,26 +4,9 @@
   flex-direction: column;
   gap: 18px;
 }
-.status {
-  color: var(--grey);
-  font-size: var(--fs-lg);
-  padding: 24px 4px;
-  text-align: center;
-}
-.backLink {
-  font-size: var(--fs-base);
-  font-weight: 600;
-  color: var(--grey);
-  text-decoration: none;
-  width: fit-content;
-}
-.backLink:hover {
-  color: var(--ink);
-}
-.headerActions {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
+/* The PageHeader: the flex gap already spaces it from what follows. */
+.page > :first-child {
+  margin-bottom: 0;
 }
 .headerGrid {
   display: grid;
@@ -36,17 +19,11 @@
   flex-direction: column;
   gap: 3px;
 }
-.label {
-  font-size: var(--fs-xs);
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--grey);
-  font-weight: 700;
-}
+/* Sans, not mono: Pool ID / Plate ID are sample identifiers (mono is kept for cell codes,
+   barcodes and wells). */
 .value {
   font-size: var(--fs-xl);
   font-weight: 700;
-  font-family: var(--mono);
 }
 .chipRows {
   display: flex;
@@ -61,27 +38,6 @@
 }
 .tableWrap {
   overflow-x: auto;
-}
-.table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: var(--fs-md);
-}
-.table th {
-  text-align: left;
-  font-size: var(--fs-xs);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--grey);
-  font-weight: 700;
-  padding: 8px 10px;
-  border-bottom: 1px solid var(--line);
-  white-space: nowrap;
-}
-.table td {
-  padding: 8px 10px;
-  border-bottom: 1px solid var(--line-soft);
-  vertical-align: top;
 }
 .mono {
   font-family: var(--mono);

@@ -127,7 +127,7 @@
     0 6px 7px -5px rgba(18, 20, 33, 0.22);
 }
 .weekendTh {
-  background: #fafafb;
+  background: var(--tray-card-bg);
   min-width: 38px;
   width: 38px;
   padding: 10px 6px;
@@ -156,26 +156,17 @@
   justify-content: space-between;
   gap: 6px;
 }
-/* Understated pill until hovered, in the same blue info tone as the note banners it creates. */
-.addNoteBtn {
-  font-family: var(--sans);
+/* "+ Note" is a ghost sm Button, made extra-compact to fit the day header (the :global(.btn.sm)
+   qualifier outranks base.css's .btn.sm padding). Understated grey until hovered. */
+:global(.btn.sm).addNoteBtn {
   font-size: 10px;
-  font-weight: 700;
   line-height: 1;
   color: var(--grey);
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: 999px;
   padding: 3px 8px;
-  cursor: pointer;
-  white-space: nowrap;
   flex-shrink: 0;
 }
-.addNoteBtn:hover,
-.addNoteBtn:focus-visible {
-  color: var(--blue-deep);
-  border-color: var(--blue);
-  background: var(--blue-tint);
+:global(.btn.sm).addNoteBtn:hover {
+  color: var(--ink);
 }
 .dn {
   font-size: 14px;

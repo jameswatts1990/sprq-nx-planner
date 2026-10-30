@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
+import { Button } from "@/components/ui/Button";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { useDebouncedValue } from "@/utils/useDebouncedValue";
 
 import styles from "./HelpPage.module.css";
@@ -87,6 +89,7 @@ export function HelpPage() {
 
   return (
     <div className={styles.page}>
+      <PageHeader title="Help" intro="A guide to every tab, control, alert, and colour in RunNx Planner." />
       <div className={styles.layout}>
         <aside className={styles.sidebar}>
           <div className={styles.searchWrap}>
@@ -113,12 +116,26 @@ export function HelpPage() {
                       {search.position} / {search.total}
                     </span>
                     <div className={styles.searchNavBtns}>
-                      <button type="button" className={`btn icon sm ${styles.searchNavBtn}`} onClick={search.goPrev} aria-label="Previous match">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        icon
+                        aria-label="Previous match"
+                        title="Previous match (Shift+Enter)"
+                        onClick={search.goPrev}
+                      >
                         ↑
-                      </button>
-                      <button type="button" className={`btn icon sm ${styles.searchNavBtn}`} onClick={search.goNext} aria-label="Next match">
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        icon
+                        aria-label="Next match"
+                        title="Next match (Enter)"
+                        onClick={search.goNext}
+                      >
                         ↓
-                      </button>
+                      </Button>
                     </div>
                   </>
                 ) : (
@@ -149,11 +166,6 @@ export function HelpPage() {
         </aside>
 
         <div className={styles.content} ref={contentRef}>
-          <header className={styles.contentHead}>
-            <h1 className={styles.title}>Help</h1>
-            <p className={styles.intro}>A guide to every tab, control, alert, and colour in RunNx Planner.</p>
-          </header>
-
           {SECTIONS.map(({ key, title, Component }) => (
             <section key={key} className={styles.section} data-help-section={key}>
               <h2 className={styles.sectionTitle}>{title}</h2>

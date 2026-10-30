@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { ApiError } from "@/api/client";
+import { errorMessage } from "@/api/client";
 import { cellsApi } from "@/api/cells";
 import { instrumentsApi } from "@/api/instruments";
 import { pacbioCasesApi } from "@/api/pacbioCases";
@@ -231,7 +231,7 @@ function GenerateReportMenu({ fields, filename }: { fields: ReportField[]; filen
             ))}
           </dl>
           <ModalActions>
-            <Button variant="primary" onClick={() => setResult(null)}>
+            <Button onClick={() => setResult(null)}>
               Close
             </Button>
           </ModalActions>
@@ -538,7 +538,7 @@ function CreditStageActions({
           row to edit its note. */}
       {!compact && (
         <div className={styles.notesBlock}>
-          <label className={styles.notesLabel} htmlFor={`credit-notes-${idKey}`}>
+          <label className="fieldLabel" htmlFor={`credit-notes-${idKey}`}>
             Case notes
           </label>
           <textarea
@@ -563,36 +563,28 @@ function CreditStageActions({
 
       {creditNotesMutation.isError && (
         <Note tone="bad" icon="!">
-          {creditNotesMutation.error instanceof ApiError
-            ? creditNotesMutation.error.message
-            : "Failed to save case note."}
+          {errorMessage(creditNotesMutation.error, "Couldn't save the case note.")}
         </Note>
       )}
 
       {internalReportMutation.isError && (
         <Note tone="bad" icon="!">
-          {internalReportMutation.error instanceof ApiError
-            ? internalReportMutation.error.message
-            : "Failed to save internal report."}
+          {errorMessage(internalReportMutation.error, "Couldn't save the internal report.")}
         </Note>
       )}
       {reportMutation.isError && (
         <Note tone="bad" icon="!">
-          {reportMutation.error instanceof ApiError ? reportMutation.error.message : "Failed to report to PacBio."}
+          {errorMessage(reportMutation.error, "Couldn't report the case to PacBio.")}
         </Note>
       )}
       {confirmCreditMutation.isError && (
         <Note tone="bad" icon="!">
-          {confirmCreditMutation.error instanceof ApiError
-            ? confirmCreditMutation.error.message
-            : "Failed to confirm credit."}
+          {errorMessage(confirmCreditMutation.error, "Couldn't confirm the credit.")}
         </Note>
       )}
       {receiveCreditMutation.isError && (
         <Note tone="bad" icon="!">
-          {receiveCreditMutation.error instanceof ApiError
-            ? receiveCreditMutation.error.message
-            : "Failed to mark credit received."}
+          {errorMessage(receiveCreditMutation.error, "Couldn't mark the credit as received.")}
         </Note>
       )}
     </div>

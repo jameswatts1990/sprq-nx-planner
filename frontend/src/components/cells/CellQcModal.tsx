@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { ApiError } from "@/api/client";
+import { errorMessage } from "@/api/client";
 import { cellsApi } from "@/api/cells";
 import { BarcodeChips } from "@/components/shared/BarcodeChips";
 import { Badge } from "@/components/ui/Badge";
@@ -12,6 +12,7 @@ import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import type { SegmentedOption } from "@/components/ui/SegmentedControl";
 import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
 import type { AffectedSample, Disposition, QcPreviewOut, QcVerdict } from "@/types/qc";
+import { formatDateUTC, parseDateOnly } from "@/utils/calendarDates";
 import { CELL_STATUS_LABEL, CELL_STATUS_TONE } from "@/utils/cellStatus";
 import { canRecordQcOutcome } from "@/utils/cellUseQc";
 import { DISPOSITION_DESCRIPTION, DISPOSITION_HINT, DISPOSITION_LABEL, DISPOSITION_SHORT } from "@/utils/qcDisposition";
@@ -49,10 +50,6 @@ export interface CellQcModalProps {
   onClose: () => void;
   /** Fired after a successful commit/undo, so an opener can also close a parent popover. */
   onApplied?: () => void;
-}
-
-function fmtDate(iso: string | null): string {
-  return iso ? new Date(iso).toLocaleDateString() : "—";
 }
 
 /**
@@ -150,7 +147,7 @@ export function CellQcModal({ cellId, cellUseId, onClose, onApplied }: CellQcMod
 
   const busy = previewMutation.isPending || commitMutation.isPending || undoMutation.isPending;
   const error = previewMutation.error ?? commitMutation.error ?? undoMutation.error;
-  const errorText = error instanceof ApiError ? error.message : error ? "Something went wrong." : null;
+  const errorText = error ? errorMessage(error, "Couldn't update this cell's QC.") : null;
 
   const title = cell ? `QC · ${cell.code}` : "Cell QC";
 
@@ -196,7 +193,7 @@ export function CellQcModal({ cellId, cellUseId, onClose, onApplied }: CellQcMod
         </div>
         <div className={styles.meta}>
           <span>Use {a.use_number}</span>
-          <span>{fmtDate(a.run_date)}</span>
+          <span>{a.run_date ? formatDateUTC(parseDateOnly(a.run_date)) : "—"}</span>
           {a.instrument_serial && <span>{a.instrument_serial}</span>}
           {a.plate_index && <span>Plate {a.plate_index} · {a.well}</span>}
         </div>
@@ -231,7 +228,11 @@ export function CellQcModal({ cellId, cellUseId, onClose, onApplied }: CellQcMod
       maxWidth={phase === "disposition" ? 760 : 460}
     >
       {cellQuery.isLoading && <div className={styles.intro}>Loading cell…</div>}
-      {cellQuery.isError && <Note tone="bad" icon="!">Failed to load the cell.</Note>}
+      {cellQuery.isError && (
+        <Note tone="bad" icon="!">
+          {errorMessage(cellQuery.error, "Couldn't load the cell.")}
+        </Note>
+      )}
 
       {cell && phase === "choose" && (
         <>
@@ -270,7 +271,7 @@ export function CellQcModal({ cellId, cellUseId, onClose, onApplied }: CellQcMod
                   title={canFail ? undefined : "Available once the run is confirmed loaded"}
                   onClick={() => previewMutation.mutate("fail")}
                 >
-                  <b>Fail Cell</b>
+                  <b>Fail cell</b>
                   <small>Mark this run failed. The cell stays open for its other uses.</small>
                 </button>
                 <button
@@ -280,7 +281,7 @@ export function CellQcModal({ cellId, cellUseId, onClose, onApplied }: CellQcMod
                   title={canFail ? undefined : "Available once the run is confirmed loaded"}
                   onClick={() => previewMutation.mutate("fail_and_stop")}
                 >
-                  <b>Fail and Stop Cell</b>
+                  <b>Fail and stop cell</b>
                   <small>Mark this run failed and stop the cell — its later scheduled uses shift or drop off.</small>
                 </button>
                 <button
@@ -289,7 +290,7 @@ export function CellQcModal({ cellId, cellUseId, onClose, onApplied }: CellQcMod
                   disabled={busy}
                   onClick={() => previewMutation.mutate("retire")}
                 >
-                  <b>Retire Cell</b>
+                  <b>Retire cell</b>
                   <small>Take the cell out of service. This run isn’t failed; later uses shift or drop off.</small>
                 </button>
               </div>

@@ -20,6 +20,8 @@ export interface BadgeProps {
   /** Small pill that takes its font from the surrounding line (e.g. the schedule card's mono
    * cell line), so pill text and line text share font metrics and centre exactly. */
   compact?: boolean;
+  /** Native hover tooltip explaining the badge (why a sample is flagged, what a state means). */
+  title?: string;
   children: ReactNode;
 }
 
@@ -37,8 +39,12 @@ const TONE_CLASS: Record<BadgeTone, string> = {
   magenta: styles.magenta,
 };
 
-export function Badge({ tone = "default", compact = false, children }: BadgeProps) {
+export function Badge({ tone = "default", compact = false, title, children }: BadgeProps) {
   const classes = [styles.badge, TONE_CLASS[tone]];
   if (compact) classes.push(styles.compact);
-  return <span className={classes.join(" ")}>{children}</span>;
+  return (
+    <span className={classes.join(" ")} title={title}>
+      {children}
+    </span>
+  );
 }

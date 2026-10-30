@@ -15,14 +15,14 @@
 .num {
   font-family: var(--mono);
   font-weight: 800;
-  font-size: 17px;
+  font-size: var(--fs-title);
   line-height: 1;
   font-variant-numeric: tabular-nums;
   color: var(--ink);
 }
 .num.over {
   color: var(--red);
-  font-size: 13px;
+  font-size: var(--fs-base);
 }
 .sub {
   font-size: 8.5px;

@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/Badge";
  * "use of this cell". `index`/`total` come straight from SampleOut/StageOut's duplicate_* fields.
  *
  * `selfReuse` (only meaningful on a scheduled StageOut, not a bare backlog SampleOut) adds a
- * small ↻ to the badge when this copy is intentionally sharing a physical cell with an earlier
+ * small ⇆ to the badge when this copy is intentionally sharing a physical cell with an earlier
  * copy of the same Pool ID (StageOut.duplicate_cell_reuse) - allowed, since it's the same
  * physical material either way, but worth showing at a glance rather than leaving it a silent
  * exception to the barcode-clash rule.
@@ -31,11 +31,9 @@ export function DuplicateBadge({
     ? `Copy ${index} of ${total} — this Pool ID appears on ${total} samples (including completed runs). The same sample is run across multiple SMRT cells. This copy shares a physical cell with an earlier copy of the same sample — allowed, since it's the same underlying material either way.`
     : `Copy ${index} of ${total} — this Pool ID appears on ${total} samples (including completed runs). The same sample is run across multiple SMRT cells.`;
   return (
-    <span title={title}>
-      <Badge tone="purple" compact={compact}>
-        {index}/{total}
-        {selfReuse ? " ↻" : ""}
-      </Badge>
-    </span>
+    <Badge tone="purple" compact={compact} title={title}>
+      {index}/{total}
+      {selfReuse ? " ⇆" : ""}
+    </Badge>
   );
 }

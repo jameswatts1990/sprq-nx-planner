@@ -77,4 +77,6 @@
   padding: 18px 20px 24px;
   overflow-y: auto;
   flex: 1;
+  /* Same base size for un-styled body copy as Modal (the app sets no body font-size). */
+  font-size: var(--fs-xl);
 }

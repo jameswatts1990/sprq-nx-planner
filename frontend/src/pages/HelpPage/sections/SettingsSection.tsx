@@ -89,7 +89,7 @@ export function SettingsSection() {
       </p>
       <Note tone="warn" icon="!">
         These actions bypass business logic (for example, deleting a cell&apos;s row here doesn&apos;t check whether it
-        has planned uses the way <b>Retire Cell</b> on the Cells tab does) — use with care, and only against
+        has planned uses the way <b>Retire cell</b> on the Cells tab does) — use with care, and only against
         development data.
       </Note>
       <dl className={styles.terms}>

@@ -1,19 +1,13 @@
 import { useLayoutEffect, useRef, type ReactNode } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 
+import { formatDateTime } from "@/utils/calendarDates";
+
 import styles from "./AppShell.module.css";
 
-// Render the commit ISO timestamp as a compact, locale-friendly date + time.
+// Render the commit ISO timestamp in the app's date + time format (blank if it won't parse).
 function formatCommitDate(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleString(undefined, {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return Number.isNaN(new Date(iso).getTime()) ? "" : formatDateTime(iso);
 }
 
 const NAV_ITEMS = [

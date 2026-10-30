@@ -1,11 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 
-import { ApiError } from "@/api/client";
+import { errorMessage } from "@/api/client";
 import { settingsApi } from "@/api/settings";
 import type { SchedulingFacts } from "@/api/settings";
+import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Note } from "@/components/ui/Note";
 
-import styles from "./SampleDefaultsPanel.module.css";
+import styles from "./SettingsPanel.module.css";
 import factStyles from "./FactsPanel.module.css";
 
 /** One labelled read-only fact. */
@@ -41,25 +42,27 @@ export function FactsPanel() {
   const reuseWash = (n: number) => (n < 1 ? `${Math.round(n * 60)} min` : hours(n));
 
   return (
-    <div className={styles.panel}>
-      <div className={styles.header}>
-        <h2 className={styles.title}>Instrument &amp; scheduling facts</h2>
+    <Card>
+      <CardHeader>
+        <h2>Instrument &amp; scheduling facts</h2>
+      </CardHeader>
+      <CardBody className={styles.body}>
         <p className={styles.helper}>
           The fixed rules the app enforces, from the PacBio Revio / SPRQ-Nx instrument. These are physical or
           vendor-documented facts, not lab preferences, so they’re shown here for reference but can’t be changed.
         </p>
-      </div>
 
-      {query.isError && (
-        <Note tone="bad" icon="!">
-          {query.error instanceof ApiError ? query.error.message : "Failed to load facts."}
-        </Note>
-      )}
+        {query.isError && (
+          <Note tone="bad" icon="!">
+            {errorMessage(query.error, "Couldn't load the instrument facts.")}
+          </Note>
+        )}
 
-      {query.data && (
-        <FactsBody facts={query.data} hours={hours} reuseWash={reuseWash} />
-      )}
-    </div>
+        {query.data && (
+          <FactsBody facts={query.data} hours={hours} reuseWash={reuseWash} />
+        )}
+      </CardBody>
+    </Card>
   );
 }
 

@@ -3,7 +3,7 @@ import type { FormEvent } from "react";
 import { useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
-import { ApiError } from "@/api/client";
+import { errorMessage } from "@/api/client";
 import { cellsApi } from "@/api/cells";
 import { instrumentsApi } from "@/api/instruments";
 import { CellStatusCard } from "@/components/cells/CellStatusCard";
@@ -13,6 +13,8 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Modal, ModalActions } from "@/components/ui/Modal";
 import { Note } from "@/components/ui/Note";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import type { CellOut } from "@/types/cell";
 import type { CellStatus } from "@/types/common";
 import {
@@ -28,7 +30,7 @@ import { endOfWeekIso, endOfWeekLabel } from "@/utils/calendarDates";
 import { CELL_STATUS_LABEL, CELL_STATUS_TONE } from "@/utils/cellStatus";
 import { soonestTrayExpiry } from "@/utils/openTrays";
 import { useDebouncedValue } from "@/utils/useDebouncedValue";
-import { FADE_MIN_HOURS } from "@/utils/windowFade";
+import { EXPIRY_WARN_HOURS } from "@/utils/windowFade";
 
 import styles from "./CellsPage.module.css";
 
@@ -141,47 +143,34 @@ export function CellsPage() {
   const asOfToggle = (
     <div className={styles.asOfRow}>
       <span className={styles.asOfLabel}>Showing data as of</span>
-      <div className={styles.asOfToggle} role="group" aria-label="Reference time">
-        <button
-          type="button"
-          className={styles.asOfBtn}
-          aria-pressed={asOf === "now"}
-          onClick={() => setAsOf("now")}
-        >
-          Now
-        </button>
-        <button
-          type="button"
-          className={styles.asOfBtn}
-          aria-pressed={asOf === "eow"}
-          onClick={() => setAsOf("eow")}
-        >
-          End of week ({endOfWeekLabel()})
-        </button>
-      </div>
+      <SegmentedControl<AsOf>
+        ariaLabel="Reference time"
+        value={asOf}
+        onChange={setAsOf}
+        options={[
+          { value: "now", label: "Now" },
+          { value: "eow", label: `End of week (${endOfWeekLabel()})` },
+        ]}
+      />
     </div>
   );
 
   if (trayId !== null) {
     return (
       <div className={styles.page}>
+        <PageHeader
+          title={<span className={styles.mono}>Tray {trayId}</span>}
+          back={{ to: "/cells", label: "All cells" }}
+        />
         {asOfToggle}
-        <div className={styles.trayViewHead}>
-          <Link to="/cells" className={styles.backLink}>
-            All cells
-          </Link>
-          <h2 className={styles.trayTitle}>Tray {trayId}</h2>
-        </div>
-        {query.isLoading && <div className={styles.status}>Loading tray…</div>}
+        {query.isLoading && <div className="status">Loading tray…</div>}
         {query.isError && (
           <Note tone="bad" icon="!">
-            {query.error instanceof ApiError ? query.error.message : "Failed to load tray."}
+            {errorMessage(query.error, "Couldn't load the tray.")}
           </Note>
         )}
         {!query.isLoading && !query.isError && cells.length === 0 && (
-          <Note tone="info" icon="i">
-            No cells found for tray {trayId} — it may have been fully cleared.
-          </Note>
+          <div className="status">No cells found for tray {trayId} — it may have been fully cleared.</div>
         )}
         {cells.length > 0 && <TrayPanel trayId={trayId} cells={cells} />}
 
@@ -200,6 +189,15 @@ export function CellsPage() {
 
   return (
     <div className={styles.page}>
+      <PageHeader
+        title="Cells"
+        intro="Every physical SMRT cell the planner knows about, and its current state."
+        actions={
+          <Button variant="primary" onClick={() => setModalOpen(true)}>
+            Register in-progress cell
+          </Button>
+        }
+      />
       {asOfToggle}
       <div className={styles.searchRow}>
         <input
@@ -209,9 +207,6 @@ export function CellsPage() {
           value={qInput}
           onChange={(e) => setQInput(e.target.value)}
         />
-        <Button variant="primary" onClick={() => setModalOpen(true)}>
-          Register in-progress cell
-        </Button>
       </div>
 
       <div className={styles.toolbar}>
@@ -230,7 +225,6 @@ export function CellsPage() {
         </div>
         <div className={styles.spacer} />
         <select
-          className={styles.select}
           value={instrumentSerial}
           onChange={(e) => setInstrumentSerial(e.target.value)}
           aria-label="Filter by instrument"
@@ -245,7 +239,6 @@ export function CellsPage() {
         <label className={styles.control}>
           <span className={styles.controlLabel}>Sort</span>
           <select
-            className={styles.select}
             value={sortBy}
             onChange={(e) => changeSort(e.target.value as CellSortKey)}
           >
@@ -268,7 +261,6 @@ export function CellsPage() {
         <label className={styles.control}>
           <span className={styles.controlLabel}>Group</span>
           <select
-            className={styles.select}
             value={groupBy}
             onChange={(e) => setGroupBy(e.target.value as CellGroupKey)}
           >
@@ -290,14 +282,14 @@ export function CellsPage() {
         </button>
       </div>
 
-      {query.isLoading && <div className={styles.status}>Loading cells…</div>}
+      {query.isLoading && <div className="status">Loading cells…</div>}
       {query.isError && (
         <Note tone="bad" icon="!">
-          {query.error instanceof ApiError ? query.error.message : "Failed to load cells."}
+          {errorMessage(query.error, "Couldn't load the cells.")}
         </Note>
       )}
       {!query.isLoading && !query.isError && cells.length === 0 && (
-        <div className={styles.status}>No cells match this filter.</div>
+        <div className="status">No cells match this filter.</div>
       )}
       {cells.length > 0 &&
         (groupBy === "none" ? (
@@ -314,7 +306,7 @@ export function CellsPage() {
               // unloaded position. Every other grouping is a plain grid.
               const isTrayBox = groupBy === "tray" && g.id.startsWith("tray-");
               return (
-                <section key={g.id} className={isTrayBox ? styles.trayCard : styles.group}>
+                <section key={g.id} className={isTrayBox ? styles.trayCard : undefined}>
                   <GroupHeader groupBy={groupBy} cells={g.cells} />
                   {isTrayBox ? (
                     <TraySlots cells={g.cells} expanded={expandAll} />
@@ -365,7 +357,7 @@ function GroupHeader({ groupBy, cells }: GroupHeaderProps) {
     const trayId = cells[0]?.tray_id ?? null;
     const instrument = cells.find((c) => c.current_instrument_serial)?.current_instrument_serial ?? null;
     const soonest = soonestTrayExpiry(cells);
-    const urgent = soonest !== null && soonest <= FADE_MIN_HOURS;
+    const urgent = soonest !== null && soonest <= EXPIRY_WARN_HOURS;
     return (
       <div className={styles.groupHeader}>
         {trayId !== null ? (
@@ -497,7 +489,7 @@ function RegisterInProgressCellModal({ onClose, onRegistered }: RegisterInProgre
       </p>
       <form onSubmit={handleSubmit}>
         <div className={styles.field}>
-          <label className={styles.fieldLabel}>Uses already consumed (of {CELL_MAX_USES})</label>
+          <label className="fieldLabel">Uses already consumed (of {CELL_MAX_USES})</label>
           <input
             type="number"
             min={0}
@@ -507,7 +499,7 @@ function RegisterInProgressCellModal({ onClose, onRegistered }: RegisterInProgre
           />
         </div>
         <div className={styles.field}>
-          <label className={styles.fieldLabel}>Burned barcodes</label>
+          <label className="fieldLabel">Burned barcodes</label>
           <textarea
             value={barcodesText}
             onChange={(e) => setBarcodesText(e.target.value)}
@@ -515,7 +507,7 @@ function RegisterInProgressCellModal({ onClose, onRegistered }: RegisterInProgre
           />
         </div>
         <div className={styles.field}>
-          <label className={styles.fieldLabel}>First use started at (optional)</label>
+          <label className="fieldLabel">First use started at (optional)</label>
           <input
             type="datetime-local"
             value={firstUseStartedAt}
@@ -525,7 +517,7 @@ function RegisterInProgressCellModal({ onClose, onRegistered }: RegisterInProgre
 
         {mutation.isError && (
           <Note tone="bad" icon="!">
-            {mutation.error instanceof ApiError ? mutation.error.message : "Failed to register cell."}
+            {errorMessage(mutation.error, "Couldn't register the cell.")}
           </Note>
         )}
 

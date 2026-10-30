@@ -56,13 +56,10 @@
   align-items: center;
   gap: 4px;
 }
-.cx {
-  display: inline-block;
-  transition: transform 0.2s ease;
-}
-.card:not(.expanded):hover .cx,
-.card:not(.expanded):focus-within .cx,
-.card.expanded .cx {
+/* A single card's details open on hover/focus (not just the page's Expand all, which sets .open),
+   so its ▸ turns with them. */
+.card:hover .hint :global(.disclosure),
+.card:focus-within .hint :global(.disclosure) {
   transform: rotate(90deg);
 }
 

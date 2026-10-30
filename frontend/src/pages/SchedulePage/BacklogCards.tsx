@@ -125,9 +125,9 @@ export function DraggableSampleCard({
         )}
       </div>
       <div className={styles.cardSub}>
-        <span title={priorityTitle}>
-          <Badge tone={priorityTone(sample.priority)}>{priorityShortLabel(sample.priority)}</Badge>
-        </span>
+        <Badge tone={priorityTone(sample.priority)} title={priorityTitle}>
+          {priorityShortLabel(sample.priority)}
+        </Badge>
         <InsertSizeFlag sizeBp={sample.insert_size_bp} />
       </div>
       {showBarcodes && <BarcodeChips barcodes={sample.barcodes} singleLine />}

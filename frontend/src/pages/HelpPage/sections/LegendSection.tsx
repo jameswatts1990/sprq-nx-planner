@@ -12,7 +12,7 @@ import { DuplicateBadge } from "@/components/shared/DuplicateBadge";
 import { InsertSizeFlag } from "@/components/shared/InsertSizeFlag";
 import { MovieTimeFlag } from "@/components/shared/MovieTimeFlag";
 import { UseLegend } from "@/components/shared/SectionHeading";
-import { Badge } from "@/components/ui/Badge";
+import { Badge, type BadgeTone } from "@/components/ui/Badge";
 import { Note, type NoteTone } from "@/components/ui/Note";
 import { CELL_STATUSES, CELL_USE_STATUSES, CYCLE_STATUSES, SAMPLE_STATUSES } from "@/types/common";
 import type { CellStatus, CellUseStatus, CycleStatus, SampleStatus } from "@/types/common";
@@ -41,6 +41,17 @@ import {
   STAGE_EXAMPLE_UNRELATED,
   STAGE_EXAMPLE_WINDOW_NEAR_DEADLINE,
 } from "./helpFixtures";
+
+/** The one rule every status badge follows (runs, cell uses, samples, cells, instruments) -
+ * rendered with the live Badge tones so the swatches can never drift from the app. */
+const STATUS_COLOUR_RULE: { tone: BadgeTone; label: string; text: string }[] = [
+  { tone: "default", label: "Waiting / done", text: "Not started yet, or finished with nothing wrong (e.g. Planned, Backlog, Exhausted)." },
+  { tone: "info", label: "Active", text: "Happening right now (e.g. a Running run, an In progress sample)." },
+  { tone: "success", label: "Done / available", text: "Finished successfully, or ready to use (e.g. Completed, Open, Ready)." },
+  { tone: "warning", label: "Run problem / at risk", text: "An instrument or run problem rather than a cell fault, or something about to run out (e.g. Aborted, a window closing soon)." },
+  { tone: "orange", label: "Cell failure", text: "The cell itself is the likely cause (e.g. a Failed use or sample)." },
+  { tone: "danger", label: "Lost", text: "Capacity or a placement that can no longer be used (e.g. Window expired, Stopped, Blocked)." },
+];
 
 const CELL_STATUS_MEANING: Record<CellStatus, string> = {
   open: "Has uses remaining and its window is still valid; available to schedule.",
@@ -107,11 +118,11 @@ const COMPLEX_COUNTDOWN_EXAMPLES: { daysAgo: number; meaning: string }[] = [
 const PRIORITY_EXAMPLES: { label: string; meaning: string }[] = [
   {
     label: "Recoverable (0)",
-    meaning: "Rank 0 - returned to the backlog by a Cell QC action as Recoverable - from instrument (the run's data can still be recovered from the instrument); shown in the Recoverable Samples section, above High.",
+    meaning: "Rank 0 - returned to the backlog by a Cell QC action as Recoverable - from instrument (the run's data can still be recovered from the instrument); shown in the Recoverable samples section, above High.",
   },
   {
     label: "Repeatable (0)",
-    meaning: "Rank 0 - returned to the backlog by a Cell QC action to be repeated, either from the leftover cleaned complex or from library material in Traction; shown in the Recoverable Samples section, above High.",
+    meaning: "Rank 0 - returned to the backlog by a Cell QC action to be repeated, either from the leftover cleaned complex or from library material in Traction; shown in the Recoverable samples section, above High.",
   },
   {
     label: "Aborted (0)",
@@ -141,6 +152,18 @@ export function LegendSection() {
         These are the actual colours and labels used across the app. They update automatically if the app&apos;s
         styling changes, so what you see here always matches the real screens.
       </p>
+
+      <p className={styles.subheading}>One colour rule for every status</p>
+      <div className={styles.legendGrid}>
+        {STATUS_COLOUR_RULE.map((r) => (
+          <div className={styles.legendRow} key={r.tone}>
+            <span className={styles.legendSwatchLabel}>
+              <Badge tone={r.tone}>{r.label}</Badge>
+            </span>
+            <span>{r.text}</span>
+          </div>
+        ))}
+      </div>
 
       <p className={styles.subheading}>Cell status (Cells, Cell detail)</p>
       <div className={styles.legendGrid}>
@@ -265,7 +288,7 @@ export function LegendSection() {
           <DuplicateBadge index={2} total={3} selfReuse />
         </span>
         <span>
-          On the weekly schedule only: the ↻ means this copy is sharing a physical cell with an
+          On the weekly schedule only: the ⇆ means this copy is sharing a physical cell with an
           earlier copy of the same Pool ID. That&apos;s allowed and expected - it&apos;s the
           same underlying sample either way, so there&apos;s no risk of one sample&apos;s reads
           being mixed up with another&apos;s. Opening the slot shows the same explanation.

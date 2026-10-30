@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 
-import { ApiError } from "@/api/client";
+import { errorMessage } from "@/api/client";
 import { samplesApi } from "@/api/samples";
 import { topupsApi } from "@/api/topups";
 import { BarcodeChips } from "@/components/shared/BarcodeChips";
@@ -12,6 +12,8 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Note } from "@/components/ui/Note";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { formatDateTime } from "@/utils/calendarDates";
 import { plateWellFromPlate } from "@/utils/plateWell";
 import { resolveSampleBackNav } from "@/utils/sampleBackNav";
 import { runLabel } from "@/utils/runLabel";
@@ -21,10 +23,6 @@ import { USE_STATUS_TONE } from "@/utils/useStatusTone";
 
 import { SampleModal } from "./SampleModal";
 import styles from "./SampleDetailPage.module.css";
-
-function formatDateTime(iso: string | null): string {
-  return iso ? new Date(iso).toLocaleString() : "—";
-}
 
 /** Loading/annotation params - the only fields editable once a sample is placed on the grid
  * (its barcodes/identity are frozen at placement). Mirrors the Schedule slot popover's set. */
@@ -75,6 +73,7 @@ export function SampleDetailPage() {
   if (!idIsValid) {
     return (
       <div className={styles.page}>
+        <PageHeader title="Sample" back={backNav} />
         <Note tone="bad" icon="!">
           Invalid sample id.
         </Note>
@@ -83,14 +82,15 @@ export function SampleDetailPage() {
   }
 
   if (query.isLoading) {
-    return <div className={styles.status}>Loading sample…</div>;
+    return <div className="status">Loading sample…</div>;
   }
 
   if (query.isError) {
     return (
       <div className={styles.page}>
+        <PageHeader title="Sample" back={backNav} />
         <Note tone="bad" icon="!">
-          {query.error instanceof ApiError ? query.error.message : "Failed to load sample."}
+          {errorMessage(query.error, "Couldn't load the sample.")}
         </Note>
       </div>
     );
@@ -98,7 +98,7 @@ export function SampleDetailPage() {
 
   const sample = query.data;
   if (!sample) {
-    return <div className={styles.status}>Sample not found.</div>;
+    return <div className="status">Sample not found.</div>;
   }
 
   const canEdit = !LOCKED_EDIT_STATUSES.includes(sample.status);
@@ -109,109 +109,112 @@ export function SampleDetailPage() {
 
   return (
     <div className={styles.page}>
-      <Link to={backNav.to} className={styles.backLink}>
-        ◂ {backNav.label}
-      </Link>
-
-      <Card>
-        <CardHeader
-          badge={
-            <span className={styles.headerActions}>
-              <Badge tone={SAMPLE_STATUS_TONE[sample.status]}>{SAMPLE_STATUS_LABEL[sample.status]}</Badge>
+      <PageHeader
+        back={backNav}
+        title={
+          <>
+            {sample.pool_id} <DuplicateBadge index={sample.duplicate_index} total={sample.duplicate_total} />{" "}
+            <Badge tone={SAMPLE_STATUS_TONE[sample.status]}>{SAMPLE_STATUS_LABEL[sample.status]}</Badge>
+          </>
+        }
+        actions={
+          tracHref || canEdit ? (
+            <>
               {tracHref && (
                 // Open the library/pool in Traction (the LIMS holding its material). Pools link to
                 // Traction's pools view, singles to libraries — see utils/traction. Rendered as an
                 // anchor styled like a ghost button so middle-click / open-in-new-tab work.
-                <a className="btn ghost sm" href={tracHref} target="_blank" rel="noreferrer">
+                <a className="btn ghost" href={tracHref} target="_blank" rel="noreferrer">
                   View on Traction ↗
                 </a>
               )}
               {canEdit && (
-                <Button size="sm" variant="ghost" onClick={() => setEditing(true)}>
+                <Button variant="ghost" onClick={() => setEditing(true)}>
                   Edit
                 </Button>
               )}
-            </span>
-          }
-        >
-          <h2>
-            {sample.pool_id}{" "}
-            <DuplicateBadge index={sample.duplicate_index} total={sample.duplicate_total} />
-          </h2>
+            </>
+          ) : undefined
+        }
+      />
+
+      <Card>
+        <CardHeader>
+          <h2>Details</h2>
         </CardHeader>
         <CardBody>
           <div className={styles.headerGrid}>
             <div>
-              <span className={styles.label}>Pool ID</span>
+              <span className="detailLabel">Pool ID</span>
               <span className={styles.value}>{sample.pool_id}</span>
             </div>
             <div>
-              <span className={styles.label}>Plate ID</span>
+              <span className="detailLabel">Plate ID</span>
               <span className={styles.value}>{sample.plate_id ?? "—"}</span>
             </div>
             <div>
-              <span className={styles.label}>Priority</span>
+              <span className="detailLabel">Priority</span>
               <span className={styles.value}>
                 {sample.priority ?? "—"}{" "}
                 <ComplexCountdownChip qcDisposition={sample.qc_disposition} qcDispositionAt={sample.qc_disposition_at} />
               </span>
             </div>
             <div>
-              <span className={styles.label}>Target OPLC</span>
+              <span className="detailLabel">Target OPLC</span>
               <span className={styles.value}>{sample.target_oplc ?? "—"}</span>
             </div>
             <div>
-              <span className={styles.label}>Actual OPLC</span>
+              <span className="detailLabel">Actual OPLC</span>
               <span className={styles.value}>{sample.actual_oplc ?? "—"}</span>
             </div>
             <div>
-              <span className={styles.label}>Cleaned complex vol</span>
+              <span className="detailLabel">Cleaned complex vol</span>
               <span className={styles.value}>{sample.cleaned_complex_volume ?? "—"}</span>
             </div>
             <div>
-              <span className={styles.label}>Loading buffer vol</span>
+              <span className="detailLabel">Loading buffer vol</span>
               <span className={styles.value}>{sample.loading_buffer_volume ?? "—"}</span>
             </div>
             <div>
-              <span className={styles.label}>Adaptive loading</span>
+              <span className="detailLabel">Adaptive loading</span>
               <span className={styles.value}>{sample.adaptive_loading ?? "—"}</span>
             </div>
             <div>
-              <span className={styles.label}>Full res. base Q</span>
+              <span className="detailLabel">Full res. base Q</span>
               <span className={styles.value}>{sample.full_resolution_base_q ?? "—"}</span>
             </div>
             <div>
-              <span className={styles.label}>Include base kinetics</span>
+              <span className="detailLabel">Include base kinetics</span>
               <span className={styles.value}>{sample.base_kinetics ?? "—"}</span>
             </div>
             <div>
-              <span className={styles.label}>Movie time</span>
+              <span className="detailLabel">Movie time</span>
               <span className={styles.value}>{sample.movie_time_hours ?? 24} h</span>
             </div>
             <div>
-              <span className={styles.label}>Insert size</span>
+              <span className="detailLabel">Insert size</span>
               <span className={styles.value}>
                 {sample.insert_size_bp != null ? `${sample.insert_size_bp.toLocaleString()} bp` : "—"}
               </span>
             </div>
             <div>
-              <span className={styles.label}>Created</span>
+              <span className="detailLabel">Created</span>
               <span className={styles.value}>{formatDateTime(sample.created_at)}</span>
             </div>
             <div>
-              <span className={styles.label}>Updated</span>
+              <span className="detailLabel">Updated</span>
               <span className={styles.value}>{formatDateTime(sample.updated_at)}</span>
             </div>
           </div>
 
           <div className={styles.chipRows}>
             <div className={styles.chipRow}>
-              <span className={styles.label}>Barcodes</span>
+              <span className="detailLabel">Barcodes</span>
               {sample.barcodes.length > 0 ? <BarcodeChips barcodes={sample.barcodes} /> : <span>—</span>}
             </div>
             {sample.sanger_ids.length > 0 && (
               <div className={styles.chipRow}>
-                <span className={styles.label}>Sanger IDs</span>
+                <span className="detailLabel">Sanger IDs</span>
                 <BarcodeChips barcodes={sample.sanger_ids} />
               </div>
             )}
@@ -225,10 +228,10 @@ export function SampleDetailPage() {
         </CardHeader>
         <CardBody>
           {sample.cell_uses.length === 0 ? (
-            <div className={styles.status}>This sample has not been placed on any cell yet.</div>
+            <div className="status sm">This sample has not been placed on any cell yet.</div>
           ) : (
             <div className={styles.tableWrap}>
-              <table className={styles.table}>
+              <table className="table">
                 <thead>
                   <tr>
                     <th>Run</th>
@@ -259,8 +262,8 @@ export function SampleDetailPage() {
                       <td>
                         <Badge tone={USE_STATUS_TONE[u.status] ?? "default"}>{u.status}</Badge>
                       </td>
-                      <td>{formatDateTime(u.started_at)}</td>
-                      <td>{formatDateTime(u.completed_at)}</td>
+                      <td>{u.started_at ? formatDateTime(u.started_at) : "—"}</td>
+                      <td>{u.completed_at ? formatDateTime(u.completed_at) : "—"}</td>
                       <td>{u.outcome_notes ?? "—"}</td>
                     </tr>
                   ))}
@@ -278,7 +281,7 @@ export function SampleDetailPage() {
           </CardHeader>
           <CardBody>
             <div className={styles.tableWrap}>
-              <table className={styles.table}>
+              <table className="table">
                 <thead>
                   <tr>
                     <th>Status</th>
@@ -303,8 +306,8 @@ export function SampleDetailPage() {
                         {t.source_run_name ?? "—"}
                         {t.source_cell_code ? ` · ${t.source_cell_code}` : ""}
                       </td>
-                      <td>{new Date(t.created_at).toLocaleDateString()}</td>
-                      <td>{t.request_sent_at ? new Date(t.request_sent_at).toLocaleDateString() : "—"}</td>
+                      <td>{formatDateTime(t.created_at)}</td>
+                      <td>{t.request_sent_at ? formatDateTime(t.request_sent_at) : "—"}</td>
                       <td>{t.created_by ?? "—"}</td>
                       <td>{t.note ?? "—"}</td>
                     </tr>

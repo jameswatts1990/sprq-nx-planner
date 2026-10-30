@@ -1,33 +1,6 @@
 .page {
   padding-top: 22px;
 }
-.toolbar {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  flex-wrap: wrap;
-  margin-bottom: 18px;
-}
-.title {
-  font-size: 18px;
-  font-weight: 800;
-  margin: 0;
-}
-.intro {
-  color: var(--grey);
-  font-size: var(--fs-base);
-  margin: 0 0 18px;
-  max-width: 760px;
-}
-.spacer {
-  margin-left: auto;
-}
-.status {
-  color: var(--grey);
-  font-size: var(--fs-lg);
-  padding: 24px 4px;
-  text-align: center;
-}
 .grid {
   display: grid;
   /* Floor wide enough to hold the Revio screen's own 350px min-width plus the card's 18px
@@ -72,15 +45,15 @@
   border-radius: 50%;
   background: var(--green);
   flex: none;
-  box-shadow: 0 0 0 0 rgba(47, 168, 79, 0.5);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--green) 50%, transparent);
   animation: instrLivePulse 1.8s ease-out infinite;
 }
 @keyframes instrLivePulse {
   70% {
-    box-shadow: 0 0 0 6px rgba(47, 168, 79, 0);
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--green) 0%, transparent);
   }
   100% {
-    box-shadow: 0 0 0 0 rgba(47, 168, 79, 0);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--green) 0%, transparent);
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -91,17 +64,6 @@
 .liveText {
   color: var(--grey);
 }
-.liveLock {
-  font-size: var(--fs-xs);
-  font-weight: 800;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-  color: var(--amber);
-  background: var(--amber-tint);
-  border-radius: 999px;
-  padding: 1px 7px;
-}
-
 /* Live gantt of the runs currently in progress on this instrument (shares RunStageGantt with
    the slot-detail popover). The gantt brings its own panel border, so this just spaces it. */
 .gantt {
@@ -128,13 +90,6 @@
   flex-direction: column;
   gap: 2px;
 }
-.metaItem dt {
-  font-size: var(--fs-sm);
-  font-weight: 700;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  color: var(--grey);
-}
 .metaItem dd {
   margin: 0;
   font-size: var(--fs-md);
@@ -150,32 +105,16 @@
   border-top: 1px solid var(--line);
 }
 
-/* Add/edit form fields (same look as CellsPage's modal fields). */
+/* Add/edit form fields. */
 .field {
   margin-bottom: 14px;
 }
-.fieldLabel {
-  display: block;
-  font-size: var(--fs-sm);
-  font-weight: 700;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  color: var(--grey);
-  margin-bottom: 7px;
-}
-.field input[type="text"],
-.field input[type="date"],
+.field input,
 .field textarea {
   width: 100%;
-  font-family: var(--sans);
-  font-size: var(--fs-lg);
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  padding: 8px 10px;
 }
 .field textarea {
   min-height: 64px;
-  resize: vertical;
 }
 .helper {
   font-size: var(--fs-md);

@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 
-import { ApiError } from "@/api/client";
+import { errorMessage } from "@/api/client";
 import { cellsApi } from "@/api/cells";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -11,7 +11,7 @@ import { Note } from "@/components/ui/Note";
 import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
 import type { CellOut, TrayRestoreOut } from "@/types/cell";
 import { soonestTrayExpiry } from "@/utils/openTrays";
-import { FADE_MIN_HOURS } from "@/utils/windowFade";
+import { EXPIRY_WARN_HOURS } from "@/utils/windowFade";
 
 import { CellStatusCard } from "./CellStatusCard";
 import { CellTypeBadge } from "./CellTypeBadge";
@@ -65,7 +65,7 @@ export function TrayPanel({ trayId, cells, currentCellId, showDiscard = true }: 
   const traySize = cells[0]?.tray_size ?? cells.length;
   const instrument = cells.find((c) => c.current_instrument_serial)?.current_instrument_serial ?? null;
   const soonest = soonestTrayExpiry(cells);
-  const urgent = soonest !== null && soonest <= FADE_MIN_HOURS;
+  const urgent = soonest !== null && soonest <= EXPIRY_WARN_HOURS;
   const anyOpen = cells.some((c) => c.status === "open");
   const anyDiscarded = cells.some((c) => c.discarded_at != null);
   const reuseSkipped = cells.some((c) => c.tray_reuse_disabled);
@@ -86,7 +86,7 @@ export function TrayPanel({ trayId, cells, currentCellId, showDiscard = true }: 
         </span>
         <CellTypeBadge cellType={cells[0]?.cell_type} />
         {soonest !== null && (
-          <Badge tone={urgent ? "danger" : "default"}>
+          <Badge tone={urgent ? "warning" : "default"}>
             {urgent ? "Expires soon — " : "Next expiry: "}
             {expiryText(soonest)}
           </Badge>
@@ -124,15 +124,10 @@ export function TrayPanel({ trayId, cells, currentCellId, showDiscard = true }: 
         <ConfirmModal
           title="Discard all cells in this tray?"
           confirmLabel="Discard cells"
+          confirmVariant="danger"
           pendingLabel="Discarding…"
           pending={discardMutation.isPending}
-          error={
-            discardMutation.isError
-              ? discardMutation.error instanceof ApiError
-                ? discardMutation.error.message
-                : "Failed to discard tray."
-              : null
-          }
+          error={discardMutation.isError ? errorMessage(discardMutation.error, "Couldn't discard the tray.") : null}
           onCancel={() => setConfirmDiscard(false)}
           onConfirm={() => discardMutation.mutate()}
         >
@@ -150,19 +145,13 @@ export function TrayPanel({ trayId, cells, currentCellId, showDiscard = true }: 
           confirmLabel="Restore tray"
           pendingLabel="Restoring…"
           pending={restoreMutation.isPending}
-          error={
-            restoreMutation.isError
-              ? restoreMutation.error instanceof ApiError
-                ? restoreMutation.error.message
-                : "Failed to restore tray."
-              : null
-          }
+          error={restoreMutation.isError ? errorMessage(restoreMutation.error, "Couldn't restore the tray.") : null}
           onCancel={() => setConfirmRestore(false)}
           onConfirm={() => restoreMutation.mutate()}
         >
           <Note tone="warn" icon="!">
             This un-discards the tray so its cells can be reused again. If it was discarded with the grid&apos;s{" "}
-            <b>↻</b> button, any later uses that moved onto a fresh tray move back here — unless they&apos;ve since been{" "}
+            <b>⏏</b> button, any later uses that moved onto a fresh tray move back here — unless they&apos;ve since been{" "}
             <b>Confirm loaded</b>. A hard &quot;Discard all cells&quot; cancelled its placements to the backlog; those
             samples stay there to re-place.
           </Note>
@@ -181,7 +170,7 @@ export function TrayPanel({ trayId, cells, currentCellId, showDiscard = true }: 
 
       {discardMutation.isError && !confirmDiscard && (
         <Note tone="bad" icon="!">
-          {discardMutation.error instanceof ApiError ? discardMutation.error.message : "Failed to discard tray."}
+          {errorMessage(discardMutation.error, "Couldn't discard the tray.")}
         </Note>
       )}
     </div>

@@ -87,9 +87,9 @@ export function CellChoicePicker({
         autoFocus
       />
       <div className={styles.list}>
-        {cellsQuery.isLoading && <div className={styles.empty}>Loading…</div>}
+        {cellsQuery.isLoading && <div className="status sm">Loading…</div>}
         {!cellsQuery.isLoading && cells.length === 0 && (
-          <div className={styles.empty}>No open cells found on {instrumentSerial}.</div>
+          <div className="status sm">No open cells found on {instrumentSerial}.</div>
         )}
         {suggested.length > 0 && (
           <>

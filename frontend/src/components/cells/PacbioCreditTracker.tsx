@@ -3,13 +3,10 @@ import type { ReactNode } from "react";
 import { Badge } from "@/components/ui/Badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import type { CreditCaseState } from "@/types/credit";
-import { type CreditStageKey, getCreditStages, localDateOnly } from "@/utils/creditCase";
+import { formatDateTime, formatDateUTC, parseDateOnly } from "@/utils/calendarDates";
+import { type CreditStageKey, getCreditStages } from "@/utils/creditCase";
 
 import styles from "./PacbioCreditTracker.module.css";
-
-function formatDateTime(iso: string | null): string {
-  return iso ? new Date(iso).toLocaleString() : "—";
-}
 
 // Monochrome, single-weight stroke icons in the app's own style (cf. the scheduler padlock) -
 // no icon library is used anywhere in the app, so these are inlined. currentColor lets each
@@ -99,7 +96,7 @@ export function PacbioCreditTracker({
 }: PacbioCreditTrackerProps) {
   const { stages, currentIndex, allDone } = getCreditStages(credit, failureAt);
   const stageTime = (key: CreditStageKey, at: string | null) =>
-    key === "failure" && failureDateOnly && at ? localDateOnly(at).toLocaleDateString() : formatDateTime(at);
+    !at ? "—" : key === "failure" && failureDateOnly ? formatDateUTC(parseDateOnly(at)) : formatDateTime(at);
 
   return (
     <Card>

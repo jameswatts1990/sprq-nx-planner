@@ -40,13 +40,13 @@
   background: var(--mk, var(--grey));
 }
 .marker.u1 {
-  --mk: var(--magenta);
+  --mk: var(--use1);
 }
 .marker.u2 {
-  --mk: var(--blue);
+  --mk: var(--use2);
 }
 .marker.u3 {
-  --mk: var(--teal);
+  --mk: var(--use3);
 }
 .dot {
   position: absolute;
@@ -58,7 +58,7 @@
   padding: 0 3px;
   border-radius: 4px;
   background: var(--mk);
-  color: #fff;
+  color: var(--on-accent);
   font-family: var(--mono);
   font-size: 9px;
   font-weight: 800;

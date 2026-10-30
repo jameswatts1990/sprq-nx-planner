@@ -95,14 +95,10 @@
   min-width: 150px;
   text-align: center;
 }
+/* Sized and weighted to match the btn sm week-nav buttons it sits among. */
 .jumpDate {
-  font-family: var(--sans);
   font-size: var(--fs-md);
   font-weight: 700;
-  color: var(--ink);
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
   padding: 6px 8px;
   cursor: pointer;
 }
@@ -117,12 +113,6 @@
   font-weight: 700;
   color: var(--magenta-deep);
 }
-.status {
-  color: var(--grey);
-  font-size: var(--fs-lg);
-  padding: 24px 4px;
-  text-align: center;
-}
 .gridArea {
   display: contents;
 }
@@ -133,7 +123,7 @@
 .gridArea[data-barcodes="hidden"] [data-barcode-chips] {
   display: none;
 }
-/* "Hide notes" - drops the ✎ note markers (shown by default). Same grid-area scope so a
+/* "Hide notes" - drops the cards' note icons (shown by default). Same grid-area scope so a
    note still shows in the slot detail popover, which renders outside the grid. */
 .gridArea[data-notes="hidden"] [data-note-indicator] {
   display: none;
@@ -147,7 +137,7 @@
   font-family: var(--sans);
   font-size: var(--fs-sm);
   font-weight: 800;
-  color: #fff;
+  color: var(--on-accent);
   background: var(--magenta);
   border-radius: var(--r-sm);
   padding: 7px 12px;

@@ -48,7 +48,8 @@ export function HistorySection() {
         </div>
       </div>
       <p>
-        <b>Run detail page</b> shows the run&apos;s instrument, load date, when it loads (its cells then prep before sequencing),
+        <b>Run detail page</b> is titled with the run&apos;s name (or its number, e.g. <b>Run #45</b>), with{" "}
+        <b>◂ Run history</b> above the title to return to the list. It shows the run&apos;s instrument, load date, when it loads (its cells then prep before sequencing),
         status, and whether it&apos;s <b>Active now</b>, then a tray block per plate laid out just like the weekly
         schedule. Each plate&apos;s header carries an <b>→ acquire-day</b> tag next to its title when the plate
         sequences on a different day from loading (a reuse Plate 2 — you can tell it&apos;s a reuse because its cells&apos;
@@ -67,14 +68,14 @@ export function HistorySection() {
         cell&apos;s run time or switch a reuse to a fresh cell, exactly as on the schedule.
       </p>
       <p>
-        <b>Cancel run</b> is available only while a run is still <i>planned</i>; once it&apos;s running/loaded it
+        <b>Cancel run</b> (top right) is available only while a run is still <i>planned</i>; once it&apos;s running/loaded it
         can&apos;t be cancelled from here.
       </p>
 
       <p className={styles.subheading}>History → Samples</p>
       <p>
         <b>What it&apos;s for:</b> by default, every sample that has finished, either <b>completed</b> (green) or{" "}
-        <b>failed</b> (red). Search by Pool ID, Sanger ID, barcode, or Plate ID. Each row shows the sample&apos;s{" "}
+        <b>failed</b> (orange). Search by Pool ID, Sanger ID, barcode, or Plate ID. Each row shows the sample&apos;s{" "}
         <b>Pool ID</b> (click it to open its full detail page), status, barcodes, Plate ID, Target OPLC,
         Actual OPLC, priority, and last-updated time. A <b>1/3</b> badge by a Pool ID marks a duplicate — the
         same sample run across multiple cells (counted across every status, including completed). Click <i>any</i>{" "}
@@ -98,25 +99,25 @@ export function HistorySection() {
       <p className={styles.subheading}>Sample detail page</p>
       <p>
         <b>What it&apos;s for:</b> a single sample (pool) on its own page, reached by clicking a <b>Pool ID</b>{" "}
-        anywhere in the app — a cell card, a cell&apos;s use history, or a row in the Samples list above. It shows
-        the sample&apos;s full metadata (Plate ID, priority, Target OPLC, Actual OPLC, movie time, loading
+        anywhere in the app — a cell card, a cell&apos;s use history, or a row in the Samples list above. It&apos;s
+        titled with the sample&apos;s Pool ID and its status badge, and shows the sample&apos;s full metadata (Plate ID, priority, Target OPLC, Actual OPLC, movie time, loading
         options, barcodes, Sanger IDs, created/updated times) and a <b>Cell uses</b> table of every cell it has been
         placed on — the run (links to the run), plate, cell (links to the cell), well, use status, start/complete
         times, and notes. This page works for a sample of any status, so it&apos;s the durable place a Pool ID
         always links to.
       </p>
       <p>
-        <b>Back:</b> the link at the top left returns you to wherever you opened the sample from — the Backlog,
+        <b>Back:</b> the <b>◂</b> link above the title returns you to wherever you opened the sample from — the Backlog,
         Schedule, a cell, a run, or the Samples list — rather than always to one fixed place. Opening the page directly (a
         shared link or a browser refresh) falls back to the Samples list.
       </p>
       <p>
-        <b>View on Traction:</b> a <b>View on Traction</b> button next to the status badge opens the sample in
+        <b>View on Traction:</b> a <b>View on Traction</b> button at the top right of the page opens the sample in
         Traction — the pools view for a pool, the libraries view for a single — so you can check its remaining
         library material without leaving your place. It only appears when the sample has a Pool ID to link to.
       </p>
       <p>
-        <b>Edit:</b> an <b>Edit</b> button next to the status badge opens the same form used elsewhere. A backlog
+        <b>Edit:</b> an <b>Edit</b> button at the top right of the page opens the same form used elsewhere. A backlog
         sample is fully editable (everything but its Pool ID, which is fixed for life); a sample already placed on
         the grid (scheduled or in progress) lets you adjust only its loading parameters, since its barcodes and
         identity are locked once placed. Finished samples (completed, failed, cancelled) are read-only history, so no

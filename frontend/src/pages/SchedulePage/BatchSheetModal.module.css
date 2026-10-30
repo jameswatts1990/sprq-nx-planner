@@ -2,21 +2,7 @@
 .field {
   display: flex;
   flex-direction: column;
-  gap: 4px;
   margin-bottom: 14px;
-}
-.label {
-  font-size: var(--fs-sm);
-  font-weight: 700;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  color: var(--grey);
-}
-.dateInput {
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  padding: 8px 10px;
-  font-size: var(--fs-xl);
 }
 .choices {
   border: none;
@@ -25,6 +11,10 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+/* Drop the UA legend inset so it lines up with the field label above. */
+.choices legend {
+  padding: 0;
 }
 .choice {
   display: flex;

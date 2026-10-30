@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
-import { ApiError } from "@/api/client";
+import { errorMessage } from "@/api/client";
 import { cellsApi } from "@/api/cells";
 import { CellQcModal } from "@/components/cells/CellQcModal";
 import { CellTypeBadge } from "@/components/cells/CellTypeBadge";
@@ -14,6 +14,8 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Note } from "@/components/ui/Note";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { formatDateTime } from "@/utils/calendarDates";
 import { CELL_STATUS_LABEL, CELL_STATUS_TONE } from "@/utils/cellStatus";
 import { cellFailureAt } from "@/utils/creditCase";
 import { plateWellFromPlate, plateWellFromWell } from "@/utils/plateWell";
@@ -23,9 +25,9 @@ import { USE_STATUS_TONE } from "@/utils/useStatusTone";
 
 import styles from "./CellDetailPage.module.css";
 
-function formatDateTime(iso: string | null): string {
-  return iso ? new Date(iso).toLocaleString() : "—";
-}
+/** Cells are opened from many places (cards, the grid, QC, a sample's uses); the Cells list is
+ * the one durable place to return to. */
+const BACK = { to: "/cells", label: "All cells" };
 
 export function CellDetailPage() {
   const { cellId } = useParams<{ cellId: string }>();
@@ -46,6 +48,7 @@ export function CellDetailPage() {
   if (!idIsValid) {
     return (
       <div className={styles.page}>
+        <PageHeader title="Cell" back={BACK} />
         <Note tone="bad" icon="!">
           Invalid cell id.
         </Note>
@@ -54,14 +57,15 @@ export function CellDetailPage() {
   }
 
   if (query.isLoading) {
-    return <div className={styles.status}>Loading cell…</div>;
+    return <div className="status">Loading cell…</div>;
   }
 
   if (query.isError) {
     return (
       <div className={styles.page}>
+        <PageHeader title="Cell" back={BACK} />
         <Note tone="bad" icon="!">
-          {query.error instanceof ApiError ? query.error.message : "Failed to load cell."}
+          {errorMessage(query.error, "Couldn't load the cell.")}
         </Note>
       </div>
     );
@@ -69,7 +73,7 @@ export function CellDetailPage() {
 
   const cell = query.data;
   if (!cell) {
-    return <div className={styles.status}>Cell not found.</div>;
+    return <div className="status">Cell not found.</div>;
   }
 
   const isTerminal = cell.status === "retired" || cell.status === "stopped";
@@ -85,15 +89,8 @@ export function CellDetailPage() {
 
   const mainCard = (
     <Card>
-      <CardHeader
-        badge={
-          <>
-            <CellTypeBadge cellType={cell.cell_type} />{" "}
-            <Badge tone={CELL_STATUS_TONE[cell.status]}>{CELL_STATUS_LABEL[cell.status]}</Badge>
-          </>
-        }
-      >
-        <h2>{cell.code}</h2>
+      <CardHeader>
+        <h2>Details</h2>
       </CardHeader>
       <CardBody>
         {cell.stopped_reason && (
@@ -104,7 +101,7 @@ export function CellDetailPage() {
 
         <div className={styles.headerGrid}>
           <div>
-            <span className={styles.label}>Uses</span>
+            <span className="detailLabel">Uses</span>
             <span className={styles.value}>
               {cell.uses_consumed} / {cell.max_uses} ({cell.uses_remaining} remaining)
             </span>
@@ -112,19 +109,19 @@ export function CellDetailPage() {
           {!showWindowMeter && (
             <>
               <div>
-                <span className={styles.label}>Window elapsed</span>
+                <span className="detailLabel">Window elapsed</span>
                 <span className={styles.value}>
                   {cell.window_hours_elapsed !== null ? `${cell.window_hours_elapsed.toFixed(1)} h` : "—"}
                 </span>
               </div>
               <div>
-                <span className={styles.label}>Window breached</span>
+                <span className="detailLabel">Window breached</span>
                 <span className={styles.value}>{cell.window_breached ? "Yes" : "No"}</span>
               </div>
             </>
           )}
           <div>
-            <span className={styles.label}>Current location</span>
+            <span className="detailLabel">Current location</span>
             <span className={styles.value}>
               {cell.current_instrument_serial
                 ? `${cell.current_instrument_serial}${cell.current_well ? ` · ${plateWellFromWell(cell.current_well, { qualified: true })}` : ""}`
@@ -133,23 +130,25 @@ export function CellDetailPage() {
           </div>
           {trayId !== null && (
             <div>
-              <span className={styles.label}>Tray</span>
+              <span className="detailLabel">Tray</span>
               <Link to={`/cells?tray=${trayId}`} className={`${styles.value} link`}>
                 Tray {trayId}
               </Link>
             </div>
           )}
           <div>
-            <span className={styles.label}>First use started</span>
-            <span className={styles.value}>{formatDateTime(cell.first_use_started_at)}</span>
+            <span className="detailLabel">First use started</span>
+            <span className={styles.value}>
+              {cell.first_use_started_at ? formatDateTime(cell.first_use_started_at) : "—"}
+            </span>
           </div>
           <div>
-            <span className={styles.label}>Created</span>
+            <span className="detailLabel">Created</span>
             <span className={styles.value}>{formatDateTime(cell.created_at)}</span>
           </div>
           {isTerminal && cell.stopped_at && (
             <div>
-              <span className={styles.label}>{cell.status === "retired" ? "Retired" : "Stopped"}</span>
+              <span className="detailLabel">{cell.status === "retired" ? "Retired" : "Stopped"}</span>
               <span className={styles.value}>{formatDateTime(cell.stopped_at)}</span>
             </div>
           )}
@@ -159,7 +158,7 @@ export function CellDetailPage() {
 
         {cell.burned_barcodes.length > 0 && (
           <div className={styles.burnedRow}>
-            <span className={styles.label}>Burned barcodes</span>
+            <span className="detailLabel">Burned barcodes</span>
             <BarcodeChips barcodes={cell.burned_barcodes} />
           </div>
         )}
@@ -180,10 +179,10 @@ export function CellDetailPage() {
       </CardHeader>
       <CardBody>
         {cell.use_history.length === 0 ? (
-          <div className={styles.status}>No uses recorded yet.</div>
+          <div className="status sm">No uses recorded yet.</div>
         ) : (
           <div className={styles.tableWrap}>
-            <table className={styles.table}>
+            <table className="table">
               <thead>
                 <tr>
                   <th>Run</th>
@@ -193,9 +192,9 @@ export function CellDetailPage() {
                   <th>Barcodes</th>
                   <th>Priority</th>
                   <th>Target OPLC</th>
-                  <th>Adaptive Loading</th>
-                  <th>Full Res. Base Q</th>
-                  <th>Include Base Kinetics</th>
+                  <th>Adaptive loading</th>
+                  <th>Full res. base Q</th>
+                  <th>Include base kinetics</th>
                   <th>Instrument</th>
                   <th>Started</th>
                   <th>Completed</th>
@@ -236,8 +235,8 @@ export function CellDetailPage() {
                     <td>{u.sample_full_resolution_base_q ?? "—"}</td>
                     <td>{u.sample_base_kinetics ?? "—"}</td>
                     <td>{u.instrument_serial ?? "—"}</td>
-                    <td>{formatDateTime(u.started_at)}</td>
-                    <td>{formatDateTime(u.completed_at)}</td>
+                    <td>{u.started_at ? formatDateTime(u.started_at) : "—"}</td>
+                    <td>{u.completed_at ? formatDateTime(u.completed_at) : "—"}</td>
                     <td>{u.outcome_notes ?? "—"}</td>
                   </tr>
                 ))}
@@ -259,6 +258,15 @@ export function CellDetailPage() {
 
   return (
     <div className={styles.page}>
+      <PageHeader
+        title={
+          <>
+            <span className={styles.mono}>{cell.code}</span> <CellTypeBadge cellType={cell.cell_type} />{" "}
+            <Badge tone={CELL_STATUS_TONE[cell.status]}>{CELL_STATUS_LABEL[cell.status]}</Badge>
+          </>
+        }
+        back={BACK}
+      />
       {creditCard}
       {mainCard}
       {useHistoryCard}

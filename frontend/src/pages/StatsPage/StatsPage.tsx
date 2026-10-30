@@ -1,13 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 
-import { ApiError } from "@/api/client";
+import { errorMessage } from "@/api/client";
 import { instrumentsApi } from "@/api/instruments";
 import { statsApi } from "@/api/stats";
 import { SectionHeading } from "@/components/shared/SectionHeading";
 import { StatTile, StatTiles } from "@/components/shared/StatTile";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Note } from "@/components/ui/Note";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import type { StatsResponse } from "@/types/stats";
 
@@ -51,6 +52,10 @@ export function StatsPage() {
 
   return (
     <div className={styles.page}>
+      <PageHeader
+        title="Stats"
+        intro="Read-only charts and headline numbers built from everything else in the app."
+      />
       <Card>
         <CardBody>
           <div className={styles.toolbar}>
@@ -61,7 +66,6 @@ export function StatsPage() {
               onChange={(v) => setRange(v)}
             />
             <select
-              className={styles.select}
               value={instrumentSerial}
               onChange={(e) => setInstrumentSerial(e.target.value)}
             >
@@ -77,10 +81,10 @@ export function StatsPage() {
             </span>
           </div>
 
-          {query.isLoading && <div className={styles.status}>Loading stats…</div>}
+          {query.isLoading && <div className="status">Loading stats…</div>}
           {query.isError && (
             <Note tone="bad" icon="!">
-              {query.error instanceof ApiError ? query.error.message : "Failed to load stats."}
+              {errorMessage(query.error, "Couldn't load the stats.")}
             </Note>
           )}
           {query.data && <Headline data={query.data} />}
@@ -143,9 +147,9 @@ function StatsCharts({ data }: { data: StatsResponse }) {
   );
   const funnel = useMemo(
     () => [
-      { label: "Needs report", count: f.credit_funnel.needs_report, color: p.amber },
+      { label: "Needs report", count: f.credit_funnel.needs_report, color: p.red },
       { label: "Reported", count: f.credit_funnel.reported, color: p.blue },
-      { label: "Awaiting credit", count: f.credit_funnel.awaiting, color: p.orange },
+      { label: "Awaiting credit", count: f.credit_funnel.awaiting, color: p.amber },
       { label: "Received", count: f.credit_funnel.received, color: p.green },
     ],
     [f.credit_funnel, p],

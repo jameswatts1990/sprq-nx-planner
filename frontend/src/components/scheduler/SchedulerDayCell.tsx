@@ -4,17 +4,20 @@ import { memo, useState, type KeyboardEvent, type MouseEvent, type PointerEvent 
 
 import { cellsApi } from "@/api/cells";
 import { cellUsesApi } from "@/api/cellUses";
-import { ApiError } from "@/api/client";
+import { errorMessage } from "@/api/client";
 import { cyclesApi } from "@/api/cycles";
 import { CellTypeBadge } from "@/components/cells/CellTypeBadge";
 import { TraySiblingList } from "@/components/cells/TraySiblingList";
+import { LockChip } from "@/components/shared/LockChip";
 import { formatLoadTime, isValidLoadTime, parseLoadTime } from "@/components/scheduler/loadTime";
+import { Button } from "@/components/ui/Button";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { Note } from "@/components/ui/Note";
 import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
 import type { RunOut, StageOut } from "@/types/schedule";
 import type { ScheduleNoteOut } from "@/types/scheduleNote";
 import { formatShortDateTimeLocal, formatShortDateUTC, formatTimeLocal, localWallTimeToUtcParts, parseDateOnly, shortWeekdayUTC } from "@/utils/calendarDates";
+import { CYCLE_STATUS_TONE } from "@/utils/cycleStatus";
 import { runLabel } from "@/utils/runLabel";
 
 import { noteCellDropId, noteDragId, PLATE_INDICES, slotKey } from "./gridKeys";
@@ -63,25 +66,10 @@ export interface SchedulerDayCellProps {
   onEditNote: (note: ScheduleNoteOut) => void;
 }
 
-/** The padlock marker for a locked day - a teal rounded-rect chip (the grid's neutral
- * "informational" tone, distinct from the magenta LOADED/Unload action and the amber
- * carry-over marker). Collapsed to just the icon by default; hover or keyboard-focus
- * expands it rightward to reveal the exact release time, replacing the old hover tooltip
- * with an in-place reveal so it reads as part of the same chip. `tabIndex` makes the
- * expand reachable by keyboard; `aria-label` carries the full text for screen readers
- * regardless of hover state. */
-function LockChip({ until }: { until: string }) {
-  const time = formatShortDateTimeLocal(until);
-  return (
-    <span className={styles.lockChip} tabIndex={0} aria-label={`Locked until ${time}`}>
-      <svg viewBox="0 0 16 16" width="10" height="10" fill="currentColor" aria-hidden="true" className={styles.lockChipIcon}>
-        <path d="M4 7V5a4 4 0 1 1 8 0v2h.5A1.5 1.5 0 0 1 14 8.5v5A1.5 1.5 0 0 1 12.5 15h-9A1.5 1.5 0 0 1 2 13.5v-5A1.5 1.5 0 0 1 3.5 7H4Zm1.5 0h5V5a2.5 2.5 0 0 0-5 0v2Z" />
-      </svg>
-      <span className={styles.lockChipTime} aria-hidden="true">
-        {time}
-      </span>
-    </span>
-  );
+/** Tooltip for the grid's padlock: the release time, shown on hover rather than expanding the
+ * chip (the shared LockChip). */
+function lockedUntil(until: string): string {
+  return `Instrument locked until ${formatShortDateTimeLocal(until)}`;
 }
 
 interface DayNoteBannersProps {
@@ -131,7 +119,7 @@ function DayNoteBanner({ note, instrumentSerial, onEdit }: Omit<DayNoteBannersPr
         onEdit(note);
       }}
     >
-      <Note tone="info" icon="📌" size="sm">
+      <Note tone="info" icon="i" size="sm">
         <span className={styles.dayNoteText}>{note.body}</span>
       </Note>
     </div>
@@ -201,9 +189,9 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
     },
   });
 
-  // Hovering/focusing the LOADED pill swaps its label to "Unload" so the single control
+  // Hovering/focusing the RUNNING pill swaps its label to "Unload" so the single control
   // reads as an action, not just a status - see the pill's button below.
-  const [hoveringLoadedPill, setHoveringLoadedPill] = useState(false);
+  const [hoveringRunningPill, setHoveringRunningPill] = useState(false);
 
   const [confirmingLoad, setConfirmingLoad] = useState(false);
   const [runName, setRunName] = useState("");
@@ -382,32 +370,34 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
                   <button
                     type="button"
                     className={`${styles.lockTag} ${styles.lockTagAction}`}
+                    data-tone={CYCLE_STATUS_TONE[run.status]}
                     title={run.run_name ? `Run name: ${run.run_name} — click to unload and edit` : "Click to unload and edit"}
                     disabled={statusMutation.isPending}
                     onClick={() => statusMutation.mutate({ status: "planned" })}
-                    onMouseEnter={() => setHoveringLoadedPill(true)}
-                    onMouseLeave={() => setHoveringLoadedPill(false)}
-                    onFocus={() => setHoveringLoadedPill(true)}
-                    onBlur={() => setHoveringLoadedPill(false)}
+                    onMouseEnter={() => setHoveringRunningPill(true)}
+                    onMouseLeave={() => setHoveringRunningPill(false)}
+                    onFocus={() => setHoveringRunningPill(true)}
+                    onBlur={() => setHoveringRunningPill(false)}
                   >
-                    {statusMutation.isPending ? "…" : hoveringLoadedPill ? "UNLOAD" : "LOADED"}
+                    {statusMutation.isPending ? "…" : hoveringRunningPill ? "UNLOAD" : "RUNNING"}
                   </button>
                 ) : (
                   <span
                     className={styles.lockTag}
+                    data-tone={CYCLE_STATUS_TONE[run.status]}
                     title={run.run_name ? `Run name: ${run.run_name}` : undefined}
                   >
                     {run.status.toUpperCase()}
                   </span>
                 )}
-                <LockChip until={run.lock_until} />
+                <LockChip title={lockedUntil(run.lock_until)} />
               </>
             ) : (
               filledCount >= 1 && (
                 <>
-                  <button
-                    type="button"
-                    className={`${styles.ctrl} ${styles.confirm}`}
+                  <Button
+                    size="sm"
+                    className={styles.confirmBtn}
                     disabled={statusMutation.isPending}
                     onClick={() => {
                       setRunName(run.run_name ?? "");
@@ -422,7 +412,7 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
                     }}
                   >
                     {statusMutation.isPending ? "Confirming…" : "Confirm loaded"}
-                  </button>
+                  </Button>
                   <button
                     type="button"
                     className={styles.rescheduleBtn}
@@ -441,24 +431,28 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
         {!run && continuation && (
           continuationPlate ? (
             <>
-              <span
-                className={styles.carryLockTag}
-                title="No action here — the instrument runs this plate itself once Plate 1's movie finishes and the cells are washed (a reuse run's Plate 2 — the next working day for a normal-length movie, later for a very long one). Manage it from its own run on its load day."
-              >
-                P{continuationPlate.plate_index}: {runLabel(continuation.run)} @{" "}
-                {formatTimeLocal(continuationPlate.planned_start_at)}
-              </span>
-              <LockChip until={continuation.run.lock_until} />
+              <LockChip
+                variant="carry"
+                label={
+                  <>
+                    P{continuationPlate.plate_index}: {runLabel(continuation.run)} @{" "}
+                    {formatTimeLocal(continuationPlate.planned_start_at)}
+                  </>
+                }
+                title={`No action here — the instrument runs this plate itself once Plate 1's movie finishes and the cells are washed (a reuse run's Plate 2 — the next working day for a normal-length movie, later for a very long one). Manage it from its own run on its load day. ${lockedUntil(continuation.run.lock_until)}.`}
+              />
             </>
           ) : (
-            <LockChip until={continuation.run.lock_until} />
+            <LockChip title={lockedUntil(continuation.run.lock_until)} />
           )
         )}
       </div>
 
       {statusMutation.isError && (
         <div className={styles.err}>
-          {statusMutation.error instanceof ApiError ? statusMutation.error.message : "Status update failed."}
+          <Note tone="bad" icon="!" size="sm">
+            {errorMessage(statusMutation.error, "Couldn't update the run status.")}
+          </Note>
         </div>
       )}
 
@@ -503,7 +497,7 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
                         aria-label="Discard current tray — this will discard the current tray in this machine after this plate is loaded"
                         onClick={() => setRotateTarget({ trayId, fromDate: plate?.acquire_date ?? loadDate })}
                       >
-                        ↻
+                        ⏏
                       </button>
                     )}
                     {plateStages.length > 0 && (
@@ -559,13 +553,7 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
           pendingLabel="Confirming…"
           pending={statusMutation.isPending}
           confirmDisabled={!isValidLoadTime(loadTime)}
-          error={
-            statusMutation.isError
-              ? statusMutation.error instanceof ApiError
-                ? statusMutation.error.message
-                : "Status update failed."
-              : null
-          }
+          error={statusMutation.isError ? errorMessage(statusMutation.error, "Couldn't mark the run as loaded.") : null}
           onCancel={() => setConfirmingLoad(false)}
           onConfirm={() => {
             const parsed = parseLoadTime(loadTime);
@@ -587,7 +575,7 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
             appears.
           </p>
           <div className={styles.loadModalField}>
-            <label className={styles.loadModalLabel} htmlFor="confirm-run-name">
+            <label className="fieldLabel" htmlFor="confirm-run-name">
               Run name (optional)
             </label>
             <input
@@ -600,7 +588,7 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
             />
           </div>
           <div className={styles.loadModalField}>
-            <label className={styles.loadModalLabel} htmlFor="confirm-load-time">
+            <label className="fieldLabel" htmlFor="confirm-load-time">
               Revio Loaded at:
             </label>
             <input
@@ -628,11 +616,7 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
           pending={rescheduleMutation.isPending}
           confirmDisabled={!reschedulingTo || reschedulingTo === loadDate}
           error={
-            rescheduleMutation.isError
-              ? rescheduleMutation.error instanceof ApiError
-                ? rescheduleMutation.error.message
-                : "Failed to reschedule."
-              : null
+            rescheduleMutation.isError ? errorMessage(rescheduleMutation.error, "Couldn't reschedule the run.") : null
           }
           onCancel={() => setReschedulingTo(null)}
           onConfirm={() => reschedulingTo && rescheduleMutation.mutate(reschedulingTo)}
@@ -643,7 +627,7 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
             load a fresh tray for it. Not available once a run is <b>Confirm loaded</b> (unlock it first).
           </p>
           <div className={styles.loadModalField}>
-            <label className={styles.loadModalLabel} htmlFor="reschedule-date">
+            <label className="fieldLabel" htmlFor="reschedule-date">
               New load day (weekday)
             </label>
             <input
@@ -659,17 +643,12 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
 
       {rotateTarget != null && (
         <ConfirmModal
-          title={`Discard this Tray ${rotateTarget.trayId}?`}
+          title={`Discard tray ${rotateTarget.trayId}?`}
           confirmLabel="Discard tray"
+          confirmVariant="danger"
           pendingLabel="Discarding…"
           pending={rotateMutation.isPending}
-          error={
-            rotateMutation.isError
-              ? rotateMutation.error instanceof ApiError
-                ? rotateMutation.error.message
-                : "Failed to discard tray."
-              : null
-          }
+          error={rotateMutation.isError ? errorMessage(rotateMutation.error, "Couldn't discard the tray.") : null}
           onCancel={() => setRotateTarget(null)}
           onConfirm={() => rotateMutation.mutate(rotateTarget)}
         >
@@ -691,14 +670,10 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
         <ConfirmModal
           title={`Clear Plate ${clearingPlate.plateIndex}?`}
           confirmLabel="Return to backlog"
-          pendingLabel="Clearing…"
+          pendingLabel="Returning…"
           pending={clearPlateMutation.isPending}
           error={
-            clearPlateMutation.isError
-              ? clearPlateMutation.error instanceof ApiError
-                ? clearPlateMutation.error.message
-                : "Failed to clear plate."
-              : null
+            clearPlateMutation.isError ? errorMessage(clearPlateMutation.error, "Couldn't clear the plate.") : null
           }
           onCancel={() => setClearingPlate(null)}
           onConfirm={() => clearPlateMutation.mutate(clearingPlate.cellUseIds)}

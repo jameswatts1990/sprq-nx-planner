@@ -1,6 +1,6 @@
 import type { SampleDefaults } from "@/api/settings";
 import type { BatchSheetPlateOut, BatchSheetRunOut, BatchSheetWellOut } from "@/types/batchSheet";
-import { formatShortDateTimeLocal, parseDateOnly } from "@/utils/calendarDates";
+import { formatShortDateTimeLocal, formatShortDateUTC, parseDateOnly, shortWeekdayUTC } from "@/utils/calendarDates";
 import { plateWellFromSlot } from "@/utils/plateWell";
 import { runLabel } from "@/utils/runLabel";
 
@@ -18,12 +18,8 @@ export function formatFullDate(isoDate: string): string {
 
 /** Compact "Thu 24 Jul" for a plate's acquisition day. */
 function formatAcquireDate(isoDate: string): string {
-  return parseDateOnly(isoDate).toLocaleDateString("en-GB", {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-    timeZone: "UTC",
-  });
+  const d = parseDateOnly(isoDate);
+  return `${shortWeekdayUTC(d)} ${formatShortDateUTC(d)}`;
 }
 
 /** "Plate 1 · acquires Thu 24 Jul" / "Plate 2 · acquires Fri 25 Jul · reuse (Use 2)". */
@@ -118,7 +114,7 @@ function finalVolume(w: BatchSheetWellOut): number | null {
  * loading-buffer volumes) and leaves anything unknown as blank cells to hand-write at the bench. */
 function DilutionWorksheet({ plate }: { plate: BatchSheetPlateOut }) {
   return (
-    <div className={styles.worksheetCol}>
+    <div>
       <div className={styles.sectionSub}>7.3 · Final complex loading dilution — {plateHeading(plate)}</div>
       <table className={styles.worksheetTable}>
         <thead>

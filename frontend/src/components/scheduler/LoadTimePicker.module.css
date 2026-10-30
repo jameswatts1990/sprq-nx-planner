@@ -63,7 +63,7 @@
 .active {
   background: var(--highlight);
   border-color: var(--highlight);
-  color: #fff;
+  color: var(--on-accent);
   box-shadow: 0 0 0 4px var(--highlight-glow);
 }
 

@@ -41,50 +41,8 @@
   color: var(--grey);
   font-weight: 700;
 }
-.asOfToggle {
-  display: inline-flex;
-  border: 1.5px solid var(--line);
-  border-radius: 999px;
-  padding: 3px;
-  background: var(--card);
-}
-.asOfBtn {
-  border: none;
-  background: transparent;
-  border-radius: 999px;
-  padding: 8px 18px;
-  font-family: var(--sans);
-  font-weight: 700;
-  font-size: var(--fs-lg);
-  color: var(--grey);
-  cursor: pointer;
-  transition: 0.12s;
-}
-.asOfBtn[aria-pressed="true"] {
-  background: var(--magenta);
-  color: #fff;
-}
-.asOfBtn:not([aria-pressed="true"]):hover {
-  color: var(--magenta);
-}
-.trayViewHead {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-bottom: 16px;
-}
-.backLink {
-  font-size: var(--fs-base);
-  font-weight: 600;
-  color: var(--grey);
-  text-decoration: none;
-  width: fit-content;
-}
-.backLink:hover {
-  color: var(--ink);
-}
-.trayTitle {
-  margin: 0;
+/* The tray view's title: "Tray N" reads in mono, like the tray group headers it's opened from. */
+.mono {
   font-family: var(--mono);
 }
 .filters {
@@ -110,33 +68,10 @@
 }
 .search {
   flex: 1;
-  font-family: var(--sans);
-  font-size: var(--fs-2xl);
-  border: 1.5px solid var(--line);
-  border-radius: var(--r-sm);
-  padding: 12px 16px;
   min-width: 220px;
-}
-.search:focus {
-  outline: none;
-  border-color: var(--magenta);
-  box-shadow: 0 0 0 3px var(--magenta-tint);
-}
-.select {
-  font-family: var(--sans);
-  font-size: var(--fs-base);
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  padding: 8px 10px;
 }
 .spacer {
   margin-left: auto;
-}
-.status {
-  color: var(--grey);
-  font-size: var(--fs-lg);
-  padding: 24px 4px;
-  text-align: center;
 }
 .grid {
   display: grid;
@@ -169,7 +104,7 @@
   border: 1.5px dashed var(--line);
   border-radius: var(--r);
   min-height: 104px;
-  background: repeating-linear-gradient(135deg, #fff, #fff 8px, #fafafb 8px, #fafafb 16px);
+  background: repeating-linear-gradient(135deg, #fff, #fff 8px, var(--tray-card-bg) 8px, var(--tray-card-bg) 16px);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -180,7 +115,7 @@
 .slotPos {
   font-family: var(--mono);
   font-weight: 800;
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 .slotLbl {
   font-size: 10px;
@@ -226,7 +161,7 @@ a.groupTitle:hover {
   margin-left: auto;
   font-size: var(--fs-sm);
   font-weight: 800;
-  color: var(--red);
+  color: var(--amber-deep);
 }
 
 .helper {
@@ -237,31 +172,12 @@ a.groupTitle:hover {
 .field {
   margin-bottom: 14px;
 }
-.fieldLabel {
-  display: block;
-  font-size: var(--fs-sm);
-  font-weight: 700;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  color: var(--grey);
-  margin-bottom: 7px;
-}
-.field input[type="number"],
-.field input[type="datetime-local"] {
-  width: 100%;
-  font-family: var(--sans);
-  font-size: var(--fs-lg);
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  padding: 8px 10px;
-}
+.field input,
 .field textarea {
   width: 100%;
+}
+.field textarea {
   min-height: 70px;
-  resize: vertical;
+  /* Holds burned barcodes - codes read most reliably in monospace. */
   font-family: var(--mono);
-  font-size: var(--fs-md);
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  padding: 8px 10px;
 }

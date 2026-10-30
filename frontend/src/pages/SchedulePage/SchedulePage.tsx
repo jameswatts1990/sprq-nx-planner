@@ -2,7 +2,7 @@ import { DndContext, DragOverlay } from "@dnd-kit/core";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
-import { ApiError } from "@/api/client";
+import { errorMessage } from "@/api/client";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { cellsApi } from "@/api/cells";
 import { cyclesApi } from "@/api/cycles";
@@ -725,7 +725,7 @@ export function SchedulePage() {
                 <div className={styles.toolbar}>
                   <div className={styles.pager}>
                     <Button size="sm" variant="ghost" onClick={win.prev}>
-                      Prev
+                      Previous
                     </Button>
                     <span className={styles.range}>{rangeLabel}</span>
                     <Button size="sm" variant="ghost" onClick={win.next}>
@@ -834,7 +834,7 @@ export function SchedulePage() {
                   </Note>
                 )}
                 {actions.placementAdvisory && (
-                  <Note tone="warn" icon="⏱">
+                  <Note tone="warn" icon="!">
                     {actions.placementAdvisory}
                   </Note>
                 )}
@@ -855,10 +855,10 @@ export function SchedulePage() {
               >
                 <SectionHeading title="Weekly schedule" legend={<UseLegend />} progress={weekProgress} compact />
 
-                {instrumentsQuery.isLoading && <div className={styles.status}>Loading instruments…</div>}
+                {instrumentsQuery.isLoading && <div className="status">Loading instruments…</div>}
                 {instrumentsQuery.isError && (
                   <Note tone="bad" icon="!">
-                    {instrumentsQuery.error instanceof ApiError ? instrumentsQuery.error.message : "Failed to load instruments."}
+                    {errorMessage(instrumentsQuery.error, "Couldn't load the instruments.")}
                   </Note>
                 )}
                 {!instrumentsQuery.isLoading && !instrumentsQuery.isError && instrumentSerials.length === 0 && (
@@ -868,7 +868,7 @@ export function SchedulePage() {
                 )}
                 {cyclesQuery.isError && (
                   <Note tone="bad" icon="!">
-                    {cyclesQuery.error instanceof ApiError ? cyclesQuery.error.message : "Failed to load schedule."}
+                    {errorMessage(cyclesQuery.error, "Couldn't load the schedule.")}
                   </Note>
                 )}
                 {notesQuery.isError && (
@@ -904,7 +904,7 @@ export function SchedulePage() {
               {dnd.activeSample ? <div className={styles.dragChip}>{dnd.activeSample.pool_id || "sample"}</div> : null}
               {dnd.activeNote ? (
                 <div className={styles.noteDragChip}>
-                  <Note tone="info" icon="📌" size="sm">
+                  <Note tone="info" icon="i" size="sm">
                     <span className={styles.noteDragText}>{dnd.activeNote.body}</span>
                     {/* One note, one day: a new day moves it on every instrument it's on - its
                         other banners fade to match (SchedulerDayCell's DayNoteBanner). */}
@@ -969,11 +969,9 @@ export function SchedulePage() {
           pendingLabel="Recalculating…"
           pending={actions.recalculate.isPending}
           error={
-            actions.recalculate.error instanceof ApiError
-              ? actions.recalculate.error.message
-              : actions.recalculate.error
-                ? "Failed to recalculate."
-                : undefined
+            actions.recalculate.error
+              ? errorMessage(actions.recalculate.error, "Couldn't recalculate the schedule.")
+              : undefined
           }
           onCancel={() => actions.setRecalculateTarget(null)}
           onConfirm={() => actions.recalculate.mutate(actions.recalculateTarget!)}

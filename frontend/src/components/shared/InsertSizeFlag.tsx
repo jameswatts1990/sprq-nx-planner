@@ -12,12 +12,12 @@ export function InsertSizeFlag({ sizeBp, compact = false }: { sizeBp?: number | 
   const threshold = useInsertSizeThreshold();
   if (sizeBp == null || sizeBp > threshold) return null;
   return (
-    <span
+    <Badge
+      tone="orange"
+      compact={compact}
       title={`Insert size ${sizeBp.toLocaleString()} bp (≤ ${threshold.toLocaleString()} bp): small-insert library. Kept on a cell's first use — small inserts show reduced yield on re-use.`}
     >
-      <Badge tone="orange" compact={compact}>
-        {thresholdLabel(threshold)}
-      </Badge>
-    </span>
+      {thresholdLabel(threshold)}
+    </Badge>
   );
 }

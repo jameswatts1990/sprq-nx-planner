@@ -1,12 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 
-import { ApiError } from "@/api/client";
+import { errorMessage } from "@/api/client";
 import { batchSheetApi } from "@/api/batchSheet";
 import { settingsApi } from "@/api/settings";
 import { Button } from "@/components/ui/Button";
 import { Note } from "@/components/ui/Note";
+import { PageHeader } from "@/components/ui/PageHeader";
 
 import styles from "./BatchSheetPage.module.css";
 import { formatFullDate, PrintedRun } from "./PrintedRun";
@@ -60,13 +61,18 @@ export function BatchSheetPage() {
 
   return (
     <div className={styles.page}>
-      <div className={`${styles.controls} ${styles.noPrint}`}>
-        <Link to="/schedule" className={styles.backLink}>
-          ◂ Back to Schedule
-        </Link>
-        <Button variant="primary" onClick={() => window.print()} disabled={!query.data}>
-          Print / Save as PDF
-        </Button>
+      {/* The title prints once, small, above the first run; PageHeader drops the back link and
+          the Print button on paper. */}
+      <div className={styles.sheetTitle}>
+        <PageHeader
+          title={query.data ? `Batch Sheet — loaded ${formatFullDate(query.data.load_date)}` : "Batch Sheet"}
+          back={{ to: "/schedule", label: "Schedule" }}
+          actions={
+            <Button variant="primary" onClick={() => window.print()} disabled={!query.data}>
+              Print / Save as PDF
+            </Button>
+          }
+        />
       </div>
 
       {!date && (
@@ -75,20 +81,17 @@ export function BatchSheetPage() {
         </Note>
       )}
 
-      {query.isLoading && <div className={styles.status}>Loading batch sheet…</div>}
+      {query.isLoading && <div className="status">Loading batch sheet…</div>}
       {query.isError && (
         <Note tone="bad" icon="!">
-          {query.error instanceof ApiError ? query.error.message : "Failed to load batch sheet."}
+          {errorMessage(query.error, "Couldn't load the batch sheet.")}
         </Note>
       )}
 
       {query.data && (
         <>
-          <h1 className={styles.title}>Batch Sheet — loaded {formatFullDate(query.data.load_date)}</h1>
           {query.data.runs.length === 0 && (
-            <Note tone="info" icon="i">
-              No runs loaded for the selected instrument(s) on this day.
-            </Note>
+            <div className="status">No runs loaded for the selected instrument(s) on this day.</div>
           )}
 
           {/* One instrument on screen at a time. The others stay mounted (hidden) so their copied

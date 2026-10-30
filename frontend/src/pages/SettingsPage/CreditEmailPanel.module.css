@@ -1,27 +1,4 @@
-.panel {
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: var(--r);
-  padding: 14px 18px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-.header {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.title {
-  font-size: var(--fs-xl);
-  margin: 0;
-}
-.helper {
-  font-size: var(--fs-md);
-  color: var(--grey);
-  margin: 0;
-}
-
+/* The panel shell, helper line and save row come from SettingsPanel.module.css. */
 .chipRow {
   display: flex;
   flex-wrap: wrap;
@@ -44,7 +21,7 @@
   cursor: pointer;
 }
 .chip:hover {
-  border-color: var(--accent, var(--ink));
+  border-color: var(--line-hover);
   background: var(--card);
 }
 
@@ -56,30 +33,9 @@
 .field {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-}
-.fieldLabel {
-  font-size: var(--fs-xs);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--grey);
-  font-weight: 700;
-}
-.input,
-.textarea {
-  width: 100%;
-  font-family: var(--sans);
-  font-size: var(--fs-base);
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  padding: 7px 9px;
-  background: var(--card);
-  color: var(--ink);
 }
 .textarea {
-  resize: vertical;
   min-height: 96px;
-  line-height: 1.45;
 }
 
 .preview {
@@ -149,15 +105,4 @@
 .legendValue {
   color: var(--ink);
   font-weight: 600;
-}
-
-.actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 12px;
-}
-.savedNote {
-  font-size: var(--fs-md);
-  color: var(--grey);
 }

@@ -8,6 +8,7 @@ import { PacbioCreditTracker } from "@/components/cells/PacbioCreditTracker";
 import { Badge } from "@/components/ui/Badge";
 import type { CellOut } from "@/types/cell";
 import type { CreditCaseState } from "@/types/credit";
+import { formatDateUTC, formatShortDateTimeLocal, parseDateOnly } from "@/utils/calendarDates";
 import { CELL_STATUS_LABEL, CELL_STATUS_TONE } from "@/utils/cellStatus";
 import {
   type CreditCaseAge,
@@ -21,10 +22,11 @@ import { useSampleBackNav } from "@/utils/sampleBackNav";
 
 import styles from "./QcPage.module.css";
 
-function formatDate(iso: string | null): string {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? "—" : d.toLocaleDateString();
+/** A cell case's failure instant in the compact "09:14, 28 Oct" form, else (no recorded use time)
+ * its last run's day, "28 Oct". */
+function failureDateLabel(failureAt: string | null, lastRunDate: string | null): string {
+  if (failureAt) return formatShortDateTimeLocal(failureAt);
+  return lastRunDate ? formatDateUTC(parseDateOnly(lastRunDate)) : "—";
 }
 
 /** The at-a-glance facts on the right of a row's head line: PacBio case number, acquisitions
@@ -51,13 +53,12 @@ function CaseMeta({ credit, expected, age }: { credit: CreditCaseState; expected
       )}
       {age &&
         (age.overdue ? (
-          <span
+          <Badge
+            tone={OVERDUE_BADGE.tone}
             title={`No progress for ${age.waitDays} days (next: ${age.waitingFor}) - over the ${CREDIT_OVERDUE_DAYS}-day limit, so it needs chasing. Open ${age.daysOpen} days in all.`}
           >
-            <Badge tone={OVERDUE_BADGE.tone}>
-              {OVERDUE_BADGE.label} · {age.waitDays} d
-            </Badge>
-          </span>
+            {OVERDUE_BADGE.label} · {age.waitDays} d
+          </Badge>
         ) : (
           <span className={styles.metaText} title={`Waiting ${age.waitDays} days for: ${age.waitingFor}`}>
             {age.daysOpen} d open
@@ -115,7 +116,7 @@ export function CaseRowFrame({
           aria-label={open ? "Hide credit tracker" : "Show credit tracker"}
           onClick={onToggle}
         >
-          <span className={styles.cx} data-open={open}>
+          <span className={open ? "disclosure open" : "disclosure"} aria-hidden="true">
             ▸
           </span>
         </button>
@@ -159,7 +160,7 @@ export function CellCaseRow({
       credit={cell}
       expected={expected}
       age={age}
-      date={formatDate(failureAt ?? cell.last_use_run_date)}
+      date={failureDateLabel(failureAt, cell.last_use_run_date)}
       head={
         <>
           <Link to={`/cells/${cell.id}`} className={styles.code}>

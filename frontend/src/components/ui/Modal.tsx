@@ -1,12 +1,15 @@
 import { useEffect } from "react";
 import type { ReactNode } from "react";
 
+import { Button } from "./Button";
 import styles from "./Modal.module.css";
 
 export interface ModalProps {
-  /** Fired by the overlay click, the Escape key, or the close button. */
+  /** Fired by the overlay click, the Escape key, or the title row's ✕ close button. */
   onClose: () => void;
-  /** Optional heading rendered at the top of the modal body. */
+  /** Optional heading rendered at the top of the modal body, with a ✕ close button beside it
+   * (the same ghost icon button as Drawer). Omit it and the modal has no title row and no ✕ -
+   * the caller then owns its own header. */
   title?: ReactNode;
   /** Optional content rendered top-right, alongside the title (e.g. quick actions). */
   titleExtra?: ReactNode;
@@ -41,7 +44,14 @@ export function Modal({ onClose, title, titleExtra, children, maxWidth, fullScre
         {(title !== undefined || titleExtra !== undefined) && (
           <div className={styles.titleRow}>
             {title !== undefined && <h2 className={styles.title}>{title}</h2>}
-            {titleExtra !== undefined && <div className={styles.titleExtra}>{titleExtra}</div>}
+            <div className={styles.titleExtra}>
+              {titleExtra}
+              {title !== undefined && (
+                <Button variant="ghost" icon className={styles.close} onClick={onClose} aria-label="Close">
+                  ✕
+                </Button>
+              )}
+            </div>
           </div>
         )}
         {children}

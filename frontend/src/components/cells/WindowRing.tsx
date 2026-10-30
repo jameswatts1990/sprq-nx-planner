@@ -1,4 +1,4 @@
-import { CELL_LIFETIME_H, FADE_MIN_HOURS } from "@/utils/windowFade";
+import { CELL_LIFETIME_H, EXPIRY_WARN_HOURS } from "@/utils/windowFade";
 
 import styles from "./WindowRing.module.css";
 
@@ -16,7 +16,7 @@ export interface WindowRingProps {
 
 /**
  * The cell card's single focal gauge: how much of the 108h reuse window is gone, as a ring
- * that fills and shifts green -> amber (< FADE_MIN_HOURS left, the app's "urgent" threshold)
+ * that fills and shifts green -> amber (<= EXPIRY_WARN_HOURS left, the app's one "closing soon" threshold)
  * -> red (over). The centre reads the hours remaining. Draws from windowFade so the ring and
  * the grid's expiry shading share one deadline definition.
  */
@@ -39,7 +39,7 @@ export function WindowRing({ hoursElapsed, idleCenter = "—", idleSub = "" }: W
       pct = 1;
       aria = "108-hour window exceeded";
     } else {
-      colorVar = left <= FADE_MIN_HOURS ? "var(--amber)" : "var(--green)";
+      colorVar = left <= EXPIRY_WARN_HOURS ? "var(--amber)" : "var(--green)";
       center = String(Math.round(left));
       sub = "h left";
       aria = `${Math.round(left)} hours left in the 108-hour window`;

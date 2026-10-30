@@ -1,4 +1,4 @@
-import { ApiError } from "@/api/client";
+import { errorMessage } from "@/api/client";
 import { Button } from "@/components/ui/Button";
 import { Modal, ModalActions } from "@/components/ui/Modal";
 import { Note } from "@/components/ui/Note";
@@ -28,7 +28,7 @@ export function ClearScheduleModal({ weekLabel, count, pending, error, onCancel,
 
       {error !== null && error !== undefined && (
         <Note tone="bad" icon="!">
-          {error instanceof ApiError ? error.message : "Failed to clear schedule."}
+          {errorMessage(error, "Couldn't clear the schedule.")}
         </Note>
       )}
 
@@ -36,7 +36,7 @@ export function ClearScheduleModal({ weekLabel, count, pending, error, onCancel,
         <Button variant="ghost" onClick={onCancel} disabled={pending}>
           Cancel
         </Button>
-        <Button variant="primary" onClick={onConfirm} disabled={pending || count === 0}>
+        <Button variant="danger" onClick={onConfirm} disabled={pending || count === 0}>
           {pending ? "Clearing…" : `Delete ${count} sample${count === 1 ? "" : "s"}`}
         </Button>
       </ModalActions>

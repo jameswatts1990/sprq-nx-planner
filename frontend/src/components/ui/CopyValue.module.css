@@ -40,16 +40,16 @@
   text-align: center;
 }
 .copy[data-state="copied"] {
-  border-color: #bfe6c9;
+  border-color: var(--green-border);
 }
 .copy[data-state="copied"] .action {
   background: var(--green-tint);
-  color: #1c6b31;
+  color: var(--green-deep);
 }
 .copy[data-state="failed"] {
-  border-color: #f0dcae;
+  border-color: var(--amber-border);
 }
 .copy[data-state="failed"] .action {
   background: var(--amber-tint);
-  color: #7a4d00;
+  color: var(--amber-deep);
 }

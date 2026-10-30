@@ -1,5 +1,6 @@
 import type { KeyboardEvent, MouseEvent } from "react";
 
+import { Button } from "@/components/ui/Button";
 import type { RunOut, StageOut } from "@/types/schedule";
 import type { ScheduleNoteOut } from "@/types/scheduleNote";
 import {
@@ -108,8 +109,9 @@ function SchedulerDayHeader({
             {shortWeekdayUTC(d)} <span className={styles.dd}>{formatShortDateUTC(d)}</span>
           </div>
           {/* Stops propagation so adding a note never also selects the whole column. */}
-          <button
-            type="button"
+          <Button
+            variant="ghost"
+            size="sm"
             className={styles.addNoteBtn}
             title="Add a note to this day — pick which instruments it shows on"
             aria-label={`Add a note for ${shortWeekdayUTC(d)} ${formatShortDateUTC(d)}`}
@@ -120,7 +122,7 @@ function SchedulerDayHeader({
             onKeyDown={(e) => e.stopPropagation()}
           >
             + Note
-          </button>
+          </Button>
         </div>
       )}
     </th>

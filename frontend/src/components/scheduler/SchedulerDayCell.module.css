@@ -126,98 +126,60 @@
   font-size: 9px;
   font-weight: 800;
   letter-spacing: 0.05em;
-  color: #fff;
-  background: var(--green);
   border: none;
-  border-radius: 4px;
+  border-radius: var(--r-xs);
   padding: 2px 6px;
 }
-/* The LOADED pill doubles as the unload control while a run is running (see
-   SchedulerDayCell.tsx) - green at rest (matches its "good, cells are on the instrument"
-   status), hover/focus swaps both its label ("UNLOAD") and its colour to the shared
-   magenta action tone so it reads as a control the instant you reach for it, distinct
+/* Colour comes from the run's status via the shared CYCLE_STATUS_TONE map (data-tone), in the same
+   tint + deep-text family as Badge - so the grid and Run detail/History can never disagree on what
+   a status looks like. */
+.lockTag[data-tone="default"] {
+  color: var(--grey);
+  background: var(--line-soft);
+}
+.lockTag[data-tone="info"] {
+  color: var(--blue-deep);
+  background: var(--blue-tint);
+}
+.lockTag[data-tone="success"] {
+  color: var(--green-deep);
+  background: var(--green-tint);
+}
+.lockTag[data-tone="warning"] {
+  color: var(--amber-deep);
+  background: var(--amber-tint);
+}
+.lockTag[data-tone="danger"] {
+  color: var(--red-deep);
+  background: var(--red-tint);
+}
+/* The RUNNING pill doubles as the unload control while a run is running (see
+   SchedulerDayCell.tsx) - hover/focus swaps both its label ("UNLOAD") and its colour to the
+   shared magenta action tone so it reads as a control the instant you reach for it, distinct
    from the padlock chip (which stays teal and never acts as a button). */
 .lockTagAction {
   cursor: pointer;
-  transition: background 0.15s ease;
+  transition: background 0.15s ease, color 0.15s ease;
 }
 .lockTagAction:hover:not(:disabled),
 .lockTagAction:focus-visible:not(:disabled) {
   background: var(--magenta);
+  color: var(--on-accent);
+}
+.lockTagAction:focus-visible {
+  outline: 2px solid var(--magenta-deep);
+  outline-offset: 2px;
 }
 .lockTagAction:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
-/* Padlock marker shown on every day the instrument is locked (the run's own load day and
-   any later day still held by its lock/continuation) - a teal rounded-rect chip (the grid's
-   neutral "informational" tone - see BarcodeChips/UseBox's own teal-deep use), collapsed to
-   just the icon. Hovering or keyboard-focusing it expands the chip rightward to reveal the
-   release time in place, rather than relying on a hover tooltip. */
-.lockChip {
-  display: inline-flex;
-  align-items: center;
-  height: 16px;
-  padding: 0 5px;
-  border-radius: 999px;
-  background: var(--teal-deep);
-  color: #fff;
-  overflow: hidden;
-  cursor: default;
-}
-.lockChipIcon {
-  flex-shrink: 0;
-}
-.lockChipTime {
-  max-width: 0;
-  margin-left: 0;
-  opacity: 0;
-  font-size: 8.5px;
-  font-weight: 800;
-  letter-spacing: 0.02em;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-  transition: max-width 0.2s ease, margin-left 0.2s ease, opacity 0.15s ease;
-}
-.lockChip:hover .lockChipTime,
-.lockChip:focus-visible .lockChipTime {
-  max-width: 100px;
-  margin-left: 4px;
-  opacity: 1;
-}
-
-/* Carried over from an earlier day's run - a distinct amber tone (not the same-day teal
-   lockTag) so it reads as "inherited", not this day's own status. Never blocks selection. */
-.carryLockTag {
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0.03em;
-  color: #7a5200;
-  background: #fde8bd;
-  border: 1px solid #f0c987;
-  border-radius: 4px;
-  padding: 2px 6px;
-}
-.ctrl {
-  font-family: var(--sans);
+/* "Confirm loaded" - a sm Button made extra-compact for the day header (the :global(.btn.sm)
+   qualifier outranks base.css's .btn.sm padding), in the magenta tint of the run's next step. */
+:global(.btn.sm).confirmBtn {
   font-size: var(--fs-2xs);
-  font-weight: 700;
-  border: 1px solid var(--line);
-  background: var(--card);
-  color: var(--ink);
-  border-radius: 6px;
   padding: 3px 8px;
-  cursor: pointer;
   margin-left: auto;
-}
-.ctrl:hover:not(:disabled) {
-  border-color: var(--line-hover);
-}
-.ctrl:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-.confirm {
   border-color: var(--magenta);
   color: var(--magenta);
   background: var(--magenta-tint);
@@ -244,9 +206,6 @@
   cursor: not-allowed;
 }
 .err {
-  font-size: 10px;
-  color: var(--red);
-  font-weight: 700;
   margin-bottom: 4px;
 }
 .slots {
@@ -291,10 +250,10 @@
   flex-wrap: nowrap;
   min-width: 0;
 }
-/* "Rotate tray" - top-right of the tray header, only shown on a not-yet-locked tray card
-   (see SchedulerDayCell.tsx). Deliberately understated since it sits on every tray card;
-   a neutral (not red) hover, because rotating is a routine forward action - load a fresh
-   tray - not an error/write-off. */
+/* "Discard current tray" (⏏, the tray comes out) - top-right of the tray header, only shown on a
+   not-yet-locked tray card (see SchedulerDayCell.tsx). Deliberately understated since it sits on
+   every tray card; a neutral (not red) hover, because rotating in a fresh tray is a routine
+   forward action, not an error/write-off. */
 .rotateBtn {
   font-family: var(--sans);
   font-size: var(--fs-sm);
@@ -316,7 +275,7 @@
   cursor: not-allowed;
 }
 
-/* The rotate (↻) and clear-plate (✕) controls sit together at the top-right of the tray
+/* The discard-tray (⏏) and clear-plate (✕) controls sit together at the top-right of the tray
    header. */
 .trayHeaderActions {
   display: flex;
@@ -351,40 +310,27 @@
 /* Small caption above the tray's cell list in the discard-tray confirm modal. */
 .trayCellsLabel {
   margin: 12px 0 6px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   font-weight: 700;
   color: var(--faint);
 }
 
-/* Fields inside the Confirm-Revio-loaded modal - run name + the amendable load time. Styled
-   to match the shared ConfirmModal input convention so both labels read alike. */
+/* Fields inside the Confirm-Revio-loaded and Reschedule modals - run name, the amendable load
+   time, the new load day. Label/input look comes from the global fieldLabel + form-control base. */
 .loadModalField {
   margin-bottom: 14px;
 }
-.loadModalLabel {
-  display: block;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  color: var(--grey);
-  margin-bottom: 7px;
-}
 .loadModalInput {
   width: 100%;
-  font-family: var(--mono);
-  font-size: 12.5px;
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  padding: 8px 10px;
 }
-.loadModalInputInvalid {
+/* Two classes so the red stays over the form-control hover/focus border. */
+.loadModalInput.loadModalInputInvalid {
   border-color: var(--red);
 }
 .loadModalHint {
   display: block;
   margin-top: 6px;
-  font-size: 11.5px;
+  font-size: var(--fs-xs);
   color: var(--red);
 }
 

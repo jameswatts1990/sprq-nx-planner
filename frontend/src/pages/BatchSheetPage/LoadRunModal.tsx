@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
-import { ApiError } from "@/api/client";
+import { errorMessage } from "@/api/client";
 import { cyclesApi } from "@/api/cycles";
 import { clampLoadHour, fmtHour, LoadTimeDial } from "@/components/scheduler/LoadTimeDial";
 import { formatLoadTime, parseLoadTime } from "@/components/scheduler/loadTime";
@@ -85,13 +85,7 @@ export function LoadRunModal({
       pendingLabel="Confirming…"
       pending={mutation.isPending}
       confirmDisabled={!timeValid || !nameValid}
-      error={
-        mutation.isError
-          ? mutation.error instanceof ApiError
-            ? mutation.error.message
-            : "Status update failed."
-          : null
-      }
+      error={mutation.isError ? errorMessage(mutation.error, "Couldn't mark the run as loaded.") : null}
       onCancel={onClose}
       onConfirm={() => mutation.mutate()}
     >
@@ -104,7 +98,7 @@ export function LoadRunModal({
         </Note>
       )}
       <div className={styles.field}>
-        <label className={styles.label} htmlFor="load-run-by">
+        <label className="fieldLabel" htmlFor="load-run-by">
           Your name
         </label>
         <input
@@ -118,7 +112,7 @@ export function LoadRunModal({
         />
       </div>
       <div className={styles.field}>
-        <label className={styles.label} htmlFor="load-run-name">
+        <label className="fieldLabel" htmlFor="load-run-name">
           Traction run name (optional)
         </label>
         <input
@@ -132,7 +126,7 @@ export function LoadRunModal({
         />
       </div>
       <div className={styles.field}>
-        <label className={styles.label} htmlFor="load-run-time">
+        <label className="fieldLabel" htmlFor="load-run-time">
           Revio loaded at
         </label>
         <input

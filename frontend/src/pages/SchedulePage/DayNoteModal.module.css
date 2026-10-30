@@ -7,28 +7,14 @@
 .field {
   display: flex;
   flex-direction: column;
-  gap: 4px;
   margin-bottom: 14px;
 }
-.label {
-  font-size: var(--fs-sm);
-  font-weight: 700;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  color: var(--grey);
-}
 .textarea {
-  width: 100%;
   min-height: 70px;
-  resize: vertical;
-  font-family: var(--sans);
-  font-size: var(--fs-lg);
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  padding: 8px 10px;
 }
 .counter {
   align-self: flex-end;
+  margin-top: 4px;
   font-size: var(--fs-xs);
   color: var(--faint);
 }
@@ -40,8 +26,9 @@
   grid-template-columns: 1fr 1fr;
   gap: 8px;
 }
+/* Drop the UA legend inset so it lines up with the field label above. */
 .choices legend {
-  margin-bottom: 4px;
+  padding: 0;
 }
 .choice {
   display: flex;

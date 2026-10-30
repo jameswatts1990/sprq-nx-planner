@@ -14,7 +14,7 @@
   min-width: 350px;
   margin-bottom: 16px;
   padding: 14px 16px 12px;
-  border-radius: var(--r-md, 10px);
+  border-radius: var(--r-sm);
   background: radial-gradient(120% 140% at 0% 0%, #17171c 0%, #0b0b0e 60%);
   border: 1px solid #2a2a31;
   color: #f2f2f5;
@@ -240,13 +240,13 @@
 
 /* Use 1/2/3 identity colour (magenta / blue / teal), shared with the rest of the app. */
 .u1 {
-  --use: var(--magenta);
+  --use: var(--use1);
 }
 .u2 {
-  --use: var(--blue);
+  --use: var(--use2);
 }
 .u3 {
-  --use: var(--teal);
+  --use: var(--use3);
 }
 .sprq {
   --use: var(--sprq);

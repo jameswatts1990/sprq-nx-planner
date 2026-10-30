@@ -73,13 +73,13 @@
   display: inline-block;
 }
 .u1 {
-  background: var(--magenta);
+  background: var(--use1);
 }
 .u2 {
-  background: var(--blue);
+  background: var(--use2);
 }
 .u3 {
-  background: var(--teal);
+  background: var(--use3);
 }
 .sprq {
   background: var(--sprq);

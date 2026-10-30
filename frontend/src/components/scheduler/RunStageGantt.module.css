@@ -6,8 +6,8 @@
 .wrap {
   /* Prep / PPA framing colours: a desaturated indigo-slate ramp (light → dark) that recedes
      behind whichever Use colour the movie uses, and reads as a clean sequential progression. */
-  --c-prep: #9aa6c0;
-  --c-ppa: #515f7e;
+  --c-prep: var(--gantt-prep);
+  --c-ppa: var(--gantt-ppa);
   margin: 12px 0 4px;
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
@@ -97,7 +97,7 @@
   font-family: var(--mono);
   font-size: 10.5px;
   font-weight: 800;
-  color: #fff;
+  color: var(--on-accent);
   background: var(--bar, var(--grey));
   border-radius: 4px;
   padding: 1px 5px;
@@ -202,7 +202,7 @@
 .movieLabel {
   font-size: 9.5px;
   font-weight: 800;
-  color: #fff;
+  color: var(--on-accent);
   white-space: nowrap;
   overflow: hidden;
   padding: 0 3px;
@@ -242,7 +242,7 @@
   width: 15px;
   height: 15px;
   font-size: 10px;
-  color: #fff;
+  color: var(--on-accent);
   background: var(--green);
   border-radius: 50%;
   box-shadow: 0 0 0 2px var(--card);
@@ -299,13 +299,13 @@
    shared legend (SectionHeading.module.css) - one --bar var drives both the stub chip and
    the movie segment of a row. */
 .u1 {
-  --bar: var(--magenta);
+  --bar: var(--use1);
 }
 .u2 {
-  --bar: var(--blue);
+  --bar: var(--use2);
 }
 .u3 {
-  --bar: var(--teal);
+  --bar: var(--use3);
 }
 .sprq {
   --bar: var(--sprq);
