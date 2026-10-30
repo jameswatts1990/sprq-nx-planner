@@ -306,7 +306,7 @@ export function CellsPage() {
               // unloaded position. Every other grouping is a plain grid.
               const isTrayBox = groupBy === "tray" && g.id.startsWith("tray-");
               return (
-                <section key={g.id} className={isTrayBox ? styles.trayCard : styles.group}>
+                <section key={g.id} className={isTrayBox ? styles.trayCard : undefined}>
                   <GroupHeader groupBy={groupBy} cells={g.cells} />
                   {isTrayBox ? (
                     <TraySlots cells={g.cells} expanded={expandAll} />

@@ -185,26 +185,32 @@ function buildSampleColumns({ renderHeader, backNav, onEdit, onCancel, cancelPen
 /** Shared table markup for a react-table instance of backlog samples. */
 function SampleTableView({ table }: { table: Table<SampleOut> }) {
   return (
-    <table className="table">
-      <thead>
-        {table.getHeaderGroups().map((hg) => (
-          <tr key={hg.id}>
-            {hg.headers.map((h) => (
-              <th key={h.id}>{flexRender(h.column.columnDef.header, h.getContext())}</th>
-            ))}
-          </tr>
-        ))}
-      </thead>
-      <tbody>
-        {table.getRowModel().rows.map((row) => (
-          <tr key={row.id}>
-            {row.getVisibleCells().map((cell) => (
-              <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>
-            ))}
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <div className={styles.tableScroll}>
+      <table className="table">
+        <thead>
+          {table.getHeaderGroups().map((hg) => (
+            <tr key={hg.id}>
+              {hg.headers.map((h) => (
+                <th key={h.id} className={h.column.id === "actions" ? styles.actionsCol : undefined}>
+                  {flexRender(h.column.columnDef.header, h.getContext())}
+                </th>
+              ))}
+            </tr>
+          ))}
+        </thead>
+        <tbody>
+          {table.getRowModel().rows.map((row) => (
+            <tr key={row.id}>
+              {row.getVisibleCells().map((cell) => (
+                <td key={cell.id} className={cell.column.id === "actions" ? styles.actionsCol : undefined}>
+                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 

@@ -34,3 +34,18 @@
   gap: 4px;
   justify-content: flex-end;
 }
+/* The sample table has more columns than fit the card at common widths, and Card clips its
+   overflow - so the table scrolls sideways inside the card instead of losing its last column,
+   and the Edit/Cancel column is pinned to the right edge so row actions never scroll away. */
+.tableScroll {
+  overflow-x: auto;
+}
+.actionsCol {
+  position: sticky;
+  right: 0;
+  background: var(--card);
+  box-shadow: inset 1px 0 0 var(--line-soft);
+}
+tbody tr:hover .actionsCol {
+  background: var(--line-soft);
+}

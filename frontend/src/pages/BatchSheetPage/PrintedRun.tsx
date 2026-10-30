@@ -114,7 +114,7 @@ function finalVolume(w: BatchSheetWellOut): number | null {
  * loading-buffer volumes) and leaves anything unknown as blank cells to hand-write at the bench. */
 function DilutionWorksheet({ plate }: { plate: BatchSheetPlateOut }) {
   return (
-    <div className={styles.worksheetCol}>
+    <div>
       <div className={styles.sectionSub}>7.3 · Final complex loading dilution — {plateHeading(plate)}</div>
       <table className={styles.worksheetTable}>
         <thead>
