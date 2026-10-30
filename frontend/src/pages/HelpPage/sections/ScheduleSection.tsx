@@ -264,8 +264,14 @@ export function ScheduleSection() {
       <p>
         <b>Batch Sheet</b> shows a day&apos;s runs ready to enter into <b>Traction</b>, and prints the paper loading
         sheet when you need one. Pick the <b>load day</b> and tick which instruments to include — handy when different
-        people load different machines — then click <b>View Sheet</b>. It opens in a new tab, so you can keep it beside
-        Traction while you create the runs there.
+        people load different machines — then click <b>View Sheet</b>. It opens in place of the schedule; <b>◂ Back to
+        Schedule</b> returns you.
+      </p>
+      <p>
+        The sheet shows <b>one instrument at a time</b>. The title line gives the instrument, run, load day and
+        status; at its right, the <b>‹</b> and <b>›</b> arrows step to the previous or next instrument (hover one to
+        see which), and <b>Load</b> between them confirms this run has loaded (see below). Anything you&apos;ve ticked
+        or copied on an instrument stays put while you look at another.
       </p>
       <p>
         On screen, each run is laid out <b>in the same order as Traction&apos;s run form</b>, top to bottom, so you can
@@ -281,14 +287,20 @@ export function ScheduleSection() {
           wells have no recorded library concentration.
         </li>
         <li>
-          <b>Run Details · Run Name</b>: Traction generates the run name. Note it down, because you enter it in RunNx
-          when you confirm the run has loaded. Once it&apos;s recorded, it shows here with a copy button.
+          <b>Run Details · Run Name</b>: Traction generates the run name. Note it down, because you enter it when you
+          press <b>Load</b>. Once it&apos;s recorded, it shows here with a copy button.
         </li>
         <li>
           <b>Well Defaults</b>: the values to set in Traction&apos;s Well Defaults before adding wells: the movie
-          acquisition time, include base kinetics, use adaptive loading (this run&apos;s own value) and full resolution
-          base qual. They come from the <b>Settings</b> tab&apos;s Sample defaults and default movie time, which match
-          Traction&apos;s own presets out of the box.
+          acquisition time, include base kinetics, use adaptive loading (this run&apos;s own value, which applies to the
+          whole run) and full resolution base qual. They come from the <b>Settings</b> tab&apos;s Sample defaults and
+          default movie time, which match Traction&apos;s own presets out of the box. If Include Base Kinetics or Full
+          Resolution Base Qual is <b>True</b>, it shows as a <b>magenta</b> label so it can&apos;t be missed.
+        </li>
+        <li>
+          <b>Pre-flight checklist</b>, beside Well Defaults: tick boxes for the bench checks before loading
+          (humidity above 25% rH, tips refilled, deck reloaded, excess cells disposed if required). The ticks are a
+          reminder only. They aren&apos;t saved, and reset if you reload the page.
         </li>
         <li>
           <b>Plates</b>: Plate 1 and Plate 2 side by side, each with wells <b>A1–D1</b> stacked just as Traction draws
@@ -305,14 +317,24 @@ export function ScheduleSection() {
         well&apos;s barcode the card shows <b>✓ copied</b>, to help you keep your place across the run (this resets if
         you reload the page). A well with no recorded concentration says so, for you to enter in Traction. Under{" "}
         <b>Settings</b>, a well that matches the Well Defaults says <i>Defaults</i>; otherwise each setting to change in
-        that well&apos;s form shows as a dark chip, such as <b>30h</b> or <b>Kinetics True</b> (hover it to see the
-        default). Adaptive Loading never appears per well, because Traction sets it for the whole run. Any sample note
+        that well&apos;s form shows as a chip, such as <b>30h</b> or <b>Kinetics False</b> (dark), or{" "}
+        <b>Kinetics True</b> (magenta, as for any setting switched on). Hover a chip to see the default. Adaptive Loading never appears per well, because Traction sets it for the whole run. Any sample note
         on the cell shows at the bottom of the card. RunNx doesn&apos;t track the <b>Volume</b> Traction asks for, so
         enter each well&apos;s volume in Traction yourself.
       </p>
       <p>
-        <b>Print / Save as PDF</b> prints the <b>paper loading sheet</b> rather than the on-screen layout, through your
-        browser&apos;s normal print dialog (choose a physical printer, or &quot;Save as PDF&quot;). It prints{" "}
+        <b>Load</b> confirms the instrument has loaded, straight from the sheet. It does exactly what{" "}
+        <b>Confirm loaded</b> on the schedule does: it locks the whole run (both plates). Enter <b>your name</b> (it
+        is remembered on this computer for next time, and recorded against the action), the <b>Traction run name</b>{" "}
+        (optional) and the time the Revio was loaded. The time starts at <i>now</i>; type any hh:mm, or click an hour
+        on the dial to set it in one click. If the pre-flight checklist isn&apos;t fully ticked, the dialog lists
+        what&apos;s left as a reminder, but it doesn&apos;t stop you. Once loaded, the button reads <b>✓ Loaded</b>.
+        To undo it, use <b>Unload</b> on the schedule.
+      </p>
+      <p>
+        <b>Print / Save as PDF</b> prints the <b>paper loading sheet</b> rather than the on-screen layout, for{" "}
+        <b>every</b> instrument you picked (not just the one on screen), through your browser&apos;s normal print
+        dialog (choose a physical printer, or &quot;Save as PDF&quot;). It prints{" "}
         <b>landscape, one run per page</b>, so each Revio&apos;s run is a self-contained page you can hand to whoever
         loads it, and a saved PDF is named <i>&quot;YYYY.MM.DD - Revio &lt;serial&gt;&quot;</i> (the load day and the
         instrument). Each page has a table split into a block per plate. Each well shows its cell code, use number and

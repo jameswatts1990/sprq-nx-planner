@@ -4,6 +4,7 @@ import type { SampleDefaults } from "@/api/settings";
 import { CellTypeBadge } from "@/components/cells/CellTypeBadge";
 import { MovieTimeFlag } from "@/components/shared/MovieTimeFlag";
 import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
 import { CopyValue } from "@/components/ui/CopyValue";
 import { Note } from "@/components/ui/Note";
 import { useMovieRules } from "@/hooks/useMovieRules";
@@ -11,6 +12,7 @@ import type { BatchSheetPlateOut, BatchSheetRunOut, BatchSheetWellOut } from "@/
 import { tractionWellFromSlot } from "@/utils/plateWell";
 import { runLabel } from "@/utils/runLabel";
 
+import { LoadRunModal } from "./LoadRunModal";
 import { formatFullDate, plateHeading } from "./PrintedRun";
 import { platePositions, runAdaptiveLoading, runReminders, wellSettingDiffs } from "./tractionEntry";
 import styles from "./TractionRun.module.css";
@@ -21,6 +23,37 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
       <dt className={styles.fieldLabel}>{label}</dt>
       <dd className={styles.fieldValue}>{children}</dd>
     </>
+  );
+}
+
+/** A Traction True/False setting. "True" is solid magenta: Include Base Kinetics and Full
+ * Resolution Base Qual both cost data volume, so an "on" must never be keyed in by habit. */
+function BoolSetting({ value }: { value: string | undefined }) {
+  if (value == null) return <>—</>;
+  return value.toLowerCase() === "true" ? <Badge tone="magenta">{value}</Badge> : <>{value}</>;
+}
+
+/** The bench checks before a Revio is loaded. Ticks live only in this page session - a memory
+ * aid shown again in the Load modal if unfinished, never a gate. */
+export const PREFLIGHT_CHECKS = [
+  "Humidity >25% rH",
+  "Tips refilled",
+  "Deck reloaded",
+  "Excess cells disposed (if required)",
+] as const;
+
+function PreflightChecklist({ checked, onToggle }: { checked: Set<string>; onToggle: (item: string) => void }) {
+  return (
+    <ul className={styles.checklist}>
+      {PREFLIGHT_CHECKS.map((item) => (
+        <li key={item}>
+          <label className={styles.check}>
+            <input type="checkbox" checked={checked.has(item)} onChange={() => onToggle(item)} />
+            {item}
+          </label>
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -46,11 +79,13 @@ function WellDefaults({ run, defaults, defaultHours }: { run: BatchSheetRunOut; 
   return (
     <dl className={styles.fields}>
       <Field label="Movie Acquisition Time (hrs)">{defaultHours.toFixed(1)}</Field>
-      <Field label="Include Base Kinetics">{defaults?.base_kinetics ?? "—"}</Field>
-      <Field label="Use Adaptive Loading">
-        {adaptiveValue} <span className={styles.muted}>(whole run)</span>
+      <Field label="Include Base Kinetics">
+        <BoolSetting value={defaults?.base_kinetics} />
       </Field>
-      <Field label="Full Resolution Base Qual">{defaults?.full_resolution_base_q ?? "—"}</Field>
+      <Field label="Use Adaptive Loading">{adaptiveValue}</Field>
+      <Field label="Full Resolution Base Qual">
+        <BoolSetting value={defaults?.full_resolution_base_q} />
+      </Field>
     </dl>
   );
 }
@@ -105,7 +140,7 @@ function WellCard({
               <MovieTimeFlag hours={well.run_time_hours} />
               {diffs.map((d) => (
                 <span key={d.field} title={`${d.field}: ${d.value} (the default is ${d.defaultValue})`}>
-                  <Badge tone="ink">
+                  <Badge tone={d.value.toLowerCase() === "true" ? "magenta" : "ink"}>
                     {d.short} {d.value}
                   </Badge>
                 </span>
@@ -165,31 +200,95 @@ function PlateColumn({
   );
 }
 
+/** Steps between the day's instruments, one run on screen at a time. A side is undefined at
+ * the first/last run, which disables that arrow. */
+export interface RunNav {
+  position: number;
+  total: number;
+  prev?: { label: string; go: () => void };
+  next?: { label: string; go: () => void };
+}
+
+/** ‹ Load › - the instrument arrows with the run's Load action between them. Load is only
+ * offered while the run is still planned; afterwards the button states where the run is. */
+function RunControls({ run, nav, onLoad }: { run: BatchSheetRunOut; nav: RunNav; onLoad: () => void }) {
+  const planned = run.status === "planned";
+  return (
+    <div className={styles.controls}>
+      {nav.total > 1 && (
+        <span className={styles.muted}>
+          {nav.position} of {nav.total}
+        </span>
+      )}
+      <Button
+        size="sm"
+        onClick={nav.prev?.go}
+        disabled={!nav.prev}
+        title={nav.prev ? `Previous: ${nav.prev.label}` : "This is the first instrument"}
+        aria-label="Previous instrument"
+        className={styles.arrow}
+      >
+        ‹
+      </Button>
+      <Button
+        size="sm"
+        variant="primary"
+        onClick={onLoad}
+        disabled={!planned}
+        title={planned ? "Confirm this run has loaded and lock it" : `This run is ${run.status}`}
+      >
+        {planned ? "Load" : run.status === "running" ? "✓ Loaded" : run.status}
+      </Button>
+      <Button
+        size="sm"
+        onClick={nav.next?.go}
+        disabled={!nav.next}
+        title={nav.next ? `Next: ${nav.next.label}` : "This is the last instrument"}
+        aria-label="Next instrument"
+        className={styles.arrow}
+      >
+        ›
+      </Button>
+    </div>
+  );
+}
+
 /** One run on the on-screen Batch Sheet, laid out in the order of Traction's run form (Run
  * Details → Well Defaults → Plates 1/2, wells A1-D1) so the user can key it into Traction
  * top to bottom, copying each value with one click. Screen-only: printing uses PrintedRun. */
-export function TractionRun({ run, defaults }: { run: BatchSheetRunOut; defaults?: SampleDefaults }) {
+export function TractionRun({ run, defaults, nav }: { run: BatchSheetRunOut; defaults?: SampleDefaults; nav: RunNav }) {
   const { defaultHours } = useMovieRules();
   // Wells whose barcode has been copied this session - a lightweight progress marker across the run.
   const [copiedSlots, setCopiedSlots] = useState<Set<number>>(() => new Set());
+  const [preflight, setPreflight] = useState<Set<string>>(() => new Set());
+  const [loading, setLoading] = useState(false);
   const reminders = runReminders(run, defaults, defaultHours);
 
   function markCopied(slotIndex: number) {
     setCopiedSlots((prev) => (prev.has(slotIndex) ? prev : new Set(prev).add(slotIndex)));
   }
 
+  function togglePreflight(item: string) {
+    setPreflight((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(item)) next.add(item);
+      return next;
+    });
+  }
+
   return (
     <section className={styles.run}>
-      <h2 className={styles.title}>
-        {run.instrument_name}
-        {run.instrument_name !== run.instrument_serial && (
-          <span className={styles.muted}> ({run.instrument_serial})</span>
-        )}
-        <span className={styles.muted}> · Run {runLabel(run)}</span> <CellTypeBadge cellType={run.cell_type} />
-      </h2>
-      <div className={styles.meta}>
-        <span>Load day: {formatFullDate(run.load_date)}</span>
-        <span>Status: {run.status}</span>
+      <div className={styles.head}>
+        <h2 className={styles.title}>
+          {run.instrument_name}
+          {run.instrument_name !== run.instrument_serial && (
+            <span className={styles.muted}> ({run.instrument_serial})</span>
+          )}
+          <span className={styles.muted}> · Run {runLabel(run)}</span> <CellTypeBadge cellType={run.cell_type} />
+          <span className={styles.meta}>Load day: {formatFullDate(run.load_date)}</span>
+          <span className={styles.meta}>Status: {run.status}</span>
+        </h2>
+        <RunControls run={run} nav={nav} onLoad={() => setLoading(true)} />
       </div>
 
       {reminders.map((r) => (
@@ -205,14 +304,22 @@ export function TractionRun({ run, defaults }: { run: BatchSheetRunOut; defaults
             <CopyValue value={run.run_name} label="run name" />
           ) : (
             <span className={styles.muted}>
-              Traction generates it. Note it down: you&apos;ll enter it in RunNx when you confirm this run loaded.
+              Traction generates it. Note it down: you&apos;ll enter it when you press <b>Load</b> above.
             </span>
           )}
         </Field>
       </dl>
 
-      <h3 className={styles.sectionTitle}>Well Defaults</h3>
-      <WellDefaults run={run} defaults={defaults} defaultHours={defaultHours} />
+      <div className={styles.defaultsRow}>
+        <div>
+          <h3 className={styles.sectionTitle}>Well Defaults</h3>
+          <WellDefaults run={run} defaults={defaults} defaultHours={defaultHours} />
+        </div>
+        <div>
+          <h3 className={styles.sectionTitle}>Pre-flight checklist</h3>
+          <PreflightChecklist checked={preflight} onToggle={togglePreflight} />
+        </div>
+      </div>
 
       <h3 className={styles.sectionTitle}>Plates</h3>
       <div className={styles.plates}>
@@ -229,6 +336,13 @@ export function TractionRun({ run, defaults }: { run: BatchSheetRunOut; defaults
         ))}
       </div>
       <p className={styles.muted}>Volume isn&apos;t tracked in RunNx. Enter each well&apos;s volume in Traction.</p>
+      {loading && (
+        <LoadRunModal
+          run={run}
+          uncheckedPreflight={PREFLIGHT_CHECKS.filter((c) => !preflight.has(c))}
+          onClose={() => setLoading(false)}
+        />
+      )}
     </section>
   );
 }

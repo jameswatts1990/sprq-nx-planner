@@ -6,17 +6,56 @@
   padding: 18px 20px;
   margin-bottom: 22px;
 }
-.title {
-  font-size: var(--fs-title);
-  margin-bottom: 2px;
-}
-.meta {
+/* Title + load day/status on one line, the ‹ Load › controls pinned right. */
+.head {
   display: flex;
   flex-wrap: wrap;
-  gap: 16px;
-  font-size: var(--fs-base);
-  color: var(--grey);
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
   margin-bottom: 12px;
+}
+.title {
+  font-size: var(--fs-title);
+  margin: 0;
+}
+.meta {
+  margin-left: 16px;
+  font-size: var(--fs-base);
+  font-weight: 400;
+  color: var(--grey);
+  white-space: nowrap;
+}
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Well Defaults with the pre-flight checklist as a second column to its right. */
+.defaultsRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0 32px;
+}
+@media (max-width: 900px) {
+  .defaultsRow {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.checklist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+  font-size: var(--fs-base);
+}
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
 }
 .muted {
   color: var(--grey);
@@ -136,4 +175,10 @@
   border-radius: var(--r-sm);
   color: var(--grey);
   font-size: var(--fs-sm);
+}
+/* The ‹ › glyphs are tiny at button text size; size them to read as arrows. */
+.controls .arrow {
+  min-width: 34px;
+  font-size: 20px;
+  line-height: 1;
 }

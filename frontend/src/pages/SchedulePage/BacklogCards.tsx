@@ -31,6 +31,7 @@ const TONE_ACCENT_VAR: Record<BadgeTone, string> = {
   purple: "var(--purple)",
   sprq: "var(--sprq)",
   ink: "var(--ink)",
+  magenta: "var(--magenta)",
 };
 
 /** Draggable backlog sample card - doubles as the drag source for placing onto a slot.

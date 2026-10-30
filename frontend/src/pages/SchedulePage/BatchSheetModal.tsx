@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 import { ApiError } from "@/api/client";
 import { cyclesApi } from "@/api/cycles";
@@ -18,9 +19,10 @@ export interface BatchSheetModalProps {
 }
 
 /** Lets the user pick a day and which Revios to include, then opens the Batch Sheet
- * (/batch-sheet) in a new tab, so it can sit beside Traction while the runs are keyed in.
+ * (/batch-sheet) in this tab - the sheet has its own "Back to Schedule" link.
  * Printing is the browser's native print-to-PDF from that page - see BatchSheetPage. */
 export function BatchSheetModal({ instruments, onClose }: BatchSheetModalProps) {
+  const navigate = useNavigate();
   const [date, setDate] = useState(todayIsoUTC());
   // Explicit per-serial overrides layered on top of the "checked if scheduled" default;
   // cleared whenever the date changes so each day starts from a fresh default.
@@ -52,7 +54,7 @@ export function BatchSheetModal({ instruments, onClose }: BatchSheetModalProps) 
 
   function onViewSheet() {
     const qs = new URLSearchParams({ date, instruments: selectedSerials.join(",") });
-    window.open(`/batch-sheet?${qs.toString()}`, "_blank", "noopener,noreferrer");
+    navigate(`/batch-sheet?${qs.toString()}`);
     onClose();
   }
 

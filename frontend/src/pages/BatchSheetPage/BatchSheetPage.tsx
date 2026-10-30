@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
 import { ApiError } from "@/api/client";
@@ -12,10 +12,11 @@ import styles from "./BatchSheetPage.module.css";
 import { formatFullDate, PrintedRun } from "./PrintedRun";
 import { TractionRun } from "./TractionRun";
 
-/** The day's Batch Sheet, opened in a new tab from the Schedule page's "Batch Sheet" modal.
- * On screen it is a virtual batch sheet laid out like Traction's run form (TractionRun), for
- * keying each run into Traction with one-click copies; printing swaps in the paper loading
- * sheet with its bench worksheets (PrintedRun). Rendering is deliberately plain HTML + print
+/** The day's Batch Sheet, opened from the Schedule page's "Batch Sheet" modal. On screen it
+ * is a virtual batch sheet laid out like Traction's run form (TractionRun), one instrument at
+ * a time, for keying each run into Traction with one-click copies and then confirming it
+ * loaded; printing swaps in the paper loading sheet for every selected instrument, with its
+ * bench worksheets (PrintedRun). Rendering is deliberately plain HTML + print
  * CSS rather than a generated PDF file - the browser's own print-to-PDF covers that, with no
  * new backend dependency and no native-library install headaches. */
 export function BatchSheetPage() {
@@ -35,6 +36,10 @@ export function BatchSheetPage() {
     queryKey: ["sample-defaults"],
     queryFn: () => settingsApi.getSampleDefaults(),
   });
+
+  const runs = query.data?.runs ?? [];
+  const [index, setIndex] = useState(0);
+  const current = Math.min(index, Math.max(runs.length - 1, 0));
 
   // Name the tab — and so the browser's Save-as-PDF default filename — "YYYY.MM.DD - Revio <serial>".
   // A sheet covering several Revios joins their serials; falls back to the picked date before data loads.
@@ -86,16 +91,25 @@ export function BatchSheetPage() {
             </Note>
           )}
 
+          {/* One instrument on screen at a time. The others stay mounted (hidden) so their copied
+              marks and pre-flight ticks survive stepping away and back. */}
           <div className={styles.noPrint}>
-            {query.data.runs.length > 0 && (
-              <p className={styles.hint}>
-                Each run is laid out like Traction&apos;s run form, top to bottom. Click a value to copy it, then
-                paste it into the matching Traction field. <b>Print / Save as PDF</b> gives the paper loading sheet
-                with the bench worksheets instead.
-              </p>
-            )}
-            {query.data.runs.map((run) => (
-              <TractionRun key={run.run_id} run={run} defaults={defaultsQuery.data} />
+            {runs.map((run, i) => (
+              <div key={run.run_id} hidden={i !== current}>
+                <TractionRun
+                  run={run}
+                  defaults={defaultsQuery.data}
+                  nav={{
+                    position: i + 1,
+                    total: runs.length,
+                    prev: i > 0 ? { label: runs[i - 1].instrument_name, go: () => setIndex(i - 1) } : undefined,
+                    next:
+                      i < runs.length - 1
+                        ? { label: runs[i + 1].instrument_name, go: () => setIndex(i + 1) }
+                        : undefined,
+                  }}
+                />
+              </div>
             ))}
           </div>
 

@@ -12,7 +12,8 @@ export type BadgeTone =
   | "blue"
   | "purple"
   | "sprq"
-  | "ink";
+  | "ink"
+  | "magenta";
 
 export interface BadgeProps {
   tone?: BadgeTone;
@@ -33,6 +34,7 @@ const TONE_CLASS: Record<BadgeTone, string> = {
   purple: styles.purple,
   sprq: styles.sprq,
   ink: styles.ink,
+  magenta: styles.magenta,
 };
 
 export function Badge({ tone = "default", compact = false, children }: BadgeProps) {

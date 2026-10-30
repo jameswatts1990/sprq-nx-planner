@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { DEFAULT_CELL_TYPE } from "@/utils/cellType";
 
-import { clampLoadHour, fmtHour, LOAD_HOURS, stepLoadHour } from "./LoadTimePicker";
+import { clampLoadHour, fmtHour, LOAD_HOURS, stepLoadHour } from "./LoadTimeDial";
 
 describe("LoadTimePicker model", () => {
   it("starts a new run's cell-type toggle on SPRQ-Nx", () => {

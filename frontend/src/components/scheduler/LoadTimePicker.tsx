@@ -1,9 +1,11 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { Modal } from "@/components/ui/Modal";
 import { SegmentedControl, type SegmentedOption } from "@/components/ui/SegmentedControl";
 import type { CellType } from "@/types/common";
 import { DEFAULT_CELL_TYPE } from "@/utils/cellType";
+
+import { clampLoadHour, fmtHour, LoadTimeDial } from "./LoadTimeDial";
 
 import styles from "./LoadTimePicker.module.css";
 
@@ -27,26 +29,6 @@ const CELL_TYPE_HINT: Record<CellType, string> = {
   sprq_nx: "Reuses SPRQ-Nx cells already on this instrument first, otherwise opens a new SPRQ-Nx tray.",
   sprq: "The whole run uses single-use SPRQ cells: leftover SPRQ cells on this instrument first, otherwise a new SPRQ tray.",
 };
-
-/** Selectable load hours, 08:00-20:00 on the hour (13 sectors). */
-export const LOAD_HOURS = Array.from({ length: 13 }, (_, i) => i + 8);
-const FIRST = LOAD_HOURS[0];
-const LAST = LOAD_HOURS[LOAD_HOURS.length - 1];
-
-/** The highlight's start hour: the passed value if it's a selectable hour, else noon. */
-export function clampLoadHour(value: number): number {
-  return LOAD_HOURS.includes(value) ? value : 12;
-}
-
-/** Move the highlight one step around the ring, wrapping at both ends. */
-export function stepLoadHour(hour: number, dir: 1 | -1): number {
-  if (dir === 1) return hour >= LAST ? FIRST : hour + 1;
-  return hour <= FIRST ? LAST : hour - 1;
-}
-
-export function fmtHour(h: number): string {
-  return `${String(h).padStart(2, "0")}:00`;
-}
 
 export interface LoadTimePickerProps {
   /** Pre-selected/highlighted hour (8-20). Out-of-range falls back to noon. */
@@ -88,20 +70,7 @@ export function LoadTimePicker({
     ringRef.current?.focus();
   }, []);
 
-  function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
-    if (e.key === "ArrowRight" || e.key === "ArrowDown") {
-      e.preventDefault();
-      setActive((h) => stepLoadHour(h, 1));
-    } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
-      e.preventDefault();
-      setActive((h) => stepLoadHour(h, -1));
-    } else if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      onPick(active, cellType);
-    }
-    // Escape is handled by Modal's onClose (-> onCancel).
-  }
-
+  // Escape is handled by Modal's onClose (-> onCancel).
   return (
     <Modal onClose={onCancel} title={title} maxWidth={340}>
       <p className={styles.hint}>{subtitle ?? "Pick when this run loads (its cells prep, then sequencing starts)."}</p>
@@ -123,37 +92,14 @@ export function LoadTimePicker({
           </p>
         </div>
       )}
-      <div
-        ref={ringRef}
-        className={styles.ring}
-        role="listbox"
-        aria-label="Load time"
-        aria-activedescendant={`load-time-${active}`}
-        tabIndex={0}
-        onKeyDown={onKeyDown}
-      >
-        {LOAD_HOURS.map((h, i) => (
-          <button
-            key={h}
-            id={`load-time-${h}`}
-            type="button"
-            role="option"
-            aria-selected={h === active}
-            aria-label={fmtHour(h)}
-            className={`${styles.sector} ${h === active ? styles.active : ""}`}
-            style={{ ["--angle" as string]: `${(i / LOAD_HOURS.length) * 360}deg` }}
-            onMouseEnter={() => setActive(h)}
-            onFocus={() => setActive(h)}
-            onClick={() => onPick(h, cellType)}
-          >
-            {h}
-          </button>
-        ))}
-        <div className={styles.center} aria-hidden="true">
-          <div className={styles.centerTime}>{fmtHour(active)}</div>
-          <div className={styles.centerSub}>loads</div>
-        </div>
-      </div>
+      <LoadTimeDial
+        ringRef={ringRef}
+        active={active}
+        onActiveChange={setActive}
+        onPick={(h) => onPick(h, cellType)}
+        centerTime={fmtHour(active)}
+        centerSub="loads"
+      />
     </Modal>
   );
 }

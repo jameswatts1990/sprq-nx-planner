@@ -1,0 +1,31 @@
+.intro {
+  margin: 0 0 12px;
+}
+.field {
+  margin: 12px 0;
+}
+.label {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--grey);
+  margin-bottom: 7px;
+}
+.input {
+  width: 100%;
+  font-size: var(--fs-base);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 8px 10px;
+}
+.invalid {
+  border-color: var(--red);
+}
+.hint {
+  display: block;
+  margin-top: 6px;
+  font-size: 11.5px;
+  color: var(--red);
+}

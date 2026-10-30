@@ -15,7 +15,7 @@ import { SchedulePage } from "@/pages/SchedulePage/SchedulePage";
 
 // Rare / heavy routes are code-split so their large dependencies stay out of the initial
 // bundle that gates first paint of the default (Schedule) screen: StatsPage pulls in recharts,
-// ImportPage pulls in read-excel-file, and BatchSheetPage (a once-a-day standalone tab),
+// ImportPage pulls in read-excel-file, and BatchSheetPage (once a day),
 // SettingsPage and HelpPage are visited rarely. The daily-workflow routes above stay eagerly imported.
 const StatsPage = lazy(() => import("@/pages/StatsPage/StatsPage").then((m) => ({ default: m.StatsPage })));
 const ImportPage = lazy(() => import("@/pages/ImportPage").then((m) => ({ default: m.ImportPage })));

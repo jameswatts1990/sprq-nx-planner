@@ -64,3 +64,9 @@
   color: #fff;
   background: var(--ink);
 }
+/* Solid brand magenta - a Traction setting switched on (True) for Include Base Kinetics or
+   Full Resolution Base Qual on the Batch Sheet, so an "on" that costs data/time is unmissable. */
+.magenta {
+  color: #fff;
+  background: var(--magenta);
+}
