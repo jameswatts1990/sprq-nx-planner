@@ -14,6 +14,7 @@ import { soonestTrayExpiry } from "@/utils/openTrays";
 import { FADE_MIN_HOURS } from "@/utils/windowFade";
 
 import { CellStatusCard } from "./CellStatusCard";
+import { CellTypeBadge } from "./CellTypeBadge";
 import styles from "./TrayPanel.module.css";
 
 export interface TrayPanelProps {
@@ -83,6 +84,7 @@ export function TrayPanel({ trayId, cells, currentCellId, showDiscard = true }: 
         <span className={styles.metaItem}>
           {cells.length}/{traySize} cells
         </span>
+        <CellTypeBadge cellType={cells[0]?.cell_type} />
         {soonest !== null && (
           <Badge tone={urgent ? "danger" : "default"}>
             {urgent ? "Expires soon — " : "Next expiry: "}

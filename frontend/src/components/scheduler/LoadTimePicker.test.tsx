@@ -1,8 +1,14 @@
 import { describe, expect, it } from "vitest";
 
+import { DEFAULT_CELL_TYPE } from "@/utils/cellType";
+
 import { clampLoadHour, fmtHour, LOAD_HOURS, stepLoadHour } from "./LoadTimePicker";
 
 describe("LoadTimePicker model", () => {
+  it("starts a new run's cell-type toggle on SPRQ-Nx", () => {
+    expect(DEFAULT_CELL_TYPE).toBe("sprq_nx");
+  });
+
   it("offers 13 hourly slots from 08:00 to 20:00", () => {
     expect(LOAD_HOURS).toHaveLength(13);
     expect(LOAD_HOURS[0]).toBe(8);

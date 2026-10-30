@@ -114,6 +114,13 @@
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+/* "SPRQ" on a single-use SPRQ run, sized to the head's other 9px tags (the compact Badge
+   inherits this font). */
+.cellTypeTag {
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1.4;
+}
 .lockTag {
   font-family: var(--sans);
   font-size: 9px;

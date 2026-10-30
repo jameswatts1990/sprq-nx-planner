@@ -13,6 +13,7 @@ import { USE_STATUS_TONE } from "@/utils/useStatusTone";
 import { CellFoilStub } from "./CellFoilStub";
 import { CellLifeGantt } from "./CellLifeGantt";
 import styles from "./CellStatusCard.module.css";
+import { CellTypeBadge } from "./CellTypeBadge";
 import { UseBox } from "./UseBox";
 import { WindowRing } from "./WindowRing";
 
@@ -87,6 +88,7 @@ export const CellStatusCard = memo(function CellStatusCard({ cell, expanded = fa
             {cell.code}
           </Link>
           <Badge tone={CELL_STATUS_TONE[cell.status]}>{CELL_STATUS_LABEL[cell.status]}</Badge>
+          <CellTypeBadge cellType={cell.cell_type} />
           {cell.tray_reuse_disabled && <Badge tone="warning">Reuse skipped</Badge>}
           <span className={styles.uses}>
             {cell.uses_consumed} / {cell.max_uses} uses
@@ -99,6 +101,8 @@ export const CellStatusCard = memo(function CellStatusCard({ cell, expanded = fa
           trayPosition={cell.tray_position}
           homeWell={cell.current_well}
           useNumber={cell.uses_consumed}
+          cellType={cell.cell_type}
+          maxUses={cell.max_uses}
           trayId={cell.tray_id}
           seedId={cell.id}
         />
@@ -137,7 +141,8 @@ export const CellStatusCard = memo(function CellStatusCard({ cell, expanded = fa
             </div>
           )}
 
-          <CellLifeGantt uses={cell.uses} hoursElapsed={cell.window_hours_elapsed} />
+          {/* A single-use SPRQ cell has no reuse, so no 108h life to plot. */}
+          {cell.cell_type !== "sprq" && <CellLifeGantt uses={cell.uses} hoursElapsed={cell.window_hours_elapsed} />}
 
           {runGroups.length > 0 && (
             <div className={styles.uses2}>
@@ -153,7 +158,7 @@ export const CellStatusCard = memo(function CellStatusCard({ cell, expanded = fa
                   </Link>
                   {g.items.map(({ use, useNo }) => (
                     <div key={use.id} className={styles.useRow}>
-                      <UseBox use={useNo} />
+                      <UseBox use={useNo} cellType={cell.cell_type} />
                       <Badge tone={USE_STATUS_TONE[use.status] ?? "default"}>{use.status}</Badge>
                       {use.sample_id !== null && use.sample_pool_id !== null ? (
                         <Link to={`/samples/${use.sample_id}`} state={backNav} className={styles.useSample}>

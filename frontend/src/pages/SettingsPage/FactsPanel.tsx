@@ -77,7 +77,8 @@ function FactsBody({
     <>
       <Group title="Cell reuse">
         <Fact label="Re-use window" value={hours(facts.cell_lifetime_h)} note="from a cell’s first use — one deadline, never resets" />
-        <Fact label="Max uses per cell" value={String(facts.cell_max_uses)} note="acquisitions before a cell is spent" />
+        <Fact label="Max uses per SPRQ-Nx cell" value={String(facts.cell_max_uses)} note="acquisitions before a cell is spent" />
+        <Fact label="Max uses per SPRQ cell" value={String(facts.sprq_max_uses)} note="single-use: chosen per run on the load-time dial; no re-use window" />
         <Fact label="Cells per tray" value={String(facts.cells_per_tray)} note="disposed as one physical unit" />
       </Group>
 

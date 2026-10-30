@@ -10,6 +10,14 @@
   --teal: #00a6a6;
   --teal-deep: #017e7e;
   --teal-tint: #e0f5f5;
+  /* Single-use SPRQ cells - shown in their own indigo in place of the Use 1/2/3 colours
+     (a SPRQ cell is always Use 1 of 1). Picked to stay clear of the sky-blue Use 2, the purple
+     same-cell highlight and every warning hue. --sprq-border pairs with the card tint the
+     way the hard-coded u1-u3 card borders do in SchedulerSlotView. */
+  --sprq: #4b3fc4;
+  --sprq-deep: #352b9a;
+  --sprq-tint: #ebe9fb;
+  --sprq-border: #c9c4f2;
   --purple: #7a1fa2;
   --ink: #26262b;
   --grey: #6c6c74;

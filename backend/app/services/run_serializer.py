@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from sqlalchemy.orm import Session, selectinload
 
-from app.engine.constants import CELLS_PER_TRAY, within_tray_pos
+from app.engine.constants import CELL_TYPE_SPRQ_NX, CELLS_PER_TRAY, within_tray_pos
 from app.models.cell import Cell
 from app.models.schedule import CellUse, Cycle, RunBatch
 from app.schemas.run import PlateOut, RunOut, StageOut
@@ -22,6 +22,7 @@ from app.services.cell_service import (
     is_duplicate_cell_reuse,
     reuse_not_ready_hours,
     reuse_window_exceeded,
+    run_cell_type,
     use_sort_key,
     window_hours_elapsed,
 )
@@ -105,6 +106,7 @@ def _stage_out(
         cell_home_well=cell_use.cell.home_well if cell_use.cell else None,
         use_number=_use_number(cell_use),
         cell_max_uses=cell_use.cell.max_uses if cell_use.cell else 3,
+        cell_type=cell_use.cell.cell_type if cell_use.cell else CELL_TYPE_SPRQ_NX,
         run_time_hours=cell_use.run_time_hours,
         sample_id=cell_use.sample_id,
         sample_pool_id=cell_use.sample.pool_id if cell_use.sample else None,
@@ -255,6 +257,7 @@ def run_out(db: Session, run_batch: RunBatch, *, with_effective_start: bool = Fa
         load_date=run_batch.load_date,
         run_name=run_batch.run_name,
         status=status,
+        cell_type=run_cell_type(cycles),
         lock_until=lock_until,
         is_locked=is_locked,
         effective_start_at=effective_start_at,

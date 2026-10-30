@@ -6,6 +6,7 @@ from sqlalchemy import Date, DateTime, ForeignKey, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
+from app.engine.constants import CELL_TYPE_SPRQ_NX
 from app.models.credit_case import CreditCaseMixin
 
 
@@ -37,6 +38,10 @@ class PacbioCase(CreditCaseMixin, Base):
     # max uses and fail use; with no cell it can only be entered. Distinct from the mixin's
     # credit_acquisitions, which is what PacBio actually confirmed.
     expected_acquisitions: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Which kind of cell the case is about (engine.constants.CELL_TYPES) - a cell's own case
+    # reads Cell.cell_type, this one is told. PacBio credits acquisitions, and a single-use SPRQ
+    # cell is 1 acquisition where a SPRQ-Nx cell is 3, so the QC page needs it to count cells.
+    cell_type: Mapped[str] = mapped_column(String(16), default=CELL_TYPE_SPRQ_NX, server_default=CELL_TYPE_SPRQ_NX)
     created_by: Mapped[str | None] = mapped_column(String(120), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(

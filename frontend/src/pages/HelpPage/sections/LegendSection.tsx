@@ -1,5 +1,6 @@
 import { SchedulerSlotView } from "@/components/scheduler/SchedulerSlotView";
 import { CellStatusCard } from "@/components/cells/CellStatusCard";
+import { CellTypeBadge } from "@/components/cells/CellTypeBadge";
 import { TraySiblingList } from "@/components/cells/TraySiblingList";
 import { WindowMeter } from "@/components/cells/WindowMeter";
 import {
@@ -320,7 +321,21 @@ export function LegendSection() {
       <p className={styles.subheading}>Use colours (schedule barcode chips)</p>
       <div className={styles.legendRow}>
         <UseLegend />
-        <span>Which acquisition of a cell a barcode belongs to.</span>
+        <span>
+          Which acquisition of a cell a card, seal or barcode belongs to — or indigo for a single-use SPRQ cell, which
+          only ever runs once.
+        </span>
+      </div>
+
+      <p className={styles.subheading}>Cell type (Schedule, Cells)</p>
+      <div className={styles.legendRow}>
+        <span className={styles.legendSwatchLabel}>
+          <CellTypeBadge cellType="sprq" />
+        </span>
+        <span>
+          A run, tray or cell on single-use <b>SPRQ</b> cells (chosen on the load-time dial when the run was started).
+          Multi-use SPRQ-Nx — the everyday type — carries no badge.
+        </span>
       </div>
 
       <p className={styles.subheading}>Slot shading (Weekly schedule)</p>

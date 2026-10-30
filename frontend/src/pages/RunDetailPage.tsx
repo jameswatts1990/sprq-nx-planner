@@ -119,6 +119,9 @@ export function RunDetailPage() {
           </span>
         )}
         <span>
+          Cells <b>{run.cell_type === "sprq" ? "SPRQ (single use)" : "SPRQ-Nx"}</b>
+        </span>
+        <span>
           Status <Badge tone={CYCLE_STATUS_TONE[run.status]}>{run.status}</Badge>
         </span>
         <span>

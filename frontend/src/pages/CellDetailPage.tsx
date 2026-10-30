@@ -5,6 +5,7 @@ import { Link, useParams } from "react-router-dom";
 import { ApiError } from "@/api/client";
 import { cellsApi } from "@/api/cells";
 import { CellQcModal } from "@/components/cells/CellQcModal";
+import { CellTypeBadge } from "@/components/cells/CellTypeBadge";
 import { CreditCaseActions } from "@/components/cells/CreditCaseActions";
 import { PacbioCreditTracker } from "@/components/cells/PacbioCreditTracker";
 import { WindowMeter } from "@/components/cells/WindowMeter";
@@ -84,7 +85,14 @@ export function CellDetailPage() {
 
   const mainCard = (
     <Card>
-      <CardHeader badge={<Badge tone={CELL_STATUS_TONE[cell.status]}>{CELL_STATUS_LABEL[cell.status]}</Badge>}>
+      <CardHeader
+        badge={
+          <>
+            <CellTypeBadge cellType={cell.cell_type} />{" "}
+            <Badge tone={CELL_STATUS_TONE[cell.status]}>{CELL_STATUS_LABEL[cell.status]}</Badge>
+          </>
+        }
+      >
         <h2>{cell.code}</h2>
       </CardHeader>
       <CardBody>

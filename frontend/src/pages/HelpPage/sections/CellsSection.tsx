@@ -1,4 +1,5 @@
 import { CellStatusCard } from "@/components/cells/CellStatusCard";
+import { CellTypeBadge } from "@/components/cells/CellTypeBadge";
 
 import styles from "../HelpPage.module.css";
 import { EXAMPLE_CELL_UNREPORTED } from "./helpFixtures";
@@ -48,7 +49,9 @@ export function CellsSection() {
 
       <p className={styles.subheading}>Trays</p>
       <p>
-        A physical SPRQ-Nx SMRT Cell tray holds 4 cells. There isn&apos;t a separate tray screen — clicking a{" "}
+        A physical SMRT Cell tray holds 4 cells — multi-use <b>SPRQ-Nx</b> (up to 3 uses each), or single-use{" "}
+        <b>SPRQ</b>, whose cells and tray carry an indigo <CellTypeBadge cellType="sprq" /> badge and run once each (the
+        type is set per run on the Schedule&apos;s load-time dial). There isn&apos;t a separate tray screen — clicking a{" "}
         <b>tray id</b> anywhere in the app (a cell card, a cell&apos;s detail page, a seal popover, or the Schedule
         grid&apos;s instrument cell map) opens this same <b>Cells</b> tab <i>filtered to that one tray</i>. That view
         shows the tray&apos;s instrument, how many of its cells are present, its soonest window expiry, and the tray&apos;s
@@ -97,7 +100,9 @@ export function CellsSection() {
         position, and <b>T123</b> is that tray&apos;s id; click the code for the cell&apos;s full detail); and a
         colour-coded <b>foil stub</b> on the right edge naming the physical cell (<b>▣1</b>–<b>▣4</b>) and its current
         use number, tinted magenta / blue / teal for use 1 / 2 / 3. Terminally done cells (exhausted, retired, stopped)
-        show a neutral ring with no countdown.
+        show a neutral ring with no countdown. A single-use <b>SPRQ</b> cell reads <b>n / 1 uses</b>, its stub is
+        always indigo, and it has no 108-hour window (no countdown and no cell-life timeline) since it&apos;s never
+        reused.
       </p>
       <p>
         <b>Hover a card</b> (or flip <b>Expand all</b>) to open its details: which instrument and well it&apos;s in, its{" "}

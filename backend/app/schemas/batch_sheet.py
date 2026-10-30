@@ -7,6 +7,8 @@ from datetime import date, datetime
 
 from pydantic import BaseModel
 
+from app.schemas.common import CellType
+
 
 class BatchSheetWellOut(BaseModel):
     well: str
@@ -14,8 +16,12 @@ class BatchSheetWellOut(BaseModel):
     plate_number: int  # 1 or 2 - which plate this well is on
     cell_ref: str
     use_number: int  # 1-based Use 1/2/3 position, same derivation as StageOut.use_number
+    cell_max_uses: int  # the cell's own cap: 3 for SPRQ-Nx, 1 for single-use SPRQ
+    cell_type: CellType
     run_time_hours: int  # this well's own movie / run time (12/24/30) - per-cell, may differ within a run
-    cell_window_deadline: datetime | None  # cell.first_use_started_at + CELL_LIFETIME_H, if started
+    # cell.first_use_started_at + CELL_LIFETIME_H, if started; always None for a single-use SPRQ
+    # cell (it has no reuse, so no reuse-by deadline).
+    cell_window_deadline: datetime | None
     window_breached: bool
     sample_id: int | None
     sample_pool_id: str | None
@@ -48,6 +54,7 @@ class BatchSheetRunOut(BaseModel):
     run_name: str | None
     load_date: date
     status: str
+    cell_type: CellType  # the run's cell type - which tray type the tech racks for this run
     plates: list[BatchSheetPlateOut]
 
 

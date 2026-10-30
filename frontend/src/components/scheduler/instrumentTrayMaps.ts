@@ -1,5 +1,5 @@
 import type { CellOut } from "@/types/cell";
-import type { CellStatus } from "@/types/common";
+import type { CellStatus, CellType } from "@/types/common";
 import { parseDateOnly, todayIsoUTC } from "@/utils/calendarDates";
 import { CELL_LIFETIME_H } from "@/utils/windowFade";
 
@@ -18,13 +18,14 @@ export interface TrayPositionView {
   /** The cell's fixed tray position as a NUMBER 1-4 (PacBio "cell 1-4" - cells are numbered,
    * plates are lettered, so the two never read alike). */
   cellNumber: number;
-  /** Usable uses still available here (of 3) as of the END of the viewed week - the cell's
+  /** Usable uses still available here (of maxUses) as of the END of the viewed week - the cell's
    * remaining uses once every scheduled use this week has run, and 0 for any terminal/stopped
    * cell (its physical remainder can no longer be run). This is the committed-plan figure; for a
    * reference-time-aware count (how many have actually broken out by a given instant) see
    * usesRemainingAt(). */
   usesRemaining: number;
-  /** The cell's total use capacity (3) - the ceiling usesRemainingAt() counts down from. */
+  /** The cell's total use capacity (3 for SPRQ-Nx, 1 for single-use SPRQ) - the ceiling
+   * usesRemainingAt() counts down from. */
   maxUses: number;
   /** Each still-live (non-cancelled) use's breakout instant, in epoch ms (the backend's
    * breakout_anchor_at: the use's confirmed start, else its plate's planned start). Sorted
@@ -102,6 +103,8 @@ export interface TrayView {
   trayId: number;
   /** Carousel position: 0 = Plate 1 (wells A01-D01), 1 = Plate 2 (A02-D02). */
   carousel: 0 | 1;
+  /** SPRQ-Nx or single-use SPRQ - one type for the whole tray. */
+  cellType: CellType;
   /** The 4 cells by fixed tray position (A first), padded to whatever siblings are known. */
   positions: TrayPositionView[];
 }
@@ -153,7 +156,11 @@ function positionView(cell: CellOut, weekEndMs: number): TrayPositionView {
   const anchor = cell.first_use_started_at ?? cell.first_use_planned_start_at;
   const breakoutMs = anchor ? new Date(anchor).getTime() : null;
   const breakoutAt = breakoutMs !== null ? new Date(breakoutMs).toISOString() : null;
-  const expiryAt = breakoutMs !== null ? new Date(breakoutMs + CELL_LIFETIME_H * 3_600_000).toISOString() : null;
+  // A single-use SPRQ cell is never reused, so it has no 108h reuse deadline to show.
+  const expiryAt =
+    breakoutMs !== null && cell.cell_type !== "sprq"
+      ? new Date(breakoutMs + CELL_LIFETIME_H * 3_600_000).toISOString()
+      : null;
   // Each committed use's breakout instant. A cancelled use (a permanent Stop marker) never ran,
   // so it's excluded, matching how the backend's uses_remaining counts capacity. Computed for
   // terminal cells too, not just open ones: a cell can be marked exhausted the moment its whole
@@ -288,7 +295,12 @@ export function computeInstrumentTrayMaps(
       const positions = [...resident.siblings]
         .sort((a, b) => (a.tray_position ?? 0) - (b.tray_position ?? 0))
         .map((c) => positionView(c, weekEndMs));
-      carousel[pos] = { trayId: resident.trayId, carousel: pos, positions };
+      carousel[pos] = {
+        trayId: resident.trayId,
+        carousel: pos,
+        cellType: resident.siblings[0]?.cell_type ?? "sprq_nx",
+        positions,
+      };
     }
 
     out.set(serial, { asOfDate: days[0] ?? null, weekEndDate: days[days.length - 1] ?? null, carousel });

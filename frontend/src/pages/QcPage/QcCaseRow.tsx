@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 
+import { CellTypeBadge } from "@/components/cells/CellTypeBadge";
 import { CreditCaseActions } from "@/components/cells/CreditCaseActions";
 import { CreditStageStrip } from "@/components/cells/CreditStageStrip";
 import { PacbioCreditTracker } from "@/components/cells/PacbioCreditTracker";
@@ -165,6 +166,7 @@ export function CellCaseRow({
             {cell.code}
           </Link>
           <Badge tone={CELL_STATUS_TONE[cell.status]}>{CELL_STATUS_LABEL[cell.status]}</Badge>
+          <CellTypeBadge cellType={cell.cell_type} />
           {cell.current_instrument_serial && (
             <Link
               to={`/cells?instrument=${encodeURIComponent(cell.current_instrument_serial)}&status=all`}

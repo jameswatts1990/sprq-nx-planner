@@ -53,6 +53,11 @@
   color: var(--purple);
   background: var(--highlight-tint);
 }
+/* Indigo - a single-use SPRQ run/cell/tray (CellTypeBadge). A cell type, not a status. */
+.sprq {
+  color: var(--sprq-deep);
+  background: var(--sprq-tint);
+}
 /* Solid ink - the non-default movie-time label (MovieTimeFlag). A plain fact, not a status,
    so it borrows no status hue and reads on every Use 1/2/3 card tint. */
 .ink {

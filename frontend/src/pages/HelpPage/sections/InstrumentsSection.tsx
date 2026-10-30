@@ -53,7 +53,8 @@ export function InstrumentsSection() {
         <li>
           <b>Remaining SMRT Cell uses</b> — one box per cell currently on stages (not yet complete), each showing how
           many uses that cell has <em>left</em> after the one it&apos;s doing now, coloured by its use (magenta = Use 1,
-          blue = Use 2, teal = Use 3). Hover a box for the cell code and sample.
+          blue = Use 2, teal = Use 3, indigo = a single-use SPRQ cell, which always has 0 left). Hover a box for the
+          cell code and sample.
         </li>
         <li>
           <b>Use within</b> — a live countdown to when the <em>next</em> cell on a stage hits its 108-hour reuse

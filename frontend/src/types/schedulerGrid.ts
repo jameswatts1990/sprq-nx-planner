@@ -2,6 +2,7 @@
  * Separate from types/schedule.ts (the raw Run/Plate/Stage backend mirror) because these
  * describe the drag-and-drop grid surface and its mutation payloads. */
 
+import type { CellType } from "./common";
 import type { CellsPerDay, MaxUses, Objective, RunOut, RunTimeHours, SlotIndex } from "./schedule";
 
 /** How a placed sample gets its cell: a brand-new cell, or an existing reusable one. */
@@ -27,6 +28,11 @@ export interface PlaceSampleRequest {
    * already fixed. Omit to accept the backend's default (12:00). */
   start_hour?: number;
   start_minute?: number;
+  /** The load-time dial's SPRQ-Nx / SPRQ toggle - the cell type for a brand-new run. Omit to
+   * inherit an existing run's type (SPRQ-Nx for a new run); the other type than an existing
+   * run's is refused (409) - a run can't mix cell types. Remove-then-place flows send the
+   * stage's own type so a re-place founding a new run keeps it. */
+  cell_type?: CellType;
 }
 
 /** POST /api/cell-uses/{id}/move body. */

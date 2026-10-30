@@ -8,6 +8,7 @@ import { SectionHeading } from "@/components/shared/SectionHeading";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Note } from "@/components/ui/Note";
+import type { CellType } from "@/types/common";
 import type { PacbioCaseOut } from "@/types/pacbioCase";
 import {
   acquisitionsToTrays,
@@ -28,6 +29,7 @@ import {
   QC_CSV_HEADERS,
   type QcCase,
   qcCaseAge,
+  qcCaseCellType,
   qcCaseCredit,
   qcCaseCsvRow,
   qcCaseExpected,
@@ -84,17 +86,27 @@ function groupCases(items: QcCase[]): QcGroups {
 
 /** The operations-manager glance: one slim line of totals across every case (never the search
  * results), so it costs almost no height. Credited acquisitions are also shown as trays - PacBio's
- * FOC tracker counts trays (1 cell = 3 acquisitions = 0.25 tray). */
+ * FOC tracker counts trays - converted per case by its cell type (SPRQ-Nx: 1 cell = 3
+ * acquisitions; single-use SPRQ: 1 cell = 1 acquisition; 4 cells a tray). SPRQ and SPRQ-Nx trays
+ * are different products, so once any SPRQ credit exists the trays are shown per type. */
 function OverviewStrip({ items, groups, nowMs }: { items: QcCase[]; groups: QcGroups; nowMs: number }) {
   let overdue = 0;
   let pending = 0;
   let credited = 0;
+  const creditedTrays: Record<CellType, number> = { sprq_nx: 0, sprq: 0 };
   for (const item of items) {
     const credit = qcCaseCredit(item);
-    if (credit.pacbio_credit_confirmed_at) credited += credit.credit_acquisitions ?? 0;
-    else if (!credit.credit_received_at) pending += qcCaseExpected(item) ?? 0;
+    if (credit.pacbio_credit_confirmed_at) {
+      const acq = credit.credit_acquisitions ?? 0;
+      credited += acq;
+      creditedTrays[qcCaseCellType(item)] += acquisitionsToTrays(acq, qcCaseCellType(item));
+    } else if (!credit.credit_received_at) pending += qcCaseExpected(item) ?? 0;
     if (qcCaseAge(item, nowMs)?.overdue) overdue += 1;
   }
+  const creditedTrayText =
+    creditedTrays.sprq > 0
+      ? `${formatQuantity(creditedTrays.sprq_nx)} SPRQ-Nx + ${formatQuantity(creditedTrays.sprq)} SPRQ tray`
+      : `${formatQuantity(creditedTrays.sprq_nx)} tray`;
   const open = groups.needs_report.length + groups.awaiting.length + groups.confirmed.length;
   const stat = (label: string, value: string | number, title?: string, alert = false) => (
     <span className={styles.ovItem} title={title} data-alert={alert}>
@@ -115,8 +127,8 @@ function OverviewStrip({ items, groups, nowMs }: { items: QcCase[]; groups: QcGr
       {stat("Acq pending", pending, "Acquisitions expected back on open cases PacBio haven't confirmed yet")}
       {stat(
         "Acq credited",
-        `${credited} · ${formatQuantity(acquisitionsToTrays(credited))} tray`,
-        "Acquisitions PacBio confirmed (confirmed + received cases); 1 cell = 3 acquisitions = 0.25 tray",
+        `${credited} · ${creditedTrayText}`,
+        "Acquisitions PacBio confirmed (confirmed + received cases). A SPRQ-Nx cell is 3 acquisitions, a single-use SPRQ cell is 1; either way 4 cells = 1 tray",
       )}
     </div>
   );

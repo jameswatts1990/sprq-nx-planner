@@ -5,6 +5,22 @@
   text-align: center;
 }
 
+/* SPRQ-Nx / SPRQ toggle for a new run (showCellType), with a line saying what the choice does. */
+.cellType {
+  margin: 0 0 10px;
+}
+.cellTypeHint {
+  margin: 6px 0 0;
+  min-height: 2.8em; /* two lines either way, so the dial below doesn't jump on toggle */
+  color: var(--grey);
+  font-size: var(--fs-xs);
+  line-height: 1.4;
+  text-align: center;
+}
+.cellTypeHintSprq {
+  color: var(--sprq-deep);
+}
+
 /* The circular ring the hour sectors sit on. Square box; sectors are absolutely
    positioned around the centre. */
 .ring {

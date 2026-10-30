@@ -204,6 +204,8 @@ function SlotDetailBody({
         slot_index: stage.slot_index,
         run_time_hours: stage.run_time_hours,
         cell_choice: { mode: "new" },
+        // Keep the run's type even if removing this sample emptied (and deleted) the run.
+        cell_type: stage.cell_type,
       });
     },
     onSuccess: () => {

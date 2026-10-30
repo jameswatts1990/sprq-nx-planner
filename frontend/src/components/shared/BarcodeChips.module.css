@@ -44,6 +44,10 @@
   background: var(--teal-tint);
   color: var(--teal-deep);
 }
+.sprq {
+  background: var(--sprq-tint);
+  color: var(--sprq-deep);
+}
 .more {
   background: var(--line-soft);
   color: var(--grey);

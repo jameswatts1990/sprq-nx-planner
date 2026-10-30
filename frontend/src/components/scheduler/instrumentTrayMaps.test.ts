@@ -18,6 +18,7 @@ function cell(overrides: Partial<CellOut> = {}): CellOut {
     id: 1,
     code: "CELL-A000001",
     max_uses: 3,
+    cell_type: "sprq_nx",
     status: "open",
     uses_consumed: 0,
     uses_remaining: 3,
@@ -339,6 +340,31 @@ describe("computeInstrumentTrayMaps", () => {
 
     expect(map.carousel[0]!.trayId).toBe(1);
     expect(map.carousel[0]!.positions.every((p) => p.usesRemaining === 0)).toBe(true);
+  });
+
+  it("labels a single-use SPRQ tray and counts its cells down from 1 use", () => {
+    const cells = trayCells(5, "01", [
+      {
+        cell_type: "sprq",
+        max_uses: 1,
+        status: "exhausted",
+        uses_consumed: 1,
+        uses_remaining: 0,
+        last_use_run_date: "2026-07-20",
+        first_use_planned_start_at: "2026-07-20T09:00:00Z",
+      },
+      { cell_type: "sprq", max_uses: 1, uses_remaining: 1 },
+      { cell_type: "sprq", max_uses: 1, uses_remaining: 1 },
+      { cell_type: "sprq", max_uses: 1, uses_remaining: 1 },
+    ]);
+    const tray = build(cells).get(SERIAL)!.carousel[0]!;
+    expect(tray.cellType).toBe("sprq");
+    expect(tray.positions.map((p) => p.usesRemaining)).toEqual([0, 1, 1, 1]);
+    // No 108h reuse deadline on a single-use cell, even once it has a first use.
+    expect(tray.positions[0].expiryAt).toBeNull();
+    expect(cellExpiryState(tray.positions[0], Date.parse("2026-07-24T12:00:00Z"))).toBe("spent");
+    // An unused SPRQ sibling has no clock - it reads fresh, never expiring.
+    expect(cellExpiryState(tray.positions[1], Date.parse("2026-07-24T12:00:00Z"))).toBe("fresh");
   });
 
   it("shows a tray first loaded mid-week in its slot when it's the position's only tray", () => {

@@ -174,7 +174,7 @@ export function BacklogSection() {
         priority filter (searching is done with the Schedule toolbar&apos;s <b>Find</b> box), listing every backlog
         sample in one scrolling list rather than page by page. Sorting there is a compact dropdown (Created, Pool ID,
         Barcode, or Priority) plus a direction button rather than clickable column headers, since that panel is a
-        card list, not a table. Each card shows the sample&apos;s full Pool ID, its <b>movie time</b> (e.g. ⏱ 24 h),
+        card list, not a table. Each card shows the sample&apos;s full Pool ID, its <b>movie time</b> (e.g. ⏱ 24 h, or a solid dark <b>12h</b>/<b>30h</b> flag when it isn&apos;t the default),
         a coloured <b>priority</b> badge and any small-insert <b>&lt;5kb</b> flag, plus a one-line barcode row while
         the Schedule&apos;s <b>View options → Barcodes</b> is on, with a coloured left edge matching its priority. Drag a card onto a slot to
         schedule it, or <b>click</b> it to open that sample&apos;s detail page (the ✎ button in the card&apos;s corner

@@ -89,6 +89,8 @@ export function CellInfoPopover({ stage, run, onClose, onOpenQc }: CellInfoPopov
         slot_index: stage.slot_index,
         run_time_hours: stage.run_time_hours,
         cell_choice: { mode: "new" },
+        // Keep the run's type even if removing this sample emptied (and deleted) the run.
+        cell_type: stage.cell_type,
       });
     },
     onSuccess: () => {
@@ -120,6 +122,7 @@ export function CellInfoPopover({ stage, run, onClose, onOpenQc }: CellInfoPopov
         slot_index: stage.slot_index,
         run_time_hours: stage.run_time_hours,
         cell_choice: { mode: "existing", cell_id: cellId },
+        cell_type: stage.cell_type,
       });
     },
     onSuccess: () => {
@@ -147,7 +150,9 @@ export function CellInfoPopover({ stage, run, onClose, onOpenQc }: CellInfoPopov
         <div className={styles.row}>
           <span className={styles.label}>This load</span>
           <b className={styles.value}>
-            Use {stage.use_number} of {cell?.max_uses ?? 3}
+            {stage.cell_type === "sprq"
+              ? "Single-use SPRQ cell"
+              : `Use ${stage.use_number} of ${cell?.max_uses ?? stage.cell_max_uses}`}
           </b>
         </div>
         {cell && (
@@ -286,6 +291,7 @@ export function CellInfoPopover({ stage, run, onClose, onOpenQc }: CellInfoPopov
         <CellChoicePicker
           instrumentSerial={run.instrument_serial}
           suggestedTrayId={cell?.tray_id ?? null}
+          cellType={stage.cell_type}
           pending={chooseCell.isPending}
           onSelect={(cellId) => chooseCell.mutate(cellId)}
           onClose={() => setPickerOpen(false)}

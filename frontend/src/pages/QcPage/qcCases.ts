@@ -1,4 +1,5 @@
 import type { CellOut } from "@/types/cell";
+import type { CellType } from "@/types/common";
 import type { CreditCaseState } from "@/types/credit";
 import type { PacbioCaseOut } from "@/types/pacbioCase";
 import {
@@ -16,6 +17,7 @@ import {
   localDateOnly,
   triggeringUse,
 } from "@/utils/creditCase";
+import { CELL_TYPE_LABEL } from "@/utils/cellType";
 import { runLabel } from "@/utils/runLabel";
 
 /** One row of the QC worklist: a cell's own credit case, or a case logged without a cell. Both
@@ -44,6 +46,12 @@ export function qcCaseFailureMs(item: QcCase): number | null {
 
 export function qcCaseReceivedMs(item: QcCase): number {
   return ms(qcCaseCredit(item).credit_received_at) ?? 0;
+}
+
+/** Which kind of cell the case is about: read off the cell, or as entered for a no-cell case.
+ * Decides how credited acquisitions convert to cells (SPRQ-Nx 3 per cell, SPRQ 1). */
+export function qcCaseCellType(item: QcCase): CellType {
+  return item.kind === "cell" ? item.cell.cell_type : item.pacbioCase.cell_type;
 }
 
 /** Acquisitions to claim: computed for a cell (failed + remaining), entered for a no-cell case. */
@@ -107,6 +115,7 @@ function isoDay(iso: string | null): string {
 export const QC_CSV_HEADERS = [
   "Kind",
   "Case",
+  "Cell type",
   "Owner",
   "PacBio case number",
   "Internal report ID",
@@ -128,8 +137,9 @@ export const QC_CSV_HEADERS = [
 ];
 
 /** One case as a row of the QC export (QC_CSV_HEADERS order). Credited acquisitions are also
- * given as cells and trays (1 cell = 3 acquisitions = 0.25 tray) to tally against PacBio's FOC
- * tracker. Values are raw - the caller csvSafe()s them. */
+ * given as cells and trays by the case's cell type (SPRQ-Nx: 1 cell = 3 acquisitions; single-use
+ * SPRQ: 1 cell = 1 acquisition; 4 cells a tray) to tally against PacBio's FOC tracker. Values are
+ * raw - the caller csvSafe()s them. */
 export function qcCaseCsvRow(item: QcCase, nowMs: number = Date.now()): string[] {
   const credit = qcCaseCredit(item);
   const ctx = qcCaseContext(item);
@@ -138,9 +148,11 @@ export function qcCaseCsvRow(item: QcCase, nowMs: number = Date.now()): string[]
   const credited = credit.pacbio_credit_confirmed_at ? credit.credit_acquisitions : null;
   const { currentKey } = getCreditStages(credit);
   const failureMs = qcCaseFailureMs(item);
+  const cellType = qcCaseCellType(item);
   return [
     item.kind === "cell" ? "Cell" : "No cell",
     item.kind === "cell" ? item.cell.code : item.pacbioCase.summary,
+    CELL_TYPE_LABEL[cellType],
     credit.credit_owner ?? "",
     credit.pacbio_case_number ?? "",
     credit.internal_report_id ?? "",
@@ -150,8 +162,8 @@ export function qcCaseCsvRow(item: QcCase, nowMs: number = Date.now()): string[]
     age ? String(age.daysOpen) : "",
     expected == null ? "" : String(expected),
     credited == null ? "" : String(credited),
-    credited == null ? "" : formatQuantity(acquisitionsToCells(credited)),
-    credited == null ? "" : formatQuantity(acquisitionsToTrays(credited)),
+    credited == null ? "" : formatQuantity(acquisitionsToCells(credited, cellType)),
+    credited == null ? "" : formatQuantity(acquisitionsToTrays(credited, cellType)),
     isoDay(credit.pacbio_reported_at),
     isoDay(credit.internal_report_at),
     isoDay(credit.pacbio_credit_confirmed_at),

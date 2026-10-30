@@ -23,6 +23,7 @@ const NO_CELL_CASE: PacbioCaseOut = {
   run_name: null,
   pool_id: "TRAC-2-1234",
   expected_acquisitions: 4,
+  cell_type: "sprq_nx",
   created_by: "unknown",
   created_at: "2026-10-05T09:00:00Z",
   internal_report_id: null,
@@ -62,15 +63,28 @@ describe("buildPacbioCaseEmailContext", () => {
     expect(email.subject).toBe("Tray damaged on arrival");
     expect(email.body).toBe("TRAC-2-1234|—|84098|4|—|—");
   });
+
+  it("names the cell type, so PacBio knows a SPRQ cell is credited whole", () => {
+    const tpl = { to: "x", cc: "", subject: "", body: "<cell type>" };
+    expect(renderCreditEmail(tpl, buildPacbioCaseEmailContext(NO_CELL_CASE)).body).toBe("SPRQ-Nx");
+    const sprq = buildPacbioCaseEmailContext({ ...NO_CELL_CASE, cell_type: "sprq" });
+    expect(renderCreditEmail(tpl, sprq).body).toBe("SPRQ (single-use)");
+  });
 });
 
-describe("acquisition → cell / tray conversion (1 cell = 3 acq = 0.25 tray)", () => {
-  it("matches PacBio's FOC tracker units", () => {
-    expect(acquisitionsToCells(3)).toBe(1);
-    expect(acquisitionsToTrays(3)).toBe(0.25);
-    expect(formatQuantity(acquisitionsToTrays(9))).toBe("0.75");
-    expect(formatQuantity(acquisitionsToTrays(2))).toBe("0.17");
-    expect(formatQuantity(acquisitionsToTrays(12))).toBe("1");
+describe("acquisition → cell / tray conversion", () => {
+  it("SPRQ-Nx: 1 cell = 3 acquisitions = 0.25 tray (PacBio's FOC tracker units)", () => {
+    expect(acquisitionsToCells(3, "sprq_nx")).toBe(1);
+    expect(acquisitionsToTrays(3, "sprq_nx")).toBe(0.25);
+    expect(formatQuantity(acquisitionsToTrays(9, "sprq_nx"))).toBe("0.75");
+    expect(formatQuantity(acquisitionsToTrays(2, "sprq_nx"))).toBe("0.17");
+    expect(formatQuantity(acquisitionsToTrays(12, "sprq_nx"))).toBe("1");
+  });
+
+  it("single-use SPRQ: 1 cell = 1 acquisition = 0.25 tray", () => {
+    expect(acquisitionsToCells(1, "sprq")).toBe(1);
+    expect(acquisitionsToTrays(1, "sprq")).toBe(0.25);
+    expect(acquisitionsToTrays(4, "sprq")).toBe(1);
   });
 });
 

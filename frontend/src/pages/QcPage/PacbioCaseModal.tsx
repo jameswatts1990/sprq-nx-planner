@@ -7,11 +7,20 @@ import { pacbioCasesApi } from "@/api/pacbioCases";
 import { Button } from "@/components/ui/Button";
 import { Modal, ModalActions } from "@/components/ui/Modal";
 import { Note } from "@/components/ui/Note";
+import { SegmentedControl, type SegmentedOption } from "@/components/ui/SegmentedControl";
 import { invalidateCreditCases } from "@/lib/invalidateCreditCases";
+import type { CellType } from "@/types/common";
 import type { PacbioCaseDetailsIn, PacbioCaseOut } from "@/types/pacbioCase";
+import { DEFAULT_CELL_TYPE } from "@/utils/cellType";
 import { readRememberedOwner, rememberOwner } from "@/utils/rememberedOwner";
 
 import styles from "./QcPage.module.css";
+
+/** PacBio credits acquisitions, and a cell's type sets how many make a cell - so the case says which. */
+const CELL_TYPE_OPTIONS: SegmentedOption<CellType>[] = [
+  { value: "sprq_nx", label: "SPRQ-Nx", hint: "3 acquisitions / cell", title: "Multi-use SPRQ-Nx cell" },
+  { value: "sprq", label: "SPRQ", hint: "1 acquisition / cell", title: "Single-use SPRQ cell" },
+];
 
 /** Today as YYYY-MM-DD in the user's own timezone (the date input's value format). */
 function todayIso(): string {
@@ -45,6 +54,7 @@ export function PacbioCaseModal({ existing, onClose, onSaved }: PacbioCaseModalP
   const [instrumentId, setInstrumentId] = useState(existing?.instrument_id?.toString() ?? "");
   const [runName, setRunName] = useState(existing?.run_name ?? "");
   const [poolId, setPoolId] = useState(existing?.pool_id ?? "");
+  const [cellType, setCellType] = useState<CellType>(existing?.cell_type ?? DEFAULT_CELL_TYPE);
   const [expected, setExpected] = useState(existing?.expected_acquisitions?.toString() ?? "");
   const [owner, setOwner] = useState(() => (existing ? "" : readRememberedOwner()));
   const [caseNumber, setCaseNumber] = useState("");
@@ -79,6 +89,7 @@ export function PacbioCaseModal({ existing, onClose, onSaved }: PacbioCaseModalP
         run_name: runName.trim() || null,
         pool_id: poolId.trim() || null,
         expected_acquisitions: expected ? Number(expected) : null,
+        cell_type: cellType,
       };
       if (existing) return pacbioCasesApi.update(existing.id, details);
       return pacbioCasesApi.create({
@@ -183,6 +194,16 @@ export function PacbioCaseModal({ existing, onClose, onSaved }: PacbioCaseModalP
               onChange={(e) => setPoolId(e.target.value)}
               placeholder="e.g. TRAC-2-1234"
               maxLength={120}
+            />
+          </div>
+          <div className={styles.field}>
+            <span className={styles.fieldLabel}>Cell type</span>
+            <SegmentedControl
+              options={CELL_TYPE_OPTIONS}
+              value={cellType}
+              onChange={setCellType}
+              ariaLabel="Cell type"
+              fullWidth
             />
           </div>
           <div className={styles.field}>

@@ -198,11 +198,15 @@ function TrayStrip({ tray, refMs, live }: { tray: TrayView; refMs: number; live:
   return (
     <div className={styles.strip}>
       <Link
-        className={styles.trayHeader}
+        className={`${styles.trayHeader} ${tray.cellType === "sprq" ? styles.trayHeaderSprq : ""}`}
         to={`/cells?tray=${tray.trayId}`}
-        title={`Tray ${tray.trayId} - view this tray's 4 cells`}
+        title={
+          tray.cellType === "sprq"
+            ? `Single-use SPRQ tray ${tray.trayId} - each cell runs once. View this tray's 4 cells`
+            : `Tray ${tray.trayId} - view this tray's 4 cells`
+        }
       >
-        TRAY #{tray.trayId}
+        {tray.cellType === "sprq" ? "SPRQ" : "TRAY"} #{tray.trayId}
       </Link>
       <div className={styles.cells}>
         {tray.positions.map((p) => (

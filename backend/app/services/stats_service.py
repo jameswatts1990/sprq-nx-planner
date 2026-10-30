@@ -59,6 +59,7 @@ from app.services.cell_service import (
     awaiting_credit,
     current_location,
     derive_cell_state,
+    is_single_use,
     last_use_run_date,
     needs_qc_report,
 )
@@ -260,6 +261,10 @@ def _reuse_and_inventory_cells(db, date_from, date_to, instrument_serial):
             continue
 
         cell_status[cell.status] += 1  # snapshot, not date-filtered
+        if is_single_use(cell):
+            # A single-use SPRQ cell can never be reused - counting it would drag down the
+            # reuse-depth / Use-3 / window-waste figures, which measure SPRQ-Nx reuse only.
+            continue
 
         uses_consumed, _remaining, _burned = derive_cell_state(cell)
         is_terminal = cell.status in TERMINAL_CELL_STATUSES or uses_consumed >= cell.max_uses

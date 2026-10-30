@@ -71,7 +71,15 @@ function cellReportContext(cell: CellOut): IssueReportContext {
   const useNo = failUseNumber(cell.uses);
   return {
     occurredOn: failureAt ? new Date(failureAt) : null,
-    problem: ["Failed Cell", run, well, useNo ? `use ${useNo}` : ""].filter(Boolean).join(" "),
+    // A single-use SPRQ cell is named as such - PacBio credits it as a whole cell, not 1 of 3 uses.
+    problem: [
+      cell.cell_type === "sprq" ? "Failed SPRQ Cell" : "Failed Cell",
+      run,
+      well,
+      useNo && cell.cell_type !== "sprq" ? `use ${useNo}` : "",
+    ]
+      .filter(Boolean)
+      .join(" "),
     caseNumber: cell.pacbio_case_number,
     sampleId: use?.sample_pool_id ?? "",
     instrumentSerial: use?.instrument_serial ?? null,
@@ -82,7 +90,9 @@ function cellReportContext(cell: CellOut): IssueReportContext {
 function pacbioCaseReportContext(pc: PacbioCaseOut): IssueReportContext {
   return {
     occurredOn: localDateOnly(pc.occurred_on),
-    problem: [pc.summary, pc.run_name].filter(Boolean).join(" – "),
+    problem: [pc.cell_type === "sprq" ? `${pc.summary} (SPRQ cell)` : pc.summary, pc.run_name]
+      .filter(Boolean)
+      .join(" – "),
     caseNumber: pc.pacbio_case_number,
     sampleId: pc.pool_id ?? "",
     instrumentSerial: pc.instrument_serial,
@@ -620,6 +630,9 @@ function CreditStageActions({
 /** Plain-language explanation of how the expected reimbursement was derived, shown on hover so
  * the figure is never a mystery number (Transparent: why, at a glance). */
 function reimbursementTitle(cell: CellOut, amount: number): string {
+  if (cell.cell_type === "sprq") {
+    return "A single-use SPRQ cell runs once, so its failed acquisition is the whole cell: 1 acquisition = 1 cell.";
+  }
   const failNo = failUseNumber(cell.uses);
   const basis = failNo == null ? "" : ` (max ${cell.max_uses} + 1 − use ${failNo} = ${amount})`;
   return (

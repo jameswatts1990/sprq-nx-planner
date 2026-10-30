@@ -1,3 +1,4 @@
+import { CellTypeBadge } from "@/components/cells/CellTypeBadge";
 import { Badge } from "@/components/ui/Badge";
 import { CREDIT_OVERDUE_DAYS, NO_CELL_BADGE, OVERDUE_BADGE } from "@/utils/creditCase";
 
@@ -38,8 +39,13 @@ export function QcSection() {
         </li>
         <li>
           <b>Acq credited</b> — the acquisitions PacBio have confirmed, across confirmed and received cases, also shown
-          in <b>trays</b>. PacBio credit acquisitions translated to cells — <b>1 cell = 3 acquisitions = 0.25 tray</b> —
-          and their FOC tracker counts trays, so the tray figure is the one to tally against it.
+          in <b>trays</b>. PacBio credit acquisitions translated to cells, and how many make a cell depends on the cell
+          type: a multi-use <b>SPRQ-Nx</b> cell is <b>3 acquisitions</b>, a single-use <b>SPRQ</b> cell is{" "}
+          <b>1 acquisition</b> — so one SPRQ credit is a whole cell. Either way <b>4 cells = 1 tray</b>. Their FOC
+          tracker counts trays, so the tray figure is the one to tally against it; once any SPRQ credit exists the
+          trays are shown per type (<i>SPRQ-Nx + SPRQ</i>), since they&apos;re different products. Each case carries an
+          indigo <CellTypeBadge cellType="sprq" /> badge when it&apos;s about a SPRQ cell, and the CSV export has a{" "}
+          <b>Cell type</b> column with the cells and trays worked out the same way.
         </li>
       </ul>
 
@@ -126,7 +132,9 @@ export function QcSection() {
           <b>What happened</b> and the <b>date</b> are required. The <b>instrument</b>, <b>run</b>,{" "}
           <b>sample / Pool ID</b> and <b>acquisitions to claim</b> are optional — they fill in{" "}
           <b>Generate email…</b> and <b>Generate report</b>, and the acquisitions show as the case&apos;s{" "}
-          <b>Expected reimbursement</b>. Add the <b>owner</b> here too.
+          <b>Expected reimbursement</b>. Add the <b>owner</b> here too. Set the <b>cell type</b> (SPRQ-Nx, the
+          default, or single-use SPRQ) so the credit counts as the right number of cells — a SPRQ cell is 1
+          acquisition, a SPRQ-Nx cell 3.
         </li>
         <li>
           <b>Already progressed?</b> Logging an older case, fill in any step you&apos;ve already done — the{" "}

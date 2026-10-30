@@ -1,4 +1,4 @@
-import type { CellStatus } from "./common";
+import type { CellStatus, CellType } from "./common";
 import type { CreditCaseState } from "./credit";
 
 export interface CellUseHistoryOut {
@@ -65,6 +65,8 @@ export interface CellUseSummaryOut {
 export interface CellOut extends CreditCaseState {
   id: number;
   code: string;
+  /** SPRQ-Nx (up to 3 uses) or single-use SPRQ - max_uses follows it. */
+  cell_type: CellType;
   max_uses: number;
   status: CellStatus;
   uses_consumed: number;

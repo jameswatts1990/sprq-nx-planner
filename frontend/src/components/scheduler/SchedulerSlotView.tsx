@@ -7,12 +7,20 @@ import { InsertSizeFlag } from "@/components/shared/InsertSizeFlag";
 import { MovieTimeFlag } from "@/components/shared/MovieTimeFlag";
 import { useInsertSizeThreshold } from "@/hooks/useInsertSizeThreshold";
 import type { SlotIndex, StageOut } from "@/types/schedule";
-import { classForUseIndex } from "@/utils/useIndexClass";
+import { classForCell, classForUseIndex, type UseClass } from "@/utils/useIndexClass";
 import { cellPositionLabel, plateWellFromSlot } from "@/utils/plateWell";
 import { CELL_LIFETIME_H, expiryFadeOpacity } from "@/utils/windowFade";
 
 import styles from "./SchedulerSlotView.module.css";
 import { CELL_LINK_SLOT_ATTR } from "./useCellLinkHighlight";
+
+/** The ticket stub's solid base colour, per use colour class. */
+const STUB_CLASS: Record<UseClass, string> = {
+  u1: styles.stubU1,
+  u2: styles.stubU2,
+  u3: styles.stubU3,
+  sprq: styles.stubSprq,
+};
 
 export interface SchedulerSlotViewProps extends HTMLAttributes<HTMLDivElement> {
   /** The filled well, or null for an empty slot placeholder. */
@@ -181,8 +189,10 @@ export const SchedulerSlotView = memo(
   const windowExceeded = showStage && !!stage!.reuse_window_exceeded && stage!.cell_use_status === "planned";
 
   // Colour groups by which physical cell is loaded (stage.use_number), not by well
-  // position - so a cell reused across two wells in the same run shares one colour.
-  const useClass = classForUseIndex(showStage ? stage!.use_number : slotIndex + 1);
+  // position - so a cell reused across two wells in the same run shares one colour. A
+  // single-use SPRQ cell reads in its own SPRQ colour instead.
+  const useClass = showStage ? classForCell(stage!.use_number, stage!.cell_type) : classForUseIndex(slotIndex + 1);
+  const isSprq = showStage && stage!.cell_type === "sprq";
   // The right-edge cell "ticket stub": the physical CELL's position (PacBio "cell 1-4" -
   // NUMBERED, since plates are lettered) plus the use number in its own colour-coded square,
   // e.g. "▣1 [1]" = cell 1, Use 1. The position prefix is U+25A3 (▣), not the letter "C", so it
@@ -194,13 +204,7 @@ export const SchedulerSlotView = memo(
   // in slot A01 but running on cell 2 reads "▣2".
   const stubCell = showStage ? cellPositionLabel(stage!.tray_position, stage!.cell_home_well ?? stage!.well) : "";
   const stubUse = showStage ? stage!.use_number : 0;
-  const stubClass = !showStage
-    ? ""
-    : stage!.use_number >= 3
-      ? styles.stubU3
-      : stage!.use_number === 2
-        ? styles.stubU2
-        : styles.stubU1;
+  const stubClass = showStage ? STUB_CLASS[useClass] : "";
   // Holographic "security seal" identity: every physical cell gets its own look, so the same
   // cell+use label (e.g. "▣1 [1]") on two different days reads as two DIFFERENT physical cells
   // at a glance. Two independent, deterministic signals both keyed off the cell:
@@ -399,7 +403,11 @@ export const SchedulerSlotView = memo(
               type="button"
               className={`${styles.stub} ${stubClass}`}
               style={{ [("--seal-hue") as string]: `${sealHue}deg` }}
-              title={`Cell ${stage!.cell_ref} · Use ${stage!.use_number} of 3 — click for cell details`}
+              title={
+                isSprq
+                  ? `Cell ${stage!.cell_ref} · single-use SPRQ cell — click for cell details`
+                  : `Cell ${stage!.cell_ref} · Use ${stage!.use_number} of ${stage!.cell_max_uses} — click for cell details`
+              }
               aria-label={`Cell ${stage!.cell_ref}, use ${stage!.use_number}. Open cell details.`}
               onPointerDown={(e) => e.stopPropagation()}
               onKeyDown={(e) => e.stopPropagation()}

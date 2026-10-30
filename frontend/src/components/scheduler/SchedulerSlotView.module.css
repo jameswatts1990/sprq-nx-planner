@@ -85,6 +85,11 @@
   background: var(--teal-tint);
   border-color: #bfe8e8;
 }
+/* A single-use SPRQ cell - its own indigo instead of the Use 1/2/3 colours. */
+.sprq.filled {
+  background: var(--sprq-tint);
+  border-color: var(--sprq-border);
+}
 
 /* Cell "ticket stub": the physical cell's position (numbered "▣1"-"▣4", a U+25A3 prefix rather
    than "C" so it never reads as plate column-C) + its use number in
@@ -136,6 +141,9 @@
 }
 .stubU3 {
   background: var(--teal);
+}
+.stubSprq {
+  background: var(--sprq);
 }
 
 /* ── Holographic security-seal identity ─────────────────────────────────────────
@@ -501,6 +509,9 @@
 }
 .useNumberWatermark.u3 {
   color: var(--teal-deep);
+}
+.useNumberWatermark.sprq {
+  color: var(--sprq-deep);
 }
 /* Shades a filled slot by how far its cell has travelled through its own 108h window -
    --window-opacity is set inline per-slot by SchedulerSlotView's fade calculation (see

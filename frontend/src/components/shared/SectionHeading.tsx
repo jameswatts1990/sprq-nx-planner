@@ -59,6 +59,10 @@ export function UseLegend() {
         <span className={`${styles.sw} ${styles.u3}`} />
         Use 3
       </span>
+      <span className={styles.lg} title="Single-use SPRQ cells - each runs once, so they never reach Use 2">
+        <span className={`${styles.sw} ${styles.sprq}`} />
+        SPRQ (single-use)
+      </span>
     </>
   );
 }

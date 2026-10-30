@@ -1,5 +1,6 @@
 import type { BadgeTone } from "@/components/ui/Badge";
 import type { CellOut } from "@/types/cell";
+import type { CellType } from "@/types/common";
 import type { CreditCaseState } from "@/types/credit";
 
 /** The PacBio credit workflow stages, in workflow order. "failure" is the always-done entry
@@ -132,17 +133,19 @@ export const CREDIT_NEXT_STEP_LABEL: Record<Exclude<CreditStageKey, "failure">, 
  * legend. Orange (caution) so it reads as "this one is different" without borrowing a stage tone. */
 export const NO_CELL_BADGE: { tone: BadgeTone; label: string } = { tone: "orange", label: "No cell link" };
 
-/** PacBio credits acquisitions translated to cells: 1 cell = 3 acquisitions = 0.25 tray (the lab's
- * confirmed basis). Their FOC tracker reports the tray fraction, so totals show both. */
-export const ACQUISITIONS_PER_CELL = 3;
+/** PacBio credits acquisitions, translated to cells by the cell's type (the lab's confirmed
+ * basis): a multi-use SPRQ-Nx cell is 3 acquisitions, a single-use SPRQ cell is 1 - so one SPRQ
+ * acquisition is a whole cell. Either way a cell is 0.25 tray. Their FOC tracker reports the tray
+ * fraction, so totals show both. */
+export const ACQUISITIONS_PER_CELL: Record<CellType, number> = { sprq_nx: 3, sprq: 1 };
 export const CELLS_PER_TRAY = 4;
 
-export function acquisitionsToCells(acquisitions: number): number {
-  return acquisitions / ACQUISITIONS_PER_CELL;
+export function acquisitionsToCells(acquisitions: number, cellType: CellType): number {
+  return acquisitions / ACQUISITIONS_PER_CELL[cellType];
 }
 
-export function acquisitionsToTrays(acquisitions: number): number {
-  return acquisitions / (ACQUISITIONS_PER_CELL * CELLS_PER_TRAY);
+export function acquisitionsToTrays(acquisitions: number, cellType: CellType): number {
+  return acquisitionsToCells(acquisitions, cellType) / CELLS_PER_TRAY;
 }
 
 /** A cell/tray quantity to at most 2 decimals, without trailing zeros (0.75, 0.5, 1). */

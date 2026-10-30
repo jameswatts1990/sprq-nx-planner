@@ -7,6 +7,7 @@ import { ApiError } from "@/api/client";
 import { cellsApi } from "@/api/cells";
 import { instrumentsApi } from "@/api/instruments";
 import { CellStatusCard } from "@/components/cells/CellStatusCard";
+import { CellTypeBadge } from "@/components/cells/CellTypeBadge";
 import { TrayPanel } from "@/components/cells/TrayPanel";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -376,6 +377,7 @@ function GroupHeader({ groupBy, cells }: GroupHeaderProps) {
         )}
         {instrument && <span className={styles.groupMeta}>· {instrument}</span>}
         <span className={styles.groupCount}>{countLabel}</span>
+        <CellTypeBadge cellType={cells[0]?.cell_type} />
         {soonest !== null && (
           <span className={urgent ? styles.groupExpiryUrgent : styles.groupExpiry}>{expiryText(soonest)}</span>
         )}

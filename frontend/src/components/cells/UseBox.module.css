@@ -29,3 +29,8 @@
   color: var(--teal-deep);
   background: var(--teal-tint);
 }
+.sprq {
+  border-color: var(--sprq);
+  color: var(--sprq-deep);
+  background: var(--sprq-tint);
+}

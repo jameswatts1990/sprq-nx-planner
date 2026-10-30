@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import type { RunOut, StageOut } from "@/types/schedule";
 import { cellPositionLabel } from "@/utils/plateWell";
 import { computeTimeline, PPA_H, PPA_SERVERS, type StageTiming } from "@/utils/stageTimings";
-import { classForUseIndex } from "@/utils/useIndexClass";
+import { classForCell } from "@/utils/useIndexClass";
 
 import styles from "./RunStageGantt.module.css";
 
@@ -72,7 +72,7 @@ function GanttRow({
   const s = t.stage;
   // The physical cell's position label ("▣2"), same as the grid card's ticket stub.
   const cell = cellPositionLabel(s.tray_position, s.cell_home_well ?? s.well);
-  const useClass = classForUseIndex(s.use_number);
+  const useClass = classForCell(s.use_number, s.cell_type);
   const pct = (h: number) => `${(h / spanH) * 100}%`;
   // The current row is the one the popover already shows, so clicking it is a no-op — keep it
   // plain text. Every other row with a real sample becomes a jump-to-that-placement button.

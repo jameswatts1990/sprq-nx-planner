@@ -6,6 +6,7 @@ import { cellsApi } from "@/api/cells";
 import { cellUsesApi } from "@/api/cellUses";
 import { ApiError } from "@/api/client";
 import { cyclesApi } from "@/api/cycles";
+import { CellTypeBadge } from "@/components/cells/CellTypeBadge";
 import { TraySiblingList } from "@/components/cells/TraySiblingList";
 import { formatLoadTime, isValidLoadTime, parseLoadTime } from "@/components/scheduler/loadTime";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
@@ -370,6 +371,11 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
                 </span>
               ) : null;
             })()}
+            {run.cell_type === "sprq" && (
+              <span className={styles.cellTypeTag}>
+                <CellTypeBadge cellType={run.cell_type} compact />
+              </span>
+            )}
             {locked ? (
               <>
                 {run.status === "running" ? (

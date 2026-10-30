@@ -176,7 +176,8 @@ export function ScheduleSection() {
       </p>
       <ul>
         <li>
-          The big number on each position is that cell&apos;s <b>uses remaining</b> (of 3), and beneath it a coloured
+          The big number on each position is that cell&apos;s <b>uses remaining</b> (of 3 — or of 1 on a single-use
+          SPRQ tray, whose header reads <b>SPRQ #id</b> in indigo instead of <b>TRAY #id</b>), and beneath it a coloured
           status icon + <b>DD/MM</b> gives the cell&apos;s <b>108-hour reuse deadline</b> with a short countdown (e.g.{" "}
           <i>2d left</i>). By default the number counts every use <b>scheduled this week</b> — what will be left once
           the week&apos;s plan has run; hover for the live <b>NOW</b> view (below) and it switches to what&apos;s left{" "}
@@ -245,7 +246,8 @@ export function ScheduleSection() {
         them and let Auto Schedule place them again under today&apos;s rules. It&apos;s for the rare case where a
         schedule was worked out under a rule that&apos;s since been corrected, and needs re-packing to actually
         benefit from the fix — day-to-day scheduling never needs it. A confirmation dialog explains what it will do
-        before anything changes; <b>confirmed/loaded runs are always left exactly as they are</b>, and it reaches
+        before anything changes; <b>confirmed/loaded runs and single-use SPRQ runs are always left exactly as they
+        are</b>, and it reaches
         every planned run on that instrument, not just the week you happen to be viewing. To actually reuse a cell
         instead of opening a new tray, it can push a sample onto a <b>later day it wasn&apos;t on before</b> — never
         earlier, and never touching a different instrument — whenever that lets fewer physical cells be used. In{" "}
@@ -321,7 +323,8 @@ export function ScheduleSection() {
         the backlog is docked to the side) opens the <b>Autoschedule</b>{" "}
         panel — a pop-out from the left edge — which sets the parameters used for both single placements and auto-fill.
         Close it with the <b>✕</b>, the <b>Esc</b> key, or by clicking outside it; your grid selection stays put while
-        it&apos;s open. The same controls are shown live below:
+        it&apos;s open. Auto Schedule always plans multi-use <b>SPRQ-Nx</b> cells — single-use SPRQ runs are only ever
+        set up by hand (see <i>Single-use SPRQ cells</i>). The same controls are shown live below:
       </p>
       <dl className={styles.terms}>
         <dt>Max uses per cell (1× / 2× / 3×)</dt>
@@ -347,7 +350,11 @@ export function ScheduleSection() {
           carousel position) and <b>30 h</b> samples only on <b>cell 4</b> (the D-column); <b>24 h</b> samples can use
           any cell, taking cells 1 or 4 only when no 12 h/30 h sample needs them. Dragging a sample onto the grid by
           hand is unaffected — it always runs for its own movie time wherever you drop it, and you can still change any
-          one cell&apos;s run time afterwards from its slot popover (see <b>Run time</b> under QC actions below).
+          one cell&apos;s run time afterwards from its slot popover (see <b>Run time</b> under QC actions below). On the
+          weekly grid, a cell running a movie time other than the default (normally 24&nbsp;h) carries a solid dark{" "}
+          <b>12h</b> or <b>30h</b> flag on its cell line, next to any <b>&lt;5kb</b> flag, so short and long runs stand
+          out at a glance. The flag follows that cell&apos;s own run time, so changing it in the slot popover updates
+          the flag. Hover it to see which cell Auto Schedule loads that length on.
         </dd>
         <dt>Insert size (small-insert rule)</dt>
         <dd>
@@ -438,7 +445,8 @@ export function ScheduleSection() {
       </p>
       <p>
         Every backlog card has the same compact rows. The first is the full <b>Pool ID</b> (never shortened), any
-        duplicate badge, and the <b>⏱ movie time</b> on the right. The second is just its <b>priority</b> (shortened
+        duplicate badge, and the <b>⏱ movie time</b> on the right (a 12&nbsp;h or 30&nbsp;h sample shows a solid dark{" "}
+        <b>12h</b>/<b>30h</b> flag there instead, so non-default lengths stand out before you place them). The second is just its <b>priority</b> (shortened
         to <i>High</i>, <i>Medium</i>, <i>Standard</i>… — the card&apos;s left edge is tinted in the same colour) and,
         for a small-insert library, the orange <b>&lt;5kb</b> fragment-size flag. Hover the priority for the full
         label — and, for a <i>Repeatable — from complex</i> sample, how many days of the 30-day leftover-complex
@@ -475,8 +483,11 @@ export function ScheduleSection() {
           <b>Drag</b> a card from the <b>Backlog</b> panel onto an empty slot. If that slot starts a{" "}
           <b>brand-new run</b> (the first sample on that instrument and day), a radial <b>load-time dial</b> pops up so
           you can set when the run loads (08:00–20:00; its cells then prep before sequencing) — it opens on your Run design load time;
-          click an hour, or press <b>Esc</b> to cancel without scheduling. Dropping onto a day that already has a run
-          places straight away at that run&apos;s time. If the instrument is busy with other runs, the sample is still
+          click an hour, or press <b>Esc</b> to cancel without scheduling. Above the dial, a <b>SPRQ-Nx / SPRQ</b>{" "}
+          toggle sets the run&apos;s <b>cell type</b>: it starts on <b>SPRQ-Nx</b> (multi-use cells, up to 3 uses each)
+          every time; switch it to <b>SPRQ</b> <i>before</i> clicking the hour to run the whole day on{" "}
+          <b>single-use SPRQ cells</b> (see <i>Single-use SPRQ cells</i> below). Dropping onto a day that already has a
+          run places straight away at that run&apos;s time and on that run&apos;s cell type. If the instrument is busy with other runs, the sample is still
           placed at your chosen time and a short amber note tells you when its cells will actually start sequencing —
           they queue until one of the machine&apos;s four sequencing lanes frees. Reusing a cell sooner than its
           previous run can finish and be washed shows a similar heads-up note — the placement still
@@ -550,6 +561,42 @@ export function ScheduleSection() {
         instrument by the end of the week — the incoming tray takes that position&apos;s slot in the instrument cell
         map (see above) so the swap is visible. The expired tray&apos;s earlier runs that week are untouched.
       </p>
+
+      <p className={styles.subheading}>Single-use SPRQ cells</p>
+      <p>
+        Most runs use multi-use <b>SPRQ-Nx</b> cells (up to 3 uses each). Some cells are <b>SPRQ</b> instead — single
+        use: each cell runs <b>once</b> and is then spent (PacBio recommends them for e.g. amplicons under 5 kb). You
+        choose per run, on the <b>SPRQ-Nx / SPRQ</b> toggle above the load-time dial when you drop the first sample of
+        a new run.
+      </p>
+      <ul>
+        <li>
+          <b>The whole run is one type.</b> Every later sample dropped into a SPRQ run — on Plate 1 or Plate 2 — goes on
+          SPRQ cells too, with no dial and nothing to remember. A run can&apos;t mix the two types, so a SPRQ run never
+          borrows a SPRQ-Nx cell and a SPRQ-Nx run never borrows a SPRQ cell.
+        </li>
+        <li>
+          <b>Leftover SPRQ cells are used first.</b> A SPRQ tray still holds 4 cells. If a SPRQ run used only some of
+          them, the next SPRQ run on that instrument takes the leftovers before a new SPRQ tray is opened. Until then
+          the part-used SPRQ tray keeps its bay on the instrument (it&apos;s physically there); if you won&apos;t use
+          the leftovers, discard the tray (the <b>↻</b> on its plate, or <b>Discard all cells</b> on the Cells tab) to
+          free the bay for a fresh tray.
+        </li>
+        <li>
+          <b>How it looks.</b> SPRQ cards and their seals are <b>indigo</b> instead of the Use 1 / 2 / 3 colours, the run
+          shows an indigo <b>SPRQ</b> tag next to its load time, and the instrument cell map labels the tray{" "}
+          <b>SPRQ #id</b>. A SPRQ cell has no reuse, so it has <b>no 108-hour window</b> — no fading, no expiry date,
+          no reuse-by on the batch sheet.
+        </li>
+        <li>
+          <b>Auto Schedule and Recalculate only plan SPRQ-Nx.</b> They never use SPRQ cells and never move or re-plan
+          a SPRQ run; a day that already holds a SPRQ run is skipped like any other occupied day.
+        </li>
+        <li>
+          <b>Moving a sample</b> into another run puts it on that run&apos;s type (it gets a new cell if needed);
+          moving it onto an empty day keeps its own type.
+        </li>
+      </ul>
       <p className={styles.subheading}>The holographic cell seal</p>
       <p>
         Each loaded slot shows a small <b>seal</b> on its right edge. Its label is the <b>cell&apos;s</b> own number
@@ -557,7 +604,7 @@ export function ScheduleSection() {
         position from being misread as a lettered plate well) with the use number in its own small square next to it (e.g.{" "}
         <i>▣2</i> with a boxed <i>2</i> = cell 2, Use 2) — the cell it&apos;s running on, which can differ from
         the slot it sits in — and its base colour is the Use 1 / 2 / 3 palette (magenta / blue / teal, the same Use
-        colours as the legend). The small number along the bottom of the seal is the cell&apos;s <b>tray id</b> — shared by
+        colours as the legend), or <b>indigo</b> for a single-use SPRQ cell. The small number along the bottom of the seal is the cell&apos;s <b>tray id</b> — shared by
         every cell in the same physical tray (on a short card, e.g. Compact with barcodes hidden, it&apos;s left off so it
         never covers the use number; the tray id is still in the card&apos;s <i>C01-T285</i> line) — while the shimmering foil pattern is <b>unique to that one physical SMRT
         cell</b> — so if you see the <i>same</i> foil on two different days, it&apos;s literally

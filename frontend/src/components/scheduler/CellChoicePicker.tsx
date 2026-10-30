@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Modal, ModalActions } from "@/components/ui/Modal";
 import type { CellOut } from "@/types/cell";
+import type { CellType } from "@/types/common";
 import { CELL_STATUS_LABEL, CELL_STATUS_TONE } from "@/utils/cellStatus";
 import { useDebouncedValue } from "@/utils/useDebouncedValue";
 
@@ -18,6 +19,9 @@ export interface CellChoicePickerProps {
    * "Suggested", since that's overwhelmingly the correct pick and the backend will reject
    * anything else once a plate already holds a tray. */
   suggestedTrayId?: number | null;
+  /** The run's cell type - only cells of that type are listed, since a run can't mix SPRQ-Nx
+   * and single-use SPRQ cells (the backend refuses the other type). */
+  cellType: CellType;
   onSelect: (cellId: number) => void;
   onClose: () => void;
   pending?: boolean;
@@ -35,6 +39,7 @@ export interface CellChoicePickerProps {
 export function CellChoicePicker({
   instrumentSerial,
   suggestedTrayId,
+  cellType,
   onSelect,
   onClose,
   pending,
@@ -43,11 +48,12 @@ export function CellChoicePicker({
   const debouncedSearch = useDebouncedValue(search, 250);
 
   const cellsQuery = useQuery({
-    queryKey: ["cells", "choice-picker", instrumentSerial, debouncedSearch],
+    queryKey: ["cells", "choice-picker", instrumentSerial, cellType, debouncedSearch],
     queryFn: () =>
       cellsApi.list({
         instrument_serial: instrumentSerial,
         status: "open",
+        cell_type: cellType,
         q: debouncedSearch || undefined,
         page_size: 50,
       }),

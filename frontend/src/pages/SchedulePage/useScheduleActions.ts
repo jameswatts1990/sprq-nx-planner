@@ -10,6 +10,7 @@ import type { GridSelection } from "@/components/scheduler/useGridSelection";
 import type { SlotSelection } from "@/components/scheduler/useSlotSelection";
 import { smallInsertReuseWarning, useInsertSizeThreshold } from "@/hooks/useInsertSizeThreshold";
 import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
+import type { CellType } from "@/types/common";
 import type { RunOut, SlotIndex, StageOut } from "@/types/schedule";
 import type { ScheduleNoteMove, ScheduleNoteOut } from "@/types/scheduleNote";
 import type { GridCellRef, RunDesignState } from "@/types/schedulerGrid";
@@ -270,6 +271,9 @@ export function useScheduleActions({
       // empty instrument+day) - sets that run's load/start hour. Ignored otherwise.
       start_hour?: number;
       start_minute?: number;
+      // The load-time dial's SPRQ-Nx / SPRQ toggle - the new run's cell type. Omitted for a
+      // drop into an existing run, which inherits that run's type.
+      cell_type?: CellType;
     }) =>
       cellUsesApi.place({
         sample_id: v.sample_id,
@@ -280,6 +284,7 @@ export function useScheduleActions({
         // (Sample.movie_time_hours, default 24 h) - resolved server-side in place_sample.
         start_hour: v.start_hour,
         start_minute: v.start_minute,
+        cell_type: v.cell_type,
       }),
     onSuccess: (run) => {
       invalidateScheduleRelated(queryClient);

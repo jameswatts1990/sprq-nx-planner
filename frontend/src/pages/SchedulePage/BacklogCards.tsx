@@ -29,6 +29,7 @@ const TONE_ACCENT_VAR: Record<BadgeTone, string> = {
   info: "var(--blue-deep)",
   blue: "var(--blue)",
   purple: "var(--purple)",
+  sprq: "var(--sprq)",
   ink: "var(--ink)",
 };
 

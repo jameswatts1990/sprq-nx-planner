@@ -9,6 +9,7 @@ function baseCell(overrides: Partial<CellOut> = {}): CellOut {
     id: 1,
     code: "CELL-A000001",
     max_uses: 3,
+    cell_type: "sprq_nx",
     status: "open",
     uses_consumed: 0,
     uses_remaining: 3,

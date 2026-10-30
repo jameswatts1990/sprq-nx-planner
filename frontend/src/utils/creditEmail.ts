@@ -1,5 +1,6 @@
 import type { CreditEmailTemplate } from "@/api/settings";
 import type { CellOut } from "@/types/cell";
+import type { CellType } from "@/types/common";
 import type { PacbioCaseOut } from "@/types/pacbioCase";
 import { expectedReimbursement, localDateOnly, triggeringUse } from "@/utils/creditCase";
 import { plateWellFromPlate } from "@/utils/plateWell";
@@ -30,7 +31,11 @@ export interface CreditEmailContext {
   caseNumber: string;
   well: string;
   cellCode: string;
+  /** "SPRQ-Nx" or "SPRQ (single-use)" - PacBio credits a single-use cell as a whole cell. */
+  cellType: string;
 }
+
+const CELL_TYPE_EMAIL_LABEL: Record<CellType, string> = { sprq_nx: "SPRQ-Nx", sprq: "SPRQ (single-use)" };
 
 interface CreditEmailToken {
   /** The literal token as typed into the template, e.g. "<sample name>". */
@@ -52,6 +57,7 @@ export const CREDIT_EMAIL_TOKENS: readonly CreditEmailToken[] = [
   { token: "<instrument>", label: "Instrument serial", field: "instrument" },
   { token: "<run date>", label: "Run date", field: "runDate" },
   { token: "<reimbursement>", label: "Expected acquisitions to credit", field: "reimbursement" },
+  { token: "<cell type>", label: "SMRT Cell type (SPRQ-Nx / SPRQ)", field: "cellType" },
   { token: "<case number>", label: "PacBio case number", field: "caseNumber" },
   { token: "<well>", label: "Tray well (internal)", field: "well" },
   { token: "<cell code>", label: "Cell code (internal)", field: "cellCode" },
@@ -69,6 +75,7 @@ export const EXAMPLE_CONTEXT: CreditEmailContext = {
   caseNumber: "CS-000123",
   well: "P1_C01",
   cellCode: "C-000045",
+  cellType: "SPRQ-Nx",
 };
 
 /** Built-in template used until the lab edits it, and as a fallback while the stored
@@ -86,6 +93,7 @@ export const DEFAULT_CREDIT_EMAIL: CreditEmailTemplate = {
     "Based on the failure, we expect <reimbursement> acquisition(s) to be credited (the failed acquisition plus the cell's remaining acquisitions).",
     "",
     "Sample ID: <sample name>",
+    "Cell type: <cell type>",
   ].join("\n"),
 };
 
@@ -106,6 +114,7 @@ export function buildCreditEmailContext(cell: CellOut): CreditEmailContext {
     caseNumber: cell.pacbio_case_number ?? "—",
     well: use ? plateWellFromPlate(use.plate_index, use.well, { qualified: true }) : "—",
     cellCode: cell.code,
+    cellType: CELL_TYPE_EMAIL_LABEL[cell.cell_type],
   };
 }
 
@@ -122,6 +131,7 @@ export function buildPacbioCaseEmailContext(pc: PacbioCaseOut): CreditEmailConte
     caseNumber: pc.pacbio_case_number ?? "—",
     well: "—",
     cellCode: "—",
+    cellType: CELL_TYPE_EMAIL_LABEL[pc.cell_type],
   };
 }
 

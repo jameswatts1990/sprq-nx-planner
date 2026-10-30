@@ -13,7 +13,7 @@ import type {
   TraySkipReuseOut,
   TraySkipReuseRequest,
 } from "@/types/cell";
-import type { Page } from "@/types/common";
+import type { CellType, Page } from "@/types/common";
 import type {
   CreditConfirmRequest,
   CreditInternalReportRequest,
@@ -29,6 +29,7 @@ export interface ListCellsParams {
   qc_status?: "unreported" | "awaiting_credit" | "in_workflow";
   q?: string;
   tray_id?: number;
+  cell_type?: CellType;
   /** ISO datetime; when set, the API projects every time-derived field (uses, window, status)
    * to that instant instead of "now" - drives the Cells page Now / End-of-week toggle. */
   as_of?: string;

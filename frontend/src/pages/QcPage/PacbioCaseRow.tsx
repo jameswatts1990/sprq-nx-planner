@@ -3,6 +3,7 @@ import { useState } from "react";
 
 import { ApiError } from "@/api/client";
 import { pacbioCasesApi } from "@/api/pacbioCases";
+import { CellTypeBadge } from "@/components/cells/CellTypeBadge";
 import { PacbioCaseActions } from "@/components/cells/CreditCaseActions";
 import { PacbioCreditTracker } from "@/components/cells/PacbioCreditTracker";
 import { Badge } from "@/components/ui/Badge";
@@ -34,6 +35,7 @@ function CaseDetails({ pacbioCase }: { pacbioCase: PacbioCaseOut }) {
     ["Instrument", pacbioCase.instrument_serial],
     ["Run", pacbioCase.run_name],
     ["Sample / Pool ID", pacbioCase.pool_id],
+    ["Cell type", pacbioCase.cell_type === "sprq" ? "SPRQ (single use)" : "SPRQ-Nx"],
     ["Acquisitions to claim", pacbioCase.expected_acquisitions?.toString() ?? null],
   ];
 
@@ -108,6 +110,7 @@ export function PacbioCaseRow({
           <span title="Logged by hand on the QC page - not linked to any cell in RunNx">
             <Badge tone={NO_CELL_BADGE.tone}>{NO_CELL_BADGE.label}</Badge>
           </span>
+          <CellTypeBadge cellType={pacbioCase.cell_type} />
           {pacbioCase.instrument_serial && <span className={styles.metaText}>{pacbioCase.instrument_serial}</span>}
         </>
       }

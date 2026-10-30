@@ -84,6 +84,7 @@ def create_cell_use(req: PlaceSampleRequest, db: SessionDep, actor: ActorDep) ->
             run_time_hours=req.run_time_hours,
             start_hour=req.start_hour,
             start_minute=req.start_minute,
+            cell_type=req.cell_type,
             actor=actor,
         )
     except PlacementError as exc:

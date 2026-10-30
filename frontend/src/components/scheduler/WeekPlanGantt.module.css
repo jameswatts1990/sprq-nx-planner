@@ -339,3 +339,6 @@
 .u3 {
   --bar: var(--teal);
 }
+.sprq {
+  --bar: var(--sprq);
+}

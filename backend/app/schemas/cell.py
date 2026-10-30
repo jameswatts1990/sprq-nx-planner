@@ -2,6 +2,8 @@ from datetime import date, datetime
 
 from pydantic import BaseModel
 
+from app.schemas.common import CellType
+
 
 class CellUseHistoryOut(BaseModel):
     id: int
@@ -78,6 +80,7 @@ class CellUseSummaryOut(BaseModel):
 class CellOut(BaseModel):
     id: int
     code: str
+    cell_type: CellType  # "sprq_nx" (up to 3 uses) or "sprq" (single use)
     max_uses: int
     status: str
     uses_consumed: int

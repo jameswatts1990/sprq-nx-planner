@@ -6,6 +6,7 @@ from __future__ import annotations
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
+from app.engine.constants import CELL_TYPE_SPRQ_NX
 from app.engine.types import ParsedSample, PriorCellInput
 from app.models.cell import Cell
 from app.models.cell_tray import CellTray
@@ -42,10 +43,16 @@ def to_parsed_samples(samples: list[Sample]) -> list[ParsedSample]:
     ]
 
 
-def load_prior_cells(db: Session, excluded_cell_ids: list[int]) -> tuple[list[PriorCellInput], dict[int, Cell]]:
+def load_prior_cells(
+    db: Session, excluded_cell_ids: list[int], *, cell_type: str = CELL_TYPE_SPRQ_NX
+) -> tuple[list[PriorCellInput], dict[int, Cell]]:
+    """The open cells of one type that a placement may reuse. The SPRQ-Nx default is what keeps
+    Auto Schedule off single-use SPRQ cells: PriorCellInput carries no per-cell cap and the
+    packing engine (engine/packing.py) assumes CELL_MAX_USES for every cell, so a SPRQ cell must
+    never reach pack_cells. Manual placement (derive_best_cell) passes its run's type."""
     stmt = (
         select(Cell)
-        .where(Cell.status == "open")
+        .where(Cell.status == "open", Cell.cell_type == cell_type)
         .options(
             selectinload(Cell.cell_uses)
             .selectinload(CellUse.cycle)

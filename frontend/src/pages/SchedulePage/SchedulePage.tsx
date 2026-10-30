@@ -919,9 +919,10 @@ export function SchedulePage() {
       {pendingLoadTime && (
         <LoadTimePicker
           value={runDesign.load_hour}
-          subtitle={`New run — pick when it loads on ${formatShortDateUTC(parseDateOnly(pendingLoadTime.load_date))} (cells prep, then sequencing starts).`}
+          subtitle={`New run — pick its cell type, then when it loads on ${formatShortDateUTC(parseDateOnly(pendingLoadTime.load_date))}.`}
+          showCellType
           onCancel={() => setPendingLoadTime(null)}
-          onPick={(hour) => {
+          onPick={(hour, cellType) => {
             const p = pendingLoadTime;
             setPendingLoadTime(null);
             setRunDesign((rd) => ({ ...rd, load_hour: hour })); // remember for the next drop / auto-fill
@@ -937,6 +938,7 @@ export function SchedulePage() {
                 slot_index: p.slot_index,
                 start_hour: utc.hour,
                 start_minute: utc.minute,
+                cell_type: cellType,
               },
               { onSettled: () => dnd.setPlacingSlotKey(null) },
             );
@@ -975,7 +977,7 @@ export function SchedulePage() {
             This re-packs every <b>not-yet-loaded</b> placement on <b>{actions.recalculateTarget}</b> from scratch —
             reuse-before-new, using today&apos;s engine rules — and may move samples onto different cells, trays, or
             even a different day than they&apos;re on now, when that lets fewer physical cells be used. Confirmed/
-            loaded runs are left as-is. This can&apos;t be undone.
+            loaded runs and single-use SPRQ runs are left as-is. This can&apos;t be undone.
           </p>
         </ConfirmModal>
       )}

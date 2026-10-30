@@ -24,7 +24,7 @@ from app.schemas.cell import (
     TraySkipReuseOut,
     TraySkipReuseRequest,
 )
-from app.schemas.common import Page
+from app.schemas.common import CellType, Page
 from app.schemas.credit import (
     CreditActorRequest,
     CreditConfirmRequest,
@@ -93,6 +93,7 @@ def list_cells(
     qc_status: str | None = None,
     q: str | None = None,
     tray_id: int | None = None,
+    cell_type: CellType | None = None,
     as_of: datetime | None = None,
     page: int = 1,
     page_size: int = 50,
@@ -145,6 +146,8 @@ def list_cells(
         stmt = stmt.where(or_(*conditions))
     if tray_id is not None:
         stmt = stmt.where(Cell.tray_id == tray_id)
+    if cell_type is not None:
+        stmt = stmt.where(Cell.cell_type == cell_type)
 
     cells = list(db.scalars(stmt.order_by(Cell.created_at.desc())).unique().all())
     serialized = [serialize_cell(c, as_of=as_of) for c in cells]

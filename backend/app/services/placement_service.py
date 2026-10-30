@@ -22,6 +22,9 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from app.engine.constants import (
+    CELL_TYPE_LABEL,
+    CELL_TYPE_SPRQ,
+    CELL_TYPE_SPRQ_NX,
     DAY_START_HOUR,
     DEFAULT_MOVIE_HOURS,
     WELLS,
@@ -463,6 +466,35 @@ def _established_tray_id(cycle: Cycle | None) -> int | None:
     return min(tray_ids) if tray_ids else None
 
 
+def _run_cell_type(db: Session, *, instrument_id: int, load_date: date, exclude_use_id: int | None = None) -> str | None:
+    """The cell type of the run on (instrument, load_date). A run is one type across both plates
+    - the SPRQ-Nx/SPRQ choice made on the load-time dial when its first sample was dropped - so
+    any live placement in it tells the type. None when the run doesn't exist yet or holds only
+    cancelled markers: the next placement founds it and sets the type."""
+    stmt = (
+        select(Cell.cell_type)
+        .join(CellUse, CellUse.cell_id == Cell.id)
+        .join(Cycle, CellUse.cycle_id == Cycle.id)
+        .join(RunBatch, Cycle.run_batch_id == RunBatch.id)
+        .where(RunBatch.instrument_id == instrument_id, RunBatch.load_date == load_date, CellUse.status != "cancelled")
+        .limit(1)
+    )
+    if exclude_use_id is not None:
+        stmt = stmt.where(CellUse.id != exclude_use_id)
+    return db.scalar(stmt)
+
+
+def _assert_run_cell_type(existing: str | None, requested: str | None, load_date: date) -> None:
+    """A run can't mix cell types: refuse a placement asking for the other type than the run
+    already uses."""
+    if existing is not None and requested is not None and existing != requested:
+        raise PlacementError(
+            409,
+            f"The run on {load_date.isoformat()} already uses {CELL_TYPE_LABEL[existing]} cells - a run "
+            f"can't mix cell types. Drop {CELL_TYPE_LABEL[requested]} samples onto another day.",
+        )
+
+
 def get_or_create_run(
     db: Session,
     *,
@@ -608,6 +640,9 @@ def _release_cell(db: Session, cell: Cell, now: datetime) -> None:
     elif cell.tray_id is None:
         db.delete(cell)
     else:
+        # Re-derive first: a single-use SPRQ cell went "exhausted" with its one use, and must
+        # read "open" again now that use is gone (a SPRQ-Nx cell never hit its cap on one use).
+        recompute_status(cell, now)
         cleanup_tray_if_fully_unused(db, cell)
 
 
@@ -622,10 +657,12 @@ def _resolve_cell_choice(
     load_date: date,
     plate_index: int,
     exclude_use_id: int | None = None,
+    cell_type: str | None = None,
 ) -> Cell:
     """Shared "which cell hosts this sample" resolution, shared by place_sample and
-    move_sample's cell-reassignment path: mode "new" opens a fresh tray at plate position
-    `well`; mode "existing" validates the chosen cell is open, has capacity, is on this same
+    move_sample's cell-reassignment path: mode "new" opens a fresh tray of `cell_type` (default
+    SPRQ-Nx) at plate position `well`; mode "existing" validates the chosen cell is of the run's
+    `cell_type` (when set - a run can't mix SPRQ-Nx and SPRQ), open, has capacity, is on this same
     instrument (a physical cell never crosses instruments), belongs to the SAME physical tray
     as any cell already placed on this plate (see _established_tray_id - a plate is one
     carousel box, which can only ever hold one tray), and - see the chronological-order check
@@ -663,6 +700,13 @@ def _resolve_cell_choice(
         )
         if cell is None:
             raise PlacementError(404, f"Cell {cell_id} not found.")
+        if cell_type is not None and cell.cell_type != cell_type:
+            raise PlacementError(
+                409,
+                f"This run uses {CELL_TYPE_LABEL[cell_type]} cells; cell {cell.code} is a "
+                f"{CELL_TYPE_LABEL[cell.cell_type]} cell. A run can't mix cell types - choose one of "
+                "this run's type.",
+            )
         if cell.status != "open":
             raise PlacementError(409, f"Cell {cell.code} is not open (status: {cell.status}).")
         _consumed, remaining, _burned = derive_cell_state(cell)
@@ -724,7 +768,11 @@ def _resolve_cell_choice(
             # fresh tray's NEXT-AVAILABLE cell (tray position 1), not the drop well's
             # position-matched one - "the well takes the next available cell regardless of plate
             # position" (see _resequence_plate); the plate is then laid out ascending.
-            return _fresh_tray_cell(open_new_tray(db, instrument_id, well, founding_date=acquire_date))
+            return _fresh_tray_cell(
+                open_new_tray(
+                    db, instrument_id, well, founding_date=acquire_date, cell_type=cell_type or CELL_TYPE_SPRQ_NX
+                )
+            )
         except ValueError as exc:
             raise PlacementError(409, str(exc)) from exc
     else:
@@ -833,9 +881,15 @@ def derive_best_cell(
     run_time_hours: float,
     start_hour: int = DAY_START_HOUR,
     start_minute: int = 0,
+    cell_type: str = CELL_TYPE_SPRQ_NX,
 ) -> dict:
     """Pick the physical cell a manually-dropped sample should use, mirroring the instrument's
-    own allocation: a grid slot is a plate LOADING position, not a cell, so a drop reaches for
+    own allocation. Only cells of the run's `cell_type` are candidates (a run is all SPRQ-Nx or
+    all single-use SPRQ), and a fresh tray opens as that type - so reuse-before-new holds within
+    the type: a SPRQ run uses up leftover SPRQ cells on the instrument before opening a new SPRQ
+    tray, and never borrows a SPRQ-Nx cell (nor vice versa).
+
+    A grid slot is a plate LOADING position, not a cell, so a drop reaches for
     the next-usable cell in that slot's physical tray (carousel position) - reuse-before-new,
     the cell nearest its 108h expiry first (see _pick_next_reuse_cell) - and only opens a fresh
     tray when none has capacity left. Returns a cell_choice dict
@@ -878,7 +932,9 @@ def derive_best_cell(
 
     if committed_tray_id is not None:
         already_in_cycle = {cu.cell_id for cu in target_cycle.cell_uses if cu.status != "cancelled"}
-        tray_cells = db.scalars(select(Cell).where(Cell.tray_id == committed_tray_id, Cell.status == "open")).all()
+        tray_cells = db.scalars(
+            select(Cell).where(Cell.tray_id == committed_tray_id, Cell.status == "open", Cell.cell_type == cell_type)
+        ).all()
         cands = [c for c in tray_cells if c.id not in already_in_cycle]
         best = _pick_next_reuse_cell(
             db, cands, instrument=instrument, load_date=load_date, slot_index=slot_index,
@@ -886,6 +942,13 @@ def derive_best_cell(
         )
         if best is not None:
             return {"mode": "existing", "cell_id": best.id}
+        if cell_type == CELL_TYPE_SPRQ:
+            raise PlacementError(
+                409,
+                f"Can't place here: this plate is already loaded from SPRQ tray T{committed_tray_id} "
+                "and its remaining cells are used (each SPRQ cell runs once). Put further samples "
+                "on the run's other plate (a new tray), or on another day.",
+            )
         raise PlacementError(
             409,
             f"Can't place here: this plate is already loaded from tray T{committed_tray_id} and "
@@ -903,6 +966,7 @@ def derive_best_cell(
                 if cu.status != "cancelled"
                 and cu.cell is not None
                 and cu.cell.status == "open"
+                and cu.cell.cell_type == cell_type
             ]
             best = _pick_next_reuse_cell(
                 db, cands, instrument=instrument, load_date=load_date, slot_index=slot_index,
@@ -917,7 +981,7 @@ def derive_best_cell(
     # reuse-before-new across both trays, matching the auto-fill engine (see docs/pacbio-sprq-nx-
     # scheduling-reference.md's "Plate vs cell"). One-tray-per-plate cohesion is still enforced by
     # branch (0) / _established_tray_id once this plate's first cell lands - box-independently.
-    prior, by_id = load_prior_cells(db, [])
+    prior, by_id = load_prior_cells(db, [], cell_type=cell_type)
     cands = []
     for pc in prior:
         if pc.pinned_instrument_serial != instrument.serial_number:
@@ -948,8 +1012,12 @@ def place_sample(
     run_time_hours: float | None = None,
     start_hour: int = DAY_START_HOUR,
     start_minute: int = 0,
+    cell_type: str | None = None,
     actor: str | None = None,
 ) -> RunBatch:
+    """Place a backlog sample into a grid slot. `cell_type` is the SPRQ-Nx/SPRQ choice for a
+    brand-new run (the load-time dial); a placement into an existing run inherits that run's
+    type, and asking for the other type is refused - a run can't mix cell types."""
     # --- read-only validation (before any writes) ---
     if load_date.weekday() >= 5:
         raise PlacementError(400, f"{load_date.isoformat()} is a weekend - runs are weekdays only.")
@@ -975,6 +1043,13 @@ def place_sample(
     if run_time_hours is None:
         run_time_hours = sample.movie_time_hours or get_default_movie_hours(db)
 
+    # The run's cell type: an existing run's own type wins (both plates share it); a new run
+    # takes the dial's choice, else SPRQ-Nx. None only for an explicit "existing" pick founding
+    # a new run - that run simply takes the picked cell's type.
+    existing_type = _run_cell_type(db, instrument_id=instrument.id, load_date=load_date)
+    _assert_run_cell_type(existing_type, cell_type, load_date)
+    run_type = existing_type or cell_type
+
     # No explicit cell choice (or an explicit "auto") -> the engine derives the cell, applying
     # the same reuse-before-new rule as auto-fill (see derive_best_cell). This is the default
     # for a plain drag-drop; an explicit {"new"|"existing"} still overrides it (the stub's
@@ -988,6 +1063,7 @@ def place_sample(
             run_time_hours=run_time_hours,
             start_hour=start_hour,
             start_minute=start_minute,
+            cell_type=run_type or CELL_TYPE_SPRQ_NX,
         )
     mode = cell_choice.get("mode")
 
@@ -1015,6 +1091,7 @@ def place_sample(
             acquire_date=acquire_date,
             load_date=load_date,
             plate_index=plate_index,
+            cell_type=run_type,
         )
     elif mode == "new":
         plate_index, acquire_date = _plate_target(
@@ -1056,7 +1133,11 @@ def place_sample(
             # carousel position instead of 409ing (see open_new_tray / _cell_resident_on). Use
             # the fresh tray's NEXT-AVAILABLE cell (tray position 1), not the drop well's
             # position-matched one - see _fresh_tray_cell / _resequence_plate.
-            cell = _fresh_tray_cell(open_new_tray(db, instrument.id, well, founding_date=acquire_date))
+            cell = _fresh_tray_cell(
+                open_new_tray(
+                    db, instrument.id, well, founding_date=acquire_date, cell_type=run_type or CELL_TYPE_SPRQ_NX
+                )
+            )
         except ValueError as exc:
             raise PlacementError(409, str(exc)) from exc
     else:
@@ -1104,6 +1185,7 @@ def place_sample(
             details_json={
                 "sample_id": sample.id,
                 "cell_id": cell.id,
+                "cell_type": cell.cell_type,
                 "cycle_id": cycle.id,
                 "plate_index": plate_index,
                 "well": well,
@@ -1413,6 +1495,13 @@ def move_sample(
         db.commit()
         return db.get(RunBatch, old_rb.id)
 
+    # The destination run's cell type: a moved sample joins an existing run on its type (SPRQ-Nx
+    # or SPRQ - a run can't mix them); onto an empty day it keeps its own cell's type.
+    dest_type = (
+        _run_cell_type(db, instrument_id=instrument.id, load_date=load_date, exclude_use_id=cell_use.id)
+        or cell.cell_type
+    )
+
     # A cross-plate / cross-day / cross-instrument move, or an explicit cell override, hands the
     # sample to the cell the instrument would reach for at the destination (reuse-before-new, via
     # derive_best_cell) - never dragging the sample's current physical cell into a foreign plate.
@@ -1427,12 +1516,14 @@ def move_sample(
         # use there; otherwise the instrument would reach for a different cell, so derive it like
         # any other move. Catches a cell since stopped/retired/discarded, a destination plate
         # already loaded from another tray (one tray per plate), a second use of the cell that
-        # same day, and an insert ahead of an already-started later use.
+        # same day, an insert ahead of an already-started later use, and a run of the other cell
+        # type (SPRQ-Nx vs single-use SPRQ).
         dest_tray_id = _established_tray_id(
             _load_existing_cycle(db, instrument_id=instrument.id, load_date=load_date, plate_index=dest_plate_index)
         )
         if (
-            cell.discarded_at is not None
+            cell.cell_type != dest_type
+            or cell.discarded_at is not None
             or cell.status in ("stopped", "retired")
             or (dest_tray_id is not None and cell.tray_id is not None and cell.tray_id != dest_tray_id)
             or same_day_use(cell, dest_acquire_date, exclude_use_id=cell_use.id) is not None
@@ -1455,6 +1546,7 @@ def move_sample(
             run_time_hours=run_time_hours,
             start_hour=start_hour,
             start_minute=start_minute,
+            cell_type=dest_type,
         )
 
     if reassign_to_new_cell:
@@ -1469,6 +1561,7 @@ def move_sample(
             start_hour=start_hour,
             start_minute=start_minute,
             cell_choice=cell_choice,
+            cell_type=dest_type,
             actor=actor,
         )
 
@@ -1542,6 +1635,7 @@ def _move_sample_to_new_cell(
     start_hour: int,
     start_minute: int,
     cell_choice: dict | None,
+    cell_type: str,
     actor: str | None,
 ) -> RunBatch:
     """The dragged sample's physical cell can't reach the destination - a different instrument
@@ -1604,6 +1698,7 @@ def _move_sample_to_new_cell(
         load_date=load_date,
         plate_index=plate_index,
         exclude_use_id=cell_use.id,
+        cell_type=cell_type,
     )
 
     old_cycle_id = old_cycle.id

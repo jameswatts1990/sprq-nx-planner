@@ -336,7 +336,8 @@ CREDIT_EMAIL_FALLBACKS: dict[str, str] = {
         "Based on the failure, we expect <reimbursement> acquisition(s) to be credited "
         "(the failed acquisition plus the cell's remaining acquisitions).\n"
         "\n"
-        "Sample ID: <sample name>"
+        "Sample ID: <sample name>\n"
+        "Cell type: <cell type>"
     ),
 }
 CREDIT_EMAIL_KEYS: tuple[str, ...] = tuple(CREDIT_EMAIL_FALLBACKS)

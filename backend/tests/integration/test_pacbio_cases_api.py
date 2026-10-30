@@ -128,6 +128,29 @@ def test_delete_removes_the_case_and_keeps_it_in_the_audit_trail(client, db_sess
     assert entry.details_json["pacbio_case_number"] == "CS-DEL"
 
 
+def test_a_case_records_which_cell_type_it_is_about(client, db_session):
+    """PacBio credits acquisitions, and a single-use SPRQ cell is 1 acquisition where a SPRQ-Nx
+    cell is 3 - so a case without a cell has to say which kind it was."""
+    default = _create(client).json()
+    assert default["cell_type"] == "sprq_nx"
+
+    sprq = _create(client, cell_type="sprq", expected_acquisitions=1).json()
+    assert sprq["cell_type"] == "sprq"
+
+    r = client.put(
+        f"/api/pacbio-cases/{default['id']}",
+        json={"summary": "Untracked cell failed on loading", "occurred_on": default["occurred_on"], "cell_type": "sprq"},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["cell_type"] == "sprq"
+    assert _create(client, cell_type="nx").status_code == 422
+
+    from app.models.audit import AuditLog
+
+    edit = db_session.query(AuditLog).filter_by(entity_type="pacbio_case", action="update_pacbio_case").one()
+    assert edit.details_json["cell_type"] == {"from": "sprq_nx", "to": "sprq"}
+
+
 def test_cases_without_a_cell_count_in_the_stats_credit_funnel(client):
     on_84047 = _instrument_id(client, "84047")
     _create(client)  # needs report, no instrument

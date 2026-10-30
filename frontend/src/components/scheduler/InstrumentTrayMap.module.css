@@ -83,6 +83,14 @@
   background: var(--link-tint);
   text-decoration: underline;
 }
+/* A single-use SPRQ tray reads "SPRQ #id" in the SPRQ indigo, so it stands out in its bay. */
+.trayHeaderSprq {
+  color: var(--sprq-deep);
+  background: var(--sprq-tint);
+}
+.trayHeaderSprq:hover {
+  background: var(--sprq-tint);
+}
 .cells {
   display: flex;
   flex-direction: column;

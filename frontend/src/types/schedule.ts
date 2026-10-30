@@ -6,7 +6,7 @@
  * acquisition round with its own acquire_date). A reuse run reads as one run whose Plate 2
  * acquires a later day. */
 
-import type { CycleStatus } from "./common";
+import type { CellType, CycleStatus } from "./common";
 
 export type MaxUses = 1 | 2 | 3;
 export type RunTimeHours = 12 | 24 | 30;
@@ -48,10 +48,12 @@ export interface StageOut {
   cell_home_well: string | null;
   /** 1-based position of this cell_use among its cell's loads - drives the Use 1/2/3 colour. */
   use_number: number;
-  /** The physical cell's own use cap (usually 3; lower only if QC reduced it). With use_number
+  /** The physical cell's own use cap (3 for SPRQ-Nx, 1 for single-use SPRQ). With use_number
    * this gives the cell's remaining uses (cell_max_uses - use_number) shown on the Revio-screen
    * panel's "Remaining SMRT Cell uses" boxes. */
   cell_max_uses: number;
+  /** SPRQ-Nx, or single-use SPRQ - which shows in the SPRQ colour instead of Use 1/2/3. */
+  cell_type: CellType;
   /** This well's own movie / run time (h). Per-cell: set from the Run Design dial on
    * placement/auto-schedule, editable per-cell in the slot-detail popover. Different wells of
    * one run may differ; PlateOut.movie_hours is the longest of its plate's wells. */
@@ -147,6 +149,8 @@ export interface RunOut {
   run_name: string | null;
   /** Derived run-level status: "running"/"completed" once its plates are, else "planned". */
   status: CycleStatus;
+  /** The run's cell type - one type across both plates, chosen on the load-time dial. */
+  cell_type: CellType;
   /** The instrument is held until the last plate's acquisition finishes + buffer - when it
    * becomes available to *start* another run (loading the next run's cells is never blocked). */
   lock_until: string; // ISO datetime

@@ -1,3 +1,4 @@
+import type { CellType } from "@/types/common";
 import { cellPositionLabel } from "@/utils/plateWell";
 
 import styles from "./CellFoilStub.module.css";
@@ -8,6 +9,10 @@ export interface CellFoilStubProps {
   homeWell?: string | null;
   /** Uses consumed so far (0-3) - drives the stub colour and boxed number. */
   useNumber: number;
+  /** A single-use SPRQ cell's stub is always the SPRQ colour (used or not), so a SPRQ tray's
+   * cells read as SPRQ at a glance; SPRQ-Nx takes the Use 1/2/3 colour (grey while unused). */
+  cellType?: CellType;
+  maxUses?: number;
   /** Printed as microtext along the bottom edge (a cell's tray "family" number). */
   trayId: number | null;
   /** Stable per-cell seed (the cell id) for the holographic hue, so two cells with the same
@@ -22,18 +27,32 @@ export interface CellFoilStubProps {
  * and only shimmers on hover, since a Cells page can show ~100 of these at once. Decorative:
  * the same code/status/uses are already exposed as text on the card, so this is aria-hidden.
  */
-export function CellFoilStub({ trayPosition, homeWell, useNumber, trayId, seedId }: CellFoilStubProps) {
+export function CellFoilStub({
+  trayPosition,
+  homeWell,
+  useNumber,
+  cellType,
+  maxUses = 3,
+  trayId,
+  seedId,
+}: CellFoilStubProps) {
   const cell = cellPositionLabel(trayPosition, homeWell);
+  const sprq = cellType === "sprq";
   const u = Math.min(Math.max(useNumber, 0), 3);
-  const useClass = u === 0 ? styles.u0 : u === 3 ? styles.u3 : u === 2 ? styles.u2 : styles.u1;
+  const useClass = sprq ? styles.sprq : u === 0 ? styles.u0 : u === 3 ? styles.u3 : u === 2 ? styles.u2 : styles.u1;
   const hue = Math.round((seedId * 137.508) % 360);
   const micro = trayId != null ? String(trayId) : "";
+  const useText = sprq
+    ? `single-use SPRQ cell, ${u === 0 ? "not yet used" : "used"}`
+    : u === 0
+      ? "not yet used"
+      : `use ${u} of ${maxUses}`;
 
   return (
     <div
       className={`${styles.stub} ${useClass}`}
       style={{ ["--seal-hue" as string]: `${hue}deg` }}
-      title={`${cell.replace("▣", "Cell ")} · ${u === 0 ? "not yet used" : `use ${u} of 3`}`}
+      title={`${cell.replace("▣", "Cell ")} · ${useText}`}
       aria-hidden="true"
     >
       <span className={styles.sheen} />

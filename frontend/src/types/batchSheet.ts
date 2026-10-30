@@ -2,12 +2,16 @@
  * A per-load-day loading sheet: one section per run, its 1-2 plates (each with its own
  * acquisition date), and for each well which cell/sample goes where. */
 
+import type { CellType } from "./common";
+
 export interface BatchSheetWellOut {
   well: string;
   slot_index: number; // grid position 0-7 (Plate 1: 0-3, Plate 2: 4-7)
   plate_number: 1 | 2; // which plate this well is on
   cell_ref: string;
   use_number: number;
+  cell_max_uses: number; // the cell's own cap: 3 for SPRQ-Nx, 1 for single-use SPRQ
+  cell_type: CellType;
   run_time_hours: number; // this well's own movie / run time (12/24/30) - per-cell, may differ within a run
   cell_window_deadline: string | null; // ISO datetime
   window_breached: boolean;
@@ -42,6 +46,7 @@ export interface BatchSheetRunOut {
   run_name: string | null;
   load_date: string; // YYYY-MM-DD
   status: string;
+  cell_type: CellType; // the run's cell type - which tray type to rack
   plates: BatchSheetPlateOut[];
 }
 

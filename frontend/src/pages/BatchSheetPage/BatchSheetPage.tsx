@@ -74,7 +74,8 @@ function WellRow({ well, defaults }: { well: BatchSheetWellOut; defaults?: Sampl
       <td className={styles.nowrap}>
         <span className={styles.cellCode}>{well.cell_ref}</span>
         <span className={styles.meta}>
-          {" · "}Use {well.use_number} of 3
+          {" · "}
+          {well.cell_type === "sprq" ? "SPRQ single use" : `Use ${well.use_number} of ${well.cell_max_uses}`}
           {!well.window_breached &&
             well.cell_window_deadline &&
             ` · reuse by ${formatShortDateTimeLocal(well.cell_window_deadline)}`}
@@ -257,6 +258,7 @@ function RunSection({ run, defaults }: { run: BatchSheetRunOut; defaults?: Sampl
           <div className={styles.instrumentMeta}>
             <span>Load day: {formatFullDate(run.load_date)}</span>
             <span>Plates: {run.plates.length}</span>
+            <span>Cells: {run.cell_type === "sprq" ? "SPRQ (single use)" : "SPRQ-Nx"}</span>
             <span>Movie time (longest): {longestMovie}h</span>
             <span>Status: {run.status}</span>
           </div>

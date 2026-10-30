@@ -15,7 +15,11 @@ from app.engine.cell_window import window_allows
 from app.engine.constants import (
     CELL_LIFETIME_H,
     CELL_MAX_USES,
+    CELL_TYPE_LABEL,
+    CELL_TYPE_SPRQ,
+    CELL_TYPE_SPRQ_NX,
     CELLS_PER_TRAY,
+    MAX_USES_BY_CELL_TYPE,
     DAY_START_HOUR,
     WELLS,
     within_tray_pos,
@@ -43,6 +47,21 @@ def derive_status(remaining: int, window_breached: bool) -> str:
     return "open"
 
 
+def is_single_use(cell: Cell) -> bool:
+    """A single-use SPRQ cell: it runs once and is spent, so it never has a reuse and the 108h
+    reuse window never applies to it (no window fade, expiry flag or reuse-by date)."""
+    return cell.cell_type == CELL_TYPE_SPRQ
+
+
+def run_cell_type(cycles: list[Cycle]) -> str:
+    """A run's cell type, read off its (eager-loaded) plates: a run is one type across both
+    plates, so any live placement tells it. SPRQ-Nx for a run with none."""
+    return next(
+        (cu.cell.cell_type for c in cycles for cu in c.cell_uses if cu.status != "cancelled" and cu.cell is not None),
+        CELL_TYPE_SPRQ_NX,
+    )
+
+
 def recompute_status(cell: Cell, at: datetime | None = None) -> None:
     """The single place cell.status is derived - called any time a cell's uses change
     (committing new uses onto it, or recording a real-world outcome), so the persisted
@@ -50,7 +69,7 @@ def recompute_status(cell: Cell, at: datetime | None = None) -> None:
     if cell.status in ("retired", "stopped") or cell.discarded_at is not None:
         return
     at = at or utcnow()
-    if cell.first_use_started_at:
+    if cell.first_use_started_at and not is_single_use(cell):
         elapsed_h = (at - ensure_aware(cell.first_use_started_at)).total_seconds() / 3600
         if elapsed_h > CELL_LIFETIME_H:
             cell.window_breached = True
@@ -292,10 +311,19 @@ def _cell_resident_on(cell: Cell, on_date: date) -> bool:
     return day_start <= deadline
 
 
-def open_new_tray(db: Session, instrument_id: int, well: str, *, founding_date: date | None = None) -> list[Cell]:
+def open_new_tray(
+    db: Session,
+    instrument_id: int,
+    well: str,
+    *,
+    founding_date: date | None = None,
+    cell_type: str = CELL_TYPE_SPRQ_NX,
+) -> list[Cell]:
     """Open a brand-new physical SMRT Cell tray: creates one CellTray row plus all
     CELLS_PER_TRAY Cell rows at once (position 1..4, status "open", 0 uses), not just the
-    one about to be used. The other 3 are real, reusable cells from this point on - they
+    one about to be used. All 4 share `cell_type` (SPRQ-Nx or single-use SPRQ) and its
+    max_uses (MAX_USES_BY_CELL_TYPE) - a tray is one physical product. The bay check below is
+    deliberately type-blind: a bay holds one tray of either type. The other 3 are real, reusable cells from this point on - they
     surface as preferred reuse candidates ahead of any other brand-new tray via
     load_prior_cells()/pack_cells() (see docs/pacbio-sprq-nx-scheduling-reference.md #5),
     with no engine changes needed since `Cell.status == "open"` is already the only
@@ -383,7 +411,7 @@ def open_new_tray(db: Session, instrument_id: int, well: str, *, founding_date: 
     def _still_running_on_or_after(cell: Cell, day: date) -> bool:
         return any((use_run_date(cu) or date.min) >= day for cu in active_uses(cell))
 
-    def _bay_blocked(bay: int) -> bool:
+    def _bay_blocker(bay: int) -> Cell | None:
         # A tray with a use still to run on/after the founding day is physically in its bay
         # regardless of status or skip-reuse flag. Otherwise a still-open cell blocks only while
         # genuinely resident: with a founding_date, one whose 108h window has closed by then counts
@@ -397,25 +425,32 @@ def open_new_tray(db: Session, instrument_id: int, well: str, *, founding_date: 
             if c.home_well not in bay_wells:
                 continue
             if founding_date is not None and _still_running_on_or_after(c, founding_date):
-                return True
+                return c
             if (
                 c.status == "open"
                 and (c.tray is None or c.tray.reuse_disabled_at is None)
                 and (founding_date is None or _cell_resident_on(c, founding_date))
             ):
-                return True
-        return False
+                return c
+        return None
 
     # A cell tray and a sample plate are independent instrument positions: a fresh tray loads into
     # a free cell-tray BAY, not necessarily the drop well's own. Prefer the drop well's own bay
     # (keeps the common case unchanged), else the other free bay; only both-bays-occupied is a
     # genuine collision (see docs/pacbio-sprq-nx-scheduling-reference.md's "Plate vs cell").
     bay_order = [drop_bay] + [b for b in range(bay_count) if b != drop_bay]
-    chosen_bay = next((b for b in bay_order if not _bay_blocked(b)), None)
+    blockers = {b: _bay_blocker(b) for b in bay_order}
+    chosen_bay = next((b for b in bay_order if blockers[b] is None), None)
     if chosen_bay is None:
+        held = ", ".join(
+            f"T{c.tray_id} ({CELL_TYPE_LABEL.get(c.cell_type, c.cell_type)})"
+            for c in (blockers[b] for b in range(bay_count))
+            if c is not None
+        )
         raise ValueError(
-            f"both cell-tray bays on this instrument are occupied by existing physical trays; "
-            f"no free bay to load a fresh tray for well {well}."
+            f"Both cell-tray bays on this instrument are occupied by existing physical trays "
+            f"({held}); no free bay to load a fresh tray for well {well}. Discard one of them "
+            f"(the ↻ on its plate, or Cells → Discard all cells) or pick another day."
         )
 
     lo = chosen_bay * CELLS_PER_TRAY
@@ -430,7 +465,8 @@ def open_new_tray(db: Session, instrument_id: int, well: str, *, founding_date: 
     for position, home_well in enumerate(box_wells, start=1):
         cell = Cell(
             code="PENDING",
-            max_uses=CELL_MAX_USES,
+            cell_type=cell_type,
+            max_uses=MAX_USES_BY_CELL_TYPE[cell_type],
             status="open",
             tray_id=tray.id,
             tray_position=position,
@@ -515,7 +551,7 @@ def first_use_planned_start_at(cell: Cell) -> datetime | None:
 
 
 def window_hours_elapsed(cell: Cell, at: datetime | None = None) -> float | None:
-    if cell.first_use_started_at is None:
+    if cell.first_use_started_at is None or is_single_use(cell):
         return None
     started = ensure_aware(cell.first_use_started_at)
     return ((at or utcnow()) - started).total_seconds() / 3600
@@ -527,7 +563,9 @@ def reuse_deadline(cell: Cell) -> datetime | None:
     first-use start (an estimate). None when the cell has no active use yet (no clock running).
     Single source of the deadline for BOTH the placement-time window gate
     (placement_service._reuse_window_open) and the post-placement flag (reuse_window_exceeded),
-    so the two can never drift."""
+    so the two can never drift. Always None for a single-use SPRQ cell - it has no reuse."""
+    if is_single_use(cell):
+        return None
     anchor = cell.first_use_started_at or first_use_planned_start_at(cell)
     if anchor is None:
         return None
@@ -723,6 +761,7 @@ def serialize_cell(cell: Cell, as_of: datetime | None = None) -> CellOut:
     return CellOut(
         id=cell.id,
         code=cell.code,
+        cell_type=cell.cell_type,
         max_uses=cell.max_uses,
         status=status,
         uses_consumed=uses_consumed,
@@ -1077,7 +1116,9 @@ def rotate_tray(
         #    fresh-tray resolution. (Keying by cu.well used to 409 "doesn't belong to this tray box"
         #    whenever a tray whose samples had been moved to a differently-named plate well - e.g. a
         #    bay-1 tray loaded onto a Plate-1 well - was discarded.)
-        new_cells = open_new_tray(db, instrument_id, box_well)
+        # The fresh tray is the same product as the one it replaces (SPRQ-Nx or single-use SPRQ),
+        # so the re-pointed uses keep running on their run's cell type.
+        new_cells = open_new_tray(db, instrument_id, box_well, cell_type=cells[0].cell_type)
         new_by_pos = {within_tray_pos(c.home_well): c for c in new_cells}
 
         # 3. Re-point each strictly-later use onto the fresh cell at the SAME tray position as its

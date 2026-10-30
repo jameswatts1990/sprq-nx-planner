@@ -248,3 +248,6 @@
 .u3 {
   --use: var(--teal);
 }
+.sprq {
+  --use: var(--sprq);
+}

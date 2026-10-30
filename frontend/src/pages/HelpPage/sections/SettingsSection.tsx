@@ -41,7 +41,9 @@ export function SettingsSection() {
         length is the <b>default</b> for a sample that doesn&apos;t specify one, and, per length, which <b>carousel
         cell</b> Auto Schedule confines it to (for example 12 h on cell 1, 30 h on cell 4, 24 h any cell). These steer
         Auto Schedule only — a manual drag-and-drop always places a sample wherever you drop it. Press <b>Save</b> to
-        apply; existing schedules are unaffected until re-run.
+        apply; existing schedules are unaffected until re-run. The default also decides which lengths get the dark{" "}
+        <b>12h</b>/<b>30h</b> movie-time flag on Backlog and Schedule cards: any length other than the default is
+        flagged.
       </p>
 
       <p className={styles.subheading}>Email template</p>
@@ -57,7 +59,11 @@ export function SettingsSection() {
       <p>
         One variable is worked out for you: <code>&lt;reimbursement&gt;</code> is the{" "}
         <b>expected number of acquisitions to credit</b> — the failed acquisition plus the cell&apos;s remaining
-        acquisitions (for a case without a cell, the number entered on it). <code>&lt;summary&gt;</code> is what
+        acquisitions (for a case without a cell, the number entered on it); for a single-use SPRQ cell that&apos;s just
+        the 1 failed acquisition, which PacBio credits as a whole cell. <code>&lt;cell type&gt;</code> says which kind
+        of cell it was — <i>SPRQ-Nx</i> or <i>SPRQ (single-use)</i> — and the default template includes it as a{" "}
+        <b>Cell type</b> line; if you&apos;ve already saved your own template, add it yourself so PacBio know which
+        product to credit. <code>&lt;summary&gt;</code> is what
         happened: a case&apos;s own summary, or a cell&apos;s fail/stop reason. Two variables — <code>&lt;well&gt;</code> and <code>&lt;cell code&gt;</code> — are this
         app&apos;s internal tray/cell identifiers, which PacBio&apos;s support desk won&apos;t recognise; leave them out
         of an email going to PacBio and identify the cell by its sample and run instead (a case without a cell has
@@ -67,7 +73,8 @@ export function SettingsSection() {
       <p className={styles.subheading}>Instrument &amp; scheduling facts</p>
       <p>
         A read-only reference of the rules the app enforces that come from the PacBio Revio / SPRQ-Nx instrument itself,
-        grouped into cell reuse (the <b>108-hour re-use window</b>, the <b>3-use</b> cap, the <b>tray of 4</b>), the
+        grouped into cell reuse (the <b>108-hour re-use window</b>, the <b>3-use</b> cap of a SPRQ-Nx cell and the{" "}
+        <b>1-use</b> cap of a single-use SPRQ cell, the <b>tray of 4</b>), the
         instrument deck (its <b>8 loading wells</b> and the <b>12 / 24 / 30 h</b> movie lengths), and the per-cell
         timing ladder (prep, re-use wash, sequencing and PPA lanes, and so on). These are physical or vendor-documented
         facts, not preferences, so they&apos;re shown for reference but can&apos;t be edited.

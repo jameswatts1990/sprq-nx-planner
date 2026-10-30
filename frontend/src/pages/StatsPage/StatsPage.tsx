@@ -98,7 +98,7 @@ function Headline({ data }: { data: StatsResponse }) {
     <StatTiles>
       <StatTile label="Runs completed" value={h.runs_completed} />
       <StatTile label="Samples completed" value={h.samples_completed} />
-      <StatTile label="Avg uses / cell" value={h.avg_uses_per_cell.toFixed(2)} hint="of 3 max" />
+      <StatTile label="Avg uses / cell" value={h.avg_uses_per_cell.toFixed(2)} hint="of 3 max · SPRQ-Nx only" />
       <StatTile label="Reaching Use 3" value={`${h.pct_reaching_use3}%`} />
       <StatTile label="Failure rate" value={`${h.failure_rate}%`} hint="of samples sequenced" />
       <StatTile label="Well fill" value={`${h.well_fill_pct}%`} hint="of 8 wells/run" />
@@ -194,7 +194,7 @@ function StatsCharts({ data }: { data: StatsResponse }) {
           <div className={styles.grid}>
             <ChartBlock
               title="Reuse depth"
-              subtitle="how far cells got through their 3 uses"
+              subtitle="how far SPRQ-Nx cells got through their 3 uses (single-use SPRQ cells aren't counted)"
               isEmpty={!depth.some((d) => d.cells)}
             >
               <CategoryBars
