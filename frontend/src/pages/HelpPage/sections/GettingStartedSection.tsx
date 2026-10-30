@@ -53,7 +53,8 @@ export function GettingStartedSection() {
       <p>
         The <b>Settings</b> tab configures how this instance schedules runs and defaults new samples (and hides raw
         database tools for development use), and this <b>Help</b> tab documents every screen — see their sections below,
-        or use the search box above to jump straight to a topic.
+        or use the search box above to jump straight to a topic (<b>Enter</b> or <b>↓</b> steps to the next match,{" "}
+        <b>Shift+Enter</b> or <b>↑</b> to the previous).
       </p>
     </div>
   );

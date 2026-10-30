@@ -271,7 +271,7 @@ export function CellQcModal({ cellId, cellUseId, onClose, onApplied }: CellQcMod
                   title={canFail ? undefined : "Available once the run is confirmed loaded"}
                   onClick={() => previewMutation.mutate("fail")}
                 >
-                  <b>Fail Cell</b>
+                  <b>Fail cell</b>
                   <small>Mark this run failed. The cell stays open for its other uses.</small>
                 </button>
                 <button
@@ -281,7 +281,7 @@ export function CellQcModal({ cellId, cellUseId, onClose, onApplied }: CellQcMod
                   title={canFail ? undefined : "Available once the run is confirmed loaded"}
                   onClick={() => previewMutation.mutate("fail_and_stop")}
                 >
-                  <b>Fail and Stop Cell</b>
+                  <b>Fail and stop cell</b>
                   <small>Mark this run failed and stop the cell — its later scheduled uses shift or drop off.</small>
                 </button>
                 <button
@@ -290,7 +290,7 @@ export function CellQcModal({ cellId, cellUseId, onClose, onApplied }: CellQcMod
                   disabled={busy}
                   onClick={() => previewMutation.mutate("retire")}
                 >
-                  <b>Retire Cell</b>
+                  <b>Retire cell</b>
                   <small>Take the cell out of service. This run isn’t failed; later uses shift or drop off.</small>
                 </button>
               </div>

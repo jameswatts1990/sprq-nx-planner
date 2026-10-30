@@ -5,9 +5,10 @@ import { errorMessage } from "@/api/client";
 import { settingsApi } from "@/api/settings";
 import type { SchedulingSettings, SchedulingSettingsUpdate } from "@/api/settings";
 import { Button } from "@/components/ui/Button";
+import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Note } from "@/components/ui/Note";
 
-import styles from "./SampleDefaultsPanel.module.css";
+import styles from "./SettingsPanel.module.css";
 
 /** Settings > Scheduling: global scheduling parameters that go through the validated,
  * audit-logged service path (not a raw table edit).
@@ -77,148 +78,150 @@ export function SchedulingPanel() {
   };
 
   return (
-    <div className={styles.panel}>
-      <div className={styles.header}>
-        <h2 className={styles.title}>Scheduling</h2>
+    <Card>
+      <CardHeader>
+        <h2>Scheduling</h2>
+      </CardHeader>
+      <CardBody className={styles.body}>
         <p className={styles.helper}>
           Global rules Auto Schedule and manual placement follow. Existing schedules are unaffected until re-run.
         </p>
-      </div>
 
-      {query.isError && (
-        <Note tone="bad" icon="!">
-          {errorMessage(query.error, "Couldn't load the scheduling settings.")}
-        </Note>
-      )}
+        {query.isError && (
+          <Note tone="bad" icon="!">
+            {errorMessage(query.error, "Couldn't load the scheduling settings.")}
+          </Note>
+        )}
 
-      {query.data && (
-        <>
-          <table className={`table ${styles.valueTable}`}>
-            <thead>
-              <tr>
-                <th>Setting</th>
-                <th>Value</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>
-                  <span className={styles.settingName}>Insert size re-use threshold (bp)</span>
-                  <span className={styles.settingHint}>
-                    Samples at or below this size are kept on a cell’s first use; a “[&lt;5kb]” flag and a warning show
-                    if one is placed on a 2nd/3rd use.
-                  </span>
-                </td>
-                <td>
-                  <input
-                    className={styles.select}
-                    type="number"
-                    min={1}
-                    step={100}
-                    inputMode="numeric"
-                    value={threshold}
-                    onChange={(e) => setThreshold(e.target.value)}
-                    aria-label="Insert size re-use threshold in base pairs"
-                  />
-                </td>
-              </tr>
-              <tr>
-                <td>
-                  <span className={styles.settingName}>Default run start hour</span>
-                  <span className={styles.settingHint}>
-                    The time of day a run loads by default (UTC). Pre-fills the Schedule grid’s load-time dial.
-                  </span>
-                </td>
-                <td>
-                  <select
-                    className={styles.select}
-                    value={dayStartHour}
-                    onChange={(e) => setDayStartHour(e.target.value)}
-                    aria-label="Default run start hour"
-                  >
-                    {Array.from({ length: 24 }, (_, h) => (
-                      <option key={h} value={h}>
-                        {String(h).padStart(2, "0")}:00
-                      </option>
-                    ))}
-                  </select>
-                </td>
-              </tr>
-              <tr>
-                <td>
-                  <span className={styles.settingName}>Cleaned complex made (µL)</span>
-                  <span className={styles.settingHint}>
-                    Total cleaned complex prepared per sample. Cell QC shows how much is left after loading when
-                    deciding a repeat from complex.
-                  </span>
-                </td>
-                <td>
-                  <input
-                    className={styles.select}
-                    type="number"
-                    min={0}
-                    step={1}
-                    inputMode="decimal"
-                    value={totalComplex}
-                    onChange={(e) => setTotalComplex(e.target.value)}
-                    aria-label="Total cleaned complex made in microlitres"
-                  />
-                </td>
-              </tr>
-              <tr>
-                <td>
-                  <span className={styles.settingName}>Safe repeat-from-complex volume (µL)</span>
-                  <span className={styles.settingHint}>
-                    Leftover cleaned complex at or above which Cell QC suggests a repeat straight from complex; below
-                    it the repeat is flagged “at risk” (never blocked).
-                  </span>
-                </td>
-                <td>
-                  <input
-                    className={styles.select}
-                    type="number"
-                    min={0}
-                    step={1}
-                    inputMode="decimal"
-                    value={safeMin}
-                    onChange={(e) => setSafeMin(e.target.value)}
-                    aria-label="Safe repeat-from-complex volume in microlitres"
-                  />
-                </td>
-              </tr>
-            </tbody>
-          </table>
+        {query.data && (
+          <>
+            <table className={`table ${styles.valueTable}`}>
+              <thead>
+                <tr>
+                  <th>Setting</th>
+                  <th>Value</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>
+                    <span className={styles.settingName}>Insert size re-use threshold (bp)</span>
+                    <span className={styles.settingHint}>
+                      Samples at or below this size are kept on a cell’s first use; a “[&lt;5kb]” flag and a warning show
+                      if one is placed on a 2nd/3rd use.
+                    </span>
+                  </td>
+                  <td>
+                    <input
+                      className={styles.select}
+                      type="number"
+                      min={1}
+                      step={100}
+                      inputMode="numeric"
+                      value={threshold}
+                      onChange={(e) => setThreshold(e.target.value)}
+                      aria-label="Insert size re-use threshold in base pairs"
+                    />
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <span className={styles.settingName}>Default run start hour</span>
+                    <span className={styles.settingHint}>
+                      The time of day a run loads by default (UTC). Pre-fills the Schedule grid’s load-time dial.
+                    </span>
+                  </td>
+                  <td>
+                    <select
+                      className={styles.select}
+                      value={dayStartHour}
+                      onChange={(e) => setDayStartHour(e.target.value)}
+                      aria-label="Default run start hour"
+                    >
+                      {Array.from({ length: 24 }, (_, h) => (
+                        <option key={h} value={h}>
+                          {String(h).padStart(2, "0")}:00
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <span className={styles.settingName}>Cleaned complex made (µL)</span>
+                    <span className={styles.settingHint}>
+                      Total cleaned complex prepared per sample. Cell QC shows how much is left after loading when
+                      deciding a repeat from complex.
+                    </span>
+                  </td>
+                  <td>
+                    <input
+                      className={styles.select}
+                      type="number"
+                      min={0}
+                      step={1}
+                      inputMode="decimal"
+                      value={totalComplex}
+                      onChange={(e) => setTotalComplex(e.target.value)}
+                      aria-label="Total cleaned complex made in microlitres"
+                    />
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <span className={styles.settingName}>Safe repeat-from-complex volume (µL)</span>
+                    <span className={styles.settingHint}>
+                      Leftover cleaned complex at or above which Cell QC suggests a repeat straight from complex; below
+                      it the repeat is flagged “at risk” (never blocked).
+                    </span>
+                  </td>
+                  <td>
+                    <input
+                      className={styles.select}
+                      type="number"
+                      min={0}
+                      step={1}
+                      inputMode="decimal"
+                      value={safeMin}
+                      onChange={(e) => setSafeMin(e.target.value)}
+                      aria-label="Safe repeat-from-complex volume in microlitres"
+                    />
+                  </td>
+                </tr>
+              </tbody>
+            </table>
 
-          {mutation.isError && (
-            <Note tone="bad" icon="!">
-              {errorMessage(mutation.error, "Couldn't save the scheduling settings.")}
-            </Note>
-          )}
-          {!thresholdValid && threshold.trim() !== "" && (
-            <Note tone="warn" icon="!">
-              Enter a whole number of base pairs greater than 0.
-            </Note>
-          )}
-          {((!totalValid && totalComplex.trim() !== "") || (!safeValid && safeMin.trim() !== "")) && (
-            <Note tone="warn" icon="!">
-              Enter a volume in microlitres greater than 0.
-            </Note>
-          )}
-          {safeExceedsTotal && (
-            <Note tone="warn" icon="!">
-              The safe repeat volume is above the total cleaned complex made — no repeat from complex would ever be
-              flagged “safe”.
-            </Note>
-          )}
+            {mutation.isError && (
+              <Note tone="bad" icon="!">
+                {errorMessage(mutation.error, "Couldn't save the scheduling settings.")}
+              </Note>
+            )}
+            {!thresholdValid && threshold.trim() !== "" && (
+              <Note tone="warn" icon="!">
+                Enter a whole number of base pairs greater than 0.
+              </Note>
+            )}
+            {((!totalValid && totalComplex.trim() !== "") || (!safeValid && safeMin.trim() !== "")) && (
+              <Note tone="warn" icon="!">
+                Enter a volume in microlitres greater than 0.
+              </Note>
+            )}
+            {safeExceedsTotal && (
+              <Note tone="warn" icon="!">
+                The safe repeat volume is above the total cleaned complex made — no repeat from complex would ever be
+                flagged “safe”.
+              </Note>
+            )}
 
-          <div className={styles.actions}>
-            {!dirty && !mutation.isPending && valid && <span className={styles.savedNote}>All changes saved</span>}
-            <Button variant="primary" size="sm" disabled={!dirty || !valid || mutation.isPending} onClick={save}>
-              {mutation.isPending ? "Saving…" : "Save"}
-            </Button>
-          </div>
-        </>
-      )}
-    </div>
+            <div className={styles.actions}>
+              {!dirty && !mutation.isPending && valid && <span className={styles.savedNote}>All changes saved</span>}
+              <Button variant="primary" size="sm" disabled={!dirty || !valid || mutation.isPending} onClick={save}>
+                {mutation.isPending ? "Saving…" : "Save"}
+              </Button>
+            </div>
+          </>
+        )}
+      </CardBody>
+    </Card>
   );
 }

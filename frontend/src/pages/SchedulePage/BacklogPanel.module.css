@@ -101,27 +101,10 @@
   gap: 10px;
   padding-top: 8px;
 }
-/* The ‹ / › collapse-expand control - inline with the title in the expanded header, and the
-   sole element in the collapsed rail. flex-centred so the glyph sits dead-centre in the box.
-   Structure/hover come from the base ghost-button look. */
+/* The ‹ / › collapse-expand control (a ghost icon Button) - inline with the title in the expanded
+   header, and the sole element in the collapsed rail; never squeezed by a crowded title row. */
 .collapseToggle {
-  flex: 0 0 auto;
-  width: 24px;
-  height: 24px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: var(--fs-lg);
-  font-weight: 800;
-  color: var(--grey);
-  background: transparent;
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  cursor: pointer;
-}
-.collapseToggle:hover {
-  color: var(--ink);
-  border-color: var(--line-hover);
+  flex: none;
 }
 .railLabel {
   writing-mode: vertical-rl;

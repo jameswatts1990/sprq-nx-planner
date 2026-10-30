@@ -151,7 +151,7 @@ export function TrayPanel({ trayId, cells, currentCellId, showDiscard = true }: 
         >
           <Note tone="warn" icon="!">
             This un-discards the tray so its cells can be reused again. If it was discarded with the grid&apos;s{" "}
-            <b>↻</b> button, any later uses that moved onto a fresh tray move back here — unless they&apos;ve since been{" "}
+            <b>⏏</b> button, any later uses that moved onto a fresh tray move back here — unless they&apos;ve since been{" "}
             <b>Confirm loaded</b>. A hard &quot;Discard all cells&quot; cancelled its placements to the backlog; those
             samples stay there to re-place.
           </Note>

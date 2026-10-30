@@ -9,7 +9,7 @@ export type QcVerdict = "fail" | "fail_and_stop" | "retire";
  *    auto-suggested when enough complex remains) → backlog at Repeatable(0).
  *  - "repeatable": repeat from the library material held in Traction → backlog at Repeatable(0).
  *  - "recoverable": recoverable from the instrument (data still on it) → backlog at Recoverable(0).
- * The three non-"lost" values all appear in the Backlog's "Recoverable Samples" section. */
+ * The three non-"lost" values all appear in the Backlog's "Recoverable samples" section. */
 export type Disposition = "lost" | "repeatable_complex" | "repeatable" | "recoverable";
 
 /** One sample touched by a QC verdict, with the scheduling context the disposition modal

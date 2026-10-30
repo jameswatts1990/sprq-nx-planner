@@ -174,26 +174,12 @@
   opacity: 0.6;
   cursor: not-allowed;
 }
-.ctrl {
-  font-family: var(--sans);
+/* "Confirm loaded" - a sm Button made extra-compact for the day header (the :global(.btn.sm)
+   qualifier outranks base.css's .btn.sm padding), in the magenta tint of the run's next step. */
+:global(.btn.sm).confirmBtn {
   font-size: var(--fs-2xs);
-  font-weight: 700;
-  border: 1px solid var(--line);
-  background: var(--card);
-  color: var(--ink);
-  border-radius: 6px;
   padding: 3px 8px;
-  cursor: pointer;
   margin-left: auto;
-}
-.ctrl:hover:not(:disabled) {
-  border-color: var(--line-hover);
-}
-.ctrl:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-.confirm {
   border-color: var(--magenta);
   color: var(--magenta);
   background: var(--magenta-tint);
@@ -264,10 +250,10 @@
   flex-wrap: nowrap;
   min-width: 0;
 }
-/* "Rotate tray" - top-right of the tray header, only shown on a not-yet-locked tray card
-   (see SchedulerDayCell.tsx). Deliberately understated since it sits on every tray card;
-   a neutral (not red) hover, because rotating is a routine forward action - load a fresh
-   tray - not an error/write-off. */
+/* "Discard current tray" (⏏, the tray comes out) - top-right of the tray header, only shown on a
+   not-yet-locked tray card (see SchedulerDayCell.tsx). Deliberately understated since it sits on
+   every tray card; a neutral (not red) hover, because rotating in a fresh tray is a routine
+   forward action, not an error/write-off. */
 .rotateBtn {
   font-family: var(--sans);
   font-size: var(--fs-sm);
@@ -289,7 +275,7 @@
   cursor: not-allowed;
 }
 
-/* The rotate (↻) and clear-plate (✕) controls sit together at the top-right of the tray
+/* The discard-tray (⏏) and clear-plate (✕) controls sit together at the top-right of the tray
    header. */
 .trayHeaderActions {
   display: flex;

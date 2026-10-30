@@ -116,7 +116,7 @@ export function CaseRowFrame({
           aria-label={open ? "Hide credit tracker" : "Show credit tracker"}
           onClick={onToggle}
         >
-          <span className={styles.cx} data-open={open}>
+          <span className={open ? "disclosure open" : "disclosure"} aria-hidden="true">
             ▸
           </span>
         </button>

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
+import { Button } from "@/components/ui/Button";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { useDebouncedValue } from "@/utils/useDebouncedValue";
 
@@ -115,12 +116,26 @@ export function HelpPage() {
                       {search.position} / {search.total}
                     </span>
                     <div className={styles.searchNavBtns}>
-                      <button type="button" className={`btn icon sm ${styles.searchNavBtn}`} onClick={search.goPrev} aria-label="Previous match">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        icon
+                        aria-label="Previous match"
+                        title="Previous match (Shift+Enter)"
+                        onClick={search.goPrev}
+                      >
                         ↑
-                      </button>
-                      <button type="button" className={`btn icon sm ${styles.searchNavBtn}`} onClick={search.goNext} aria-label="Next match">
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        icon
+                        aria-label="Next match"
+                        title="Next match (Enter)"
+                        onClick={search.goNext}
+                      >
                         ↓
-                      </button>
+                      </Button>
                     </div>
                   </>
                 ) : (

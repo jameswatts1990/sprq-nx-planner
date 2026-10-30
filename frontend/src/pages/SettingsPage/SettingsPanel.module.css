@@ -1,20 +1,9 @@
-.panel {
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: var(--r);
-  padding: 14px 18px;
+/* Shared by the Settings panels (each a Card): the stacked body, helper line, setting | value
+   tables and the save row. */
+.body {
   display: flex;
   flex-direction: column;
   gap: 12px;
-}
-.header {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.title {
-  font-size: var(--fs-xl);
-  margin: 0;
 }
 .helper {
   font-size: var(--fs-md);

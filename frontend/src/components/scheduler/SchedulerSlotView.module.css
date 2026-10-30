@@ -464,10 +464,11 @@
   color: var(--grey);
 }
 /* "Has a note" marker on the cellref line (kept off the sample-name line so it can never
-   push that ellipsis). A quiet monochrome ✎, not an alert - the note text itself is on its
-   title tooltip and in the slot detail popover. Shown/hidden by the View options "Notes"
-   toggle via the grid area's data-notes attribute. */
+   push that ellipsis). A quiet monochrome note-page icon (an inline SVG sized by this font-size),
+   not an alert - the note text itself is on its title tooltip and in the slot detail popover.
+   Shown/hidden by the View options "Notes" toggle via the grid area's data-notes attribute. */
 .noteFlag {
+  display: inline-flex;
   font-size: 10px;
   line-height: 1;
   color: var(--grey);

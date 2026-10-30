@@ -122,7 +122,7 @@ export function SlotDetailPopover({ stage, run, onClose, onOpenQc }: SlotDetailP
  * per-cell run time and a free-text note. A cell is physically fixed to its tray/well
  * position for life, so this popover never reassigns it in place - reallocating a sample
  * means dragging it. Cell QC (Fail / Fail-and-Stop / Retire) lives in the shared Cell QC
- * modal, reachable from here via the "Cell QC" button (and from the card's ticket-stub / the tray
+ * modal, reachable from here via the "Cell QC…" button (and from the card's ticket-stub / the tray
  * overview); it isn't duplicated inline any more. Built on Modal. */
 function SlotDetailBody({
   stage,
@@ -493,7 +493,7 @@ function SlotDetailBody({
               onOpenQc(stage.cell_id, stage.cell_use_id);
             }}
           >
-            Cell QC
+            Cell QC…
           </Button>
         )}
         {isCancelled && (

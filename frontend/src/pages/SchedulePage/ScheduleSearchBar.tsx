@@ -8,8 +8,8 @@ import styles from "./ScheduleSearchBar.module.css";
 /**
  * The Schedule toolbar's unified search box (right of Export schedule): one field that both
  * filters the Backlog tray and finds every placement of a sample or run across the whole
- * schedule. Works like a browser's find bar - type to search, then Enter (or ›) to cycle to
- * the next appearance and Shift+Enter (or ‹) for the previous, jumping the week view to
+ * schedule. Works like a browser's find bar - type to search, then Enter (or ↓) to cycle to
+ * the next appearance and Shift+Enter (or ↑) for the previous, jumping the week view to
  * wherever the match sits. Esc clears.
  */
 export function ScheduleSearchBar({ search }: { search: ScheduleSearch }) {
@@ -64,26 +64,28 @@ export function ScheduleSearchBar({ search }: { search: ScheduleSearch }) {
       {searchActive && (
         <div className={styles.nav}>
           <Button
-            size="sm"
             variant="ghost"
+            size="sm"
+            icon
             aria-label="Previous match"
             title="Previous match (Shift+Enter)"
             onClick={prev}
             disabled={count === 0}
           >
-            ‹
+            ↑
           </Button>
           <Button
-            size="sm"
             variant="ghost"
+            size="sm"
+            icon
             aria-label="Next match"
             title="Next match (Enter)"
             onClick={next}
             disabled={count === 0}
           >
-            ›
+            ↓
           </Button>
-          <Button size="sm" variant="ghost" aria-label="Clear search" title="Clear search (Esc)" onClick={clear}>
+          <Button variant="ghost" size="sm" icon aria-label="Clear search" title="Clear search (Esc)" onClick={clear}>
             ✕
           </Button>
         </div>

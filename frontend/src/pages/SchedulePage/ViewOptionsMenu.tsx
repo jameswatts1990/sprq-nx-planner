@@ -109,7 +109,7 @@ export function ViewOptionsMenu({
             />
           </div>
           <p className={styles.hint}>
-            Show a small ✎ marker on cards that carry a note — hover it to read the note. Day-note banners always show.
+            Show a small note icon on cards that carry a note — hover it to read the note. Day-note banners always show.
           </p>
 
           <div className={styles.row}>

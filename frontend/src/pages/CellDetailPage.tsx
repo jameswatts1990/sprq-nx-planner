@@ -192,9 +192,9 @@ export function CellDetailPage() {
                   <th>Barcodes</th>
                   <th>Priority</th>
                   <th>Target OPLC</th>
-                  <th>Adaptive Loading</th>
-                  <th>Full Res. Base Q</th>
-                  <th>Include Base Kinetics</th>
+                  <th>Adaptive loading</th>
+                  <th>Full res. base Q</th>
+                  <th>Include base kinetics</th>
                   <th>Instrument</th>
                   <th>Started</th>
                   <th>Completed</th>

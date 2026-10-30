@@ -41,32 +41,6 @@
   color: var(--grey);
   font-weight: 700;
 }
-.asOfToggle {
-  display: inline-flex;
-  border: 1.5px solid var(--line);
-  border-radius: 999px;
-  padding: 3px;
-  background: var(--card);
-}
-.asOfBtn {
-  border: none;
-  background: transparent;
-  border-radius: 999px;
-  padding: 8px 18px;
-  font-family: var(--sans);
-  font-weight: 700;
-  font-size: var(--fs-lg);
-  color: var(--grey);
-  cursor: pointer;
-  transition: 0.12s;
-}
-.asOfBtn[aria-pressed="true"] {
-  background: var(--magenta);
-  color: var(--on-accent);
-}
-.asOfBtn:not([aria-pressed="true"]):hover {
-  color: var(--magenta);
-}
 /* The tray view's title: "Tray N" reads in mono, like the tray group headers it's opened from. */
 .mono {
   font-family: var(--mono);

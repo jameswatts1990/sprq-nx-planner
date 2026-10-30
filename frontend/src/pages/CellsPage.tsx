@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/Button";
 import { Modal, ModalActions } from "@/components/ui/Modal";
 import { Note } from "@/components/ui/Note";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import type { CellOut } from "@/types/cell";
 import type { CellStatus } from "@/types/common";
 import {
@@ -142,24 +143,15 @@ export function CellsPage() {
   const asOfToggle = (
     <div className={styles.asOfRow}>
       <span className={styles.asOfLabel}>Showing data as of</span>
-      <div className={styles.asOfToggle} role="group" aria-label="Reference time">
-        <button
-          type="button"
-          className={styles.asOfBtn}
-          aria-pressed={asOf === "now"}
-          onClick={() => setAsOf("now")}
-        >
-          Now
-        </button>
-        <button
-          type="button"
-          className={styles.asOfBtn}
-          aria-pressed={asOf === "eow"}
-          onClick={() => setAsOf("eow")}
-        >
-          End of week ({endOfWeekLabel()})
-        </button>
-      </div>
+      <SegmentedControl<AsOf>
+        ariaLabel="Reference time"
+        value={asOf}
+        onChange={setAsOf}
+        options={[
+          { value: "now", label: "Now" },
+          { value: "eow", label: `End of week (${endOfWeekLabel()})` },
+        ]}
+      />
     </div>
   );
 

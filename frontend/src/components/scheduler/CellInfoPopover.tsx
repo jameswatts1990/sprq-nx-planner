@@ -257,17 +257,17 @@ export function CellInfoPopover({ stage, run, onClose, onOpenQc }: CellInfoPopov
           Close
         </Button>
         <Link to={`/cells/${stage.cell_id}`} className={`btn ghost ${styles.viewCellLink}`}>
-          View full cell
+          View cell
         </Link>
         <Button
-          variant="danger"
+          variant="ghost"
           onClick={() => {
             onClose();
             onOpenQc(stage.cell_id, stage.cell_use_id);
           }}
           disabled={useNewCell.isPending || chooseCell.isPending}
         >
-          QC…
+          Cell QC…
         </Button>
         {canChooseCell && (
           <Button variant="ghost" onClick={() => setPickerOpen(true)} disabled={useNewCell.isPending || chooseCell.isPending}>

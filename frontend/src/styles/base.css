@@ -253,6 +253,26 @@ a {
   padding: 10px 4px;
 }
 
+/* ---- Disclosure glyph --------------------------------------------------------------------
+   The one expand/collapse indicator: <span class="disclosure">▸</span>, plus .open while its
+   section is expanded so the ▸ turns to point down. Sized off the surrounding text, enlarged
+   because ▸ is a small triangle in the system fonts. */
+.disclosure {
+  display: inline-block;
+  color: var(--grey);
+  font-size: 1.4em;
+  line-height: 1;
+  transition: transform 0.15s ease;
+}
+.disclosure.open {
+  transform: rotate(90deg);
+}
+@media (prefers-reduced-motion: reduce) {
+  .disclosure {
+    transition: none;
+  }
+}
+
 /* Help-page search highlighting. The names are registered document-wide in the CSS
    highlight registry by the Help page's useHelpSearch hook (and cleared on unmount), so
    these globals only ever paint while that page is mounted. `help-search-active` is the

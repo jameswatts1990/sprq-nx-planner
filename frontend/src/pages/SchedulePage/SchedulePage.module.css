@@ -123,7 +123,7 @@
 .gridArea[data-barcodes="hidden"] [data-barcode-chips] {
   display: none;
 }
-/* "Hide notes" - drops the ✎ note markers (shown by default). Same grid-area scope so a
+/* "Hide notes" - drops the cards' note icons (shown by default). Same grid-area scope so a
    note still shows in the slot detail popover, which renders outside the grid. */
 .gridArea[data-notes="hidden"] [data-note-indicator] {
   display: none;

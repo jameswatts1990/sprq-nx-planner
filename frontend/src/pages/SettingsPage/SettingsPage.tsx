@@ -1,5 +1,6 @@
 import { useState, type JSX } from "react";
 
+import { Button } from "@/components/ui/Button";
 import { PageHeader } from "@/components/ui/PageHeader";
 
 import { CreditEmailPanel } from "./CreditEmailPanel";
@@ -113,14 +114,9 @@ export function SettingsPage() {
           </nav>
 
           <div className={styles.reveal}>
-            <button
-              type="button"
-              className={styles.revealBtn}
-              onClick={() => setDevShown((v) => !v)}
-              aria-expanded={devShown}
-            >
+            <Button variant="ghost" size="sm" onClick={() => setDevShown((v) => !v)} aria-expanded={devShown}>
               {devShown ? "Hide developer tools" : "Show developer tools"}
-            </button>
+            </Button>
           </div>
         </aside>
 

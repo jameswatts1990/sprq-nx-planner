@@ -14,7 +14,7 @@ export function CellsSection() {
 
       <p className={styles.subheading}>Now vs End of week</p>
       <p>
-        A big <b>Showing data as of</b> toggle just under the page title switches every time-based figure on the page between{" "}
+        The <b>Showing data as of</b> switch just under the page title flips every time-based figure on the page between{" "}
         <b>Now</b> and <b>End of week</b> (this week&apos;s Friday). It changes how each cell reads: a cell whose next
         uses are still <i>scheduled</i> for later this week shows those uses as not-yet-spent under <b>Now</b>, but
         counted under <b>End of week</b> — so a cell can read &quot;1 / 3 · Open&quot; now and &quot;3 / 3 ·
@@ -105,7 +105,7 @@ export function CellsSection() {
         reused.
       </p>
       <p>
-        <b>Hover a card</b> (or flip <b>Expand all</b>) to open its details: which instrument and well it&apos;s in, its{" "}
+        <b>Hover a card</b> (or flip <b>Expand all</b>) to open its details (its <b>▸ Details</b> hint turns to point down): which instrument and well it&apos;s in, its{" "}
         <b>tray</b>, its burned barcodes, a <b>QC badge</b> (Unreported / Awaiting credit) when the cell has an open
         PacBio-credit case, a <b>Cell life</b> timeline plotting when each use broke out across the 108-hour window, and
         a <b>Samples &amp; runs</b> list <i>grouped by run</i> — each run name heads its own line with the sample(s) it
@@ -156,19 +156,19 @@ export function CellsSection() {
           <b>retired</b> cell also shows a note with the reason it was taken out of service and the date it happened.
         </li>
         <li>
-          <b>Cell QC</b> opens the quality-control dialog for the cell, with three actions (each takes an optional
+          <b>Cell QC…</b> opens the quality-control dialog for the cell, with three actions (each takes an optional
           reason note):
           <ul>
             <li>
-              <b>Fail Cell</b> — the current run produced no usable data, but the cell is physically fine and keeps
+              <b>Fail cell</b> — the current run produced no usable data, but the cell is physically fine and keeps
               its other scheduled uses. Only that one sample is affected.
             </li>
             <li>
-              <b>Fail and Stop Cell</b> — the run failed <i>and</i> the cell is out of service (e.g. visibly damaged);
+              <b>Fail and stop cell</b> — the run failed <i>and</i> the cell is out of service (e.g. visibly damaged);
               its later scheduled uses can no longer run on it.
             </li>
             <li>
-              <b>Retire Cell</b> — take the cell out of service <i>without</i> failing the current run; its later
+              <b>Retire cell</b> — take the cell out of service <i>without</i> failing the current run; its later
               scheduled uses can no longer run on it.
             </li>
           </ul>
@@ -197,7 +197,7 @@ export function CellsSection() {
             </li>
           </ul>
           Complex, Library and Instrument all go back to the Backlog above High priority, in its{" "}
-          <b>Recoverable Samples</b> section. Samples that simply ran on a <i>different</i> cell than planned are
+          <b>Recoverable samples</b> section. Samples that simply ran on a <i>different</i> cell than planned are
           flagged for review — with a warning if the shift created a barcode clash — and left as they are unless you
           choose to route them too.
         </li>

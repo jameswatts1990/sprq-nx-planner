@@ -249,7 +249,7 @@ function InstrumentCard({
       <CardBody>
         {instrument.down_from && (
           <div className={styles.downNote}>
-            <Note tone="warn" icon="⚠">
+            <Note tone="warn" icon="!">
               Down for maintenance since {shortDate(instrument.down_from)}
               {instrument.down_note ? ` — ${instrument.down_note}` : ""}. No new runs can be scheduled on it from
               that date until it&apos;s back online.

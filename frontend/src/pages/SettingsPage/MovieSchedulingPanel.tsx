@@ -5,9 +5,10 @@ import { errorMessage } from "@/api/client";
 import { settingsApi } from "@/api/settings";
 import type { SchedulingSettings, SchedulingSettingsUpdate } from "@/api/settings";
 import { Button } from "@/components/ui/Button";
+import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Note } from "@/components/ui/Note";
 
-import styles from "./SampleDefaultsPanel.module.css";
+import styles from "./SettingsPanel.module.css";
 import movieStyles from "./MovieSchedulingPanel.module.css";
 
 /** The cell-position options offered per movie length. `null` = unrestricted ("Any cell"); a
@@ -62,84 +63,86 @@ export function MovieSchedulingPanel() {
   };
 
   return (
-    <div className={styles.panel}>
-      <div className={styles.header}>
-        <h2 className={styles.title}>Movie scheduling</h2>
+    <Card>
+      <CardHeader>
+        <h2>Movie scheduling</h2>
+      </CardHeader>
+      <CardBody className={styles.body}>
         <p className={styles.helper}>
           The available movie lengths ({movieLengths.join(" / ") || "—"} h) are fixed. Choose which one is the default
           for samples with no movie time set, and which carousel cell Auto Schedule confines each length to. These steer
           Auto Schedule only — a manual drag-and-drop always places a sample wherever you drop it.
         </p>
-      </div>
 
-      {query.isError && (
-        <Note tone="bad" icon="!">
-          {errorMessage(query.error, "Couldn't load the movie settings.")}
-        </Note>
-      )}
+        {query.isError && (
+          <Note tone="bad" icon="!">
+            {errorMessage(query.error, "Couldn't load the movie settings.")}
+          </Note>
+        )}
 
-      {query.data && (
-        <>
-          <table className={`table ${styles.valueTable}`}>
-            <thead>
-              <tr>
-                <th>Movie length</th>
-                <th className={movieStyles.centerCol}>Default</th>
-                <th>Cell rule (Auto Schedule)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {movieLengths.map((h) => {
-                const pos = positions[String(h)] ?? null;
-                return (
-                  <tr key={h}>
-                    <td>
-                      <span className={styles.settingName}>{h} h</span>
-                    </td>
-                    <td className={movieStyles.centerCol}>
-                      <input
-                        type="radio"
-                        name="default-movie-hours"
-                        checked={defaultHours === h}
-                        onChange={() => setDefaultHours(h)}
-                        aria-label={`Make ${h} h the default movie length`}
-                      />
-                    </td>
-                    <td>
-                      <select
-                        className={styles.select}
-                        value={pos === null ? CELL_OPTION_ANY : String(pos)}
-                        onChange={(e) => setPosition(h, e.target.value)}
-                        aria-label={`Cell rule for ${h} h samples`}
-                      >
-                        <option value={CELL_OPTION_ANY}>Any cell</option>
-                        {Array.from({ length: cellsPerTray }, (_, i) => (
-                          <option key={i} value={i}>
-                            Cell {i + 1} only
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+        {query.data && (
+          <>
+            <table className={`table ${styles.valueTable}`}>
+              <thead>
+                <tr>
+                  <th>Movie length</th>
+                  <th className={movieStyles.centerCol}>Default</th>
+                  <th>Cell rule (Auto Schedule)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {movieLengths.map((h) => {
+                  const pos = positions[String(h)] ?? null;
+                  return (
+                    <tr key={h}>
+                      <td>
+                        <span className={styles.settingName}>{h} h</span>
+                      </td>
+                      <td className={movieStyles.centerCol}>
+                        <input
+                          type="radio"
+                          name="default-movie-hours"
+                          checked={defaultHours === h}
+                          onChange={() => setDefaultHours(h)}
+                          aria-label={`Make ${h} h the default movie length`}
+                        />
+                      </td>
+                      <td>
+                        <select
+                          className={styles.select}
+                          value={pos === null ? CELL_OPTION_ANY : String(pos)}
+                          onChange={(e) => setPosition(h, e.target.value)}
+                          aria-label={`Cell rule for ${h} h samples`}
+                        >
+                          <option value={CELL_OPTION_ANY}>Any cell</option>
+                          {Array.from({ length: cellsPerTray }, (_, i) => (
+                            <option key={i} value={i}>
+                              Cell {i + 1} only
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
 
-          {mutation.isError && (
-            <Note tone="bad" icon="!">
-              {errorMessage(mutation.error, "Couldn't save the movie settings.")}
-            </Note>
-          )}
+            {mutation.isError && (
+              <Note tone="bad" icon="!">
+                {errorMessage(mutation.error, "Couldn't save the movie settings.")}
+              </Note>
+            )}
 
-          <div className={styles.actions}>
-            {!dirty && !mutation.isPending && <span className={styles.savedNote}>All changes saved</span>}
-            <Button variant="primary" size="sm" disabled={!dirty || mutation.isPending} onClick={save}>
-              {mutation.isPending ? "Saving…" : "Save"}
-            </Button>
-          </div>
-        </>
-      )}
-    </div>
+            <div className={styles.actions}>
+              {!dirty && !mutation.isPending && <span className={styles.savedNote}>All changes saved</span>}
+              <Button variant="primary" size="sm" disabled={!dirty || mutation.isPending} onClick={save}>
+                {mutation.isPending ? "Saving…" : "Save"}
+              </Button>
+            </div>
+          </>
+        )}
+      </CardBody>
+    </Card>
   );
 }

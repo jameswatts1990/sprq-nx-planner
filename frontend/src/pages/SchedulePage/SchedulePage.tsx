@@ -725,7 +725,7 @@ export function SchedulePage() {
                 <div className={styles.toolbar}>
                   <div className={styles.pager}>
                     <Button size="sm" variant="ghost" onClick={win.prev}>
-                      Prev
+                      Previous
                     </Button>
                     <span className={styles.range}>{rangeLabel}</span>
                     <Button size="sm" variant="ghost" onClick={win.next}>
@@ -834,7 +834,7 @@ export function SchedulePage() {
                   </Note>
                 )}
                 {actions.placementAdvisory && (
-                  <Note tone="warn" icon="⏱">
+                  <Note tone="warn" icon="!">
                     {actions.placementAdvisory}
                   </Note>
                 )}
@@ -904,7 +904,7 @@ export function SchedulePage() {
               {dnd.activeSample ? <div className={styles.dragChip}>{dnd.activeSample.pool_id || "sample"}</div> : null}
               {dnd.activeNote ? (
                 <div className={styles.noteDragChip}>
-                  <Note tone="info" icon="📌" size="sm">
+                  <Note tone="info" icon="i" size="sm">
                     <span className={styles.noteDragText}>{dnd.activeNote.body}</span>
                     {/* One note, one day: a new day moves it on every instrument it's on - its
                         other banners fade to match (SchedulerDayCell's DayNoteBanner). */}

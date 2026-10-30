@@ -40,7 +40,7 @@ const PAGE_SIZE_OPTIONS: SegmentedOption<number>[] = [25, 50, 100, 200].map((n) 
   value: n,
   label: String(n),
 }));
-/** The QC-disposition tags whose samples show in the "Recoverable Samples" section (both repeat
+/** The QC-disposition tags whose samples show in the "Recoverable samples" section (both repeat
  * pathways — from complex and from library — plus data-recoverable). */
 const RECOVERABLE_TAGS = "repeatable_complex,repeatable,recoverable";
 const columnHelper = createColumnHelper<SampleOut>();
@@ -118,7 +118,7 @@ function buildSampleColumns({ renderHeader, backNav, onEdit, onCancel, cancelPen
       header: () => renderHeader("Priority", "priority"),
       cell: (info) => {
         const v = info.getValue();
-        // For a QC-return row (Recoverable Samples section) show which repeat pathway was chosen
+        // For a QC-return row (Recoverable samples section) show which repeat pathway was chosen
         // — "Repeatable — from complex" vs "from library" both carry the rank-0 Repeatable badge,
         // so the priority label alone can't tell them apart. Main-backlog rows have no
         // qc_disposition, so they keep the plain priority label.
@@ -215,7 +215,7 @@ export function BacklogPage() {
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   // Defaults to priority order (High first, ascending rank - see utils/priority.ts) rather
   // than created_at, so the most urgent backlog samples surface without the user having to
-  // sort themselves; matches the Recoverable Samples section's default (useClientSort below).
+  // sort themselves; matches the Recoverable samples section's default (useClientSort below).
   const [sortBy, setSortBy] = useState<SampleSortBy>("priority");
   const [sortDir, setSortDir] = useState<SampleSortDir>("asc");
   const [addOpen, setAddOpen] = useState(false);
@@ -385,7 +385,7 @@ export function BacklogPage() {
       {recoverableItems.length > 0 && (
         <Card>
           <CardHeader badge={<Badge tone="info">{recoverableItems.length} recoverable</Badge>}>
-            <h2>Recoverable Samples</h2>
+            <h2>Recoverable samples</h2>
           </CardHeader>
           <CardBody>
             <p className={styles.sectionHint}>

@@ -69,23 +69,6 @@
   padding-top: 12px;
   border-top: 1px solid var(--line);
 }
-.revealBtn {
-  width: 100%;
-  text-align: left;
-  font-family: var(--sans);
-  font-size: var(--fs-sm);
-  font-weight: 600;
-  color: var(--grey);
-  background: transparent;
-  border: none;
-  border-radius: var(--r-sm);
-  padding: 6px 12px;
-  cursor: pointer;
-}
-.revealBtn:hover {
-  color: var(--ink);
-  background: var(--line-soft);
-}
 
 /* --- Content column --------------------------------------------------------- */
 .content {

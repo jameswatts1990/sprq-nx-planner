@@ -10,6 +10,7 @@ import { CellTypeBadge } from "@/components/cells/CellTypeBadge";
 import { TraySiblingList } from "@/components/cells/TraySiblingList";
 import { LockChip } from "@/components/shared/LockChip";
 import { formatLoadTime, isValidLoadTime, parseLoadTime } from "@/components/scheduler/loadTime";
+import { Button } from "@/components/ui/Button";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { Note } from "@/components/ui/Note";
 import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
@@ -118,7 +119,7 @@ function DayNoteBanner({ note, instrumentSerial, onEdit }: Omit<DayNoteBannersPr
         onEdit(note);
       }}
     >
-      <Note tone="info" icon="📌" size="sm">
+      <Note tone="info" icon="i" size="sm">
         <span className={styles.dayNoteText}>{note.body}</span>
       </Note>
     </div>
@@ -394,9 +395,9 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
             ) : (
               filledCount >= 1 && (
                 <>
-                  <button
-                    type="button"
-                    className={`${styles.ctrl} ${styles.confirm}`}
+                  <Button
+                    size="sm"
+                    className={styles.confirmBtn}
                     disabled={statusMutation.isPending}
                     onClick={() => {
                       setRunName(run.run_name ?? "");
@@ -411,7 +412,7 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
                     }}
                   >
                     {statusMutation.isPending ? "Confirming…" : "Confirm loaded"}
-                  </button>
+                  </Button>
                   <button
                     type="button"
                     className={styles.rescheduleBtn}
@@ -496,7 +497,7 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
                         aria-label="Discard current tray — this will discard the current tray in this machine after this plate is loaded"
                         onClick={() => setRotateTarget({ trayId, fromDate: plate?.acquire_date ?? loadDate })}
                       >
-                        ↻
+                        ⏏
                       </button>
                     )}
                     {plateStages.length > 0 && (
@@ -642,7 +643,7 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
 
       {rotateTarget != null && (
         <ConfirmModal
-          title={`Discard this Tray ${rotateTarget.trayId}?`}
+          title={`Discard tray ${rotateTarget.trayId}?`}
           confirmLabel="Discard tray"
           confirmVariant="danger"
           pendingLabel="Discarding…"
@@ -669,7 +670,7 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
         <ConfirmModal
           title={`Clear Plate ${clearingPlate.plateIndex}?`}
           confirmLabel="Return to backlog"
-          pendingLabel="Clearing…"
+          pendingLabel="Returning…"
           pending={clearPlateMutation.isPending}
           error={
             clearPlateMutation.isError ? errorMessage(clearPlateMutation.error, "Couldn't clear the plate.") : null

@@ -44,8 +44,9 @@
 .counterEmpty {
   color: var(--grey);
 }
+/* ↑ / ↓ / ✕ - the same ghost icon buttons as the Help search's match stepper. */
 .nav {
   display: inline-flex;
   align-items: center;
-  gap: 0;
+  gap: 4px;
 }

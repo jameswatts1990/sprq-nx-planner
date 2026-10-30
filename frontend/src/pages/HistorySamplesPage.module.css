@@ -16,7 +16,6 @@
 }
 .toggleCell {
   width: 18px;
-  color: var(--grey);
 }
 /* The expanded row's grey well around the nested cell-use table (tbody td beats the shared
    .table td padding). */

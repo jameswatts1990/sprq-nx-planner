@@ -118,11 +118,11 @@ const COMPLEX_COUNTDOWN_EXAMPLES: { daysAgo: number; meaning: string }[] = [
 const PRIORITY_EXAMPLES: { label: string; meaning: string }[] = [
   {
     label: "Recoverable (0)",
-    meaning: "Rank 0 - returned to the backlog by a Cell QC action as Recoverable - from instrument (the run's data can still be recovered from the instrument); shown in the Recoverable Samples section, above High.",
+    meaning: "Rank 0 - returned to the backlog by a Cell QC action as Recoverable - from instrument (the run's data can still be recovered from the instrument); shown in the Recoverable samples section, above High.",
   },
   {
     label: "Repeatable (0)",
-    meaning: "Rank 0 - returned to the backlog by a Cell QC action to be repeated, either from the leftover cleaned complex or from library material in Traction; shown in the Recoverable Samples section, above High.",
+    meaning: "Rank 0 - returned to the backlog by a Cell QC action to be repeated, either from the leftover cleaned complex or from library material in Traction; shown in the Recoverable samples section, above High.",
   },
   {
     label: "Aborted (0)",
@@ -288,7 +288,7 @@ export function LegendSection() {
           <DuplicateBadge index={2} total={3} selfReuse />
         </span>
         <span>
-          On the weekly schedule only: the ↻ means this copy is sharing a physical cell with an
+          On the weekly schedule only: the ⇆ means this copy is sharing a physical cell with an
           earlier copy of the same Pool ID. That&apos;s allowed and expected - it&apos;s the
           same underlying sample either way, so there&apos;s no risk of one sample&apos;s reads
           being mixed up with another&apos;s. Opening the slot shows the same explanation.

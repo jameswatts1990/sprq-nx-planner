@@ -62,6 +62,10 @@
   font-size: var(--fs-sm);
   font-weight: 400;
 }
+/* The well's cell code - an identifier, so mono like everywhere else. */
+.cellCode {
+  font-family: var(--mono);
+}
 /* Section headings echo Traction's own (bold, magenta rule beneath) so each block on screen
    is easy to match to the same block in Traction's run form. */
 .sectionTitle {

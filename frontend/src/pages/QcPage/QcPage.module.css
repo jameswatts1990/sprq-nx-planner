@@ -36,14 +36,6 @@
   font-weight: 700;
   color: var(--ink);
 }
-.receivedCx {
-  display: inline-block;
-  color: var(--grey);
-  transition: transform 0.15s ease;
-}
-.receivedCx[data-open="true"] {
-  transform: rotate(90deg);
-}
 
 /* One credit case in the worklist. */
 .row {
@@ -75,14 +67,9 @@
   color: var(--grey);
   line-height: 1;
 }
-.cx {
-  display: inline-block;
-  transition: transform 0.15s ease;
-}
-.cx[data-open="true"] {
-  transform: rotate(90deg);
-}
+/* Cell codes are identifiers, so mono like everywhere else in the app. */
 .code {
+  font-family: var(--mono);
   font-weight: 700;
   color: var(--link);
 }
@@ -153,49 +140,9 @@
   max-width: 100%;
 }
 
-/* Operations overview: one slim line of totals (label + value pairs) that wraps on a phone. */
-.overview {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px 20px;
-  padding: 8px 14px;
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  background: var(--card);
-}
-.ovItem {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 6px;
-  white-space: nowrap;
-}
-.ovLabel {
-  font-size: var(--fs-2xs);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--grey);
-  font-weight: 700;
-}
-.ovValue {
-  font-size: var(--fs-lg);
-  font-weight: 800;
-  color: var(--ink);
-  font-variant-numeric: tabular-nums;
-}
-.ovItem[data-alert="true"] .ovValue {
+/* Overview tile: a non-zero Overdue count reads red. */
+.alertValue {
   color: var(--red);
-}
-.ovSep {
-  width: 1px;
-  height: 18px;
-  background: var(--line);
-}
-/* Once the strip wraps on a phone, a divider can strand at a line start - drop them there. */
-@media (max-width: 560px) {
-  .ovSep {
-    display: none;
-  }
 }
 
 /* A no-cell case's identity in its row: the typed-in summary stands where a cell code would. */

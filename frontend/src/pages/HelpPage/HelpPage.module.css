@@ -45,14 +45,6 @@
   display: flex;
   gap: 4px;
 }
-/* Structure/border/hover/focus come from the shared `btn icon sm` variant (base.css); only
-   the understated grey glyph colour is component-specific. */
-.searchNavBtn {
-  color: var(--grey);
-}
-.searchNavBtn:hover {
-  color: var(--ink);
-}
 
 .toc {
   display: flex;

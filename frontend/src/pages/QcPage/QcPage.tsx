@@ -5,8 +5,10 @@ import { errorMessage } from "@/api/client";
 import { cellsApi } from "@/api/cells";
 import { pacbioCasesApi } from "@/api/pacbioCases";
 import { SectionHeading } from "@/components/shared/SectionHeading";
+import { StatTile, StatTiles } from "@/components/shared/StatTile";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { Card, CardBody } from "@/components/ui/Card";
 import { Note } from "@/components/ui/Note";
 import { PageHeader } from "@/components/ui/PageHeader";
 import type { CellType } from "@/types/common";
@@ -81,11 +83,11 @@ function groupCases(items: QcCase[]): QcGroups {
   return g;
 }
 
-/** The operations-manager glance: one slim line of totals across every case (never the search
- * results), so it costs almost no height. Credited acquisitions are also shown as trays - PacBio's
- * FOC tracker counts trays - converted per case by its cell type (SPRQ-Nx: 1 cell = 3
- * acquisitions; single-use SPRQ: 1 cell = 1 acquisition; 4 cells a tray). SPRQ and SPRQ-Nx trays
- * are different products, so once any SPRQ credit exists the trays are shown per type. */
+/** The operations-manager glance: a row of totals across every case (never the search results).
+ * Credited acquisitions are also shown as trays - PacBio's FOC tracker counts trays - converted
+ * per case by its cell type (SPRQ-Nx: 1 cell = 3 acquisitions; single-use SPRQ: 1 cell = 1
+ * acquisition; 4 cells a tray). SPRQ and SPRQ-Nx trays are different products, so once any SPRQ
+ * credit exists the trays are shown per type. */
 function OverviewStrip({ items, groups, nowMs }: { items: QcCase[]; groups: QcGroups; nowMs: number }) {
   let overdue = 0;
   let pending = 0;
@@ -105,36 +107,45 @@ function OverviewStrip({ items, groups, nowMs }: { items: QcCase[]; groups: QcGr
       ? `${formatQuantity(creditedTrays.sprq_nx)} SPRQ-Nx + ${formatQuantity(creditedTrays.sprq)} SPRQ tray`
       : `${formatQuantity(creditedTrays.sprq_nx)} tray`;
   const open = groups.needs_report.length + groups.awaiting.length + groups.confirmed.length;
-  const stat = (label: string, value: string | number, title?: string, alert = false) => (
-    <span className={styles.ovItem} title={title} data-alert={alert}>
-      <span className={styles.ovLabel}>{label}</span>
-      <span className={styles.ovValue}>{value}</span>
-    </span>
-  );
   return (
-    <div className={styles.overview} aria-label="Credit case totals">
-      {stat("Open", open, "Cases not yet received")}
-      {stat("Overdue", overdue, `Open cases stuck at one stage for more than ${CREDIT_OVERDUE_DAYS} days`, overdue > 0)}
-      <span className={styles.ovSep} aria-hidden="true" />
-      {stat("Needs report", groups.needs_report.length)}
-      {stat("Awaiting PacBio", groups.awaiting.length)}
-      {stat("Confirmed", groups.confirmed.length, "Credit confirmed by PacBio, not yet received")}
-      {stat("Received", groups.received.length)}
-      <span className={styles.ovSep} aria-hidden="true" />
-      {stat("Acq pending", pending, "Acquisitions expected back on open cases PacBio haven't confirmed yet")}
-      {stat(
-        "Acq credited",
-        `${credited} · ${creditedTrayText}`,
-        "Acquisitions PacBio confirmed (confirmed + received cases). A SPRQ-Nx cell is 3 acquisitions, a single-use SPRQ cell is 1; either way 4 cells = 1 tray",
-      )}
-    </div>
+    <Card>
+      <CardBody>
+        <StatTiles>
+          <StatTile label="Open" value={open} title="Cases not yet received" />
+          <StatTile
+            label="Overdue"
+            value={overdue > 0 ? <span className={styles.alertValue}>{overdue}</span> : overdue}
+            title={`Open cases stuck at one stage for more than ${CREDIT_OVERDUE_DAYS} days`}
+          />
+          <StatTile label="Needs report" value={groups.needs_report.length} />
+          <StatTile label="Awaiting PacBio" value={groups.awaiting.length} />
+          <StatTile
+            label="Confirmed"
+            value={groups.confirmed.length}
+            title="Credit confirmed by PacBio, not yet received"
+          />
+          <StatTile label="Received" value={groups.received.length} />
+          <StatTile
+            label="Acq pending"
+            value={pending}
+            title="Acquisitions expected back on open cases PacBio haven't confirmed yet"
+          />
+          <StatTile
+            label="Acq credited"
+            value={credited}
+            hint={creditedTrayText}
+            title="Acquisitions PacBio confirmed (confirmed + received cases). A SPRQ-Nx cell is 3 acquisitions, a single-use SPRQ cell is 1; either way 4 cells = 1 tray"
+          />
+        </StatTiles>
+      </CardBody>
+    </Card>
   );
 }
 
 /**
  * QC — the one home for every PacBio credit case: cells that Failed or were Stopped (they join
- * automatically) plus cases logged by hand without a cell (Add case without a cell). A slim,
- * collapsible totals strip up top, a search + CSV export, then a worklist grouped by stage
+ * automatically) plus cases logged by hand without a cell (Add case without a cell). A row of
+ * collapsible total tiles up top, a search + CSV export, then a worklist grouped by stage
  * (Needs report → Awaiting credit → Confirmed), each row showing case #, acquisitions, owner and
  * age, carrying the next action inline and expanding to the full credit tracker. Recently-settled
  * cases sit in a collapsed "Received" group (opened automatically when a search matches there).
@@ -209,7 +220,7 @@ export function QcPage() {
               variant="ghost"
               aria-expanded={overviewOpen}
               onClick={toggleOverview}
-              title="One line of totals across every case — your browser remembers whether it's shown"
+              title="Totals across every case — your browser remembers whether they're shown"
             >
               {overviewOpen ? "Hide overview" : "Show overview"}
             </Button>
@@ -299,7 +310,7 @@ export function QcPage() {
             aria-expanded={showReceived}
             onClick={() => setReceivedOpen((v) => !v)}
           >
-            <span className={styles.receivedCx} data-open={showReceived}>
+            <span className={showReceived ? "disclosure open" : "disclosure"} aria-hidden="true">
               ▸
             </span>
             {CREDIT_BUCKET_LABEL.received}

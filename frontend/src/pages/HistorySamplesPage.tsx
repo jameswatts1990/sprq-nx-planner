@@ -190,7 +190,11 @@ const SampleRow = memo(function SampleRow({ sample, expanded, onToggle }: Sample
   return (
     <>
       <tr className={styles.row} onClick={() => onToggle(sample.id)}>
-        <td className={styles.toggleCell}>{expanded ? "▼" : "▶"}</td>
+        <td className={styles.toggleCell}>
+          <span className={expanded ? "disclosure open" : "disclosure"} aria-hidden="true">
+            ▸
+          </span>
+        </td>
         <td>
           <Link to={`/samples/${sample.id}`} className="link" onClick={(e) => e.stopPropagation()}>
             {sample.pool_id}

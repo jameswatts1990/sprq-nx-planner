@@ -63,7 +63,7 @@ export function WeekPlanModal({ instrument, onClose }: WeekPlanModalProps) {
       {weekPlanQuery.data && (
         <>
           {weekPlanQuery.data.length === 0 && (
-            <Note tone="info" icon="ℹ">
+            <Note tone="info" icon="i">
               Nothing scheduled on this instrument this week — the loading window is open all week.
             </Note>
           )}

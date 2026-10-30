@@ -111,7 +111,7 @@ function WellCard({
       <div className={styles.wellHead}>
         <span className={styles.wellLabel}>{tractionWellFromSlot(well.slot_index)}</span>
         <span className={styles.muted}>
-          {well.cell_ref} ·{" "}
+          <span className={styles.cellCode}>{well.cell_ref}</span> ·{" "}
           {well.cell_type === "sprq" ? "SPRQ single use" : `Use ${well.use_number} of ${well.cell_max_uses}`}
         </span>
         {well.window_breached && <span className={styles.expired}>⚠ 108h window expired</span>}

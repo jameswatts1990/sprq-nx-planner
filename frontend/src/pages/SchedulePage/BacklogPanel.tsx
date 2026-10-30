@@ -247,18 +247,18 @@ export function BacklogPanel({
     </span>
   );
 
-  // Side header: the same warnings as compact ⚠N chips in the title row - colour says which
+  // Side header: the same warnings as compact "⚠ N" chips in the title row - colour says which
   // (red = aborted, amber = high priority+), the tooltip spells it out.
   const sideWarnings = (
     <>
       {abortedCount > 0 && (
         <span title={abortedTitle} aria-label={abortedTitle}>
-          <Badge tone="danger">⚠{abortedCount}</Badge>
+          <Badge tone="danger">⚠ {abortedCount}</Badge>
         </span>
       )}
       {highPriorityCount > 0 && (
         <span title={highPriorityTitle} aria-label={highPriorityTitle}>
-          <Badge tone="warning">⚠{highPriorityCount}</Badge>
+          <Badge tone="warning">⚠ {highPriorityCount}</Badge>
         </span>
       )}
     </>
@@ -316,15 +316,17 @@ export function BacklogPanel({
     if (collapsed) {
       return (
         <aside className={[...sideClasses, styles.collapsed].join(" ")} aria-label="Backlog" data-backlog-panel="">
-          <button
-            type="button"
+          <Button
+            variant="ghost"
+            size="sm"
+            icon
             className={styles.collapseToggle}
             onClick={() => onToggleCollapsed?.(false)}
             title="Expand the backlog panel"
             aria-label="Expand the backlog panel"
           >
             {mode === "right" ? "‹" : "›"}
-          </button>
+          </Button>
           <span className={styles.railLabel} aria-hidden="true">
             Backlog
           </span>
@@ -347,15 +349,17 @@ export function BacklogPanel({
             {sideWarnings}
             <span className={styles.sideSpacer} />
             {autoscheduleButton}
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="sm"
+              icon
               className={styles.collapseToggle}
               onClick={() => onToggleCollapsed?.(true)}
               title="Collapse the backlog panel"
               aria-label="Collapse the backlog panel"
             >
               {mode === "right" ? "›" : "‹"}
-            </button>
+            </Button>
           </div>
           {searching ? matchNote : <div className={styles.sideControls}>{browseControls}</div>}
         </div>

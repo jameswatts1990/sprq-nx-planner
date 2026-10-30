@@ -112,7 +112,7 @@ export function BatchSheetModal({ instruments, onClose }: BatchSheetModalProps) 
           Cancel
         </Button>
         <Button variant="primary" onClick={onViewSheet} disabled={selectedSerials.length === 0}>
-          View Sheet
+          View sheet
         </Button>
       </ModalActions>
     </Modal>

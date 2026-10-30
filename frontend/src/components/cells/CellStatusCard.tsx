@@ -93,7 +93,10 @@ export const CellStatusCard = memo(function CellStatusCard({ cell, expanded = fa
           <span className={styles.uses}>
             {cell.uses_consumed} / {cell.max_uses} uses
             <span className={styles.hint}>
-              <span className={styles.cx}>▸</span>details
+              <span className={expanded ? "disclosure open" : "disclosure"} aria-hidden="true">
+                ▸
+              </span>
+              Details
             </span>
           </span>
         </div>

@@ -26,7 +26,7 @@ export interface SampleOut {
   insert_size_bp: number | null;
   status: SampleStatus;
   /** QC disposition tag ("repeatable_complex"/"repeatable"/"recoverable") when a Cell QC action
-   * returned this sample to the backlog - groups it into the Backlog's "Recoverable Samples"
+   * returned this sample to the backlog - groups it into the Backlog's "Recoverable samples"
    * section. See utils/qcDisposition.ts for the human-readable labels. */
   qc_disposition: string | null;
   /** When that Cell QC was recorded (ISO) - starts the "Repeatable — from complex" 30-day

@@ -5,10 +5,12 @@ import type { CreditEmailTemplate } from "@/api/settings";
 import { settingsApi } from "@/api/settings";
 import { errorMessage } from "@/api/client";
 import { Button } from "@/components/ui/Button";
+import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Note } from "@/components/ui/Note";
 import { CREDIT_EMAIL_TOKENS, EXAMPLE_CONTEXT, renderCreditEmail } from "@/utils/creditEmail";
 
 import styles from "./CreditEmailPanel.module.css";
+import panelStyles from "./SettingsPanel.module.css";
 
 type FieldKey = keyof CreditEmailTemplate;
 
@@ -76,116 +78,118 @@ export function CreditEmailPanel() {
   const preview = form ? renderCreditEmail(form, EXAMPLE_CONTEXT) : null;
 
   return (
-    <div className={styles.panel}>
-      <div className={styles.header}>
-        <h2 className={styles.title}>Email template</h2>
-        <p className={styles.helper}>
+    <Card>
+      <CardHeader>
+        <h2>Email template</h2>
+      </CardHeader>
+      <CardBody className={panelStyles.body}>
+        <p className={panelStyles.helper}>
           The email opened by <b>Generate email…</b> on a PacBio credit case. Edit the recipients, subject and body,
           and drop in variables that get filled from the failing cell. The preview shows the email with example values
           so you can check the variables are right.
         </p>
-      </div>
 
-      {query.isError && (
-        <Note tone="bad" icon="!">
-          {errorMessage(query.error, "Couldn't load the email template.")}
-        </Note>
-      )}
+        {query.isError && (
+          <Note tone="bad" icon="!">
+            {errorMessage(query.error, "Couldn't load the email template.")}
+          </Note>
+        )}
 
-      {form && preview && (
-        <>
-          <div className={styles.chipRow}>
-            <span className={styles.chipLabel}>Insert variable:</span>
-            {CREDIT_EMAIL_TOKENS.map((t) => (
-              <button
-                key={t.token}
-                type="button"
-                className={styles.chip}
-                // Keep the focused field focused so we insert at its cursor, not lose it.
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => insertToken(t.token)}
-                title={`${t.label} — inserts ${t.token}`}
-              >
-                {t.token}
-              </button>
-            ))}
-          </div>
-
-          <div className={styles.fields}>
-            {FIELDS.map((f) => (
-              <label key={f.key} className={styles.field}>
-                <span className="fieldLabel">{f.label}</span>
-                {f.multiline ? (
-                  <textarea
-                    className={styles.textarea}
-                    value={form[f.key]}
-                    rows={7}
-                    onFocus={(e) => {
-                      activeElRef.current = e.currentTarget;
-                      activeKeyRef.current = f.key;
-                    }}
-                    onChange={(e) => set(f.key, e.target.value)}
-                  />
-                ) : (
-                  <input
-                    type="text"
-                    value={form[f.key]}
-                    onFocus={(e) => {
-                      activeElRef.current = e.currentTarget;
-                      activeKeyRef.current = f.key;
-                    }}
-                    onChange={(e) => set(f.key, e.target.value)}
-                  />
-                )}
-              </label>
-            ))}
-          </div>
-
-          <div className={styles.preview}>
-            <div className={styles.previewHead}>
-              Preview <span className={styles.previewNote}>— variables filled with example values</span>
-            </div>
-            <dl className={styles.previewMail}>
-              <dt>To</dt>
-              <dd>{preview.to || "—"}</dd>
-              <dt>Cc</dt>
-              <dd>{preview.cc || "—"}</dd>
-              <dt>Subject</dt>
-              <dd>{preview.subject || "—"}</dd>
-              <dt>Body</dt>
-              <dd className={styles.previewBody}>{preview.body || "—"}</dd>
-            </dl>
-            <div className={styles.legend}>
+        {form && preview && (
+          <>
+            <div className={styles.chipRow}>
+              <span className={styles.chipLabel}>Insert variable:</span>
               {CREDIT_EMAIL_TOKENS.map((t) => (
-                <div key={t.token} className={styles.legendRow}>
-                  <code className={styles.legendToken}>{t.token}</code>
-                  <span className={styles.legendArrow}>→</span>
-                  <span className={styles.legendLabel}>{t.label}:</span>
-                  <span className={styles.legendValue}>{EXAMPLE_CONTEXT[t.field]}</span>
-                </div>
+                <button
+                  key={t.token}
+                  type="button"
+                  className={styles.chip}
+                  // Keep the focused field focused so we insert at its cursor, not lose it.
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => insertToken(t.token)}
+                  title={`${t.label} — inserts ${t.token}`}
+                >
+                  {t.token}
+                </button>
               ))}
             </div>
-          </div>
 
-          {mutation.isError && (
-            <Note tone="bad" icon="!">
-              {errorMessage(mutation.error, "Couldn't save the email template.")}
-            </Note>
-          )}
+            <div className={styles.fields}>
+              {FIELDS.map((f) => (
+                <label key={f.key} className={styles.field}>
+                  <span className="fieldLabel">{f.label}</span>
+                  {f.multiline ? (
+                    <textarea
+                      className={styles.textarea}
+                      value={form[f.key]}
+                      rows={7}
+                      onFocus={(e) => {
+                        activeElRef.current = e.currentTarget;
+                        activeKeyRef.current = f.key;
+                      }}
+                      onChange={(e) => set(f.key, e.target.value)}
+                    />
+                  ) : (
+                    <input
+                      type="text"
+                      value={form[f.key]}
+                      onFocus={(e) => {
+                        activeElRef.current = e.currentTarget;
+                        activeKeyRef.current = f.key;
+                      }}
+                      onChange={(e) => set(f.key, e.target.value)}
+                    />
+                  )}
+                </label>
+              ))}
+            </div>
 
-          <div className={styles.actions}>
-            {!dirty && !mutation.isPending && <span className={styles.savedNote}>All changes saved</span>}
-            <Button
-              variant="primary"
-              size="sm"
-              disabled={!dirty || mutation.isPending}
-              onClick={() => form && mutation.mutate(form)}
-            >
-              {mutation.isPending ? "Saving…" : "Save email template"}
-            </Button>
-          </div>
-        </>
-      )}
-    </div>
+            <div className={styles.preview}>
+              <div className={styles.previewHead}>
+                Preview <span className={styles.previewNote}>— variables filled with example values</span>
+              </div>
+              <dl className={styles.previewMail}>
+                <dt>To</dt>
+                <dd>{preview.to || "—"}</dd>
+                <dt>Cc</dt>
+                <dd>{preview.cc || "—"}</dd>
+                <dt>Subject</dt>
+                <dd>{preview.subject || "—"}</dd>
+                <dt>Body</dt>
+                <dd className={styles.previewBody}>{preview.body || "—"}</dd>
+              </dl>
+              <div className={styles.legend}>
+                {CREDIT_EMAIL_TOKENS.map((t) => (
+                  <div key={t.token} className={styles.legendRow}>
+                    <code className={styles.legendToken}>{t.token}</code>
+                    <span className={styles.legendArrow}>→</span>
+                    <span className={styles.legendLabel}>{t.label}:</span>
+                    <span className={styles.legendValue}>{EXAMPLE_CONTEXT[t.field]}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {mutation.isError && (
+              <Note tone="bad" icon="!">
+                {errorMessage(mutation.error, "Couldn't save the email template.")}
+              </Note>
+            )}
+
+            <div className={panelStyles.actions}>
+              {!dirty && !mutation.isPending && <span className={panelStyles.savedNote}>All changes saved</span>}
+              <Button
+                variant="primary"
+                size="sm"
+                disabled={!dirty || mutation.isPending}
+                onClick={() => form && mutation.mutate(form)}
+              >
+                {mutation.isPending ? "Saving…" : "Save email template"}
+              </Button>
+            </div>
+          </>
+        )}
+      </CardBody>
+    </Card>
   );
 }

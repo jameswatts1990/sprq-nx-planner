@@ -6,9 +6,10 @@ import { importsApi } from "@/api/imports";
 import { settingsApi } from "@/api/settings";
 import type { SampleDefaults } from "@/api/settings";
 import { Button } from "@/components/ui/Button";
+import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Note } from "@/components/ui/Note";
 
-import styles from "./SampleDefaultsPanel.module.css";
+import styles from "./SettingsPanel.module.css";
 
 /** The four defaultable sample fields, each rendered as one row of the defaults table. The
  * three booleans share a True/False picker; priority uses the canonical priority choices. */
@@ -52,83 +53,85 @@ export function SampleDefaultsPanel() {
   }
 
   return (
-    <div className={styles.panel}>
-      <div className={styles.header}>
-        <h2 className={styles.title}>Sample defaults</h2>
+    <Card>
+      <CardHeader>
+        <h2>Sample defaults</h2>
+      </CardHeader>
+      <CardBody className={styles.body}>
         <p className={styles.helper}>
           Default loading options for new samples. These pre-fill the “Add sample” form and fill in any of these
           fields left blank when a sample is imported. Existing samples are unaffected.
         </p>
-      </div>
 
-      {query.isError && (
-        <Note tone="bad" icon="!">
-          {errorMessage(query.error, "Couldn't load the sample defaults.")}
-        </Note>
-      )}
+        {query.isError && (
+          <Note tone="bad" icon="!">
+            {errorMessage(query.error, "Couldn't load the sample defaults.")}
+          </Note>
+        )}
 
-      {form && (
-        <>
-          <table className={`table ${styles.valueTable}`}>
-            <thead>
-              <tr>
-                <th>Field</th>
-                <th>Default value</th>
-              </tr>
-            </thead>
-            <tbody>
-              {DEFAULT_ROWS.map((row) => {
-                const options = row.key === "priority" ? priorityChoices : BOOL_OPTIONS;
-                return (
-                  <tr key={row.key}>
-                    <td>
-                      <span className={styles.settingName}>{row.label}</span>
-                      <span className={styles.settingHint}>{row.hint}</span>
-                    </td>
-                    <td>
-                      <select
-                        className={styles.select}
-                        value={form[row.key]}
-                        onChange={(e) => set(row.key, e.target.value)}
-                        aria-label={`Default ${row.label}`}
-                      >
-                        {/* If the stored value isn't in the current option set (e.g. choices
-                            still loading), keep it visible so nothing is silently dropped. */}
-                        {!options.includes(form[row.key]) && (
-                          <option value={form[row.key]}>{form[row.key]}</option>
-                        )}
-                        {options.map((o) => (
-                          <option key={o} value={o}>
-                            {o}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+        {form && (
+          <>
+            <table className={`table ${styles.valueTable}`}>
+              <thead>
+                <tr>
+                  <th>Field</th>
+                  <th>Default value</th>
+                </tr>
+              </thead>
+              <tbody>
+                {DEFAULT_ROWS.map((row) => {
+                  const options = row.key === "priority" ? priorityChoices : BOOL_OPTIONS;
+                  return (
+                    <tr key={row.key}>
+                      <td>
+                        <span className={styles.settingName}>{row.label}</span>
+                        <span className={styles.settingHint}>{row.hint}</span>
+                      </td>
+                      <td>
+                        <select
+                          className={styles.select}
+                          value={form[row.key]}
+                          onChange={(e) => set(row.key, e.target.value)}
+                          aria-label={`Default ${row.label}`}
+                        >
+                          {/* If the stored value isn't in the current option set (e.g. choices
+                              still loading), keep it visible so nothing is silently dropped. */}
+                          {!options.includes(form[row.key]) && (
+                            <option value={form[row.key]}>{form[row.key]}</option>
+                          )}
+                          {options.map((o) => (
+                            <option key={o} value={o}>
+                              {o}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
 
-          {mutation.isError && (
-            <Note tone="bad" icon="!">
-              {errorMessage(mutation.error, "Couldn't save the sample defaults.")}
-            </Note>
-          )}
+            {mutation.isError && (
+              <Note tone="bad" icon="!">
+                {errorMessage(mutation.error, "Couldn't save the sample defaults.")}
+              </Note>
+            )}
 
-          <div className={styles.actions}>
-            {!dirty && !mutation.isPending && <span className={styles.savedNote}>All changes saved</span>}
-            <Button
-              variant="primary"
-              size="sm"
-              disabled={!dirty || mutation.isPending}
-              onClick={() => form && mutation.mutate(form)}
-            >
-              {mutation.isPending ? "Saving…" : "Save defaults"}
-            </Button>
-          </div>
-        </>
-      )}
-    </div>
+            <div className={styles.actions}>
+              {!dirty && !mutation.isPending && <span className={styles.savedNote}>All changes saved</span>}
+              <Button
+                variant="primary"
+                size="sm"
+                disabled={!dirty || mutation.isPending}
+                onClick={() => form && mutation.mutate(form)}
+              >
+                {mutation.isPending ? "Saving…" : "Save defaults"}
+              </Button>
+            </div>
+          </>
+        )}
+      </CardBody>
+    </Card>
   );
 }

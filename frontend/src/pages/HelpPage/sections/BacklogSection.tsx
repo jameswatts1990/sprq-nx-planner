@@ -66,11 +66,11 @@ export function BacklogSection() {
           </div>
         ))}
       </div>
-      <p className={styles.subheading}>Recoverable Samples (above the backlog)</p>
+      <p className={styles.subheading}>Recoverable samples (above the backlog)</p>
       <p>
         When a <b>Cell QC</b> action (see the Schedule and Cells tabs&apos; help) takes a cell out of service, the
         samples on its later uses shift onto the tray&apos;s other cells and the tail may drop off. Every affected sample
-        gets one of four outcomes; the three that can still be run come back here into a <b>Recoverable Samples</b>{" "}
+        gets one of four outcomes; the three that can still be run come back here into a <b>Recoverable samples</b>{" "}
         section shown <i>above</i> the main backlog, bumped above High priority so they&apos;re rescheduled first:
       </p>
       <ul>

@@ -70,6 +70,7 @@
   font-size: var(--fs-sm);
 }
 .cellCode {
+  font-family: var(--mono);
   font-weight: 700;
 }
 /* Identifiers (cell, pool / plate IDs) stay on one line - wrapping one doubles its row's height,

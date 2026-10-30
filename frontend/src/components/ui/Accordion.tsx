@@ -61,7 +61,9 @@ export function Accordion({
           aria-expanded={expanded}
           onClick={toggle}
         >
-          <span className={styles.caret}>{expanded ? "▼" : "▶"}</span>
+          <span className={expanded ? "disclosure open" : "disclosure"} aria-hidden="true">
+            ▸
+          </span>
           {title}
         </button>
         {titleAfter}
