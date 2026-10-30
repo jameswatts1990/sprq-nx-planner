@@ -49,7 +49,7 @@ export function CreditClaimRow({ cell, showTrigger = false }: { cell: CellOut; s
 
   return (
     <div className={`${styles.row} ${styles.claimRow}`}>
-      <span className={styles.label}>QC claim</span>
+      <span className={`detailLabel ${styles.claimLabel}`}>QC claim</span>
       <span className={styles.claimValue}>
         <span className={styles.claimHead}>
           <CreditStageStrip credit={cell} />
@@ -67,13 +67,12 @@ export function CreditClaimRow({ cell, showTrigger = false }: { cell: CellOut; s
           {currentKey && <span>Next: {CREDIT_NEXT_STEP_LABEL[currentKey]}</span>}
           {age &&
             (age.overdue ? (
-              <span
+              <Badge
+                tone={OVERDUE_BADGE.tone}
                 title={`No progress for ${age.waitDays} days - over the ${CREDIT_OVERDUE_DAYS}-day limit, so it needs chasing. Open ${age.daysOpen} days in all.`}
               >
-                <Badge tone={OVERDUE_BADGE.tone}>
-                  {OVERDUE_BADGE.label} · {age.waitDays} d
-                </Badge>
-              </span>
+                {OVERDUE_BADGE.label} · {age.waitDays} d
+              </Badge>
             ) : (
               <span title={`Waiting ${age.waitDays} days for this step`}>{age.daysOpen} d open</span>
             ))}

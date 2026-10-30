@@ -14,7 +14,7 @@ export function CellsSection() {
 
       <p className={styles.subheading}>Now vs End of week</p>
       <p>
-        A big <b>Showing data as of</b> toggle at the very top switches every time-based figure on the page between{" "}
+        A big <b>Showing data as of</b> toggle just under the page title switches every time-based figure on the page between{" "}
         <b>Now</b> and <b>End of week</b> (this week&apos;s Friday). It changes how each cell reads: a cell whose next
         uses are still <i>scheduled</i> for later this week shows those uses as not-yet-spent under <b>Now</b>, but
         counted under <b>End of week</b> — so a cell can read &quot;1 / 3 · Open&quot; now and &quot;3 / 3 ·
@@ -55,8 +55,8 @@ export function CellsSection() {
         <b>tray id</b> anywhere in the app (a cell card, a cell&apos;s detail page, a seal popover, or the Schedule
         grid&apos;s instrument cell map) opens this same <b>Cells</b> tab <i>filtered to that one tray</i>. That view
         shows the tray&apos;s instrument, how many of its cells are present, its soonest window expiry, and the tray&apos;s
-        cells as the usual cell cards — plus a <b>Discard all cells</b> button. Use the <b>All cells</b> link to
-        return to the full list. (This physical &quot;tray&quot; is a different thing from the
+        cells as the usual cell cards — plus a <b>Discard all cells</b> button. Use the <b>◂ All cells</b> link above
+        the tray&apos;s title to return to the full list. (This physical &quot;tray&quot; is a different thing from the
         Schedule grid&apos;s &quot;Plate 1&quot;/&quot;Plate 2&quot; loading positions within a run - see the Schedule
         section.)
       </p>
@@ -141,7 +141,11 @@ export function CellsSection() {
       </p>
 
       <p className={styles.subheading}>Cell detail page</p>
-      <p>Opened from a card, it shows:</p>
+      <p>
+        Opened from a card, it&apos;s titled with the cell&apos;s code and its status badge (plus the{" "}
+        <CellTypeBadge cellType="sprq" /> badge for a single-use cell); <b>◂ All cells</b> above the title returns to
+        the Cells list. Below that it shows:
+      </p>
       <ul>
         <li>
           <b>Uses</b> spent / total and remaining; <b>Current location</b> (instrument · well); <b>First use

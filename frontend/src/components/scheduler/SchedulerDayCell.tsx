@@ -4,7 +4,7 @@ import { memo, useState, type KeyboardEvent, type MouseEvent, type PointerEvent 
 
 import { cellsApi } from "@/api/cells";
 import { cellUsesApi } from "@/api/cellUses";
-import { ApiError } from "@/api/client";
+import { errorMessage } from "@/api/client";
 import { cyclesApi } from "@/api/cycles";
 import { CellTypeBadge } from "@/components/cells/CellTypeBadge";
 import { TraySiblingList } from "@/components/cells/TraySiblingList";
@@ -461,7 +461,9 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
 
       {statusMutation.isError && (
         <div className={styles.err}>
-          {statusMutation.error instanceof ApiError ? statusMutation.error.message : "Status update failed."}
+          <Note tone="bad" icon="!" size="sm">
+            {errorMessage(statusMutation.error, "Couldn't update the run status.")}
+          </Note>
         </div>
       )}
 
@@ -562,13 +564,7 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
           pendingLabel="Confirming…"
           pending={statusMutation.isPending}
           confirmDisabled={!isValidLoadTime(loadTime)}
-          error={
-            statusMutation.isError
-              ? statusMutation.error instanceof ApiError
-                ? statusMutation.error.message
-                : "Status update failed."
-              : null
-          }
+          error={statusMutation.isError ? errorMessage(statusMutation.error, "Couldn't mark the run as loaded.") : null}
           onCancel={() => setConfirmingLoad(false)}
           onConfirm={() => {
             const parsed = parseLoadTime(loadTime);
@@ -590,7 +586,7 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
             appears.
           </p>
           <div className={styles.loadModalField}>
-            <label className={styles.loadModalLabel} htmlFor="confirm-run-name">
+            <label className="fieldLabel" htmlFor="confirm-run-name">
               Run name (optional)
             </label>
             <input
@@ -603,7 +599,7 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
             />
           </div>
           <div className={styles.loadModalField}>
-            <label className={styles.loadModalLabel} htmlFor="confirm-load-time">
+            <label className="fieldLabel" htmlFor="confirm-load-time">
               Revio Loaded at:
             </label>
             <input
@@ -631,11 +627,7 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
           pending={rescheduleMutation.isPending}
           confirmDisabled={!reschedulingTo || reschedulingTo === loadDate}
           error={
-            rescheduleMutation.isError
-              ? rescheduleMutation.error instanceof ApiError
-                ? rescheduleMutation.error.message
-                : "Failed to reschedule."
-              : null
+            rescheduleMutation.isError ? errorMessage(rescheduleMutation.error, "Couldn't reschedule the run.") : null
           }
           onCancel={() => setReschedulingTo(null)}
           onConfirm={() => reschedulingTo && rescheduleMutation.mutate(reschedulingTo)}
@@ -646,7 +638,7 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
             load a fresh tray for it. Not available once a run is <b>Confirm loaded</b> (unlock it first).
           </p>
           <div className={styles.loadModalField}>
-            <label className={styles.loadModalLabel} htmlFor="reschedule-date">
+            <label className="fieldLabel" htmlFor="reschedule-date">
               New load day (weekday)
             </label>
             <input
@@ -667,13 +659,7 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
           confirmVariant="danger"
           pendingLabel="Discarding…"
           pending={rotateMutation.isPending}
-          error={
-            rotateMutation.isError
-              ? rotateMutation.error instanceof ApiError
-                ? rotateMutation.error.message
-                : "Failed to discard tray."
-              : null
-          }
+          error={rotateMutation.isError ? errorMessage(rotateMutation.error, "Couldn't discard the tray.") : null}
           onCancel={() => setRotateTarget(null)}
           onConfirm={() => rotateMutation.mutate(rotateTarget)}
         >
@@ -698,11 +684,7 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
           pendingLabel="Clearing…"
           pending={clearPlateMutation.isPending}
           error={
-            clearPlateMutation.isError
-              ? clearPlateMutation.error instanceof ApiError
-                ? clearPlateMutation.error.message
-                : "Failed to clear plate."
-              : null
+            clearPlateMutation.isError ? errorMessage(clearPlateMutation.error, "Couldn't clear the plate.") : null
           }
           onCancel={() => setClearingPlate(null)}
           onConfirm={() => clearPlateMutation.mutate(clearingPlate.cellUseIds)}

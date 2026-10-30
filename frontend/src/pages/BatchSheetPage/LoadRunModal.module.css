@@ -4,23 +4,11 @@
 .field {
   margin: 12px 0;
 }
-.label {
-  display: block;
-  font-size: var(--fs-sm);
-  font-weight: 700;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  color: var(--grey);
-  margin-bottom: 7px;
-}
 .input {
   width: 100%;
-  font-size: var(--fs-base);
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  padding: 8px 10px;
 }
-.invalid {
+/* Two classes so the red stays over the form-control hover/focus border. */
+.input.invalid {
   border-color: var(--red);
 }
 .hint {

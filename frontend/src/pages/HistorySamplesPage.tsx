@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { memo, useCallback, useState } from "react";
 import { Link } from "react-router-dom";
 
-import { ApiError } from "@/api/client";
+import { errorMessage } from "@/api/client";
 import type { SampleSortBy, SampleSortDir } from "@/api/samples";
 import { samplesApi } from "@/api/samples";
 import { BarcodeChips } from "@/components/shared/BarcodeChips";
@@ -12,7 +12,9 @@ import { SortableColumnHeader } from "@/components/shared/SortableColumnHeader";
 import { Badge } from "@/components/ui/Badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Note } from "@/components/ui/Note";
+import { PageHeader } from "@/components/ui/PageHeader";
 import type { SampleCellUseOut, SampleOut } from "@/types/sample";
+import { formatDateTime } from "@/utils/calendarDates";
 import { runLabel } from "@/utils/runLabel";
 import { SAMPLE_STATUS_LABEL, SAMPLE_STATUS_TONE } from "@/utils/sampleStatus";
 import { useClientSort } from "@/utils/useClientSort";
@@ -22,10 +24,6 @@ import { useDebouncedValue } from "@/utils/useDebouncedValue";
 import styles from "./HistorySamplesPage.module.css";
 
 const PAGE_SIZE = 25;
-
-function formatDateTime(iso: string): string {
-  return new Date(iso).toLocaleString();
-}
 
 /** One value per sortable column of a sample's cell-use list. That list is fully loaded
  * (lazily fetched when the row expands), so it sorts in the browser. */
@@ -98,16 +96,15 @@ export function HistorySamplesPage() {
 
   return (
     <div className={styles.page}>
+      <PageHeader
+        title="Samples"
+        intro="Completed & failed sample history — or search to find any sample, wherever it is right now."
+      />
       <Card>
         <CardHeader badge={`${total} sample${total === 1 ? "" : "s"}`}>
-          <h2>Samples</h2>
+          <h2>{searching ? "Search results" : "Completed & failed"}</h2>
         </CardHeader>
         <CardBody>
-          <p className={styles.intro}>
-            Browse completed &amp; failed history below, or search any Pool ID, barcode, or Plate ID to
-            find a sample wherever it is right now — Backlog, Scheduled, In progress, Completed, Failed, or
-            Cancelled.
-          </p>
           <input
             type="search"
             className={styles.search}
@@ -124,21 +121,21 @@ export function HistorySamplesPage() {
               : "Showing completed & failed history. Type above to search every sample status instead."}
           </div>
 
-          {query.isLoading && <div className={styles.status}>Loading samples…</div>}
+          {query.isLoading && <div className="status">Loading samples…</div>}
           {query.isError && (
             <Note tone="bad" icon="!">
-              {query.error instanceof ApiError ? query.error.message : "Failed to load samples."}
+              {errorMessage(query.error, "Couldn't load the samples.")}
             </Note>
           )}
           {!query.isLoading && !query.isError && items.length === 0 && (
-            <div className={styles.status}>
+            <div className="status">
               {searching ? "No samples found." : "No completed or failed samples found."}
             </div>
           )}
 
           {items.length > 0 && (
             <>
-              <table className={styles.table}>
+              <table className="table">
                 <thead>
                   <tr>
                     <th />
@@ -215,17 +212,17 @@ const SampleRow = memo(function SampleRow({ sample, expanded, onToggle }: Sample
       {expanded && (
         <tr>
           <td colSpan={9} className={styles.detailCell}>
-            {detailQuery.isLoading && <div className={styles.status}>Loading cell uses…</div>}
+            {detailQuery.isLoading && <div className="status sm">Loading cell uses…</div>}
             {detailQuery.isError && (
               <Note tone="bad" icon="!">
-                {detailQuery.error instanceof ApiError ? detailQuery.error.message : "Failed to load sample."}
+                {errorMessage(detailQuery.error, "Couldn't load the sample.")}
               </Note>
             )}
             {detailQuery.data &&
               (detailQuery.data.cell_uses.length === 0 ? (
-                <div className={styles.status}>This sample has not been placed on any cell yet.</div>
+                <div className="status sm">This sample has not been placed on any cell yet.</div>
               ) : (
-                <table className={styles.innerTable}>
+                <table className={`table ${styles.innerTable}`}>
                   <thead>
                     <tr>
                       <th>

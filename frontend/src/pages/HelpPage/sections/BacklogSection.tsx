@@ -18,8 +18,9 @@ export function BacklogSection() {
   return (
     <div className={styles.copy}>
       <p>
-        <b>What this tab is for:</b> every sample that has been imported but not yet placed on the schedule. The
-        count in the header is the total waiting.
+        <b>What this tab is for:</b> every sample that has been imported but not yet placed on the schedule, in the
+        main <b>Samples to schedule</b> list. The count under the page title is the total waiting — while you search
+        or filter by priority, it counts just the matching samples.
       </p>
 
       <p className={styles.subheading}>Filters &amp; search</p>
@@ -106,20 +107,20 @@ export function BacklogSection() {
       </p>
       <p>
         <b>Aborted</b> is a legacy top-priority label: if any sample carries it, a red{" "}
-        <Badge tone="danger">⚠ N aborted</Badge> badge appears next to the sample count here and in the Schedule
-        tab&apos;s Backlog panel header so it&apos;s never missed.
+        <Badge tone="danger">⚠ N aborted</Badge> badge appears in the <b>Samples to schedule</b> list&apos;s header
+        here and in the Schedule tab&apos;s Backlog panel header so it&apos;s never missed.
       </p>
       <p>
         Whenever any backlog sample is rated <b>High</b> priority or above (Aborted / Recoverable / Repeatable all
         rank above High), an amber{" "}
-        <Badge tone="warning">⚠ N high priority+ unscheduled</Badge> badge appears next to the sample count here and
-        in the Schedule tab&apos;s Backlog panel header — a reminder that urgent samples are still waiting to be
+        <Badge tone="warning">⚠ N high priority+ unscheduled</Badge> badge appears in the Schedule tab&apos;s
+        Backlog panel header — a reminder that urgent samples are still waiting to be
         placed, even while the panel is collapsed.
       </p>
 
       <p className={styles.subheading}>Actions</p>
       <p>
-        <b>+ Add sample</b> (top-right of the toolbar) opens a form to add one sample to the backlog by hand — handy
+        <b>+ Add sample</b> (top right of the page) opens a form to add one sample to the backlog by hand — handy
         when a sample isn&apos;t in a file to import. The form is grouped into three shaded sections —{" "}
         <b>Sample ID &amp; Priority</b>, <b>Complex Details</b>, and <b>Run Settings</b> — to keep entry scannable.
         The <b>Pool ID</b> (a unique identifier such as a Pool ID) and at least one{" "}

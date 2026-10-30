@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
-import { ApiError } from "@/api/client";
+import { errorMessage } from "@/api/client";
 import { importsApi } from "@/api/imports";
 import { settingsApi } from "@/api/settings";
 import type { SampleDefaults } from "@/api/settings";
@@ -63,13 +63,13 @@ export function SampleDefaultsPanel() {
 
       {query.isError && (
         <Note tone="bad" icon="!">
-          {query.error instanceof ApiError ? query.error.message : "Failed to load sample defaults."}
+          {errorMessage(query.error, "Couldn't load the sample defaults.")}
         </Note>
       )}
 
       {form && (
         <>
-          <table className={styles.table}>
+          <table className={`table ${styles.valueTable}`}>
             <thead>
               <tr>
                 <th>Field</th>
@@ -82,8 +82,8 @@ export function SampleDefaultsPanel() {
                 return (
                   <tr key={row.key}>
                     <td>
-                      <span className={styles.fieldLabel}>{row.label}</span>
-                      <span className={styles.fieldHint}>{row.hint}</span>
+                      <span className={styles.settingName}>{row.label}</span>
+                      <span className={styles.settingHint}>{row.hint}</span>
                     </td>
                     <td>
                       <select
@@ -112,7 +112,7 @@ export function SampleDefaultsPanel() {
 
           {mutation.isError && (
             <Note tone="bad" icon="!">
-              {mutation.error instanceof ApiError ? mutation.error.message : "Failed to save defaults."}
+              {errorMessage(mutation.error, "Couldn't save the sample defaults.")}
             </Note>
           )}
 

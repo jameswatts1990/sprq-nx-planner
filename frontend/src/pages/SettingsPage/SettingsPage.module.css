@@ -21,15 +21,6 @@
 }
 .search {
   width: 100%;
-  font-family: var(--sans);
-  font-size: var(--fs-base);
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  padding: 8px 10px;
-}
-.search:focus-visible {
-  outline: 2px solid var(--magenta-deep);
-  outline-offset: 1px;
 }
 .nav {
   display: flex;
@@ -73,11 +64,6 @@
 .navDev {
   color: var(--faint);
 }
-.noMatch {
-  font-size: var(--fs-sm);
-  color: var(--grey);
-  padding: 6px 12px;
-}
 .reveal {
   margin-top: 6px;
   padding-top: 12px;
@@ -104,19 +90,6 @@
 /* --- Content column --------------------------------------------------------- */
 .content {
   min-width: 0;
-}
-.contentHead {
-  margin-bottom: 16px;
-}
-.title {
-  font-size: var(--fs-display);
-  margin: 0 0 6px;
-}
-.intro {
-  font-size: var(--fs-lg);
-  color: var(--grey);
-  margin: 0;
-  max-width: 80ch;
 }
 
 /* Developer-tools section wrapper (stacks its warning, clear-backlog card, table browser). */
@@ -232,19 +205,18 @@
   font-size: var(--fs-md);
   color: var(--grey);
 }
-.status {
-  color: var(--grey);
-  font-size: var(--fs-lg);
-  padding: 24px 4px;
-  text-align: center;
-}
 /* Dev-tools row browser: scrolls both ways inside the panel so a 1000-row page keeps its
-   column headers (sticky) and the pager in view. */
+   column headers (sticky) and the pager in view. Raw values stay on one line. */
 .tableScroll {
   overflow: auto;
   max-height: 65vh;
 }
-.tableScroll .table th {
+/* tbody td outranks the shared .table td: centre each value against its row's Edit/Delete buttons. */
+.tableScroll tbody td {
+  white-space: nowrap;
+  vertical-align: middle;
+}
+.tableScroll th {
   position: sticky;
   top: 0;
   z-index: 1;
@@ -262,11 +234,6 @@
 .rowsSearch {
   flex: 1 1 260px;
   max-width: 420px;
-  font-family: var(--sans);
-  font-size: var(--fs-base);
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  padding: 8px 12px;
 }
 .pageSizeLabel {
   margin-left: auto;
@@ -275,37 +242,6 @@
   gap: 8px;
   font-size: var(--fs-md);
   color: var(--grey);
-}
-.pageSizeSelect {
-  font-family: var(--sans);
-  font-size: var(--fs-base);
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  padding: 6px 8px;
-}
-.table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: var(--fs-md);
-}
-.table th {
-  text-align: left;
-  font-size: var(--fs-xs);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--grey);
-  font-weight: 700;
-  padding: 8px 10px;
-  border-bottom: 1px solid var(--line);
-  white-space: nowrap;
-}
-.table td {
-  padding: 8px 10px;
-  border-bottom: 1px solid var(--line-soft);
-  white-space: nowrap;
-}
-.table tbody tr:hover {
-  background: var(--line-soft);
 }
 .mono {
   font-family: var(--mono);
@@ -322,11 +258,6 @@
 }
 .confirmInput {
   width: 100%;
-  font-family: var(--mono);
-  font-size: var(--fs-lg);
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  padding: 8px 10px;
   margin-bottom: 14px;
 }
 .rowActions {
@@ -347,16 +278,23 @@
   flex-direction: column;
   gap: 4px;
 }
+/* The raw database column name, shown exactly as stored (so not the uppercase fieldLabel). */
 .editLabel {
   font-family: var(--mono);
   font-size: var(--fs-sm);
   color: var(--grey);
 }
-.editInput {
-  width: 100%;
-  font-family: var(--mono);
-  font-size: var(--fs-md);
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  padding: 7px 9px;
+
+/* Narrow screens: stack the sidebar above the active panel (as the Help page does at the same
+   breakpoint) instead of squeezing the panel into the space left beside a 236px sidebar. */
+@media (max-width: 860px) {
+  .shell {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+  .sidebar {
+    position: static;
+    max-height: none;
+    overflow: visible;
+  }
 }

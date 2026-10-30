@@ -150,6 +150,109 @@ a {
   border-radius: 3px;
 }
 
+/* ---- Form controls ----------------------------------------------------------------------
+   One look for every text input, select and textarea in the app. Wrapped in :where() so it has
+   zero specificity: any component class still wins for layout (width, a mono font for codes) -
+   but components should NOT re-declare border/padding/font-size/focus, so fields read alike. */
+:where(input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"]), select, textarea) {
+  font-family: var(--sans);
+  font-size: var(--fs-base);
+  line-height: 1.4;
+  color: var(--ink);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 8px 10px;
+  transition: border-color 0.14s ease, box-shadow 0.14s ease;
+}
+:where(input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"]), select, textarea):hover {
+  border-color: var(--line-hover);
+}
+/* Fields take the brand focus treatment on any focus (mouse or keyboard) - a typing caret
+   needs a clear "you are here", unlike a button. */
+:where(input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"]), select, textarea):focus {
+  outline: none;
+  border-color: var(--magenta);
+  box-shadow: 0 0 0 3px var(--magenta-tint);
+}
+:where(input, select, textarea):disabled {
+  background: var(--line-soft);
+  color: var(--grey);
+  cursor: not-allowed;
+}
+:where(textarea) {
+  resize: vertical;
+}
+:where(input[type="checkbox"], input[type="radio"], input[type="range"]) {
+  accent-color: var(--magenta);
+}
+/* Label above a form field. */
+.fieldLabel {
+  display: block;
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--grey);
+  margin-bottom: 6px;
+}
+/* A unit inside an uppercase label or table header keeps its case - "(pM)", not "(PM)". Rendered
+   by components/shared/UnitLabel. */
+.unit {
+  text-transform: none;
+  letter-spacing: normal;
+}
+/* Label above a read-only value on a detail page / popover ("Status", "Load date"). */
+.detailLabel {
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--grey);
+}
+
+/* ---- Tables ------------------------------------------------------------------------------
+   The shared data-table look. Components add only what's specific to them (column widths,
+   sticky headers, a scroll box). */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-base);
+  font-variant-numeric: tabular-nums;
+}
+.table th {
+  text-align: left;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--grey);
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+.table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line-soft);
+  vertical-align: top;
+}
+.table tbody tr:hover {
+  background: var(--line-soft);
+}
+
+/* ---- Loading / empty states --------------------------------------------------------------
+   "Loading…", "No samples found." - one quiet centred line. .sm for inside a panel or popover.
+   Errors are never a .status: they're a <Note tone="bad"> with errorMessage(). */
+.status {
+  color: var(--grey);
+  font-size: var(--fs-base);
+  padding: 22px 8px;
+  text-align: center;
+}
+.status.sm {
+  padding: 10px 4px;
+}
+
 /* Help-page search highlighting. The names are registered document-wide in the CSS
    highlight registry by the Help page's useHelpSearch hook (and cleared on unmount), so
    these globals only ever paint while that page is mounted. `help-search-active` is the

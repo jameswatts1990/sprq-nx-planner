@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useState } from "react";
 
-import { ApiError } from "@/api/client";
+import { errorMessage } from "@/api/client";
 import { instrumentsApi } from "@/api/instruments";
 import { pacbioCasesApi } from "@/api/pacbioCases";
 import { Button } from "@/components/ui/Button";
@@ -130,7 +130,7 @@ export function PacbioCaseModal({ existing, onClose, onSaved }: PacbioCaseModalP
       )}
       <form onSubmit={submit} className={styles.form}>
         <div className={styles.field}>
-          <label className={styles.fieldLabel} htmlFor="pc-summary">
+          <label className="fieldLabel" htmlFor="pc-summary">
             What happened
           </label>
           <input
@@ -145,7 +145,7 @@ export function PacbioCaseModal({ existing, onClose, onSaved }: PacbioCaseModalP
         </div>
         <div className={styles.fieldGrid}>
           <div className={styles.field}>
-            <label className={styles.fieldLabel} htmlFor="pc-date">
+            <label className="fieldLabel" htmlFor="pc-date">
               Date it happened
             </label>
             <input
@@ -157,7 +157,7 @@ export function PacbioCaseModal({ existing, onClose, onSaved }: PacbioCaseModalP
             />
           </div>
           <div className={styles.field}>
-            <label className={styles.fieldLabel} htmlFor="pc-instrument">
+            <label className="fieldLabel" htmlFor="pc-instrument">
               Instrument (optional)
             </label>
             <select id="pc-instrument" value={instrumentId} onChange={(e) => setInstrumentId(e.target.value)}>
@@ -171,7 +171,7 @@ export function PacbioCaseModal({ existing, onClose, onSaved }: PacbioCaseModalP
             </select>
           </div>
           <div className={styles.field}>
-            <label className={styles.fieldLabel} htmlFor="pc-run">
+            <label className="fieldLabel" htmlFor="pc-run">
               Run (optional)
             </label>
             <input
@@ -184,7 +184,7 @@ export function PacbioCaseModal({ existing, onClose, onSaved }: PacbioCaseModalP
             />
           </div>
           <div className={styles.field}>
-            <label className={styles.fieldLabel} htmlFor="pc-pool">
+            <label className="fieldLabel" htmlFor="pc-pool">
               Sample / Pool ID (optional)
             </label>
             <input
@@ -197,7 +197,7 @@ export function PacbioCaseModal({ existing, onClose, onSaved }: PacbioCaseModalP
             />
           </div>
           <div className={styles.field}>
-            <span className={styles.fieldLabel}>Cell type</span>
+            <span className="fieldLabel">Cell type</span>
             <SegmentedControl
               options={CELL_TYPE_OPTIONS}
               value={cellType}
@@ -207,7 +207,7 @@ export function PacbioCaseModal({ existing, onClose, onSaved }: PacbioCaseModalP
             />
           </div>
           <div className={styles.field}>
-            <label className={styles.fieldLabel} htmlFor="pc-expected">
+            <label className="fieldLabel" htmlFor="pc-expected">
               Acquisitions to claim (optional)
             </label>
             <input
@@ -222,7 +222,7 @@ export function PacbioCaseModal({ existing, onClose, onSaved }: PacbioCaseModalP
           </div>
           {!existing && (
             <div className={styles.field}>
-              <label className={styles.fieldLabel} htmlFor="pc-owner">
+              <label className="fieldLabel" htmlFor="pc-owner">
                 Owner (optional)
               </label>
               <input
@@ -239,14 +239,14 @@ export function PacbioCaseModal({ existing, onClose, onSaved }: PacbioCaseModalP
 
         {!existing && (
           <fieldset className={styles.progressed}>
-            <legend className={styles.fieldLabel}>Already progressed? (optional)</legend>
+            <legend className="fieldLabel">Already progressed? (optional)</legend>
             <p className={styles.helper}>
               Fill in any step you&apos;ve already done and the case starts there — no need to click each one through
               afterwards.
             </p>
             <div className={styles.fieldGrid}>
               <div className={styles.field}>
-                <label className={styles.fieldLabel} htmlFor="pc-case-number">
+                <label className="fieldLabel" htmlFor="pc-case-number">
                   PacBio case number
                 </label>
                 <input
@@ -259,7 +259,7 @@ export function PacbioCaseModal({ existing, onClose, onSaved }: PacbioCaseModalP
                 />
               </div>
               <div className={styles.field}>
-                <label className={styles.fieldLabel} htmlFor="pc-report-id">
+                <label className="fieldLabel" htmlFor="pc-report-id">
                   Internal report ID
                 </label>
                 <input
@@ -272,7 +272,7 @@ export function PacbioCaseModal({ existing, onClose, onSaved }: PacbioCaseModalP
                 />
               </div>
               <div className={styles.field}>
-                <label className={styles.fieldLabel} htmlFor="pc-credited">
+                <label className="fieldLabel" htmlFor="pc-credited">
                   Acquisitions credited
                 </label>
                 <input
@@ -304,7 +304,7 @@ export function PacbioCaseModal({ existing, onClose, onSaved }: PacbioCaseModalP
 
         {!existing && (
           <div className={styles.field}>
-            <label className={styles.fieldLabel} htmlFor="pc-notes">
+            <label className="fieldLabel" htmlFor="pc-notes">
               Case notes (optional)
             </label>
             <textarea id="pc-notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
@@ -317,7 +317,7 @@ export function PacbioCaseModal({ existing, onClose, onSaved }: PacbioCaseModalP
 
         {mutation.isError && (
           <Note tone="bad" icon="!">
-            {mutation.error instanceof ApiError ? mutation.error.message : "Failed to save the case."}
+            {errorMessage(mutation.error, "Couldn't save the case.")}
           </Note>
         )}
         <ModalActions>

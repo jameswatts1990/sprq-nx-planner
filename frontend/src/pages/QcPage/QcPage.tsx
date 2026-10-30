@@ -1,13 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 
-import { ApiError } from "@/api/client";
+import { errorMessage } from "@/api/client";
 import { cellsApi } from "@/api/cells";
 import { pacbioCasesApi } from "@/api/pacbioCases";
 import { SectionHeading } from "@/components/shared/SectionHeading";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Note } from "@/components/ui/Note";
+import { PageHeader } from "@/components/ui/PageHeader";
 import type { CellType } from "@/types/common";
 import type { PacbioCaseOut } from "@/types/pacbioCase";
 import {
@@ -69,10 +70,6 @@ function QcCaseItem({ item, nowMs, ...expansion }: { item: QcCase; nowMs: number
   ) : (
     <PacbioCaseRow pacbioCase={item.pacbioCase} age={age} {...expansion} />
   );
-}
-
-function errorText(error: unknown, fallback: string): string {
-  return error instanceof ApiError ? error.message : fallback;
 }
 
 function groupCases(items: QcCase[]): QcGroups {
@@ -202,46 +199,48 @@ export function QcPage() {
 
   return (
     <div className={styles.page}>
-      <div className={styles.toolbar}>
-        <button
-          type="button"
-          className={styles.titleToggle}
-          aria-expanded={overviewOpen}
-          onClick={toggleOverview}
-          title={overviewOpen ? "Hide the totals" : "Show the totals"}
-        >
-          <h1 className={styles.title}>PacBio credit cases</h1>
-          <span className={styles.receivedCx} data-open={overviewOpen}>
-            ▸
-          </span>
-        </button>
-        <div className={styles.spacer} />
-        <input
-          type="search"
-          className={styles.search}
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search case #, cell, Pool ID, run, owner…"
-          aria-label="Search credit cases"
-        />
-        <Button
-          variant="ghost"
-          onClick={exportCsv}
-          disabled={shown.length === 0}
-          title="Download these cases as a spreadsheet (credited acquisitions also as cells and trays)"
-        >
-          Export CSV{searching ? ` (${shown.length})` : ""}
-        </Button>
-        <Button
-          onClick={() => {
-            setJustAdded(null);
-            setAddOpen(true);
-          }}
-          title="Log a PacBio credit case that isn't linked to any cell in RunNx"
-        >
-          + Add case without a cell
-        </Button>
-      </div>
+      <PageHeader
+        title="PacBio credit cases"
+        intro="Failed or stopped cells, plus cases logged by hand, chasing a credit back from PacBio."
+        actions={
+          <>
+            <Button
+              size="sm"
+              variant="ghost"
+              aria-expanded={overviewOpen}
+              onClick={toggleOverview}
+              title="One line of totals across every case — your browser remembers whether it's shown"
+            >
+              {overviewOpen ? "Hide overview" : "Show overview"}
+            </Button>
+            <input
+              type="search"
+              className={styles.search}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search case #, cell, Pool ID, run, owner…"
+              aria-label="Search credit cases"
+            />
+            <Button
+              variant="ghost"
+              onClick={exportCsv}
+              disabled={shown.length === 0}
+              title="Download these cases as a spreadsheet (credited acquisitions also as cells and trays)"
+            >
+              Export CSV{searching ? ` (${shown.length})` : ""}
+            </Button>
+            <Button
+              onClick={() => {
+                setJustAdded(null);
+                setAddOpen(true);
+              }}
+              title="Log a PacBio credit case that isn't linked to any cell in RunNx"
+            >
+              + Add case without a cell
+            </Button>
+          </>
+        }
+      />
 
       {overviewOpen && loaded && <OverviewStrip items={items} groups={allGroups} nowMs={nowMs} />}
 
@@ -252,15 +251,15 @@ export function QcPage() {
         </Note>
       )}
 
-      {loading && <div className={styles.status}>Loading QC cases…</div>}
+      {loading && <div className="status">Loading QC cases…</div>}
       {cellsQuery.isError && (
         <Note tone="bad" icon="!">
-          {errorText(cellsQuery.error, "Failed to load the cells' QC cases.")}
+          {errorMessage(cellsQuery.error, "Couldn't load the cells' QC cases.")}
         </Note>
       )}
       {casesQuery.isError && (
         <Note tone="bad" icon="!">
-          {errorText(casesQuery.error, "Failed to load the cases logged without a cell.")}
+          {errorMessage(casesQuery.error, "Couldn't load the cases logged without a cell.")}
         </Note>
       )}
       {loaded && items.length === 0 && (
@@ -270,10 +269,10 @@ export function QcPage() {
         </Note>
       )}
       {loaded && items.length > 0 && searching && shown.length === 0 && (
-        <Note tone="info" icon="i">
+        <div className="status">
           No cases match “{query.trim()}”. Search looks at the case number, internal report ID, owner, cell code or
           summary, run, sample and instrument.
-        </Note>
+        </div>
       )}
 
       {OPEN_BUCKETS.map((b) =>

@@ -4,7 +4,7 @@ import { useLocation } from "react-router-dom";
 export interface SampleBackNav {
   /** Path (including any query string) to return to. */
   to: string;
-  /** Label for the back link, e.g. "Back to Backlog". */
+  /** Label for the back link: the destination's name, e.g. "Backlog" (shown as "◂ Backlog"). */
   label: string;
 }
 
@@ -16,17 +16,17 @@ export interface SampleDetailLocationState {
 
 /** Fallback when a sample is reached directly (a shared/bookmarked link, a refresh that
  * drops navigation state): the Samples history list is the durable home for any sample. */
-const DEFAULT_BACK_NAV: SampleBackNav = { to: "/history/samples", label: "Back to Samples" };
+const DEFAULT_BACK_NAV: SampleBackNav = { to: "/history/samples", label: "Samples" };
 
 /** Human label for the screen a sample was opened from, keyed off the source pathname so
  * every call site gets a consistent name without repeating the string. */
 function labelForPath(pathname: string): string {
-  if (pathname.startsWith("/backlog")) return "Back to Backlog";
-  if (pathname.startsWith("/schedule")) return "Back to Schedule";
-  if (pathname.startsWith("/cells/")) return "Back to Cell";
-  if (pathname.startsWith("/cells")) return "Back to Cells";
-  if (pathname.startsWith("/history/runs")) return "Back to Run";
-  if (pathname.startsWith("/history/samples")) return "Back to Samples";
+  if (pathname.startsWith("/backlog")) return "Backlog";
+  if (pathname.startsWith("/schedule")) return "Schedule";
+  if (pathname.startsWith("/cells/")) return "Cell";
+  if (pathname.startsWith("/cells")) return "Cells";
+  if (pathname.startsWith("/history/runs")) return "Run";
+  if (pathname.startsWith("/history/samples")) return "Samples";
   return "Back";
 }
 

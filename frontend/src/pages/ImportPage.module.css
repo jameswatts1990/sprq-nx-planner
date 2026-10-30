@@ -4,6 +4,10 @@
   flex-direction: column;
   gap: 18px;
 }
+/* The PageHeader: the flex gap already spaces it from what follows. */
+.page > :first-child {
+  margin-bottom: 0;
+}
 /* Persistent "Undo last import" banner on the input screen — understated, only shown while
    the most recent import is still undoable. */
 .undoBanner {
@@ -22,21 +26,9 @@
 .undoBannerText b {
   color: var(--ink);
 }
-textarea {
+.csvInput {
   width: 100%;
   min-height: 220px;
-  resize: vertical;
-  font-family: var(--mono);
-  font-size: var(--fs-sm);
-  line-height: 1.55;
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  padding: 12px;
-  color: var(--ink);
-  background: #fcfcfd;
-}
-textarea::placeholder {
-  color: var(--faint);
 }
 .inputRow {
   display: flex;
@@ -135,11 +127,6 @@ textarea::placeholder {
   color: var(--grey);
 }
 .filenameField input {
-  font-family: var(--mono);
-  font-size: var(--fs-sm);
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  padding: 7px 10px;
   min-width: 200px;
 }
 .error {
@@ -154,25 +141,6 @@ textarea::placeholder {
   flex-direction: column;
   gap: 8px;
   margin-bottom: 16px;
-}
-.rejectedTable {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: var(--fs-md);
-}
-.rejectedTable th {
-  text-align: left;
-  font-size: var(--fs-xs);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--grey);
-  padding: 6px 8px;
-  border-bottom: 1px solid var(--line);
-}
-.rejectedTable td {
-  padding: 6px 8px;
-  border-bottom: 1px solid var(--line-soft);
-  font-family: var(--mono);
 }
 .footerLink {
   margin-top: 16px;
@@ -205,18 +173,8 @@ textarea::placeholder {
 .mapGrid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 10px 18px;
+  gap: 14px 18px;
   margin-bottom: 16px;
-}
-.mapRow {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.mapLabel {
-  font-size: var(--fs-md);
-  color: var(--ink);
-  font-weight: 600;
 }
 /* select + optional "not an exact match" flag sit on one row */
 .selectWrap {
@@ -227,16 +185,11 @@ textarea::placeholder {
 .select {
   flex: 1;
   min-width: 0;
-  font-family: var(--sans);
-  font-size: var(--fs-base);
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  padding: 7px 10px;
-  background: var(--card);
 }
 /* An auto-guessed mapping whose column header isn't an exact match to the field name — tinted
-   so the user gives it a second glance (matches the amber "warn" tone). */
-.selectFuzzy {
+   so the user gives it a second glance (matches the amber "warn" tone). Two classes so the
+   tint holds over the form-control hover/focus border. */
+.select.selectFuzzy {
   border-color: var(--amber);
   background: var(--amber-tint);
 }
@@ -254,29 +207,15 @@ textarea::placeholder {
   border: 1px solid var(--line-soft);
   border-radius: var(--r-sm);
 }
-.table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: var(--fs-md);
-}
-.table th {
+/* Preview table (shared .table look): header stays put while .previewWrap scrolls, and each
+   raw value stays on one line. */
+.previewTable th {
   position: sticky;
   top: 0;
   z-index: 1;
-  text-align: left;
-  font-size: var(--fs-xs);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--grey);
-  padding: 6px 8px;
   background: var(--card);
-  border-bottom: 1px solid var(--line);
-  white-space: nowrap;
 }
-.table td {
-  padding: 6px 8px;
-  border-bottom: 1px solid var(--line-soft);
-  font-family: var(--mono);
+.previewTable td {
   white-space: nowrap;
 }
 /* A review-pool row the user hasn't authorised — shown but visibly excluded from the import. */
@@ -333,7 +272,6 @@ textarea::placeholder {
 }
 .memberTable td {
   padding: 3px 8px;
-  font-family: var(--mono);
   color: var(--ink);
 }
 .memberTable td:last-child {

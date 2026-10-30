@@ -3,15 +3,18 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent } from "react";
 import { Link } from "react-router-dom";
 
-import { ApiError } from "@/api/client";
+import { errorMessage } from "@/api/client";
 import { importsApi, importTemplateUrl } from "@/api/imports";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { Note } from "@/components/ui/Note";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { StatTile, StatTiles } from "@/components/shared/StatTile";
+import { UnitLabel } from "@/components/shared/UnitLabel";
 import type { ImportField, ImportPreviewResult, ImportResult, SchedulerPool } from "@/types/importing";
+import { formatDateTime } from "@/utils/calendarDates";
 import { readSpreadsheetFile } from "@/utils/readSpreadsheetFile";
 import { toCsv } from "@/utils/toCsv";
 
@@ -57,7 +60,7 @@ function formatWhen(iso: string): string {
   if (hrs < 24) return `${hrs} hour${hrs === 1 ? "" : "s"} ago`;
   const days = Math.round(hrs / 24);
   if (days < 7) return `${days} day${days === 1 ? "" : "s"} ago`;
-  return new Date(then).toLocaleDateString();
+  return formatDateTime(new Date(then).toISOString());
 }
 
 export function ImportPage() {
@@ -253,10 +256,19 @@ export function ImportPage() {
       </div>
     ) : null;
 
+  // Every step (paste/upload, review, result) opens with the same header.
+  const header = (
+    <PageHeader
+      title="Import samples"
+      intro="Load a batch of samples and their barcodes — they land in the Backlog, ready to schedule."
+    />
+  );
+
   if (importMutation.isSuccess) {
     const result = importMutation.data;
     return (
       <div className={styles.page}>
+        {header}
         <ImportResultPanel result={result} />
         <div className={styles.actions}>
           <Button
@@ -320,6 +332,7 @@ export function ImportPage() {
 
     return (
       <div className={styles.page}>
+        {header}
         <Card>
           <CardHeader badge={`${preview.row_count} row${preview.row_count === 1 ? "" : "s"}`}>
             <h2>Review columns</h2>
@@ -340,9 +353,9 @@ export function ImportPage() {
                 // the auto-guess landed via a looser alias, so it's worth a human glance.
                 const nonExact = mappedCol ? normalizeHeader(mappedCol.name) !== normalizeHeader(f.label) : false;
                 return (
-                  <div key={f.key} className={styles.mapRow}>
-                    <label className={styles.mapLabel} htmlFor={`map-${f.key}`}>
-                      {f.label}
+                  <div key={f.key}>
+                    <label className="fieldLabel" htmlFor={`map-${f.key}`}>
+                      <UnitLabel text={f.label} />
                       {f.required && <span className={styles.req}> *</span>}
                     </label>
                     <div className={styles.selectWrap}>
@@ -435,12 +448,14 @@ export function ImportPage() {
 
             {mappedFields.length > 0 && preview.sample_rows.length > 0 && (
               <div className={styles.previewWrap}>
-                <table className={styles.table}>
+                <table className={`table ${styles.previewTable}`}>
                   <thead>
                     <tr>
                       {showPoolStatus && <th>Cell</th>}
                       {mappedFields.map((f) => (
-                        <th key={f.key}>{f.label}</th>
+                        <th key={f.key}>
+                          <UnitLabel text={f.label} />
+                        </th>
                       ))}
                     </tr>
                   </thead>
@@ -476,7 +491,7 @@ export function ImportPage() {
             {importMutation.isError && (
               <div className={styles.error}>
                 <Note tone="bad" icon="!">
-                  {importMutation.error instanceof ApiError ? importMutation.error.message : "Import failed."}
+                  {errorMessage(importMutation.error, "Couldn't import the samples.")}
                 </Note>
               </div>
             )}
@@ -509,6 +524,7 @@ export function ImportPage() {
 
   return (
     <div className={styles.page}>
+      {header}
       {justUndone && text.length === 0 && (
         <Note tone="good" icon="✓">
           Import undone — removed <b>{justUndone.count}</b> sample{justUndone.count === 1 ? "" : "s"}
@@ -549,6 +565,7 @@ export function ImportPage() {
         </CardHeader>
         <CardBody>
           <textarea
+            className={styles.csvInput}
             spellCheck={false}
             placeholder={
               "Paste CSV here — any columns. You'll match them to fields on the next step.\n" +
@@ -640,16 +657,14 @@ export function ImportPage() {
           {schedulerMutation.isError && (
             <div className={styles.error}>
               <Note tone="bad" icon="!">
-                {schedulerMutation.error instanceof ApiError
-                  ? schedulerMutation.error.message
-                  : "Couldn't convert that scheduler sheet."}
+                {errorMessage(schedulerMutation.error, "Couldn't convert that scheduler sheet.")}
               </Note>
             </div>
           )}
           {previewMutation.isError && (
             <div className={styles.error}>
               <Note tone="bad" icon="!">
-                {previewMutation.error instanceof ApiError ? previewMutation.error.message : "Could not read that file."}
+                {errorMessage(previewMutation.error, "Couldn't read that file.")}
               </Note>
             </div>
           )}
@@ -730,13 +745,7 @@ function UndoImportControl({
             setOpen(false);
           }}
           onConfirm={() => undoMutation.mutate()}
-          error={
-            undoMutation.isError
-              ? undoMutation.error instanceof ApiError
-                ? undoMutation.error.message
-                : "Couldn't undo the import."
-              : undefined
-          }
+          error={undoMutation.isError ? errorMessage(undoMutation.error, "Couldn't undo the import.") : undefined}
         >
           <p>
             This removes the <b>{count}</b> sample{count === 1 ? "" : "s"} added by this import
@@ -786,7 +795,7 @@ function ImportResultPanel({ result }: { result: ImportResult }) {
         {result.skipped.length > 0 && (
           <>
             <p className={styles.subheading}>Skipped rows (fix and re-import)</p>
-            <table className={styles.rejectedTable}>
+            <table className="table">
               <thead>
                 <tr>
                   <th>Sample</th>
@@ -816,7 +825,7 @@ function ImportResultPanel({ result }: { result: ImportResult }) {
               </Note>
             </div>
             <p className={styles.subheading}>Duplicated Pool IDs</p>
-            <table className={styles.rejectedTable}>
+            <table className="table">
               <thead>
                 <tr>
                   <th>Pool ID</th>
@@ -840,7 +849,7 @@ function ImportResultPanel({ result }: { result: ImportResult }) {
         {result.rejected.length > 0 && (
           <>
             <p className={styles.subheading}>Rejected rows</p>
-            <table className={styles.rejectedTable}>
+            <table className="table">
               <thead>
                 <tr>
                   <th>Pool ID</th>

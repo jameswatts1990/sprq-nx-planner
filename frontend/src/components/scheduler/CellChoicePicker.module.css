@@ -1,16 +1,6 @@
 .search {
   width: 100%;
-  font-family: var(--sans);
-  font-size: var(--fs-base);
-  border: 1.5px solid var(--line);
-  border-radius: var(--r-sm);
-  padding: 10px 14px;
   margin-bottom: 12px;
-}
-.search:focus {
-  outline: none;
-  border-color: var(--magenta);
-  box-shadow: 0 0 0 3px var(--magenta-tint);
 }
 
 .list {
@@ -66,11 +56,4 @@
   font-size: var(--fs-sm);
   color: var(--grey);
   white-space: nowrap;
-}
-
-.empty {
-  color: var(--grey);
-  font-size: var(--fs-base);
-  padding: 12px 0;
-  text-align: center;
 }

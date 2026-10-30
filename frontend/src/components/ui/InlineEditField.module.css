@@ -7,13 +7,6 @@
   flex-wrap: wrap;
   min-height: 30px;
 }
-.label {
-  font-size: var(--fs-2xs);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--grey);
-  font-weight: 700;
-}
 .value {
   font-size: var(--fs-base);
   color: var(--ink);
@@ -40,14 +33,9 @@
   background: var(--bg);
 }
 .input {
-  font-family: var(--sans);
-  font-size: var(--fs-base);
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  padding: 4px 8px;
   width: 160px;
-  background: var(--card);
-  color: var(--ink);
+  /* Compact so swapping a value for its editor doesn't grow the 30px row it sits in. */
+  padding: 5px 8px;
 }
 .error {
   font-size: var(--fs-sm);

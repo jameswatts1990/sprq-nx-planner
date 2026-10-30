@@ -2,28 +2,8 @@
   /* Room for the on-screen view's two plate columns side by side. */
   max-width: 1180px;
   margin: 0 auto;
-  /* No padding of its own: AppShell's .wrap already gives the page its gutters. */
-}
-.controls {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-}
-.backLink {
-  color: var(--grey);
-  font-weight: 600;
-  text-decoration: none;
-}
-.backLink:hover {
-  color: var(--ink);
-}
-.status {
-  color: var(--grey);
-}
-.title {
-  font-size: var(--fs-display);
-  margin-bottom: 18px;
+  /* Side gutters come from AppShell's .wrap; the top matches every other page. */
+  padding-top: 22px;
 }
 /* No break-inside: avoid here - runs already start on a fresh page (print rule below), so its only
    effect was to push a run that didn't fit under the page title onto page 2, leaving page 1 blank. */
@@ -250,9 +230,12 @@
     page-break-before: always;
   }
 
-  /* Tighten everything so a full 8-well run fits the landscape page. */
-  .title {
+  /* Tighten everything so a full 8-well run fits the landscape page. .sheetTitle wraps the
+     PageHeader, which prints just its title line (no back link or buttons). */
+  .sheetTitle h1 {
     font-size: 13px;
+  }
+  .sheetTitle > * {
     margin-bottom: 8px;
   }
   .instrumentTitle {

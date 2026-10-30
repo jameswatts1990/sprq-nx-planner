@@ -11,10 +11,8 @@ export interface CellTypeBadgeProps {
 export function CellTypeBadge({ cellType, compact = false }: CellTypeBadgeProps) {
   if (cellType !== "sprq") return null;
   return (
-    <span title="Single-use SPRQ cells - each cell runs once (no reuse)">
-      <Badge tone="sprq" compact={compact}>
-        SPRQ
-      </Badge>
-    </span>
+    <Badge tone="sprq" compact={compact} title="Single-use SPRQ cells - each cell runs once (no reuse)">
+      SPRQ
+    </Badge>
   );
 }

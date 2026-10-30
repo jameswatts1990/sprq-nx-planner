@@ -21,30 +21,14 @@
   color: var(--grey);
   margin: 0;
 }
-.table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: var(--fs-md);
-}
-.table th {
-  text-align: left;
-  font-size: var(--fs-xs);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--grey);
-  font-weight: 700;
-  padding: 6px 10px;
-  border-bottom: 1px solid var(--line);
-}
-.table td {
-  padding: 8px 10px;
-  border-bottom: 1px solid var(--line-soft);
+/* Setting | value tables (shared .table look): centre each control against its two-line label. */
+.valueTable tbody td {
   vertical-align: middle;
 }
-.fieldLabel {
+.settingName {
   font-weight: 600;
 }
-.fieldHint {
+.settingHint {
   display: block;
   font-weight: 400;
   color: var(--grey);
@@ -53,13 +37,6 @@
 .select {
   width: 100%;
   max-width: 240px;
-  font-family: var(--sans);
-  font-size: var(--fs-base);
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  padding: 7px 9px;
-  background: var(--card);
-  color: var(--ink);
 }
 .actions {
   display: flex;

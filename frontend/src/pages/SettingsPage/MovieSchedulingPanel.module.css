@@ -1,4 +1,6 @@
-.centerCol {
+/* thead/tbody qualifiers so the centring outranks the shared .table th's left alignment. */
+thead th.centerCol,
+tbody td.centerCol {
   text-align: center;
   width: 84px;
 }

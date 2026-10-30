@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
-import { ApiError } from "@/api/client";
+import { errorMessage } from "@/api/client";
 import type { SampleSortBy, SampleSortDir } from "@/api/samples";
 import { samplesApi } from "@/api/samples";
 import { Accordion } from "@/components/ui/Accordion";
@@ -234,14 +234,14 @@ export function BacklogPanel({
   const badge = (
     <span className={styles.badgeGroup}>
       {abortedCount > 0 && (
-        <span title={abortedTitle}>
-          <Badge tone="danger">⚠ {abortedCount} aborted</Badge>
-        </span>
+        <Badge tone="danger" title={abortedTitle}>
+          ⚠ {abortedCount} aborted
+        </Badge>
       )}
       {highPriorityCount > 0 && (
-        <span title={highPriorityTitle}>
-          <Badge tone="warning">⚠ {highPriorityCount} high priority+ unscheduled</Badge>
-        </span>
+        <Badge tone="warning" title={highPriorityTitle}>
+          ⚠ {highPriorityCount} high priority+ unscheduled
+        </Badge>
       )}
       {searching ? `${total} match${total === 1 ? "" : "es"}` : `${total} sample${total === 1 ? "" : "s"}`}
     </span>
@@ -266,7 +266,7 @@ export function BacklogPanel({
 
   // Only the first BACKLOG_LIST_LIMIT samples are fetched - say so rather than hide the rest.
   const truncatedNote = !searching && total > items.length && (
-    <div className={styles.status}>
+    <div className="status sm">
       Showing the first {items.length} of {total} — filter by priority to narrow.
     </div>
   );
@@ -275,16 +275,16 @@ export function BacklogPanel({
   // last, so the shortcut is there even when the list is empty or filtered to nothing.
   const cardList = (
     <>
-      {listLoading && <div className={styles.status}>Loading backlog…</div>}
+      {listLoading && <div className="status sm">Loading backlog…</div>}
       {listError && (
         <Note tone="bad" icon="!">
-          {listError instanceof ApiError ? listError.message : "Failed to load backlog."}
+          {errorMessage(listError, "Couldn't load the backlog.")}
         </Note>
       )}
       {!listLoading && !listError && (
         <div className={isSide ? styles.column : styles.grid}>
           {items.length === 0 && (
-            <div className={styles.status}>{searching ? "No matching samples." : "No backlog samples found."}</div>
+            <div className="status sm">{searching ? "No matching samples." : "No backlog samples found."}</div>
           )}
           {items.map((sample) => (
             <DraggableSampleCard

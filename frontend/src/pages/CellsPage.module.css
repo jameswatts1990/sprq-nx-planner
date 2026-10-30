@@ -67,25 +67,8 @@
 .asOfBtn:not([aria-pressed="true"]):hover {
   color: var(--magenta);
 }
-.trayViewHead {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-bottom: 16px;
-}
-.backLink {
-  font-size: var(--fs-base);
-  font-weight: 600;
-  color: var(--grey);
-  text-decoration: none;
-  width: fit-content;
-}
-.backLink:hover {
-  color: var(--ink);
-}
-.trayTitle {
-  margin: 0;
-  font-size: var(--fs-display);
+/* The tray view's title: "Tray N" reads in mono, like the tray group headers it's opened from. */
+.mono {
   font-family: var(--mono);
 }
 .filters {
@@ -111,33 +94,10 @@
 }
 .search {
   flex: 1;
-  font-family: var(--sans);
-  font-size: var(--fs-2xl);
-  border: 1.5px solid var(--line);
-  border-radius: var(--r-sm);
-  padding: 12px 16px;
   min-width: 220px;
-}
-.search:focus {
-  outline: none;
-  border-color: var(--magenta);
-  box-shadow: 0 0 0 3px var(--magenta-tint);
-}
-.select {
-  font-family: var(--sans);
-  font-size: var(--fs-base);
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  padding: 8px 10px;
 }
 .spacer {
   margin-left: auto;
-}
-.status {
-  color: var(--grey);
-  font-size: var(--fs-lg);
-  padding: 24px 4px;
-  text-align: center;
 }
 .grid {
   display: grid;
@@ -238,31 +198,12 @@ a.groupTitle:hover {
 .field {
   margin-bottom: 14px;
 }
-.fieldLabel {
-  display: block;
-  font-size: var(--fs-sm);
-  font-weight: 700;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  color: var(--grey);
-  margin-bottom: 7px;
-}
-.field input[type="number"],
-.field input[type="datetime-local"] {
-  width: 100%;
-  font-family: var(--sans);
-  font-size: var(--fs-lg);
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  padding: 8px 10px;
-}
+.field input,
 .field textarea {
   width: 100%;
+}
+.field textarea {
   min-height: 70px;
-  resize: vertical;
+  /* Holds burned barcodes - codes read most reliably in monospace. */
   font-family: var(--mono);
-  font-size: var(--fs-md);
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  padding: 8px 10px;
 }

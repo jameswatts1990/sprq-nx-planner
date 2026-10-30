@@ -2,7 +2,8 @@ import type { CreditEmailTemplate } from "@/api/settings";
 import type { CellOut } from "@/types/cell";
 import type { CellType } from "@/types/common";
 import type { PacbioCaseOut } from "@/types/pacbioCase";
-import { expectedReimbursement, localDateOnly, triggeringUse } from "@/utils/creditCase";
+import { formatDateTime, formatDateUTC, parseDateOnly } from "@/utils/calendarDates";
+import { expectedReimbursement, triggeringUse } from "@/utils/creditCase";
 import { plateWellFromPlate } from "@/utils/plateWell";
 import { runLabel } from "@/utils/runLabel";
 
@@ -14,10 +15,6 @@ import { runLabel } from "@/utils/runLabel";
  * This module is the single source of truth for that variable set, so the admin "Email
  * template" panel (which previews the tokens against example values) and the real email
  * builder in CreditCaseActions can never disagree about which tokens exist or what they mean. */
-
-function formatDateTime(iso: string | null): string {
-  return iso ? new Date(iso).toLocaleString() : "—";
-}
 
 /** The values a template's tokens resolve against — a real failing cell, a case logged without a
  * cell, or the example values shown in the admin preview. */
@@ -70,7 +67,7 @@ export const EXAMPLE_CONTEXT: CreditEmailContext = {
   sampleName: "HG01234",
   run: "TRACTION-RUN-1234",
   instrument: "R-84021",
-  runDate: "24/07/2026, 14:32",
+  runDate: "24 Jul 2026, 14:32",
   reimbursement: "2",
   caseNumber: "CS-000123",
   well: "P1_C01",
@@ -104,12 +101,13 @@ export const DEFAULT_CREDIT_EMAIL: CreditEmailTemplate = {
 export function buildCreditEmailContext(cell: CellOut): CreditEmailContext {
   const use = triggeringUse(cell.uses);
   const reimbursement = expectedReimbursement(cell);
+  const runAt = use?.started_at ?? use?.completed_at ?? null;
   return {
     summary: use?.outcome_notes || cell.stopped_reason || "Failed SMRT Cell",
     sampleName: use?.sample_pool_id || "—",
     run: use ? runLabel({ run_id: use.run_batch_id, run_name: use.run_name }) : "—",
     instrument: use?.instrument_serial ?? "—",
-    runDate: use ? formatDateTime(use.started_at ?? use.completed_at) : "—",
+    runDate: runAt ? formatDateTime(runAt) : "—",
     reimbursement: reimbursement == null ? "—" : String(reimbursement),
     caseNumber: cell.pacbio_case_number ?? "—",
     well: use ? plateWellFromPlate(use.plate_index, use.well, { qualified: true }) : "—",
@@ -121,12 +119,15 @@ export function buildCreditEmailContext(cell: CellOut): CreditEmailContext {
 /** The same fill-in values for a case logged without a cell, from what was typed in. There's no
  * cell, so the internal well/cell-code tokens have nothing to show. */
 export function buildPacbioCaseEmailContext(pc: PacbioCaseOut): CreditEmailContext {
+  // A typed-in day with no time: "24 Jul 2026", formatDateTime's date part. The year stays
+  // because the email leaves the app (in-app date-only labels drop it).
+  const occurred = parseDateOnly(pc.occurred_on);
   return {
     summary: pc.summary,
     sampleName: pc.pool_id || "—",
     run: pc.run_name || "—",
     instrument: pc.instrument_serial ?? "—",
-    runDate: localDateOnly(pc.occurred_on).toLocaleDateString(),
+    runDate: formatDateUTC(occurred),
     reimbursement: pc.expected_acquisitions == null ? "—" : String(pc.expected_acquisitions),
     caseNumber: pc.pacbio_case_number ?? "—",
     well: "—",

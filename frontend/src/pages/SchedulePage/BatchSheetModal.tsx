@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { ApiError } from "@/api/client";
+import { errorMessage } from "@/api/client";
 import { cyclesApi } from "@/api/cycles";
 import { Button } from "@/components/ui/Button";
 import { Modal, ModalActions } from "@/components/ui/Modal";
@@ -19,7 +19,7 @@ export interface BatchSheetModalProps {
 }
 
 /** Lets the user pick a day and which Revios to include, then opens the Batch Sheet
- * (/batch-sheet) in this tab - the sheet has its own "Back to Schedule" link.
+ * (/batch-sheet) in this tab - the sheet has its own "◂ Schedule" back link.
  * Printing is the browser's native print-to-PDF from that page - see BatchSheetPage. */
 export function BatchSheetModal({ instruments, onClose }: BatchSheetModalProps) {
   const navigate = useNavigate();
@@ -64,33 +64,28 @@ export function BatchSheetModal({ instruments, onClose }: BatchSheetModalProps) 
   return (
     <Modal onClose={onClose} title="Batch Sheet">
       <div className={styles.field}>
-        <label className={styles.label} htmlFor="batch-sheet-date">
+        <label className="fieldLabel" htmlFor="batch-sheet-date">
           Load day
         </label>
         <input
           id="batch-sheet-date"
-          className={styles.dateInput}
           type="date"
           value={date}
           onChange={(e) => onDateChange(e.target.value)}
         />
       </div>
 
-      {cyclesQuery.isLoading && <div className={styles.label}>Loading runs…</div>}
+      {cyclesQuery.isLoading && <div className="status sm">Loading runs…</div>}
       {cyclesQuery.isError && (
         <Note tone="bad" icon="!">
-          {cyclesQuery.error instanceof ApiError ? cyclesQuery.error.message : "Failed to load runs for this day."}
+          {errorMessage(cyclesQuery.error, "Couldn't load the runs for this day.")}
         </Note>
       )}
-      {noneScheduled && (
-        <Note tone="info" icon="i">
-          No runs loaded on this day.
-        </Note>
-      )}
+      {noneScheduled && <div className="status sm">No runs loaded on this day.</div>}
 
       {loaded && !noneScheduled && (
         <fieldset className={styles.choices}>
-          <legend className={styles.label}>Revios to include</legend>
+          <legend className="fieldLabel">Revios to include</legend>
           {instruments.map((i) => {
             const scheduled = scheduledSerials.has(i.serial_number);
             return (

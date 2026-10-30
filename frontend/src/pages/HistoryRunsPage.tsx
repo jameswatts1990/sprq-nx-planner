@@ -2,18 +2,20 @@ import { useQuery } from "@tanstack/react-query";
 import { memo, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
-import { ApiError } from "@/api/client";
+import { errorMessage } from "@/api/client";
 import { cyclesApi } from "@/api/cycles";
 import { instrumentsApi } from "@/api/instruments";
 import { Pagination } from "@/components/shared/Pagination";
 import { Badge } from "@/components/ui/Badge";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Note } from "@/components/ui/Note";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import type { SegmentedOption } from "@/components/ui/SegmentedControl";
 import { allStages } from "@/components/scheduler/groupCyclesByInstrumentAndDay";
 import { CYCLE_STATUSES } from "@/types/common";
 import type { RunOut } from "@/types/schedule";
+import { formatDateTime } from "@/utils/calendarDates";
 import { CYCLE_STATUS_TONE } from "@/utils/cycleStatus";
 import { runLabel } from "@/utils/runLabel";
 import { useDebouncedValue } from "@/utils/useDebouncedValue";
@@ -32,7 +34,7 @@ function matchesQuery(run: RunOut, q: string): boolean {
 
 /** One run row. Memoized so that typing in the client-side filter (or paging) only re-renders
  * the rows whose run object actually changed - the per-row work below (allStages, Math.max,
- * and especially the Intl-backed Date.toLocaleString) is otherwise re-run for every visible
+ * and especially the Intl-backed formatDateTime) is otherwise re-run for every visible
  * row on every keystroke. Run objects keep a stable identity across refetches thanks to React
  * Query's structural sharing, so the memo holds. */
 const RunRow = memo(function RunRow({ run }: { run: RunOut }) {
@@ -55,7 +57,7 @@ const RunRow = memo(function RunRow({ run }: { run: RunOut }) {
       <td>{longestMovie} h</td>
       <td>{wellCount}</td>
       <td title={plate1 && !plate1.actual_start_at ? "Not yet loaded — showing the planned start" : undefined}>
-        {plate1 ? new Date(plate1.actual_start_at ?? plate1.planned_start_at).toLocaleString() : "—"}
+        {plate1 ? formatDateTime(plate1.actual_start_at ?? plate1.planned_start_at) : "—"}
       </td>
     </tr>
   );
@@ -110,11 +112,14 @@ export function HistoryRunsPage() {
 
   return (
     <div className={styles.page}>
+      <PageHeader
+        title="Run history"
+        intro="A searchable record of every sequencing run — past, active and planned."
+      />
       <Card>
         <CardBody>
           <div className={styles.toolbar}>
             <select
-              className={styles.select}
               value={status}
               onChange={(e) => {
                 setStatus(e.target.value);
@@ -129,7 +134,6 @@ export function HistoryRunsPage() {
               ))}
             </select>
             <select
-              className={styles.select}
               value={instrumentSerial}
               onChange={(e) => {
                 setInstrumentSerial(e.target.value);
@@ -145,7 +149,6 @@ export function HistoryRunsPage() {
             </select>
             <input
               type="date"
-              className={styles.dateInput}
               value={dateFrom}
               onChange={(e) => {
                 setDateFrom(e.target.value);
@@ -155,7 +158,6 @@ export function HistoryRunsPage() {
             <span>to</span>
             <input
               type="date"
-              className={styles.dateInput}
               value={dateTo}
               onChange={(e) => {
                 setDateTo(e.target.value);
@@ -183,19 +185,19 @@ export function HistoryRunsPage() {
             />
           </div>
 
-          {query.isLoading && <div className={styles.status}>Loading runs…</div>}
+          {query.isLoading && <div className="status">Loading runs…</div>}
           {query.isError && (
             <Note tone="bad" icon="!">
-              {query.error instanceof ApiError ? query.error.message : "Failed to load runs."}
+              {errorMessage(query.error, "Couldn't load the runs.")}
             </Note>
           )}
           {!query.isLoading && !query.isError && visible.length === 0 && (
-            <div className={styles.status}>No runs found.</div>
+            <div className="status">No runs found.</div>
           )}
 
           {visible.length > 0 && (
             <>
-              <table className={styles.table}>
+              <table className="table">
                 <thead>
                   <tr>
                     <th>Run</th>

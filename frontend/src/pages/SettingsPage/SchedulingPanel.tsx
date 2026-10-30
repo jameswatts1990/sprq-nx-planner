@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
-import { ApiError } from "@/api/client";
+import { errorMessage } from "@/api/client";
 import { settingsApi } from "@/api/settings";
 import type { SchedulingSettings, SchedulingSettingsUpdate } from "@/api/settings";
 import { Button } from "@/components/ui/Button";
@@ -87,13 +87,13 @@ export function SchedulingPanel() {
 
       {query.isError && (
         <Note tone="bad" icon="!">
-          {query.error instanceof ApiError ? query.error.message : "Failed to load scheduling settings."}
+          {errorMessage(query.error, "Couldn't load the scheduling settings.")}
         </Note>
       )}
 
       {query.data && (
         <>
-          <table className={styles.table}>
+          <table className={`table ${styles.valueTable}`}>
             <thead>
               <tr>
                 <th>Setting</th>
@@ -103,8 +103,8 @@ export function SchedulingPanel() {
             <tbody>
               <tr>
                 <td>
-                  <span className={styles.fieldLabel}>Insert size re-use threshold (bp)</span>
-                  <span className={styles.fieldHint}>
+                  <span className={styles.settingName}>Insert size re-use threshold (bp)</span>
+                  <span className={styles.settingHint}>
                     Samples at or below this size are kept on a cell’s first use; a “[&lt;5kb]” flag and a warning show
                     if one is placed on a 2nd/3rd use.
                   </span>
@@ -124,8 +124,8 @@ export function SchedulingPanel() {
               </tr>
               <tr>
                 <td>
-                  <span className={styles.fieldLabel}>Default run start hour</span>
-                  <span className={styles.fieldHint}>
+                  <span className={styles.settingName}>Default run start hour</span>
+                  <span className={styles.settingHint}>
                     The time of day a run loads by default (UTC). Pre-fills the Schedule grid’s load-time dial.
                   </span>
                 </td>
@@ -146,8 +146,8 @@ export function SchedulingPanel() {
               </tr>
               <tr>
                 <td>
-                  <span className={styles.fieldLabel}>Cleaned complex made (µL)</span>
-                  <span className={styles.fieldHint}>
+                  <span className={styles.settingName}>Cleaned complex made (µL)</span>
+                  <span className={styles.settingHint}>
                     Total cleaned complex prepared per sample. Cell QC shows how much is left after loading when
                     deciding a repeat from complex.
                   </span>
@@ -167,8 +167,8 @@ export function SchedulingPanel() {
               </tr>
               <tr>
                 <td>
-                  <span className={styles.fieldLabel}>Safe repeat-from-complex volume (µL)</span>
-                  <span className={styles.fieldHint}>
+                  <span className={styles.settingName}>Safe repeat-from-complex volume (µL)</span>
+                  <span className={styles.settingHint}>
                     Leftover cleaned complex at or above which Cell QC suggests a repeat straight from complex; below
                     it the repeat is flagged “at risk” (never blocked).
                   </span>
@@ -191,7 +191,7 @@ export function SchedulingPanel() {
 
           {mutation.isError && (
             <Note tone="bad" icon="!">
-              {mutation.error instanceof ApiError ? mutation.error.message : "Failed to save scheduling settings."}
+              {errorMessage(mutation.error, "Couldn't save the scheduling settings.")}
             </Note>
           )}
           {!thresholdValid && threshold.trim() !== "" && (

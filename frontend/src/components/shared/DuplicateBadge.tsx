@@ -31,11 +31,9 @@ export function DuplicateBadge({
     ? `Copy ${index} of ${total} — this Pool ID appears on ${total} samples (including completed runs). The same sample is run across multiple SMRT cells. This copy shares a physical cell with an earlier copy of the same sample — allowed, since it's the same underlying material either way.`
     : `Copy ${index} of ${total} — this Pool ID appears on ${total} samples (including completed runs). The same sample is run across multiple SMRT cells.`;
   return (
-    <span title={title}>
-      <Badge tone="purple" compact={compact}>
-        {index}/{total}
-        {selfReuse ? " ↻" : ""}
-      </Badge>
-    </span>
+    <Badge tone="purple" compact={compact} title={title}>
+      {index}/{total}
+      {selfReuse ? " ↻" : ""}
+    </Badge>
   );
 }

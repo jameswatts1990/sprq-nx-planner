@@ -5,7 +5,7 @@ import { useCallback, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 
-import { ApiError } from "@/api/client";
+import { errorMessage } from "@/api/client";
 import type { SampleSortBy, SampleSortDir } from "@/api/samples";
 import { samplesApi } from "@/api/samples";
 import { topupsApi } from "@/api/topups";
@@ -14,15 +14,18 @@ import { ComplexCountdownChip } from "@/components/shared/ComplexCountdownChip";
 import { DuplicateBadge } from "@/components/shared/DuplicateBadge";
 import { Pagination } from "@/components/shared/Pagination";
 import { SortableColumnHeader } from "@/components/shared/SortableColumnHeader";
+import { UnitLabel } from "@/components/shared/UnitLabel";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { Note } from "@/components/ui/Note";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import type { SegmentedOption } from "@/components/ui/SegmentedControl";
 import type { SampleOut } from "@/types/sample";
 import type { SampleTopupOut } from "@/types/topup";
+import { formatDateTime } from "@/utils/calendarDates";
 import { useDebouncedValue } from "@/utils/useDebouncedValue";
 import { ABORTED_PRIORITY, priorityLabel, priorityRank, priorityTone } from "@/utils/priority";
 import { qcDispositionDescription, qcDispositionLabel } from "@/utils/qcDisposition";
@@ -41,10 +44,6 @@ const PAGE_SIZE_OPTIONS: SegmentedOption<number>[] = [25, 50, 100, 200].map((n) 
  * pathways — from complex and from library — plus data-recoverable). */
 const RECOVERABLE_TAGS = "repeatable_complex,repeatable,recoverable";
 const columnHelper = createColumnHelper<SampleOut>();
-
-function formatDateTime(iso: string): string {
-  return new Date(iso).toLocaleString();
-}
 
 /** One value-per-sortable-column, used by the client-sorted Recoverable table (which is
  * fully loaded, so it sorts in the browser). Priority sorts by rank — not the raw label —
@@ -127,9 +126,9 @@ function buildSampleColumns({ renderHeader, backNav, onEdit, onCancel, cancelPen
         const disp = qcDispositionLabel(qc_disposition);
         return (
           <span className={styles.badgeGroup}>
-            <span title={qcDispositionDescription(qc_disposition)}>
-              <Badge tone={priorityTone(v)}>{disp ?? priorityLabel(v)}</Badge>
-            </span>
+            <Badge tone={priorityTone(v)} title={qcDispositionDescription(qc_disposition)}>
+              {disp ?? priorityLabel(v)}
+            </Badge>
             <ComplexCountdownChip qcDisposition={qc_disposition} qcDispositionAt={qc_disposition_at} />
           </span>
         );
@@ -156,7 +155,7 @@ function buildSampleColumns({ renderHeader, backNav, onEdit, onCancel, cancelPen
       cell: (info) => info.getValue() ?? "—",
     }),
     columnHelper.accessor("insert_size_bp", {
-      header: "Insert size (bp)",
+      header: () => <UnitLabel text="Insert size (bp)" />,
       cell: (info) => {
         const v = info.getValue();
         return v != null ? v.toLocaleString() : "—";
@@ -186,7 +185,7 @@ function buildSampleColumns({ renderHeader, backNav, onEdit, onCancel, cancelPen
 /** Shared table markup for a react-table instance of backlog samples. */
 function SampleTableView({ table }: { table: Table<SampleOut> }) {
   return (
-    <table className={styles.table}>
+    <table className="table">
       <thead>
         {table.getHeaderGroups().map((hg) => (
           <tr key={hg.id}>
@@ -362,9 +361,27 @@ export function BacklogPage() {
     getCoreRowModel: getCoreRowModel(),
   });
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  // The live count under the page title. It's the main list's total, so it follows the search /
+  // priority filter - say so rather than passing a filtered count off as the whole backlog.
+  const filtered = q !== "" || priority !== "";
+  const backlogSummary = !query.data
+    ? "Samples waiting to be scheduled"
+    : filtered
+      ? `${total} sample${total === 1 ? " matches" : "s match"} the current filter`
+      : `${total} sample${total === 1 ? "" : "s"} waiting to be scheduled`;
 
   return (
     <div className={styles.page}>
+      <PageHeader
+        title="Backlog"
+        intro={backlogSummary}
+        actions={
+          <Button variant="primary" onClick={() => setAddOpen(true)}>
+            + Add sample
+          </Button>
+        }
+      />
+
       {recoverableItems.length > 0 && (
         <Card>
           <CardHeader badge={<Badge tone="info">{recoverableItems.length} recoverable</Badge>}>
@@ -387,11 +404,10 @@ export function BacklogPage() {
             <span className={styles.badgeGroup}>
               {abortedCount > 0 && <Badge tone="danger">⚠ {abortedCount} aborted</Badge>}
               {recoverableItems.length > 0 && <Badge tone="info">{recoverableItems.length} recoverable</Badge>}
-              {`${total} sample${total === 1 ? "" : "s"}`}
             </span>
           }
         >
-          <h2>Backlog</h2>
+          <h2>Samples to schedule</h2>
         </CardHeader>
         <CardBody>
           <div className={styles.toolbar}>
@@ -406,7 +422,6 @@ export function BacklogPage() {
               }}
             />
             <select
-              className={styles.select}
               value={priority}
               onChange={(e) => {
                 setPriority(e.target.value);
@@ -429,26 +444,22 @@ export function BacklogPage() {
                 setPage(1);
               }}
             />
-            <div className={styles.spacer} />
-            <Button size="sm" variant="primary" onClick={() => setAddOpen(true)}>
-              + Add sample
-            </Button>
           </div>
 
-          {query.isLoading && <div className={styles.status}>Loading backlog…</div>}
+          {query.isLoading && <div className="status">Loading backlog…</div>}
           {query.isError && (
             <Note tone="bad" icon="!">
-              {query.error instanceof ApiError ? query.error.message : "Failed to load backlog."}
+              {errorMessage(query.error, "Couldn't load the backlog.")}
             </Note>
           )}
           {cancelMutation.isError && (
             <Note tone="bad" icon="!">
-              {cancelMutation.error instanceof ApiError ? cancelMutation.error.message : "Failed to cancel sample."}
+              {errorMessage(cancelMutation.error, "Couldn't cancel the sample.")}
             </Note>
           )}
 
           {!query.isLoading && !query.isError && items.length === 0 && (
-            <div className={styles.status}>No backlog samples found.</div>
+            <div className="status">No backlog samples found.</div>
           )}
 
           {!query.isLoading && !query.isError && items.length > 0 && (
@@ -481,11 +492,11 @@ export function BacklogPage() {
             {(resupplyCancelMutation.isError || resupplySentMutation.isError) && (
               <Note tone="bad" icon="!">
                 {resupplyCancelMutation.isError
-                  ? "Failed to cancel the resupply request."
-                  : "Failed to mark the resupply request as sent."}
+                  ? errorMessage(resupplyCancelMutation.error, "Couldn't cancel the resupply request.")
+                  : errorMessage(resupplySentMutation.error, "Couldn't mark the resupply request as sent.")}
               </Note>
             )}
-            <table className={styles.table}>
+            <table className="table">
               <thead>
                 <tr>
                   <th>
@@ -547,7 +558,7 @@ export function BacklogPage() {
                       {t.source_run_name ?? "—"}
                       {t.source_cell_code ? ` · ${t.source_cell_code}` : ""}
                     </td>
-                    <td>{new Date(t.created_at).toLocaleDateString()}</td>
+                    <td>{formatDateTime(t.created_at)}</td>
                     <td>
                       <div className={styles.rowActions}>
                         <Button

@@ -463,10 +463,6 @@
   font-family: var(--mono);
   color: var(--grey);
 }
-/* The flags' tooltip wrappers - flex, so they add no inline line-box height around the pill. */
-.cellref > span {
-  display: inline-flex;
-}
 /* "Has a note" marker on the cellref line (kept off the sample-name line so it can never
    push that ellipsis). A quiet monochrome ✎, not an alert - the note text itself is on its
    title tooltip and in the slot detail popover. Shown/hidden by the View options "Notes"

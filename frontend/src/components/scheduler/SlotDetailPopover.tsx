@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
-import { ApiError } from "@/api/client";
+import { errorMessage } from "@/api/client";
 import { cellsApi } from "@/api/cells";
 import { cellUsesApi } from "@/api/cellUses";
 import { samplesApi } from "@/api/samples";
@@ -221,6 +221,8 @@ function SlotDetailBody({
   // See loadFreshTrayMutation: only actionable while still planned with a live sample.
   const windowExceeded = !!stage.reuse_window_exceeded && stage.cell_use_status === "planned";
   const canLoadFreshTray = windowExceeded && run.status === "planned" && stage.sample_id !== null;
+  // The server's reason a half-done fresh-tray swap failed (empty if it sent none).
+  const freshTrayReason = errorMessage(loadFreshTrayMutation.error, "");
   const isDiscardBlocked = isCancelled && !!cell?.discarded_at;
   const showWindowMeter =
     !!cell &&
@@ -339,7 +341,7 @@ function SlotDetailBody({
       )}
       <div className={styles.details}>
         <div className={styles.row}>
-          <span className={styles.label}>Sample</span>
+          <span className="detailLabel">Sample</span>
           <span className={styles.sampleValue}>
             {stage.sample_id != null ? (
               // The Pool ID links to the sample's own page; the ✎ opens the inline edit
@@ -366,22 +368,22 @@ function SlotDetailBody({
         </div>
         {editingSample && sampleQuery.isError && (
           <Note tone="bad" icon="!">
-            {sampleQuery.error instanceof ApiError ? sampleQuery.error.message : "Failed to load the sample."}
+            {errorMessage(sampleQuery.error, "Couldn't load the sample.")}
           </Note>
         )}
         <div className={styles.row}>
-          <span className={styles.label}>Well</span>
+          <span className="detailLabel">Well</span>
           <b className={styles.value}>{plateWellFromSlot(stage.slot_index, { full: true })}</b>
         </div>
         <div className={styles.row}>
-          <span className={styles.label}>Run</span>
+          <span className="detailLabel">Run</span>
           <Link to={`/history/runs/${run.run_id}`} className={styles.runLink}>
             {runLabel(run)}
           </Link>
         </div>
         {cell && (
           <div className={styles.row}>
-            <span className={styles.label}>Cell uses</span>
+            <span className="detailLabel">Cell uses</span>
             <b className={styles.value}>
               {cell.uses_consumed}/{cell.max_uses}
               {cell.current_instrument_serial ? ` · ${cell.current_instrument_serial}` : ""}
@@ -390,7 +392,7 @@ function SlotDetailBody({
         )}
         {cell && isCreditCaseUse(cell, stage.cell_use_id) && <CreditClaimRow cell={cell} />}
         <div className={`${styles.row} ${styles.runTimeRow}`}>
-          <span className={styles.label}>Run time</span>
+          <span className="detailLabel">Run time</span>
           {canEditRunTime ? (
             <SegmentedControl
               ariaLabel="Run time for this cell"
@@ -409,7 +411,7 @@ function SlotDetailBody({
 
       {runTimeMutation.isError && (
         <Note tone="bad" icon="!">
-          {runTimeMutation.error instanceof ApiError ? runTimeMutation.error.message : "Failed to change run time."}
+          {errorMessage(runTimeMutation.error, "Couldn't change the run time.")}
         </Note>
       )}
 
@@ -420,19 +422,19 @@ function SlotDetailBody({
       {showWindowMeter && <WindowMeter windowHours={cell!.window_hours_elapsed as number} />}
 
       <div className={styles.barcodes}>
-        <span className={styles.label}>Barcodes on this use</span>
+        <span className="detailLabel">Barcodes on this use</span>
         <BarcodeChips barcodes={stage.barcodes} />
       </div>
 
       {cell && cell.burned_barcodes.length > 0 && (
         <div className={styles.barcodes}>
-          <span className={styles.label}>Burned on cell</span>
+          <span className="detailLabel">Burned on cell</span>
           <BarcodeChips barcodes={cell.burned_barcodes} variant="u2" />
         </div>
       )}
 
       <div className={styles.notes}>
-        <span className={styles.label}>Notes</span>
+        <span className="detailLabel">Notes</span>
         <textarea
           className={styles.qcTextarea}
           value={notes}
@@ -440,11 +442,6 @@ function SlotDetailBody({
           placeholder="Add a note for this sample on this cell…"
         />
         <div className={styles.notesActions}>
-          {saveNotesMutation.isError && (
-            <span className={styles.notesError}>
-              {saveNotesMutation.error instanceof ApiError ? saveNotesMutation.error.message : "Failed to save note."}
-            </span>
-          )}
           <Button
             size="sm"
             variant="ghost"
@@ -454,13 +451,16 @@ function SlotDetailBody({
             {saveNotesMutation.isPending ? "Saving…" : notesDirty ? "Save note" : "Saved"}
           </Button>
         </div>
+        {saveNotesMutation.isError && (
+          <Note tone="bad" icon="!" size="sm">
+            {errorMessage(saveNotesMutation.error, "Couldn't save the note.")}
+          </Note>
+        )}
       </div>
 
       {returnToBacklogMutation.isError && (
         <Note tone="bad" icon="!">
-          {returnToBacklogMutation.error instanceof ApiError
-            ? returnToBacklogMutation.error.message
-            : "Failed to return to backlog."}
+          {errorMessage(returnToBacklogMutation.error, "Couldn't return the sample to the backlog.")}
         </Note>
       )}
 
@@ -469,13 +469,11 @@ function SlotDetailBody({
           {freshTrayRemoved ? (
             <>
               This reuse was dropped, but loading a fresh tray failed
-              {loadFreshTrayMutation.error instanceof ApiError ? ` (${loadFreshTrayMutation.error.message})` : ""} — the
-              sample is now back in the Backlog. Re-place it, or free a cell-tray bay first (discard the expiring tray).
+              {freshTrayReason && ` (${freshTrayReason})`} — the sample is now back in the Backlog. Re-place it, or
+              free a cell-tray bay first (discard the expiring tray).
             </>
-          ) : loadFreshTrayMutation.error instanceof ApiError ? (
-            loadFreshTrayMutation.error.message
           ) : (
-            "Couldn't load a fresh tray."
+            errorMessage(loadFreshTrayMutation.error, "Couldn't load a fresh tray.")
           )}
         </Note>
       )}

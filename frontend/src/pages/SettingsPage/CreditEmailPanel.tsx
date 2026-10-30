@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 
 import type { CreditEmailTemplate } from "@/api/settings";
 import { settingsApi } from "@/api/settings";
-import { ApiError } from "@/api/client";
+import { errorMessage } from "@/api/client";
 import { Button } from "@/components/ui/Button";
 import { Note } from "@/components/ui/Note";
 import { CREDIT_EMAIL_TOKENS, EXAMPLE_CONTEXT, renderCreditEmail } from "@/utils/creditEmail";
@@ -88,7 +88,7 @@ export function CreditEmailPanel() {
 
       {query.isError && (
         <Note tone="bad" icon="!">
-          {query.error instanceof ApiError ? query.error.message : "Failed to load the email template."}
+          {errorMessage(query.error, "Couldn't load the email template.")}
         </Note>
       )}
 
@@ -114,7 +114,7 @@ export function CreditEmailPanel() {
           <div className={styles.fields}>
             {FIELDS.map((f) => (
               <label key={f.key} className={styles.field}>
-                <span className={styles.fieldLabel}>{f.label}</span>
+                <span className="fieldLabel">{f.label}</span>
                 {f.multiline ? (
                   <textarea
                     className={styles.textarea}
@@ -129,7 +129,6 @@ export function CreditEmailPanel() {
                 ) : (
                   <input
                     type="text"
-                    className={styles.input}
                     value={form[f.key]}
                     onFocus={(e) => {
                       activeElRef.current = e.currentTarget;
@@ -170,7 +169,7 @@ export function CreditEmailPanel() {
 
           {mutation.isError && (
             <Note tone="bad" icon="!">
-              {mutation.error instanceof ApiError ? mutation.error.message : "Failed to save the email template."}
+              {errorMessage(mutation.error, "Couldn't save the email template.")}
             </Note>
           )}
 

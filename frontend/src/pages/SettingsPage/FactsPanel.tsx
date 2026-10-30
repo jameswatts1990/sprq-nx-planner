@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 
-import { ApiError } from "@/api/client";
+import { errorMessage } from "@/api/client";
 import { settingsApi } from "@/api/settings";
 import type { SchedulingFacts } from "@/api/settings";
 import { Note } from "@/components/ui/Note";
@@ -52,7 +52,7 @@ export function FactsPanel() {
 
       {query.isError && (
         <Note tone="bad" icon="!">
-          {query.error instanceof ApiError ? query.error.message : "Failed to load facts."}
+          {errorMessage(query.error, "Couldn't load the instrument facts.")}
         </Note>
       )}
 

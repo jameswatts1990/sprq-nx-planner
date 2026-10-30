@@ -1,5 +1,7 @@
 import { useState, type JSX } from "react";
 
+import { PageHeader } from "@/components/ui/PageHeader";
+
 import { CreditEmailPanel } from "./CreditEmailPanel";
 import { DeveloperTools } from "./DeveloperTools";
 import { FactsPanel } from "./FactsPanel";
@@ -76,6 +78,7 @@ export function SettingsPage() {
 
   return (
     <div className={styles.page}>
+      <PageHeader title="Settings" intro="Configure how this instance schedules runs, defaults new samples, and more." />
       <div className={styles.shell}>
         <aside className={styles.sidebar}>
           <input
@@ -89,7 +92,7 @@ export function SettingsPage() {
 
           <nav className={styles.nav} aria-label="Settings sections">
             {navSections.length === 0 ? (
-              <span className={styles.noMatch}>No settings match “{query}”.</span>
+              <div className="status sm">No settings match “{query}”.</div>
             ) : (
               navSections.map((s) => {
                 const isActive = s.key === activeSection.key;
@@ -122,11 +125,6 @@ export function SettingsPage() {
         </aside>
 
         <div className={styles.content}>
-          <header className={styles.contentHead}>
-            <h1 className={styles.title}>Settings</h1>
-            <p className={styles.intro}>Configure how this instance schedules runs, defaults new samples, and more.</p>
-          </header>
-
           <ActiveComponent />
         </div>
       </div>

@@ -68,9 +68,9 @@ function WellDefaults({ run, defaults, defaultHours }: { run: BatchSheetRunOut; 
   } else if (adaptive.kind === "uniform") {
     adaptiveValue =
       defaults && adaptive.value !== defaults.adaptive_loading ? (
-        <span title={`Differs from the default (${defaults.adaptive_loading})`}>
-          <Badge tone="ink">{adaptive.value}</Badge>
-        </span>
+        <Badge tone="ink" title={`Differs from the default (${defaults.adaptive_loading})`}>
+          {adaptive.value}
+        </Badge>
       ) : (
         adaptive.value
       );
@@ -139,11 +139,13 @@ function WellCard({
             <span className={styles.chips}>
               <MovieTimeFlag hours={well.run_time_hours} />
               {diffs.map((d) => (
-                <span key={d.field} title={`${d.field}: ${d.value} (the default is ${d.defaultValue})`}>
-                  <Badge tone={d.value.toLowerCase() === "true" ? "magenta" : "ink"}>
-                    {d.short} {d.value}
-                  </Badge>
-                </span>
+                <Badge
+                  key={d.field}
+                  tone={d.value.toLowerCase() === "true" ? "magenta" : "ink"}
+                  title={`${d.field}: ${d.value} (the default is ${d.defaultValue})`}
+                >
+                  {d.short} {d.value}
+                </Badge>
               ))}
             </span>
           )}

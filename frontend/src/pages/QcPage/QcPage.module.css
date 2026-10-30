@@ -2,13 +2,11 @@
   padding-top: 22px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 18px;
 }
-
-.status {
-  color: var(--grey);
-  font-size: var(--fs-base);
-  padding: 8px 2px;
+/* The PageHeader: the flex gap already spaces it from what follows. */
+.page > :first-child {
+  margin-bottom: 0;
 }
 
 /* One stage group (Needs report / Awaiting credit / Confirmed / Received). */
@@ -149,47 +147,10 @@
   padding-top: 12px;
   margin-top: 4px;
 }
-.detailStatus {
-  color: var(--grey);
-}
 
-/* Page header: title + the "Add case without a cell" entry point (same layout as Instruments). */
-.toolbar {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  flex-wrap: wrap;
-}
-.title {
-  font-size: 18px;
-  font-weight: 800;
-  margin: 0;
-}
-.spacer {
-  margin-left: auto;
-}
-/* The page title doubles as the overview strip's show/hide toggle (chevron beside it). */
-.titleToggle {
-  appearance: none;
-  border: none;
-  background: none;
-  padding: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  color: var(--ink);
-}
 .search {
-  font-family: var(--sans);
-  font-size: var(--fs-base);
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  padding: 7px 10px;
   width: 280px;
   max-width: 100%;
-  background: var(--card);
-  color: var(--ink);
 }
 
 /* Operations overview: one slim line of totals (label + value pairs) that wraps on a phone. */
@@ -275,10 +236,6 @@
   margin: 0;
 }
 .detailItem dt {
-  font-size: var(--fs-2xs);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--grey);
   margin-bottom: 2px;
 }
 .detailItem dd {
@@ -293,7 +250,7 @@
   flex-wrap: wrap;
 }
 
-/* Add / edit case form (field look matches the Instruments and Cells modals). */
+/* Add / edit case form. */
 .form {
   margin-top: 14px;
 }
@@ -310,30 +267,13 @@
 .field {
   margin-bottom: 14px;
 }
-.fieldLabel {
-  display: block;
-  font-size: var(--fs-sm);
-  font-weight: 700;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  color: var(--grey);
-  margin-bottom: 7px;
-}
 .field input,
 .field select,
 .field textarea {
   width: 100%;
-  font-family: var(--sans);
-  font-size: var(--fs-lg);
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  padding: 8px 10px;
-  background: var(--card);
-  color: var(--ink);
 }
 .field textarea {
   min-height: 56px;
-  resize: vertical;
 }
 .helper {
   font-size: var(--fs-md);
@@ -358,9 +298,6 @@
   align-self: end;
   min-height: 38px;
   cursor: pointer;
-}
-.check input {
-  width: auto;
 }
 .formProblem {
   margin-bottom: 14px;

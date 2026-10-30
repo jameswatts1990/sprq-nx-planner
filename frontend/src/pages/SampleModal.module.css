@@ -17,13 +17,11 @@
   border-radius: var(--r-sm);
   padding: 12px 14px 14px;
 }
+/* Ink, sentence case: the group title must read above its grey uppercase field labels. */
 .sectionHeader {
   margin: 0 0 10px;
-  font-size: var(--fs-2xs);
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--grey);
+  font-size: var(--fs-base);
+  color: var(--ink);
 }
 .rows {
   display: flex;
@@ -38,7 +36,6 @@
 .field {
   display: flex;
   flex-direction: column;
-  gap: 4px;
 }
 /* The off-target loading-buffer warning spans the whole row rather than squeezing into the
    one narrow column its field sits in. */
@@ -56,11 +53,6 @@
   cursor: pointer;
   text-decoration: underline;
 }
-.label {
-  font-size: var(--fs-md);
-  font-weight: 600;
-  color: var(--ink);
-}
 .req {
   color: var(--red);
   font-weight: 700;
@@ -72,28 +64,17 @@
   font-size: var(--fs-2xs);
   letter-spacing: 0.04em;
 }
-.input {
-  font-family: var(--sans);
-  font-size: var(--fs-base);
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  padding: 7px 10px;
-}
-.input:disabled {
-  background: var(--line-soft);
-  color: var(--grey);
-  cursor: not-allowed;
-}
 .hint {
   font-size: var(--fs-xs);
   color: var(--faint);
+  margin-top: 4px;
 }
 /* A light-grey clarifying sub-label sitting directly under a field's label (e.g. the
    Pool ID's "Unique ID e.g. Pool ID"). Pulled up so it hugs the label above the input. */
 .sublabel {
   font-size: var(--fs-xs);
   color: var(--faint);
-  margin-top: -2px;
+  margin: -4px 0 6px;
 }
 .error {
   margin-top: 14px;

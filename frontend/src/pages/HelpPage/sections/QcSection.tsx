@@ -22,9 +22,9 @@ export function QcSection() {
 
       <p className={styles.subheading}>The overview line</p>
       <p>
-        One slim line under the title totals every case, with and without a cell — it always covers everything, even
-        while you&apos;re searching. Click the <b>title</b> (or its <b>▸</b>) to hide or show it; your browser remembers
-        the choice.
+        One slim line under the page title totals every case, with and without a cell — it always covers everything,
+        even while you&apos;re searching. Click <b>Hide overview</b> / <b>Show overview</b> (top right, beside the
+        search box) to hide or show it; your browser remembers the choice.
       </p>
       <ul>
         <li>
@@ -78,8 +78,8 @@ export function QcSection() {
         <li>
           On the right, the case at a glance: its <b>PacBio case number</b>, the <b>acquisitions</b> (expected until
           PacBio confirm, then credited), the <b>owner</b>, how many <b>days it&apos;s been open</b>, and the failure
-          date. Anything not recorded yet reads in grey (<i>No case #</i>, <i>No owner</i>). A case that&apos;s made no
-          progress for more than {CREDIT_OVERDUE_DAYS} days shows{" "}
+          date (with its time, when the run recorded one). Anything not recorded yet reads in grey (<i>No case #</i>,{" "}
+          <i>No owner</i>). A case that&apos;s made no progress for more than {CREDIT_OVERDUE_DAYS} days shows{" "}
           <Badge tone={OVERDUE_BADGE.tone}>{OVERDUE_BADGE.label} · 45 d</Badge> instead — hover it to see what it&apos;s
           waiting on.
         </li>

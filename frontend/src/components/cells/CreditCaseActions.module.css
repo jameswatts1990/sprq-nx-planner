@@ -57,17 +57,8 @@
   flex-wrap: wrap;
 }
 .input {
-  font-family: var(--sans);
-  font-size: var(--fs-lg);
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  padding: 8px 10px;
   min-width: 240px;
   flex: 1 1 240px;
-}
-.input:focus {
-  outline: none;
-  border-color: var(--line-hover);
 }
 
 /* "Recorded" line - the owner and each completed stage's value, each with an in-place ✎
@@ -90,26 +81,12 @@
   border-top: 1px solid var(--line-soft);
   display: flex;
   flex-direction: column;
-  gap: 8px;
-}
-.notesLabel {
-  font-size: var(--fs-sm);
-  font-weight: 600;
-  color: var(--grey);
 }
 .notesArea {
-  font-family: var(--sans);
-  font-size: var(--fs-base);
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  padding: 8px 10px;
-  resize: vertical;
   min-height: 40px;
-  width: 100%;
 }
-.notesArea:focus {
-  outline: none;
-  border-color: var(--line-hover);
+.notesBlock .actionRow {
+  margin-top: 8px;
 }
 
 /* "Generate report ▾" dropdown - same lightweight pattern as the Schedule toolbar's View

@@ -1,33 +1,6 @@
 .page {
   padding-top: 22px;
 }
-.toolbar {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  flex-wrap: wrap;
-  margin-bottom: 18px;
-}
-.title {
-  font-size: 18px;
-  font-weight: 800;
-  margin: 0;
-}
-.intro {
-  color: var(--grey);
-  font-size: var(--fs-base);
-  margin: 0 0 18px;
-  max-width: 760px;
-}
-.spacer {
-  margin-left: auto;
-}
-.status {
-  color: var(--grey);
-  font-size: var(--fs-lg);
-  padding: 24px 4px;
-  text-align: center;
-}
 .grid {
   display: grid;
   /* Floor wide enough to hold the Revio screen's own 350px min-width plus the card's 18px
@@ -128,13 +101,6 @@
   flex-direction: column;
   gap: 2px;
 }
-.metaItem dt {
-  font-size: var(--fs-sm);
-  font-weight: 700;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  color: var(--grey);
-}
 .metaItem dd {
   margin: 0;
   font-size: var(--fs-md);
@@ -150,32 +116,16 @@
   border-top: 1px solid var(--line);
 }
 
-/* Add/edit form fields (same look as CellsPage's modal fields). */
+/* Add/edit form fields. */
 .field {
   margin-bottom: 14px;
 }
-.fieldLabel {
-  display: block;
-  font-size: var(--fs-sm);
-  font-weight: 700;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  color: var(--grey);
-  margin-bottom: 7px;
-}
-.field input[type="text"],
-.field input[type="date"],
+.field input,
 .field textarea {
   width: 100%;
-  font-family: var(--sans);
-  font-size: var(--fs-lg);
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  padding: 8px 10px;
 }
 .field textarea {
   min-height: 64px;
-  resize: vertical;
 }
 .helper {
   font-size: var(--fs-md);

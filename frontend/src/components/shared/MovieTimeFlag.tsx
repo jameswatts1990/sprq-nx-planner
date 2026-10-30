@@ -14,10 +14,8 @@ export function MovieTimeFlag({ hours, compact = false }: { hours?: number | nul
     `${hours} h movie (the default is ${defaultHours} h).` +
     (position != null ? ` Auto Schedule loads ${hours} h samples on cell ${position + 1}.` : "");
   return (
-    <span title={title}>
-      <Badge tone="ink" compact={compact}>
-        {hours}h
-      </Badge>
-    </span>
+    <Badge tone="ink" compact={compact} title={title}>
+      {hours}h
+    </Badge>
   );
 }

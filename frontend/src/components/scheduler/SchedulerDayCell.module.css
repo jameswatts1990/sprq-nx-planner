@@ -269,9 +269,6 @@
   cursor: not-allowed;
 }
 .err {
-  font-size: 10px;
-  color: var(--red);
-  font-weight: 700;
   margin-bottom: 4px;
 }
 .slots {
@@ -381,29 +378,16 @@
   color: var(--faint);
 }
 
-/* Fields inside the Confirm-Revio-loaded modal - run name + the amendable load time. Styled
-   to match the shared ConfirmModal input convention so both labels read alike. */
+/* Fields inside the Confirm-Revio-loaded and Reschedule modals - run name, the amendable load
+   time, the new load day. Label/input look comes from the global fieldLabel + form-control base. */
 .loadModalField {
   margin-bottom: 14px;
 }
-.loadModalLabel {
-  display: block;
-  font-size: var(--fs-sm);
-  font-weight: 700;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  color: var(--grey);
-  margin-bottom: 7px;
-}
 .loadModalInput {
   width: 100%;
-  font-family: var(--mono);
-  font-size: 12.5px;
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  padding: 8px 10px;
 }
-.loadModalInputInvalid {
+/* Two classes so the red stays over the form-control hover/focus border. */
+.loadModalInput.loadModalInputInvalid {
   border-color: var(--red);
 }
 .loadModalHint {

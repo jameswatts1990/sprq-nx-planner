@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
-import { ApiError } from "@/api/client";
+import { errorMessage } from "@/api/client";
 import { settingsApi } from "@/api/settings";
 import type { SchedulingSettings, SchedulingSettingsUpdate } from "@/api/settings";
 import { Button } from "@/components/ui/Button";
@@ -74,13 +74,13 @@ export function MovieSchedulingPanel() {
 
       {query.isError && (
         <Note tone="bad" icon="!">
-          {query.error instanceof ApiError ? query.error.message : "Failed to load movie settings."}
+          {errorMessage(query.error, "Couldn't load the movie settings.")}
         </Note>
       )}
 
       {query.data && (
         <>
-          <table className={styles.table}>
+          <table className={`table ${styles.valueTable}`}>
             <thead>
               <tr>
                 <th>Movie length</th>
@@ -94,7 +94,7 @@ export function MovieSchedulingPanel() {
                 return (
                   <tr key={h}>
                     <td>
-                      <span className={styles.fieldLabel}>{h} h</span>
+                      <span className={styles.settingName}>{h} h</span>
                     </td>
                     <td className={movieStyles.centerCol}>
                       <input
@@ -128,7 +128,7 @@ export function MovieSchedulingPanel() {
 
           {mutation.isError && (
             <Note tone="bad" icon="!">
-              {mutation.error instanceof ApiError ? mutation.error.message : "Failed to save movie settings."}
+              {errorMessage(mutation.error, "Couldn't save the movie settings.")}
             </Note>
           )}
 

@@ -2,7 +2,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import { useEffect, useState } from "react";
 
 import { adminApi } from "@/api/admin";
-import { ApiError } from "@/api/client";
+import { errorMessage } from "@/api/client";
 import { Pagination } from "@/components/shared/Pagination";
 import { SortableColumnHeader, type SortDir } from "@/components/shared/SortableColumnHeader";
 import { Button } from "@/components/ui/Button";
@@ -140,7 +140,6 @@ export function TableRowsPanel({ table, rowCount }: TableRowsPanelProps) {
           <label className={styles.pageSizeLabel}>
             Rows per page
             <select
-              className={styles.pageSizeSelect}
               value={pageSize}
               onChange={(e) => {
                 setPageSize(Number(e.target.value));
@@ -157,19 +156,19 @@ export function TableRowsPanel({ table, rowCount }: TableRowsPanelProps) {
         </div>
       )}
 
-      {query.isLoading && <div className={styles.status}>Loading rows…</div>}
+      {query.isLoading && <div className="status">Loading rows…</div>}
       {query.isError && (
         <Note tone="bad" icon="!">
-          {query.error instanceof ApiError ? query.error.message : "Failed to load rows."}
+          {errorMessage(query.error, "Couldn't load the rows.")}
         </Note>
       )}
       {deleteMutation.isError && (
         <Note tone="bad" icon="!">
-          {deleteMutation.error instanceof ApiError ? deleteMutation.error.message : "Failed to delete row."}
+          {errorMessage(deleteMutation.error, "Couldn't delete the row.")}
         </Note>
       )}
       {!query.isLoading && !query.isError && rows.length === 0 && (
-        <div className={styles.status}>
+        <div className="status">
           {searching ? <>No rows in {table} match &ldquo;{q}&rdquo;.</> : "This table has no rows."}
         </div>
       )}
@@ -177,7 +176,7 @@ export function TableRowsPanel({ table, rowCount }: TableRowsPanelProps) {
       {rows.length > 0 && (
         <>
           <div className={styles.tableScroll}>
-            <table className={styles.table}>
+            <table className="table">
               <thead>
                 <tr>
                   {columns.map((c) => (

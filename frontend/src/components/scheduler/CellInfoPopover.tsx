@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 
-import { ApiError } from "@/api/client";
+import { errorMessage } from "@/api/client";
 import { cellsApi } from "@/api/cells";
 import { cellUsesApi } from "@/api/cellUses";
 import { WindowMeter } from "@/components/cells/WindowMeter";
@@ -136,19 +136,23 @@ export function CellInfoPopover({ stage, run, onClose, onOpenQc }: CellInfoPopov
   });
 
   const cell = cellQuery.data;
+  // The server's reason a half-done swap failed (empty if it sent none), bracketed into the
+  // "now back in the Backlog" message below.
+  const useNewCellReason = errorMessage(useNewCell.error, "");
+  const chooseCellReason = errorMessage(chooseCell.error, "");
 
   return (
     <Modal onClose={onClose} title={stage.cell_ref}>
       <div className={styles.details}>
         <div className={styles.row}>
-          <span className={styles.label}>Status</span>
+          <span className="detailLabel">Status</span>
           <span className={styles.value}>
             {cell ? <Badge tone={CELL_STATUS_TONE[cell.status]}>{CELL_STATUS_LABEL[cell.status]}</Badge> : "…"}
           </span>
         </div>
         {cell && hasCreditCase(cell) && <CreditClaimRow cell={cell} showTrigger />}
         <div className={styles.row}>
-          <span className={styles.label}>This load</span>
+          <span className="detailLabel">This load</span>
           <b className={styles.value}>
             {stage.cell_type === "sprq"
               ? "Single-use SPRQ cell"
@@ -158,13 +162,13 @@ export function CellInfoPopover({ stage, run, onClose, onOpenQc }: CellInfoPopov
         {cell && (
           <>
             <div className={styles.row}>
-              <span className={styles.label}>Uses so far</span>
+              <span className="detailLabel">Uses so far</span>
               <b className={styles.value}>
                 {cell.uses_consumed} of {cell.max_uses} ({cell.uses_remaining} left)
               </b>
             </div>
             <div className={styles.row}>
-              <span className={styles.label}>Location</span>
+              <span className="detailLabel">Location</span>
               <b className={styles.value}>
                 {cell.current_instrument_serial ?? "—"} ·{" "}
                 {cell.current_well
@@ -174,7 +178,7 @@ export function CellInfoPopover({ stage, run, onClose, onOpenQc }: CellInfoPopov
             </div>
             {cell.tray_id !== null && (
               <div className={styles.row}>
-                <span className={styles.label}>Tray</span>
+                <span className="detailLabel">Tray</span>
                 <b className={styles.value}>
                   <Link to={`/cells?tray=${cell.tray_id}`} className="link">
                     Tray {cell.tray_id}
@@ -189,7 +193,7 @@ export function CellInfoPopover({ stage, run, onClose, onOpenQc }: CellInfoPopov
 
       {cellQuery.isError && (
         <Note tone="bad" icon="!">
-          {cellQuery.error instanceof ApiError ? cellQuery.error.message : "Failed to load cell details."}
+          {errorMessage(cellQuery.error, "Couldn't load the cell details.")}
         </Note>
       )}
 
@@ -206,7 +210,7 @@ export function CellInfoPopover({ stage, run, onClose, onOpenQc }: CellInfoPopov
       {cell && cell.burned_barcodes.length > 0 && (
         <div className={styles.details}>
           <div className={styles.row}>
-            <span className={styles.label}>Burned barcodes</span>
+            <span className="detailLabel">Burned barcodes</span>
             <BarcodeChips barcodes={cell.burned_barcodes} variant="u2" />
           </div>
         </div>
@@ -225,13 +229,11 @@ export function CellInfoPopover({ stage, run, onClose, onOpenQc }: CellInfoPopov
           {removed ? (
             <>
               This reuse was dropped, but placing a fresh cell failed
-              {useNewCell.error instanceof ApiError ? ` (${useNewCell.error.message})` : ""} — the sample is now back in
-              the Backlog. Re-place it from there.
+              {useNewCellReason && ` (${useNewCellReason})`} — the sample is now back in the Backlog. Re-place it
+              from there.
             </>
-          ) : useNewCell.error instanceof ApiError ? (
-            useNewCell.error.message
           ) : (
-            "Couldn't switch to a new cell."
+            errorMessage(useNewCell.error, "Couldn't switch to a new cell.")
           )}
         </Note>
       )}
@@ -241,13 +243,11 @@ export function CellInfoPopover({ stage, run, onClose, onOpenQc }: CellInfoPopov
           {removed ? (
             <>
               The old placement was dropped, but placing onto that cell failed
-              {chooseCell.error instanceof ApiError ? ` (${chooseCell.error.message})` : ""} — the sample is now back
-              in the Backlog. Re-place it from there.
+              {chooseCellReason && ` (${chooseCellReason})`} — the sample is now back in the Backlog. Re-place it
+              from there.
             </>
-          ) : chooseCell.error instanceof ApiError ? (
-            chooseCell.error.message
           ) : (
-            "Couldn't switch to that cell."
+            errorMessage(chooseCell.error, "Couldn't switch to that cell.")
           )}
         </Note>
       )}

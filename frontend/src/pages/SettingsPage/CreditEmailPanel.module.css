@@ -56,30 +56,9 @@
 .field {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-}
-.fieldLabel {
-  font-size: var(--fs-xs);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--grey);
-  font-weight: 700;
-}
-.input,
-.textarea {
-  width: 100%;
-  font-family: var(--sans);
-  font-size: var(--fs-base);
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  padding: 7px 9px;
-  background: var(--card);
-  color: var(--ink);
 }
 .textarea {
-  resize: vertical;
   min-height: 96px;
-  line-height: 1.45;
 }
 
 .preview {

@@ -264,8 +264,8 @@ export function ScheduleSection() {
       <p>
         <b>Batch Sheet</b> shows a day&apos;s runs ready to enter into <b>Traction</b>, and prints the paper loading
         sheet when you need one. Pick the <b>load day</b> and tick which instruments to include — handy when different
-        people load different machines — then click <b>View Sheet</b>. It opens in place of the schedule; <b>◂ Back to
-        Schedule</b> returns you.
+        people load different machines — then click <b>View Sheet</b>. It opens in place of the schedule; <b>◂ Schedule</b>
+        above its title returns you.
       </p>
       <p>
         The sheet shows <b>one instrument at a time</b>. The title line gives the instrument, run, load day and

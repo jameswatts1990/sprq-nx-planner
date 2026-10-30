@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 
-import { ApiError } from "@/api/client";
+import { errorMessage } from "@/api/client";
 import { cellsApi } from "@/api/cells";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -127,13 +127,7 @@ export function TrayPanel({ trayId, cells, currentCellId, showDiscard = true }: 
           confirmVariant="danger"
           pendingLabel="Discarding…"
           pending={discardMutation.isPending}
-          error={
-            discardMutation.isError
-              ? discardMutation.error instanceof ApiError
-                ? discardMutation.error.message
-                : "Failed to discard tray."
-              : null
-          }
+          error={discardMutation.isError ? errorMessage(discardMutation.error, "Couldn't discard the tray.") : null}
           onCancel={() => setConfirmDiscard(false)}
           onConfirm={() => discardMutation.mutate()}
         >
@@ -151,13 +145,7 @@ export function TrayPanel({ trayId, cells, currentCellId, showDiscard = true }: 
           confirmLabel="Restore tray"
           pendingLabel="Restoring…"
           pending={restoreMutation.isPending}
-          error={
-            restoreMutation.isError
-              ? restoreMutation.error instanceof ApiError
-                ? restoreMutation.error.message
-                : "Failed to restore tray."
-              : null
-          }
+          error={restoreMutation.isError ? errorMessage(restoreMutation.error, "Couldn't restore the tray.") : null}
           onCancel={() => setConfirmRestore(false)}
           onConfirm={() => restoreMutation.mutate()}
         >
@@ -182,7 +170,7 @@ export function TrayPanel({ trayId, cells, currentCellId, showDiscard = true }: 
 
       {discardMutation.isError && !confirmDiscard && (
         <Note tone="bad" icon="!">
-          {discardMutation.error instanceof ApiError ? discardMutation.error.message : "Failed to discard tray."}
+          {errorMessage(discardMutation.error, "Couldn't discard the tray.")}
         </Note>
       )}
     </div>

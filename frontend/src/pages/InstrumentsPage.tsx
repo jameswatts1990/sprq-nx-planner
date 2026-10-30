@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 
-import { ApiError } from "@/api/client";
+import { errorMessage } from "@/api/client";
 import { cyclesApi } from "@/api/cycles";
 import { instrumentsApi } from "@/api/instruments";
 import { RevioScreen } from "@/components/scheduler/RevioScreen";
@@ -13,6 +13,7 @@ import { Card, CardBody } from "@/components/ui/Card";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { Modal, ModalActions } from "@/components/ui/Modal";
 import { Note } from "@/components/ui/Note";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { StatTile, StatTiles } from "@/components/shared/StatTile";
 import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
 import type { InstrumentOut, InstrumentStatsOut } from "@/types/instrument";
@@ -21,10 +22,6 @@ import { formatShortDateTimeLocal, formatShortDateUTC, parseDateOnly } from "@/u
 import { instrumentStatus } from "@/utils/instrumentStatus";
 
 import styles from "./InstrumentsPage.module.css";
-
-function errorMessage(err: unknown, fallback: string): string {
-  return err instanceof ApiError ? err.message : fallback;
-}
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
@@ -114,27 +111,24 @@ export function InstrumentsPage() {
 
   return (
     <div className={styles.page}>
-      <div className={styles.toolbar}>
-        <h1 className={styles.title}>Instruments</h1>
-        <div className={styles.spacer} />
-        <Button variant="primary" onClick={() => setAddOpen(true)}>
-          Add instrument
-        </Button>
-      </div>
-      <p className={styles.intro}>
-        The Revio/SPRQ-Nx instruments runs are scheduled onto. Add or rename them, mark one down for maintenance
-        (it stays visible in the Schedule but greys out from the down date and takes no new runs until it&apos;s back
-        online), or remove one that was added by mistake.
-      </p>
+      <PageHeader
+        title="Instruments"
+        intro="The Revios runs are scheduled onto — add, rename, mark down, retire or delete one."
+        actions={
+          <Button variant="primary" onClick={() => setAddOpen(true)}>
+            Add instrument
+          </Button>
+        }
+      />
 
-      {instrumentsQuery.isLoading && <div className={styles.status}>Loading instruments…</div>}
+      {instrumentsQuery.isLoading && <div className="status">Loading instruments…</div>}
       {instrumentsQuery.isError && (
         <Note tone="bad" icon="!">
-          {errorMessage(instrumentsQuery.error, "Failed to load instruments.")}
+          {errorMessage(instrumentsQuery.error, "Couldn't load the instruments.")}
         </Note>
       )}
       {!instrumentsQuery.isLoading && !instrumentsQuery.isError && instruments.length === 0 && (
-        <div className={styles.status}>No instruments yet — add your first Revio.</div>
+        <div className="status">No instruments yet — add your first Revio.</div>
       )}
 
       {instruments.length > 0 && (
@@ -336,13 +330,13 @@ function InstrumentCard({
           <dl className={styles.meta}>
             {instrument.location && (
               <div className={styles.metaItem}>
-                <dt>Location</dt>
+                <dt className="detailLabel">Location</dt>
                 <dd>{instrument.location}</dd>
               </div>
             )}
             {instrument.asset_number && (
               <div className={styles.metaItem}>
-                <dt>Asset no.</dt>
+                <dt className="detailLabel">Asset no.</dt>
                 <dd>{instrument.asset_number}</dd>
               </div>
             )}
@@ -418,24 +412,24 @@ function AddInstrumentModal({ onClose, onDone }: { onClose: () => void; onDone: 
       <p className={styles.helper}>The serial number is the Revio&apos;s own identity (e.g. 84047) and can&apos;t be changed later. The name is an optional friendly label shown in the Schedule.</p>
       <form onSubmit={submit}>
         <div className={styles.field}>
-          <label className={styles.fieldLabel}>Serial number</label>
+          <label className="fieldLabel">Serial number</label>
           <input type="text" value={serial} onChange={(e) => setSerial(e.target.value)} placeholder="e.g. 84047" />
         </div>
         <div className={styles.field}>
-          <label className={styles.fieldLabel}>Name (optional)</label>
+          <label className="fieldLabel">Name (optional)</label>
           <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Revio A" />
         </div>
         <div className={styles.field}>
-          <label className={styles.fieldLabel}>Location (optional)</label>
+          <label className="fieldLabel">Location (optional)</label>
           <input type="text" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="e.g. Lab 2, Bay 3" />
         </div>
         <div className={styles.field}>
-          <label className={styles.fieldLabel}>Asset number (optional)</label>
+          <label className="fieldLabel">Asset number (optional)</label>
           <input type="text" value={assetNumber} onChange={(e) => setAssetNumber(e.target.value)} placeholder="e.g. SANG-012345" />
         </div>
         {mutation.isError && (
           <Note tone="bad" icon="!">
-            {errorMessage(mutation.error, "Failed to add instrument.")}
+            {errorMessage(mutation.error, "Couldn't add the instrument.")}
           </Note>
         )}
         <ModalActions>
@@ -486,20 +480,20 @@ function EditInstrumentModal({
       <p className={styles.helper}>The name is the friendly label shown in the Schedule. Location and asset number are for your own records. Leave any blank to clear it.</p>
       <form onSubmit={submit}>
         <div className={styles.field}>
-          <label className={styles.fieldLabel}>Name</label>
+          <label className="fieldLabel">Name</label>
           <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Revio A" />
         </div>
         <div className={styles.field}>
-          <label className={styles.fieldLabel}>Location</label>
+          <label className="fieldLabel">Location</label>
           <input type="text" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="e.g. Lab 2, Bay 3" />
         </div>
         <div className={styles.field}>
-          <label className={styles.fieldLabel}>Asset number</label>
+          <label className="fieldLabel">Asset number</label>
           <input type="text" value={assetNumber} onChange={(e) => setAssetNumber(e.target.value)} placeholder="e.g. SANG-012345" />
         </div>
         {mutation.isError && (
           <Note tone="bad" icon="!">
-            {errorMessage(mutation.error, "Failed to save.")}
+            {errorMessage(mutation.error, "Couldn't save the instrument.")}
           </Note>
         )}
         <ModalActions>
@@ -545,16 +539,16 @@ function MaintenanceModal({
       </p>
       <form onSubmit={submit}>
         <div className={styles.field}>
-          <label className={styles.fieldLabel}>Down from</label>
+          <label className="fieldLabel">Down from</label>
           <input type="date" value={downFrom} onChange={(e) => setDownFrom(e.target.value)} />
         </div>
         <div className={styles.field}>
-          <label className={styles.fieldLabel}>Reason (optional)</label>
+          <label className="fieldLabel">Reason (optional)</label>
           <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. laser replacement" />
         </div>
         {mutation.isError && (
           <Note tone="bad" icon="!">
-            {errorMessage(mutation.error, "Failed to update.")}
+            {errorMessage(mutation.error, "Couldn't mark the instrument down.")}
           </Note>
         )}
         <ModalActions>
@@ -656,7 +650,7 @@ function ConfirmActionModal({
       confirmVariant={copy.confirmVariant}
       pendingLabel={copy.pendingLabel}
       pending={mutation.isPending}
-      error={mutation.isError ? errorMessage(mutation.error, "Action failed.") : null}
+      error={mutation.isError ? errorMessage(mutation.error, "Couldn't update the instrument.") : null}
       onCancel={onClose}
       onConfirm={() => mutation.mutate()}
     >

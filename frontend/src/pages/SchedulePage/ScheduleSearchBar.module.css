@@ -7,25 +7,30 @@
   border-radius: var(--r-sm);
   padding: 2px 6px;
 }
+/* The wrapper draws the field (icon + input + counter + nav share one box), so it takes the
+   form-control hover/focus look that the borderless inner input gives up. */
+.wrap:hover {
+  border-color: var(--line-hover);
+}
 .wrap:focus-within {
   border-color: var(--magenta);
+  box-shadow: 0 0 0 3px var(--magenta-tint);
 }
 .icon {
   font-size: var(--fs-lg);
   color: var(--grey);
   line-height: 1;
 }
+/* Borderless inside .wrap, which draws the box and its focus ring. */
 .input {
-  font-family: var(--sans);
-  font-size: var(--fs-base);
-  font-weight: 600;
-  color: var(--ink);
   background: transparent;
   border: none;
-  outline: none;
   padding: 5px 2px;
   width: 190px;
   min-width: 120px;
+}
+.input:focus {
+  box-shadow: none;
 }
 .counter {
   font-size: var(--fs-md);

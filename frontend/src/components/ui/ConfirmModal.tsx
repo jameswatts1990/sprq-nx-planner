@@ -68,7 +68,7 @@ export function ConfirmModal({
 
       {input && (
         <div className={styles.field}>
-          <label className={styles.fieldLabel}>{input.label}</label>
+          <label className="fieldLabel">{input.label}</label>
           <input
             type="text"
             value={input.value}
@@ -80,7 +80,7 @@ export function ConfirmModal({
 
       {textarea && (
         <div className={styles.field}>
-          <label className={styles.fieldLabel}>{textarea.label}</label>
+          <label className="fieldLabel">{textarea.label}</label>
           <textarea
             value={textarea.value}
             onChange={(e) => textarea.onChange(e.target.value)}

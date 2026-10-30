@@ -1,19 +1,9 @@
-/* Field styling ported from PlanPage/RunDesignPanel.module.css. */
 .field {
   margin-bottom: 16px;
 }
-.fieldLabel {
-  font-size: var(--fs-sm);
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--grey);
-  margin-bottom: 8px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
+/* Sentence-case aside inline after a field's (global .fieldLabel) label. */
 .hint {
+  margin-left: 4px;
   font-weight: 600;
   text-transform: none;
   letter-spacing: 0;
@@ -56,7 +46,6 @@
   color: var(--ink);
 }
 .movieOption input {
-  accent-color: var(--magenta);
   margin: 0;
   cursor: pointer;
 }

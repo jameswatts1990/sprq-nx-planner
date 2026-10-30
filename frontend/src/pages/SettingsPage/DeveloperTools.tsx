@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { adminApi, adminExportUrl } from "@/api/admin";
-import { ApiError } from "@/api/client";
+import { errorMessage } from "@/api/client";
 import { samplesApi } from "@/api/samples";
 import { Button } from "@/components/ui/Button";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
@@ -90,10 +90,10 @@ export function DeveloperTools() {
       <div className={styles.layout}>
         <div className={styles.tablesSidebar}>
           <h2 className={styles.sidebarTitle}>Tables</h2>
-          {query.isLoading && <div className={styles.status}>Loading tables…</div>}
+          {query.isLoading && <div className="status sm">Loading tables…</div>}
           {query.isError && (
             <Note tone="bad" icon="!">
-              {query.error instanceof ApiError ? query.error.message : "Failed to load tables."}
+              {errorMessage(query.error, "Couldn't load the tables.")}
             </Note>
           )}
           <ul className={styles.tableList}>
@@ -121,7 +121,7 @@ export function DeveloperTools() {
               rowCount={tables.find((t) => t.name === selectedTable)?.row_count ?? 0}
             />
           ) : (
-            <div className={styles.status}>Select a table to view its rows.</div>
+            <div className="status">Select a table to view its rows.</div>
           )}
         </div>
       </div>
@@ -135,9 +135,7 @@ export function DeveloperTools() {
           pending={clearBacklogMutation.isPending}
           error={
             clearBacklogMutation.error
-              ? clearBacklogMutation.error instanceof ApiError
-                ? clearBacklogMutation.error.message
-                : "Failed to clear backlog."
+              ? errorMessage(clearBacklogMutation.error, "Couldn't clear the backlog.")
               : undefined
           }
           onCancel={() => setClearBacklogOpen(false)}

@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useParams } from "react-router-dom";
 
-import { ApiError } from "@/api/client";
+import { errorMessage } from "@/api/client";
 import { cyclesApi } from "@/api/cycles";
 import { CellQcModal } from "@/components/cells/CellQcModal";
 import { CellInfoPopover } from "@/components/scheduler/CellInfoPopover";
@@ -14,6 +14,7 @@ import { SectionHeading, UseLegend } from "@/components/shared/SectionHeading";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Note } from "@/components/ui/Note";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
 import type { PlateOut, RunOut, StageOut } from "@/types/schedule";
 import {
@@ -24,9 +25,10 @@ import {
   shortWeekdayUTC,
 } from "@/utils/calendarDates";
 import { CYCLE_STATUS_TONE } from "@/utils/cycleStatus";
-import { runLabel } from "@/utils/runLabel";
 
 import styles from "./RunDetailPage.module.css";
+
+const BACK = { to: "/history/runs", label: "Run history" };
 
 interface StageTarget {
   stage: StageOut;
@@ -70,6 +72,7 @@ export function RunDetailPage() {
   if (!idIsValid) {
     return (
       <div className={styles.page}>
+        <PageHeader title="Run" back={BACK} />
         <Note tone="bad" icon="!">
           Invalid run id.
         </Note>
@@ -78,14 +81,15 @@ export function RunDetailPage() {
   }
 
   if (query.isLoading) {
-    return <div className={styles.status}>Loading run…</div>;
+    return <div className="status">Loading run…</div>;
   }
 
   if (query.isError) {
     return (
       <div className={styles.page}>
+        <PageHeader title={`Run #${id}`} back={BACK} />
         <Note tone="bad" icon="!">
-          {query.error instanceof ApiError ? query.error.message : "Failed to load run."}
+          {errorMessage(query.error, "Couldn't load the run.")}
         </Note>
       </div>
     );
@@ -93,7 +97,7 @@ export function RunDetailPage() {
 
   const run = query.data;
   if (!run) {
-    return <div className={styles.status}>Run not found.</div>;
+    return <div className="status">Run not found.</div>;
   }
 
   const slots = padStages(run);
@@ -102,11 +106,24 @@ export function RunDetailPage() {
 
   return (
     <div className={styles.page}>
+      <PageHeader
+        title={run.run_name ?? `Run #${run.run_id}`}
+        back={BACK}
+        actions={
+          canCancel ? (
+            <Button variant="ghost" onClick={() => cancelMutation.mutate()} disabled={cancelMutation.isPending}>
+              {cancelMutation.isPending ? "Cancelling…" : "Cancel run"}
+            </Button>
+          ) : undefined
+        }
+      />
       <div className={styles.metaRow}>
-        <span>
-          Run <b>{runLabel(run)}</b>
-          {run.run_name && <span className={styles.meta}> (#{run.run_id})</span>}
-        </span>
+        {/* A named run's title is its name, so its number lives here. */}
+        {run.run_name && (
+          <span>
+            Run <b>#{run.run_id}</b>
+          </span>
+        )}
         <span>
           Instrument <b>{run.instrument_serial}</b>
         </span>
@@ -127,18 +144,11 @@ export function RunDetailPage() {
         <span>
           Active now <b>{run.is_locked ? "Yes" : "No"}</b>
         </span>
-        <div className={styles.cancelRow}>
-          {canCancel && (
-            <Button variant="ghost" onClick={() => cancelMutation.mutate()} disabled={cancelMutation.isPending}>
-              {cancelMutation.isPending ? "Cancelling…" : "Cancel run"}
-            </Button>
-          )}
-        </div>
       </div>
 
       {cancelMutation.isError && (
         <Note tone="bad" icon="!">
-          {cancelMutation.error instanceof ApiError ? cancelMutation.error.message : "Failed to cancel run."}
+          {errorMessage(cancelMutation.error, "Couldn't cancel the run.")}
         </Note>
       )}
 
