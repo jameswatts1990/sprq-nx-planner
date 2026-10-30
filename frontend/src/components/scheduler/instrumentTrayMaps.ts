@@ -1,13 +1,9 @@
 import type { CellOut } from "@/types/cell";
 import type { CellStatus, CellType } from "@/types/common";
 import { parseDateOnly, todayIsoUTC } from "@/utils/calendarDates";
-import { CELL_LIFETIME_H } from "@/utils/windowFade";
+import { CELL_LIFETIME_H, EXPIRY_WARN_HOURS } from "@/utils/windowFade";
 
 import { WELL_ORDER } from "./waitingCells";
-
-/** Hours of remaining 108h window below which a still-open cell reads as expiring "soon"
- * (amber). One weekday of head-room. */
-export const EXPIRY_SOON_HOURS = 24;
 
 /** One cell's slot within a tray box (its fixed A/B/C/D position), carrying the reference-time-
  * independent facts the panel needs to shade it at any instant (end-of-week or live "now"). */
@@ -46,7 +42,7 @@ export interface TrayPositionView {
 
 /** How a tray position reads at a given reference instant. `spent` = benignly used up / retired;
  * `expired` = past its 108h deadline as of the reference (or QC-stopped); `soon` = open, within
- * EXPIRY_SOON_HOURS of the deadline; `ok` = open with comfortable window; `scheduled` = open but
+ * EXPIRY_WARN_HOURS of the deadline; `ok` = open with comfortable window; `scheduled` = open but
  * its breakout is still in the future (clock not started yet); `fresh` = open, never on a clock. */
 export type CellExpiryState = "ok" | "soon" | "expired" | "scheduled" | "spent" | "fresh";
 
@@ -77,7 +73,7 @@ export function cellExpiryState(p: TrayPositionView, refMs: number, live = false
   if (breakoutMs !== null && refMs < breakoutMs) return "scheduled"; // not broken out yet
   const expiryMs = Date.parse(p.expiryAt);
   if (refMs >= expiryMs) return "expired";
-  return (expiryMs - refMs) / 3_600_000 < EXPIRY_SOON_HOURS ? "soon" : "ok";
+  return (expiryMs - refMs) / 3_600_000 <= EXPIRY_WARN_HOURS ? "soon" : "ok";
 }
 
 /** Uses physically on this cell *as of `refMs`* - the count that have not yet broken out by then.

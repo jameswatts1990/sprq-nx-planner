@@ -432,7 +432,7 @@ function pos(overrides: Partial<TrayPositionView> = {}): TrayPositionView {
 describe("cellExpiryState", () => {
   const REF = Date.parse("2026-07-24T12:00:00Z"); // Fri noon
 
-  it("is 'ok' with comfortable window and 'soon' within a day of the deadline", () => {
+  it("is 'ok' with comfortable window and 'soon' within EXPIRY_WARN_HOURS of the deadline", () => {
     expect(cellExpiryState(pos({ expiryAt: "2026-07-28T00:00:00Z" }), REF)).toBe("ok");
     expect(cellExpiryState(pos({ expiryAt: "2026-07-25T00:00:00Z" }), REF)).toBe("soon"); // 12h left
   });

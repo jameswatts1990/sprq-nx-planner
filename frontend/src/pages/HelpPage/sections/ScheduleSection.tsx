@@ -195,7 +195,7 @@ export function ScheduleSection() {
         </li>
         <li>
           Colour and icon show each cell&apos;s state at a glance: <b>green</b> = comfortably in window; <b>amber</b> =
-          closing within about a day, so reuse it soon or lose the spare capacity; <b>red</b> = past its deadline or
+          closing within 18 hours, so reuse it soon or lose the spare capacity; <b>red</b> = past its deadline or
           QC-stopped (unusable); <b>blue</b> = not broken out yet (its clock hasn&apos;t started); <b>grey</b> = used up
           or retired.
         </li>
@@ -1037,7 +1037,7 @@ export function ScheduleSection() {
         </li>
         <li>
           A teal <b>🔒 padlock</b> chip appears next to the status on every day the instrument is reserved by a run —
-          its own load day and any later day still held by its lock. Hover or focus it and it expands to reveal the
+          its own load day and any later day still held by its lock. Hover it for a tooltip with the
           exact date/time the instrument frees up, shown in your <b>local (lab) time</b> — the same clock as the
           instrument screen&apos;s own countdown and the machine in the lab. The day the reservation actually <i>ends</i> stays open to load —
           the instrument frees up partway through it, so you can still schedule a run there and it simply starts
@@ -1080,11 +1080,10 @@ export function ScheduleSection() {
       </ul>
       <p>
         Because a reuse Plate 2 sequences on a <i>different</i> day from the load day, that later day&apos;s column
-        shows a lightweight <b>&quot;P2: [run name] @ [time]&quot;</b> marker and is greyed out and
+        shows an outlined teal <b>🔒 &quot;P2: [run name] @ [time]&quot;</b> marker and is greyed out and
         non-droppable — <b>there&apos;s no action to take there</b>; the instrument runs Plate 2 itself. Manage the
-        run (edit it, Confirm loaded, print its sheet) from its own load-day column, not the continuation day. Every
-        such day also carries the same <b>🔒 padlock</b> as a plain lock carry-over (see Locking a run below) —
-        hover it for the release time. A long movie whose instrument stays reserved into a later day with no plate
+        run (edit it, Confirm loaded, print its sheet) from its own load-day column, not the continuation day. Its padlock stands in for the
+        plain lock chip (see Locking a run below) — hover it for the release time. A long movie whose instrument stays reserved into a later day with no plate
         of its own acquiring shows just the padlock, with no other marker.
       </p>
       <p>

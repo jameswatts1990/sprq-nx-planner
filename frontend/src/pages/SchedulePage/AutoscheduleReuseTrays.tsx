@@ -7,6 +7,7 @@ import { Note } from "@/components/ui/Note";
 import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
 import type { CellOut } from "@/types/cell";
 import { soonestTrayExpiry } from "@/utils/openTrays";
+import { EXPIRY_WARN_HOURS } from "@/utils/windowFade";
 
 import styles from "./AutoscheduleReuseTrays.module.css";
 
@@ -109,7 +110,7 @@ export function AutoscheduleReuseTrays({ cells }: AutoscheduleReuseTraysProps) {
                     <Badge tone="warning">Reuse skipped</Badge>
                   ) : (
                     row.soonestExpiry !== null && (
-                      <Badge tone={row.soonestExpiry <= 12 ? "danger" : "default"}>
+                      <Badge tone={row.soonestExpiry <= EXPIRY_WARN_HOURS ? "warning" : "default"}>
                         {expiryText(row.soonestExpiry)}
                       </Badge>
                     )

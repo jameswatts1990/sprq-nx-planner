@@ -64,17 +64,6 @@
 .liveText {
   color: var(--grey);
 }
-.liveLock {
-  font-size: var(--fs-xs);
-  font-weight: 800;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-  color: var(--amber);
-  background: var(--amber-tint);
-  border-radius: 999px;
-  padding: 1px 7px;
-}
-
 /* Live gantt of the runs currently in progress on this instrument (shares RunStageGantt with
    the slot-detail popover). The gantt brings its own panel border, so this just spaces it. */
 .gantt {

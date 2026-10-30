@@ -108,7 +108,7 @@ export function InstrumentsSection() {
       <p>
         When a run is in progress, a green dot and a short live summary spell out what the instrument is doing at this
         moment — e.g. <b>&quot;3 sequencing · 2 in PPA · 1 awaiting prep&quot;</b> — counting each loaded cell by the
-        stage it&apos;s in. An amber <b>prep-locked</b> chip appears while any cell is still being (or still waiting to
+        stage it&apos;s in. A teal <b>🔒 Prep-locked</b> chip (the same padlock as the Schedule grid) appears while any cell is still being (or still waiting to
         be) broken out: the instrument is committed and can&apos;t take a fresh tray until every cell has started prep.
         These counts use the same timings as the gantt below, measured from when the run was actually loaded.
       </p>
@@ -140,7 +140,7 @@ export function InstrumentsSection() {
       <p>
         Two extra strips sit above the per-cell rows, so you don&apos;t have to work either out by eye:{" "}
         <b>Loading window</b> (amber) shows when the instrument is locked and can&apos;t yet take a fresh tray — the
-        same meaning as the amber <b>prep-locked</b> chip described above, just plotted across the whole week
+        same meaning as the <b>Prep-locked</b> chip described above, just plotted across the whole week
         instead of just right now. <b>Noisy (PPA)</b> (the same slate colour as the PPA segment in every row below
         it) shows whenever post-primary analysis is running anywhere on the instrument — the busiest part of a run,
         and a useful cue for when not to disturb it. Anywhere left unshaded on either strip is open.

@@ -8,6 +8,7 @@ import { errorMessage } from "@/api/client";
 import { cyclesApi } from "@/api/cycles";
 import { CellTypeBadge } from "@/components/cells/CellTypeBadge";
 import { TraySiblingList } from "@/components/cells/TraySiblingList";
+import { LockChip } from "@/components/shared/LockChip";
 import { formatLoadTime, isValidLoadTime, parseLoadTime } from "@/components/scheduler/loadTime";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { Note } from "@/components/ui/Note";
@@ -64,25 +65,10 @@ export interface SchedulerDayCellProps {
   onEditNote: (note: ScheduleNoteOut) => void;
 }
 
-/** The padlock marker for a locked day - a teal rounded-rect chip (the grid's neutral
- * "informational" tone, distinct from the magenta RUNNING/Unload action and the amber
- * carry-over marker). Collapsed to just the icon by default; hover or keyboard-focus
- * expands it rightward to reveal the exact release time, replacing the old hover tooltip
- * with an in-place reveal so it reads as part of the same chip. `tabIndex` makes the
- * expand reachable by keyboard; `aria-label` carries the full text for screen readers
- * regardless of hover state. */
-function LockChip({ until }: { until: string }) {
-  const time = formatShortDateTimeLocal(until);
-  return (
-    <span className={styles.lockChip} tabIndex={0} aria-label={`Locked until ${time}`}>
-      <svg viewBox="0 0 16 16" width="10" height="10" fill="currentColor" aria-hidden="true" className={styles.lockChipIcon}>
-        <path d="M4 7V5a4 4 0 1 1 8 0v2h.5A1.5 1.5 0 0 1 14 8.5v5A1.5 1.5 0 0 1 12.5 15h-9A1.5 1.5 0 0 1 2 13.5v-5A1.5 1.5 0 0 1 3.5 7H4Zm1.5 0h5V5a2.5 2.5 0 0 0-5 0v2Z" />
-      </svg>
-      <span className={styles.lockChipTime} aria-hidden="true">
-        {time}
-      </span>
-    </span>
-  );
+/** Tooltip for the grid's padlock: the release time, shown on hover rather than expanding the
+ * chip (the shared LockChip). */
+function lockedUntil(until: string): string {
+  return `Instrument locked until ${formatShortDateTimeLocal(until)}`;
 }
 
 interface DayNoteBannersProps {
@@ -403,7 +389,7 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
                     {run.status.toUpperCase()}
                   </span>
                 )}
-                <LockChip until={run.lock_until} />
+                <LockChip title={lockedUntil(run.lock_until)} />
               </>
             ) : (
               filledCount >= 1 && (
@@ -444,17 +430,19 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
         {!run && continuation && (
           continuationPlate ? (
             <>
-              <span
-                className={styles.carryLockTag}
-                title="No action here — the instrument runs this plate itself once Plate 1's movie finishes and the cells are washed (a reuse run's Plate 2 — the next working day for a normal-length movie, later for a very long one). Manage it from its own run on its load day."
-              >
-                P{continuationPlate.plate_index}: {runLabel(continuation.run)} @{" "}
-                {formatTimeLocal(continuationPlate.planned_start_at)}
-              </span>
-              <LockChip until={continuation.run.lock_until} />
+              <LockChip
+                variant="carry"
+                label={
+                  <>
+                    P{continuationPlate.plate_index}: {runLabel(continuation.run)} @{" "}
+                    {formatTimeLocal(continuationPlate.planned_start_at)}
+                  </>
+                }
+                title={`No action here — the instrument runs this plate itself once Plate 1's movie finishes and the cells are washed (a reuse run's Plate 2 — the next working day for a normal-length movie, later for a very long one). Manage it from its own run on its load day. ${lockedUntil(continuation.run.lock_until)}.`}
+              />
             </>
           ) : (
-            <LockChip until={continuation.run.lock_until} />
+            <LockChip title={lockedUntil(continuation.run.lock_until)} />
           )
         )}
       </div>

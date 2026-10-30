@@ -75,7 +75,7 @@ export function HistorySection() {
       <p className={styles.subheading}>History → Samples</p>
       <p>
         <b>What it&apos;s for:</b> by default, every sample that has finished, either <b>completed</b> (green) or{" "}
-        <b>failed</b> (red). Search by Pool ID, Sanger ID, barcode, or Plate ID. Each row shows the sample&apos;s{" "}
+        <b>failed</b> (orange). Search by Pool ID, Sanger ID, barcode, or Plate ID. Each row shows the sample&apos;s{" "}
         <b>Pool ID</b> (click it to open its full detail page), status, barcodes, Plate ID, Target OPLC,
         Actual OPLC, priority, and last-updated time. A <b>1/3</b> badge by a Pool ID marks a duplicate — the
         same sample run across multiple cells (counted across every status, including completed). Click <i>any</i>{" "}

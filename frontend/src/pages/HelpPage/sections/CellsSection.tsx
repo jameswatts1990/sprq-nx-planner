@@ -95,7 +95,7 @@ export function CellsSection() {
       <p>
         <b>At a glance, each cell card shows three things:</b> a <b>108-hour window ring</b> on the left whose centre
         reads the <b>hours left</b> before the cell&apos;s reuse window closes — the ring fills as time passes and shifts
-        green → amber (under ~a day left) → red (over); the <b>cell code</b> and <b>status badge</b> with an{" "}
+        green → amber (18 hours or less left) → red (over); the <b>cell code</b> and <b>status badge</b> with an{" "}
         <b>n / 3 uses</b> count in the middle (e.g. <b>C02-T123</b> — cells are <i>numbered</i> 1–4 by their fixed tray
         position, and <b>T123</b> is that tray&apos;s id; click the code for the cell&apos;s full detail); and a
         colour-coded <b>foil stub</b> on the right edge naming the physical cell (<b>▣1</b>–<b>▣4</b>) and its current

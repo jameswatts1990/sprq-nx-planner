@@ -155,7 +155,7 @@ function positionTitle(p: TrayPositionView, state: CellExpiryState, refMs: numbe
 }
 
 /** Which visual tone a position cell carries: its expiry state at the current reference instant.
- * ok (green) = comfortable window; soon (amber) = closing within a day; expired (red) = past its
+ * ok (green) = comfortable window; soon (amber) = within EXPIRY_WARN_HOURS of closing; expired (red) = past its
  * deadline or QC-stopped; scheduled (blue) = clock not started yet; spent (grey) = used up; fresh
  * = open but never on a clock. */
 function TrayPositionCell({ p, refMs, live }: { p: TrayPositionView; refMs: number; live: boolean }) {

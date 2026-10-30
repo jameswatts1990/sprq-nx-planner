@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/Badge";
 import type { CellOut } from "@/types/cell";
 import { CELL_STATUS_LABEL, CELL_STATUS_TONE } from "@/utils/cellStatus";
 import { windowHoursRemaining } from "@/utils/openTrays";
-import { FADE_MIN_HOURS } from "@/utils/windowFade";
+import { EXPIRY_WARN_HOURS } from "@/utils/windowFade";
 
 import styles from "./TraySiblingList.module.css";
 
@@ -43,7 +43,7 @@ export function TraySiblingList({ cells, currentCellId }: TraySiblingListProps) 
               {sibling.uses_consumed}/{sibling.max_uses} uses
             </span>
             {hoursRemaining !== null && (
-              <span className={hoursRemaining <= FADE_MIN_HOURS ? styles.trayItemExpiryUrgent : styles.trayItemExpiry}>
+              <span className={hoursRemaining <= EXPIRY_WARN_HOURS ? styles.trayItemExpiryUrgent : styles.trayItemExpiry}>
                 {hoursRemaining <= 1 ? "<1h left" : `${Math.ceil(hoursRemaining)}h left`}
               </span>
             )}

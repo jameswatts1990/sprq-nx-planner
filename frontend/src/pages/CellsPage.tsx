@@ -29,7 +29,7 @@ import { endOfWeekIso, endOfWeekLabel } from "@/utils/calendarDates";
 import { CELL_STATUS_LABEL, CELL_STATUS_TONE } from "@/utils/cellStatus";
 import { soonestTrayExpiry } from "@/utils/openTrays";
 import { useDebouncedValue } from "@/utils/useDebouncedValue";
-import { FADE_MIN_HOURS } from "@/utils/windowFade";
+import { EXPIRY_WARN_HOURS } from "@/utils/windowFade";
 
 import styles from "./CellsPage.module.css";
 
@@ -365,7 +365,7 @@ function GroupHeader({ groupBy, cells }: GroupHeaderProps) {
     const trayId = cells[0]?.tray_id ?? null;
     const instrument = cells.find((c) => c.current_instrument_serial)?.current_instrument_serial ?? null;
     const soonest = soonestTrayExpiry(cells);
-    const urgent = soonest !== null && soonest <= FADE_MIN_HOURS;
+    const urgent = soonest !== null && soonest <= EXPIRY_WARN_HOURS;
     return (
       <div className={styles.groupHeader}>
         {trayId !== null ? (

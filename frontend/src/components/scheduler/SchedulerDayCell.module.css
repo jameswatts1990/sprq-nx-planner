@@ -174,55 +174,6 @@
   opacity: 0.6;
   cursor: not-allowed;
 }
-/* Padlock marker shown on every day the instrument is locked (the run's own load day and
-   any later day still held by its lock/continuation) - a teal rounded-rect chip (the grid's
-   neutral "informational" tone - see BarcodeChips/UseBox's own teal-deep use), collapsed to
-   just the icon. Hovering or keyboard-focusing it expands the chip rightward to reveal the
-   release time in place, rather than relying on a hover tooltip. */
-.lockChip {
-  display: inline-flex;
-  align-items: center;
-  height: 16px;
-  padding: 0 5px;
-  border-radius: 999px;
-  background: var(--teal-deep);
-  color: var(--on-accent);
-  overflow: hidden;
-  cursor: default;
-}
-.lockChipIcon {
-  flex-shrink: 0;
-}
-.lockChipTime {
-  max-width: 0;
-  margin-left: 0;
-  opacity: 0;
-  font-size: 8.5px;
-  font-weight: 800;
-  letter-spacing: 0.02em;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-  transition: max-width 0.2s ease, margin-left 0.2s ease, opacity 0.15s ease;
-}
-.lockChip:hover .lockChipTime,
-.lockChip:focus-visible .lockChipTime {
-  max-width: 100px;
-  margin-left: 4px;
-  opacity: 1;
-}
-
-/* Carried over from an earlier day's run - a distinct amber tone (not the same-day teal
-   lockTag) so it reads as "inherited", not this day's own status. Never blocks selection. */
-.carryLockTag {
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0.03em;
-  color: #7a5200;
-  background: #fde8bd;
-  border: 1px solid #f0c987;
-  border-radius: 4px;
-  padding: 2px 6px;
-}
 .ctrl {
   font-family: var(--sans);
   font-size: var(--fs-2xs);

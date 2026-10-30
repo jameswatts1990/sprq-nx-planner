@@ -11,7 +11,7 @@ import { Note } from "@/components/ui/Note";
 import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
 import type { CellOut, TrayRestoreOut } from "@/types/cell";
 import { soonestTrayExpiry } from "@/utils/openTrays";
-import { FADE_MIN_HOURS } from "@/utils/windowFade";
+import { EXPIRY_WARN_HOURS } from "@/utils/windowFade";
 
 import { CellStatusCard } from "./CellStatusCard";
 import { CellTypeBadge } from "./CellTypeBadge";
@@ -65,7 +65,7 @@ export function TrayPanel({ trayId, cells, currentCellId, showDiscard = true }: 
   const traySize = cells[0]?.tray_size ?? cells.length;
   const instrument = cells.find((c) => c.current_instrument_serial)?.current_instrument_serial ?? null;
   const soonest = soonestTrayExpiry(cells);
-  const urgent = soonest !== null && soonest <= FADE_MIN_HOURS;
+  const urgent = soonest !== null && soonest <= EXPIRY_WARN_HOURS;
   const anyOpen = cells.some((c) => c.status === "open");
   const anyDiscarded = cells.some((c) => c.discarded_at != null);
   const reuseSkipped = cells.some((c) => c.tray_reuse_disabled);
@@ -86,7 +86,7 @@ export function TrayPanel({ trayId, cells, currentCellId, showDiscard = true }: 
         </span>
         <CellTypeBadge cellType={cells[0]?.cell_type} />
         {soonest !== null && (
-          <Badge tone={urgent ? "danger" : "default"}>
+          <Badge tone={urgent ? "warning" : "default"}>
             {urgent ? "Expires soon — " : "Next expiry: "}
             {expiryText(soonest)}
           </Badge>

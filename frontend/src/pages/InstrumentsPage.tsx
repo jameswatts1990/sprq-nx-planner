@@ -8,6 +8,7 @@ import { instrumentsApi } from "@/api/instruments";
 import { RevioScreen } from "@/components/scheduler/RevioScreen";
 import { RunStageGantt } from "@/components/scheduler/RunStageGantt";
 import { WeekPlanModal } from "@/components/scheduler/WeekPlanModal";
+import { LockChip } from "@/components/shared/LockChip";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody } from "@/components/ui/Card";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
@@ -310,9 +311,7 @@ function InstrumentCard({
             <span className={styles.liveDot} aria-hidden="true" />
             <span className={styles.liveText}>{liveStateLabel(stats)}</span>
             {stats.prep_locked && (
-              <span className={styles.liveLock} title="A fresh tray can't be loaded until every cell has broken out">
-                prep-locked
-              </span>
+              <LockChip size="md" label="Prep-locked" title="A fresh tray can't be loaded until every cell has broken out" />
             )}
           </div>
         )}

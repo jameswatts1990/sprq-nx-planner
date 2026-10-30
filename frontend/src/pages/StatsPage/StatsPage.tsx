@@ -147,9 +147,9 @@ function StatsCharts({ data }: { data: StatsResponse }) {
   );
   const funnel = useMemo(
     () => [
-      { label: "Needs report", count: f.credit_funnel.needs_report, color: p.amber },
+      { label: "Needs report", count: f.credit_funnel.needs_report, color: p.red },
       { label: "Reported", count: f.credit_funnel.reported, color: p.blue },
-      { label: "Awaiting credit", count: f.credit_funnel.awaiting, color: p.orange },
+      { label: "Awaiting credit", count: f.credit_funnel.awaiting, color: p.amber },
       { label: "Received", count: f.credit_funnel.received, color: p.green },
     ],
     [f.credit_funnel, p],

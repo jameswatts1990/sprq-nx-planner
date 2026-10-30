@@ -10,7 +10,13 @@ export const CELL_LIFETIME_H = 108;
  * FADE_FULL_HOURS-to-go; FADE_MIN_OPACITY at/below FADE_MIN_HOURS-to-go. Tuned for a 108h
  * window run on weekdays only, so the fade has room to show across 2-3 calendar days. */
 export const FADE_FULL_HOURS = 90;
-export const FADE_MIN_HOURS = 18;
+/** Hours left on a cell's 108h window at/below which every surface warns the window is closing,
+ *  in amber: the cell ring, the instrument tray map, tray summaries and Autoschedule's reuse
+ *  list. One threshold and one tone everywhere - only a window that has actually closed is red.
+ *  A display choice, not a scheduling rule (the 108h deadline itself is CELL_LIFETIME_H). */
+export const EXPIRY_WARN_HOURS = 18;
+/** The grid slot fade bottoms out where the warning starts. */
+export const FADE_MIN_HOURS = EXPIRY_WARN_HOURS;
 export const FADE_MIN_OPACITY = 0.4;
 
 /** Opacity for a cell that has `hoursElapsed` hours into its own 108h window - dark when

@@ -5,7 +5,9 @@ import type { CycleStatus } from "@/types/common";
  * two views stay visually consistent (mirrors utils/cellStatus.ts's pattern). */
 export const CYCLE_STATUS_TONE: Record<CycleStatus, BadgeTone> = {
   planned: "default",
-  running: "success",
-  completed: "info",
-  aborted: "danger",
+  running: "info",
+  completed: "success",
+  // An aborted run is an instrument/run problem, not a cell fault - amber, matching a cell
+  // use aborted (useStatusTone.ts's severity scale), not red.
+  aborted: "warning",
 };
