@@ -94,7 +94,7 @@
   min-width: 0;
 }
 .mixed {
-  color: #7a4d00;
+  color: var(--amber-deep);
   font-weight: 700;
 }
 
@@ -133,7 +133,7 @@
   background: var(--card);
 }
 .well[data-copied="true"] {
-  border-color: #bfe6c9;
+  border-color: var(--green-border);
 }
 .wellHead {
   display: flex;
@@ -152,7 +152,7 @@
 }
 .done {
   margin-left: auto;
-  color: #1c6b31;
+  color: var(--green-deep);
   font-size: var(--fs-sm);
   font-weight: 700;
 }

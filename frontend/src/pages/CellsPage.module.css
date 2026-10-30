@@ -62,7 +62,7 @@
 }
 .asOfBtn[aria-pressed="true"] {
   background: var(--magenta);
-  color: #fff;
+  color: var(--on-accent);
 }
 .asOfBtn:not([aria-pressed="true"]):hover {
   color: var(--magenta);
@@ -85,6 +85,7 @@
 }
 .trayTitle {
   margin: 0;
+  font-size: var(--fs-display);
   font-family: var(--mono);
 }
 .filters {
@@ -169,7 +170,7 @@
   border: 1.5px dashed var(--line);
   border-radius: var(--r);
   min-height: 104px;
-  background: repeating-linear-gradient(135deg, #fff, #fff 8px, #fafafb 8px, #fafafb 16px);
+  background: repeating-linear-gradient(135deg, #fff, #fff 8px, var(--tray-card-bg) 8px, var(--tray-card-bg) 16px);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -180,7 +181,7 @@
 .slotPos {
   font-family: var(--mono);
   font-weight: 800;
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 .slotLbl {
   font-size: 10px;

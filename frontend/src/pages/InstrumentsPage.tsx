@@ -576,7 +576,13 @@ type ConfirmKind = "online" | "retire" | "reactivate" | "delete";
 
 const CONFIRM_COPY: Record<
   ConfirmKind,
-  { title: (i: InstrumentOut) => string; body: ReactNode; confirmLabel: string; pendingLabel: string }
+  {
+    title: (i: InstrumentOut) => string;
+    body: ReactNode;
+    confirmLabel: string;
+    confirmVariant?: "danger";
+    pendingLabel: string;
+  }
 > = {
   online: {
     title: (i) => `Bring ${i.name || i.serial_number} back online?`,
@@ -605,6 +611,7 @@ const CONFIRM_COPY: Record<
     title: (i) => `Delete ${i.name || i.serial_number}?`,
     body: <p>This permanently removes the instrument. Only possible while it has no run or tray history.</p>,
     confirmLabel: "Delete",
+    confirmVariant: "danger",
     pendingLabel: "Deleting…",
   },
 };
@@ -646,6 +653,7 @@ function ConfirmActionModal({
     <ConfirmModal
       title={copy.title(instrument)}
       confirmLabel={copy.confirmLabel}
+      confirmVariant={copy.confirmVariant}
       pendingLabel={copy.pendingLabel}
       pending={mutation.isPending}
       error={mutation.isError ? errorMessage(mutation.error, "Action failed.") : null}

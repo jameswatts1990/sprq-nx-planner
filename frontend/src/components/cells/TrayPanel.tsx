@@ -124,6 +124,7 @@ export function TrayPanel({ trayId, cells, currentCellId, showDiscard = true }: 
         <ConfirmModal
           title="Discard all cells in this tray?"
           confirmLabel="Discard cells"
+          confirmVariant="danger"
           pendingLabel="Discarding…"
           pending={discardMutation.isPending}
           error={

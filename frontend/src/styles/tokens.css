@@ -38,6 +38,33 @@
   --orange-tint: #fbe4d0;
   --amber: #c77700;
   --amber-tint: #fbf0de;
+  /* Status text and borders on a tint. The mid hues above are too light for small text on their
+     own tint (green on green-tint is ~2.7:1, under WCAG AA's 4.5:1), so Badge, Note and any other
+     "text on a status tint" use these deep shades instead (~5.8-7.8:1). Borders pair with the
+     tint as a one-step-darker edge. */
+  --green-deep: #1c6b31;
+  --green-border: #bfe6c9;
+  --amber-deep: #7a4d00;
+  --amber-border: #f0dcae;
+  --red-deep: #8b1c28;
+  --red-border: #f4c6cc;
+  --orange-deep: #8f3a00;
+  --blue-border: #cfe6f5;
+  /* Text/icon colour on a solid accent fill (primary button, solid pills). */
+  --on-accent: #fff;
+  /* Use 1/2/3 identity colours - one cell acquisition's position in its 3-use life. Identity,
+     not status: never reuse these for a state. -border pairs with the matching -tint on a
+     tinted card (the schedule grid's slot cards). */
+  --use1: var(--magenta);
+  --use1-border: #f2b8d6;
+  --use2: var(--blue);
+  --use2-border: var(--blue-border);
+  --use3: var(--teal);
+  --use3-border: #bfe8e8;
+  /* Run-stage gantt segments (RunStageGantt + WeekPlanGantt share one look): the slate prep
+     block and the darker noisy PPA block. */
+  --gantt-prep: #9aa6c0;
+  --gantt-ppa: #515f7e;
   --tray-card-bg: #fafafb;
   --tray-card-border: #e2e4ea;
   /* Higher-contrast recessed frame for the Cells page's per-tray box (holds a tray's 4 cell
@@ -61,6 +88,8 @@
   --shadow-sm: 0 1px 2px rgba(20, 20, 30, 0.06);
   --r: 14px;
   --r-sm: 9px;
+  /* Small pills/tags/chips (grid status pill, inline code) - the one radius below --r-sm. */
+  --r-xs: 4px;
   --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
   --mono: "SF Mono", ui-monospace, "Cascadia Code", Consolas, "Liberation Mono", monospace;
   /* Font-size scale. The app previously scattered ~30 raw px values; these name the

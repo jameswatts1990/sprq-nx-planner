@@ -3,7 +3,6 @@ import { useMemo } from "react";
 
 import { ApiError } from "@/api/client";
 import { cyclesApi } from "@/api/cycles";
-import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { Note } from "@/components/ui/Note";
 import type { InstrumentOut } from "@/types/instrument";
@@ -55,11 +54,6 @@ export function WeekPlanModal({ instrument, onClose }: WeekPlanModalProps) {
     <Modal
       onClose={onClose}
       title={`Week plan · ${instrument.name || instrument.serial_number}`}
-      titleExtra={
-        <Button variant="ghost" onClick={onClose}>
-          Close
-        </Button>
-      }
       fullScreen
     >
       <p className={styles.range}>{rangeLabel} · current week</p>

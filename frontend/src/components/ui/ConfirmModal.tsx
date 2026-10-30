@@ -29,6 +29,9 @@ export interface ConfirmModalProps {
   /** Optional labeled textarea (e.g. a reason/notes field); omitted for warning-only confirms. */
   textarea?: ConfirmModalTextareaProps;
   confirmLabel: string;
+  /** "danger" for an irreversible discard/delete/clear, so it reads as destructive (red) rather
+   * than the everyday magenta primary action. Reversible actions stay "primary". */
+  confirmVariant?: "primary" | "danger";
   pendingLabel: string;
   pending: boolean;
   /** Disable the confirm button without showing the pending label - e.g. while a required
@@ -51,6 +54,7 @@ export function ConfirmModal({
   input,
   textarea,
   confirmLabel,
+  confirmVariant = "primary",
   pendingLabel,
   pending,
   confirmDisabled,
@@ -95,7 +99,7 @@ export function ConfirmModal({
         <Button variant="ghost" onClick={onCancel} disabled={pending}>
           Cancel
         </Button>
-        <Button variant="primary" onClick={onConfirm} disabled={pending || confirmDisabled}>
+        <Button variant={confirmVariant} onClick={onConfirm} disabled={pending || confirmDisabled}>
           {pending ? pendingLabel : confirmLabel}
         </Button>
       </ModalActions>

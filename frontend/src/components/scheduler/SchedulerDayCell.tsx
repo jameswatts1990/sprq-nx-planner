@@ -15,6 +15,7 @@ import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
 import type { RunOut, StageOut } from "@/types/schedule";
 import type { ScheduleNoteOut } from "@/types/scheduleNote";
 import { formatShortDateTimeLocal, formatShortDateUTC, formatTimeLocal, localWallTimeToUtcParts, parseDateOnly, shortWeekdayUTC } from "@/utils/calendarDates";
+import { CYCLE_STATUS_TONE } from "@/utils/cycleStatus";
 import { runLabel } from "@/utils/runLabel";
 
 import { noteCellDropId, noteDragId, PLATE_INDICES, slotKey } from "./gridKeys";
@@ -64,7 +65,7 @@ export interface SchedulerDayCellProps {
 }
 
 /** The padlock marker for a locked day - a teal rounded-rect chip (the grid's neutral
- * "informational" tone, distinct from the magenta LOADED/Unload action and the amber
+ * "informational" tone, distinct from the magenta RUNNING/Unload action and the amber
  * carry-over marker). Collapsed to just the icon by default; hover or keyboard-focus
  * expands it rightward to reveal the exact release time, replacing the old hover tooltip
  * with an in-place reveal so it reads as part of the same chip. `tabIndex` makes the
@@ -201,9 +202,9 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
     },
   });
 
-  // Hovering/focusing the LOADED pill swaps its label to "Unload" so the single control
+  // Hovering/focusing the RUNNING pill swaps its label to "Unload" so the single control
   // reads as an action, not just a status - see the pill's button below.
-  const [hoveringLoadedPill, setHoveringLoadedPill] = useState(false);
+  const [hoveringRunningPill, setHoveringRunningPill] = useState(false);
 
   const [confirmingLoad, setConfirmingLoad] = useState(false);
   const [runName, setRunName] = useState("");
@@ -382,19 +383,21 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
                   <button
                     type="button"
                     className={`${styles.lockTag} ${styles.lockTagAction}`}
+                    data-tone={CYCLE_STATUS_TONE[run.status]}
                     title={run.run_name ? `Run name: ${run.run_name} — click to unload and edit` : "Click to unload and edit"}
                     disabled={statusMutation.isPending}
                     onClick={() => statusMutation.mutate({ status: "planned" })}
-                    onMouseEnter={() => setHoveringLoadedPill(true)}
-                    onMouseLeave={() => setHoveringLoadedPill(false)}
-                    onFocus={() => setHoveringLoadedPill(true)}
-                    onBlur={() => setHoveringLoadedPill(false)}
+                    onMouseEnter={() => setHoveringRunningPill(true)}
+                    onMouseLeave={() => setHoveringRunningPill(false)}
+                    onFocus={() => setHoveringRunningPill(true)}
+                    onBlur={() => setHoveringRunningPill(false)}
                   >
-                    {statusMutation.isPending ? "…" : hoveringLoadedPill ? "UNLOAD" : "LOADED"}
+                    {statusMutation.isPending ? "…" : hoveringRunningPill ? "UNLOAD" : "RUNNING"}
                   </button>
                 ) : (
                   <span
                     className={styles.lockTag}
+                    data-tone={CYCLE_STATUS_TONE[run.status]}
                     title={run.run_name ? `Run name: ${run.run_name}` : undefined}
                   >
                     {run.status.toUpperCase()}
@@ -661,6 +664,7 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
         <ConfirmModal
           title={`Discard this Tray ${rotateTarget.trayId}?`}
           confirmLabel="Discard tray"
+          confirmVariant="danger"
           pendingLabel="Discarding…"
           pending={rotateMutation.isPending}
           error={

@@ -127,7 +127,7 @@
     0 6px 7px -5px rgba(18, 20, 33, 0.22);
 }
 .weekendTh {
-  background: #fafafb;
+  background: var(--tray-card-bg);
   min-width: 38px;
   width: 38px;
   padding: 10px 6px;

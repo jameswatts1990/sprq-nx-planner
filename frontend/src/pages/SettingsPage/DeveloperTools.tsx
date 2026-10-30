@@ -130,6 +130,7 @@ export function DeveloperTools() {
         <ConfirmModal
           title="Clear backlog?"
           confirmLabel={`Clear ${backlogCount} sample${backlogCount === 1 ? "" : "s"}`}
+          confirmVariant="danger"
           pendingLabel="Clearing…"
           pending={clearBacklogMutation.isPending}
           error={

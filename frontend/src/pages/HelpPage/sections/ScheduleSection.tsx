@@ -982,7 +982,7 @@ export function ScheduleSection() {
           <b>Confirm loaded</b> appears once a run has at least one sample; press it when the cells are physically
           loaded on the instrument. There is <b>one Confirm loaded per run</b> — it locks the <i>whole</i> run,{" "}
           <b>both plates</b> at once (a reuse run&apos;s Plate 2 is loaded in the same session, so it locks with
-          Plate 1), marking it running/LOADED so it can no longer be edited by accident. A small dialog lets you
+          Plate 1), marking it <b>RUNNING</b> so it can no longer be edited by accident. A small dialog lets you
           give the run a name (e.g. your lab&apos;s own run id, such as Sanger&apos;s <b>TRACTION-RUN-1234</b>{" "}
           format) — optional, and it overrides the plain run number everywhere this run is shown afterward (Run
           detail, History, Cells use history). Leave it blank to keep the plain number. <b>Unloading</b> never clears a
@@ -993,7 +993,8 @@ export function ScheduleSection() {
           (and any reuse plate chained off it) shifts to match.
         </li>
         <li>
-          A green <b>LOADED</b> tag marks a locked run — hover or focus it and it turns magenta and swaps to{" "}
+          A locked run carries its status tag — <b>RUNNING</b>, <b>COMPLETED</b> or <b>ABORTED</b>, in the same colours as on
+          Run detail and History. While it&apos;s running, hover or focus <b>RUNNING</b> and it turns magenta and swaps to{" "}
           <b>UNLOAD</b>; click it to return the run to planned so you can edit it again.
         </li>
         <li>

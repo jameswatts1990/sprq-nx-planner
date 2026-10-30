@@ -75,7 +75,7 @@ h3 {
 .btn.primary {
   background: var(--magenta);
   border-color: var(--magenta);
-  color: #fff;
+  color: var(--on-accent);
 }
 .btn.primary:hover {
   background: var(--magenta-deep);
@@ -86,7 +86,7 @@ h3 {
 }
 .btn.danger {
   background: var(--red-tint);
-  border-color: #f4c6cc;
+  border-color: var(--red-border);
   color: var(--red);
 }
 .btn.danger:hover {
@@ -161,7 +161,7 @@ a {
 }
 ::highlight(help-search-active) {
   background-color: var(--magenta);
-  color: #fff;
+  color: var(--on-accent);
 }
 
 @media print {

@@ -2,7 +2,7 @@
   /* Room for the on-screen view's two plate columns side by side. */
   max-width: 1180px;
   margin: 0 auto;
-  padding: 22px 22px 64px;
+  /* No padding of its own: AppShell's .wrap already gives the page its gutters. */
 }
 .controls {
   display: flex;
@@ -22,7 +22,7 @@
   color: var(--grey);
 }
 .title {
-  font-size: 22px;
+  font-size: var(--fs-display);
   margin-bottom: 18px;
 }
 /* No break-inside: avoid here - runs already start on a fresh page (print rule below), so its only
@@ -38,13 +38,13 @@
   gap: 24px;
 }
 .instrumentTitle {
-  font-size: 18px;
+  font-size: var(--fs-title);
   margin-bottom: 4px;
 }
 .signBlock {
   flex: 0 0 auto;
   min-width: 220px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 .signLine {
   display: flex;
@@ -62,14 +62,14 @@
   display: flex;
   flex-wrap: wrap;
   gap: 16px;
-  font-size: 13px;
+  font-size: var(--fs-base);
   color: var(--grey);
   margin-bottom: 10px;
 }
 .wellTable {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 .wellTable th,
 .wellTable td {
@@ -80,14 +80,14 @@
 }
 .wellTable th {
   background: var(--line-soft);
-  font-size: 11px;
+  font-size: var(--fs-xs);
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
 .trayHeader td {
   background: var(--bg);
   font-weight: 700;
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 .cellCode {
   font-weight: 700;
@@ -98,11 +98,11 @@
   white-space: nowrap;
 }
 .meta {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--grey);
 }
 .warn {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--red);
   font-weight: 700;
 }
@@ -122,21 +122,21 @@
 }
 /* Legend for the "*" flag, printed once under the well table. */
 .footnote {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--grey);
   margin-top: 4px;
 }
 
 /* --- SOP 7.3 / 7.4 data-entry worksheets ------------------------------- */
 .sectionSub {
-  font-size: 13px;
+  font-size: var(--fs-base);
   font-weight: 700;
   margin: 16px 0 6px;
 }
 .worksheetTable {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 .worksheetTable th,
 .worksheetTable td {
@@ -147,7 +147,7 @@
 }
 .worksheetTable th {
   background: var(--line-soft);
-  font-size: 10px;
+  font-size: var(--fs-2xs);
   text-transform: uppercase;
   letter-spacing: 0.02em;
 }
@@ -190,7 +190,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 18px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   margin: 6px 0 8px;
 }
 /* Plate QR / serial no. and Time loaded write-ins share one line. */
@@ -198,7 +198,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 4px 18px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   margin: 4px 0;
 }
 .qrBlank {

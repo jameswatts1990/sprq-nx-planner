@@ -15,7 +15,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
+  color: var(--on-accent);
   overflow: hidden;
   isolation: isolate;
 }
@@ -23,13 +23,13 @@
   background: var(--grey);
 }
 .u1 {
-  background: var(--magenta);
+  background: var(--use1);
 }
 .u2 {
-  background: var(--blue);
+  background: var(--use2);
 }
 .u3 {
-  background: var(--teal);
+  background: var(--use3);
 }
 .sprq {
   background: var(--sprq);
@@ -129,7 +129,7 @@
   font-weight: 800;
   letter-spacing: 0.08em;
   line-height: 1;
-  color: #fff;
+  color: var(--on-accent);
   text-shadow: 0 0 1px rgba(0, 0, 0, 0.85), 0 0 2px rgba(0, 0, 0, 0.55);
   white-space: nowrap;
   overflow: hidden;

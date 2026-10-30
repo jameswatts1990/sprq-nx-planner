@@ -7,6 +7,7 @@
 
 .status {
   color: var(--grey);
+  font-size: var(--fs-base);
   padding: 8px 2px;
 }
 
@@ -49,7 +50,7 @@
 /* One credit case in the worklist. */
 .row {
   border: 1px solid var(--line);
-  border-radius: var(--r-md, 10px);
+  border-radius: var(--r-sm);
   background: var(--card);
   padding: 12px 14px;
   display: flex;
@@ -199,7 +200,7 @@
   gap: 6px 20px;
   padding: 8px 14px;
   border: 1px solid var(--line);
-  border-radius: var(--r-md, 10px);
+  border-radius: var(--r-sm);
   background: var(--card);
 }
 .ovItem {

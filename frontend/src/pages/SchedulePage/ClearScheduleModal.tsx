@@ -36,7 +36,7 @@ export function ClearScheduleModal({ weekLabel, count, pending, error, onCancel,
         <Button variant="ghost" onClick={onCancel} disabled={pending}>
           Cancel
         </Button>
-        <Button variant="primary" onClick={onConfirm} disabled={pending || count === 0}>
+        <Button variant="danger" onClick={onConfirm} disabled={pending || count === 0}>
           {pending ? "Clearing…" : `Delete ${count} sample${count === 1 ? "" : "s"}`}
         </Button>
       </ModalActions>

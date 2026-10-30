@@ -21,20 +21,22 @@
   color: var(--grey);
   background: var(--line-soft);
 }
+/* Status tones draw their text in the -deep shade: the mid hue on its own tint is under WCAG AA
+   at 11px (see tokens.css). Matches Note's text, so a "warning" reads the same amber in both. */
 .success {
-  color: var(--green);
+  color: var(--green-deep);
   background: var(--green-tint);
 }
 .danger {
-  color: var(--red);
+  color: var(--red-deep);
   background: var(--red-tint);
 }
 .warning {
-  color: var(--amber);
+  color: var(--amber-deep);
   background: var(--amber-tint);
 }
 .orange {
-  color: var(--orange);
+  color: var(--orange-deep);
   background: var(--orange-tint);
 }
 .info {
@@ -61,12 +63,12 @@
 /* Solid ink - the non-default movie-time label (MovieTimeFlag). A plain fact, not a status,
    so it borrows no status hue and reads on every Use 1/2/3 card tint. */
 .ink {
-  color: #fff;
+  color: var(--on-accent);
   background: var(--ink);
 }
 /* Solid brand magenta - a Traction setting switched on (True) for Include Base Kinetics or
    Full Resolution Base Qual on the Batch Sheet, so an "on" that costs data/time is unmissable. */
 .magenta {
-  color: #fff;
+  color: var(--on-accent);
   background: var(--magenta);
 }

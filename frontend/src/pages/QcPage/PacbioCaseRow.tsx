@@ -71,6 +71,7 @@ function CaseDetails({ pacbioCase }: { pacbioCase: PacbioCaseOut }) {
         <ConfirmModal
           title="Delete this case?"
           confirmLabel="Delete case"
+          confirmVariant="danger"
           pendingLabel="Deleting…"
           pending={del.isPending}
           error={

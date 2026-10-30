@@ -722,6 +722,7 @@ function UndoImportControl({
         <ConfirmModal
           title="Undo this import?"
           confirmLabel="Undo import"
+          confirmVariant="danger"
           pendingLabel="Undoing…"
           pending={undoMutation.isPending}
           onCancel={() => {

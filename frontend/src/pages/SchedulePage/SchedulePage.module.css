@@ -147,7 +147,7 @@
   font-family: var(--sans);
   font-size: var(--fs-sm);
   font-weight: 800;
-  color: #fff;
+  color: var(--on-accent);
   background: var(--magenta);
   border-radius: var(--r-sm);
   padding: 7px 12px;

@@ -9,7 +9,7 @@
 .sparkleIcon {
   font-size: var(--fs-2xl);
   line-height: 1;
-  color: #fff;
+  color: var(--on-accent);
 }
 
 /* ── Top accordion header controls ───────────────────────────────────────────────────────

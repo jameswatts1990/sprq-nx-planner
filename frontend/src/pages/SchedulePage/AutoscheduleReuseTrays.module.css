@@ -19,7 +19,7 @@
   text-transform: none;
   letter-spacing: 0;
   color: var(--faint);
-  font-size: 11.5px;
+  font-size: var(--fs-xs);
 }
 .empty {
   margin: 0;
@@ -86,5 +86,5 @@
 .error {
   margin: 8px 0 0;
   font-size: var(--fs-xs);
-  color: var(--danger, #c0392b);
+  color: var(--red);
 }

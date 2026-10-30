@@ -126,24 +126,49 @@
   font-size: 9px;
   font-weight: 800;
   letter-spacing: 0.05em;
-  color: #fff;
-  background: var(--green);
   border: none;
-  border-radius: 4px;
+  border-radius: var(--r-xs);
   padding: 2px 6px;
 }
-/* The LOADED pill doubles as the unload control while a run is running (see
-   SchedulerDayCell.tsx) - green at rest (matches its "good, cells are on the instrument"
-   status), hover/focus swaps both its label ("UNLOAD") and its colour to the shared
-   magenta action tone so it reads as a control the instant you reach for it, distinct
+/* Colour comes from the run's status via the shared CYCLE_STATUS_TONE map (data-tone), in the same
+   tint + deep-text family as Badge - so the grid and Run detail/History can never disagree on what
+   a status looks like. */
+.lockTag[data-tone="default"] {
+  color: var(--grey);
+  background: var(--line-soft);
+}
+.lockTag[data-tone="info"] {
+  color: var(--blue-deep);
+  background: var(--blue-tint);
+}
+.lockTag[data-tone="success"] {
+  color: var(--green-deep);
+  background: var(--green-tint);
+}
+.lockTag[data-tone="warning"] {
+  color: var(--amber-deep);
+  background: var(--amber-tint);
+}
+.lockTag[data-tone="danger"] {
+  color: var(--red-deep);
+  background: var(--red-tint);
+}
+/* The RUNNING pill doubles as the unload control while a run is running (see
+   SchedulerDayCell.tsx) - hover/focus swaps both its label ("UNLOAD") and its colour to the
+   shared magenta action tone so it reads as a control the instant you reach for it, distinct
    from the padlock chip (which stays teal and never acts as a button). */
 .lockTagAction {
   cursor: pointer;
-  transition: background 0.15s ease;
+  transition: background 0.15s ease, color 0.15s ease;
 }
 .lockTagAction:hover:not(:disabled),
 .lockTagAction:focus-visible:not(:disabled) {
   background: var(--magenta);
+  color: var(--on-accent);
+}
+.lockTagAction:focus-visible {
+  outline: 2px solid var(--magenta-deep);
+  outline-offset: 2px;
 }
 .lockTagAction:disabled {
   opacity: 0.6;
@@ -161,7 +186,7 @@
   padding: 0 5px;
   border-radius: 999px;
   background: var(--teal-deep);
-  color: #fff;
+  color: var(--on-accent);
   overflow: hidden;
   cursor: default;
 }
@@ -351,7 +376,7 @@
 /* Small caption above the tray's cell list in the discard-tray confirm modal. */
 .trayCellsLabel {
   margin: 12px 0 6px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   font-weight: 700;
   color: var(--faint);
 }
@@ -363,7 +388,7 @@
 }
 .loadModalLabel {
   display: block;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   font-weight: 700;
   letter-spacing: 0.03em;
   text-transform: uppercase;
@@ -384,7 +409,7 @@
 .loadModalHint {
   display: block;
   margin-top: 6px;
-  font-size: 11.5px;
+  font-size: var(--fs-xs);
   color: var(--red);
 }
 

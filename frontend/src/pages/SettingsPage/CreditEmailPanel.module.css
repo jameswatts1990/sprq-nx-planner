@@ -44,7 +44,7 @@
   cursor: pointer;
 }
 .chip:hover {
-  border-color: var(--accent, var(--ink));
+  border-color: var(--line-hover);
   background: var(--card);
 }
 

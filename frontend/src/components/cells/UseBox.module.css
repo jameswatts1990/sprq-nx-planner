@@ -8,24 +8,24 @@
   border: 1.5px solid var(--line-hover);
   border-radius: 3px;
   font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: var(--fs-2xs);
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   color: var(--grey);
   background: var(--card);
 }
 .u1 {
-  border-color: var(--magenta);
+  border-color: var(--use1);
   color: var(--magenta-deep);
   background: var(--magenta-tint);
 }
 .u2 {
-  border-color: var(--blue);
+  border-color: var(--use2);
   color: var(--blue-deep);
   background: var(--blue-tint);
 }
 .u3 {
-  border-color: var(--teal);
+  border-color: var(--use3);
   color: var(--teal-deep);
   background: var(--teal-tint);
 }

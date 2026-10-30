@@ -231,7 +231,7 @@ function GenerateReportMenu({ fields, filename }: { fields: ReportField[]; filen
             ))}
           </dl>
           <ModalActions>
-            <Button variant="primary" onClick={() => setResult(null)}>
+            <Button onClick={() => setResult(null)}>
               Close
             </Button>
           </ModalActions>

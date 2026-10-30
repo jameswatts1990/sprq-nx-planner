@@ -14,23 +14,23 @@
 }
 .warn {
   background: var(--amber-tint);
-  border-color: #f0dcae;
-  color: #7a4d00;
+  border-color: var(--amber-border);
+  color: var(--amber-deep);
 }
 .info {
   background: var(--blue-tint);
-  border-color: #cfe6f5;
+  border-color: var(--blue-border);
   color: var(--blue-deep);
 }
 .bad {
   background: var(--red-tint);
-  border-color: #f4c6cc;
-  color: #8b1c28;
+  border-color: var(--red-border);
+  color: var(--red-deep);
 }
 .good {
   background: var(--green-tint);
-  border-color: #bfe6c9;
-  color: #1c6b31;
+  border-color: var(--green-border);
+  color: var(--green-deep);
 }
 .note :global(code) {
   font-family: var(--mono);
