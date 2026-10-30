@@ -140,7 +140,8 @@ class RunOut(BaseModel):
     load_date: date  # the day the whole run is physically loaded (one session)
     run_name: str | None = None  # run-level Traction ID, set at Confirm loaded
     # Derived run-level status (see run_serializer): "running"/"completed" once its plates
-    # are, else "planned". A run's plates are all loaded together, so this tracks the load.
+    # are, else "planned". A run's plates are all loaded together, so this tracks the load. A
+    # running run past its last cell's PPA end reads "completed" (run_serializer.run_status).
     status: str
     # The run's cell type - one type across both plates, chosen on the load-time dial when its
     # first sample was dropped (see placement_service._run_cell_type).

@@ -311,16 +311,17 @@ export function ScheduleSection() {
       </ul>
       <p>
         Each well&apos;s card shows its cell and use, then the values for Traction&apos;s well form. <b>Barcode</b> (the
-        Pool ID) and <b>Library Concentration (pM)</b> (the sample&apos;s Actual OPLC) are <b>copy buttons</b>: click
+        Pool ID), <b>Library Concentration (pM)</b> (the sample&apos;s Actual OPLC) and, beneath it,{" "}
+        <b>Volume of Library Pool Used (uL)</b> (imported from Benchling or the tracker sheet) are <b>copy buttons</b>: click
         one, see <b>✓ Copied</b>, and paste it into the matching Traction field. If your browser blocks the copy, the
         value is selected for you with <i>Press Ctrl+C</i>, so you can copy it by hand. Once you&apos;ve copied a
         well&apos;s barcode the card shows <b>✓ copied</b>, to help you keep your place across the run (this resets if
-        you reload the page). A well with no recorded concentration says so, for you to enter in Traction. Under{" "}
+        you reload the page). A well with no recorded concentration or volume says so (and a note above the run lists
+        those wells), for you to enter in Traction. Under{" "}
         <b>Settings</b>, a well that matches the Well Defaults says <i>Defaults</i>; otherwise each setting to change in
         that well&apos;s form shows as a chip, such as <b>30h</b> or <b>Kinetics False</b> (dark), or{" "}
         <b>Kinetics True</b> (magenta, as for any setting switched on). Hover a chip to see the default. Adaptive Loading never appears per well, because Traction sets it for the whole run. Any sample note
-        on the cell shows at the bottom of the card. RunNx doesn&apos;t track the <b>Volume</b> Traction asks for, so
-        enter each well&apos;s volume in Traction yourself.
+        on the cell shows at the bottom of the card.
       </p>
       <p>
         <b>Load</b> confirms the instrument has loaded, straight from the sheet. It does exactly what{" "}
@@ -339,7 +340,8 @@ export function ScheduleSection() {
         loads it, and a saved PDF is named <i>&quot;YYYY.MM.DD - Revio &lt;serial&gt;&quot;</i> (the load day and the
         instrument). Each page has a table split into a block per plate. Each well shows its cell code, use number and
         108-hour reuse deadline, the sample to load and its <b>Plate ID</b>, the per-cell run settings (movie / run
-        time, adaptive loading, include base kinetics, full-resolution baseQ) and the <b>Actual OPLC</b>. Any setting
+        time, adaptive loading, include base kinetics, full-resolution baseQ) and the <b>Actual OPLC</b>, with the{" "}
+        <b>Volume of Library Pool Used</b> beneath it (e.g. <i>4.5 µL pool</i>) when it was imported. Any setting
         that differs from the Sample Defaults (Settings tab) is printed in <b>bold with a &quot;*&quot;</b>, explained
         by a footnote under the table. A <b>Date</b> and <b>Signed / initials</b> box sits top-right to sign off the
         load, and a final <b>Notes</b> column prints any note you&apos;ve added to a sample on its cell (see{" "}
@@ -994,7 +996,9 @@ export function ScheduleSection() {
         </li>
         <li>
           A locked run carries its status tag — <b>RUNNING</b>, <b>COMPLETED</b> or <b>ABORTED</b>, in the same colours as on
-          Run detail and History. While it&apos;s running, hover or focus <b>RUNNING</b> and it turns magenta and swaps to{" "}
+          Run detail and History. A running run switches to <b>COMPLETED</b> on its own once its last cell has finished
+          sequencing and analysis (the same end time the Instruments page uses), so you never have to mark it done.
+          While it&apos;s running, hover or focus <b>RUNNING</b> and it turns magenta and swaps to{" "}
           <b>UNLOAD</b>; click it to return the run to planned so you can edit it again.
         </li>
         <li>

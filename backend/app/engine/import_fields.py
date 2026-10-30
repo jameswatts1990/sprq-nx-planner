@@ -44,6 +44,8 @@ K_INSERT_SIZE = "insert_size_bp"
 # (Control Dilution 3 is a fixed 1 µL, printed on the batch sheet, so it isn't stored here.)
 K_CLEANED_COMPLEX_VOL = "cleaned_complex_volume"
 K_LOADING_BUFFER_VOL = "loading_buffer_volume"
+# Volume of library pool used for the complex - a value Traction asks for per well. Import-only.
+K_LIBRARY_POOL_VOL = "library_pool_volume_used"
 
 
 @dataclass(frozen=True)
@@ -121,6 +123,14 @@ IMPORTABLE_FIELDS: list[ImportField] = [
     ImportField(
         K_LOADING_BUFFER_VOL, "Loading Buffer Vol (uL)", "6", kind="number",
         aliases=("loading buffer",),
+    ),
+    # Labelled with Benchling's own header so a Benchling export maps exactly; the tracker
+    # sheet's "Library Volume Taken for Complex (uL)" maps via an alias. Read-only in RunNx
+    # (import_only): shown on the batch sheet for Traction and on sample detail, never edited.
+    ImportField(
+        K_LIBRARY_POOL_VOL, "Volume of Library Pool Used (uL)", "4.5", kind="number", import_only=True,
+        aliases=("volume of library pool used", "library volume taken for complex",
+                 "library pool used", "library volume taken"),
     ),
 ]
 

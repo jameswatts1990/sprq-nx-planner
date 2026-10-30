@@ -13,6 +13,9 @@ export interface SampleOut {
    * (Control Dilution 3 is a fixed 1 µL printed on the batch sheet, so it isn't stored.) */
   cleaned_complex_volume: number | null;
   loading_buffer_volume: number | null;
+  /** Volume of library pool used (µL), the per-well volume Traction asks for. Import-only:
+   * read-only in RunNx, so it's absent from SampleCreate/SampleUpdate. */
+  library_pool_volume_used: number | null;
   adaptive_loading: string | null;
   full_resolution_base_q: string | null;
   priority: string | null;

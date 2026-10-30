@@ -48,6 +48,7 @@ def sample_out(
         actual_oplc=sample.actual_oplc,
         cleaned_complex_volume=sample.cleaned_complex_volume,
         loading_buffer_volume=sample.loading_buffer_volume,
+        library_pool_volume_used=sample.library_pool_volume_used,
         adaptive_loading=sample.adaptive_loading,
         full_resolution_base_q=sample.full_resolution_base_q,
         priority=sample.priority,

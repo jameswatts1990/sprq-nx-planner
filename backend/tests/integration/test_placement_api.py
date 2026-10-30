@@ -1,7 +1,7 @@
 """Interactive placement lifecycle: POST/DELETE /api/cell-uses, PATCH /api/cycles/{id}
 status transitions (confirm + unlock reverse-cascade + transition-legality guard), and
 POST /api/cycles/{id}/cancel."""
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 
 def _weekdays(n: int) -> list[str]:
@@ -519,6 +519,31 @@ def test_cell_last_use_run_date_tracks_most_recent_active_use(client):
     assert resp.status_code == 204
     # removing that reuse reverts it to the still-remaining first use's run_date
     assert client.get(f"/api/cells/{cell_id}").json()["last_use_run_date"] == mon
+
+
+def test_running_run_reads_completed_once_its_acquisition_time_is_up(client):
+    """Nothing in the lab workflow marks a run completed, so a loaded run whose last cell has
+    finished PPA must read "completed" (grid, History filter, batch sheet), not "running" forever."""
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1\nB1,bc2"})
+    mon, tue = _weekdays(2)
+    done_id = _place(client, _sid(client, "A1"), mon, 0).json()["run_id"]
+    live_id = _place(client, _sid(client, "B1"), tue, 0).json()["run_id"]
+
+    # Confirmed loaded 5 days ago: a 24h movie + prep + PPA is long over.
+    five_days_ago = (datetime.now(timezone.utc) - timedelta(days=5)).isoformat()
+    done = client.patch(f"/api/cycles/{done_id}", json={"status": "running", "at": five_days_ago})
+    assert done.status_code == 200, done.text
+    assert done.json()["status"] == "completed"
+    assert done.json()["is_locked"] is False
+
+    # Confirmed loaded just now: still on the instrument.
+    live = client.patch(f"/api/cycles/{live_id}", json={"status": "running"})
+    assert live.json()["status"] == "running"
+
+    completed = client.get("/api/cycles", params={"status": "completed"}).json()
+    assert [r["run_id"] for r in completed] == [done_id]
+    sheet = client.get("/api/batch-sheet", params={"load_date": mon}).json()
+    assert sheet["runs"][0]["status"] == "completed"
 
 
 def test_patch_cycle_confirm_and_unlock_reverse_cascade(client):

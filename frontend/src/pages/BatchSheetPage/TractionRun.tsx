@@ -132,6 +132,13 @@ function WellCard({
             <span className={styles.muted}>Not recorded. Enter it in Traction</span>
           )}
         </Field>
+        <Field label="Volume of Library Pool Used (uL)">
+          {well.library_pool_volume_used != null ? (
+            <CopyValue value={String(well.library_pool_volume_used)} label="library pool volume" />
+          ) : (
+            <span className={styles.muted}>Not recorded. Enter it in Traction</span>
+          )}
+        </Field>
         <Field label="Settings">
           {allDefault ? (
             <span className={styles.muted}>Defaults</span>
@@ -337,7 +344,6 @@ export function TractionRun({ run, defaults, nav }: { run: BatchSheetRunOut; def
           />
         ))}
       </div>
-      <p className={styles.muted}>Volume isn&apos;t tracked in RunNx. Enter each well&apos;s volume in Traction.</p>
       {loading && (
         <LoadRunModal
           run={run}

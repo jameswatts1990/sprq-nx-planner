@@ -77,6 +77,8 @@ class SampleOut(BaseModel):
     actual_oplc: float | None
     cleaned_complex_volume: float | None
     loading_buffer_volume: float | None
+    # Import-only (read-only): output here, deliberately absent from SampleCreate/SampleUpdate.
+    library_pool_volume_used: float | None
     adaptive_loading: str | None
     full_resolution_base_q: str | None
     priority: str | None

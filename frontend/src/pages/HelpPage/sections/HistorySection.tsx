@@ -38,7 +38,7 @@ export function HistorySection() {
           <span className={styles.legendSwatchLabel}>
             <Badge tone={CYCLE_STATUS_TONE.completed}>completed</Badge>
           </span>
-          <span>The run has finished.</span>
+          <span>The run has finished — every cell is through sequencing and analysis. A loaded run turns completed automatically once its scheduled time is up.</span>
         </div>
         <div className={styles.legendRow}>
           <span className={styles.legendSwatchLabel}>
@@ -100,8 +100,10 @@ export function HistorySection() {
       <p>
         <b>What it&apos;s for:</b> a single sample (pool) on its own page, reached by clicking a <b>Pool ID</b>{" "}
         anywhere in the app — a cell card, a cell&apos;s use history, or a row in the Samples list above. It&apos;s
-        titled with the sample&apos;s Pool ID and its status badge, and shows the sample&apos;s full metadata (Plate ID, priority, Target OPLC, Actual OPLC, movie time, loading
-        options, barcodes, Sanger IDs, created/updated times) and a <b>Cell uses</b> table of every cell it has been
+        titled with the sample&apos;s Pool ID and its status badge, and shows the sample&apos;s full metadata (Plate ID,
+        priority, Target OPLC, Actual OPLC, the loading volumes including the read-only <b>Library pool vol used</b>{" "}
+        from import, movie time, loading options, barcodes, Sanger IDs, created/updated times) and a <b>Cell uses</b>{" "}
+        table of every cell it has been
         placed on — the run (links to the run), plate, cell (links to the cell), well, use status, start/complete
         times, and notes. This page works for a sample of any status, so it&apos;s the durable place a Pool ID
         always links to.

@@ -49,7 +49,7 @@ def list_runs(
 
     runs = list(db.scalars(stmt).unique().all())
     out = [run_out(db, rb) for rb in runs]
-    # `status` filters on the derived run-level status (see run_serializer._run_status).
+    # `status` filters on the derived run-level status (see run_serializer.run_status - incl. a running run past its acquisition end reading "completed").
     if status:
         out = [r for r in out if r.status == status]
     return out

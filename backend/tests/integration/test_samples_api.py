@@ -210,6 +210,45 @@ def test_create_and_update_loading_dilution_volumes(client):
     assert body["loading_buffer_volume"] is None
 
 
+def test_library_pool_volume_is_imported_shown_on_batch_sheet_and_read_only(client):
+    """Volume of Library Pool Used auto-maps from a Benchling export, reaches the batch sheet
+    well (Traction asks for it), and survives an edit: it's import-only, so no edit can set or
+    clear it."""
+    raw = "Container,Barcodes,Volume of Library Pool Used (uL)\nTRAC-2-40200,bc1,4.5"
+    prev = client.post("/api/imports/preview", json={"raw_text": raw}).json()
+    assert prev["suggested_map"]["library_pool_volume_used"] == 2
+    resp = client.post(
+        "/api/imports", json={"raw_text": raw, "has_header": True, "column_map": prev["suggested_map"]}
+    )
+    assert resp.status_code == 200, resp.text
+    (sample,) = resp.json()["samples"]
+    assert sample["library_pool_volume_used"] == 4.5
+
+    load_date = _next_monday_iso()
+    place = client.post(
+        "/api/cell-uses",
+        json={
+            "sample_id": sample["id"],
+            "instrument_serial": "84047",
+            "load_date": load_date,
+            "slot_index": 0,
+            "run_time_hours": 24,
+        },
+    )
+    assert place.status_code in (200, 201), place.text
+    sheet = client.get("/api/batch-sheet", params={"load_date": load_date}).json()
+    (well,) = [w for r in sheet["runs"] for p in r["plates"] for w in p["wells"]]
+    assert well["library_pool_volume_used"] == 4.5
+
+    resp = client.patch(
+        f"/api/samples/{sample['id']}",
+        json={"barcodes": ["bc1"], "target_oplc": 250, "library_pool_volume_used": None},
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["target_oplc"] == 250
+    assert resp.json()["library_pool_volume_used"] == 4.5
+
+
 def test_update_keeps_a_reused_barcode_without_unique_constraint_error(client):
     """Re-submitting an unchanged barcode must not trip uq_sample_barcode: the old rows
     are deleted before the new ones are inserted."""

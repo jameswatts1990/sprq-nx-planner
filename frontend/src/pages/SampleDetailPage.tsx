@@ -176,6 +176,11 @@ export function SampleDetailPage() {
               <span className={styles.value}>{sample.loading_buffer_volume ?? "—"}</span>
             </div>
             <div>
+              {/* Import-only (from Benchling / the tracker sheet): read-only, not on the Edit form. */}
+              <span className="detailLabel">Library pool vol used</span>
+              <span className={styles.value}>{sample.library_pool_volume_used ?? "—"}</span>
+            </div>
+            <div>
               <span className="detailLabel">Adaptive loading</span>
               <span className={styles.value}>{sample.adaptive_loading ?? "—"}</span>
             </div>

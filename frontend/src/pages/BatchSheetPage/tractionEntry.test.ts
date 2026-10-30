@@ -35,6 +35,7 @@ function well(slot: number, overrides: Partial<BatchSheetWellOut> = {}): BatchSh
     actual_oplc: 180,
     cleaned_complex_volume: null,
     loading_buffer_volume: null,
+    library_pool_volume_used: 4.5,
     notes: null,
     ...overrides,
   };
@@ -129,6 +130,15 @@ describe("runReminders", () => {
     expect(reminders[0].text).toContain("P1 A1");
     expect(reminders[2].text).toContain("1 well has settings");
     expect(reminders[3].text).toContain("Library Concentration isn't recorded for 1 well (P1 B1)");
+  });
+
+  it("lists the wells with no Volume of Library Pool Used, after the concentration note", () => {
+    const r = run([plate(1, [well(0, { actual_oplc: null }), well(1, { library_pool_volume_used: null })])]);
+    const reminders = runReminders(r, DEFAULTS, 24);
+    expect(reminders.map((n) => n.text)).toEqual([
+      expect.stringContaining("Library Concentration isn't recorded for 1 well (P1 A1)"),
+      expect.stringContaining("Volume of Library Pool Used isn't recorded for 1 well (P1 B1)"),
+    ]);
   });
 
   it("tells the user to set a run-wide non-default Adaptive Loading in Well Defaults", () => {

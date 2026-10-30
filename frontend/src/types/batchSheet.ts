@@ -28,6 +28,7 @@ export interface BatchSheetWellOut {
   // Control Dilution 3 is a fixed 1 µL printed on the batch sheet, so it isn't carried here.
   cleaned_complex_volume: number | null;
   loading_buffer_volume: number | null;
+  library_pool_volume_used: number | null; // Traction's per-well volume (µL), if imported
   notes: string | null;
 }
 

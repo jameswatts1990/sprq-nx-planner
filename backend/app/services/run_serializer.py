@@ -7,6 +7,7 @@ and nest its plates.
 """
 from __future__ import annotations
 
+from datetime import datetime
 
 from sqlalchemy.orm import Session, selectinload
 
@@ -26,7 +27,7 @@ from app.services.cell_service import (
     use_sort_key,
     window_hours_elapsed,
 )
-from app.services.cell_timing import coarse_movie_end, run_is_acquiring, run_load_at
+from app.services.cell_timing import coarse_movie_end, run_acquisition_end, run_is_acquiring, run_load_at
 from app.services.instrument_lock import effective_run_start, run_lock_until
 from app.timeutil import ensure_aware, utcnow
 
@@ -182,13 +183,17 @@ def _plate_out(
     )
 
 
-def _run_status(cycles: list[Cycle]) -> str:
+def run_status(run_batch: RunBatch, cycles: list[Cycle], now: datetime) -> str:
     """Run-level status derived from its plates. The plates are all loaded in one session,
     so the run reads as running once any plate is, and completed only once all plates are
-    terminal."""
+    terminal. Nothing in the lab workflow marks a run completed, so a running run whose last
+    cell has finished PPA (``run_acquisition_end``, the same timing model the Instruments page
+    and gantts use) also reads as completed - display-only, the persisted Cycle.status stays
+    "running"."""
     statuses = [c.status for c in cycles]
     if any(s == "running" for s in statuses):
-        return "running"
+        end = run_acquisition_end(run_batch)
+        return "completed" if end is not None and now >= end else "running"
     if statuses and all(s in ("completed", "aborted") for s in statuses):
         return "completed" if any(s == "completed" for s in statuses) else "aborted"
     return "planned"
@@ -225,9 +230,9 @@ def run_out(db: Session, run_batch: RunBatch, *, with_effective_start: bool = Fa
     dup_groups = duplicate_groups(db, ext_ids)
 
     plates = [_plate_out(run_batch, c, dup_groups, with_reuse_timing=with_effective_start) for c in cycles]
-    status = _run_status(cycles)
-
     now = utcnow()
+    status = run_status(run_batch, cycles, now)
+
     if cycles:
         # Two different windows, deliberately: `lock_until` is the short LOADING-lock (gates when
         # the NEXT run can load; drives grid continuation), while `is_locked` means this run is

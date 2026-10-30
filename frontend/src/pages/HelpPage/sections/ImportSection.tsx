@@ -16,6 +16,13 @@ export function ImportSection() {
         the columns to fields on the next step, so the headers don&apos;t have to be named a particular way. Each
         Barcodes cell may hold one or several codes.
       </p>
+      <p>
+        <b>Where to get the file:</b> a <b>Where to get the file</b> card under the paste box gives the steps for each
+        source. <b>Benchling</b>: open the <i>Load a Sequencer</i> task (the card links straight to it), find the{" "}
+        <b>Pending</b> samples, export them as a CSV and import it here, then change those samples&apos; status to{" "}
+        <b>Planned</b> in Benchling. <b>Google Sheet</b>: download the sequencing tracker as a .csv or .xlsx and use{" "}
+        <b>Upload from scheduler…</b> (below).
+      </p>
       <dl className={styles.terms}>
         <dt>Upload CSV</dt>
         <dd>Pick a .csv, .tsv, or .txt file from your computer; its contents fill the box.</dd>
@@ -59,11 +66,12 @@ export function ImportSection() {
         to return to the text without losing it.
       </p>
       <p>
-        <b>Scheduler-sheet headings:</b> the tracker sheet names three fields differently, and the planner maps them
+        <b>Scheduler-sheet headings:</b> the tracker sheet names four fields differently, and the planner maps them
         for you — <i>Loading Conc. (pM)</i> → <b>Actual OPLC</b> (not <i>Target Loading Concentration</i> or{" "}
-        <i>Max possible Loading Conc.</i>), <i>Library Size (bp)</i> → <b>Insert Size</b>, and{" "}
+        <i>Max possible Loading Conc.</i>), <i>Library Size (bp)</i> → <b>Insert Size</b>,{" "}
+        <i>Library Volume Taken for Complex (uL)</i> → <b>Volume of Library Pool Used</b>, and{" "}
         <i>Pre Extention time (Mins)</i> → <b>Adaptive Loading</b>, where a cell reading <i>adaptive</i> imports as{" "}
-        <b>True</b>. All three carry the amber “≈” flag below, so glance at them before importing.
+        <b>True</b>. All four carry the amber “≈” flag below, so glance at them before importing.
       </p>
       <p>
         <b>Amber “≈” flag:</b> when the planner matched a field to a column whose heading isn&apos;t an exact name
@@ -84,6 +92,12 @@ export function ImportSection() {
         and used only on the batch sheet&apos;s loading-dilution worksheet. You can map them here, and you can also
         fill them in (or correct them) later on the manual <i>Add / Edit sample</i> form. Leave them unmapped if your
         file doesn&apos;t have them.
+      </p>
+      <p>
+        <b>Volume of Library Pool Used (uL)</b> is the volume Traction asks for on each well. It maps automatically
+        from a Benchling export (same heading) or the tracker sheet (<i>Library Volume Taken for Complex (uL)</i>), and
+        shows on the Batch Sheet and the sample&apos;s detail page. It is <b>read-only</b>: it isn&apos;t on the{" "}
+        <i>Add / Edit sample</i> form, so to change it, fix the source file and import the sample again.
       </p>
 
       <p className={styles.subheading}>Result panel</p>

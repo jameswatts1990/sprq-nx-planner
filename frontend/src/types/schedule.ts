@@ -147,7 +147,8 @@ export interface RunOut {
   /** Optional lab-assigned label (e.g. "TRACTION-RUN-1234") set when the run is locked
    * (Confirm loaded) - overrides "#<run_id>" everywhere a run is displayed. */
   run_name: string | null;
-  /** Derived run-level status: "running"/"completed" once its plates are, else "planned". */
+  /** Derived run-level status: "running"/"completed" once its plates are, else "planned". A
+   * running run reads "completed" once its last cell has finished PPA (by time). */
   status: CycleStatus;
   /** The run's cell type - one type across both plates, chosen on the load-time dial. */
   cell_type: CellType;

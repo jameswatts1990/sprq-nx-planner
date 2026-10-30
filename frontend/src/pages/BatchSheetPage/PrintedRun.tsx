@@ -82,7 +82,14 @@ function WellRow({ well, defaults }: { well: BatchSheetWellOut; defaults?: Sampl
           defaultValue={defaults?.full_resolution_base_q}
         />
       </td>
-      <td>{well.actual_oplc ?? "—"}</td>
+      {/* The pool volume stacks under the OPLC rather than adding a column; an 8-well run with
+          every volume recorded still prints on one page. */}
+      <td>
+        {well.actual_oplc ?? "—"}
+        {well.library_pool_volume_used != null && (
+          <div className={styles.meta}>{well.library_pool_volume_used} µL pool</div>
+        )}
+      </td>
       <td className={styles.notesCell}>{well.notes ? well.notes : "—"}</td>
     </tr>
   );
@@ -270,7 +277,7 @@ export function PrintedRun({ run, defaults }: { run: BatchSheetRunOut; defaults?
             <th>Pool ID</th>
             <th>Plate ID</th>
             <th>Settings</th>
-            <th>Actual OPLC</th>
+            <th>Actual OPLC / Pool vol</th>
             <th>Notes</th>
           </tr>
         </thead>

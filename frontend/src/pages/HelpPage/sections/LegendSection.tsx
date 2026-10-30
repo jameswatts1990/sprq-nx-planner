@@ -64,7 +64,7 @@ const CELL_STATUS_MEANING: Record<CellStatus, string> = {
 const CYCLE_STATUS_MEANING: Record<CycleStatus, string> = {
   planned: "Scheduled but not yet loaded; still editable.",
   running: "Confirmed loaded / currently sequencing.",
-  completed: "The run has finished.",
+  completed: "The run has finished — every cell is through sequencing and analysis. A loaded run turns completed automatically once its scheduled time is up.",
   aborted: "The run was stopped or cancelled.",
 };
 

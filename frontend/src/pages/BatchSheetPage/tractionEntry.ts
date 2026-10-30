@@ -171,5 +171,16 @@ export function runReminders(
     });
   }
 
+  const noVolume = wells.filter((w) => w.library_pool_volume_used == null).map(wellName);
+  if (noVolume.length > 0) {
+    reminders.push({
+      tone: "info",
+      icon: "i",
+      text:
+        `Volume of Library Pool Used isn't recorded for ${noVolume.length} ` +
+        `${plural(noVolume.length, "well", "wells")} (${noVolume.join(", ")}). Enter it in Traction by hand.`,
+    });
+  }
+
   return reminders;
 }

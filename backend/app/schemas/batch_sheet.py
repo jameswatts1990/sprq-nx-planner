@@ -36,6 +36,7 @@ class BatchSheetWellOut(BaseModel):
     # Control Dilution 3 is a fixed 1 µL, printed by the batch sheet, so it isn't carried here.
     cleaned_complex_volume: float | None
     loading_buffer_volume: float | None
+    library_pool_volume_used: float | None  # Traction's per-well volume, if imported
     notes: str | None  # free-text placement note, printed alongside the well
 
 

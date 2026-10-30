@@ -694,7 +694,61 @@ export function ImportPage() {
           </div>
         </CardBody>
       </Card>
+
+      <ImportSources />
     </div>
+  );
+}
+
+/** Benchling's "Load a Sequencer" task list, filtered to the open tasks the lab imports from. */
+const BENCHLING_LOAD_SEQUENCER_URL =
+  "https://tol-sanger.benchling.com/workflows?filter=view%3APROCESSES%3Btypes%3AIS_ONE_OF%3Aprocess_task%3Bschema%3AIS_ONE_OF%3Aprstsch_U6TZuZV0aV%3BtaskStatus%3AIS_ONE_OF%3Awfts_yBA66UOx%3BarchivePurposes%3AIS_ONE_OF%3ANOT_ARCHIVED%3BisAssociatedWithUnsubmittedRequestV2Submission%3AIS_FALSE%3BProcessesIsSystemDataFilter%3AIS_FALSE&offset=0&limit=100&sorts=starred%3A0%3Bcreated_at%3A1&q=&v=2";
+
+/** Where each source file comes from, under the paste/upload card on the input step. */
+function ImportSources() {
+  return (
+    <Card>
+      <CardHeader>
+        <h2>Where to get the file</h2>
+      </CardHeader>
+      <CardBody>
+        <div className={styles.sources}>
+          <div>
+            <p className={styles.subheading}>Benchling</p>
+            <ol className={styles.sourceSteps}>
+              <li>
+                Open the{" "}
+                <a className="link" href={BENCHLING_LOAD_SEQUENCER_URL} target="_blank" rel="noreferrer">
+                  Load a Sequencer task ↗
+                </a>{" "}
+                in Benchling.
+              </li>
+              <li>
+                Look for the <b>Pending</b> samples and export them as a CSV.
+              </li>
+              <li>
+                Upload it with <b>Upload CSV</b> above (or paste it in) and import it into RunNx.
+              </li>
+              <li>
+                After importing, change those samples&apos; status to <b>Planned</b> in Benchling.
+              </li>
+            </ol>
+          </div>
+          <div>
+            <p className={styles.subheading}>Google Sheet</p>
+            <ol className={styles.sourceSteps}>
+              <li>
+                Download the sequencing tracker sheet as a <b>.csv</b> or <b>.xlsx</b> (File → Download).
+              </li>
+              <li>
+                Click the <b>▾</b> beside <b>Upload CSV</b>, choose <b>Upload from scheduler…</b> and pick the file.
+                Rows are pooled by Pool ID automatically.
+              </li>
+            </ol>
+          </div>
+        </div>
+      </CardBody>
+    </Card>
   );
 }
 
