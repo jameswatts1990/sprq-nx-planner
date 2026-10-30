@@ -39,9 +39,9 @@ import { addDaysUTC, formatShortDateUTC, isWeekendUTC, localWallTimeToUtcParts, 
 
 import { AutoscheduleDrawer } from "./AutoscheduleDrawer";
 import { BacklogPanel, readBacklogOpenPref, writeBacklogOpenPref } from "./BacklogPanel";
+import { BatchSheetModal } from "./BatchSheetModal";
 import { ClearScheduleModal } from "./ClearScheduleModal";
 import { DayNoteModal } from "./DayNoteModal";
-import { PrintBatchSheetModal } from "./PrintBatchSheetModal";
 import styles from "./SchedulePage.module.css";
 import { ScheduleSearchBar } from "./ScheduleSearchBar";
 import { useScheduleActions } from "./useScheduleActions";
@@ -160,7 +160,7 @@ export function SchedulePage() {
   }, [schedulingSettingsQuery.data]);
   const [autoscheduleOpen, setAutoscheduleOpen] = useState(false);
   const [detail, setDetail] = useState<DetailTarget | null>(null);
-  const [printSheetOpen, setPrintSheetOpen] = useState(false);
+  const [batchSheetOpen, setBatchSheetOpen] = useState(false);
   // The day-note modal: a day header's "+ Note" opens it empty for that date (note null); a
   // banner click opens that note for edit/delete.
   const [noteEditor, setNoteEditor] = useState<{ date: string; note: ScheduleNoteOut | null } | null>(null);
@@ -549,7 +549,7 @@ export function SchedulePage() {
       detail ||
       cellInfo ||
       qcTarget ||
-      printSheetOpen ||
+      batchSheetOpen ||
       noteEditor ||
       actions.clearConfirmOpen ||
       actions.recalculateTarget ||
@@ -577,7 +577,7 @@ export function SchedulePage() {
     detail,
     cellInfo,
     qcTarget,
-    printSheetOpen,
+    batchSheetOpen,
     noteEditor,
     actions.clearConfirmOpen,
     actions.recalculateTarget,
@@ -742,8 +742,13 @@ export function SchedulePage() {
                       aria-label="Jump to date"
                       title="Jump to the week containing this date"
                     />
-                    <Button size="sm" variant="ghost" onClick={() => setPrintSheetOpen(true)}>
-                      Print Batch Sheet
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setBatchSheetOpen(true)}
+                      title="Open a day's runs laid out like Traction's run form, to copy into Traction or print"
+                    >
+                      Batch Sheet
                     </Button>
                     <Button
                       size="sm"
@@ -982,8 +987,8 @@ export function SchedulePage() {
         </ConfirmModal>
       )}
 
-      {printSheetOpen && (
-        <PrintBatchSheetModal instruments={instrumentsQuery.data ?? []} onClose={() => setPrintSheetOpen(false)} />
+      {batchSheetOpen && (
+        <BatchSheetModal instruments={instrumentsQuery.data ?? []} onClose={() => setBatchSheetOpen(false)} />
       )}
 
       {noteEditor && (

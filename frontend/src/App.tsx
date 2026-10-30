@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import { Navigate, Route, Routes, useParams } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation, useParams } from "react-router-dom";
 
 import { AppShell } from "@/components/layout/AppShell";
 import { BacklogPage } from "@/pages/BacklogPage";
@@ -15,8 +15,8 @@ import { SchedulePage } from "@/pages/SchedulePage/SchedulePage";
 
 // Rare / heavy routes are code-split so their large dependencies stay out of the initial
 // bundle that gates first paint of the default (Schedule) screen: StatsPage pulls in recharts,
-// ImportPage pulls in read-excel-file, BatchSheetPage is a print-only view, and SettingsPage/
-// HelpPage are visited rarely. The daily-workflow routes above stay eagerly imported.
+// ImportPage pulls in read-excel-file, and BatchSheetPage (a once-a-day standalone tab),
+// SettingsPage and HelpPage are visited rarely. The daily-workflow routes above stay eagerly imported.
 const StatsPage = lazy(() => import("@/pages/StatsPage/StatsPage").then((m) => ({ default: m.StatsPage })));
 const ImportPage = lazy(() => import("@/pages/ImportPage").then((m) => ({ default: m.ImportPage })));
 const BatchSheetPage = lazy(() =>
@@ -38,6 +38,13 @@ function TrayRedirect() {
   return <Navigate to={trayId ? `/cells?tray=${trayId}` : "/cells"} replace />;
 }
 
+/** The Batch Sheet moved from /print/batch-sheet when it became an on-screen view too; this
+ * keeps old links and bookmarks working, carrying their ?date=&instruments= across. */
+function LegacyBatchSheetRedirect() {
+  const { search } = useLocation();
+  return <Navigate to={{ pathname: "/batch-sheet", search }} replace />;
+}
+
 export default function App() {
   return (
     <AppShell>
@@ -47,7 +54,8 @@ export default function App() {
           <Route path="/import" element={<ImportPage />} />
           <Route path="/backlog" element={<BacklogPage />} />
           <Route path="/schedule" element={<SchedulePage />} />
-          <Route path="/print/batch-sheet" element={<BatchSheetPage />} />
+          <Route path="/batch-sheet" element={<BatchSheetPage />} />
+          <Route path="/print/batch-sheet" element={<LegacyBatchSheetRedirect />} />
           <Route path="/cells" element={<CellsPage />} />
           <Route path="/cells/:cellId" element={<CellDetailPage />} />
           <Route path="/qc" element={<QcPage />} />

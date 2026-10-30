@@ -1,0 +1,139 @@
+.run {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  box-shadow: var(--shadow-sm);
+  padding: 18px 20px;
+  margin-bottom: 22px;
+}
+.title {
+  font-size: var(--fs-title);
+  margin-bottom: 2px;
+}
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  font-size: var(--fs-base);
+  color: var(--grey);
+  margin-bottom: 12px;
+}
+.muted {
+  color: var(--grey);
+  font-size: var(--fs-sm);
+  font-weight: 400;
+}
+/* Section headings echo Traction's own (bold, magenta rule beneath) so each block on screen
+   is easy to match to the same block in Traction's run form. */
+.sectionTitle {
+  font-size: var(--fs-xl);
+  letter-spacing: 0;
+  margin: 16px 0 8px;
+  padding-bottom: 3px;
+  border-bottom: 2px solid var(--magenta);
+}
+.fields,
+.wellFields {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 6px 14px;
+  align-items: center;
+  margin: 0;
+}
+.fields {
+  max-width: 640px;
+  font-size: var(--fs-base);
+}
+.wellFields {
+  font-size: var(--fs-sm);
+}
+.fieldLabel {
+  color: var(--grey);
+}
+.fieldValue {
+  margin: 0;
+  min-width: 0;
+}
+.mixed {
+  color: #7a4d00;
+  font-weight: 700;
+}
+
+/* Plate 1 and Plate 2 side by side, wells A1-D1 stacked - Traction's plate picture. */
+.plates {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 8px;
+}
+@media (max-width: 900px) {
+  .plates {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.plate {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--bg);
+}
+.plateHeading {
+  font-size: var(--fs-base);
+  font-weight: 700;
+}
+.well {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--card);
+}
+.well[data-copied="true"] {
+  border-color: #bfe6c9;
+}
+.wellHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+}
+.wellLabel {
+  font-size: var(--fs-2xl);
+  font-weight: 800;
+}
+.expired {
+  color: var(--red);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+}
+.done {
+  margin-left: auto;
+  color: #1c6b31;
+  font-size: var(--fs-sm);
+  font-weight: 700;
+}
+.chips {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.notes {
+  font-size: var(--fs-sm);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: var(--line-soft);
+}
+.empty {
+  padding: 10px 12px;
+  border: 1px dashed var(--line-hover);
+  border-radius: var(--r-sm);
+  color: var(--grey);
+  font-size: var(--fs-sm);
+}

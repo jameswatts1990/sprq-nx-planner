@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { cellPositionLabel, plateWellFromPlate, plateWellFromSlot, plateWellFromWell } from "./plateWell";
+import {
+  cellPositionLabel,
+  plateWellFromPlate,
+  plateWellFromSlot,
+  plateWellFromWell,
+  tractionWellFromSlot,
+} from "./plateWell";
 
 describe("plateWellFromSlot", () => {
   it("maps slots 0-3 to Plate 1 wells A01-D01", () => {
@@ -22,6 +28,15 @@ describe("plateWellFromSlot", () => {
   it("spells the plate out in full", () => {
     expect(plateWellFromSlot(0, { full: true })).toBe("Plate 1 · A01");
     expect(plateWellFromSlot(6, { full: true })).toBe("Plate 2 · C01");
+  });
+});
+
+describe("tractionWellFromSlot (Traction labels each plate A1-D1)", () => {
+  it("maps both plates' slots to A1-D1, never the plate", () => {
+    expect(tractionWellFromSlot(0)).toBe("A1");
+    expect(tractionWellFromSlot(3)).toBe("D1");
+    expect(tractionWellFromSlot(4)).toBe("A1");
+    expect(tractionWellFromSlot(7)).toBe("D1");
   });
 });
 

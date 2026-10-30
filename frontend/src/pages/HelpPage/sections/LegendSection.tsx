@@ -298,7 +298,7 @@ export function LegendSection() {
         </div>
       </div>
 
-      <p className={styles.subheading}>Movie time flag (Backlog, Schedule)</p>
+      <p className={styles.subheading}>Movie time &amp; non-default settings flag (Backlog, Schedule, Batch Sheet)</p>
       <div className={styles.legendGrid}>
         <div className={styles.legendRow}>
           <span className={styles.legendSwatchLabel}>
@@ -315,6 +315,16 @@ export function LegendSection() {
             <MovieTimeFlag hours={30} />
           </span>
           <span>The same flag for a 30&nbsp;h movie. A default-length movie shows no flag.</span>
+        </div>
+        <div className={styles.legendRow}>
+          <span className={styles.legendSwatchLabel}>
+            <Badge tone="ink">Kinetics True</Badge>
+          </span>
+          <span>
+            On the <b>Batch Sheet</b>, the same dark chip marks any well setting that differs from{" "}
+            <b>Settings → Sample defaults</b>, which you&apos;ll need to change in that well&apos;s Traction form.
+            Hover it to see the default.
+          </span>
         </div>
       </div>
 

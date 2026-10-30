@@ -1,4 +1,4 @@
-/* Follows PrintBatchSheetModal.module.css's field + fieldset/label choice-list convention. */
+/* Follows BatchSheetModal.module.css's field + fieldset/label choice-list convention. */
 .intro {
   margin: 0 0 14px;
   font-size: var(--fs-md);

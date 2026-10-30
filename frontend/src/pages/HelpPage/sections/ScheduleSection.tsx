@@ -260,29 +260,71 @@ export function ScheduleSection() {
         finished samples).
       </p>
 
-      <p className={styles.subheading}>Print Batch Sheet</p>
+      <p className={styles.subheading}>Batch Sheet</p>
       <p>
-        <b>Print Batch Sheet</b> opens a printable loading sheet for the Revios. Pick the <b>load day</b> and tick which
-        instruments to include — handy when different people load different machines, since each person can print
-        just their own, then click <b>View Sheet</b> to open the printable sheet in a new tab. You get <b>one section per run</b>, and within it a table split into a block per plate: <b>Plate
-        1</b>, then <b>Plate 2</b> if the run has one. Each plate block is headed with the day it sequences, e.g.{" "}
-        <i>&quot;Plate 2 · acquires Fri 25 Jul · reuse (Use 2)&quot;</i> — so a reuse run&apos;s second plate, which the
-        instrument runs the next day, is on the sheet too (both plates are loaded in the one session). Each well shows
-        its cell code, use number and 108-hour reuse deadline, the sample to load and its <b>Plate ID</b>, the
-        per-cell run settings (movie / run time, adaptive loading, include base kinetics, full-resolution baseQ) and the
-        <b> Actual OPLC</b>. Any setting that differs from the configured Sample Defaults (Admin tab) is shown in
-        <b> bold with a &quot;*&quot;</b> so a non-standard value stands out; a footnote under the table explains the
-        mark. Because run time is per-cell, each well shows its own movie time. Each run&apos;s page also has a
-        <b> Date</b> and <b>Signed / initials</b> box top-right to sign off the load. A final <b>Notes</b> column prints
-        any note you&apos;ve added to a sample on its cell (see <b>Sample notes</b> under QC actions below). Use the
-        page&apos;s <b>Print / Save as PDF</b> button, which opens your browser&apos;s normal print dialog (choose a
-        physical printer, or &quot;Save as PDF&quot;). The sheet prints <b>landscape, one run per page</b>, so each
-        Revio&apos;s run is a self-contained page you can hand to whoever loads it. When you save to PDF the filename is
-        pre-filled as <i>&quot;YYYY.MM.DD - Revio &lt;serial&gt;&quot;</i> (the load day and the instrument), so
-        printing one Revio at a time gives a tidily named file per machine.
+        <b>Batch Sheet</b> shows a day&apos;s runs ready to enter into <b>Traction</b>, and prints the paper loading
+        sheet when you need one. Pick the <b>load day</b> and tick which instruments to include — handy when different
+        people load different machines — then click <b>View Sheet</b>. It opens in a new tab, so you can keep it beside
+        Traction while you create the runs there.
       </p>
       <p>
-        Below each run&apos;s table the sheet also prints two <b>fill-in worksheets per plate</b> to record the bench
+        On screen, each run is laid out <b>in the same order as Traction&apos;s run form</b>, top to bottom, so you can
+        fill Traction in straight off the screen:
+      </p>
+      <ul>
+        <li>
+          <b>Reminders</b> at the top of the run, only when something needs attention. A <b>red</b> note means a
+          well&apos;s cell is past its 108-hour reuse window. An <b>amber</b> note means the wells disagree on{" "}
+          <b>Adaptive Loading</b>: Traction sets <i>Use Adaptive Loading</i> once for the whole run (it greys it out in
+          each well&apos;s form), so you&apos;ll need to choose one value. <b>Blue</b> notes tell you when the whole run
+          uses a non-default Adaptive Loading (set it in Well Defaults), which wells have non-default settings, and which
+          wells have no recorded library concentration.
+        </li>
+        <li>
+          <b>Run Details · Run Name</b>: Traction generates the run name. Note it down, because you enter it in RunNx
+          when you confirm the run has loaded. Once it&apos;s recorded, it shows here with a copy button.
+        </li>
+        <li>
+          <b>Well Defaults</b>: the values to set in Traction&apos;s Well Defaults before adding wells: the movie
+          acquisition time, include base kinetics, use adaptive loading (this run&apos;s own value) and full resolution
+          base qual. They come from the <b>Settings</b> tab&apos;s Sample defaults and default movie time, which match
+          Traction&apos;s own presets out of the box.
+        </li>
+        <li>
+          <b>Plates</b>: Plate 1 and Plate 2 side by side, each with wells <b>A1–D1</b> stacked just as Traction draws
+          them (Traction calls both plates&apos; wells A1–D1). Each plate is headed with the day it sequences, e.g.{" "}
+          <i>&quot;Plate 2 · acquires Fri 25 Jul · reuse (Use 2)&quot;</i>. An unused position says <i>Empty</i>, and a
+          run without a Plate 2 says to leave it empty in Traction.
+        </li>
+      </ul>
+      <p>
+        Each well&apos;s card shows its cell and use, then the values for Traction&apos;s well form. <b>Barcode</b> (the
+        Pool ID) and <b>Library Concentration (pM)</b> (the sample&apos;s Actual OPLC) are <b>copy buttons</b>: click
+        one, see <b>✓ Copied</b>, and paste it into the matching Traction field. If your browser blocks the copy, the
+        value is selected for you with <i>Press Ctrl+C</i>, so you can copy it by hand. Once you&apos;ve copied a
+        well&apos;s barcode the card shows <b>✓ copied</b>, to help you keep your place across the run (this resets if
+        you reload the page). A well with no recorded concentration says so, for you to enter in Traction. Under{" "}
+        <b>Settings</b>, a well that matches the Well Defaults says <i>Defaults</i>; otherwise each setting to change in
+        that well&apos;s form shows as a dark chip, such as <b>30h</b> or <b>Kinetics True</b> (hover it to see the
+        default). Adaptive Loading never appears per well, because Traction sets it for the whole run. Any sample note
+        on the cell shows at the bottom of the card. RunNx doesn&apos;t track the <b>Volume</b> Traction asks for, so
+        enter each well&apos;s volume in Traction yourself.
+      </p>
+      <p>
+        <b>Print / Save as PDF</b> prints the <b>paper loading sheet</b> rather than the on-screen layout, through your
+        browser&apos;s normal print dialog (choose a physical printer, or &quot;Save as PDF&quot;). It prints{" "}
+        <b>landscape, one run per page</b>, so each Revio&apos;s run is a self-contained page you can hand to whoever
+        loads it, and a saved PDF is named <i>&quot;YYYY.MM.DD - Revio &lt;serial&gt;&quot;</i> (the load day and the
+        instrument). Each page has a table split into a block per plate. Each well shows its cell code, use number and
+        108-hour reuse deadline, the sample to load and its <b>Plate ID</b>, the per-cell run settings (movie / run
+        time, adaptive loading, include base kinetics, full-resolution baseQ) and the <b>Actual OPLC</b>. Any setting
+        that differs from the Sample Defaults (Settings tab) is printed in <b>bold with a &quot;*&quot;</b>, explained
+        by a footnote under the table. A <b>Date</b> and <b>Signed / initials</b> box sits top-right to sign off the
+        load, and a final <b>Notes</b> column prints any note you&apos;ve added to a sample on its cell (see{" "}
+        <b>Sample notes</b> under QC actions below).
+      </p>
+      <p>
+        Below each run&apos;s table the paper sheet also prints two <b>fill-in worksheets per plate</b> to record the bench
         work as you go; for a two-plate run the two plates&apos; worksheets sit <b>side by side</b> to make the most of
         the landscape page. The <b>7.3 · Final complex loading dilution</b> table has a row per well, pre-filled with the
         well and Traction ID. <b>Control Dilution 3</b> is always <b>1 µL</b> and is printed for you. If the sample has
@@ -800,7 +842,7 @@ export function ScheduleSection() {
         cell — anything worth flagging to whoever loads it (a handling reminder, a query, a re-run reason). Type a
         note and click <b>Save note</b>; it stays visible whenever you reopen that slot and remains editable at any
         time, including after the run is locked (unlike the placement itself, which locks once loaded). The note also
-        prints in the <b>Notes</b> column of the Batch Sheet for that well. It is tied to this one placement, so a
+        shows on that well&apos;s card on the Batch Sheet and prints in the paper sheet&apos;s <b>Notes</b> column. It is tied to this one placement, so a
         sample reused on another cell starts with a blank note there. Clearing the box and saving removes the note.
       </p>
       <p>

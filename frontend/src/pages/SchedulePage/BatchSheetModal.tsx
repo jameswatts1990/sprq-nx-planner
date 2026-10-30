@@ -9,18 +9,18 @@ import { Note } from "@/components/ui/Note";
 import type { InstrumentOut } from "@/types/instrument";
 import { todayIsoUTC } from "@/utils/calendarDates";
 
-import styles from "./PrintBatchSheetModal.module.css";
+import styles from "./BatchSheetModal.module.css";
 
-export interface PrintBatchSheetModalProps {
+export interface BatchSheetModalProps {
   /** Active instruments, already loaded by the Schedule page - avoids a second fetch. */
   instruments: InstrumentOut[];
   onClose: () => void;
 }
 
-/** Lets the user pick a day and which Revios to include, then opens the printable
- * batch sheet (/print/batch-sheet) in a new tab. Generation itself is just a plain
- * page + the browser's native print-to-PDF - see BatchSheetPage. */
-export function PrintBatchSheetModal({ instruments, onClose }: PrintBatchSheetModalProps) {
+/** Lets the user pick a day and which Revios to include, then opens the Batch Sheet
+ * (/batch-sheet) in a new tab, so it can sit beside Traction while the runs are keyed in.
+ * Printing is the browser's native print-to-PDF from that page - see BatchSheetPage. */
+export function BatchSheetModal({ instruments, onClose }: BatchSheetModalProps) {
   const [date, setDate] = useState(todayIsoUTC());
   // Explicit per-serial overrides layered on top of the "checked if scheduled" default;
   // cleared whenever the date changes so each day starts from a fresh default.
@@ -52,7 +52,7 @@ export function PrintBatchSheetModal({ instruments, onClose }: PrintBatchSheetMo
 
   function onViewSheet() {
     const qs = new URLSearchParams({ date, instruments: selectedSerials.join(",") });
-    window.open(`/print/batch-sheet?${qs.toString()}`, "_blank", "noopener,noreferrer");
+    window.open(`/batch-sheet?${qs.toString()}`, "_blank", "noopener,noreferrer");
     onClose();
   }
 
@@ -60,7 +60,7 @@ export function PrintBatchSheetModal({ instruments, onClose }: PrintBatchSheetMo
   const noneScheduled = loaded && scheduledSerials.size === 0;
 
   return (
-    <Modal onClose={onClose} title="Print Batch Sheet">
+    <Modal onClose={onClose} title="Batch Sheet">
       <div className={styles.field}>
         <label className={styles.label} htmlFor="batch-sheet-date">
           Load day

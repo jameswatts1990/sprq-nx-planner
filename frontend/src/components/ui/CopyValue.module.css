@@ -1,0 +1,55 @@
+.copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  padding: 3px 4px 3px 8px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--card);
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.copy:hover {
+  border-color: var(--line-hover);
+  background: var(--line-soft);
+}
+.copy:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 1px;
+}
+/* Selectable so the "Press Ctrl+C" fallback's programmatic selection shows and copies. */
+.value {
+  font-family: var(--mono);
+  font-size: var(--fs-md);
+  font-weight: 700;
+  user-select: text;
+  overflow-wrap: anywhere;
+}
+.action {
+  flex: none;
+  min-width: 52px;
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: var(--line-soft);
+  color: var(--grey);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  text-align: center;
+}
+.copy[data-state="copied"] {
+  border-color: #bfe6c9;
+}
+.copy[data-state="copied"] .action {
+  background: var(--green-tint);
+  color: #1c6b31;
+}
+.copy[data-state="failed"] {
+  border-color: #f0dcae;
+}
+.copy[data-state="failed"] .action {
+  background: var(--amber-tint);
+  color: #7a4d00;
+}

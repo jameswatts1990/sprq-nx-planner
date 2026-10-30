@@ -1,5 +1,5 @@
 .page {
-  /* Wider than a normal page so the on-screen preview roughly matches the landscape print. */
+  /* Room for the on-screen view's two plate columns side by side. */
   max-width: 1180px;
   margin: 0 auto;
   padding: 22px 22px 64px;
@@ -215,6 +215,15 @@
 .noPrint {
   /* placeholder class, hidden below in @media print */
 }
+/* The paper sheet: hidden on screen (the Traction-entry view shows instead), shown in print. */
+.printOnly {
+  display: none;
+}
+.hint {
+  color: var(--grey);
+  font-size: var(--fs-base);
+  margin: -8px 0 16px;
+}
 
 /* Force landscape and maximise the printable area so a run's table + both worksheets can
    share one page. */
@@ -230,6 +239,9 @@
   }
   .noPrint {
     display: none;
+  }
+  .printOnly {
+    display: block;
   }
 
   /* One run per page: every run after the first starts on a fresh page, and the compact sizing
