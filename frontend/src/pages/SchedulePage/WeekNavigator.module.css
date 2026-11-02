@@ -3,9 +3,14 @@
   align-items: center;
   gap: 8px;
 }
+/* Today and the ‹ week › box take the toolbar's shared control height (SchedulePage .toolbar). */
+.today {
+  height: var(--toolbar-control-h);
+}
 /* ‹ week › as one bordered unit: the group draws the box and its three buttons give up their
    own borders, showing a soft fill only on hover - so the week reads as a single control. */
 .week {
+  height: var(--toolbar-control-h);
   display: inline-flex;
   align-items: stretch;
   gap: 2px;

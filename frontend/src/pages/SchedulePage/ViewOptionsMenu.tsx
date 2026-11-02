@@ -77,7 +77,7 @@ export function ViewOptionsMenu({
     };
   }, [open]);
 
-  // Detail the grid is currently hiding - flagged by a dot on the eye, since an icon-only trigger
+  // Detail the grid is currently hiding - named in the eye's tooltip, since an icon-only trigger
   // otherwise gives no hint why barcodes or note markers have gone missing.
   const hidden = [!showBarcodes && "barcodes", !showNotes && "sample notes"].filter(Boolean).join(" and ");
   const label = hidden ? `View options (${hidden} hidden)` : "View options";
@@ -95,7 +95,6 @@ export function ViewOptionsMenu({
         title={hidden ? `${label} - choose what's shown on the grid` : "View options - choose what's shown on the grid"}
       >
         <EyeIcon />
-        {hidden && <span className={styles.hiddenDot} aria-hidden="true" />}
       </Button>
       {open && (
         <div className={styles.panel} role="menu">

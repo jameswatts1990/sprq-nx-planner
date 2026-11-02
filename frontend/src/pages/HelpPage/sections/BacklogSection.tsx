@@ -127,7 +127,7 @@ export function BacklogSection() {
         <b>barcode</b> are required (enter several barcodes separated by commas or spaces); every other field is
         optional. The
         three True/False settings (Adaptive Loading, Full-Resolution Base Q, Include Base Kinetics) and Priority
-        (Standard / Medium / High) are chosen from a dropdown, and start on the defaults set in the Admin tab&apos;s{" "}
+        (Standard / Medium / High) are chosen from a dropdown, and start on the defaults set in the Settings tab&apos;s{" "}
         <b>Sample defaults</b> panel — change any of them before saving. The new sample lands in the backlog exactly
         like an imported one. If the Pool ID has been seen before (any status, including completed), the form
         doesn&apos;t reject it — it tells you how many times it&apos;s been seen and offers <b>Add anyway</b> to create

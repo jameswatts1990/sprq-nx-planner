@@ -26,7 +26,7 @@ const SECTIONS = [
   { key: "cells", title: "Cells", Component: CellsSection },
   { key: "qc", title: "QC", Component: QcSection },
   { key: "instruments", title: "Instruments", Component: InstrumentsSection },
-  { key: "history", title: "History & Samples", Component: HistorySection },
+  { key: "history", title: "History: Runs & Samples", Component: HistorySection },
   { key: "stats", title: "Stats", Component: StatsSection },
   { key: "settings", title: "Settings", Component: SettingsSection },
   { key: "legend", title: "Colour & Status Legend", Component: LegendSection },

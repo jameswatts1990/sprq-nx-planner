@@ -8,8 +8,9 @@ export function CellsSection() {
   return (
     <div className={styles.copy}>
       <p>
-        <b>What this tab is for:</b> browsing every physical SMRT cell tray the system knows about — one row per tray,
-        with each of its cells&apos; state at a glance — and drilling into any cell, sample or run it touched.
+        <b>What this page is for</b> (<b>History → Cells</b>): browsing every physical SMRT cell tray the system knows
+        about — one row per tray, with each of its cells&apos; state at a glance — and drilling into any cell, sample or
+        run it touched.
       </p>
 
       <p className={styles.subheading}>The tray list</p>

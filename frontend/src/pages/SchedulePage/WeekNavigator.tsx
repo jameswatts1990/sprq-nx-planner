@@ -18,7 +18,7 @@ export function WeekNavigator({ win, label }: { win: SchedulerWindow; label: str
 
   return (
     <div className={styles.nav}>
-      <Button size="sm" variant="ghost" onClick={win.goToday} title="Jump back to this week">
+      <Button size="sm" variant="ghost" className={styles.today} onClick={win.goToday} title="Jump back to this week">
         Today
       </Button>
       <div className={styles.week} role="group" aria-label="Week shown">
