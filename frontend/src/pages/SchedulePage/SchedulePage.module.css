@@ -28,6 +28,17 @@
 .page[data-backlog-pos="left"][data-backlog-collapsed] {
   --grid-sticky-left: 46px;
 }
+/* Where the toolbar's right-hand group parks during a horizontal scroll: the .wrap gutter (22)
+   with the panel on the left, or just left of a right-docked panel (232 / 34-rail + 12 gap). */
+.page[data-backlog-pos="left"] {
+  --toolbar-sticky-right: 22px;
+}
+.page[data-backlog-pos="right"] {
+  --toolbar-sticky-right: 244px;
+}
+.page[data-backlog-pos="right"][data-backlog-collapsed] {
+  --toolbar-sticky-right: 46px;
+}
 /* Groups the pinned head + the grid into one flex child, so in row layout they stay stacked
    beside the docked backlog instead of splitting into two side-by-side row items. No
    min-width:0: the grid keeps its natural width rather than being squashed under the panel -
@@ -42,16 +53,21 @@
   flex: 1 1 auto;
   padding-bottom: 22px;
 }
-/* In side mode, park the toolbar CONTROLS beside the docked panel during a horizontal scroll,
-   while the sticky head itself stays full grid width so its opaque background band still forms
-   the ceiling the instrument rows vanish under. Only the inner .toolbar shrinks to its content
-   width (align-self) and sticks horizontally (a full-width bar has no travel room and can't
-   stick); --grid-sticky-left parks it just right of the panel (0 in top mode). */
-.page[data-backlog-pos="left"] .toolbar,
-.page[data-backlog-pos="right"] .toolbar {
+/* In side mode the grid can be wider than the screen (the page scrolls horizontally), so the
+   toolbar spans the full grid width and its two groups stick to the VISIBLE edges: week + search
+   just right of a left panel (--grid-sticky-left), the actions just left of a right panel or the
+   gutter (--toolbar-sticky-right). The full-width bar gives each group the travel room to stick,
+   and keeps the actions right-aligned exactly as in top mode. */
+.page[data-backlog-pos="left"] .toolbarStart,
+.page[data-backlog-pos="right"] .toolbarStart {
   position: sticky;
   left: var(--grid-sticky-left, 0px);
-  align-self: flex-start;
+  z-index: 1;
+}
+.page[data-backlog-pos="left"] .toolbarEnd,
+.page[data-backlog-pos="right"] .toolbarEnd {
+  position: sticky;
+  right: var(--toolbar-sticky-right);
   z-index: 1;
 }
 /* The date toolbar and the Backlog tray pin together as one unit directly beneath the
@@ -79,15 +95,28 @@
   gap: 12px;
 }
 /* Inherits the pinned head's opaque page background (.stickyHead), so the toolbar controls
-   stay legible with no grid rows showing through beneath them. */
+   stay legible with no grid rows showing through beneath them.
+   --toolbar-control-h is the one height every control in the row shares (the 34px icon-button
+   size) so Today, the week, search, Batch Sheet, Export and the eye line up top and bottom -
+   WeekNavigator and ScheduleSearchBar read it too. */
 .toolbar {
+  --toolbar-control-h: 34px;
   display: flex;
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
 }
-.spacer {
+.toolbarStart,
+.toolbarEnd {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.toolbarEnd {
   margin-left: auto;
+}
+.toolButton {
+  height: var(--toolbar-control-h);
 }
 /* Export, an icon-only action, rests in grey so it recedes behind the week and Batch Sheet,
    darkening on hover (ViewOptionsMenu's eye trigger matches it). */

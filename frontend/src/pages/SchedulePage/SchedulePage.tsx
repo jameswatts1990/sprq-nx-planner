@@ -752,74 +752,79 @@ export function SchedulePage() {
                   scrolling the tray back into view first. The tray's own card list scrolls
                   internally so the pinned region never swallows the grid (see BacklogPanel). */}
               <div className={styles.stickyHead} ref={stickyHeadRef}>
-                {/* Left to right: where am I (week), find, then what can I do (contextual
-                    selection actions, Batch Sheet, export) and how it's drawn (view options). */}
+                {/* Left group: where am I (week) and find. Right group, pinned to the right edge:
+                    what can I do (contextual selection actions, Batch Sheet, export) and how it's
+                    drawn (view options). */}
                 <div className={styles.toolbar}>
-                  <WeekNavigator win={win} label={rangeLabel} />
-                  <ScheduleSearchBar search={search} />
-                  <div className={styles.spacer} />
-                  {selectedCells.length > 0 && (
-                    <div className={styles.selectionInfo}>
-                      <span>{selectedCells.length} cell(s) selected</span>
-                      <Button size="sm" variant="ghost" onClick={selection.clear}>
-                        Clear
-                      </Button>
-                    </div>
-                  )}
-                  {slotSelection.hasSelection && (
-                    <div className={styles.selectionInfo}>
-                      <span>{slotSelection.selectedStages.length} sample(s) selected</span>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={slotSelection.clear}
-                        disabled={actions.removeSlots.isPending}
-                      >
-                        Clear
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="primary"
-                        onClick={() => actions.removeSlots.mutate()}
-                        disabled={actions.removeSlots.isPending}
-                      >
-                        {actions.removeSlots.isPending ? "Removing…" : "Remove from schedule (Del)"}
-                      </Button>
-                    </div>
-                  )}
-                  <Button
-                    size="sm"
-                    variant="tonal"
-                    onClick={() => setBatchSheetOpen(true)}
-                    title="Open a day's runs laid out like Traction's run form, to copy into Traction or print"
-                  >
-                    <ClipboardListIcon />
-                    Batch Sheet
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    icon
-                    className={styles.toolIcon}
-                    onClick={handleExportSchedule}
-                    aria-label="Export schedule"
-                    title="Export schedule - download this week as a sequencing-tracker CSV to paste into the Google Sheet"
-                  >
-                    <DownloadIcon />
-                  </Button>
-                  <ViewOptionsMenu
-                    showBarcodes={showBarcodes}
-                    onChangeShowBarcodes={handleChangeShowBarcodes}
-                    showNotes={showNotes}
-                    onChangeShowNotes={handleChangeShowNotes}
-                    showUseNumber={showUseNumber}
-                    onChangeShowUseNumber={handleChangeShowUseNumber}
-                    density={density}
-                    onChangeDensity={handleChangeDensity}
-                    backlogPosition={backlogPosition}
-                    onChangeBacklogPosition={handleChangeBacklogPosition}
-                    instrumentColumn={instrumentColumn}
-                    onChangeInstrumentColumn={handleChangeInstrumentColumn}
-                  />
+                  <div className={styles.toolbarStart}>
+                    <WeekNavigator win={win} label={rangeLabel} />
+                    <ScheduleSearchBar search={search} />
+                  </div>
+                  <div className={styles.toolbarEnd}>
+                    {selectedCells.length > 0 && (
+                      <div className={styles.selectionInfo}>
+                        <span>{selectedCells.length} cell(s) selected</span>
+                        <Button size="sm" variant="ghost" onClick={selection.clear}>
+                          Clear
+                        </Button>
+                      </div>
+                    )}
+                    {slotSelection.hasSelection && (
+                      <div className={styles.selectionInfo}>
+                        <span>{slotSelection.selectedStages.length} sample(s) selected</span>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={slotSelection.clear}
+                          disabled={actions.removeSlots.isPending}
+                        >
+                          Clear
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="primary"
+                          onClick={() => actions.removeSlots.mutate()}
+                          disabled={actions.removeSlots.isPending}
+                        >
+                          {actions.removeSlots.isPending ? "Removing…" : "Remove from schedule (Del)"}
+                        </Button>
+                      </div>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="tonal"
+                      className={styles.toolButton}
+                      onClick={() => setBatchSheetOpen(true)}
+                      title="Open a day's runs laid out like Traction's run form, to copy into Traction or print"
+                    >
+                      <ClipboardListIcon />
+                      Batch Sheet
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      icon
+                      className={styles.toolIcon}
+                      onClick={handleExportSchedule}
+                      aria-label="Export schedule"
+                      title="Export schedule - download this week as a sequencing-tracker CSV to paste into the Google Sheet"
+                    >
+                      <DownloadIcon />
+                    </Button>
+                    <ViewOptionsMenu
+                      showBarcodes={showBarcodes}
+                      onChangeShowBarcodes={handleChangeShowBarcodes}
+                      showNotes={showNotes}
+                      onChangeShowNotes={handleChangeShowNotes}
+                      showUseNumber={showUseNumber}
+                      onChangeShowUseNumber={handleChangeShowUseNumber}
+                      density={density}
+                      onChangeDensity={handleChangeDensity}
+                      backlogPosition={backlogPosition}
+                      onChangeBacklogPosition={handleChangeBacklogPosition}
+                      instrumentColumn={instrumentColumn}
+                      onChangeInstrumentColumn={handleChangeInstrumentColumn}
+                    />
+                  </div>
                 </div>
                 {!backlogOnSide && (
                   <BacklogPanel

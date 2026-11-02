@@ -137,8 +137,7 @@ export function ScheduleSection() {
         The <b>eye</b> button at the far right of the toolbar opens <b>View options</b>, a small menu of display
         toggles that change only how the grid is drawn, never the plan itself. They only affect the grid — a
         card&apos;s detail popover always shows everything — and each choice is remembered next time you open the
-        Schedule page. A <b>magenta dot</b> on the eye means barcodes or sample notes are currently hidden (hover
-        the eye to see which):
+        Schedule page. Hover the eye to check whether barcodes or sample notes are currently hidden:
       </p>
       <ul>
         <li>
