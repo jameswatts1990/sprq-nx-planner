@@ -1,5 +1,5 @@
 import type { MouseEvent } from "react";
-import { memo, useCallback, useState } from "react";
+import { memo } from "react";
 import { Link } from "react-router-dom";
 
 import type { TraySortKey } from "@/api/cells";
@@ -8,19 +8,21 @@ import { TrayActions } from "@/components/cells/TrayActions";
 import { TrayCellStrip } from "@/components/cells/TrayCellStrip";
 import { UseBox } from "@/components/cells/UseBox";
 import { BarcodeChips } from "@/components/shared/BarcodeChips";
+import { RowToggle, useRowToggles } from "@/components/shared/ListPage";
+import list from "@/components/shared/ListPage.module.css";
 import { SortableColumnHeader } from "@/components/shared/SortableColumnHeader";
 import { Badge } from "@/components/ui/Badge";
 import type { CellOut, CellTrayRowOut } from "@/types/cell";
 import { formatDateTime, formatDateUTC, parseDateOnly } from "@/utils/calendarDates";
 import { CELL_QC_FLAG_LABEL, CELL_QC_FLAG_TONE } from "@/utils/cellQcFlag";
 import { CELL_STATUS_LABEL, CELL_STATUS_TONE, discardedWithUsesLeft } from "@/utils/cellStatus";
+import type { SortDir } from "@/utils/listView";
 import { formatHoursLeft, windowHoursRemaining } from "@/utils/openTrays";
 import { runLabel } from "@/utils/runLabel";
 import type { SampleDetailLocationState } from "@/utils/sampleBackNav";
 import { USE_STATUS_TONE } from "@/utils/useStatusTone";
 import { EXPIRY_WARN_HOURS } from "@/utils/windowFade";
 
-import type { SortDir } from "./cellsView";
 import styles from "./TrayTable.module.css";
 
 const COLUMN_COUNT = 10;
@@ -53,18 +55,7 @@ function rowKey(row: CellTrayRowOut): string {
  * per cell, uses left, first use, last run and when its 108h window closes - expanding to the
  * tray's cells and the tray-wide actions. */
 export function TrayTable({ rows, sort, defaultExpanded = false, highlightMatches = false, linkState, updating }: TrayTableProps) {
-  // Rows whose open state differs from defaultExpanded - kept by key so a row stays open across a
-  // refetch (e.g. after a tray action).
-  const [toggled, setToggled] = useState<ReadonlySet<string>>(() => new Set());
-  const onToggle = useCallback(
-    (key: string) =>
-      setToggled((prev) => {
-        const next = new Set(prev);
-        if (!next.delete(key)) next.add(key);
-        return next;
-      }),
-    [],
-  );
+  const { isExpanded, onToggle } = useRowToggles(defaultExpanded);
 
   const header = (label: string, key?: TraySortKey) =>
     sort && key ? (
@@ -79,8 +70,8 @@ export function TrayTable({ rows, sort, defaultExpanded = false, highlightMatche
     );
 
   return (
-    <div className={styles.tableWrap}>
-      <table className={`table ${styles.table} ${updating ? styles.updating : ""}`}>
+    <div className={list.tableWrap}>
+      <table className={`table ${list.table} ${updating ? list.updating : ""}`}>
         <thead>
           <tr>
             <th aria-label="Expand" />
@@ -103,7 +94,7 @@ export function TrayTable({ rows, sort, defaultExpanded = false, highlightMatche
                 key={key}
                 rowKey={key}
                 row={row}
-                expanded={defaultExpanded !== toggled.has(key)}
+                expanded={isExpanded(key)}
                 onToggle={onToggle}
                 highlightMatches={highlightMatches}
                 linkState={linkState}
@@ -135,48 +126,37 @@ const TrayRow = memo(function TrayRow({ rowKey, row, expanded, onToggle, highlig
 
   return (
     <>
-      <tr className={styles.row} onClick={() => onToggle(rowKey)}>
-        <td className={styles.toggleCell}>
-          <button
-            type="button"
-            className={styles.toggle}
-            aria-expanded={expanded}
-            aria-label={`${expanded ? "Hide" : "Show"} ${label}'s cells`}
-          >
-            <span className={expanded ? "disclosure open" : "disclosure"} aria-hidden="true">
-              ▸
-            </span>
-          </button>
-        </td>
-        <td className={styles.nowrap}>
+      <tr className={list.row} onClick={() => onToggle(rowKey)}>
+        <RowToggle expanded={expanded} label={`${label}'s cells`} />
+        <td className={list.nowrap}>
           {row.tray_id !== null ? (
             <Link
               to={`/cells?tray=${row.tray_id}`}
               state={linkState}
-              className={`link ${styles.mono}`}
+              className={`link ${list.mono}`}
               onClick={stop}
               title="Open this tray's own page"
             >
               Tray {row.tray_id}
             </Link>
           ) : (
-            <span className={styles.faint} title="Registered with Register in-progress cell, so it has no tray on record">
+            <span className={list.faint} title="Registered with Register in-progress cell, so it has no tray on record">
               No tray
             </span>
           )}
         </td>
         <td>{row.cell_type === "sprq" ? <CellTypeBadge cellType="sprq" /> : "SPRQ-Nx"}</td>
-        <td className={styles.mono}>{row.instrument_serial ?? "—"}</td>
+        <td className={list.mono}>{row.instrument_serial ?? "—"}</td>
         <td>
           <TrayCellStrip cells={row.cells} matchedIds={matched} linkState={linkState} />
         </td>
-        <td className={styles.nowrap} title={`${row.uses_left} of the tray's ${capacity} uses still available`}>
+        <td className={list.nowrap} title={`${row.uses_left} of the tray's ${capacity} uses still available`}>
           <b>{row.uses_left}</b>
-          <span className={styles.faint}> / {capacity}</span>
+          <span className={list.faint}> / {capacity}</span>
         </td>
-        <td className={styles.nowrap}>{row.first_use_at ? formatDateTime(row.first_use_at) : "—"}</td>
-        <td className={styles.nowrap}>{row.last_run_date ? formatDateUTC(parseDateOnly(row.last_run_date)) : "—"}</td>
-        <td className={styles.nowrap}>
+        <td className={list.nowrap}>{row.first_use_at ? formatDateTime(row.first_use_at) : "—"}</td>
+        <td className={list.nowrap}>{row.last_run_date ? formatDateUTC(parseDateOnly(row.last_run_date)) : "—"}</td>
+        <td className={list.nowrap}>
           <TrayExpiry row={row} />
         </td>
         <td>
@@ -185,7 +165,7 @@ const TrayRow = memo(function TrayRow({ rowKey, row, expanded, onToggle, highlig
       </tr>
       {expanded && (
         <tr>
-          <td colSpan={COLUMN_COUNT} className={styles.detailCell}>
+          <td colSpan={COLUMN_COUNT} className={list.detailCell}>
             <TrayCells cells={row.cells} matched={matched} linkState={linkState} />
             {row.tray_id !== null && <TrayActions trayId={row.tray_id} cells={row.cells} />}
           </td>
@@ -211,7 +191,7 @@ function TrayExpiry({ row }: { row: CellTrayRowOut }) {
   }
   if (row.cell_type !== "sprq" && row.cells.some((c) => c.status === "open")) {
     return (
-      <span className={styles.faint} title="The 108-hour window starts when the tray's first cell is used">
+      <span className={list.faint} title="The 108-hour window starts when the tray's first cell is used">
         Not started
       </span>
     );
@@ -227,7 +207,7 @@ function TrayFlags({ row }: { row: CellTrayRowOut }) {
   const discarded = row.cells.find(discardedWithUsesLeft);
   if (!unreported && !awaiting && !row.reuse_disabled && !discarded) return null;
   return (
-    <span className={styles.flags}>
+    <span className={list.flags}>
       {unreported && (
         <Badge tone={CELL_QC_FLAG_TONE.unreported} title="A cell failed or was stopped and hasn't been reported to PacBio yet">
           {CELL_QC_FLAG_LABEL.unreported}
@@ -264,7 +244,7 @@ function cellWindow(cell: CellOut) {
   }
   if (cell.status === "window_expired") return <span className={styles.expired}>Closed</span>;
   if (cell.status === "open" && cell.cell_type !== "sprq") {
-    return <span className={styles.faint}>Not started</span>;
+    return <span className={list.faint}>Not started</span>;
   }
   return "—";
 }
@@ -281,7 +261,7 @@ function TrayCells({
   linkState: SampleDetailLocationState;
 }) {
   return (
-    <table className={`table ${styles.innerTable}`}>
+    <table className={`table ${list.innerTable}`}>
       <thead>
         <tr>
           <th>Cell</th>
@@ -297,14 +277,14 @@ function TrayCells({
           const uses = cell.uses.filter((u) => u.status !== "cancelled");
           const reason = cell.stopped_reason ?? cell.discarded_reason ?? undefined;
           return (
-            <tr key={cell.id} className={matched?.has(cell.id) ? styles.matchedRow : undefined}>
-              <td className={styles.nowrap}>
-                <Link to={`/cells/${cell.id}`} state={linkState} className={`link ${styles.mono}`}>
+            <tr key={cell.id} className={matched?.has(cell.id) ? list.matchedRow : undefined}>
+              <td className={list.nowrap}>
+                <Link to={`/cells/${cell.id}`} state={linkState} className={`link ${list.mono}`}>
                   {cell.code}
                 </Link>
               </td>
               <td>
-                <span className={styles.flags}>
+                <span className={list.flags}>
                   <Badge tone={CELL_STATUS_TONE[cell.status]} title={reason}>
                     {CELL_STATUS_LABEL[cell.status]}
                   </Badge>
@@ -317,13 +297,13 @@ function TrayCells({
                   )}
                 </span>
               </td>
-              <td className={styles.nowrap}>
+              <td className={list.nowrap}>
                 {cell.uses_consumed} / {cell.max_uses}
               </td>
-              <td className={styles.nowrap}>{cellWindow(cell)}</td>
+              <td className={list.nowrap}>{cellWindow(cell)}</td>
               <td>
                 {uses.length === 0 ? (
-                  <span className={styles.faint}>Not used yet</span>
+                  <span className={list.faint}>Not used yet</span>
                 ) : (
                   uses.map((use, i) => (
                     <div key={use.id} className={styles.useLine}>
@@ -334,12 +314,16 @@ function TrayCells({
                           {use.sample_pool_id}
                         </Link>
                       ) : (
-                        <span className={styles.faint}>no sample</span>
+                        <span className={list.faint}>no sample</span>
                       )}
                       {use.run_batch_id > 0 && (
                         <>
-                          <span className={styles.faint}>·</span>
-                          <Link to={`/history/runs/${use.run_batch_id}`} className={`link ${styles.runLink}`}>
+                          <span className={list.faint}>·</span>
+                          <Link
+                            to={`/history/runs/${use.run_batch_id}`}
+                            state={linkState}
+                            className={`link ${styles.runLink}`}
+                          >
                             {runLabel({ run_id: use.run_batch_id, run_name: use.run_name })}
                           </Link>
                         </>

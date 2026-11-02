@@ -1,0 +1,20 @@
+/* A sample's run chips (shared StatusChip look), wrapping when it has been placed more than once. */
+.chips {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  vertical-align: middle;
+}
+/* A long Traction run name truncates rather than stretching the column; the tooltip has it all. */
+.run {
+  max-width: 20ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.well {
+  font-weight: 600;
+  opacity: 0.8;
+}
+.none {
+  color: var(--faint);
+}

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { useParams } from "react-router-dom";
+import { useLocation, useParams } from "react-router-dom";
 
 import { errorMessage } from "@/api/client";
 import { cyclesApi } from "@/api/cycles";
@@ -25,10 +25,9 @@ import {
   shortWeekdayUTC,
 } from "@/utils/calendarDates";
 import { CYCLE_STATUS_TONE } from "@/utils/cycleStatus";
+import { resolveBackNav } from "@/utils/sampleBackNav";
 
 import styles from "./RunDetailPage.module.css";
-
-const BACK = { to: "/history/runs", label: "Run history" };
 
 interface StageTarget {
   stage: StageOut;
@@ -51,6 +50,9 @@ export function RunDetailPage() {
   const id = Number(runId);
   const idIsValid = Number.isFinite(id);
   const queryClient = useQueryClient();
+  // Back to wherever the run was opened from (Run history with its filters, a cell, a sample);
+  // a direct link falls back to Run history.
+  const back = resolveBackNav(useLocation().state, { to: "/history/runs", label: "Run history" });
 
   const [detail, setDetail] = useState<StageTarget | null>(null);
   const [cellInfo, setCellInfo] = useState<StageTarget | null>(null);
@@ -72,7 +74,7 @@ export function RunDetailPage() {
   if (!idIsValid) {
     return (
       <div className={styles.page}>
-        <PageHeader title="Run" back={BACK} />
+        <PageHeader title="Run" back={back} />
         <Note tone="bad" icon="!">
           Invalid run id.
         </Note>
@@ -87,7 +89,7 @@ export function RunDetailPage() {
   if (query.isError) {
     return (
       <div className={styles.page}>
-        <PageHeader title={`Run #${id}`} back={BACK} />
+        <PageHeader title={`Run #${id}`} back={back} />
         <Note tone="bad" icon="!">
           {errorMessage(query.error, "Couldn't load the run.")}
         </Note>
@@ -108,7 +110,7 @@ export function RunDetailPage() {
     <div className={styles.page}>
       <PageHeader
         title={run.run_name ?? `Run #${run.run_id}`}
-        back={BACK}
+        back={back}
         actions={
           canCancel ? (
             <Button variant="ghost" onClick={() => cancelMutation.mutate()} disabled={cancelMutation.isPending}>

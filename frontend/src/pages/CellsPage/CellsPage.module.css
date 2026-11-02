@@ -1,45 +1,5 @@
-.page {
-  padding-top: 22px;
-}
-.toolbar {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-  align-items: center;
-  margin-bottom: 12px;
-}
-.search {
-  flex: 1;
-  min-width: 240px;
-}
-.subbar {
-  display: flex;
-  align-items: center;
-  gap: 12px 20px;
-  flex-wrap: wrap;
-  margin-bottom: 16px;
-}
-.control {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.pushRight {
-  margin-left: auto;
-}
-.controlLabel {
-  font-size: var(--fs-xs);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--grey);
-  font-weight: 700;
-}
-/* The single-tray title: "Tray N" reads in mono, like tray ids everywhere. */
-.mono {
-  font-family: var(--mono);
-}
-
-/* Register in-progress cell modal. */
+/* Register in-progress cell modal. The page itself uses the shared list layout
+   (components/shared/ListPage). */
 .helper {
   font-size: var(--fs-md);
   color: var(--grey);

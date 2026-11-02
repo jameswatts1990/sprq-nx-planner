@@ -46,7 +46,7 @@ const NAV_ITEMS: NavItem[] = [
 const HISTORY_ITEMS: (NavItem & { hint: string })[] = [
   { to: "/cells", label: "Cells", Icon: CellTrayIcon, hint: "Every cell tray, its uses and time left" },
   { to: "/history/runs", label: "Runs", Icon: RunIcon, hint: "Every run, past, active and planned" },
-  { to: "/history/samples", label: "Samples", Icon: SampleIcon, hint: "Completed and failed samples" },
+  { to: "/history/samples", label: "Samples", Icon: SampleIcon, hint: "Every sample, wherever it is now" },
 ];
 // Routes that light the History trigger: its pages plus their detail pages (/cells/:id,
 // /trays/:id, /history/runs/:id, /samples/:id).

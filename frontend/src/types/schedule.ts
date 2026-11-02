@@ -167,3 +167,45 @@ export interface RunOut {
   /** 1-2 plates. Plate 1 first; a second plate is a fresh parallel tray or a reuse. */
   plates: PlateOut[];
 }
+
+/** One loaded well of a Run history row: the cell use, its cell and its sample. */
+export interface RunHistoryWellOut {
+  cell_use_id: number;
+  plate_index: number;
+  well: string;
+  /** The use's own status: planned / started / completed / aborted / failed / cancelled. */
+  status: string;
+  /** Which use of its cell this is (1-3; always 1 for a single-use SPRQ cell). */
+  use_number: number;
+  cell_id: number;
+  cell_code: string;
+  cell_max_uses: number;
+  tray_id: number | null;
+  sample_id: number | null;
+  sample_pool_id: string | null;
+  barcodes: string[];
+  started_at: string | null;
+  completed_at: string | null;
+}
+
+/** One row of the Run history page (GET /api/cycles/history): a run's summary plus each loaded
+ * well - lighter than RunOut (no lock / clash / duplicate fields). */
+export interface RunHistoryRowOut {
+  run_id: number;
+  run_name: string | null;
+  load_date: string;
+  instrument_serial: string;
+  /** Same derivation as RunOut.status. */
+  status: CycleStatus;
+  cell_type: CellType;
+  plate_count: number;
+  /** The longest plate's movie (h); null for a run with nothing loaded. */
+  movie_hours: number | null;
+  /** Plate 1's real confirm-load time once `loaded`, else its planned start. */
+  loaded_at: string | null;
+  loaded: boolean;
+  wells: RunHistoryWellOut[];
+  /** The wells a search matched (Pool ID, barcode, cell, tray) - empty when the run matched on its
+   * own name, id, instrument or date, or there was no search. */
+  matched_use_ids: number[];
+}

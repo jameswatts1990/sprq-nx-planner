@@ -1,10 +1,11 @@
 /** Fabricated example data shared across Help sections, purely so the visual states
  * they describe render from the real app components (SchedulerSlotView, TrayCellStrip,
- * WindowMeter, TraySiblingList) instead of being hand-described in prose - see CLAUDE.md's
+ * RunWellStrip, SampleRunChips, WindowMeter, TraySiblingList) instead of being hand-described in prose - see CLAUDE.md's
  * "Help Tab Maintenance" section. Centralized here (rather than duplicated per-section)
  * so the same example cell/stage shows up consistently everywhere it's referenced. */
 import type { CellOut, CellUseSummaryOut } from "@/types/cell";
-import type { StageOut } from "@/types/schedule";
+import type { SampleCellUseOut } from "@/types/sample";
+import type { RunHistoryWellOut, StageOut } from "@/types/schedule";
 
 export const EXAMPLE_CELL: CellOut = {
   id: 0,
@@ -306,3 +307,71 @@ export const STAGE_EXAMPLE_SMALL_INSERT_REUSE: StageOut = {
   use_number: 2,
   insert_size_bp: 3000,
 };
+
+function exampleWell(plate: number, well: string, status: string, useNumber: number, pool: string | null): RunHistoryWellOut {
+  return {
+    cell_use_id: plate * 10 + well.charCodeAt(0),
+    plate_index: plate,
+    well,
+    status,
+    use_number: useNumber,
+    cell_id: 300 + plate * 10 + well.charCodeAt(0),
+    cell_code: `C0${well.charCodeAt(0) - 64}-T60`,
+    cell_max_uses: 3,
+    tray_id: 60,
+    sample_id: pool ? 900 + well.charCodeAt(0) : null,
+    sample_pool_id: pool,
+    barcodes: [],
+    started_at: null,
+    completed_at: null,
+  };
+}
+
+/** A two-plate run for the Run history well strip: Plate 1 finished with one failed and one
+ * aborted well; Plate 2 (a reuse of the same cells) is running, with a planned well, a blocked
+ * well (its cell was stopped) and nothing loaded in D. */
+export const EXAMPLE_RUN_WELLS: RunHistoryWellOut[] = [
+  exampleWell(1, "A01", "completed", 1, "SAMPLE-101"),
+  exampleWell(1, "B01", "completed", 1, "SAMPLE-102"),
+  exampleWell(1, "C01", "failed", 1, "SAMPLE-103"),
+  exampleWell(1, "D01", "aborted", 1, "SAMPLE-104"),
+  exampleWell(2, "A01", "started", 2, "SAMPLE-105"),
+  exampleWell(2, "B01", "planned", 2, "SAMPLE-106"),
+  exampleWell(2, "C01", "cancelled", 2, null),
+];
+
+/** A sample that was aborted on one run, then re-run to completion on Plate 2 of another. */
+export const EXAMPLE_SAMPLE_USES: SampleCellUseOut[] = [
+  {
+    id: 1,
+    cycle_id: 1,
+    run_name: null,
+    run_batch_id: 412,
+    load_date: "2026-10-12",
+    instrument_serial: "84047",
+    plate_number: 1,
+    cell_id: 1,
+    cell_code: "C01-T40",
+    well: "A01",
+    status: "aborted",
+    started_at: null,
+    completed_at: null,
+    outcome_notes: null,
+  },
+  {
+    id: 2,
+    cycle_id: 2,
+    run_name: "TRACTION-RUN-1234",
+    run_batch_id: 420,
+    load_date: "2026-10-15",
+    instrument_serial: "84098",
+    plate_number: 2,
+    cell_id: 2,
+    cell_code: "C02-T41",
+    well: "B01",
+    status: "completed",
+    started_at: null,
+    completed_at: null,
+    outcome_notes: null,
+  },
+];

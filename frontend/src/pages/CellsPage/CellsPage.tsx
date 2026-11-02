@@ -1,11 +1,12 @@
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useLocation, useSearchParams } from "react-router-dom";
 
-import type { TraySortKey } from "@/api/cells";
 import { cellsApi } from "@/api/cells";
 import { errorMessage } from "@/api/client";
 import { instrumentsApi } from "@/api/instruments";
+import { RowsPerPage } from "@/components/shared/ListPage";
+import list from "@/components/shared/ListPage.module.css";
 import { Pagination } from "@/components/shared/Pagination";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
@@ -13,17 +14,15 @@ import { Note } from "@/components/ui/Note";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { endOfWeekIso, endOfWeekLabel } from "@/utils/calendarDates";
+import { useClampPage, useListView } from "@/utils/listView";
 import { resolveBackNav, type SampleDetailLocationState } from "@/utils/sampleBackNav";
-import { useDebouncedValue } from "@/utils/useDebouncedValue";
 
-import styles from "./CellsPage.module.css";
 import {
   type AsOf,
+  CELLS_VIEW,
   type CellsView,
-  PAGE_SIZES,
   QC_FILTERS,
   readCellsView,
-  SORT_DEFAULT_DIR,
   STATUS_FILTERS,
   type StatusFilter,
   trayListParams,
@@ -31,8 +30,6 @@ import {
 } from "./cellsView";
 import { RegisterInProgressCellModal } from "./RegisterInProgressCellModal";
 import { TrayTable } from "./TrayTable";
-
-const PAGE_SIZE_OPTIONS = PAGE_SIZES.map((n) => ({ value: n, label: String(n) }));
 
 /** The as-of instant for the toggle, resolved only when the toggle changes. "Now" is floored to
  * the minute: a fresh Date every render would change the query key and refetch in a loop, and a
@@ -50,8 +47,8 @@ function useAsOfIso(asOf: AsOf): string {
  * status) - always visible so the "as of" context is never ambiguous. */
 function AsOfToggle({ value, onChange }: { value: AsOf; onChange: (v: AsOf) => void }) {
   return (
-    <div className={styles.control}>
-      <span className={styles.controlLabel}>Showing data as of</span>
+    <div className={list.control}>
+      <span className={list.controlLabel}>Showing data as of</span>
       <SegmentedControl<AsOf>
         ariaLabel="Reference time"
         value={value}
@@ -79,33 +76,10 @@ export function CellsPage() {
 }
 
 function TrayList() {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const view = readCellsView(searchParams);
+  const { view, update, onSort, search, setSearch } = useListView(CELLS_VIEW);
   const location = useLocation();
   const queryClient = useQueryClient();
   const [registerOpen, setRegisterOpen] = useState(false);
-
-  const update = useCallback(
-    (patch: Partial<CellsView>) => setSearchParams((prev) => writeCellsView(prev, patch), { replace: true }),
-    [setSearchParams],
-  );
-
-  // The search box is local while typing and written to the URL once it settles - that write is
-  // what fetches. A search changed from outside the box (Back, the sidebar link) is adopted, but
-  // our own write never echoes back over newer keystrokes.
-  const [qInput, setQInput] = useState(view.q);
-  const typedQ = useDebouncedValue(qInput.trim(), 350);
-  const [pushedQ, setPushedQ] = useState(view.q);
-  const [seenQ, setSeenQ] = useState(view.q);
-  if (view.q !== seenQ) {
-    setSeenQ(view.q);
-    if (view.q !== typedQ) setQInput(view.q);
-  }
-  useEffect(() => {
-    if (typedQ === pushedQ) return;
-    setPushedQ(typedQ);
-    update({ q: typedQ });
-  }, [typedQ, pushedQ, update]);
 
   const instrumentsQuery = useQuery({
     queryKey: ["instruments", true],
@@ -125,21 +99,7 @@ function TrayList() {
   const total = query.data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / view.pageSize));
   const searching = view.q !== "";
-
-  // A page past the end (the list shrank since the link was made) snaps back to the last page.
-  useEffect(() => {
-    if (query.isSuccess && !query.isPlaceholderData && view.page > totalPages) update({ page: totalPages });
-  }, [query.isSuccess, query.isPlaceholderData, view.page, totalPages, update]);
-
-  const onSort = useCallback(
-    (key: TraySortKey) =>
-      update(
-        key === view.sort
-          ? { dir: view.dir === "asc" ? "desc" : "asc" }
-          : { sort: key, dir: SORT_DEFAULT_DIR[key] },
-      ),
-    [update, view.sort, view.dir],
-  );
+  useClampPage(query.isSuccess && !query.isPlaceholderData, view.page, totalPages, update);
 
   const linkState = useMemo<SampleDetailLocationState>(
     () => ({ backNav: { to: `${location.pathname}${location.search}`, label: "Cells" } }),
@@ -151,7 +111,7 @@ function TrayList() {
   const instrumentMissing = view.instrument !== "" && !instruments.some((i) => i.serial_number === view.instrument);
 
   return (
-    <div className={styles.page}>
+    <div className={list.page}>
       <PageHeader
         title="Cells"
         intro="Every physical SMRT cell tray: each cell's state at a glance, and what ran on it."
@@ -170,14 +130,14 @@ function TrayList() {
           <h2>{searching ? "Search results" : "Cell trays"}</h2>
         </CardHeader>
         <CardBody>
-          <div className={styles.toolbar}>
+          <div className={list.toolbar}>
             <input
               type="search"
-              className={styles.search}
+              className={list.search}
               placeholder="Search cells, trays (T123), Pool / Sanger / Plate IDs, runs (#45), barcodes, instruments…"
               aria-label="Search cells"
-              value={qInput}
-              onChange={(e) => setQInput(e.target.value)}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
             />
             <select
               value={view.status}
@@ -223,17 +183,9 @@ function TrayList() {
               {instrumentMissing && <option value={view.instrument}>{view.instrument}</option>}
             </select>
           </div>
-          <div className={styles.subbar}>
+          <div className={list.subbar}>
             <AsOfToggle value={view.asOf} onChange={(asOf) => update({ asOf })} />
-            <div className={`${styles.control} ${styles.pushRight}`}>
-              <span className={styles.controlLabel}>Rows</span>
-              <SegmentedControl
-                ariaLabel="Trays per page"
-                options={PAGE_SIZE_OPTIONS}
-                value={view.pageSize}
-                onChange={(pageSize) => update({ pageSize })}
-              />
-            </div>
+            <RowsPerPage value={view.pageSize} onChange={(pageSize) => update({ pageSize })} />
           </div>
 
           {query.isLoading && <div className="status">Loading trays…</div>}
@@ -310,11 +262,11 @@ function SingleTray({ trayId }: { trayId: number }) {
   );
 
   return (
-    <div className={styles.page}>
-      <PageHeader title={<span className={styles.mono}>Tray {trayId}</span>} back={back} />
+    <div className={list.page}>
+      <PageHeader title={<span className={list.mono}>Tray {trayId}</span>} back={back} />
       <Card>
         <CardBody>
-          <div className={styles.subbar}>
+          <div className={list.subbar}>
             <AsOfToggle
               value={asOf}
               onChange={(v) =>

@@ -1,39 +1,5 @@
-/* The table scrolls sideways on a narrow window rather than squashing the cell strip. */
-.tableWrap {
-  overflow-x: auto;
-}
-.table {
-  transition: opacity 0.15s ease;
-}
-/* Rows stay readable while the next page / filter loads over them. */
-.updating {
-  opacity: 0.55;
-}
-.row {
-  cursor: pointer;
-}
-.row > td {
-  vertical-align: middle;
-}
-.toggleCell {
-  width: 22px;
-}
-.toggle {
-  display: inline-flex;
-  padding: 0;
-  border: 0;
-  background: none;
-  cursor: pointer;
-}
-.mono {
-  font-family: var(--mono);
-}
-.nowrap {
-  white-space: nowrap;
-}
-.faint {
-  color: var(--faint);
-}
+/* The Cells table's own bits - the rest is the shared list layout (components/shared/ListPage). */
+
 /* The "34h left" under an expiry time. */
 .sub,
 .subUrgent {
@@ -49,28 +15,6 @@
 .expired {
   color: var(--red-deep);
   font-weight: 700;
-}
-.flags {
-  display: inline-flex;
-  gap: 4px;
-  flex-wrap: wrap;
-}
-
-/* The expanded tray: a grey well around the cells table (tbody td beats the shared .table td
-   padding), as on the Samples page. */
-tbody td.detailCell {
-  background: var(--line-soft);
-  padding: 12px 16px;
-  cursor: default;
-}
-.innerTable {
-  background: var(--card);
-  border-radius: var(--r-sm);
-  overflow: hidden;
-}
-/* The cell a search matched. */
-.matchedRow > td {
-  background: var(--magenta-tint);
 }
 .useLine {
   display: flex;
