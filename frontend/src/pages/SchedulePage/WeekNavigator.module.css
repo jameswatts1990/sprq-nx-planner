@@ -1,0 +1,66 @@
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+/* ‹ week › as one bordered unit: the group draws the box and its three buttons give up their
+   own borders, showing a soft fill only on hover - so the week reads as a single control. */
+.week {
+  display: inline-flex;
+  align-items: stretch;
+  gap: 2px;
+  padding: 2px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+}
+.week :global(.btn) {
+  border-color: transparent;
+  border-radius: 7px;
+  box-shadow: none;
+}
+.week :global(.btn:hover) {
+  background: var(--bg);
+}
+.week .step {
+  width: 28px;
+  height: auto;
+  color: var(--grey);
+}
+.week .step:hover {
+  color: var(--ink);
+}
+.pick {
+  position: relative;
+  display: inline-flex;
+}
+/* Fixed width, centred, tabular figures: the label changes length week to week ("2 – 6 Nov"
+   vs "30 Nov – 4 Dec"), and a sliding › would move under the pointer of someone clicking Next
+   repeatedly. */
+.week .label {
+  min-width: 176px;
+  justify-content: center;
+  padding: 4px 10px;
+  font-size: var(--fs-base);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.label svg {
+  color: var(--grey);
+  transition: color 0.14s ease;
+}
+.label:hover svg {
+  color: var(--magenta);
+}
+/* The native date input the label opens via showPicker(): laid over the label, invisible and
+   inert, so the browser anchors its calendar popup directly beneath the week. */
+.dateInput {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+}

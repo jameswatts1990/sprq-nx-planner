@@ -4,6 +4,8 @@
   --magenta: #e6007e;
   --magenta-deep: #b0005e;
   --magenta-tint: #fbe7f1;
+  /* One-step-darker edge for a magenta-tint fill (the tonal button). */
+  --magenta-border: #f2b8d6;
   --blue: #0091d2;
   --blue-deep: #006fa3;
   --blue-tint: #e3f3fb;

@@ -90,6 +90,15 @@ export function formatDateUTC(date: Date): string {
   return date.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 }
 
+/** Formats a UTC date-only range compactly with its year, sharing whatever the ends have in
+ *  common: "2 – 6 Nov 2026", "30 Nov – 4 Dec 2026", "29 Dec 2026 – 2 Jan 2027". */
+export function formatDateRangeUTC(from: Date, to: Date): string {
+  if (from.getUTCFullYear() !== to.getUTCFullYear()) return `${formatDateUTC(from)} – ${formatDateUTC(to)}`;
+  const start =
+    from.getUTCMonth() === to.getUTCMonth() ? String(from.getUTCDate()) : formatShortDateUTC(from);
+  return `${start} – ${formatDateUTC(to)}`;
+}
+
 /**
  * Formats an ISO datetime as "HH:MM, D Mon" in the viewer's LOCAL timezone - used for lock_until
  * and other turnaround displays. The lab works on the instrument's own (local) wall clock, and

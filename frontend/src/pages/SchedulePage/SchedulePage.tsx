@@ -29,13 +29,23 @@ import { useGridSelection } from "@/components/scheduler/useGridSelection";
 import { useSchedulerDnd } from "@/components/scheduler/useSchedulerDnd";
 import { useSlotSelection } from "@/components/scheduler/useSlotSelection";
 import { computeTrayEvictionDates, computeTrayFoundingDates } from "@/components/scheduler/waitingCells";
+import { ClipboardListIcon, DownloadIcon } from "@/components/shared/icons";
 import { SectionHeading, UseLegend } from "@/components/shared/SectionHeading";
 import { Button } from "@/components/ui/Button";
 import { Note } from "@/components/ui/Note";
 import type { RunOut, SlotIndex, StageOut } from "@/types/schedule";
 import type { GridCellRef, RunDesignState } from "@/types/schedulerGrid";
 import type { ScheduleNoteOut } from "@/types/scheduleNote";
-import { addDaysUTC, formatShortDateUTC, isWeekendUTC, localWallTimeToUtcParts, parseDateOnly, todayIsoUTC, toIsoDateUTC } from "@/utils/calendarDates";
+import {
+  addDaysUTC,
+  formatDateRangeUTC,
+  formatShortDateUTC,
+  isWeekendUTC,
+  localWallTimeToUtcParts,
+  parseDateOnly,
+  todayIsoUTC,
+  toIsoDateUTC,
+} from "@/utils/calendarDates";
 
 import { AutoscheduleDrawer } from "./AutoscheduleDrawer";
 import { BacklogPanel, readBacklogOpenPref, writeBacklogOpenPref } from "./BacklogPanel";
@@ -47,7 +57,8 @@ import { ScheduleSearchBar } from "./ScheduleSearchBar";
 import { useScheduleActions } from "./useScheduleActions";
 import { useScheduleSearch } from "./useScheduleSearch";
 import { useSchedulerWindow } from "./useSchedulerWindow";
-import { ViewOptionsMenu, type BacklogPosition, type GridDensity } from "./ViewOptionsMenu";
+import { ViewOptionsMenu, type BacklogPosition, type GridDensity, type InstrumentColumn } from "./ViewOptionsMenu";
+import { WeekNavigator } from "./WeekNavigator";
 
 const DEFAULT_RUN_DESIGN: RunDesignState = {
   max_uses: 3,
@@ -70,6 +81,7 @@ const SHOW_BARCODES_STORAGE_KEY = "runnx.schedule.showBarcodes";
 const SHOW_NOTES_STORAGE_KEY = "runnx.schedule.showNotes";
 const SHOW_USE_NUMBER_STORAGE_KEY = "runnx.schedule.showUseNumber";
 const DENSITY_STORAGE_KEY = "runnx.schedule.density";
+const INSTRUMENT_COLUMN_STORAGE_KEY = "runnx.schedule.instrumentColumn";
 
 function readFlagPref(key: string, fallback: boolean): boolean {
   try {
@@ -97,6 +109,21 @@ function readDensityPref(): GridDensity {
 function writeDensityPref(density: GridDensity): void {
   try {
     localStorage.setItem(DENSITY_STORAGE_KEY, density);
+  } catch {
+    /* ignore - persistence is a convenience, not a requirement */
+  }
+}
+
+function readInstrumentColumnPref(): InstrumentColumn {
+  try {
+    return localStorage.getItem(INSTRUMENT_COLUMN_STORAGE_KEY) === "slim" ? "slim" : "full";
+  } catch {
+    return "full";
+  }
+}
+function writeInstrumentColumnPref(column: InstrumentColumn): void {
+  try {
+    localStorage.setItem(INSTRUMENT_COLUMN_STORAGE_KEY, column);
   } catch {
     /* ignore - persistence is a convenience, not a requirement */
   }
@@ -187,6 +214,11 @@ export function SchedulePage() {
   const handleChangeDensity = useCallback((d: GridDensity) => {
     setDensity(d);
     writeDensityPref(d);
+  }, []);
+  const [instrumentColumn, setInstrumentColumn] = useState<InstrumentColumn>(readInstrumentColumnPref);
+  const handleChangeInstrumentColumn = useCallback((c: InstrumentColumn) => {
+    setInstrumentColumn(c);
+    writeInstrumentColumnPref(c);
   }, []);
   const [backlogPosition, setBacklogPosition] = useState<BacklogPosition>(readBacklogPositionPref);
   const handleChangeBacklogPosition = useCallback((p: BacklogPosition) => {
@@ -662,9 +694,7 @@ export function SchedulePage() {
     a.remove();
   }, [win.dateFrom, win.dateTo]);
 
-  const rangeLabel = `${formatShortDateUTC(parseDateOnly(win.dateFrom))} – ${formatShortDateUTC(
-    parseDateOnly(win.dateTo),
-  )}`;
+  const rangeLabel = formatDateRangeUTC(parseDateOnly(win.dateFrom), parseDateOnly(win.dateTo));
 
   // How far through the displayed week "today" is, for the Weekly-schedule heading's
   // loading-bar rule. 0 when the whole week is still ahead, 1 when it's fully in the
@@ -722,44 +752,11 @@ export function SchedulePage() {
                   scrolling the tray back into view first. The tray's own card list scrolls
                   internally so the pinned region never swallows the grid (see BacklogPanel). */}
               <div className={styles.stickyHead} ref={stickyHeadRef}>
+                {/* Left to right: where am I (week), find, then what can I do (contextual
+                    selection actions, Batch Sheet, export) and how it's drawn (view options). */}
                 <div className={styles.toolbar}>
-                  <div className={styles.pager}>
-                    <Button size="sm" variant="ghost" onClick={win.prev}>
-                      Previous
-                    </Button>
-                    <span className={styles.range}>{rangeLabel}</span>
-                    <Button size="sm" variant="ghost" onClick={win.next}>
-                      Next
-                    </Button>
-                    <Button size="sm" variant="ghost" onClick={win.goToday}>
-                      Today
-                    </Button>
-                    <input
-                      className={styles.jumpDate}
-                      type="date"
-                      value={win.from}
-                      onChange={(e) => e.target.value && win.goToDate(e.target.value)}
-                      aria-label="Jump to date"
-                      title="Jump to the week containing this date"
-                    />
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => setBatchSheetOpen(true)}
-                      title="Open a day's runs laid out like Traction's run form, to copy into Traction or print"
-                    >
-                      Batch Sheet
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={handleExportSchedule}
-                      title="Download the visible week as a sequencing-tracker CSV to paste into the Google Sheet"
-                    >
-                      Export schedule
-                    </Button>
-                    <ScheduleSearchBar search={search} />
-                  </div>
+                  <WeekNavigator win={win} label={rangeLabel} />
+                  <ScheduleSearchBar search={search} />
                   <div className={styles.spacer} />
                   {selectedCells.length > 0 && (
                     <div className={styles.selectionInfo}>
@@ -790,6 +787,25 @@ export function SchedulePage() {
                       </Button>
                     </div>
                   )}
+                  <Button
+                    size="sm"
+                    variant="tonal"
+                    onClick={() => setBatchSheetOpen(true)}
+                    title="Open a day's runs laid out like Traction's run form, to copy into Traction or print"
+                  >
+                    <ClipboardListIcon />
+                    Batch Sheet
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    icon
+                    className={styles.toolIcon}
+                    onClick={handleExportSchedule}
+                    aria-label="Export schedule"
+                    title="Export schedule - download this week as a sequencing-tracker CSV to paste into the Google Sheet"
+                  >
+                    <DownloadIcon />
+                  </Button>
                   <ViewOptionsMenu
                     showBarcodes={showBarcodes}
                     onChangeShowBarcodes={handleChangeShowBarcodes}
@@ -801,6 +817,8 @@ export function SchedulePage() {
                     onChangeDensity={handleChangeDensity}
                     backlogPosition={backlogPosition}
                     onChangeBacklogPosition={handleChangeBacklogPosition}
+                    instrumentColumn={instrumentColumn}
+                    onChangeInstrumentColumn={handleChangeInstrumentColumn}
                   />
                 </div>
                 {!backlogOnSide && (
@@ -852,6 +870,7 @@ export function SchedulePage() {
                 data-notes={showNotes ? undefined : "hidden"}
                 data-use-number={showUseNumber ? "shown" : undefined}
                 data-density={density === "compact" ? "compact" : undefined}
+                data-instrument-col={instrumentColumn === "slim" ? "slim" : undefined}
               >
                 <SectionHeading title="Weekly schedule" legend={<UseLegend />} progress={weekProgress} compact />
 

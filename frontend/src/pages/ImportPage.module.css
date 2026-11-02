@@ -154,11 +154,24 @@
   color: var(--grey);
   margin: 18px 0 8px;
 }
-/* "Where to get the file": one column per source, side by side, stacking when narrow. */
-.sources {
+/* Input step: paste/upload card + the Import guide as a right-hand sidebar (stacks when narrow).
+   minmax(0, …) so the paste box can't push the sidebar off-page. */
+.inputLayout {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 16px 28px;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 18px;
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .inputLayout {
+    grid-template-columns: 1fr;
+  }
+}
+/* Import guide: one source per block, stacked down the sidebar. */
+.sources {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
 }
 .sources .subheading {
   margin-top: 0;

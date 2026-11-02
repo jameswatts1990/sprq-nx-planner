@@ -33,9 +33,13 @@ h3 {
    against a big centering gap. On this route only, drop the cap so the content spans the full
    viewport (just the 22px gutter each side) - the weekly grid then flex-grows to widen its day
    columns, and a left- or right-docked Backlog sits symmetrically against the true screen edge
-   rather than the 1720 boundary (AppShell adds .wrap-full on /schedule). */
+   rather than the 1720 boundary (AppShell adds .wrap-full on /schedule).
+   No bottom padding here: the side-docked Backlog panel is exactly viewport-tall, so any
+   padding below .page made the page scroll past it and unpin the panel's bottom edge.
+   SchedulePage .main carries the bottom breathing room instead. */
 .wrap-full {
   max-width: none;
+  padding-bottom: 0;
 }
 @media print {
   /* The nav is hidden when printing, so drop the offset that reserves space for it; the @page
@@ -80,6 +84,16 @@ h3 {
 .btn.primary:hover {
   background: var(--magenta-deep);
   border-color: var(--magenta-deep);
+}
+/* Medium emphasis: louder than a plain button, quieter than .primary, so a frequent action can
+   stand out on a screen that already has its one solid-magenta call to action. */
+.btn.tonal {
+  background: var(--magenta-tint);
+  border-color: var(--magenta-border);
+  color: var(--magenta-deep);
+}
+.btn.tonal:hover {
+  border-color: var(--magenta);
 }
 .btn.ghost {
   background: transparent;

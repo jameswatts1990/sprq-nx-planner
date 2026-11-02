@@ -559,143 +559,145 @@ export function ImportPage() {
         </div>
       )}
 
-      <Card>
-        <CardHeader badge="paste or upload CSV">
-          <h2>Samples &amp; barcodes</h2>
-        </CardHeader>
-        <CardBody>
-          <textarea
-            className={styles.csvInput}
-            spellCheck={false}
-            placeholder={
-              "Paste CSV here — any columns. You'll match them to fields on the next step.\n" +
-              "Pool ID,Plate ID,Sanger Sample IDs,Barcodes,Target OPLC,...\n" +
-              'BNCH-1597,TRAC-2-25402,...,"bc2021, bc2066",268.0,...\n\n' +
-              "…or a simple two-column list (untick “First row is a header”):\n" +
-              "TRAC-2-25402, bc2021 bc2066"
-            }
-            value={text}
-            onChange={(e) => {
-              setText(e.target.value);
-              if (schedulerPools) clearSchedulerContext();
-            }}
-          />
-          <div className={styles.inputRow}>
-            <div className={styles.splitButton} ref={uploadMenuRef}>
-              <label className={`btn sm ${styles.splitMain}`} style={{ cursor: "pointer" }}>
-                Upload CSV
-                <input ref={fileInputRef} type="file" accept=".csv,.tsv,.txt" hidden onChange={handleFileChange} />
+      <div className={styles.inputLayout}>
+        <Card>
+          <CardHeader badge="paste or upload CSV">
+            <h2>Samples &amp; barcodes</h2>
+          </CardHeader>
+          <CardBody>
+            <textarea
+              className={styles.csvInput}
+              spellCheck={false}
+              placeholder={
+                "Paste CSV here — any columns. You'll match them to fields on the next step.\n" +
+                "Pool ID,Plate ID,Sanger Sample IDs,Barcodes,Target OPLC,...\n" +
+                'BNCH-1597,TRAC-2-25402,...,"bc2021, bc2066",268.0,...\n\n' +
+                "…or a simple two-column list (untick “First row is a header”):\n" +
+                "TRAC-2-25402, bc2021 bc2066"
+              }
+              value={text}
+              onChange={(e) => {
+                setText(e.target.value);
+                if (schedulerPools) clearSchedulerContext();
+              }}
+            />
+            <div className={styles.inputRow}>
+              <div className={styles.splitButton} ref={uploadMenuRef}>
+                <label className={`btn sm ${styles.splitMain}`} style={{ cursor: "pointer" }}>
+                  Upload CSV
+                  <input ref={fileInputRef} type="file" accept=".csv,.tsv,.txt" hidden onChange={handleFileChange} />
+                </label>
+                <button
+                  type="button"
+                  className={`btn sm ${styles.splitCaret}`}
+                  aria-haspopup="menu"
+                  aria-expanded={uploadMenuOpen}
+                  aria-label="More upload options"
+                  onClick={() => setUploadMenuOpen((open) => !open)}
+                >
+                  <span aria-hidden>▾</span>
+                </button>
+                {uploadMenuOpen && (
+                  <div className={styles.uploadMenu} role="menu">
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className={styles.uploadMenuItem}
+                      onClick={() => {
+                        setUploadMenuOpen(false);
+                        schedulerInputRef.current?.click();
+                      }}
+                    >
+                      <span className={styles.uploadMenuItemTitle}>Upload from scheduler…</span>
+                      <span className={styles.uploadMenuItemHint}>
+                        Your scheduling sheet (.csv or .xlsx) — rows are pooled by Pool ID automatically
+                      </span>
+                    </button>
+                  </div>
+                )}
+              </div>
+              <Button size="sm" variant="ghost" onClick={downloadTemplate}>
+                Download template
+              </Button>
+              <Button size="sm" variant="ghost" onClick={handleClear}>
+                Clear
+              </Button>
+              <label className={styles.headerToggle}>
+                <input type="checkbox" checked={hasHeader} onChange={(e) => setHasHeader(e.target.checked)} />
+                First row is a header
               </label>
-              <button
-                type="button"
-                className={`btn sm ${styles.splitCaret}`}
-                aria-haspopup="menu"
-                aria-expanded={uploadMenuOpen}
-                aria-label="More upload options"
-                onClick={() => setUploadMenuOpen((open) => !open)}
-              >
-                <span aria-hidden>▾</span>
-              </button>
-              {uploadMenuOpen && (
-                <div className={styles.uploadMenu} role="menu">
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className={styles.uploadMenuItem}
-                    onClick={() => {
-                      setUploadMenuOpen(false);
-                      schedulerInputRef.current?.click();
-                    }}
-                  >
-                    <span className={styles.uploadMenuItemTitle}>Upload from scheduler…</span>
-                    <span className={styles.uploadMenuItemHint}>
-                      Your scheduling sheet (.csv or .xlsx) — rows are pooled by Pool ID automatically
-                    </span>
-                  </button>
-                </div>
+              <input
+                ref={schedulerInputRef}
+                type="file"
+                accept=".csv,.tsv,.txt,.xlsx"
+                hidden
+                onChange={handleSchedulerFile}
+              />
+            </div>
+            <div className={styles.parseStatus}>
+              {schedulerMutation.isPending ? (
+                <span>Converting scheduler sheet…</span>
+              ) : text.length === 0 ? (
+                <span>No samples loaded yet.</span>
+              ) : (
+                <span>
+                  <b>{lineCount}</b> line{lineCount === 1 ? "" : "s"} — you&apos;ll review the column mapping next.
+                </span>
               )}
             </div>
-            <Button size="sm" variant="ghost" onClick={downloadTemplate}>
-              Download template
-            </Button>
-            <Button size="sm" variant="ghost" onClick={handleClear}>
-              Clear
-            </Button>
-            <label className={styles.headerToggle}>
-              <input type="checkbox" checked={hasHeader} onChange={(e) => setHasHeader(e.target.checked)} />
-              First row is a header
-            </label>
-            <input
-              ref={schedulerInputRef}
-              type="file"
-              accept=".csv,.tsv,.txt,.xlsx"
-              hidden
-              onChange={handleSchedulerFile}
-            />
-          </div>
-          <div className={styles.parseStatus}>
-            {schedulerMutation.isPending ? (
-              <span>Converting scheduler sheet…</span>
-            ) : text.length === 0 ? (
-              <span>No samples loaded yet.</span>
-            ) : (
-              <span>
-                <b>{lineCount}</b> line{lineCount === 1 ? "" : "s"} — you&apos;ll review the column mapping next.
-              </span>
+
+            {schedulerNotes}
+
+            {readError && (
+              <div className={styles.error}>
+                <Note tone="bad" icon="!">
+                  {readError}
+                </Note>
+              </div>
             )}
-          </div>
+            {schedulerMutation.isError && (
+              <div className={styles.error}>
+                <Note tone="bad" icon="!">
+                  {errorMessage(schedulerMutation.error, "Couldn't convert that scheduler sheet.")}
+                </Note>
+              </div>
+            )}
+            {previewMutation.isError && (
+              <div className={styles.error}>
+                <Note tone="bad" icon="!">
+                  {errorMessage(previewMutation.error, "Couldn't read that file.")}
+                </Note>
+              </div>
+            )}
 
-          {schedulerNotes}
-
-          {readError && (
-            <div className={styles.error}>
-              <Note tone="bad" icon="!">
-                {readError}
-              </Note>
+            <div className={styles.actions}>
+              <Button
+                variant="primary"
+                onClick={() => previewMutation.mutate({})}
+                disabled={
+                  text.trim().length === 0 ||
+                  previewMutation.isPending ||
+                  schedulerMutation.isPending ||
+                  fieldsQuery.isLoading
+                }
+              >
+                {previewMutation.isPending ? "Reading…" : "Continue to mapping"}
+              </Button>
+              <label className={styles.filenameField}>
+                Filename (optional)
+                <input
+                  type="text"
+                  value={filename}
+                  onChange={(e) => setFilename(e.target.value)}
+                  placeholder="e.g. batch-2026-07.csv"
+                />
+              </label>
             </div>
-          )}
-          {schedulerMutation.isError && (
-            <div className={styles.error}>
-              <Note tone="bad" icon="!">
-                {errorMessage(schedulerMutation.error, "Couldn't convert that scheduler sheet.")}
-              </Note>
-            </div>
-          )}
-          {previewMutation.isError && (
-            <div className={styles.error}>
-              <Note tone="bad" icon="!">
-                {errorMessage(previewMutation.error, "Couldn't read that file.")}
-              </Note>
-            </div>
-          )}
+          </CardBody>
+        </Card>
 
-          <div className={styles.actions}>
-            <Button
-              variant="primary"
-              onClick={() => previewMutation.mutate({})}
-              disabled={
-                text.trim().length === 0 ||
-                previewMutation.isPending ||
-                schedulerMutation.isPending ||
-                fieldsQuery.isLoading
-              }
-            >
-              {previewMutation.isPending ? "Reading…" : "Continue to mapping"}
-            </Button>
-            <label className={styles.filenameField}>
-              Filename (optional)
-              <input
-                type="text"
-                value={filename}
-                onChange={(e) => setFilename(e.target.value)}
-                placeholder="e.g. batch-2026-07.csv"
-              />
-            </label>
-          </div>
-        </CardBody>
-      </Card>
-
-      <ImportSources />
+        <ImportGuide />
+      </div>
     </div>
   );
 }
@@ -704,12 +706,16 @@ export function ImportPage() {
 const BENCHLING_LOAD_SEQUENCER_URL =
   "https://tol-sanger.benchling.com/workflows?filter=view%3APROCESSES%3Btypes%3AIS_ONE_OF%3Aprocess_task%3Bschema%3AIS_ONE_OF%3Aprstsch_U6TZuZV0aV%3BtaskStatus%3AIS_ONE_OF%3Awfts_yBA66UOx%3BarchivePurposes%3AIS_ONE_OF%3ANOT_ARCHIVED%3BisAssociatedWithUnsubmittedRequestV2Submission%3AIS_FALSE%3BProcessesIsSystemDataFilter%3AIS_FALSE&offset=0&limit=100&sorts=starred%3A0%3Bcreated_at%3A1&q=&v=2";
 
-/** Where each source file comes from, under the paste/upload card on the input step. */
-function ImportSources() {
+/** The lab's sequencing tracker Google Sheet (the "Upload from scheduler…" source). */
+const SEQUENCING_TRACKER_SHEET_URL =
+  "https://docs.google.com/spreadsheets/d/1jJTmEi6MZJklSjcZeCjZndTMWs1f9r8vqw-WB5xlLgk/edit?gid=868375595#gid=868375595";
+
+/** Where each source file comes from, in the sidebar beside the paste/upload card on the input step. */
+function ImportGuide() {
   return (
     <Card>
       <CardHeader>
-        <h2>Where to get the file</h2>
+        <h2>Import guide</h2>
       </CardHeader>
       <CardBody>
         <div className={styles.sources}>
@@ -727,7 +733,7 @@ function ImportSources() {
                 Look for the <b>Pending</b> samples and export them as a CSV.
               </li>
               <li>
-                Upload it with <b>Upload CSV</b> above (or paste it in) and import it into RunNx.
+                Upload it with <b>Upload CSV</b> (or paste it in) and import it into RunNx.
               </li>
               <li>
                 After importing, change those samples&apos; status to <b>Planned</b> in Benchling.
@@ -738,7 +744,11 @@ function ImportSources() {
             <p className={styles.subheading}>Google Sheet</p>
             <ol className={styles.sourceSteps}>
               <li>
-                Download the sequencing tracker sheet as a <b>.csv</b> or <b>.xlsx</b> (File → Download).
+                Open the{" "}
+                <a className="link" href={SEQUENCING_TRACKER_SHEET_URL} target="_blank" rel="noreferrer">
+                  sequencing tracker sheet ↗
+                </a>{" "}
+                and download it as a <b>.csv</b> or <b>.xlsx</b> (File → Download).
               </li>
               <li>
                 Click the <b>▾</b> beside <b>Upload CSV</b>, choose <b>Upload from scheduler…</b> and pick the file.

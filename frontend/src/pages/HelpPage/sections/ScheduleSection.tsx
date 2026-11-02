@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import { SchedulerSlotView } from "@/components/scheduler/SchedulerSlotView";
+import { RescheduleIcon } from "@/components/shared/RescheduleIcon";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Note } from "@/components/ui/Note";
 import { RunDesignFields } from "@/pages/SchedulePage/RunDesignFields";
@@ -59,10 +60,11 @@ export function ScheduleSection() {
 
       <p className={styles.subheading}>Moving through time</p>
       <p>
-        <b>Previous</b> and <b>Next</b> page the view by 7 days; <b>Today</b> jumps back to the current window. The
-        date range is shown between them, and it&apos;s remembered in the page URL so you can bookmark or share a
-        week. The date field next to <b>Today</b> is a jump-to-date picker — pick any day and the view jumps
-        straight to the Mon-Fri week that contains it, without paging through every week in between.
+        The week shown sits at the top left of the toolbar, e.g. <b>2 – 6 Nov 2026</b>. The <b>‹</b> and <b>›</b>{" "}
+        arrows either side of it step back or forward a week, and <b>Today</b> jumps back to the current week.{" "}
+        <b>Click the week itself</b> (it has a small calendar icon) to open a calendar — pick any day and the view
+        jumps straight to the Mon-Fri week that contains it, without paging through every week in between. The week
+        is remembered in the page URL, so you can bookmark or share it.
       </p>
       <p>
         <b>Weekends aren&apos;t shown</b> — the grid only has Monday-Friday columns, because runs aren&apos;t
@@ -84,7 +86,7 @@ export function ScheduleSection() {
 
       <p className={styles.subheading}>Find a sample or run</p>
       <p>
-        The <b>search box</b> in the toolbar (just right of <b>Export schedule</b>) finds a sample or run anywhere — it
+        The <b>search box</b> in the toolbar (just right of the week) finds a sample or run anywhere — it
         looks across both the <b>Backlog</b> and everything already <b>planned on the grid</b> at once. Type a{" "}
         <b>Pool ID</b>, a <b>Sanger ID</b>, a <b>Plate ID</b>, a <b>barcode</b>, a <b>run name</b>, or a bare <b>run number</b> (e.g. <i>123</i> or{" "}
         <i>#123</i>): the Backlog tray narrows to the matching samples as you type, and a counter shows how many
@@ -132,9 +134,11 @@ export function ScheduleSection() {
 
       <p className={styles.subheading}>View options</p>
       <p>
-        <b>View options</b> at the far right of the date toolbar opens a small menu of display toggles that change
-        only how the grid is drawn, never the plan itself. They only affect the grid — a card&apos;s detail popover
-        always shows everything — and each choice is remembered next time you open the Schedule page:
+        The <b>eye</b> button at the far right of the toolbar opens <b>View options</b>, a small menu of display
+        toggles that change only how the grid is drawn, never the plan itself. They only affect the grid — a
+        card&apos;s detail popover always shows everything — and each choice is remembered next time you open the
+        Schedule page. A <b>magenta dot</b> on the eye means barcodes or sample notes are currently hidden (hover
+        the eye to see which):
       </p>
       <ul>
         <li>
@@ -163,6 +167,12 @@ export function ScheduleSection() {
           under the toolbar; <b>Left</b> or <b>Right</b> docks it as a narrow, one-card-wide panel down that side of the
           screen, <b>pushing the grid across</b> to make room rather than covering it. The docked panel <b>collapses</b>{" "}
           to a thin rail with its <b>‹ / ›</b> toggle when you need the full width back, and expands again the same way.
+        </li>
+        <li>
+          <b>Instrument column: Full / Slim</b> — <b>Full</b> (default) shows each instrument&apos;s name, serial and
+          cell map down the left. <b>Slim</b> shrinks that column to a narrow strip showing only the <b>Revio
+          number</b>, turned sideways, and its <b>↻ Recalculate</b> button, so the days get more width and the screen
+          is less busy. The <b>instrument cell map</b> (below) is hidden in Slim — switch back to Full to see it.
         </li>
       </ul>
 
@@ -262,7 +272,8 @@ export function ScheduleSection() {
 
       <p className={styles.subheading}>Batch Sheet</p>
       <p>
-        <b>Batch Sheet</b> shows a day&apos;s runs ready to enter into <b>Traction</b>, and prints the paper loading
+        <b>Batch Sheet</b> (the pink button with a clipboard icon, top right of the Schedule toolbar) shows a
+        day&apos;s runs ready to enter into <b>Traction</b>, and prints the paper loading
         sheet when you need one. Pick the <b>load day</b> and tick which instruments to include — handy when different
         people load different machines — then click <b>View sheet</b>. It opens in place of the schedule; <b>◂ Schedule</b>
         above its title returns you.
@@ -366,7 +377,8 @@ export function ScheduleSection() {
 
       <p className={styles.subheading}>Export schedule</p>
       <p>
-        <b>Export schedule</b> downloads the currently-visible week as a CSV in the exact column layout of the
+        The <b>download</b> button (a tray with a down arrow, between <b>Batch Sheet</b> and the eye) is{" "}
+        <b>Export schedule</b>: it downloads the currently-visible week as a CSV in the exact column layout of the
         sequencing tracker Google Sheet, so you can paste the rows straight in. There is one row per scheduled well;
         the columns the planner tracks (date, run ID, instrument, Traction ID, barcodes, Sanger ID, cell location, run
         time, target OPLC, status and priority) are filled in, and every other column in the sheet is left
@@ -1015,7 +1027,7 @@ export function ScheduleSection() {
           the instrument by then. If a <i>later</i> reuse is itself already Confirm loaded, unlock that one first.
         </li>
         <li>
-          The <b>📅</b> button next to <b>Confirm loaded</b> is <b>Reschedule</b> — use it when a run <b>fails to load</b>
+          The <RescheduleIcon /> (calendar-with-arrow) button next to <b>Confirm loaded</b> is <b>Reschedule</b> — use it when a run <b>fails to load</b>
           {" "}(instrument issue, etc.) and needs to move to another day. It moves the <b>whole run — both plates and all
           its samples</b> — to a weekday you pick, in one step, instead of dragging every sample across. Use numbers stay
           correct for the new dates, and a reuse Plate 2 re-chains off the new load day. If a reuse no longer fits its

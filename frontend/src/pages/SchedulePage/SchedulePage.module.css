@@ -32,12 +32,15 @@
    beside the docked backlog instead of splitting into two side-by-side row items. No
    min-width:0: the grid keeps its natural width rather than being squashed under the panel -
    when it can't fit beside the panel the whole page scrolls horizontally instead, and the
-   panel is pinned to its edge (see BacklogPanel .sidePanel) so it stays visible throughout. */
+   panel is pinned to its edge (see BacklogPanel .sidePanel) so it stays visible throughout.
+   The bottom gap under the grid lives here (not on .page / .wrap): inside .page's content box
+   it can't push the page past the viewport-tall docked panel (see .wrap-full in base.css). */
 .main {
   display: flex;
   flex-direction: column;
   gap: 6px;
   flex: 1 1 auto;
+  padding-bottom: 22px;
 }
 /* In side mode, park the toolbar CONTROLS beside the docked panel during a horizontal scroll,
    while the sticky head itself stays full grid width so its opaque background band still forms
@@ -80,30 +83,19 @@
 .toolbar {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 10px;
   flex-wrap: wrap;
-}
-.pager {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.range {
-  font-size: var(--fs-base);
-  font-weight: 800;
-  color: var(--ink);
-  min-width: 150px;
-  text-align: center;
-}
-/* Sized and weighted to match the btn sm week-nav buttons it sits among. */
-.jumpDate {
-  font-size: var(--fs-md);
-  font-weight: 700;
-  padding: 6px 8px;
-  cursor: pointer;
 }
 .spacer {
   margin-left: auto;
+}
+/* Export, an icon-only action, rests in grey so it recedes behind the week and Batch Sheet,
+   darkening on hover (ViewOptionsMenu's eye trigger matches it). */
+.toolIcon {
+  color: var(--grey);
+}
+.toolIcon:hover {
+  color: var(--ink);
 }
 .selectionInfo {
   display: flex;

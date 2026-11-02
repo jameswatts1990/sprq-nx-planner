@@ -9,6 +9,7 @@ import { cyclesApi } from "@/api/cycles";
 import { CellTypeBadge } from "@/components/cells/CellTypeBadge";
 import { TraySiblingList } from "@/components/cells/TraySiblingList";
 import { LockChip } from "@/components/shared/LockChip";
+import { RescheduleIcon } from "@/components/shared/RescheduleIcon";
 import { formatLoadTime, isValidLoadTime, parseLoadTime } from "@/components/scheduler/loadTime";
 import { Button } from "@/components/ui/Button";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
@@ -420,7 +421,7 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
                     aria-label="Reschedule this run to another day"
                     onClick={() => setReschedulingTo(loadDate)}
                   >
-                    📅
+                    <RescheduleIcon />
                   </button>
                 </>
               )

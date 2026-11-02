@@ -94,6 +94,11 @@
   margin-bottom: 4px;
   min-height: 18px;
 }
+/* An empty cell's head is only a spacer for row alignment - under a day note it just leaves
+   a blank band, so drop it and let the plates sit right below the note. */
+.dayNotes + .head:empty {
+  display: none;
+}
 /* The run's single identity (name, else "#<run id>"), shown once per run at the cell level.
    Muted so it reads as a quiet label, not a status. */
 .runIdTag {
@@ -184,21 +189,22 @@
   color: var(--magenta);
   background: var(--magenta-tint);
 }
-/* "Reschedule" (📅) - move the whole run to another weekday. A compact, understated icon button
-   next to Confirm loaded (same resting look as the tray-header .rotateBtn), so it's available for
-   a failed-load reschedule without crowding the header. */
+/* "Reschedule" (calendar + arrow, RescheduleIcon) - move the whole run to another weekday. A
+   compact, understated monochrome icon button next to Confirm loaded (same resting look as the
+   tray-header .rotateBtn), so it's available for a failed-load reschedule without crowding the
+   header. */
 .rescheduleBtn {
-  font-size: var(--fs-sm);
+  font-size: var(--fs-xl);
   line-height: 1;
   border: none;
   background: none;
+  color: var(--grey);
   cursor: pointer;
-  padding: 1px 3px;
+  padding: 2px 3px;
   border-radius: 4px;
-  opacity: 0.75;
 }
 .rescheduleBtn:hover:not(:disabled) {
-  opacity: 1;
+  color: var(--blue-deep);
   background: var(--blue-tint);
 }
 .rescheduleBtn:disabled {

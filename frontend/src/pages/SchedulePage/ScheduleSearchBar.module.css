@@ -1,4 +1,11 @@
+/* Wide enough that a full ID plus the match counter and ↑ ↓ ✕ stay visible together (~50
+   characters before any of those show), shrinking only on a narrow screen. A definite width, not
+   flex-grow: in side-backlog mode the toolbar shrink-wraps its content, and a grow-only basis
+   isn't counted there, which wrapped the right-hand buttons onto a second line. */
 .wrap {
+  flex: 0 1 auto;
+  width: 440px;
+  min-width: 240px;
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -17,17 +24,23 @@
   box-shadow: 0 0 0 3px var(--magenta-tint);
 }
 .icon {
-  font-size: var(--fs-lg);
+  display: inline-flex;
+  margin-left: 2px;
+  font-size: var(--fs-xl);
   color: var(--grey);
-  line-height: 1;
 }
-/* Borderless inside .wrap, which draws the box and its focus ring. */
+/* Borderless inside .wrap, which draws the box and its focus ring. Takes whatever width the
+   counter and ↑ ↓ ✕ (which never shrink) leave over. */
 .input {
   background: transparent;
   border: none;
   padding: 5px 2px;
-  width: 190px;
-  min-width: 120px;
+  flex: 1 1 0;
+  min-width: 0;
+}
+/* The app draws its own ✕ (Clear search, in .nav) - drop the browser's duplicate. */
+.input::-webkit-search-cancel-button {
+  display: none;
 }
 .input:focus {
   box-shadow: none;
@@ -40,12 +53,14 @@
   padding: 0 4px;
   min-width: 44px;
   text-align: center;
+  flex: none;
 }
 .counterEmpty {
   color: var(--grey);
 }
 /* ↑ / ↓ / ✕ - the same ghost icon buttons as the Help search's match stepper. */
 .nav {
+  flex: none;
   display: inline-flex;
   align-items: center;
   gap: 4px;

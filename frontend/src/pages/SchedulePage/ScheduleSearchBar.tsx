@@ -1,12 +1,13 @@
 import type { KeyboardEvent } from "react";
 
+import { SearchIcon } from "@/components/shared/icons";
 import { Button } from "@/components/ui/Button";
 import type { ScheduleSearch } from "./useScheduleSearch";
 
 import styles from "./ScheduleSearchBar.module.css";
 
 /**
- * The Schedule toolbar's unified search box (right of Export schedule): one field that both
+ * The Schedule toolbar's unified search box (right of the week navigator): one field that both
  * filters the Backlog tray and finds every placement of a sample or run across the whole
  * schedule. Works like a browser's find bar - type to search, then Enter (or ↓) to cycle to
  * the next appearance and Shift+Enter (or ↑) for the previous, jumping the week view to
@@ -40,7 +41,7 @@ export function ScheduleSearchBar({ search }: { search: ScheduleSearch }) {
   return (
     <div className={styles.wrap} role="search">
       <span className={styles.icon} aria-hidden="true">
-        ⌕
+        <SearchIcon />
       </span>
       <input
         type="search"

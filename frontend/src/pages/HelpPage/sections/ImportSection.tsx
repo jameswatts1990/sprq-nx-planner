@@ -17,11 +17,12 @@ export function ImportSection() {
         Barcodes cell may hold one or several codes.
       </p>
       <p>
-        <b>Where to get the file:</b> a <b>Where to get the file</b> card under the paste box gives the steps for each
-        source. <b>Benchling</b>: open the <i>Load a Sequencer</i> task (the card links straight to it), find the{" "}
-        <b>Pending</b> samples, export them as a CSV and import it here, then change those samples&apos; status to{" "}
-        <b>Planned</b> in Benchling. <b>Google Sheet</b>: download the sequencing tracker as a .csv or .xlsx and use{" "}
-        <b>Upload from scheduler…</b> (below).
+        <b>Where to get the file:</b> the <b>Import guide</b> sidebar beside the paste box (below it on narrow
+        screens) gives the steps for each source. <b>Benchling</b>: open the <i>Load a Sequencer</i> task (the guide
+        links straight to it), find the <b>Pending</b> samples, export them as a CSV and import it here, then change
+        those samples&apos; status to <b>Planned</b> in Benchling. <b>Google Sheet</b>: open the sequencing tracker
+        (the guide links straight to it), download it as a .csv or .xlsx and use <b>Upload from scheduler…</b>{" "}
+        (below).
       </p>
       <dl className={styles.terms}>
         <dt>Upload CSV</dt>

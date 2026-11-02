@@ -107,6 +107,30 @@
   margin-top: 1px;
 }
 
+/* View options -> Instrument column: Slim. Scoped by [data-instrument-col="slim"] on the grid
+   area (same pattern as data-density). Keeps only the name/serial + Recalculate, turned to read
+   bottom-to-top, and hides the "Revio"/"Instrument" labels, serial microprint and cell map. */
+:global([data-instrument-col="slim"]) .cornerCol,
+:global([data-instrument-col="slim"]) .corner,
+:global([data-instrument-col="slim"]) .machTh {
+  width: 44px;
+  min-width: 44px;
+}
+:global([data-instrument-col="slim"]) .corner,
+:global([data-instrument-col="slim"]) .machTh {
+  padding: 12px 6px;
+}
+:global([data-instrument-col="slim"]) .corner .ml,
+:global([data-instrument-col="slim"]) .machTh > :not(.mid) {
+  display: none;
+}
+:global([data-instrument-col="slim"]) .mid {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  margin: 0 auto;
+  white-space: nowrap;
+}
+
 /* Day header (was CalendarDayHeader.module.css). */
 .dayTh {
   padding: 10px 12px;
