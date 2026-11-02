@@ -73,6 +73,9 @@ export interface SampleCellUseOut {
   cycle_id: number;
   run_name: string | null;
   run_batch_id: number;
+  /** The run's load date (YYYY-MM-DD) and instrument. */
+  load_date: string | null;
+  instrument_serial: string | null;
   /** Which plate (1 or 2) of the run this use was scheduled on, inferred from the schedule. */
   plate_number: number | null;
   cell_id: number;

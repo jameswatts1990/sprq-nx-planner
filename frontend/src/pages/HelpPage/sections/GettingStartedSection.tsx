@@ -32,8 +32,8 @@ export function GettingStartedSection() {
         <li>
           <b>History ▾</b> opens a short menu of the records: <b>Cells</b> shows every physical SMRT cell tray, how
           many of its uses are spent, and how much of its 108-hour lifetime window is left; <b>Runs</b> is the record
-          of past, active and planned runs; and <b>Samples</b> is the list of completed and failed samples. History
-          stays highlighted while you&apos;re on any of them.
+          of past, active and planned runs, with how each well went; and <b>Samples</b> lists every sample — wherever
+          it is now, and every run it has been on. History stays highlighted while you&apos;re on any of them.
         </li>
       </ol>
 

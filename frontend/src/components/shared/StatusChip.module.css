@@ -1,0 +1,72 @@
+/* A compact status chip: a tinted, bordered mono tag in the Badge tone colours, so a chip always
+   matches the badge its status shows elsewhere. The Cells page's tray strip, Run history's well
+   strip and the Samples page's run chips. The deep shade carries the text/border so it holds
+   contrast on the tint. */
+.strip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  vertical-align: middle;
+}
+.chip,
+.empty {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 7px;
+  border: 1.5px solid;
+  border-radius: 6px;
+  text-decoration: none;
+  font-family: var(--mono);
+  font-size: var(--fs-sm);
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+}
+.chip:hover,
+.chip:focus-visible {
+  outline: 2px solid var(--magenta-border);
+  outline-offset: 1px;
+}
+.neutral {
+  color: var(--grey);
+  background: var(--line-soft);
+  border-color: var(--line);
+}
+.success {
+  color: var(--green-deep);
+  background: var(--green-tint);
+  border-color: var(--green-border);
+}
+.danger {
+  color: var(--red-deep);
+  background: var(--red-tint);
+  border-color: var(--red-border);
+}
+.warning {
+  color: var(--amber-deep);
+  background: var(--amber-tint);
+  border-color: var(--amber-border);
+}
+.orange {
+  color: var(--orange-deep);
+  background: var(--orange-tint);
+  border-color: var(--orange-border);
+}
+.info {
+  color: var(--blue-deep);
+  background: var(--blue-tint);
+  border-color: var(--blue-border);
+}
+/* A search hit - the cell / well / run that carried what you searched for. */
+.matched {
+  box-shadow: 0 0 0 2px var(--magenta);
+}
+/* A position with nothing in it (no cell on record, no sample loaded). */
+.empty {
+  color: var(--faint);
+  background: transparent;
+  border-style: dashed;
+  border-color: var(--line-hover);
+}

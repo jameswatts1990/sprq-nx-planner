@@ -1,27 +1,21 @@
 import type { ListCellTraysParams, TraySortKey } from "@/api/cells";
 import type { CellStatus, CellType } from "@/types/common";
+import { type ListView, type ListViewSpec, oneOf, readListFields, type SortDir, writeListView } from "@/utils/listView";
 
-/** The Cells page's view - filters, search, sort, page and the as-of instant - kept in the URL so
- * Back from a cell, sample or tray returns to exactly this list, and a filtered view can be linked
- * to (e.g. the Instruments page's /cells?instrument=84047&status=open). */
+/** The Cells page's view - filters, search, sort, page and the as-of instant - kept in the URL
+ * (see utils/listView), e.g. the Instruments page's /cells?instrument=84047&status=open. */
 
 type QcFilter = "unreported" | "awaiting_credit";
 export type StatusFilter = CellStatus | "all" | QcFilter;
 /** Reference instant for every time-derived figure: now, or the end of this scheduling week. */
 export type AsOf = "now" | "eow";
-export type SortDir = "asc" | "desc";
 
-export interface CellsView {
+export interface CellsView extends ListView<TraySortKey> {
   status: StatusFilter;
   /** Instrument serial; "" = every instrument. */
   instrument: string;
   /** "" = both SPRQ-Nx and SPRQ. */
   chemistry: CellType | "";
-  q: string;
-  sort: TraySortKey;
-  dir: SortDir;
-  page: number;
-  pageSize: number;
   asOf: AsOf;
 }
 
@@ -36,8 +30,6 @@ export const DEFAULT_CELLS_VIEW: CellsView = {
   pageSize: 50,
   asOf: "now",
 };
-
-export const PAGE_SIZES = [25, 50, 100, 200];
 
 /** Cell states a tray can be filtered on (a tray matches when any of its cells is in that state),
  * then the PacBio-credit stages, which cut across status. */
@@ -54,9 +46,8 @@ export const QC_FILTERS: { value: StatusFilter; label: string }[] = [
   { value: "awaiting_credit", label: "QC: Awaiting credit" },
 ];
 
-/** The direction that reads most naturally when a column is first picked: soonest expiry and
- * A→Z first, newest first for trays and dates, most uses left first. Clicking again flips it. */
-export const SORT_DEFAULT_DIR: Record<TraySortKey, SortDir> = {
+/** Soonest expiry and A→Z first, newest first for trays and dates, most uses left first. */
+const SORT_DEFAULT_DIR: Record<TraySortKey, SortDir> = {
   expiry: "asc",
   tray: "desc",
   first_use: "desc",
@@ -65,64 +56,39 @@ export const SORT_DEFAULT_DIR: Record<TraySortKey, SortDir> = {
   uses_left: "desc",
 };
 
-const STATUS_VALUES = new Set<string>([...STATUS_FILTERS, ...QC_FILTERS].map((f) => f.value));
-const SORT_VALUES = new Set<string>(Object.keys(SORT_DEFAULT_DIR));
+const STATUS_VALUES = [...STATUS_FILTERS, ...QC_FILTERS].map((f) => f.value);
 
-/** URL key for each view field. "status" and "instrument" are the names existing deep links use. */
-const KEYS: Record<keyof CellsView, string> = {
-  status: "status",
-  instrument: "instrument",
-  chemistry: "chem",
-  q: "q",
-  sort: "sort",
-  dir: "dir",
-  page: "page",
-  pageSize: "size",
-  asOf: "asof",
+export const CELLS_VIEW: ListViewSpec<CellsView> = {
+  defaults: DEFAULT_CELLS_VIEW,
+  // "status" and "instrument" are the names existing deep links use.
+  keys: {
+    status: "status",
+    instrument: "instrument",
+    chemistry: "chem",
+    q: "q",
+    sort: "sort",
+    dir: "dir",
+    page: "page",
+    pageSize: "size",
+    asOf: "asof",
+  },
+  sortDefaultDir: SORT_DEFAULT_DIR,
+  read: (params) => {
+    const d = DEFAULT_CELLS_VIEW;
+    return {
+      ...readListFields(params, CELLS_VIEW),
+      status: oneOf(params.get("status"), STATUS_VALUES, d.status),
+      instrument: params.get("instrument") ?? d.instrument,
+      chemistry: oneOf(params.get("chem"), ["sprq", "sprq_nx"] as const, d.chemistry),
+      asOf: params.get("asof") === "eow" ? "eow" : d.asOf,
+    };
+  },
 };
 
-function positiveInt(raw: string | null): number | null {
-  return raw && /^\d+$/.test(raw) && Number(raw) > 0 ? Number(raw) : null;
-}
+export const readCellsView = CELLS_VIEW.read;
 
-/** The view a URL describes - anything missing or unrecognised falls back to the default. */
-export function readCellsView(params: URLSearchParams): CellsView {
-  const d = DEFAULT_CELLS_VIEW;
-  const get = (key: keyof CellsView) => params.get(KEYS[key]);
-  const status = get("status");
-  const chemistry = get("chemistry");
-  const sort = get("sort");
-  const dir = get("dir");
-  const size = positiveInt(get("pageSize"));
-  return {
-    status: status && STATUS_VALUES.has(status) ? (status as StatusFilter) : d.status,
-    instrument: get("instrument") ?? d.instrument,
-    chemistry: chemistry === "sprq" || chemistry === "sprq_nx" ? chemistry : d.chemistry,
-    q: get("q") ?? d.q,
-    sort: sort && SORT_VALUES.has(sort) ? (sort as TraySortKey) : d.sort,
-    dir: dir === "asc" || dir === "desc" ? dir : d.dir,
-    page: positiveInt(get("page")) ?? d.page,
-    pageSize: size && PAGE_SIZES.includes(size) ? size : d.pageSize,
-    asOf: get("asOf") === "eow" ? "eow" : d.asOf,
-  };
-}
-
-/** `prev` with `patch` applied - defaults are left out of the URL so it stays short. Changing
- * anything but the page sends the list back to page 1. Unrelated params are kept. */
 export function writeCellsView(prev: URLSearchParams, patch: Partial<CellsView>): URLSearchParams {
-  const current = readCellsView(prev);
-  const next = new URLSearchParams(prev);
-  const merged: CellsView = { ...current, ...patch };
-  const filterChanged = (Object.keys(patch) as (keyof CellsView)[]).some(
-    (k) => k !== "page" && patch[k] !== current[k],
-  );
-  if (filterChanged && !("page" in patch)) merged.page = 1;
-  for (const k of Object.keys(KEYS) as (keyof CellsView)[]) {
-    const value = merged[k];
-    if (value === DEFAULT_CELLS_VIEW[k]) next.delete(KEYS[k]);
-    else next.set(KEYS[k], String(value));
-  }
-  return next;
+  return writeListView(CELLS_VIEW, prev, patch);
 }
 
 /** The listTrays request for a view at a resolved as-of instant. */

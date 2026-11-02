@@ -1,20 +1,12 @@
 import { Link } from "react-router-dom";
 
-import type { BadgeTone } from "@/components/ui/Badge";
+import { chipClass, chipStyles } from "@/components/shared/statusChip";
 import type { CellOut } from "@/types/cell";
 import { CELL_STATUS_LABEL, CELL_STATUS_TONE, discardedWithUsesLeft } from "@/utils/cellStatus";
 import { formatHoursLeft, windowHoursRemaining } from "@/utils/openTrays";
 import type { SampleDetailLocationState } from "@/utils/sampleBackNav";
 
 import styles from "./TrayCellStrip.module.css";
-
-/** Cell status -> chip colour, via the shared CELL_STATUS_TONE so a chip always matches the
- * status badge the same cell shows everywhere else. */
-const TONE_CLASS: Partial<Record<BadgeTone, string>> = {
-  success: styles.success,
-  danger: styles.danger,
-  warning: styles.warning,
-};
 
 /** Use status -> pip colour, following the app's status colour rule (grey waiting, blue active,
  * green done, amber run problem, orange cell failure). */
@@ -86,24 +78,23 @@ export function TrayCellStrip({ cells, matchedIds, linkState }: TrayCellStripPro
     : cells;
 
   return (
-    <span className={styles.strip}>
+    <span className={chipStyles.strip}>
       {slots.map((slot) => {
         if (typeof slot === "number") {
           return (
-            <span key={`empty-${slot}`} className={styles.empty} title={`Position ${slot} - no cell`}>
+            <span key={`empty-${slot}`} className={chipStyles.empty} title={`Position ${slot} - no cell`}>
               {slot}
             </span>
           );
         }
         const label = describeCell(slot);
-        const classes = [styles.chip, TONE_CLASS[CELL_STATUS_TONE[slot.status]] ?? styles.neutral];
-        if (matchedIds?.has(slot.id)) classes.push(styles.matched);
         return (
           <Link
             key={slot.id}
             to={`/cells/${slot.id}`}
             state={linkState}
-            className={classes.join(" ")}
+            // The cell's status colour from CELL_STATUS_TONE, so the chip matches its status badge.
+            className={chipClass(CELL_STATUS_TONE[slot.status], matchedIds?.has(slot.id))}
             title={label}
             aria-label={label}
             onClick={(e) => e.stopPropagation()}

@@ -34,6 +34,9 @@ export interface ListSamplesParams {
 
 export const samplesApi = {
   list: (params: ListSamplesParams = {}) => api.get<Page<SampleOut>>(`/api/samples${buildQuery(params)}`),
+  /** The Samples page's rows: list's filters and sorts, each sample with its cell uses. */
+  listHistory: (params: Omit<ListSamplesParams, "qc_disposition"> = {}) =>
+    api.get<Page<SampleDetailOut>>(`/api/samples/history${buildQuery(params)}`),
   /** Add a backlog sample. A Pool ID seen before returns 409 (detail.code
    * "duplicate_pool") unless allowDuplicate is set — the confirm seam for the manual path. */
   create: (body: SampleCreate, allowDuplicate = false) =>

@@ -159,6 +159,46 @@ class RunOut(BaseModel):
     plates: list[PlateOut] = []
 
 
+class RunHistoryWellOut(BaseModel):
+    """One loaded well of a Run history row: the cell use, its cell and its sample."""
+
+    cell_use_id: int
+    plate_index: int
+    well: str
+    status: str  # the use's own status (planned/started/completed/aborted/failed/cancelled)
+    use_number: int  # which use of its cell this is (run_serializer._use_number)
+    cell_id: int
+    cell_code: str
+    cell_max_uses: int
+    tray_id: int | None
+    sample_id: int | None
+    sample_pool_id: str | None
+    barcodes: list[str]
+    started_at: datetime | None
+    completed_at: datetime | None
+
+
+class RunHistoryRowOut(BaseModel):
+    """One row of the Run history page - a run's summary plus each loaded well, without the
+    grid feed's lock / clash / duplicate work (see services/run_history_rows)."""
+
+    run_id: int
+    run_name: str | None
+    load_date: date
+    instrument_serial: str
+    status: str  # same derivation as RunOut.status (run_serializer.run_status)
+    cell_type: CellType
+    plate_count: int
+    movie_hours: int | None  # the longest plate's movie
+    # Plate 1's real confirm-load time once loaded (`loaded`), else its planned start.
+    loaded_at: datetime | None
+    loaded: bool
+    wells: list[RunHistoryWellOut]
+    # The wells a search matched (a Pool ID, barcode, cell or tray) - empty when the run matched
+    # on its own name, id, instrument or date, or there was no search.
+    matched_use_ids: list[int]
+
+
 class WindowFlagOut(BaseModel):
     cell_ref: str
     span_hours: float

@@ -1,7 +1,7 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import or_, select
+from sqlalchemy import Select, func, or_, select
 from sqlalchemy.orm import selectinload
 
 from app.api.deps import ActorDep, SessionDep, pagination
@@ -9,9 +9,15 @@ from app.engine.csv_parse import split_barcodes
 from app.engine.packing import pool_id_sort_key, priority_rank
 from app.models.audit import AuditLog
 from app.models.sample import SAMPLE_STATUSES, Sample, SampleBarcode, sample_id_matches
+from app.models.schedule import CellUse, Cycle, RunBatch
 from app.schemas.common import Page
 from app.schemas.sample import SampleCreate, SampleDetailOut, SampleOut, SampleUpdate
-from app.serializers import duplicate_groups, duplicate_marker, sample_detail_out, sample_out
+from app.serializers import (
+    duplicate_groups,
+    duplicate_marker,
+    sample_detail_out,
+    sample_out,
+)
 from app.services.sample_service import (
     create_backlog_sample,
     existing_samples_with_id,
@@ -42,25 +48,20 @@ def _first_barcode(sample: Sample) -> str:
     return sample.barcode_list[0] if sample.barcode_list else ""
 
 
-def _lower_or_none(value: str | None) -> str | None:
-    """Case-insensitive sort key for a nullable text column; None stays None so the
-    caller can keep empty cells grouped at the end regardless of direction."""
-    return value.lower() if value else None
-
-
-# Simple single-column sort keys (text lower-cased, numbers as-is). Each returns None for
-# an empty cell so `_sort_none_last` can keep blanks at the bottom either way. The columns
-# with bespoke ordering (pool_id / barcode / priority / created_at) are handled inline.
-_SIMPLE_SORT_KEYS = {
-    "updated_at": lambda s: s.updated_at,
-    "status": lambda s: s.status,
-    "plate_id": lambda s: _lower_or_none(s.plate_id),
-    "sanger_ids": lambda s: (s.sanger_ids[0].lower() if s.sanger_ids else None),
-    "target_oplc": lambda s: s.target_oplc,
-    "actual_oplc": lambda s: s.actual_oplc,
-    "adaptive_loading": lambda s: _lower_or_none(s.adaptive_loading),
-    "full_resolution_base_q": lambda s: _lower_or_none(s.full_resolution_base_q),
-    "base_kinetics": lambda s: _lower_or_none(s.base_kinetics),
+# Columns that sort in SQL, so a page is one LIMITed query however many samples match. Text is
+# lower-cased and a blank counts as empty, so - like _sort_none_last - empty cells stay last
+# whichever way the sort runs. Ties fall back to newest first.
+_SQL_SORT_KEYS = {
+    "created_at": Sample.created_at,
+    "updated_at": Sample.updated_at,
+    "pool_id": func.lower(Sample.pool_id),
+    "status": Sample.status,
+    "plate_id": func.nullif(func.lower(Sample.plate_id), ""),
+    "target_oplc": Sample.target_oplc,
+    "actual_oplc": Sample.actual_oplc,
+    "adaptive_loading": func.nullif(func.lower(Sample.adaptive_loading), ""),
+    "full_resolution_base_q": func.nullif(func.lower(Sample.full_resolution_base_q), ""),
+    "base_kinetics": func.nullif(func.lower(Sample.base_kinetics), ""),
 }
 
 
@@ -72,28 +73,10 @@ def _sort_none_last(samples: list[Sample], key, reverse: bool) -> list[Sample]:
     return present + absent
 
 
-@router.get("", response_model=Page[SampleOut])
-def list_samples(
-    db: SessionDep,
-    page_info: Annotated[tuple[int, int], Depends(pagination)],
-    status: str | None = None,
-    q: str | None = None,
-    priority: str | None = None,
-    qc_disposition: str | None = None,
-    sort_by: str = "created_at",
-    sort_dir: str = "desc",
-) -> Page[SampleOut]:
-    """One filterable endpoint covers the backlog (status=backlog) and history
-    (status=completed,failed) views - see the plan's API table. `qc_disposition` is a
-    comma-list of tags, plus the sentinel "none" (untagged); the Backlog's main list passes
-    "none" to exclude the Recoverable-section rows, the Recoverable section passes the tags."""
-    page, page_size = page_info
-    if sort_by not in SORTABLE_FIELDS:
-        raise HTTPException(400, f"Unknown sort_by '{sort_by}'. Valid: {', '.join(SORTABLE_FIELDS)}")
-    if sort_dir not in ("asc", "desc"):
-        raise HTTPException(400, "sort_dir must be 'asc' or 'desc'")
-
-    stmt = select(Sample).options(selectinload(Sample.barcodes))
+def _filtered_samples(
+    status: str | None, q: str | None, priority: str | None, qc_disposition: str | None
+) -> Select[tuple[Sample]]:
+    stmt = select(Sample)
     if status:
         statuses = [s.strip() for s in status.split(",") if s.strip()]
         for s in statuses:
@@ -122,13 +105,35 @@ def list_samples(
                 Sample.barcodes.any(SampleBarcode.barcode.ilike(like)),
             )
         )
+    return stmt
 
-    all_matching = list(db.scalars(stmt.order_by(Sample.created_at.desc())).unique().all())
 
+def _sorted_page(
+    db: SessionDep, stmt: Select[tuple[Sample]], sort_by: str, sort_dir: str, page: int, page_size: int
+) -> tuple[list[Sample], int]:
+    """One page of `stmt`'s samples (barcodes loaded) in the requested order, and the total."""
+    if sort_by not in SORTABLE_FIELDS:
+        raise HTTPException(400, f"Unknown sort_by '{sort_by}'. Valid: {', '.join(SORTABLE_FIELDS)}")
+    if sort_dir not in ("asc", "desc"):
+        raise HTTPException(400, "sort_dir must be 'asc' or 'desc'")
+    start = (page - 1) * page_size
     reverse = sort_dir == "desc"
-    if sort_by == "pool_id":
-        all_matching.sort(key=lambda s: s.pool_id.lower(), reverse=reverse)
-    elif sort_by == "barcode":
+
+    if sort_by in _SQL_SORT_KEYS:
+        key = _SQL_SORT_KEYS[sort_by]
+        order = [(key.desc() if reverse else key.asc()).nulls_last()]
+        # created_at ties break by id in the same direction; everything else newest first.
+        order.append(Sample.id.desc() if reverse or sort_by != "created_at" else Sample.id.asc())
+        total = db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
+        items = db.scalars(
+            stmt.order_by(*order).limit(page_size).offset(start).options(selectinload(Sample.barcodes))
+        ).all()
+        return list(items), total
+
+    all_matching = list(
+        db.scalars(stmt.order_by(Sample.created_at.desc()).options(selectinload(Sample.barcodes))).unique().all()
+    )
+    if sort_by == "barcode":
         all_matching.sort(key=lambda s: _first_barcode(s).lower(), reverse=reverse)
     elif sort_by == "priority":
         # Tie-break equal-rank samples by External ID (natural sort), mirroring the
@@ -140,15 +145,31 @@ def list_samples(
             key=lambda s: (priority_rank(s.priority), pool_id_sort_key(s.pool_id)),
             reverse=reverse,
         )
-    elif sort_by in _SIMPLE_SORT_KEYS:
-        all_matching = _sort_none_last(all_matching, _SIMPLE_SORT_KEYS[sort_by], reverse)
-    # "created_at" is already the base query order (desc); re-sort only if asc requested
-    elif sort_dir == "asc":
-        all_matching.reverse()
+    else:  # sanger_ids
+        all_matching = _sort_none_last(
+            all_matching, lambda s: s.sanger_ids[0].lower() if s.sanger_ids else None, reverse
+        )
+    return all_matching[start : start + page_size], len(all_matching)
 
-    total = len(all_matching)
-    start = (page - 1) * page_size
-    page_items = all_matching[start : start + page_size]
+
+@router.get("", response_model=Page[SampleOut])
+def list_samples(
+    db: SessionDep,
+    page_info: Annotated[tuple[int, int], Depends(pagination)],
+    status: str | None = None,
+    q: str | None = None,
+    priority: str | None = None,
+    qc_disposition: str | None = None,
+    sort_by: str = "created_at",
+    sort_dir: str = "desc",
+) -> Page[SampleOut]:
+    """One filterable endpoint covers the backlog (status=backlog) and any other status list.
+    `qc_disposition` is a comma-list of tags, plus the sentinel "none" (untagged); the Backlog's
+    main list passes "none" to exclude the Recoverable-section rows, the Recoverable section
+    passes the tags."""
+    page, page_size = page_info
+    stmt = _filtered_samples(status, q, priority, qc_disposition)
+    page_items, total = _sorted_page(db, stmt, sort_by, sort_dir, page, page_size)
     # Stamp the "1/3" duplicate ordinal for the visible page in one grouped query.
     groups = duplicate_groups(db, {s.pool_id for s in page_items})
     items = []
@@ -156,6 +177,39 @@ def list_samples(
         dup_index, dup_total = duplicate_marker(s, groups)
         items.append(sample_out(s, duplicate_index=dup_index, duplicate_total=dup_total))
     return Page[SampleOut](items=items, total=total)
+
+
+@router.get("/history", response_model=Page[SampleDetailOut])
+def list_sample_history(
+    db: SessionDep,
+    page_info: Annotated[tuple[int, int], Depends(pagination)],
+    status: str | None = None,
+    q: str | None = None,
+    priority: str | None = None,
+    sort_by: str = "updated_at",
+    sort_dir: str = "desc",
+) -> Page[SampleDetailOut]:
+    """The Samples page: the same filters and sorts as list_samples, each sample carrying its
+    cell uses (run, plate, well, cell, status) so the row shows where it ran without a fetch per
+    row. Registered above /{sample_id} so this literal path isn't shadowed by that int route."""
+    page, page_size = page_info
+    stmt = _filtered_samples(status, q, priority, None)
+    page_items, total = _sorted_page(db, stmt, sort_by, sort_dir, page, page_size)
+    if page_items:
+        # Fills cell_uses on the already-loaded page samples (identity map), one query per level.
+        db.scalars(
+            select(Sample)
+            .where(Sample.id.in_([s.id for s in page_items]))
+            .options(
+                selectinload(Sample.cell_uses)
+                .selectinload(CellUse.cycle)
+                .selectinload(Cycle.run_batch)
+                .selectinload(RunBatch.instrument),
+                selectinload(Sample.cell_uses).selectinload(CellUse.cell),
+            )
+        ).all()
+    groups = duplicate_groups(db, {s.pool_id for s in page_items})
+    return Page[SampleDetailOut](items=[sample_detail_out(s, groups=groups) for s in page_items], total=total)
 
 
 @router.post("", response_model=SampleOut, status_code=201)
