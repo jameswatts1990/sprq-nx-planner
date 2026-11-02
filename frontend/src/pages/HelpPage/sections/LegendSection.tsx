@@ -1,6 +1,6 @@
 import { SchedulerSlotView } from "@/components/scheduler/SchedulerSlotView";
-import { CellStatusCard } from "@/components/cells/CellStatusCard";
 import { CellTypeBadge } from "@/components/cells/CellTypeBadge";
+import { TrayCellStrip } from "@/components/cells/TrayCellStrip";
 import { TraySiblingList } from "@/components/cells/TraySiblingList";
 import { WindowMeter } from "@/components/cells/WindowMeter";
 import {
@@ -28,8 +28,8 @@ import { USE_STATUS_TONE } from "@/utils/useStatusTone";
 
 import styles from "../HelpPage.module.css";
 import {
-  EXAMPLE_CELL_UNREPORTED,
   EXAMPLE_TRAY_SIBLINGS,
+  EXAMPLE_TRAY_STRIP,
   STAGE_EXAMPLE_ABORTED,
   STAGE_EXAMPLE_BARCODE_CLASH,
   STAGE_EXAMPLE_CANCELLED,
@@ -140,7 +140,7 @@ const NOTE_EXAMPLES: { tone: NoteTone; icon: string; label: string; text: string
   { tone: "bad", icon: "!", label: "Error (red)", text: "An action failed and needs attention." },
 ];
 
-/** Renders the *real* Badge/Note/UseLegend/CellStatusCard/WindowMeter/TraySiblingList
+/** Renders the *real* Badge/Note/UseLegend/TrayCellStrip/WindowMeter/TraySiblingList
  * components sourced from the same shared tone maps every other page uses
  * (utils/cellStatus.ts, utils/cycleStatus.ts, utils/useStatusTone.ts) - never hardcode or
  * re-describe a colour in prose here, so this legend can't visually drift from the live
@@ -467,29 +467,33 @@ export function LegendSection() {
         </div>
       </div>
 
-      <p className={styles.subheading}>Cell card, tray, and window meter (Cells, Cell detail)</p>
+      <p className={styles.subheading}>Tray cell chips, tray list, and window meter (Cells, Cell detail)</p>
       <div className={styles.legendGrid}>
         <div className={styles.legendRow}>
-          <div className={styles.ghostExampleSwatch}>
-            <CellStatusCard cell={EXAMPLE_CELL_UNREPORTED} />
-          </div>
+          <TrayCellStrip cells={EXAMPLE_TRAY_STRIP} />
           <span>
-            A cell card: code, status badge, uses spent, current instrument/well, burned barcodes, a QC flag if one
-            applies, and its 108-hour window meter.
+            A tray&apos;s cell chips on the Cells tab: one chip per tray position (1–4), coloured like that cell&apos;s{" "}
+            <b>Cell status</b> badge above. Each pip is one use - filled in the colour of its <b>Use status</b> badge
+            once spent, grey while booked for later, an open ring while still free to book, and a dash for capacity the
+            cell will never use (stopped, retired, discarded or window closed). A ring around a chip marks the cell a search matched. Hover
+            a chip for its full story; click it to open the cell.
           </span>
         </div>
         <div className={styles.legendRow}>
           <div className={styles.ghostExampleSwatch}>
             <WindowMeter windowHours={112} />
           </div>
-          <span>The same window meter once its 108-hour budget is breached - the fill turns red past the limit.</span>
+          <span>
+            A cell&apos;s 108-hour window meter (Cell detail, Schedule popovers) once its budget is breached - the fill
+            turns red past the limit.
+          </span>
         </div>
         <div className={styles.legendRow}>
           <TraySiblingList cells={EXAMPLE_TRAY_SIBLINGS} />
           <span>
             A physical tray&apos;s four sibling cells, the compact list shown in the Schedule grid&apos;s cell popover -
             each keeps its own independent status, since one cell&apos;s history can diverge from its tray-mates. (On the
-            Cells tab and a cell&apos;s detail page a tray&apos;s cells are shown as the full cell cards above instead.)
+            Cells tab a tray&apos;s cells are the chips above instead.)
           </span>
         </div>
       </div>

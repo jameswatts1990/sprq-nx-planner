@@ -38,8 +38,13 @@ export function useSampleBackNav(): SampleDetailLocationState {
   return { backNav: { to: location.pathname + location.search, label: labelForPath(location.pathname) } };
 }
 
-/** Resolve the Back target on the sample detail page from its `location.state`, falling
- * back to the Samples history list for direct links / refreshes. */
+/** Resolve a page's Back target from its `location.state`, falling back to `fallback` for
+ * direct links / refreshes (which carry no state). */
+export function resolveBackNav(state: unknown, fallback: SampleBackNav): SampleBackNav {
+  return (state as SampleDetailLocationState | null)?.backNav ?? fallback;
+}
+
+/** Resolve the Back target on the sample detail page, falling back to the Samples history list. */
 export function resolveSampleBackNav(state: unknown): SampleBackNav {
-  return (state as SampleDetailLocationState | null)?.backNav ?? DEFAULT_BACK_NAV;
+  return resolveBackNav(state, DEFAULT_BACK_NAV);
 }

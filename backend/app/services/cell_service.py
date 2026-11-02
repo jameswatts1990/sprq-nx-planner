@@ -668,6 +668,28 @@ def credit_status_clause(qc_status: str) -> ColumnElement[bool]:
     raise ValueError(f"Unknown qc_status '{qc_status}'")
 
 
+def projected_status_clause(statuses: list[str], as_of: datetime) -> ColumnElement[bool]:
+    """SQL superset of the cells serialize_cell(as_of=) projects into one of `statuses`, so a
+    projected status filter (the Cells page always sends as_of) narrows in the query instead of
+    serializing every cell ever made first. Sound because the projection only ever un-counts
+    uses acquiring after as_of (remaining can only rise) and only ever adds a window breach, and
+    terminal states are sticky - so a persisted-exhausted cell can project open/expired only
+    while it holds such a later use. Callers still post-filter on the projected status. Keep in
+    step with serialize_cell's as_of branch and derive_status."""
+    later_use = Cell.cell_uses.any(
+        and_(CellUse.status != "cancelled", CellUse.cycle.has(Cycle.acquire_date > as_of.date()))
+    )
+    reopened = and_(Cell.status == "exhausted", Cell.discarded_at.is_(None), later_use)
+    by_status: dict[str, ColumnElement[bool]] = {
+        "open": and_(Cell.window_breached.is_(False), or_(Cell.status == "open", reopened)),
+        "window_expired": or_(Cell.status.in_(("open", "window_expired")), reopened),
+        "exhausted": Cell.status == "exhausted",
+        "retired": Cell.status == "retired",
+        "stopped": Cell.status == "stopped",
+    }
+    return or_(*(by_status[s] for s in statuses))
+
+
 def needs_qc_report(cell: Cell) -> bool:
     """True once a cell is in the credit workflow, until someone raises a PacBio case for
     it - drives the "unreported cells" list."""
@@ -734,6 +756,7 @@ def serialize_cell(cell: Cell, as_of: datetime | None = None) -> CellOut:
     cell. `as_of=None` reproduces the persisted-status "now" behaviour exactly."""
     if as_of is None:
         uses_consumed, remaining, burned = derive_cell_state(cell)
+        scheduled_later = 0
         instrument_serial, well = current_location(cell)
         status = cell.status
         elapsed = window_hours_elapsed(cell)
@@ -743,6 +766,7 @@ def serialize_cell(cell: Cell, as_of: datetime | None = None) -> CellOut:
     else:
         as_of_uses = _active_uses_as_of(cell, as_of)
         uses_consumed, remaining, burned = derive_cell_state(cell, as_of_uses)
+        scheduled_later = len(active_uses(cell)) - len(as_of_uses)
         instrument_serial, well = current_location(cell, as_of_uses)
         # The 108h window only "runs" in the projection once the cell has a use by `as_of` -
         # otherwise a cell with no projected uses would show a running window meter, contradicting
@@ -766,6 +790,7 @@ def serialize_cell(cell: Cell, as_of: datetime | None = None) -> CellOut:
         status=status,
         uses_consumed=uses_consumed,
         uses_remaining=remaining,
+        uses_scheduled_later=scheduled_later,
         burned_barcodes=burned,
         window_hours_elapsed=elapsed,
         window_breached=window_breached,

@@ -46,6 +46,12 @@ export function windowHoursRemaining(cell: CellOut): number | null {
   return CELL_LIFETIME_H - cell.window_hours_elapsed;
 }
 
+/** "34h left" / "<1h left" - hours remaining on a 108h window, rounded up so it never reads
+ * as more time than there is. */
+export function formatHoursLeft(hours: number): string {
+  return hours <= 1 ? "<1h left" : `${Math.ceil(hours)}h left`;
+}
+
 /** Soonest window closure across a tray's sibling cells, for surfacing tray-level
  * urgency in the Open trays list - null if no sibling has an active window (e.g. every
  * cell in the tray is still unused). */

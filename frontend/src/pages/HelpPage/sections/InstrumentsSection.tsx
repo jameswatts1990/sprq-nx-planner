@@ -93,7 +93,7 @@ export function InstrumentsSection() {
         </li>
         <li>
           <b>Open trays</b> — how many SMRT cell trays with spare capacity are sitting on the instrument. Click the
-          number to jump to those cells on the Cells tab.
+          number to jump to those trays on the Cells tab.
         </li>
         <li>
           <b>Cells (open)</b> — how many of the instrument&apos;s cells are still usable, out of the total on it.

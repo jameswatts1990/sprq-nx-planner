@@ -22,6 +22,7 @@ function cell(overrides: Partial<CellOut> = {}): CellOut {
     status: "open",
     uses_consumed: 0,
     uses_remaining: 3,
+    uses_scheduled_later: 0,
     burned_barcodes: [],
     window_hours_elapsed: null,
     window_breached: false,

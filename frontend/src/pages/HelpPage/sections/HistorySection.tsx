@@ -99,7 +99,7 @@ export function HistorySection() {
       <p className={styles.subheading}>Sample detail page</p>
       <p>
         <b>What it&apos;s for:</b> a single sample (pool) on its own page, reached by clicking a <b>Pool ID</b>{" "}
-        anywhere in the app — a cell card, a cell&apos;s use history, or a row in the Samples list above. It&apos;s
+        anywhere in the app — an expanded tray on the Cells tab, a cell&apos;s use history, or a row in the Samples list above. It&apos;s
         titled with the sample&apos;s Pool ID and its status badge, and shows the sample&apos;s full metadata (Plate ID,
         priority, Target OPLC, Actual OPLC, the loading volumes including the read-only <b>Library pool vol used</b>{" "}
         from import, movie time, loading options, barcodes, Sanger IDs, created/updated times) and a <b>Cell uses</b>{" "}

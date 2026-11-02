@@ -4,7 +4,7 @@ import { Navigate, Route, Routes, useLocation, useParams } from "react-router-do
 import { AppShell } from "@/components/layout/AppShell";
 import { BacklogPage } from "@/pages/BacklogPage";
 import { CellDetailPage } from "@/pages/CellDetailPage";
-import { CellsPage } from "@/pages/CellsPage";
+import { CellsPage } from "@/pages/CellsPage/CellsPage";
 import { HistoryRunsPage } from "@/pages/HistoryRunsPage";
 import { HistorySamplesPage } from "@/pages/HistorySamplesPage";
 import { InstrumentsPage } from "@/pages/InstrumentsPage";

@@ -1,3 +1,4 @@
+from collections import Counter
 from datetime import datetime
 
 from fastapi import APIRouter, HTTPException
@@ -5,6 +6,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import selectinload
 
 from app.api.deps import ActorDep, SessionDep
+from app.engine.constants import CELLS_PER_TRAY
 from app.models.cell import CELL_STATUSES, Cell
 from app.models.cell_tray import CellTray
 from app.models.instrument import Instrument
@@ -15,6 +17,7 @@ from app.schemas.cell import (
     CellDetailOut,
     CellOut,
     CellStopRequest,
+    CellTrayRowOut,
     TrayDiscardOut,
     TrayDiscardRequest,
     TrayRestoreOut,
@@ -38,6 +41,7 @@ from app.services.cell_service import (
     bootstrap_cell,
     confirm_cell_credit,
     credit_status_clause,
+    projected_status_clause,
     discard_cell,
     discard_tray,
     receive_cell_credit,
@@ -51,6 +55,7 @@ from app.services.cell_service import (
     set_tray_reuse_disabled,
     serialize_cell_detail,
 )
+from app.services.cell_tray_rows import SORT_DIRS, TRAY_SORTS, group_tray_rows, sort_tray_rows
 from app.services.qc_service import commit_qc, preview_qc, undo_qc
 from app.services.settings_service import get_repeat_safe_min_ul, get_repeat_total_complex_ul
 
@@ -85,31 +90,29 @@ _LIST_OPTIONS = [
 _DETAIL_OPTIONS = list(_LIST_OPTIONS)
 
 
-@router.get("", response_model=Page[CellOut])
-def list_cells(
+def _matching_cells(
     db: SessionDep,
-    status: str | None = None,
-    instrument_serial: str | None = None,
-    qc_status: str | None = None,
-    q: str | None = None,
-    tray_id: int | None = None,
-    cell_type: CellType | None = None,
-    as_of: datetime | None = None,
-    page: int = 1,
-    page_size: int = 50,
-) -> Page[CellOut]:
+    *,
+    status: str | None,
+    instrument_serial: str | None,
+    qc_status: str | None,
+    q: str | None,
+    tray_id: int | None,
+    cell_type: CellType | None,
+    as_of: datetime | None,
+) -> list[CellOut]:
+    """Every cell matching the Cells filters, serialized (projected to `as_of` when given)."""
     # `as_of` requests a read-only projection of every time-derived field to that instant
     # (the Cells page's Now / End-of-week toggle). The status filter must then run on the
-    # *projected* status, not the persisted one, so it's applied post-serialize below - the
-    # persisted DB-level status filter only applies to the default "now" (as_of=None) path.
+    # *projected* status: the query narrows to a sound superset (projected_status_clause) and
+    # the exact match is applied post-serialize below.
     stmt = select(Cell).options(*_LIST_OPTIONS)
     if status:
         statuses = [s.strip() for s in status.split(",") if s.strip()]
         for s in statuses:
             if s not in CELL_STATUSES:
                 raise HTTPException(400, f"Unknown status '{s}'. Valid: {', '.join(CELL_STATUSES)}")
-        if as_of is None:
-            stmt = stmt.where(Cell.status.in_(statuses))
+        stmt = stmt.where(Cell.status.in_(statuses) if as_of is None else projected_status_clause(statuses, as_of))
     if qc_status:
         if qc_status not in QC_STATUSES:
             raise HTTPException(400, f"Unknown qc_status '{qc_status}'. Valid: {', '.join(QC_STATUSES)}")
@@ -156,6 +159,32 @@ def list_cells(
         serialized = [c for c in serialized if c.status in wanted]
     if instrument_serial:
         serialized = [c for c in serialized if c.current_instrument_serial == instrument_serial]
+    return serialized
+
+
+@router.get("", response_model=Page[CellOut])
+def list_cells(
+    db: SessionDep,
+    status: str | None = None,
+    instrument_serial: str | None = None,
+    qc_status: str | None = None,
+    q: str | None = None,
+    tray_id: int | None = None,
+    cell_type: CellType | None = None,
+    as_of: datetime | None = None,
+    page: int = 1,
+    page_size: int = 50,
+) -> Page[CellOut]:
+    serialized = _matching_cells(
+        db,
+        status=status,
+        instrument_serial=instrument_serial,
+        qc_status=qc_status,
+        q=q,
+        tray_id=tray_id,
+        cell_type=cell_type,
+        as_of=as_of,
+    )
     if tray_id is not None:
         # Position order (1-4), not the list's default newest-first - "ensure the cell
         # number stays in order" for the Cell Detail page's tray sibling listing.
@@ -164,6 +193,54 @@ def list_cells(
     total = len(serialized)
     start = (page - 1) * page_size
     return Page[CellOut](items=serialized[start : start + page_size], total=total)
+
+
+@router.get("/trays", response_model=Page[CellTrayRowOut])
+def list_cell_trays(
+    db: SessionDep,
+    status: str | None = None,
+    instrument_serial: str | None = None,
+    qc_status: str | None = None,
+    q: str | None = None,
+    tray_id: int | None = None,
+    cell_type: CellType | None = None,
+    as_of: datetime | None = None,
+    sort_by: str = "expiry",
+    sort_dir: str = "asc",
+    page: int = 1,
+    page_size: int = 50,
+) -> Page[CellTrayRowOut]:
+    """The Cells page list: the same filters as list_cells, but one row per physical tray that
+    has at least one matching cell - carrying ALL of that tray's cells, so a row always shows
+    the whole tray - sorted and paged by tray. Registered before /{cell_id} so "trays" isn't
+    parsed as a cell id."""
+    if sort_by not in TRAY_SORTS:
+        raise HTTPException(400, f"Unknown sort_by '{sort_by}'. Valid: {', '.join(TRAY_SORTS)}")
+    if sort_dir not in SORT_DIRS:
+        raise HTTPException(400, f"Unknown sort_dir '{sort_dir}'. Valid: {', '.join(SORT_DIRS)}")
+    matched = _matching_cells(
+        db,
+        status=status,
+        instrument_serial=instrument_serial,
+        qc_status=qc_status,
+        q=q,
+        tray_id=tray_id,
+        cell_type=cell_type,
+        as_of=as_of,
+    )
+    # Only trays the filter matched partially need their other cells loaded - a fully matched
+    # tray (every cell of an "All" or history view) is already complete.
+    matched_per_tray = Counter(c.tray_id for c in matched if c.tray_id is not None)
+    partial = [t for t, n in matched_per_tray.items() if n < CELLS_PER_TRAY]
+    matched_ids = {c.id for c in matched}
+    siblings: list[CellOut] = []
+    if partial:
+        stmt = select(Cell).options(*_LIST_OPTIONS).where(Cell.tray_id.in_(partial))
+        siblings = [serialize_cell(c, as_of=as_of) for c in db.scalars(stmt).unique() if c.id not in matched_ids]
+
+    rows = sort_tray_rows(group_tray_rows(matched, siblings), sort_by, sort_dir)
+    start = (page - 1) * page_size
+    return Page[CellTrayRowOut](items=rows[start : start + page_size], total=len(rows))
 
 
 @router.get("/{cell_id}", response_model=CellDetailOut)

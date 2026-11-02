@@ -71,6 +71,8 @@ export interface CellOut extends CreditCaseState {
   status: CellStatus;
   uses_consumed: number;
   uses_remaining: number;
+  /** Uses booked after the as-of instant (not yet in uses_consumed) - 0 without as_of. */
+  uses_scheduled_later: number;
   burned_barcodes: string[];
   window_hours_elapsed: number | null;
   window_breached: boolean;
@@ -108,6 +110,27 @@ export interface CellOut extends CreditCaseState {
 
 export interface CellDetailOut extends CellOut {
   use_history: CellUseHistoryOut[];
+}
+
+/** One Cells-page row: a physical tray with ALL its cells (position order) plus its tray-level
+ * figures. tray_id is null for a cell registered without a tray (it gets a row of its own). */
+export interface CellTrayRowOut {
+  tray_id: number | null;
+  cell_type: CellType;
+  instrument_serial: string | null;
+  /** Earliest first use across the tray (actual start once loaded, else planned). */
+  first_use_at: string | null;
+  last_run_date: string | null;
+  /** The soonest-closing 108h window among the tray's open cells - hours left at the as-of
+   * instant, and the deadline itself. Null when no open cell is racing the clock. */
+  expires_in_hours: number | null;
+  expires_at: string | null;
+  /** Uses still free to book across the tray's open cells (not spent, not booked later). */
+  uses_left: number;
+  reuse_disabled: boolean;
+  cells: CellOut[];
+  /** Which cells actually matched the filters/search (the rest are shown as tray-mates). */
+  matched_cell_ids: number[];
 }
 
 export interface CellBootstrapRequest {

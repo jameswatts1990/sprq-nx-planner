@@ -14,6 +14,7 @@ function baseCell(overrides: Partial<CellOut> = {}): CellOut {
     status: "open",
     uses_consumed: 1,
     uses_remaining: 2,
+    uses_scheduled_later: 0,
     burned_barcodes: [],
     window_hours_elapsed: null,
     window_breached: false,

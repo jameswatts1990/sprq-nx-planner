@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useLocation, useParams } from "react-router-dom";
 
 import { errorMessage } from "@/api/client";
 import { cellsApi } from "@/api/cells";
@@ -20,13 +20,13 @@ import { CELL_STATUS_LABEL, CELL_STATUS_TONE } from "@/utils/cellStatus";
 import { cellFailureAt } from "@/utils/creditCase";
 import { plateWellFromPlate, plateWellFromWell } from "@/utils/plateWell";
 import { runLabel } from "@/utils/runLabel";
-import { useSampleBackNav } from "@/utils/sampleBackNav";
+import { resolveBackNav, useSampleBackNav } from "@/utils/sampleBackNav";
 import { USE_STATUS_TONE } from "@/utils/useStatusTone";
 
 import styles from "./CellDetailPage.module.css";
 
-/** Cells are opened from many places (cards, the grid, QC, a sample's uses); the Cells list is
- * the one durable place to return to. */
+/** Cells are opened from many places (the grid, QC, a sample's uses); the Cells list is the one
+ * durable place to return to - or, when opened from that list, the exact filtered view it was on. */
 const BACK = { to: "/cells", label: "All cells" };
 
 export function CellDetailPage() {
@@ -34,6 +34,7 @@ export function CellDetailPage() {
   const id = Number(cellId);
   const idIsValid = Number.isFinite(id);
   const backNav = useSampleBackNav();
+  const back = resolveBackNav(useLocation().state, BACK);
 
   const query = useQuery({
     queryKey: ["cell", id],
@@ -48,7 +49,7 @@ export function CellDetailPage() {
   if (!idIsValid) {
     return (
       <div className={styles.page}>
-        <PageHeader title="Cell" back={BACK} />
+        <PageHeader title="Cell" back={back} />
         <Note tone="bad" icon="!">
           Invalid cell id.
         </Note>
@@ -63,7 +64,7 @@ export function CellDetailPage() {
   if (query.isError) {
     return (
       <div className={styles.page}>
-        <PageHeader title="Cell" back={BACK} />
+        <PageHeader title="Cell" back={back} />
         <Note tone="bad" icon="!">
           {errorMessage(query.error, "Couldn't load the cell.")}
         </Note>
@@ -265,7 +266,7 @@ export function CellDetailPage() {
             <Badge tone={CELL_STATUS_TONE[cell.status]}>{CELL_STATUS_LABEL[cell.status]}</Badge>
           </>
         }
-        back={BACK}
+        back={back}
       />
       {creditCard}
       {mainCard}

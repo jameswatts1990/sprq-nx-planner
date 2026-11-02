@@ -1,9 +1,9 @@
 /** Fabricated example data shared across Help sections, purely so the visual states
- * they describe render from the real app components (SchedulerSlotView, CellStatusCard,
+ * they describe render from the real app components (SchedulerSlotView, TrayCellStrip,
  * WindowMeter, TraySiblingList) instead of being hand-described in prose - see CLAUDE.md's
  * "Help Tab Maintenance" section. Centralized here (rather than duplicated per-section)
  * so the same example cell/stage shows up consistently everywhere it's referenced. */
-import type { CellOut } from "@/types/cell";
+import type { CellOut, CellUseSummaryOut } from "@/types/cell";
 import type { StageOut } from "@/types/schedule";
 
 export const EXAMPLE_CELL: CellOut = {
@@ -14,6 +14,7 @@ export const EXAMPLE_CELL: CellOut = {
   status: "open",
   uses_consumed: 1,
   uses_remaining: 2,
+  uses_scheduled_later: 0,
   burned_barcodes: [],
   window_hours_elapsed: 60,
   window_breached: false,
@@ -80,15 +81,6 @@ export const EXAMPLE_CELL: CellOut = {
   ],
 };
 
-export const EXAMPLE_CELL_UNREPORTED: CellOut = {
-  ...EXAMPLE_CELL,
-  code: "C02-T8",
-  tray_id: 8,
-  has_failed_use: true,
-  needs_qc_report: true,
-  burned_barcodes: ["bc4010"],
-};
-
 export const EXAMPLE_CELL_EXHAUSTED: CellOut = {
   ...EXAMPLE_CELL,
   code: "C02-T9",
@@ -114,6 +106,61 @@ export const EXAMPLE_TRAY_SIBLINGS: CellOut[] = [
     uses_remaining: 3,
     window_hours_elapsed: null,
     current_well: null,
+  },
+];
+
+function exampleUse(id: number, status: string): CellUseSummaryOut {
+  return { ...EXAMPLE_CELL.uses[0], id, status };
+}
+
+// A tray whose four cells show every chip and pip state - for TrayCellStrip: an open cell with a
+// use spent and one running, a QC-stopped cell (one use completed, one failed, the last lost), an
+// exhausted cell, and an unused one with its first use booked.
+export const EXAMPLE_TRAY_STRIP: CellOut[] = [
+  {
+    ...EXAMPLE_CELL,
+    id: 201,
+    code: "C01-T51",
+    tray_id: 51,
+    tray_position: 1,
+    uses_consumed: 2,
+    uses_remaining: 1,
+    window_hours_elapsed: 96,
+    uses: [exampleUse(1, "completed"), exampleUse(2, "started")],
+  },
+  {
+    ...EXAMPLE_CELL,
+    id: 202,
+    code: "C02-T51",
+    tray_id: 51,
+    tray_position: 2,
+    status: "stopped",
+    uses_consumed: 2,
+    uses_remaining: 1,
+    window_hours_elapsed: null,
+    has_failed_use: true,
+    needs_qc_report: true,
+    uses: [exampleUse(3, "completed"), exampleUse(4, "failed")],
+  },
+  {
+    ...EXAMPLE_CELL_EXHAUSTED,
+    id: 203,
+    code: "C03-T51",
+    tray_id: 51,
+    tray_position: 3,
+    uses: [exampleUse(5, "completed"), exampleUse(6, "aborted"), exampleUse(7, "completed")],
+  },
+  {
+    ...EXAMPLE_CELL,
+    id: 204,
+    code: "C04-T51",
+    tray_id: 51,
+    tray_position: 4,
+    uses_consumed: 0,
+    uses_remaining: 3,
+    uses_scheduled_later: 1,
+    window_hours_elapsed: null,
+    uses: [],
   },
 ];
 
