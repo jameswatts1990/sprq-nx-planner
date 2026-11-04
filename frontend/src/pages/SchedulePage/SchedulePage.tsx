@@ -2,7 +2,7 @@ import { DndContext, DragOverlay } from "@dnd-kit/core";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
-import { ApiError } from "@/api/client";
+import { errorMessage } from "@/api/client";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { cellsApi } from "@/api/cells";
 import { cyclesApi } from "@/api/cycles";
@@ -29,25 +29,36 @@ import { useGridSelection } from "@/components/scheduler/useGridSelection";
 import { useSchedulerDnd } from "@/components/scheduler/useSchedulerDnd";
 import { useSlotSelection } from "@/components/scheduler/useSlotSelection";
 import { computeTrayEvictionDates, computeTrayFoundingDates } from "@/components/scheduler/waitingCells";
+import { ClipboardListIcon, DownloadIcon } from "@/components/shared/icons";
 import { SectionHeading, UseLegend } from "@/components/shared/SectionHeading";
 import { Button } from "@/components/ui/Button";
 import { Note } from "@/components/ui/Note";
 import type { RunOut, SlotIndex, StageOut } from "@/types/schedule";
 import type { GridCellRef, RunDesignState } from "@/types/schedulerGrid";
 import type { ScheduleNoteOut } from "@/types/scheduleNote";
-import { addDaysUTC, formatShortDateUTC, isWeekendUTC, localWallTimeToUtcParts, parseDateOnly, todayIsoUTC, toIsoDateUTC } from "@/utils/calendarDates";
+import {
+  addDaysUTC,
+  formatDateRangeUTC,
+  formatShortDateUTC,
+  isWeekendUTC,
+  localWallTimeToUtcParts,
+  parseDateOnly,
+  todayIsoUTC,
+  toIsoDateUTC,
+} from "@/utils/calendarDates";
 
 import { AutoscheduleDrawer } from "./AutoscheduleDrawer";
 import { BacklogPanel, readBacklogOpenPref, writeBacklogOpenPref } from "./BacklogPanel";
+import { BatchSheetModal } from "./BatchSheetModal";
 import { ClearScheduleModal } from "./ClearScheduleModal";
 import { DayNoteModal } from "./DayNoteModal";
-import { PrintBatchSheetModal } from "./PrintBatchSheetModal";
 import styles from "./SchedulePage.module.css";
 import { ScheduleSearchBar } from "./ScheduleSearchBar";
 import { useScheduleActions } from "./useScheduleActions";
 import { useScheduleSearch } from "./useScheduleSearch";
 import { useSchedulerWindow } from "./useSchedulerWindow";
-import { ViewOptionsMenu, type BacklogPosition, type GridDensity } from "./ViewOptionsMenu";
+import { ViewOptionsMenu, type BacklogPosition, type GridDensity, type InstrumentColumn } from "./ViewOptionsMenu";
+import { WeekNavigator } from "./WeekNavigator";
 
 const DEFAULT_RUN_DESIGN: RunDesignState = {
   max_uses: 3,
@@ -70,6 +81,7 @@ const SHOW_BARCODES_STORAGE_KEY = "runnx.schedule.showBarcodes";
 const SHOW_NOTES_STORAGE_KEY = "runnx.schedule.showNotes";
 const SHOW_USE_NUMBER_STORAGE_KEY = "runnx.schedule.showUseNumber";
 const DENSITY_STORAGE_KEY = "runnx.schedule.density";
+const INSTRUMENT_COLUMN_STORAGE_KEY = "runnx.schedule.instrumentColumn";
 
 function readFlagPref(key: string, fallback: boolean): boolean {
   try {
@@ -97,6 +109,21 @@ function readDensityPref(): GridDensity {
 function writeDensityPref(density: GridDensity): void {
   try {
     localStorage.setItem(DENSITY_STORAGE_KEY, density);
+  } catch {
+    /* ignore - persistence is a convenience, not a requirement */
+  }
+}
+
+function readInstrumentColumnPref(): InstrumentColumn {
+  try {
+    return localStorage.getItem(INSTRUMENT_COLUMN_STORAGE_KEY) === "slim" ? "slim" : "full";
+  } catch {
+    return "full";
+  }
+}
+function writeInstrumentColumnPref(column: InstrumentColumn): void {
+  try {
+    localStorage.setItem(INSTRUMENT_COLUMN_STORAGE_KEY, column);
   } catch {
     /* ignore - persistence is a convenience, not a requirement */
   }
@@ -160,7 +187,7 @@ export function SchedulePage() {
   }, [schedulingSettingsQuery.data]);
   const [autoscheduleOpen, setAutoscheduleOpen] = useState(false);
   const [detail, setDetail] = useState<DetailTarget | null>(null);
-  const [printSheetOpen, setPrintSheetOpen] = useState(false);
+  const [batchSheetOpen, setBatchSheetOpen] = useState(false);
   // The day-note modal: a day header's "+ Note" opens it empty for that date (note null); a
   // banner click opens that note for edit/delete.
   const [noteEditor, setNoteEditor] = useState<{ date: string; note: ScheduleNoteOut | null } | null>(null);
@@ -187,6 +214,11 @@ export function SchedulePage() {
   const handleChangeDensity = useCallback((d: GridDensity) => {
     setDensity(d);
     writeDensityPref(d);
+  }, []);
+  const [instrumentColumn, setInstrumentColumn] = useState<InstrumentColumn>(readInstrumentColumnPref);
+  const handleChangeInstrumentColumn = useCallback((c: InstrumentColumn) => {
+    setInstrumentColumn(c);
+    writeInstrumentColumnPref(c);
   }, []);
   const [backlogPosition, setBacklogPosition] = useState<BacklogPosition>(readBacklogPositionPref);
   const handleChangeBacklogPosition = useCallback((p: BacklogPosition) => {
@@ -549,7 +581,7 @@ export function SchedulePage() {
       detail ||
       cellInfo ||
       qcTarget ||
-      printSheetOpen ||
+      batchSheetOpen ||
       noteEditor ||
       actions.clearConfirmOpen ||
       actions.recalculateTarget ||
@@ -577,7 +609,7 @@ export function SchedulePage() {
     detail,
     cellInfo,
     qcTarget,
-    printSheetOpen,
+    batchSheetOpen,
     noteEditor,
     actions.clearConfirmOpen,
     actions.recalculateTarget,
@@ -662,9 +694,7 @@ export function SchedulePage() {
     a.remove();
   }, [win.dateFrom, win.dateTo]);
 
-  const rangeLabel = `${formatShortDateUTC(parseDateOnly(win.dateFrom))} – ${formatShortDateUTC(
-    parseDateOnly(win.dateTo),
-  )}`;
+  const rangeLabel = formatDateRangeUTC(parseDateOnly(win.dateFrom), parseDateOnly(win.dateTo));
 
   // How far through the displayed week "today" is, for the Weekly-schedule heading's
   // loading-bar rule. 0 when the whole week is still ahead, 1 when it's fully in the
@@ -722,81 +752,79 @@ export function SchedulePage() {
                   scrolling the tray back into view first. The tray's own card list scrolls
                   internally so the pinned region never swallows the grid (see BacklogPanel). */}
               <div className={styles.stickyHead} ref={stickyHeadRef}>
+                {/* Left group: where am I (week) and find. Right group, pinned to the right edge:
+                    what can I do (contextual selection actions, Batch Sheet, export) and how it's
+                    drawn (view options). */}
                 <div className={styles.toolbar}>
-                  <div className={styles.pager}>
-                    <Button size="sm" variant="ghost" onClick={win.prev}>
-                      Prev
-                    </Button>
-                    <span className={styles.range}>{rangeLabel}</span>
-                    <Button size="sm" variant="ghost" onClick={win.next}>
-                      Next
-                    </Button>
-                    <Button size="sm" variant="ghost" onClick={win.goToday}>
-                      Today
-                    </Button>
-                    <input
-                      className={styles.jumpDate}
-                      type="date"
-                      value={win.from}
-                      onChange={(e) => e.target.value && win.goToDate(e.target.value)}
-                      aria-label="Jump to date"
-                      title="Jump to the week containing this date"
-                    />
-                    <Button size="sm" variant="ghost" onClick={() => setPrintSheetOpen(true)}>
-                      Print Batch Sheet
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={handleExportSchedule}
-                      title="Download the visible week as a sequencing-tracker CSV to paste into the Google Sheet"
-                    >
-                      Export schedule
-                    </Button>
+                  <div className={styles.toolbarStart}>
+                    <WeekNavigator win={win} label={rangeLabel} />
                     <ScheduleSearchBar search={search} />
                   </div>
-                  <div className={styles.spacer} />
-                  {selectedCells.length > 0 && (
-                    <div className={styles.selectionInfo}>
-                      <span>{selectedCells.length} cell(s) selected</span>
-                      <Button size="sm" variant="ghost" onClick={selection.clear}>
-                        Clear
-                      </Button>
-                    </div>
-                  )}
-                  {slotSelection.hasSelection && (
-                    <div className={styles.selectionInfo}>
-                      <span>{slotSelection.selectedStages.length} sample(s) selected</span>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={slotSelection.clear}
-                        disabled={actions.removeSlots.isPending}
-                      >
-                        Clear
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="primary"
-                        onClick={() => actions.removeSlots.mutate()}
-                        disabled={actions.removeSlots.isPending}
-                      >
-                        {actions.removeSlots.isPending ? "Removing…" : "Remove from schedule (Del)"}
-                      </Button>
-                    </div>
-                  )}
-                  <ViewOptionsMenu
-                    showBarcodes={showBarcodes}
-                    onChangeShowBarcodes={handleChangeShowBarcodes}
-                    showNotes={showNotes}
-                    onChangeShowNotes={handleChangeShowNotes}
-                    showUseNumber={showUseNumber}
-                    onChangeShowUseNumber={handleChangeShowUseNumber}
-                    density={density}
-                    onChangeDensity={handleChangeDensity}
-                    backlogPosition={backlogPosition}
-                    onChangeBacklogPosition={handleChangeBacklogPosition}
-                  />
+                  <div className={styles.toolbarEnd}>
+                    {selectedCells.length > 0 && (
+                      <div className={styles.selectionInfo}>
+                        <span>{selectedCells.length} cell(s) selected</span>
+                        <Button size="sm" variant="ghost" onClick={selection.clear}>
+                          Clear
+                        </Button>
+                      </div>
+                    )}
+                    {slotSelection.hasSelection && (
+                      <div className={styles.selectionInfo}>
+                        <span>{slotSelection.selectedStages.length} sample(s) selected</span>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={slotSelection.clear}
+                          disabled={actions.removeSlots.isPending}
+                        >
+                          Clear
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="primary"
+                          onClick={() => actions.removeSlots.mutate()}
+                          disabled={actions.removeSlots.isPending}
+                        >
+                          {actions.removeSlots.isPending ? "Removing…" : "Remove from schedule (Del)"}
+                        </Button>
+                      </div>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="tonal"
+                      className={styles.toolButton}
+                      onClick={() => setBatchSheetOpen(true)}
+                      title="Open a day's runs laid out like Traction's run form, to copy into Traction or print"
+                    >
+                      <ClipboardListIcon />
+                      Batch Sheet
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      icon
+                      className={styles.toolIcon}
+                      onClick={handleExportSchedule}
+                      aria-label="Export schedule"
+                      title="Export schedule - download this week as a sequencing-tracker CSV to paste into the Google Sheet"
+                    >
+                      <DownloadIcon />
+                    </Button>
+                    <ViewOptionsMenu
+                      showBarcodes={showBarcodes}
+                      onChangeShowBarcodes={handleChangeShowBarcodes}
+                      showNotes={showNotes}
+                      onChangeShowNotes={handleChangeShowNotes}
+                      showUseNumber={showUseNumber}
+                      onChangeShowUseNumber={handleChangeShowUseNumber}
+                      density={density}
+                      onChangeDensity={handleChangeDensity}
+                      backlogPosition={backlogPosition}
+                      onChangeBacklogPosition={handleChangeBacklogPosition}
+                      instrumentColumn={instrumentColumn}
+                      onChangeInstrumentColumn={handleChangeInstrumentColumn}
+                    />
+                  </div>
                 </div>
                 {!backlogOnSide && (
                   <BacklogPanel
@@ -829,7 +857,7 @@ export function SchedulePage() {
                   </Note>
                 )}
                 {actions.placementAdvisory && (
-                  <Note tone="warn" icon="⏱">
+                  <Note tone="warn" icon="!">
                     {actions.placementAdvisory}
                   </Note>
                 )}
@@ -847,13 +875,14 @@ export function SchedulePage() {
                 data-notes={showNotes ? undefined : "hidden"}
                 data-use-number={showUseNumber ? "shown" : undefined}
                 data-density={density === "compact" ? "compact" : undefined}
+                data-instrument-col={instrumentColumn === "slim" ? "slim" : undefined}
               >
                 <SectionHeading title="Weekly schedule" legend={<UseLegend />} progress={weekProgress} compact />
 
-                {instrumentsQuery.isLoading && <div className={styles.status}>Loading instruments…</div>}
+                {instrumentsQuery.isLoading && <div className="status">Loading instruments…</div>}
                 {instrumentsQuery.isError && (
                   <Note tone="bad" icon="!">
-                    {instrumentsQuery.error instanceof ApiError ? instrumentsQuery.error.message : "Failed to load instruments."}
+                    {errorMessage(instrumentsQuery.error, "Couldn't load the instruments.")}
                   </Note>
                 )}
                 {!instrumentsQuery.isLoading && !instrumentsQuery.isError && instrumentSerials.length === 0 && (
@@ -863,7 +892,7 @@ export function SchedulePage() {
                 )}
                 {cyclesQuery.isError && (
                   <Note tone="bad" icon="!">
-                    {cyclesQuery.error instanceof ApiError ? cyclesQuery.error.message : "Failed to load schedule."}
+                    {errorMessage(cyclesQuery.error, "Couldn't load the schedule.")}
                   </Note>
                 )}
                 {notesQuery.isError && (
@@ -899,7 +928,7 @@ export function SchedulePage() {
               {dnd.activeSample ? <div className={styles.dragChip}>{dnd.activeSample.pool_id || "sample"}</div> : null}
               {dnd.activeNote ? (
                 <div className={styles.noteDragChip}>
-                  <Note tone="info" icon="📌" size="sm">
+                  <Note tone="info" icon="i" size="sm">
                     <span className={styles.noteDragText}>{dnd.activeNote.body}</span>
                     {/* One note, one day: a new day moves it on every instrument it's on - its
                         other banners fade to match (SchedulerDayCell's DayNoteBanner). */}
@@ -919,9 +948,10 @@ export function SchedulePage() {
       {pendingLoadTime && (
         <LoadTimePicker
           value={runDesign.load_hour}
-          subtitle={`New run — pick when it loads on ${formatShortDateUTC(parseDateOnly(pendingLoadTime.load_date))} (cells prep, then sequencing starts).`}
+          subtitle={`New run — pick its cell type, then when it loads on ${formatShortDateUTC(parseDateOnly(pendingLoadTime.load_date))}.`}
+          showCellType
           onCancel={() => setPendingLoadTime(null)}
-          onPick={(hour) => {
+          onPick={(hour, cellType) => {
             const p = pendingLoadTime;
             setPendingLoadTime(null);
             setRunDesign((rd) => ({ ...rd, load_hour: hour })); // remember for the next drop / auto-fill
@@ -937,6 +967,7 @@ export function SchedulePage() {
                 slot_index: p.slot_index,
                 start_hour: utc.hour,
                 start_minute: utc.minute,
+                cell_type: cellType,
               },
               { onSettled: () => dnd.setPlacingSlotKey(null) },
             );
@@ -962,11 +993,9 @@ export function SchedulePage() {
           pendingLabel="Recalculating…"
           pending={actions.recalculate.isPending}
           error={
-            actions.recalculate.error instanceof ApiError
-              ? actions.recalculate.error.message
-              : actions.recalculate.error
-                ? "Failed to recalculate."
-                : undefined
+            actions.recalculate.error
+              ? errorMessage(actions.recalculate.error, "Couldn't recalculate the schedule.")
+              : undefined
           }
           onCancel={() => actions.setRecalculateTarget(null)}
           onConfirm={() => actions.recalculate.mutate(actions.recalculateTarget!)}
@@ -975,13 +1004,13 @@ export function SchedulePage() {
             This re-packs every <b>not-yet-loaded</b> placement on <b>{actions.recalculateTarget}</b> from scratch —
             reuse-before-new, using today&apos;s engine rules — and may move samples onto different cells, trays, or
             even a different day than they&apos;re on now, when that lets fewer physical cells be used. Confirmed/
-            loaded runs are left as-is. This can&apos;t be undone.
+            loaded runs and single-use SPRQ runs are left as-is. This can&apos;t be undone.
           </p>
         </ConfirmModal>
       )}
 
-      {printSheetOpen && (
-        <PrintBatchSheetModal instruments={instrumentsQuery.data ?? []} onClose={() => setPrintSheetOpen(false)} />
+      {batchSheetOpen && (
+        <BatchSheetModal instruments={instrumentsQuery.data ?? []} onClose={() => setBatchSheetOpen(false)} />
       )}
 
       {noteEditor && (

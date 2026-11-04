@@ -15,8 +15,10 @@ from app.api.deps import ActorDep, SessionDep
 from app.engine.constants import (
     CELL_LIFETIME_H,
     CELL_MAX_USES,
+    CELL_TYPE_SPRQ,
     CELLS_PER_TRAY,
     LOCK_BUFFER_HOURS,
+    MAX_USES_BY_CELL_TYPE,
     MOVIE_HOURS_CHOICES,
     REUSE_PREP_H,
     WELLS,
@@ -228,7 +230,8 @@ class SchedulingFactsOut(BaseModel):
     'Instrument & scheduling facts' card renders these, never forking the values."""
 
     cell_lifetime_h: int
-    cell_max_uses: int
+    cell_max_uses: int  # a multi-use SPRQ-Nx cell
+    sprq_max_uses: int  # a single-use SPRQ cell
     cells_per_tray: int
     wells: list[str]
     movie_hours_choices: list[int]
@@ -240,6 +243,7 @@ def read_scheduling_facts() -> SchedulingFactsOut:
     return SchedulingFactsOut(
         cell_lifetime_h=CELL_LIFETIME_H,
         cell_max_uses=CELL_MAX_USES,
+        sprq_max_uses=MAX_USES_BY_CELL_TYPE[CELL_TYPE_SPRQ],
         cells_per_tray=CELLS_PER_TRAY,
         wells=list(WELLS),
         movie_hours_choices=list(MOVIE_HOURS_CHOICES),

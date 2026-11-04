@@ -2,6 +2,8 @@ from datetime import date, datetime
 
 from pydantic import BaseModel
 
+from app.schemas.common import CellType
+
 
 class PacbioCaseDetailsIn(BaseModel):
     """The hand-entered context of a case logged without a cell. Create and edit both send the
@@ -13,6 +15,8 @@ class PacbioCaseDetailsIn(BaseModel):
     run_name: str | None = None
     pool_id: str | None = None
     expected_acquisitions: int | None = None
+    # SPRQ-Nx (3 acquisitions per cell) or single-use SPRQ (1 per cell).
+    cell_type: CellType = "sprq_nx"
 
 
 class PacbioCaseCreate(PacbioCaseDetailsIn):
@@ -41,6 +45,7 @@ class PacbioCaseOut(BaseModel):
     run_name: str | None
     pool_id: str | None
     expected_acquisitions: int | None
+    cell_type: CellType
     created_by: str | None
     created_at: datetime
     # PacBio credit workflow - the same stage fields CellOut carries for a cell's case.

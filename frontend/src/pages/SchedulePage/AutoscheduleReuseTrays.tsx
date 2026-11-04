@@ -3,9 +3,11 @@ import { useMemo } from "react";
 
 import { cellsApi } from "@/api/cells";
 import { Badge } from "@/components/ui/Badge";
+import { Note } from "@/components/ui/Note";
 import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
 import type { CellOut } from "@/types/cell";
 import { soonestTrayExpiry } from "@/utils/openTrays";
+import { EXPIRY_WARN_HOURS } from "@/utils/windowFade";
 
 import styles from "./AutoscheduleReuseTrays.module.css";
 
@@ -74,12 +76,12 @@ export function AutoscheduleReuseTrays({ cells }: AutoscheduleReuseTraysProps) {
 
   return (
     <div className={styles.field}>
-      <div className={styles.fieldLabel}>
+      <div className="fieldLabel">
         Reuse this week <span className={styles.hint}>skip a tray you plan to dispose</span>
       </div>
 
       {rows.length === 0 ? (
-        <p className={styles.empty}>No part-used trays to reuse — autoschedule will open fresh cells.</p>
+        <div className="status sm">No part-used trays to reuse — autoschedule will open fresh cells.</div>
       ) : (
         <ul className={styles.list}>
           {rows.map((row) => {
@@ -108,7 +110,7 @@ export function AutoscheduleReuseTrays({ cells }: AutoscheduleReuseTraysProps) {
                     <Badge tone="warning">Reuse skipped</Badge>
                   ) : (
                     row.soonestExpiry !== null && (
-                      <Badge tone={row.soonestExpiry <= 12 ? "danger" : "default"}>
+                      <Badge tone={row.soonestExpiry <= EXPIRY_WARN_HOURS ? "warning" : "default"}>
                         {expiryText(row.soonestExpiry)}
                       </Badge>
                     )
@@ -119,7 +121,11 @@ export function AutoscheduleReuseTrays({ cells }: AutoscheduleReuseTraysProps) {
           })}
         </ul>
       )}
-      {toggle.isError && <p className={styles.error}>Couldn&apos;t update the tray — try again.</p>}
+      {toggle.isError && (
+        <Note tone="bad" icon="!" size="sm">
+          Couldn&apos;t update the tray. Try again.
+        </Note>
+      )}
     </div>
   );
 }

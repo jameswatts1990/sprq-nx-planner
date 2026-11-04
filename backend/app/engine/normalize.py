@@ -23,6 +23,7 @@ from app.engine.import_fields import (
     K_POOL_ID,
     K_FULL_RES_BASE_Q,
     K_INSERT_SIZE,
+    K_LIBRARY_POOL_VOL,
     K_LOADING_BUFFER_VOL,
     K_MOVIE_TIME,
     K_PLATE_ID,
@@ -187,6 +188,7 @@ def normalize_with_map(data_rows: list[list[str]], column_map: dict[str, int]) -
                 actual_oplc=_parse_float_or_none(cell(r, K_ACTUAL_OPLC)),
                 cleaned_complex_volume=_parse_float_or_none(cell(r, K_CLEANED_COMPLEX_VOL)),
                 loading_buffer_volume=_parse_float_or_none(cell(r, K_LOADING_BUFFER_VOL)),
+                library_pool_volume_used=_parse_float_or_none(cell(r, K_LIBRARY_POOL_VOL)),
                 adaptive_loading=boolean(K_ADAPTIVE_LOADING, "Adaptive Loading"),
                 full_resolution_base_q=boolean(K_FULL_RES_BASE_Q, "Full-Resolution Base Q"),
                 # Coerced to a canonical label (High/Medium/Standard); an unrecognized or

@@ -1,0 +1,14 @@
+/* The Run history table's own bits - the rest is the shared list layout (components/shared/ListPage). */
+
+/* "planned" under a load time that hasn't been confirmed yet. */
+.sub {
+  display: block;
+  font-size: var(--fs-sm);
+  color: var(--grey);
+}
+/* An expanded well's cell: its Use box then its code. */
+.cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}

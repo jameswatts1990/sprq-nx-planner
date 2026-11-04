@@ -9,7 +9,7 @@ export const ABORTED_PRIORITY = "Aborted (0)";
 
 /** Priority labels for samples a Cell QC action returns to the backlog with a disposition
  * (see backend engine/packing.py). Rank 0, so they sort above "High (1)". The Backlog's
- * "Recoverable Samples" section groups on Sample.qc_disposition, not these strings. */
+ * "Recoverable samples" section groups on Sample.qc_disposition, not these strings. */
 export const REPEATABLE_PRIORITY = "Repeatable (0)";
 export const RECOVERABLE_PRIORITY = "Recoverable (0)";
 

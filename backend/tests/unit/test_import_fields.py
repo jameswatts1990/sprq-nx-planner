@@ -51,6 +51,34 @@ def test_suggest_map_tracker_header_maps_the_scheduler_sheet_value_columns():
     assert TRACKER_HEADER[m["adaptive_loading"]] == "Pre Extention time (Mins)"
 
 
+def test_suggest_map_library_pool_volume_from_tracker_sheet():
+    # The Google Sheet names it "Library Volume Taken for Complex (uL)" - it must land there,
+    # not on "Library Size (bp)" (Insert Size) or any of the other volume columns.
+    m = suggest_column_map(TRACKER_HEADER)
+    assert TRACKER_HEADER[m["library_pool_volume_used"]] == "Library Volume Taken for Complex (uL)"
+    assert TRACKER_HEADER[m["insert_size_bp"]] == "Library Size\n(bp)"
+    assert TRACKER_HEADER[m["cleaned_complex_volume"]] == "Cleaned complex volume for desired OPLC (uL)"
+    assert TRACKER_HEADER[m["loading_buffer_volume"]] == "Loading buffer volume (uL)"
+
+
+def test_suggest_map_library_pool_volume_from_benchling_export():
+    # A Benchling "Load a Sequencer" export: the volume column maps by its own name, and no
+    # other field claims it (nor does it claim the Pool ID / Container column).
+    header = DEFAULT_HEADER + ["Task ID", "Task Status", "Volume of Library Pool Used (uL)"]
+    m = suggest_column_map(header)
+    assert m["library_pool_volume_used"] == len(header) - 1
+    assert m["pool_id"] == 0
+    assert [k for k, i in m.items() if i == len(header) - 1] == ["library_pool_volume_used"]
+
+
+def test_library_pool_volume_is_import_only_and_parsed_as_a_number():
+    field = next(f for f in IMPORTABLE_FIELDS if f.key == "library_pool_volume_used")
+    assert field.import_only is True
+    m = {"pool_id": 0, "barcodes": 1, "library_pool_volume_used": 2}
+    result = normalize_with_map([["TRAC-1", "bc1", "4.5"], ["TRAC-2", "bc2", ""]], m)
+    assert [s.library_pool_volume_used for s in result.samples] == [4.5, None]
+
+
 def test_suggest_map_adaptive_loading_accepts_tidied_pre_extension_spellings():
     for header in ("Pre Extension Time (Mins)", "Pre-extension time", "Pre-Extention Time"):
         assert suggest_column_map(["Pool ID", "Barcodes", header])["adaptive_loading"] == 2
@@ -99,4 +127,4 @@ def test_template_round_trips_through_the_mapper():
 def test_tracker_layout_and_importable_fields_stay_independent():
     # sanity: the tracker export spec is a different, larger layout than the import fields
     assert len(TRACKER_COLUMNS) == 56
-    assert len(IMPORTABLE_FIELDS) == 14
+    assert len(IMPORTABLE_FIELDS) == 15

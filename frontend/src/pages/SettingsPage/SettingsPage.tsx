@@ -1,5 +1,8 @@
 import { useState, type JSX } from "react";
 
+import { Button } from "@/components/ui/Button";
+import { PageHeader } from "@/components/ui/PageHeader";
+
 import { CreditEmailPanel } from "./CreditEmailPanel";
 import { DeveloperTools } from "./DeveloperTools";
 import { FactsPanel } from "./FactsPanel";
@@ -76,6 +79,7 @@ export function SettingsPage() {
 
   return (
     <div className={styles.page}>
+      <PageHeader title="Settings" intro="Configure how this instance schedules runs, defaults new samples, and more." />
       <div className={styles.shell}>
         <aside className={styles.sidebar}>
           <input
@@ -89,7 +93,7 @@ export function SettingsPage() {
 
           <nav className={styles.nav} aria-label="Settings sections">
             {navSections.length === 0 ? (
-              <span className={styles.noMatch}>No settings match “{query}”.</span>
+              <div className="status sm">No settings match “{query}”.</div>
             ) : (
               navSections.map((s) => {
                 const isActive = s.key === activeSection.key;
@@ -110,23 +114,13 @@ export function SettingsPage() {
           </nav>
 
           <div className={styles.reveal}>
-            <button
-              type="button"
-              className={styles.revealBtn}
-              onClick={() => setDevShown((v) => !v)}
-              aria-expanded={devShown}
-            >
+            <Button variant="ghost" size="sm" onClick={() => setDevShown((v) => !v)} aria-expanded={devShown}>
               {devShown ? "Hide developer tools" : "Show developer tools"}
-            </button>
+            </Button>
           </div>
         </aside>
 
         <div className={styles.content}>
-          <header className={styles.contentHead}>
-            <h1 className={styles.title}>Settings</h1>
-            <p className={styles.intro}>Configure how this instance schedules runs, defaults new samples, and more.</p>
-          </header>
-
           <ActiveComponent />
         </div>
       </div>

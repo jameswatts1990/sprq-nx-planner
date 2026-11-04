@@ -88,19 +88,19 @@
 }
 @keyframes backlogSearchMatchPulse {
   0% {
-    box-shadow: 0 0 0 2px var(--magenta), 0 0 0 4px rgba(230, 0, 126, 0.35);
+    box-shadow: 0 0 0 2px var(--magenta), 0 0 0 4px color-mix(in srgb, var(--magenta) 35%, transparent);
   }
   70% {
-    box-shadow: 0 0 0 2px var(--magenta), 0 0 0 12px rgba(230, 0, 126, 0);
+    box-shadow: 0 0 0 2px var(--magenta), 0 0 0 12px color-mix(in srgb, var(--magenta) 0%, transparent);
   }
   100% {
-    box-shadow: 0 0 0 2px var(--magenta), 0 0 0 4px rgba(230, 0, 126, 0);
+    box-shadow: 0 0 0 2px var(--magenta), 0 0 0 4px color-mix(in srgb, var(--magenta) 0%, transparent);
   }
 }
 @media (prefers-reduced-motion: reduce) {
   .searchMatch {
     animation: none;
-    box-shadow: 0 0 0 2px var(--magenta), 0 0 0 5px rgba(230, 0, 126, 0.35);
+    box-shadow: 0 0 0 2px var(--magenta), 0 0 0 5px color-mix(in srgb, var(--magenta) 35%, transparent);
   }
 }
 /* Row 1: the full Pool ID (+ duplicate badge) on the left, movie time pinned right. */
@@ -132,18 +132,13 @@
   gap: 6px;
   margin-top: 3px;
 }
-/* The Badges' tooltip wrappers - flex, so they add no inline line-box height and every card
-   keeps the same height. */
-.cardSub > span {
-  display: inline-flex;
-}
 /* Row 3 (Barcodes: Show): BarcodeChips singleLine, one line ending in "…". */
 .card > [data-barcode-chips] {
   margin-top: 3px;
 }
 /* Movie / acquisition time, at the right end of the head row so it lines up down the card list.
    Quiet grey text for the default length; a non-default one holds a solid MovieTimeFlag
-   instead. Flex (not inline) so the flag's tooltip wrapper adds no line-box height. */
+   instead. Flex (not inline) so the flag adds no line-box height. */
 .movie {
   display: inline-flex;
   margin-left: auto;

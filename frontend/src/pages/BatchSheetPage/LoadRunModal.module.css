@@ -1,0 +1,19 @@
+.intro {
+  margin: 0 0 12px;
+}
+.field {
+  margin: 12px 0;
+}
+.input {
+  width: 100%;
+}
+/* Two classes so the red stays over the form-control hover/focus border. */
+.input.invalid {
+  border-color: var(--red);
+}
+.hint {
+  display: block;
+  margin-top: 6px;
+  font-size: var(--fs-xs);
+  color: var(--red);
+}

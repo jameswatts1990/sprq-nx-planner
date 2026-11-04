@@ -1,3 +1,4 @@
+import { CellTypeBadge } from "@/components/cells/CellTypeBadge";
 import { Badge } from "@/components/ui/Badge";
 import { CREDIT_OVERDUE_DAYS, NO_CELL_BADGE, OVERDUE_BADGE } from "@/utils/creditCase";
 
@@ -19,11 +20,11 @@ export function QcSection() {
         else PacBio should credit is added with <b>+ Add case without a cell</b> (see below).
       </p>
 
-      <p className={styles.subheading}>The overview line</p>
+      <p className={styles.subheading}>The overview</p>
       <p>
-        One slim line under the title totals every case, with and without a cell — it always covers everything, even
-        while you&apos;re searching. Click the <b>title</b> (or its <b>▸</b>) to hide or show it; your browser remembers
-        the choice.
+        A row of total tiles under the page title counts every case, with and without a cell — it always covers everything,
+        even while you&apos;re searching. Click <b>Hide overview</b> / <b>Show overview</b> (top right, beside the
+        search box) to hide or show it; your browser remembers the choice. Hover a tile to see what it counts.
       </p>
       <ul>
         <li>
@@ -38,8 +39,13 @@ export function QcSection() {
         </li>
         <li>
           <b>Acq credited</b> — the acquisitions PacBio have confirmed, across confirmed and received cases, also shown
-          in <b>trays</b>. PacBio credit acquisitions translated to cells — <b>1 cell = 3 acquisitions = 0.25 tray</b> —
-          and their FOC tracker counts trays, so the tray figure is the one to tally against it.
+          in <b>trays</b> (the line under the number). PacBio credit acquisitions translated to cells, and how many make a cell depends on the cell
+          type: a multi-use <b>SPRQ-Nx</b> cell is <b>3 acquisitions</b>, a single-use <b>SPRQ</b> cell is{" "}
+          <b>1 acquisition</b> — so one SPRQ credit is a whole cell. Either way <b>4 cells = 1 tray</b>. Their FOC
+          tracker counts trays, so the tray figure is the one to tally against it; once any SPRQ credit exists the
+          trays are shown per type (<i>SPRQ-Nx + SPRQ</i>), since they&apos;re different products. Each case carries an
+          indigo <CellTypeBadge cellType="sprq" /> badge when it&apos;s about a SPRQ cell, and the CSV export has a{" "}
+          <b>Cell type</b> column with the cells and trays worked out the same way.
         </li>
       </ul>
 
@@ -72,8 +78,8 @@ export function QcSection() {
         <li>
           On the right, the case at a glance: its <b>PacBio case number</b>, the <b>acquisitions</b> (expected until
           PacBio confirm, then credited), the <b>owner</b>, how many <b>days it&apos;s been open</b>, and the failure
-          date. Anything not recorded yet reads in grey (<i>No case #</i>, <i>No owner</i>). A case that&apos;s made no
-          progress for more than {CREDIT_OVERDUE_DAYS} days shows{" "}
+          date (with its time, when the run recorded one). Anything not recorded yet reads in grey (<i>No case #</i>,{" "}
+          <i>No owner</i>). A case that&apos;s made no progress for more than {CREDIT_OVERDUE_DAYS} days shows{" "}
           <Badge tone={OVERDUE_BADGE.tone}>{OVERDUE_BADGE.label} · 45 d</Badge> instead — hover it to see what it&apos;s
           waiting on.
         </li>
@@ -126,7 +132,9 @@ export function QcSection() {
           <b>What happened</b> and the <b>date</b> are required. The <b>instrument</b>, <b>run</b>,{" "}
           <b>sample / Pool ID</b> and <b>acquisitions to claim</b> are optional — they fill in{" "}
           <b>Generate email…</b> and <b>Generate report</b>, and the acquisitions show as the case&apos;s{" "}
-          <b>Expected reimbursement</b>. Add the <b>owner</b> here too.
+          <b>Expected reimbursement</b>. Add the <b>owner</b> here too. Set the <b>cell type</b> (SPRQ-Nx, the
+          default, or single-use SPRQ) so the credit counts as the right number of cells — a SPRQ cell is 1
+          acquisition, a SPRQ-Nx cell 3.
         </li>
         <li>
           <b>Already progressed?</b> Logging an older case, fill in any step you&apos;ve already done — the{" "}

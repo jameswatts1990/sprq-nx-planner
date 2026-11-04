@@ -45,7 +45,8 @@ export type SchedulingSettingsUpdate = Partial<SchedulingSettings>;
  * Surfaced in the Settings "Instrument & scheduling facts" card - never editable. */
 export interface SchedulingFacts {
   cell_lifetime_h: number;
-  cell_max_uses: number;
+  cell_max_uses: number; // a multi-use SPRQ-Nx cell
+  sprq_max_uses: number; // a single-use SPRQ cell
   cells_per_tray: number;
   wells: string[];
   movie_hours_choices: number[];

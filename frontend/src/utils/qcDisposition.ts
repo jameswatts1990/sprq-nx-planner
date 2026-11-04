@@ -1,7 +1,7 @@
 import type { Disposition } from "@/types/qc";
 
 /** Full human-readable label for a QC disposition — used by qcDispositionLabel() to show a
- * sample's stored qc_disposition tag (e.g. in the Backlog's Recoverable Samples table). */
+ * sample's stored qc_disposition tag (e.g. in the Backlog's Recoverable samples table). */
 export const DISPOSITION_LABEL: Record<Disposition, string> = {
   lost: "Lost",
   repeatable_complex: "Repeatable — from complex",
@@ -41,7 +41,7 @@ export const DISPOSITION_DESCRIPTION: Record<Disposition, string> = {
     "The run's data can still be recovered from the instrument, so no new prep is needed. Back to the backlog at Recoverable priority so it stays visible until it is dealt with.",
 };
 
-/** A stored qc_disposition string → full label (used by the Backlog Recoverable Samples table),
+/** A stored qc_disposition string → full label (used by the Backlog Recoverable samples table),
  * tolerant of unknown/legacy tags (returns the raw tag rather than throwing so old data never
  * renders blank), and null for an untagged sample. */
 export function qcDispositionLabel(tag: string | null): string | null {

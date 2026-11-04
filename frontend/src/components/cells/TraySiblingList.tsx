@@ -3,8 +3,8 @@ import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/Badge";
 import type { CellOut } from "@/types/cell";
 import { CELL_STATUS_LABEL, CELL_STATUS_TONE } from "@/utils/cellStatus";
-import { windowHoursRemaining } from "@/utils/openTrays";
-import { FADE_MIN_HOURS } from "@/utils/windowFade";
+import { formatHoursLeft, windowHoursRemaining } from "@/utils/openTrays";
+import { EXPIRY_WARN_HOURS } from "@/utils/windowFade";
 
 import styles from "./TraySiblingList.module.css";
 
@@ -20,9 +20,7 @@ export interface TraySiblingListProps {
  * tray never has a single merged status, since its cells' individual histories can
  * diverge (see docs/pacbio-sprq-nx-scheduling-reference.md's "Tray-of-4 eager
  * population"). The compact list shown in the Schedule grid's cell popover (and the Help
- * tab's legend) - the Cells tab and Cell detail render a tray's cells as full cards
- * instead - the same reasoning cellStatus.ts's CELL_STATUS_TONE/CELL_STATUS_LABEL maps
- * already document. */
+ * tab's legend); the Cells tab shows a tray as a row of status chips (TrayCellStrip). */
 export function TraySiblingList({ cells, currentCellId }: TraySiblingListProps) {
   return (
     <div className={styles.trayList}>
@@ -43,8 +41,8 @@ export function TraySiblingList({ cells, currentCellId }: TraySiblingListProps) 
               {sibling.uses_consumed}/{sibling.max_uses} uses
             </span>
             {hoursRemaining !== null && (
-              <span className={hoursRemaining <= FADE_MIN_HOURS ? styles.trayItemExpiryUrgent : styles.trayItemExpiry}>
-                {hoursRemaining <= 1 ? "<1h left" : `${Math.ceil(hoursRemaining)}h left`}
+              <span className={hoursRemaining <= EXPIRY_WARN_HOURS ? styles.trayItemExpiryUrgent : styles.trayItemExpiry}>
+                {formatHoursLeft(hoursRemaining)}
               </span>
             )}
           </Link>

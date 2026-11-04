@@ -155,7 +155,7 @@ function positionTitle(p: TrayPositionView, state: CellExpiryState, refMs: numbe
 }
 
 /** Which visual tone a position cell carries: its expiry state at the current reference instant.
- * ok (green) = comfortable window; soon (amber) = closing within a day; expired (red) = past its
+ * ok (green) = comfortable window; soon (amber) = within EXPIRY_WARN_HOURS of closing; expired (red) = past its
  * deadline or QC-stopped; scheduled (blue) = clock not started yet; spent (grey) = used up; fresh
  * = open but never on a clock. */
 function TrayPositionCell({ p, refMs, live }: { p: TrayPositionView; refMs: number; live: boolean }) {
@@ -198,11 +198,15 @@ function TrayStrip({ tray, refMs, live }: { tray: TrayView; refMs: number; live:
   return (
     <div className={styles.strip}>
       <Link
-        className={styles.trayHeader}
+        className={`${styles.trayHeader} ${tray.cellType === "sprq" ? styles.trayHeaderSprq : ""}`}
         to={`/cells?tray=${tray.trayId}`}
-        title={`Tray ${tray.trayId} - view this tray's 4 cells`}
+        title={
+          tray.cellType === "sprq"
+            ? `Single-use SPRQ tray ${tray.trayId} - each cell runs once. View this tray's 4 cells`
+            : `Tray ${tray.trayId} - view this tray's 4 cells`
+        }
       >
-        TRAY #{tray.trayId}
+        {tray.cellType === "sprq" ? "SPRQ" : "TRAY"} #{tray.trayId}
       </Link>
       <div className={styles.cells}>
         {tray.positions.map((p) => (

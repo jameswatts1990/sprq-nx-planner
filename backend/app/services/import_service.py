@@ -109,6 +109,7 @@ def import_samples(db: Session, req: ImportRequest) -> ImportResult:
             actual_oplc=parsed.actual_oplc,
             cleaned_complex_volume=parsed.cleaned_complex_volume,
             loading_buffer_volume=parsed.loading_buffer_volume,
+            library_pool_volume_used=parsed.library_pool_volume_used,
             adaptive_loading=parsed.adaptive_loading,
             full_resolution_base_q=parsed.full_resolution_base_q,
             priority=parsed.priority,

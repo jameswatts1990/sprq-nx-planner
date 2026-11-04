@@ -11,6 +11,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from app.engine.constants import DAY_START_HOUR
+from app.schemas.common import CellType
 
 
 class StageOut(BaseModel):
@@ -33,6 +34,9 @@ class StageOut(BaseModel):
     # With use_number, gives the cell's remaining uses (cell_max_uses - use_number) - what the
     # Instruments tab's Revio-screen panel shows in its "Remaining SMRT Cell uses" boxes.
     cell_max_uses: int = 3
+    # The physical cell's type: multi-use SPRQ-Nx, or single-use SPRQ (always Use 1 of 1,
+    # shown in its own SPRQ colour instead of the Use 1/2/3 colours).
+    cell_type: CellType = "sprq_nx"
     # This well's own movie / run time in hours (12/24/30). Per-cell: different wells of one
     # run may differ, editable from the slot-detail popover. The plate-level PlateOut.movie_hours
     # is the longest of these (see PlateOut.movie_hours).
@@ -136,8 +140,12 @@ class RunOut(BaseModel):
     load_date: date  # the day the whole run is physically loaded (one session)
     run_name: str | None = None  # run-level Traction ID, set at Confirm loaded
     # Derived run-level status (see run_serializer): "running"/"completed" once its plates
-    # are, else "planned". A run's plates are all loaded together, so this tracks the load.
+    # are, else "planned". A run's plates are all loaded together, so this tracks the load. A
+    # running run past its last cell's PPA end reads "completed" (run_serializer.run_status).
     status: str
+    # The run's cell type - one type across both plates, chosen on the load-time dial when its
+    # first sample was dropped (see placement_service._run_cell_type).
+    cell_type: CellType = "sprq_nx"
     lock_until: datetime  # the instrument is held until the last plate's acquisition finishes + buffer
     is_locked: bool  # "now" falls within the run's load->last-acquisition window and it isn't aborted/completed
     # Derived, never stored (cell_timing.instrument_timeline): when this run's cells actually break
@@ -149,6 +157,46 @@ class RunOut(BaseModel):
     effective_start_at: datetime | None = None
     starts_later_than_requested: bool = False
     plates: list[PlateOut] = []
+
+
+class RunHistoryWellOut(BaseModel):
+    """One loaded well of a Run history row: the cell use, its cell and its sample."""
+
+    cell_use_id: int
+    plate_index: int
+    well: str
+    status: str  # the use's own status (planned/started/completed/aborted/failed/cancelled)
+    use_number: int  # which use of its cell this is (run_serializer._use_number)
+    cell_id: int
+    cell_code: str
+    cell_max_uses: int
+    tray_id: int | None
+    sample_id: int | None
+    sample_pool_id: str | None
+    barcodes: list[str]
+    started_at: datetime | None
+    completed_at: datetime | None
+
+
+class RunHistoryRowOut(BaseModel):
+    """One row of the Run history page - a run's summary plus each loaded well, without the
+    grid feed's lock / clash / duplicate work (see services/run_history_rows)."""
+
+    run_id: int
+    run_name: str | None
+    load_date: date
+    instrument_serial: str
+    status: str  # same derivation as RunOut.status (run_serializer.run_status)
+    cell_type: CellType
+    plate_count: int
+    movie_hours: int | None  # the longest plate's movie
+    # Plate 1's real confirm-load time once loaded (`loaded`), else its planned start.
+    loaded_at: datetime | None
+    loaded: bool
+    wells: list[RunHistoryWellOut]
+    # The wells a search matched (a Pool ID, barcode, cell or tray) - empty when the run matched
+    # on its own name, id, instrument or date, or there was no search.
+    matched_use_ids: list[int]
 
 
 class WindowFlagOut(BaseModel):
@@ -196,6 +244,10 @@ class PlaceSampleRequest(BaseModel):
     # (the run's existing start stands) when placing into an already-existing run/plate.
     start_hour: int = Field(default=DAY_START_HOUR, ge=0, le=23)
     start_minute: int = Field(default=0, ge=0, le=59)
+    # The load-time dial's SPRQ-Nx / SPRQ toggle: the cell type for a brand-new run. Omit to
+    # inherit an existing run's type (or SPRQ-Nx for a new run); a value that differs from an
+    # existing run's type is refused with a 409 - a run can't mix cell types.
+    cell_type: CellType | None = None
 
 
 class MoveSampleRequest(BaseModel):

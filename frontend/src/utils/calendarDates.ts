@@ -84,6 +84,21 @@ export function formatShortDateUTC(date: Date): string {
   return date.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
 }
 
+/** Formats a UTC date-only value with its year, e.g. "13 Jul 2026" - for dates that can sit in an
+ *  earlier year than today (QC/credit case dates), where the short form would be ambiguous. */
+export function formatDateUTC(date: Date): string {
+  return date.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+}
+
+/** Formats a UTC date-only range compactly with its year, sharing whatever the ends have in
+ *  common: "2 – 6 Nov 2026", "30 Nov – 4 Dec 2026", "29 Dec 2026 – 2 Jan 2027". */
+export function formatDateRangeUTC(from: Date, to: Date): string {
+  if (from.getUTCFullYear() !== to.getUTCFullYear()) return `${formatDateUTC(from)} – ${formatDateUTC(to)}`;
+  const start =
+    from.getUTCMonth() === to.getUTCMonth() ? String(from.getUTCDate()) : formatShortDateUTC(from);
+  return `${start} – ${formatDateUTC(to)}`;
+}
+
 /**
  * Formats an ISO datetime as "HH:MM, D Mon" in the viewer's LOCAL timezone - used for lock_until
  * and other turnaround displays. The lab works on the instrument's own (local) wall clock, and
@@ -99,6 +114,18 @@ export function formatShortDateTimeLocal(isoDateTime: string): string {
   const mm = String(d.getMinutes()).padStart(2, "0");
   const date = d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
   return `${hh}:${mm}, ${date}`;
+}
+
+/** Formats an ISO datetime as "28 Oct 2026, 09:14" in the viewer's LOCAL timezone - the app's
+ *  one full date-and-time format for tables and detail pages (created/updated/QC'd stamps). UK
+ *  day-month order and no seconds regardless of the browser's locale, so every page reads the
+ *  same. Where space is tight (grid, chips) use formatShortDateTimeLocal instead. */
+export function formatDateTime(isoDateTime: string): string {
+  const d = new Date(isoDateTime);
+  const date = d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  return `${date}, ${hh}:${mm}`;
 }
 
 /** Formats an ISO datetime as just "HH:MM" in the viewer's LOCAL timezone - a run's load/start

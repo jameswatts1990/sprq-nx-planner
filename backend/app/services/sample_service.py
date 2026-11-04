@@ -36,6 +36,7 @@ def create_backlog_sample(
     actual_oplc: float | None = None,
     cleaned_complex_volume: float | None = None,
     loading_buffer_volume: float | None = None,
+    library_pool_volume_used: float | None = None,
     adaptive_loading: str | None = None,
     full_resolution_base_q: str | None = None,
     priority: str | None = None,
@@ -64,6 +65,7 @@ def create_backlog_sample(
         actual_oplc=actual_oplc,
         cleaned_complex_volume=cleaned_complex_volume,
         loading_buffer_volume=loading_buffer_volume,
+        library_pool_volume_used=library_pool_volume_used,
         adaptive_loading=adaptive_loading if adaptive_loading is not None else defaults["adaptive_loading"],
         full_resolution_base_q=full_resolution_base_q
         if full_resolution_base_q is not None

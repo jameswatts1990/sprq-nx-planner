@@ -1,6 +1,6 @@
 import { api, buildQuery } from "./client";
-import type { CycleStatus } from "@/types/common";
-import type { RunOut } from "@/types/schedule";
+import type { CellType, CycleStatus, Page } from "@/types/common";
+import type { RunHistoryRowOut, RunOut } from "@/types/schedule";
 
 export interface CycleStatusUpdate {
   status: CycleStatus;
@@ -22,11 +22,31 @@ export interface ListCyclesParams {
   date_to?: string;
 }
 
+export type RunHistorySortKey = "load_date" | "run" | "instrument";
+
+export interface ListRunHistoryParams {
+  status?: CycleStatus;
+  instrument_serial?: string;
+  cell_type?: CellType;
+  date_from?: string;
+  date_to?: string;
+  /** Run name / "#id", instrument, load date, or anything on its wells: Pool / Sanger / Plate
+   * IDs, barcodes, cell codes, "T12" trays. */
+  q?: string;
+  sort_by?: RunHistorySortKey;
+  sort_dir?: "asc" | "desc";
+  page?: number;
+  page_size?: number;
+}
+
 /** Path kept as /api/cycles for continuity, but each item is now a *run* (RunBatch): one
  * load session holding 1-2 plates. The {id} path segment is a run id, and the range is a
  * load-date range. */
 export const cyclesApi = {
   list: (params: ListCyclesParams = {}) => api.get<RunOut[]>(`/api/cycles${buildQuery(params)}`),
+  /** The Run history page's rows - searched, filtered, sorted and paged server-side. */
+  listHistory: (params: ListRunHistoryParams = {}) =>
+    api.get<Page<RunHistoryRowOut>>(`/api/cycles/history${buildQuery(params)}`),
   get: (id: number) => api.get<RunOut>(`/api/cycles/${id}`),
   /** PATCH /api/cycles/{run_id} {status} -> updated RunOut. Operates on the whole run (one
    * Confirm-loaded locks every plate). Used for Confirm-loaded (status:"running") and

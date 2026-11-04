@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import { SchedulerSlotView } from "@/components/scheduler/SchedulerSlotView";
+import { RescheduleIcon } from "@/components/shared/RescheduleIcon";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Note } from "@/components/ui/Note";
 import { RunDesignFields } from "@/pages/SchedulePage/RunDesignFields";
@@ -59,10 +60,11 @@ export function ScheduleSection() {
 
       <p className={styles.subheading}>Moving through time</p>
       <p>
-        <b>Prev</b> and <b>Next</b> page the view by 7 days; <b>Today</b> jumps back to the current window. The
-        date range is shown between them, and it&apos;s remembered in the page URL so you can bookmark or share a
-        week. The date field next to <b>Today</b> is a jump-to-date picker — pick any day and the view jumps
-        straight to the Mon-Fri week that contains it, without paging through every week in between.
+        The week shown sits at the top left of the toolbar, e.g. <b>2 – 6 Nov 2026</b>. The <b>‹</b> and <b>›</b>{" "}
+        arrows either side of it step back or forward a week, and <b>Today</b> jumps back to the current week.{" "}
+        <b>Click the week itself</b> (it has a small calendar icon) to open a calendar — pick any day and the view
+        jumps straight to the Mon-Fri week that contains it, without paging through every week in between. The week
+        is remembered in the page URL, so you can bookmark or share it.
       </p>
       <p>
         <b>Weekends aren&apos;t shown</b> — the grid only has Monday-Friday columns, because runs aren&apos;t
@@ -84,15 +86,15 @@ export function ScheduleSection() {
 
       <p className={styles.subheading}>Find a sample or run</p>
       <p>
-        The <b>search box</b> in the toolbar (just right of <b>Export schedule</b>) finds a sample or run anywhere — it
+        The <b>search box</b> in the toolbar (just right of the week) finds a sample or run anywhere — it
         looks across both the <b>Backlog</b> and everything already <b>planned on the grid</b> at once. Type a{" "}
         <b>Pool ID</b>, a <b>Sanger ID</b>, a <b>Plate ID</b>, a <b>barcode</b>, a <b>run name</b>, or a bare <b>run number</b> (e.g. <i>123</i> or{" "}
         <i>#123</i>): the Backlog tray narrows to the matching samples as you type, and a counter shows how many
         appearances were found.
       </p>
       <p>
-        Press <b>Enter</b> (or the <b>›</b> button) to jump to the next appearance and <b>Shift+Enter</b> (or <b>‹</b>)
-        for the previous — it works like a browser&apos;s find bar. A sample can be placed on several days across
+        Press <b>Enter</b> (or the <b>↓</b> button) to jump to the next appearance and <b>Shift+Enter</b> (or <b>↑</b>)
+        for the previous — it works like a browser&apos;s find bar, and the same as the Help search. A sample can be placed on several days across
         different weeks; cycling steps through <b>every</b> one, <b>jumping the week view to wherever the match sits</b>{" "}
         even if it&apos;s weeks away, and <b>ringing the matched card</b> in magenta so it&apos;s easy to spot. Backlog
         matches are part of the same cycle — it scrolls the tray to the matching card and rings it too. <b>Esc</b>{" "}
@@ -104,7 +106,7 @@ export function ScheduleSection() {
         Pin a note to a day for one or more instruments — e.g. <i>&quot;Engineer visit — don&apos;t load before
         14:00&quot;</i> or <i>&quot;Bring a fresh tray of cells up from the freezer&quot;</i>. Click <b>+ Note</b> at the
         right of a day&apos;s header, write the note, tick each instrument it applies to (or <b>All instruments</b>), and
-        click <b>Add note</b>. It then shows as a blue <b>📌 banner</b> across the top of that day&apos;s cell for every
+        click <b>Add note</b>. It then shows as a blue <b>banner</b> (marked <b>i</b>) across the top of that day&apos;s cell for every
         instrument you ticked, above the run&apos;s header. Everyone sees it, and it never changes the schedule itself.
       </p>
       <ul>
@@ -132,9 +134,10 @@ export function ScheduleSection() {
 
       <p className={styles.subheading}>View options</p>
       <p>
-        <b>View options</b> at the far right of the date toolbar opens a small menu of display toggles that change
-        only how the grid is drawn, never the plan itself. They only affect the grid — a card&apos;s detail popover
-        always shows everything — and each choice is remembered next time you open the Schedule page:
+        The <b>eye</b> button at the far right of the toolbar opens <b>View options</b>, a small menu of display
+        toggles that change only how the grid is drawn, never the plan itself. They only affect the grid — a
+        card&apos;s detail popover always shows everything — and each choice is remembered next time you open the
+        Schedule page. Hover the eye to check whether barcodes or sample notes are currently hidden:
       </p>
       <ul>
         <li>
@@ -143,9 +146,9 @@ export function ScheduleSection() {
           don&apos;t need the barcodes.
         </li>
         <li>
-          <b>Sample notes: Show / Hide</b> — a small <b>✎</b> marker appears on any card that carries a note (shown by
-          default); hover it to read the note. Hide it if you don&apos;t want the markers on the grid. This only affects
-          sample notes — <b>day notes</b> (the 📌 banners, see above) always show.
+          <b>Sample notes: Show / Hide</b> — a small <b>note icon</b> (a page with a folded corner) appears on any card
+          that carries a note (shown by default); hover it to read the note. Hide it if you don&apos;t want the icons on the
+          grid. This only affects sample notes — <b>day notes</b> (the blue banners, see above) always show.
         </li>
         <li>
           <b>Cell use number: Show / Hide</b> — off by default. When on, each filled card shows a large faint number
@@ -164,6 +167,12 @@ export function ScheduleSection() {
           screen, <b>pushing the grid across</b> to make room rather than covering it. The docked panel <b>collapses</b>{" "}
           to a thin rail with its <b>‹ / ›</b> toggle when you need the full width back, and expands again the same way.
         </li>
+        <li>
+          <b>Instrument column: Full / Slim</b> — <b>Full</b> (default) shows each instrument&apos;s name, serial and
+          cell map down the left. <b>Slim</b> shrinks that column to a narrow strip showing only the <b>Revio
+          number</b>, turned sideways, and its <b>↻ Recalculate</b> button, so the days get more width and the screen
+          is less busy. The <b>instrument cell map</b> (below) is hidden in Slim — switch back to Full to see it.
+        </li>
       </ul>
 
       <p className={styles.subheading}>Instrument cell map</p>
@@ -176,7 +185,8 @@ export function ScheduleSection() {
       </p>
       <ul>
         <li>
-          The big number on each position is that cell&apos;s <b>uses remaining</b> (of 3), and beneath it a coloured
+          The big number on each position is that cell&apos;s <b>uses remaining</b> (of 3 — or of 1 on a single-use
+          SPRQ tray, whose header reads <b>SPRQ #id</b> in indigo instead of <b>TRAY #id</b>), and beneath it a coloured
           status icon + <b>DD/MM</b> gives the cell&apos;s <b>108-hour reuse deadline</b> with a short countdown (e.g.{" "}
           <i>2d left</i>). By default the number counts every use <b>scheduled this week</b> — what will be left once
           the week&apos;s plan has run; hover for the live <b>NOW</b> view (below) and it switches to what&apos;s left{" "}
@@ -194,7 +204,7 @@ export function ScheduleSection() {
         </li>
         <li>
           Colour and icon show each cell&apos;s state at a glance: <b>green</b> = comfortably in window; <b>amber</b> =
-          closing within about a day, so reuse it soon or lose the spare capacity; <b>red</b> = past its deadline or
+          closing within 18 hours, so reuse it soon or lose the spare capacity; <b>red</b> = past its deadline or
           QC-stopped (unusable); <b>blue</b> = not broken out yet (its clock hasn&apos;t started); <b>grey</b> = used up
           or retired.
         </li>
@@ -245,7 +255,8 @@ export function ScheduleSection() {
         them and let Auto Schedule place them again under today&apos;s rules. It&apos;s for the rare case where a
         schedule was worked out under a rule that&apos;s since been corrected, and needs re-packing to actually
         benefit from the fix — day-to-day scheduling never needs it. A confirmation dialog explains what it will do
-        before anything changes; <b>confirmed/loaded runs are always left exactly as they are</b>, and it reaches
+        before anything changes; <b>confirmed/loaded runs and single-use SPRQ runs are always left exactly as they
+        are</b>, and it reaches
         every planned run on that instrument, not just the week you happen to be viewing. To actually reuse a cell
         instead of opening a new tray, it can push a sample onto a <b>later day it wasn&apos;t on before</b> — never
         earlier, and never touching a different instrument — whenever that lets fewer physical cells be used. In{" "}
@@ -258,29 +269,96 @@ export function ScheduleSection() {
         finished samples).
       </p>
 
-      <p className={styles.subheading}>Print Batch Sheet</p>
+      <p className={styles.subheading}>Batch Sheet</p>
       <p>
-        <b>Print Batch Sheet</b> opens a printable loading sheet for the Revios. Pick the <b>load day</b> and tick which
-        instruments to include — handy when different people load different machines, since each person can print
-        just their own, then click <b>View Sheet</b> to open the printable sheet in a new tab. You get <b>one section per run</b>, and within it a table split into a block per plate: <b>Plate
-        1</b>, then <b>Plate 2</b> if the run has one. Each plate block is headed with the day it sequences, e.g.{" "}
-        <i>&quot;Plate 2 · acquires Fri 25 Jul · reuse (Use 2)&quot;</i> — so a reuse run&apos;s second plate, which the
-        instrument runs the next day, is on the sheet too (both plates are loaded in the one session). Each well shows
-        its cell code, use number and 108-hour reuse deadline, the sample to load and its <b>Plate ID</b>, the
-        per-cell run settings (movie / run time, adaptive loading, include base kinetics, full-resolution baseQ) and the
-        <b> Actual OPLC</b>. Any setting that differs from the configured Sample Defaults (Admin tab) is shown in
-        <b> bold with a &quot;*&quot;</b> so a non-standard value stands out; a footnote under the table explains the
-        mark. Because run time is per-cell, each well shows its own movie time. Each run&apos;s page also has a
-        <b> Date</b> and <b>Signed / initials</b> box top-right to sign off the load. A final <b>Notes</b> column prints
-        any note you&apos;ve added to a sample on its cell (see <b>Sample notes</b> under QC actions below). Use the
-        page&apos;s <b>Print / Save as PDF</b> button, which opens your browser&apos;s normal print dialog (choose a
-        physical printer, or &quot;Save as PDF&quot;). The sheet prints <b>landscape, one run per page</b>, so each
-        Revio&apos;s run is a self-contained page you can hand to whoever loads it. When you save to PDF the filename is
-        pre-filled as <i>&quot;YYYY.MM.DD - Revio &lt;serial&gt;&quot;</i> (the load day and the instrument), so
-        printing one Revio at a time gives a tidily named file per machine.
+        <b>Batch Sheet</b> (the pink button with a clipboard icon, top right of the Schedule toolbar) shows a
+        day&apos;s runs ready to enter into <b>Traction</b>, and prints the paper loading
+        sheet when you need one. Pick the <b>load day</b> and tick which instruments to include — handy when different
+        people load different machines — then click <b>View sheet</b>. It opens in place of the schedule; <b>◂ Schedule</b>
+        above its title returns you.
       </p>
       <p>
-        Below each run&apos;s table the sheet also prints two <b>fill-in worksheets per plate</b> to record the bench
+        The sheet shows <b>one instrument at a time</b>. The title line gives the instrument, run, load day and
+        status; at its right, the <b>‹</b> and <b>›</b> arrows step to the previous or next instrument (hover one to
+        see which), and <b>Load</b> between them confirms this run has loaded (see below). Anything you&apos;ve ticked
+        or copied on an instrument stays put while you look at another.
+      </p>
+      <p>
+        On screen, each run is laid out <b>in the same order as Traction&apos;s run form</b>, top to bottom, so you can
+        fill Traction in straight off the screen:
+      </p>
+      <ul>
+        <li>
+          <b>Reminders</b> at the top of the run, only when something needs attention. A <b>red</b> note means a
+          well&apos;s cell is past its 108-hour reuse window. An <b>amber</b> note means the wells disagree on{" "}
+          <b>Adaptive Loading</b>: Traction sets <i>Use Adaptive Loading</i> once for the whole run (it greys it out in
+          each well&apos;s form), so you&apos;ll need to choose one value. <b>Blue</b> notes tell you when the whole run
+          uses a non-default Adaptive Loading (set it in Well Defaults), which wells have non-default settings, and which
+          wells have no recorded library concentration.
+        </li>
+        <li>
+          <b>Run Details · Run Name</b>: Traction generates the run name. Note it down, because you enter it when you
+          press <b>Load</b>. Once it&apos;s recorded, it shows here with a copy button.
+        </li>
+        <li>
+          <b>Well Defaults</b>: the values to set in Traction&apos;s Well Defaults before adding wells: the movie
+          acquisition time, include base kinetics, use adaptive loading (this run&apos;s own value, which applies to the
+          whole run) and full resolution base qual. They come from the <b>Settings</b> tab&apos;s Sample defaults and
+          default movie time, which match Traction&apos;s own presets out of the box. If Include Base Kinetics or Full
+          Resolution Base Qual is <b>True</b>, it shows as a <b>magenta</b> label so it can&apos;t be missed.
+        </li>
+        <li>
+          <b>Pre-flight checklist</b>, beside Well Defaults: tick boxes for the bench checks before loading
+          (humidity above 25% rH, tips refilled, deck reloaded, excess cells disposed if required). The ticks are a
+          reminder only. They aren&apos;t saved, and reset if you reload the page.
+        </li>
+        <li>
+          <b>Plates</b>: Plate 1 and Plate 2 side by side, each with wells <b>A1–D1</b> stacked just as Traction draws
+          them (Traction calls both plates&apos; wells A1–D1). Each plate is headed with the day it sequences, e.g.{" "}
+          <i>&quot;Plate 2 · acquires Fri 25 Jul · reuse (Use 2)&quot;</i>. An unused position says <i>Empty</i>, and a
+          run without a Plate 2 says to leave it empty in Traction.
+        </li>
+      </ul>
+      <p>
+        Each well&apos;s card shows its cell and use, then the values for Traction&apos;s well form. <b>Barcode</b> (the
+        Pool ID), <b>Library Concentration (pM)</b> (the sample&apos;s Actual OPLC) and, beneath it,{" "}
+        <b>Volume of Library Pool Used (uL)</b> (imported from Benchling or the tracker sheet) are <b>copy buttons</b>: click
+        one, see <b>✓ Copied</b>, and paste it into the matching Traction field. If your browser blocks the copy, the
+        value is selected for you with <i>Press Ctrl+C</i>, so you can copy it by hand. Once you&apos;ve copied a
+        well&apos;s barcode the card shows <b>✓ copied</b>, to help you keep your place across the run (this resets if
+        you reload the page). A well with no recorded concentration or volume says so (and a note above the run lists
+        those wells), for you to enter in Traction. Under{" "}
+        <b>Settings</b>, a well that matches the Well Defaults says <i>Defaults</i>; otherwise each setting to change in
+        that well&apos;s form shows as a chip, such as <b>30h</b> or <b>Kinetics False</b> (dark), or{" "}
+        <b>Kinetics True</b> (magenta, as for any setting switched on). Hover a chip to see the default. Adaptive Loading never appears per well, because Traction sets it for the whole run. Any sample note
+        on the cell shows at the bottom of the card.
+      </p>
+      <p>
+        <b>Load</b> confirms the instrument has loaded, straight from the sheet. It does exactly what{" "}
+        <b>Confirm loaded</b> on the schedule does: it locks the whole run (both plates). Enter <b>your name</b> (it
+        is remembered on this computer for next time, and recorded against the action), the <b>Traction run name</b>{" "}
+        (optional) and the time the Revio was loaded. The time starts at <i>now</i>; type any hh:mm, or click an hour
+        on the dial to set it in one click. If the pre-flight checklist isn&apos;t fully ticked, the dialog lists
+        what&apos;s left as a reminder, but it doesn&apos;t stop you. Once loaded, the button reads <b>✓ Loaded</b>.
+        To undo it, use <b>Unload</b> on the schedule.
+      </p>
+      <p>
+        <b>Print / Save as PDF</b> prints the <b>paper loading sheet</b> rather than the on-screen layout, for{" "}
+        <b>every</b> instrument you picked (not just the one on screen), through your browser&apos;s normal print
+        dialog (choose a physical printer, or &quot;Save as PDF&quot;). It prints{" "}
+        <b>landscape, one run per page</b>, so each Revio&apos;s run is a self-contained page you can hand to whoever
+        loads it, and a saved PDF is named <i>&quot;YYYY.MM.DD - Revio &lt;serial&gt;&quot;</i> (the load day and the
+        instrument). Each page has a table split into a block per plate. Each well shows its cell code, use number and
+        108-hour reuse deadline, the sample to load and its <b>Plate ID</b>, the per-cell run settings (movie / run
+        time, adaptive loading, include base kinetics, full-resolution baseQ) and the <b>Actual OPLC</b>, with the{" "}
+        <b>Volume of Library Pool Used</b> beneath it (e.g. <i>4.5 µL pool</i>) when it was imported. Any setting
+        that differs from the Sample Defaults (Settings tab) is printed in <b>bold with a &quot;*&quot;</b>, explained
+        by a footnote under the table. A <b>Date</b> and <b>Signed / initials</b> box sits top-right to sign off the
+        load, and a final <b>Notes</b> column prints any note you&apos;ve added to a sample on its cell (see{" "}
+        <b>Sample notes</b> under QC actions below).
+      </p>
+      <p>
+        Below each run&apos;s table the paper sheet also prints two <b>fill-in worksheets per plate</b> to record the bench
         work as you go; for a two-plate run the two plates&apos; worksheets sit <b>side by side</b> to make the most of
         the landscape page. The <b>7.3 · Final complex loading dilution</b> table has a row per well, pre-filled with the
         well and Traction ID. <b>Control Dilution 3</b> is always <b>1 µL</b> and is printed for you. If the sample has
@@ -298,7 +376,8 @@ export function ScheduleSection() {
 
       <p className={styles.subheading}>Export schedule</p>
       <p>
-        <b>Export schedule</b> downloads the currently-visible week as a CSV in the exact column layout of the
+        The <b>download</b> button (a tray with a down arrow, between <b>Batch Sheet</b> and the eye) is{" "}
+        <b>Export schedule</b>: it downloads the currently-visible week as a CSV in the exact column layout of the
         sequencing tracker Google Sheet, so you can paste the rows straight in. There is one row per scheduled well;
         the columns the planner tracks (date, run ID, instrument, Traction ID, barcodes, Sanger ID, cell location, run
         time, target OPLC, status and priority) are filled in, and every other column in the sheet is left
@@ -321,7 +400,8 @@ export function ScheduleSection() {
         the backlog is docked to the side) opens the <b>Autoschedule</b>{" "}
         panel — a pop-out from the left edge — which sets the parameters used for both single placements and auto-fill.
         Close it with the <b>✕</b>, the <b>Esc</b> key, or by clicking outside it; your grid selection stays put while
-        it&apos;s open. The same controls are shown live below:
+        it&apos;s open. Auto Schedule always plans multi-use <b>SPRQ-Nx</b> cells — single-use SPRQ runs are only ever
+        set up by hand (see <i>Single-use SPRQ cells</i>). The same controls are shown live below:
       </p>
       <dl className={styles.terms}>
         <dt>Max uses per cell (1× / 2× / 3×)</dt>
@@ -347,7 +427,11 @@ export function ScheduleSection() {
           carousel position) and <b>30 h</b> samples only on <b>cell 4</b> (the D-column); <b>24 h</b> samples can use
           any cell, taking cells 1 or 4 only when no 12 h/30 h sample needs them. Dragging a sample onto the grid by
           hand is unaffected — it always runs for its own movie time wherever you drop it, and you can still change any
-          one cell&apos;s run time afterwards from its slot popover (see <b>Run time</b> under QC actions below).
+          one cell&apos;s run time afterwards from its slot popover (see <b>Run time</b> under QC actions below). On the
+          weekly grid, a cell running a movie time other than the default (normally 24&nbsp;h) carries a solid dark{" "}
+          <b>12h</b> or <b>30h</b> flag on its cell line, next to any <b>&lt;5kb</b> flag, so short and long runs stand
+          out at a glance. The flag follows that cell&apos;s own run time, so changing it in the slot popover updates
+          the flag. Hover it to see which cell Auto Schedule loads that length on.
         </dd>
         <dt>Insert size (small-insert rule)</dt>
         <dd>
@@ -438,7 +522,8 @@ export function ScheduleSection() {
       </p>
       <p>
         Every backlog card has the same compact rows. The first is the full <b>Pool ID</b> (never shortened), any
-        duplicate badge, and the <b>⏱ movie time</b> on the right. The second is just its <b>priority</b> (shortened
+        duplicate badge, and the <b>⏱ movie time</b> on the right (a 12&nbsp;h or 30&nbsp;h sample shows a solid dark{" "}
+        <b>12h</b>/<b>30h</b> flag there instead, so non-default lengths stand out before you place them). The second is just its <b>priority</b> (shortened
         to <i>High</i>, <i>Medium</i>, <i>Standard</i>… — the card&apos;s left edge is tinted in the same colour) and,
         for a small-insert library, the orange <b>&lt;5kb</b> fragment-size flag. Hover the priority for the full
         label — and, for a <i>Repeatable — from complex</i> sample, how many days of the 30-day leftover-complex
@@ -475,8 +560,11 @@ export function ScheduleSection() {
           <b>Drag</b> a card from the <b>Backlog</b> panel onto an empty slot. If that slot starts a{" "}
           <b>brand-new run</b> (the first sample on that instrument and day), a radial <b>load-time dial</b> pops up so
           you can set when the run loads (08:00–20:00; its cells then prep before sequencing) — it opens on your Run design load time;
-          click an hour, or press <b>Esc</b> to cancel without scheduling. Dropping onto a day that already has a run
-          places straight away at that run&apos;s time. If the instrument is busy with other runs, the sample is still
+          click an hour, or press <b>Esc</b> to cancel without scheduling. Above the dial, a <b>SPRQ-Nx / SPRQ</b>{" "}
+          toggle sets the run&apos;s <b>cell type</b>: it starts on <b>SPRQ-Nx</b> (multi-use cells, up to 3 uses each)
+          every time; switch it to <b>SPRQ</b> <i>before</i> clicking the hour to run the whole day on{" "}
+          <b>single-use SPRQ cells</b> (see <i>Single-use SPRQ cells</i> below). Dropping onto a day that already has a
+          run places straight away at that run&apos;s time and on that run&apos;s cell type. If the instrument is busy with other runs, the sample is still
           placed at your chosen time and a short amber note tells you when its cells will actually start sequencing —
           they queue until one of the machine&apos;s four sequencing lanes frees. Reusing a cell sooner than its
           previous run can finish and be washed shows a similar heads-up note — the placement still
@@ -538,7 +626,7 @@ export function ScheduleSection() {
         &quot;choose a specific cell&quot; override), or swapping two placed samples: none of them is ever blocked for
         a clash, they warn and let you decide. A <b>duplicate</b> sample (same Pool ID as an earlier copy) is the
         one case that was never really a clash: it&apos;s allowed to reuse a cell that earlier copy already used, since
-        it&apos;s the same underlying sample either way — see the ↻ badge under <i>Duplicate samples</i> in the Colour
+        it&apos;s the same underlying sample either way — see the ⇆ badge under <i>Duplicate samples</i> in the Colour
         &amp; Status Legend.
       </p>
       <p>
@@ -550,6 +638,42 @@ export function ScheduleSection() {
         instrument by the end of the week — the incoming tray takes that position&apos;s slot in the instrument cell
         map (see above) so the swap is visible. The expired tray&apos;s earlier runs that week are untouched.
       </p>
+
+      <p className={styles.subheading}>Single-use SPRQ cells</p>
+      <p>
+        Most runs use multi-use <b>SPRQ-Nx</b> cells (up to 3 uses each). Some cells are <b>SPRQ</b> instead — single
+        use: each cell runs <b>once</b> and is then spent (PacBio recommends them for e.g. amplicons under 5 kb). You
+        choose per run, on the <b>SPRQ-Nx / SPRQ</b> toggle above the load-time dial when you drop the first sample of
+        a new run.
+      </p>
+      <ul>
+        <li>
+          <b>The whole run is one type.</b> Every later sample dropped into a SPRQ run — on Plate 1 or Plate 2 — goes on
+          SPRQ cells too, with no dial and nothing to remember. A run can&apos;t mix the two types, so a SPRQ run never
+          borrows a SPRQ-Nx cell and a SPRQ-Nx run never borrows a SPRQ cell.
+        </li>
+        <li>
+          <b>Leftover SPRQ cells are used first.</b> A SPRQ tray still holds 4 cells. If a SPRQ run used only some of
+          them, the next SPRQ run on that instrument takes the leftovers before a new SPRQ tray is opened. Until then
+          the part-used SPRQ tray keeps its bay on the instrument (it&apos;s physically there); if you won&apos;t use
+          the leftovers, discard the tray (the <b>⏏</b> on its plate, or <b>Discard all cells</b> on the Cells tab) to
+          free the bay for a fresh tray.
+        </li>
+        <li>
+          <b>How it looks.</b> SPRQ cards and their seals are <b>indigo</b> instead of the Use 1 / 2 / 3 colours, the run
+          shows an indigo <b>SPRQ</b> tag next to its load time, and the instrument cell map labels the tray{" "}
+          <b>SPRQ #id</b>. A SPRQ cell has no reuse, so it has <b>no 108-hour window</b> — no fading, no expiry date,
+          no reuse-by on the batch sheet.
+        </li>
+        <li>
+          <b>Auto Schedule and Recalculate only plan SPRQ-Nx.</b> They never use SPRQ cells and never move or re-plan
+          a SPRQ run; a day that already holds a SPRQ run is skipped like any other occupied day.
+        </li>
+        <li>
+          <b>Moving a sample</b> into another run puts it on that run&apos;s type (it gets a new cell if needed);
+          moving it onto an empty day keeps its own type.
+        </li>
+      </ul>
       <p className={styles.subheading}>The holographic cell seal</p>
       <p>
         Each loaded slot shows a small <b>seal</b> on its right edge. Its label is the <b>cell&apos;s</b> own number
@@ -557,7 +681,7 @@ export function ScheduleSection() {
         position from being misread as a lettered plate well) with the use number in its own small square next to it (e.g.{" "}
         <i>▣2</i> with a boxed <i>2</i> = cell 2, Use 2) — the cell it&apos;s running on, which can differ from
         the slot it sits in — and its base colour is the Use 1 / 2 / 3 palette (magenta / blue / teal, the same Use
-        colours as the legend). The small number along the bottom of the seal is the cell&apos;s <b>tray id</b> — shared by
+        colours as the legend), or <b>indigo</b> for a single-use SPRQ cell. The small number along the bottom of the seal is the cell&apos;s <b>tray id</b> — shared by
         every cell in the same physical tray (on a short card, e.g. Compact with barcodes hidden, it&apos;s left off so it
         never covers the use number; the tray id is still in the card&apos;s <i>C01-T285</i> line) — while the shimmering foil pattern is <b>unique to that one physical SMRT
         cell</b> — so if you see the <i>same</i> foil on two different days, it&apos;s literally
@@ -567,7 +691,7 @@ export function ScheduleSection() {
         <i>▣2</i> — reads <i>Use 1</i> on its load day and <i>Use 2</i> on its (separate) reuse day, with the same foil
         both times. <b>Click the
         seal</b> to open that cell&apos;s details — uses so far, 108-hour window, tray position and burned barcodes, with
-        links through to its full cell page and to its <b>tray</b> (all four cells of the physical tray, each linking
+        links through to its full cell page (<b>View cell</b>) and to its <b>tray</b> (all four cells of the physical tray, each linking
         back). (Clicking the card&apos;s <i>body</i> still opens the sample/slot detail —
         the seal is specifically the cell.)
       </p>
@@ -596,7 +720,7 @@ export function ScheduleSection() {
         <b>Loading a fresh tray into an in-use position.</b> RunNx always prefers to reuse the cells already in a tray
         position before opening a new tray, so you don&apos;t normally choose the cell yourself. When you <i>do</i> want
         to retire a tray early and load a brand-new one into the same position — even though its cells still have
-        capacity — use the tray <b>Discard current tray</b> (<b>↻</b>) button (see Locking a run below). This plate
+        capacity — use the tray <b>Discard current tray</b> (<b>⏏</b>) button (see Locking a run below). This plate
         keeps its current cells; only <i>later</i> reuses move onto fresh cells, restarting at <b>Use 1</b>. There&apos;s no per-drop cell picker:
         the slot is a loading position, and the instrument decides the cell — but the seal popover offers two ways to
         override that choice after the fact, without dragging the sample anywhere:
@@ -666,9 +790,9 @@ export function ScheduleSection() {
 
       <p className={styles.subheading}>QC actions</p>
       <p>
-        <b>Cell QC</b> — <b>Fail Cell</b>, <b>Fail and Stop Cell</b>, or <b>Retire Cell</b> — lives in one dialog,
+        <b>Cell QC</b> — <b>Fail cell</b>, <b>Fail and stop cell</b>, or <b>Retire cell</b> — lives in one dialog,
         opened <b>two ways without leaving the schedule</b>: click a card&apos;s <b>holographic seal</b> to open the
-        cell popover and press <b>QC…</b>, or use the <b>Cell QC</b> button in a filled slot&apos;s detail popover.
+        cell popover and press <b>Cell QC…</b>, or use the same <b>Cell QC…</b> button in a filled slot&apos;s detail popover.
         (Clicking a cell in the left-hand <b>instrument cell map</b> instead opens that cell&apos;s <b>detail page</b>,
         where the same QC actions live.) Fail / Fail-and-Stop become available once that run is locked in (<b>Confirm
         loaded</b> clicked); Retire works on any open cell (the Cells tab&apos;s help has the full definitions). Each
@@ -682,7 +806,7 @@ export function ScheduleSection() {
         a cell is never doubled up on one plate or one day. The dialog then asks you to decide each affected sample
         — <b>Lost</b> (→ the Backlog&apos;s <b>Resupply requests</b> list), or <b>Repeatable — from complex</b> /{" "}
         <b>from library</b> / <b>Recoverable — from instrument</b>{" "}
-        (→ the Backlog&apos;s <b>Recoverable Samples</b> section, above High priority). Samples that simply ran on a
+        (→ the Backlog&apos;s <b>Recoverable samples</b> section, above High priority). Samples that simply ran on a
         <i>different</i> cell than planned are flagged for review — with a warning if the shift created a barcode
         clash. That clash also marks the card itself directly on the weekly schedule — a pulsing red hazard-striped
         border and a <b>⚠ Clash</b> label, the most severe marking the grid shows, so it can&apos;t be missed while
@@ -753,12 +877,12 @@ export function ScheduleSection() {
         cell — anything worth flagging to whoever loads it (a handling reminder, a query, a re-run reason). Type a
         note and click <b>Save note</b>; it stays visible whenever you reopen that slot and remains editable at any
         time, including after the run is locked (unlike the placement itself, which locks once loaded). The note also
-        prints in the <b>Notes</b> column of the Batch Sheet for that well. It is tied to this one placement, so a
+        shows on that well&apos;s card on the Batch Sheet and prints in the paper sheet&apos;s <b>Notes</b> column. It is tied to this one placement, so a
         sample reused on another cell starts with a blank note there. Clearing the box and saving removes the note.
       </p>
       <p>
         <b>Undoing a QC mistake:</b> re-open the Cell QC dialog on a stopped or retired cell — from its seal or the
-        slot popover&apos;s <b>Cell QC</b> on the schedule, or on the cell&apos;s detail page (which the instrument
+        slot popover&apos;s <b>Cell QC…</b> on the schedule, or on the cell&apos;s detail page (which the instrument
         cell map opens) — and choose <b>Undo QC</b>. It reopens the
         cell and restores every sample the action affected — reassigned samples move back, cancelled ones become
         planned again, and backlog/resupply moves are reversed — except a sample that has since been placed again,
@@ -871,7 +995,7 @@ export function ScheduleSection() {
           <b>Confirm loaded</b> appears once a run has at least one sample; press it when the cells are physically
           loaded on the instrument. There is <b>one Confirm loaded per run</b> — it locks the <i>whole</i> run,{" "}
           <b>both plates</b> at once (a reuse run&apos;s Plate 2 is loaded in the same session, so it locks with
-          Plate 1), marking it running/LOADED so it can no longer be edited by accident. A small dialog lets you
+          Plate 1), marking it <b>RUNNING</b> so it can no longer be edited by accident. A small dialog lets you
           give the run a name (e.g. your lab&apos;s own run id, such as Sanger&apos;s <b>TRACTION-RUN-1234</b>{" "}
           format) — optional, and it overrides the plain run number everywhere this run is shown afterward (Run
           detail, History, Cells use history). Leave it blank to keep the plain number. <b>Unloading</b> never clears a
@@ -882,11 +1006,14 @@ export function ScheduleSection() {
           (and any reuse plate chained off it) shifts to match.
         </li>
         <li>
-          A green <b>LOADED</b> tag marks a locked run — hover or focus it and it turns magenta and swaps to{" "}
+          A locked run carries its status tag — <b>RUNNING</b>, <b>COMPLETED</b> or <b>ABORTED</b>, in the same colours as on
+          Run detail and History. A running run switches to <b>COMPLETED</b> on its own once its last cell has finished
+          sequencing and analysis (the same end time the Instruments page uses), so you never have to mark it done.
+          While it&apos;s running, hover or focus <b>RUNNING</b> and it turns magenta and swaps to{" "}
           <b>UNLOAD</b>; click it to return the run to planned so you can edit it again.
         </li>
         <li>
-          The <b>↻</b> button in a tray&apos;s top-right corner is <b>Discard current tray</b> — use it when you
+          The <b>⏏</b> (eject) button in a tray&apos;s top-right corner is <b>Discard current tray</b> — use it when you
           physically swap that tray for a fresh one (its cells are used up, expired, or you just want a clean tray from
           the next run on). It discards the tray <b>after this plate has loaded</b>: <b>this plate keeps its current
           cells and its real use number</b> (a sample that was Use 2 stays Use 2), and only <b>later</b> reuses of
@@ -899,7 +1026,7 @@ export function ScheduleSection() {
           the instrument by then. If a <i>later</i> reuse is itself already Confirm loaded, unlock that one first.
         </li>
         <li>
-          The <b>📅</b> button next to <b>Confirm loaded</b> is <b>Reschedule</b> — use it when a run <b>fails to load</b>
+          The <RescheduleIcon /> (calendar-with-arrow) button next to <b>Confirm loaded</b> is <b>Reschedule</b> — use it when a run <b>fails to load</b>
           {" "}(instrument issue, etc.) and needs to move to another day. It moves the <b>whole run — both plates and all
           its samples</b> — to a weekday you pick, in one step, instead of dragging every sample across. Use numbers stay
           correct for the new dates, and a reuse Plate 2 re-chains off the new load day. If a reuse no longer fits its
@@ -912,20 +1039,20 @@ export function ScheduleSection() {
         <li>
           <b>Restore tray</b> brings a discarded tray back. It lives on the tray&apos;s page (open a cell&apos;s{" "}
           <b>Tray</b> link, or click the tray in the instrument&apos;s left-hand tray overview). It un-discards the
-          cells so they can be reused again; if the tray was discarded with <b>↻</b>, the later uses that had moved onto
+          cells so they can be reused again; if the tray was discarded with <b>⏏</b>, the later uses that had moved onto
           a fresh tray move back and the empty fresh tray is removed — unless one has since been <b>Confirm loaded</b>,
           in which case it&apos;s left in place and you&apos;re told. If another tray has since loaded into the same
           carousel bay, you&apos;re told which one so you can decide which physical tray really stays.
         </li>
         <li>
-          The <b>✕</b> button next to <b>↻</b> in a plate&apos;s top-right corner is <b>Clear plate</b> — it removes
+          The <b>✕</b> button next to <b>⏏</b> in a plate&apos;s top-right corner is <b>Clear plate</b> — it removes
           every sample on that plate and returns them to the backlog, freeing the cells they sat on. Nothing is
           deleted: the samples wait in the backlog and can be re-placed at any time. Like the other schedule edits,
           it isn&apos;t available once the run is <b>Confirm loaded</b> (unlock it first).
         </li>
         <li>
           A teal <b>🔒 padlock</b> chip appears next to the status on every day the instrument is reserved by a run —
-          its own load day and any later day still held by its lock. Hover or focus it and it expands to reveal the
+          its own load day and any later day still held by its lock. Hover it for a tooltip with the
           exact date/time the instrument frees up, shown in your <b>local (lab) time</b> — the same clock as the
           instrument screen&apos;s own countdown and the machine in the lab. The day the reservation actually <i>ends</i> stays open to load —
           the instrument frees up partway through it, so you can still schedule a run there and it simply starts
@@ -968,11 +1095,10 @@ export function ScheduleSection() {
       </ul>
       <p>
         Because a reuse Plate 2 sequences on a <i>different</i> day from the load day, that later day&apos;s column
-        shows a lightweight <b>&quot;P2: [run name] @ [time]&quot;</b> marker and is greyed out and
+        shows an outlined teal <b>🔒 &quot;P2: [run name] @ [time]&quot;</b> marker and is greyed out and
         non-droppable — <b>there&apos;s no action to take there</b>; the instrument runs Plate 2 itself. Manage the
-        run (edit it, Confirm loaded, print its sheet) from its own load-day column, not the continuation day. Every
-        such day also carries the same <b>🔒 padlock</b> as a plain lock carry-over (see Locking a run below) —
-        hover it for the release time. A long movie whose instrument stays reserved into a later day with no plate
+        run (edit it, Confirm loaded, print its sheet) from its own load-day column, not the continuation day. Its padlock stands in for the
+        plain lock chip (see Locking a run below) — hover it for the release time. A long movie whose instrument stays reserved into a later day with no plate
         of its own acquiring shows just the padlock, with no other marker.
       </p>
       <p>
@@ -1000,7 +1126,7 @@ export function ScheduleSection() {
         got from its seal once it&apos;s loaded. Because the slot is a loading position, dropping onto the slot where a
         <i>used-up</i> cell sat just routes to a sibling that still has capacity — so a spent cell never blocks you. To
         load a <i>brand-new</i> tray into that position instead of reusing, use the tray <b>Discard current tray</b>{" "}
-        (<b>↻</b>) button.
+        (<b>⏏</b>) button.
       </p>
       <p>
         You don&apos;t have to hunt for the reuse deadline: the <b>tray overview</b> beneath each instrument&apos;s

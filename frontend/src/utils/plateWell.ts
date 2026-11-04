@@ -38,6 +38,13 @@ export function plateWellFromSlot(slotIndex: number, opts?: PlateWellOpts): stri
   return format(plate, letter, opts);
 }
 
+/** Traction's well label from a grid slot index (0-7): "A1".."D1". Traction's run form draws
+ *  each plate as its own A1-D1 strip, so the plate is never part of the label - pair it with
+ *  the plate heading. Derived from slot_index for the reason in the file header. */
+export function tractionWellFromSlot(slotIndex: number): string {
+  return `${POSITION_LETTERS[slotIndex % POSITION_LETTERS.length]}1`;
+}
+
 /** Plate/well label from a cell's canonical home_well ("A01".."D02"). Prefer
  *  plateWellFromSlot whenever a slot index is available; this is for cell.current_well,
  *  which is the cell's home_well (A01-D01 = Plate 1, A02-D02 = Plate 2). */

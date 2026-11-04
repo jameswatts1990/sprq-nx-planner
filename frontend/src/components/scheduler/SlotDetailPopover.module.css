@@ -10,13 +10,6 @@
   border-bottom: 1px solid var(--line-soft);
   font-size: var(--fs-base);
 }
-.label {
-  font-size: var(--fs-xs);
-  font-weight: 700;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  color: var(--grey);
-}
 .value {
   color: var(--ink);
   text-align: right;
@@ -89,7 +82,7 @@
 .claimRow {
   align-items: flex-start;
 }
-.claimRow .label {
+.claimLabel {
   padding-top: 3px;
   white-space: nowrap;
   flex-shrink: 0;
@@ -125,29 +118,9 @@
 .viewCellLink {
   text-decoration: none;
 }
-.qcButtons {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-.qcForm {
-  margin-top: 10px;
-}
-.helper {
-  font-size: var(--fs-md);
-  color: var(--grey);
-  margin: 0 0 10px;
-}
 .qcTextarea {
   width: 100%;
   min-height: 60px;
-  resize: vertical;
-  font-family: var(--mono);
-  font-size: var(--fs-md);
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  padding: 8px 10px;
 }
 .notes {
   display: flex;
@@ -160,14 +133,4 @@
   align-items: center;
   justify-content: flex-end;
   gap: 10px;
-}
-.notesError {
-  flex: 1;
-  font-size: var(--fs-sm);
-  color: var(--red);
-}
-.hint {
-  font-size: var(--fs-sm);
-  color: var(--grey);
-  margin: 10px 0 14px;
 }

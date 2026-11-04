@@ -21,10 +21,6 @@ export function GettingStartedSection() {
           the planner auto-fill them.
         </li>
         <li>
-          <b>Cells</b> shows every physical SMRT cell, how many of its uses are spent, and how much of its 108-hour
-          lifetime window is left.
-        </li>
-        <li>
           <b>QC</b> gathers every PacBio credit case — each cell chasing a credit after a failure or stop, plus any
           case you log there without a cell — grouped by stage, so you can action each one (report to PacBio, log the
           internal report, confirm and receive the credit) from one place.
@@ -34,12 +30,10 @@ export function GettingStartedSection() {
           greys it out in the Schedule) — plus at-a-glance status for each.
         </li>
         <li>
-          <b>History</b> is the record of past and planned runs, and <b>Samples</b> is the list of completed and
-          failed samples.
-        </li>
-        <li>
-          <b>Stats</b> turns all of the above into charts — throughput, cell reuse, failures and credits, and
-          inventory — so you can see at a glance how the lab is doing.
+          <b>History ▾</b> opens a short menu of the records: <b>Cells</b> shows every physical SMRT cell tray, how
+          many of its uses are spent, and how much of its 108-hour lifetime window is left; <b>Runs</b> is the record
+          of past, active and planned runs, with how each well went; and <b>Samples</b> lists every sample — wherever
+          it is now, and every run it has been on. History stays highlighted while you&apos;re on any of them.
         </li>
       </ol>
 
@@ -49,11 +43,16 @@ export function GettingStartedSection() {
         &quot;planned&quot; and can be moved or cleared freely.
       </p>
 
-      <p className={styles.subheading}>Other tabs</p>
+      <p className={styles.subheading}>Stats, Settings and Help</p>
       <p>
-        The <b>Settings</b> tab configures how this instance schedules runs and defaults new samples (and hides raw
-        database tools for development use), and this <b>Help</b> tab documents every screen — see their sections below,
-        or use the search box above to jump straight to a topic.
+        The three icons in the box at the top right of every page open the reference screens (hover one for its name):
+        the <b>bar chart</b> is <b>Stats</b>, which turns all of the above into charts — throughput, cell reuse,
+        failures and credits, and inventory — so you can see at a glance how the lab is doing; the <b>cog</b> is{" "}
+        <b>Settings</b>, which configures how this instance schedules runs and defaults new samples (and hides raw
+        database tools for development use); and the <b>?</b> is this <b>Help</b> page, which documents every
+        screen — see their sections below, or use the search box above to jump straight to a topic (<b>Enter</b> or{" "}
+        <b>↓</b> steps to the next match, <b>Shift+Enter</b> or <b>↑</b> to the previous). Beside them is the
+        app&apos;s version number and build date — click it to see what changed.
       </p>
     </div>
   );

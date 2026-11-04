@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
 
-import { ApiError } from "@/api/client";
+import { errorMessage } from "@/api/client";
 import { cellUsesApi } from "@/api/cellUses";
 import { scheduleNotesApi } from "@/api/scheduleNotes";
 import { schedulerApi } from "@/api/schedulerGrid";
@@ -10,6 +10,7 @@ import type { GridSelection } from "@/components/scheduler/useGridSelection";
 import type { SlotSelection } from "@/components/scheduler/useSlotSelection";
 import { smallInsertReuseWarning, useInsertSizeThreshold } from "@/hooks/useInsertSizeThreshold";
 import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
+import type { CellType } from "@/types/common";
 import type { RunOut, SlotIndex, StageOut } from "@/types/schedule";
 import type { ScheduleNoteMove, ScheduleNoteOut } from "@/types/scheduleNote";
 import type { GridCellRef, RunDesignState } from "@/types/schedulerGrid";
@@ -165,7 +166,7 @@ export function useScheduleActions({
       }
     },
     onError: (err) => {
-      setRemoveSlotsError(err instanceof ApiError ? err.message : "Failed to remove selected samples.");
+      setRemoveSlotsError(errorMessage(err, "Couldn't remove the selected samples."));
     },
   });
 
@@ -180,7 +181,7 @@ export function useScheduleActions({
       setDropBlockedMessage(null);
     },
     onError: (err) => {
-      setRemoveSlotsError(err instanceof ApiError ? err.message : "Failed to remove sample from schedule.");
+      setRemoveSlotsError(errorMessage(err, "Couldn't remove the sample from the schedule."));
     },
   });
 
@@ -197,7 +198,7 @@ export function useScheduleActions({
     onError: (err) => {
       // A swap never fails on a barcode clash any more (warn, don't block - the clash lands and
       // is flagged on the card). Any error here is something else (locked run, etc.).
-      setRemoveSlotsError(err instanceof ApiError ? err.message : "Failed to swap samples.");
+      setRemoveSlotsError(errorMessage(err, "Couldn't swap the samples."));
     },
   });
 
@@ -220,7 +221,7 @@ export function useScheduleActions({
     },
     onError: (err, _vars, context) => {
       context?.previous.forEach(([key, data]) => queryClient.setQueryData(key, data));
-      setRemoveSlotsError(err instanceof ApiError ? err.message : "Failed to move the note.");
+      setRemoveSlotsError(errorMessage(err, "Couldn't move the note."));
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: ["schedule-notes"] }),
   });
@@ -250,7 +251,7 @@ export function useScheduleActions({
       setRunDesignNote({
         tone: "bad",
         icon: "!",
-        text: err instanceof ApiError ? err.message : "Failed to clear schedule.",
+        text: errorMessage(err, "Couldn't clear the schedule."),
       });
     },
   });
@@ -270,6 +271,9 @@ export function useScheduleActions({
       // empty instrument+day) - sets that run's load/start hour. Ignored otherwise.
       start_hour?: number;
       start_minute?: number;
+      // The load-time dial's SPRQ-Nx / SPRQ toggle - the new run's cell type. Omitted for a
+      // drop into an existing run, which inherits that run's type.
+      cell_type?: CellType;
     }) =>
       cellUsesApi.place({
         sample_id: v.sample_id,
@@ -280,6 +284,7 @@ export function useScheduleActions({
         // (Sample.movie_time_hours, default 24 h) - resolved server-side in place_sample.
         start_hour: v.start_hour,
         start_minute: v.start_minute,
+        cell_type: v.cell_type,
       }),
     onSuccess: (run) => {
       invalidateScheduleRelated(queryClient);
@@ -291,7 +296,7 @@ export function useScheduleActions({
       // A plain drop is never blocked for a barcode clash (warn, don't block); any failure here
       // is something else (locked day, occupied slot, ...).
       setPlacementAdvisory(null);
-      setRemoveSlotsError(err instanceof ApiError ? err.message : "Failed to place sample.");
+      setRemoveSlotsError(errorMessage(err, "Couldn't place the sample."));
     },
   });
 
@@ -320,7 +325,7 @@ export function useScheduleActions({
       // A move is never blocked for a barcode clash (warn, don't block); any failure here is
       // something else (locked run, occupied slot, ...).
       setPlacementAdvisory(null);
-      setRemoveSlotsError(err instanceof ApiError ? err.message : "Failed to move sample.");
+      setRemoveSlotsError(errorMessage(err, "Couldn't move the sample."));
     },
   });
 
@@ -383,7 +388,7 @@ export function useScheduleActions({
       setRunDesignNote({
         tone: "bad",
         icon: "!",
-        text: err instanceof ApiError ? err.message : "Auto-schedule failed.",
+        text: errorMessage(err, "Couldn't run Auto Schedule."),
       });
     },
   });
@@ -433,7 +438,7 @@ export function useScheduleActions({
       setRecalculateNote({
         tone: "bad",
         icon: "!",
-        text: err instanceof ApiError ? err.message : "Failed to recalculate.",
+        text: errorMessage(err, "Couldn't recalculate the schedule."),
       });
     },
   });

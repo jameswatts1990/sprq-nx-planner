@@ -6,20 +6,25 @@ from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, fun
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
+from app.engine.constants import CELL_TYPE_SPRQ_NX
 from app.models.credit_case import CreditCaseMixin
 
 CELL_STATUSES = ("open", "exhausted", "window_expired", "retired", "stopped")
 
 
 class Cell(CreditCaseMixin, Base):
-    """A physical SPRQ-Nx SMRT Cell. Its PacBio credit case (one per cell, opened by a Failed use
-    or a Stop) lives on the row itself via CreditCaseMixin."""
+    """A physical SMRT Cell - multi-use SPRQ-Nx or single-use SPRQ (cell_type). Its PacBio credit
+    case (one per cell, opened by a Failed use or a Stop) lives on the row itself via
+    CreditCaseMixin."""
 
     __tablename__ = "cells"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     code: Mapped[str] = mapped_column(String(32), unique=True, index=True)
     max_uses: Mapped[int] = mapped_column(Integer, default=3)
+    # "sprq_nx" (up to 3 uses) or "sprq" (single use) - engine.constants.CELL_TYPES. Set on all
+    # 4 tray siblings together by cell_service.open_new_tray, alongside the matching max_uses.
+    cell_type: Mapped[str] = mapped_column(String(16), default=CELL_TYPE_SPRQ_NX, server_default=CELL_TYPE_SPRQ_NX)
     status: Mapped[str] = mapped_column(String(20), default="open", index=True)
     first_use_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     window_breached: Mapped[bool] = mapped_column(Boolean, default=False)

@@ -22,7 +22,7 @@ export function StatsSection() {
       <p className={styles.subheading}>Headline numbers</p>
       <ul>
         <li><b>Runs completed / Samples completed</b> — finished runs and finished cell-uses in the range.</li>
-        <li><b>Avg uses / cell</b> — average number of the 3 possible uses that finished cells actually reached. Higher is better value.</li>
+        <li><b>Avg uses / cell</b> — average number of the 3 possible uses that finished cells actually reached. Higher is better value. Counts multi-use SPRQ-Nx cells only — a single-use SPRQ cell can never be reused, so it&apos;s left out of every reuse figure.</li>
         <li><b>Reaching Use 3</b> — the share of finished cells that got all 3 uses before their window closed.</li>
         <li><b>Failure rate</b> — of all samples sequenced (everything that has gone on the instrument, including runs still in progress), the share marked <i>failed</i> (a data/cell problem, not an instrument abort). Samples still waiting to be loaded don&apos;t count.</li>
         <li><b>Well fill</b> — how full runs were, out of the 8 wells a run can hold.</li>
@@ -37,8 +37,8 @@ export function StatsSection() {
 
       <p className={styles.subheading}>Reuse &amp; utilisation</p>
       <p>
-        The core value story. <b>Reuse depth</b> counts finished cells by how far they got — Use 1 / 2 / 3, in the
-        same magenta/blue/teal you see on the schedule. <b>Window outcome</b> compares cells that spent all 3 uses
+        The core value story. <b>Reuse depth</b> counts finished SPRQ-Nx cells by how far they got — Use 1 / 2 / 3, in
+        the same magenta/blue/teal you see on the schedule (single-use SPRQ cells aren&apos;t counted). <b>Window outcome</b> compares cells that spent all 3 uses
         against those whose 108-hour window lapsed early (wasted capacity). <b>Avg uses per cell</b> and{" "}
         <b>well fill %</b> track those over time.
       </p>

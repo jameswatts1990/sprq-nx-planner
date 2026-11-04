@@ -15,7 +15,15 @@ from app.services import credit_service
 ENTITY_TYPE = "pacbio_case"
 
 # The editable details, in form order - drives the edit audit diff and the delete snapshot.
-_DETAIL_FIELDS = ("summary", "occurred_on", "instrument_id", "run_name", "pool_id", "expected_acquisitions")
+_DETAIL_FIELDS = (
+    "summary",
+    "occurred_on",
+    "instrument_id",
+    "run_name",
+    "pool_id",
+    "cell_type",
+    "expected_acquisitions",
+)
 
 
 def serialize_case(case: PacbioCase) -> PacbioCaseOut:
@@ -28,6 +36,7 @@ def serialize_case(case: PacbioCase) -> PacbioCaseOut:
         run_name=case.run_name,
         pool_id=case.pool_id,
         expected_acquisitions=case.expected_acquisitions,
+        cell_type=case.cell_type,
         created_by=case.created_by,
         created_at=case.created_at,
         internal_report_id=case.internal_report_id,
@@ -69,6 +78,7 @@ def _apply_details(db: Session, case: PacbioCase, req: PacbioCaseDetailsIn) -> N
     case.instrument_id = req.instrument_id
     case.run_name = _text(req.run_name, 120, "Run")
     case.pool_id = _text(req.pool_id, 120, "Pool ID")
+    case.cell_type = req.cell_type
     case.expected_acquisitions = req.expected_acquisitions
 
 

@@ -1,0 +1,30 @@
+/* The Cells table's own bits - the rest is the shared list layout (components/shared/ListPage). */
+
+/* The "34h left" under an expiry time. */
+.sub,
+.subUrgent {
+  display: block;
+  font-size: var(--fs-sm);
+  color: var(--grey);
+}
+.subUrgent,
+.urgent {
+  color: var(--amber-deep);
+  font-weight: 700;
+}
+.expired {
+  color: var(--red-deep);
+  font-weight: 700;
+}
+.useLine {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.useLine + .useLine {
+  margin-top: 4px;
+}
+.runLink {
+  overflow-wrap: anywhere;
+}

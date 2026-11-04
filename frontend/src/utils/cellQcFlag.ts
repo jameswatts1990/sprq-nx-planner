@@ -1,7 +1,7 @@
 import type { BadgeTone } from "@/components/ui/Badge";
 
 /** Shared flag -> Badge tone/label mapping for a cell's QC/credit tracking state
- * (CellOut.needs_qc_report / awaiting_credit), used by both CellStatusCard (grid) and
+ * (CellOut.needs_qc_report / awaiting_credit), used by both the Cells page's tray rows and
  * the Help tab's Colour & Status Legend so the two stay visually consistent (mirrors
  * utils/cellStatus.ts's pattern). */
 export type CellQcFlag = "unreported" | "awaiting_credit";

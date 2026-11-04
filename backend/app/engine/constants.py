@@ -11,6 +11,16 @@ CELL_LIFETIME_H = 108
 # overview p.10, p.25) - this is a fixed instrument fact, not a per-run planning choice.
 # See docs/pacbio-sprq-nx-scheduling-reference.md #1.
 CELL_MAX_USES = 3
+# A cell's chemistry type, fixed for its whole tray when the tray opens (Cell.cell_type).
+# SPRQ-Nx is the multi-use cell above; SPRQ is the single-use cell PacBio recommends for
+# e.g. <5 kb amplicons. The lab picks SPRQ per run on the load-time dial - Auto Schedule and
+# Recalculate only ever plan SPRQ-Nx (the packing engine assumes CELL_MAX_USES for every
+# cell). See docs/pacbio-sprq-nx-scheduling-reference.md, "SPRQ single-use cells".
+CELL_TYPE_SPRQ_NX = "sprq_nx"
+CELL_TYPE_SPRQ = "sprq"
+CELL_TYPES = (CELL_TYPE_SPRQ_NX, CELL_TYPE_SPRQ)
+CELL_TYPE_LABEL = {CELL_TYPE_SPRQ_NX: "SPRQ-Nx", CELL_TYPE_SPRQ: "SPRQ"}
+MAX_USES_BY_CELL_TYPE = {CELL_TYPE_SPRQ_NX: CELL_MAX_USES, CELL_TYPE_SPRQ: 1}
 # SMRT Cells ship in a physical tray of 4 - see cell_service.open_new_tray() and
 # models/cell_tray.py::CellTray. Distinct from WELLS' own "tray 1/tray 2" grid-loading
 # split below (instrument deck position, not a SMRT Cell shipping tray).

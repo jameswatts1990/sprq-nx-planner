@@ -53,7 +53,8 @@ export function InstrumentsSection() {
         <li>
           <b>Remaining SMRT Cell uses</b> — one box per cell currently on stages (not yet complete), each showing how
           many uses that cell has <em>left</em> after the one it&apos;s doing now, coloured by its use (magenta = Use 1,
-          blue = Use 2, teal = Use 3). Hover a box for the cell code and sample.
+          blue = Use 2, teal = Use 3, indigo = a single-use SPRQ cell, which always has 0 left). Hover a box for the
+          cell code and sample.
         </li>
         <li>
           <b>Use within</b> — a live countdown to when the <em>next</em> cell on a stage hits its 108-hour reuse
@@ -85,14 +86,14 @@ export function InstrumentsSection() {
         <li>
           <b>Currently running</b> — the run on the instrument right now (its name or number) and when it finishes and
           the instrument frees up; &quot;idle&quot; when nothing is loaded. The run name is a link — click it to open that
-          run&apos;s full detail in the History tab. A run counts as running the whole time its
+          run&apos;s full detail under History → Runs. A run counts as running the whole time its
           cells are on the instrument — from load, through prep and sequencing, right until the last cell&apos;s PPA
           finishes — measured from when it was <em>actually</em> loaded (the time entered at Confirm loaded), not just
           the first hour or two.
         </li>
         <li>
           <b>Open trays</b> — how many SMRT cell trays with spare capacity are sitting on the instrument. Click the
-          number to jump to those cells on the Cells tab.
+          number to jump to those trays on the Cells tab.
         </li>
         <li>
           <b>Cells (open)</b> — how many of the instrument&apos;s cells are still usable, out of the total on it.
@@ -107,7 +108,7 @@ export function InstrumentsSection() {
       <p>
         When a run is in progress, a green dot and a short live summary spell out what the instrument is doing at this
         moment — e.g. <b>&quot;3 sequencing · 2 in PPA · 1 awaiting prep&quot;</b> — counting each loaded cell by the
-        stage it&apos;s in. An amber <b>prep-locked</b> chip appears while any cell is still being (or still waiting to
+        stage it&apos;s in. A teal <b>🔒 Prep-locked</b> chip (the same padlock as the Schedule grid) appears while any cell is still being (or still waiting to
         be) broken out: the instrument is committed and can&apos;t take a fresh tray until every cell has started prep.
         These counts use the same timings as the gantt below, measured from when the run was actually loaded.
       </p>
@@ -139,7 +140,7 @@ export function InstrumentsSection() {
       <p>
         Two extra strips sit above the per-cell rows, so you don&apos;t have to work either out by eye:{" "}
         <b>Loading window</b> (amber) shows when the instrument is locked and can&apos;t yet take a fresh tray — the
-        same meaning as the amber <b>prep-locked</b> chip described above, just plotted across the whole week
+        same meaning as the <b>Prep-locked</b> chip described above, just plotted across the whole week
         instead of just right now. <b>Noisy (PPA)</b> (the same slate colour as the PPA segment in every row below
         it) shows whenever post-primary analysis is running anywhere on the instrument — the busiest part of a run,
         and a useful cue for when not to disturb it. Anywhere left unshaded on either strip is open.

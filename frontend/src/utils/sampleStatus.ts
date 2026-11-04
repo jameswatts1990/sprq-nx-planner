@@ -6,10 +6,12 @@ import type { SampleStatus } from "@/types/common";
  * (mirrors utils/cellStatus.ts's pattern). */
 export const SAMPLE_STATUS_TONE: Record<SampleStatus, BadgeTone> = {
   backlog: "default",
-  scheduled: "info",
-  in_progress: "warning",
+  // Grey = waiting (backlog or placed but not started), blue = active, green = done - the same
+  // grammar as runs and cell uses. Failed is orange like a failed cell use (a cell-quality loss).
+  scheduled: "default",
+  in_progress: "info",
   completed: "success",
-  failed: "danger",
+  failed: "orange",
   cancelled: "default",
 };
 

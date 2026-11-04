@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { ApiError } from "@/api/client";
+import { errorMessage } from "@/api/client";
 import { cellsApi } from "@/api/cells";
 import { instrumentsApi } from "@/api/instruments";
 import { pacbioCasesApi } from "@/api/pacbioCases";
@@ -15,6 +15,7 @@ import type { CellOut } from "@/types/cell";
 import type { CreditCaseState } from "@/types/credit";
 import type { InstrumentOut } from "@/types/instrument";
 import type { PacbioCaseOut } from "@/types/pacbioCase";
+import { copyText } from "@/utils/clipboard";
 import {
   cellFailureAt,
   expectedReimbursement,
@@ -71,7 +72,15 @@ function cellReportContext(cell: CellOut): IssueReportContext {
   const useNo = failUseNumber(cell.uses);
   return {
     occurredOn: failureAt ? new Date(failureAt) : null,
-    problem: ["Failed Cell", run, well, useNo ? `use ${useNo}` : ""].filter(Boolean).join(" "),
+    // A single-use SPRQ cell is named as such - PacBio credits it as a whole cell, not 1 of 3 uses.
+    problem: [
+      cell.cell_type === "sprq" ? "Failed SPRQ Cell" : "Failed Cell",
+      run,
+      well,
+      useNo && cell.cell_type !== "sprq" ? `use ${useNo}` : "",
+    ]
+      .filter(Boolean)
+      .join(" "),
     caseNumber: cell.pacbio_case_number,
     sampleId: use?.sample_pool_id ?? "",
     instrumentSerial: use?.instrument_serial ?? null,
@@ -82,7 +91,9 @@ function cellReportContext(cell: CellOut): IssueReportContext {
 function pacbioCaseReportContext(pc: PacbioCaseOut): IssueReportContext {
   return {
     occurredOn: localDateOnly(pc.occurred_on),
-    problem: [pc.summary, pc.run_name].filter(Boolean).join(" – "),
+    problem: [pc.cell_type === "sprq" ? `${pc.summary} (SPRQ cell)` : pc.summary, pc.run_name]
+      .filter(Boolean)
+      .join(" – "),
     caseNumber: pc.pacbio_case_number,
     sampleId: pc.pool_id ?? "",
     instrumentSerial: pc.instrument_serial,
@@ -137,35 +148,6 @@ function reportCsv(fields: ReportField[]): string {
   const headers = fields.map((f) => esc(f.label)).join(",");
   const values = fields.map((f) => esc(f.value)).join(",");
   return `${headers}\r\n${values}\r\n`;
-}
-
-/** Copy text to the clipboard, falling back to a hidden-textarea + execCommand when the async
- * Clipboard API is unavailable - which it is in production, served over plain HTTP (a non-secure
- * context, where navigator.clipboard is undefined). Returns whether the copy succeeded. */
-async function copyText(text: string): Promise<boolean> {
-  try {
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(text);
-      return true;
-    }
-  } catch {
-    // Fall through to the legacy path below (e.g. permission denied).
-  }
-  try {
-    const ta = document.createElement("textarea");
-    ta.value = text;
-    ta.style.position = "fixed";
-    ta.style.top = "-9999px";
-    ta.style.opacity = "0";
-    document.body.appendChild(ta);
-    ta.focus();
-    ta.select();
-    const ok = document.execCommand("copy");
-    document.body.removeChild(ta);
-    return ok;
-  } catch {
-    return false;
-  }
 }
 
 type ReportResult = "copied" | "copy-failed" | "downloaded";
@@ -249,7 +231,7 @@ function GenerateReportMenu({ fields, filename }: { fields: ReportField[]; filen
             ))}
           </dl>
           <ModalActions>
-            <Button variant="primary" onClick={() => setResult(null)}>
+            <Button onClick={() => setResult(null)}>
               Close
             </Button>
           </ModalActions>
@@ -556,7 +538,7 @@ function CreditStageActions({
           row to edit its note. */}
       {!compact && (
         <div className={styles.notesBlock}>
-          <label className={styles.notesLabel} htmlFor={`credit-notes-${idKey}`}>
+          <label className="fieldLabel" htmlFor={`credit-notes-${idKey}`}>
             Case notes
           </label>
           <textarea
@@ -581,36 +563,28 @@ function CreditStageActions({
 
       {creditNotesMutation.isError && (
         <Note tone="bad" icon="!">
-          {creditNotesMutation.error instanceof ApiError
-            ? creditNotesMutation.error.message
-            : "Failed to save case note."}
+          {errorMessage(creditNotesMutation.error, "Couldn't save the case note.")}
         </Note>
       )}
 
       {internalReportMutation.isError && (
         <Note tone="bad" icon="!">
-          {internalReportMutation.error instanceof ApiError
-            ? internalReportMutation.error.message
-            : "Failed to save internal report."}
+          {errorMessage(internalReportMutation.error, "Couldn't save the internal report.")}
         </Note>
       )}
       {reportMutation.isError && (
         <Note tone="bad" icon="!">
-          {reportMutation.error instanceof ApiError ? reportMutation.error.message : "Failed to report to PacBio."}
+          {errorMessage(reportMutation.error, "Couldn't report the case to PacBio.")}
         </Note>
       )}
       {confirmCreditMutation.isError && (
         <Note tone="bad" icon="!">
-          {confirmCreditMutation.error instanceof ApiError
-            ? confirmCreditMutation.error.message
-            : "Failed to confirm credit."}
+          {errorMessage(confirmCreditMutation.error, "Couldn't confirm the credit.")}
         </Note>
       )}
       {receiveCreditMutation.isError && (
         <Note tone="bad" icon="!">
-          {receiveCreditMutation.error instanceof ApiError
-            ? receiveCreditMutation.error.message
-            : "Failed to mark credit received."}
+          {errorMessage(receiveCreditMutation.error, "Couldn't mark the credit as received.")}
         </Note>
       )}
     </div>
@@ -620,6 +594,9 @@ function CreditStageActions({
 /** Plain-language explanation of how the expected reimbursement was derived, shown on hover so
  * the figure is never a mystery number (Transparent: why, at a glance). */
 function reimbursementTitle(cell: CellOut, amount: number): string {
+  if (cell.cell_type === "sprq") {
+    return "A single-use SPRQ cell runs once, so its failed acquisition is the whole cell: 1 acquisition = 1 cell.";
+  }
   const failNo = failUseNumber(cell.uses);
   const basis = failNo == null ? "" : ` (max ${cell.max_uses} + 1 − use ${failNo} = ${amount})`;
   return (

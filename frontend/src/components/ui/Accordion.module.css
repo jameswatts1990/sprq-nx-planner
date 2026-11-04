@@ -1,4 +1,4 @@
-/* Ported from PlanPage/InProgressCellsReview.module.css toggle + caret. */
+/* Ported from PlanPage/InProgressCellsReview.module.css toggle; the ▸ is the global .disclosure. */
 .toggle {
   width: 100%;
   text-align: left;
@@ -18,8 +18,4 @@
    action sits immediately beside the title instead of being pushed to the far edge. */
 .toggleFit {
   width: auto;
-}
-.caret {
-  color: var(--grey);
-  font-size: var(--fs-xs);
 }

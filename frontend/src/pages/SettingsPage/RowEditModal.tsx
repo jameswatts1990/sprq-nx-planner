@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { ApiError } from "@/api/client";
+import { errorMessage } from "@/api/client";
 import { Button } from "@/components/ui/Button";
 import { Modal, ModalActions } from "@/components/ui/Modal";
 import { Note } from "@/components/ui/Note";
@@ -54,7 +54,6 @@ export function RowEditModal({ table, columns, primaryKey, row, pending, error, 
           <label key={c} className={styles.editField}>
             <span className={styles.editLabel}>{c}</span>
             <input
-              className={styles.editInput}
               value={form[c]}
               onChange={(e) => setForm((f) => ({ ...f, [c]: e.target.value }))}
             />
@@ -69,7 +68,7 @@ export function RowEditModal({ table, columns, primaryKey, row, pending, error, 
 
       {error !== null && error !== undefined && (
         <Note tone="bad" icon="!">
-          {error instanceof ApiError ? error.message : "Failed to save row."}
+          {errorMessage(error, "Couldn't save the row.")}
         </Note>
       )}
 

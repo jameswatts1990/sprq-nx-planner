@@ -3,7 +3,8 @@ import { useEffect, useMemo, useState } from "react";
 import type { RunOut } from "@/types/schedule";
 import type { InstrumentStatus } from "@/utils/instrumentStatus";
 import { computeTimeline, type StageTiming } from "@/utils/stageTimings";
-import { classForUseIndex } from "@/utils/useIndexClass";
+import type { CellType } from "@/types/common";
+import { classForCell } from "@/utils/useIndexClass";
 import { CELL_LIFETIME_H } from "@/utils/windowFade";
 
 import styles from "./RevioScreen.module.css";
@@ -76,6 +77,7 @@ interface ResidentCell {
   cellId: number;
   cellRef: string;
   useNumber: number;
+  cellType: CellType;
   usesLeft: number;
   sample: string | null;
 }
@@ -175,6 +177,7 @@ export function RevioScreen({ serial, name, status, idle, runs, dataUpdatedAt }:
         cellId: t.stage.cell_id,
         cellRef: t.stage.cell_ref,
         useNumber: t.stage.use_number,
+        cellType: t.stage.cell_type,
         usesLeft: Math.max(0, t.stage.cell_max_uses - t.stage.use_number),
         sample: t.stage.sample_pool_id,
       });
@@ -249,8 +252,8 @@ export function RevioScreen({ serial, name, status, idle, runs, dataUpdatedAt }:
                   {resident.map((c) => (
                     <span
                       key={c.cellId}
-                      className={`${styles.useBox} ${styles[classForUseIndex(c.useNumber)]}`}
-                      title={`Cell ${c.cellRef} · use ${c.useNumber} · ${c.usesLeft} use${c.usesLeft === 1 ? "" : "s"} left${c.sample ? ` · ${c.sample}` : ""}`}
+                      className={`${styles.useBox} ${styles[classForCell(c.useNumber, c.cellType)]}`}
+                      title={`Cell ${c.cellRef} · ${c.cellType === "sprq" ? "single-use SPRQ" : `use ${c.useNumber}`} · ${c.usesLeft} use${c.usesLeft === 1 ? "" : "s"} left${c.sample ? ` · ${c.sample}` : ""}`}
                     >
                       {c.usesLeft}
                     </span>
@@ -293,7 +296,7 @@ export function RevioScreen({ serial, name, status, idle, runs, dataUpdatedAt }:
                         {cells.map((t) => (
                           <span
                             key={t.stage.cell_use_id}
-                            className={`${styles.pip} ${styles[classForUseIndex(t.stage.use_number)]} ${styles[`p_${phase}`]}`}
+                            className={`${styles.pip} ${styles[classForCell(t.stage.use_number, t.stage.cell_type)]} ${styles[`p_${phase}`]}`}
                             title={`${t.stage.sample_pool_id ?? t.stage.cell_ref} · use ${t.stage.use_number} · ${PHASE_LABEL[phase]}`}
                           />
                         ))}

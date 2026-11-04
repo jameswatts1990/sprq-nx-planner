@@ -24,6 +24,8 @@ class ParsedSample:
     # pure packing engine.
     cleaned_complex_volume: float | None = None
     loading_buffer_volume: float | None = None
+    # Volume of library pool used (uL) - import-only, shown on the batch sheet for Traction.
+    library_pool_volume_used: float | None = None
     # Boolean settings stored canonically as "True"/"False" (None when unspecified).
     adaptive_loading: str | None = None
     full_resolution_base_q: str | None = None

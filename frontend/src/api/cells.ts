@@ -4,6 +4,7 @@ import type {
   CellDetailOut,
   CellDiscardRequest,
   CellOut,
+  CellTrayRowOut,
   TrayDiscardOut,
   TrayDiscardRequest,
   TrayRestoreOut,
@@ -13,7 +14,7 @@ import type {
   TraySkipReuseOut,
   TraySkipReuseRequest,
 } from "@/types/cell";
-import type { Page } from "@/types/common";
+import type { CellType, Page } from "@/types/common";
 import type {
   CreditConfirmRequest,
   CreditInternalReportRequest,
@@ -29,11 +30,19 @@ export interface ListCellsParams {
   qc_status?: "unreported" | "awaiting_credit" | "in_workflow";
   q?: string;
   tray_id?: number;
+  cell_type?: CellType;
   /** ISO datetime; when set, the API projects every time-derived field (uses, window, status)
    * to that instant instead of "now" - drives the Cells page Now / End-of-week toggle. */
   as_of?: string;
   page?: number;
   page_size?: number;
+}
+
+export type TraySortKey = "expiry" | "tray" | "first_use" | "last_run" | "instrument" | "uses_left";
+
+export interface ListCellTraysParams extends ListCellsParams {
+  sort_by?: TraySortKey;
+  sort_dir?: "asc" | "desc";
 }
 
 /** Follows pagination until every matching cell has been collected - for system-wide
@@ -61,6 +70,10 @@ async function listAll(params: Omit<ListCellsParams, "page" | "page_size"> = {})
 export const cellsApi = {
   list: (params: ListCellsParams = {}) => api.get<Page<CellOut>>(`/api/cells${buildQuery(params)}`),
   listAll,
+  /** The Cells page list: one row per physical tray with a matching cell, carrying the whole
+   * tray, sorted and paged by tray. */
+  listTrays: (params: ListCellTraysParams = {}) =>
+    api.get<Page<CellTrayRowOut>>(`/api/cells/trays${buildQuery(params)}`),
   get: (id: number) => api.get<CellDetailOut>(`/api/cells/${id}`),
   bootstrap: (req: CellBootstrapRequest) => api.post<CellDetailOut>("/api/cells/bootstrap", req),
   /** Read-only: which samples a Fail / Fail-and-Stop / Retire would affect (failed,

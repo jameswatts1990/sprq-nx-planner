@@ -61,7 +61,7 @@
 .step[data-state="done"] .node {
   background: var(--green);
   border-color: var(--green);
-  color: #fff;
+  color: var(--on-accent);
 }
 .step[data-state="current"] .node {
   background: var(--magenta-tint);

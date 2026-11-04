@@ -94,7 +94,7 @@ export function RunDesignFields({
   return (
     <>
       <div className={styles.field}>
-        <div className={styles.fieldLabel}>
+        <div className="fieldLabel">
           Max uses per cell <span className={styles.hint}>auto-fill target depth</span>
         </div>
         <SegmentedControl
@@ -107,7 +107,7 @@ export function RunDesignFields({
       </div>
 
       <div className={styles.field}>
-        <div className={styles.fieldLabel}>
+        <div className="fieldLabel">
           Movie times <span className={styles.hint}>which sample movie lengths to include</span>
         </div>
         <div className={styles.movieRow} role="group" aria-label="Movie times to include">
@@ -133,7 +133,7 @@ export function RunDesignFields({
       </div>
 
       <div className={styles.field}>
-        <div className={styles.fieldLabel}>
+        <div className="fieldLabel">
           Load time <span className={styles.hint}>when a new run loads (cells prep, then sequencing starts)</span>
         </div>
         <Button
@@ -146,7 +146,7 @@ export function RunDesignFields({
       </div>
 
       <div className={styles.field}>
-        <div className={styles.fieldLabel}>Optimise for</div>
+        <div className="fieldLabel">Optimise for</div>
         <SegmentedControl
           ariaLabel="Optimisation objective"
           options={OBJECTIVE_OPTIONS}
@@ -157,7 +157,7 @@ export function RunDesignFields({
       </div>
 
       <div className={styles.field}>
-        <div className={styles.fieldLabel}>
+        <div className="fieldLabel">
           Plates per run <span className={styles.hint}>cap on samples scheduled per day (4 or 8)</span>
         </div>
         <SegmentedControl

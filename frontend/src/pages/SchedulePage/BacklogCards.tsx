@@ -29,7 +29,9 @@ const TONE_ACCENT_VAR: Record<BadgeTone, string> = {
   info: "var(--blue-deep)",
   blue: "var(--blue)",
   purple: "var(--purple)",
+  sprq: "var(--sprq)",
   ink: "var(--ink)",
+  magenta: "var(--magenta)",
 };
 
 /** Draggable backlog sample card - doubles as the drag source for placing onto a slot.
@@ -123,9 +125,9 @@ export function DraggableSampleCard({
         )}
       </div>
       <div className={styles.cardSub}>
-        <span title={priorityTitle}>
-          <Badge tone={priorityTone(sample.priority)}>{priorityShortLabel(sample.priority)}</Badge>
-        </span>
+        <Badge tone={priorityTone(sample.priority)} title={priorityTitle}>
+          {priorityShortLabel(sample.priority)}
+        </Badge>
         <InsertSizeFlag sizeBp={sample.insert_size_bp} />
       </div>
       {showBarcodes && <BarcodeChips barcodes={sample.barcodes} singleLine />}

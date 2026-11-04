@@ -1,9 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 
-import { ApiError } from "@/api/client";
+import { errorMessage } from "@/api/client";
 import { cyclesApi } from "@/api/cycles";
-import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { Note } from "@/components/ui/Note";
 import type { InstrumentOut } from "@/types/instrument";
@@ -12,10 +11,6 @@ import { addDaysUTC, formatShortDateUTC, mondayOfWeekUTC, parseDateOnly, todayIs
 import { WeekPlanGantt } from "./WeekPlanGantt";
 import { WEEK_PLAN_LOOKBACK_DAYS } from "./weekPlanTiming";
 import styles from "./WeekPlanModal.module.css";
-
-function errorMessage(err: unknown, fallback: string): string {
-  return err instanceof ApiError ? err.message : fallback;
-}
 
 export interface WeekPlanModalProps {
   instrument: InstrumentOut;
@@ -55,16 +50,11 @@ export function WeekPlanModal({ instrument, onClose }: WeekPlanModalProps) {
     <Modal
       onClose={onClose}
       title={`Week plan · ${instrument.name || instrument.serial_number}`}
-      titleExtra={
-        <Button variant="ghost" onClick={onClose}>
-          Close
-        </Button>
-      }
       fullScreen
     >
       <p className={styles.range}>{rangeLabel} · current week</p>
 
-      {weekPlanQuery.isLoading && <div className={styles.status}>Loading this week's schedule…</div>}
+      {weekPlanQuery.isLoading && <div className="status sm">Loading this week's schedule…</div>}
       {weekPlanQuery.isError && (
         <Note tone="bad" icon="!">
           {errorMessage(weekPlanQuery.error, "Couldn't load this week's schedule.")}
@@ -73,7 +63,7 @@ export function WeekPlanModal({ instrument, onClose }: WeekPlanModalProps) {
       {weekPlanQuery.data && (
         <>
           {weekPlanQuery.data.length === 0 && (
-            <Note tone="info" icon="ℹ">
+            <Note tone="info" icon="i">
               Nothing scheduled on this instrument this week — the loading window is open all week.
             </Note>
           )}

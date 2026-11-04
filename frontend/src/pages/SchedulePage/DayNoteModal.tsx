@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
-import { ApiError } from "@/api/client";
+import { errorMessage } from "@/api/client";
 import { scheduleNotesApi } from "@/api/scheduleNotes";
 import { Button } from "@/components/ui/Button";
 import { Modal, ModalActions } from "@/components/ui/Modal";
@@ -82,7 +82,7 @@ export function DayNoteModal({ date, note, instruments, onClose }: DayNoteModalP
       </p>
 
       <div className={styles.field}>
-        <label className={styles.label} htmlFor="day-note-body">
+        <label className="fieldLabel" htmlFor="day-note-body">
           Note
         </label>
         <textarea
@@ -100,7 +100,7 @@ export function DayNoteModal({ date, note, instruments, onClose }: DayNoteModalP
       </div>
 
       <fieldset className={styles.choices}>
-        <legend className={styles.label}>Instruments</legend>
+        <legend className="fieldLabel">Instruments</legend>
         <label className={`${styles.choice} ${styles.allChoice}`}>
           <input ref={allRef} type="checkbox" checked={allSelected} onChange={toggleAll} />
           <span className={styles.choiceMain}>All instruments</span>
@@ -121,7 +121,7 @@ export function DayNoteModal({ date, note, instruments, onClose }: DayNoteModalP
 
       {error != null && (
         <Note tone="bad" icon="!">
-          {error instanceof ApiError ? error.message : "Failed to save the note."}
+          {errorMessage(error, "Couldn't save the note.")}
         </Note>
       )}
 
