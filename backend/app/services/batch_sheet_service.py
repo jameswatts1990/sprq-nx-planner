@@ -12,12 +12,13 @@ from datetime import date, timedelta
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from app.engine.constants import CELL_LIFETIME_H
+from app.engine.constants import CELL_LIFETIME_H, CELL_MAX_USES, CELL_TYPE_SPRQ_NX
 from app.models.instrument import Instrument
 from app.models.schedule import CellUse, Cycle, RunBatch
 from app.schemas.batch_sheet import BatchSheetOut, BatchSheetPlateOut, BatchSheetRunOut, BatchSheetWellOut
-from app.services.run_serializer import _slot_index, _use_number
-from app.timeutil import ensure_aware
+from app.services.cell_service import is_single_use, run_cell_type
+from app.services.run_serializer import _slot_index, _use_number, run_status
+from app.timeutil import ensure_aware, utcnow
 
 _OPTIONS = [
     selectinload(RunBatch.instrument),
@@ -50,21 +51,11 @@ def _run_out(run_batch: RunBatch) -> BatchSheetRunOut:
         run_id=run_batch.id,
         run_name=run_batch.run_name,
         load_date=run_batch.load_date,
-        # A run reads as running/completed once its plates are; else planned. Kept simple here
-        # (the grid's run_serializer has the authoritative derivation) - a plate's status is
-        # enough for the sheet's header line.
-        status=_run_status(run_batch.cycles),
+        # Same derivation as the grid (incl. a running run reading completed once its time is up).
+        status=run_status(run_batch, run_batch.cycles, utcnow()),
+        cell_type=run_cell_type(run_batch.cycles),
         plates=plates,
     )
-
-
-def _run_status(cycles: list[Cycle]) -> str:
-    statuses = [c.status for c in cycles]
-    if any(s == "running" for s in statuses):
-        return "running"
-    if statuses and all(s in ("completed", "aborted") for s in statuses):
-        return "completed" if any(s == "completed" for s in statuses) else "aborted"
-    return "planned"
 
 
 def _plate_out(run_batch: RunBatch, cycle: Cycle) -> BatchSheetPlateOut:
@@ -83,7 +74,7 @@ def _well_out(cell_use: CellUse, plate_index: int) -> BatchSheetWellOut:
     sample = cell_use.sample
 
     deadline = None
-    if cell is not None and cell.first_use_started_at is not None:
+    if cell is not None and cell.first_use_started_at is not None and not is_single_use(cell):
         deadline = ensure_aware(cell.first_use_started_at) + timedelta(hours=CELL_LIFETIME_H)
 
     return BatchSheetWellOut(
@@ -92,6 +83,8 @@ def _well_out(cell_use: CellUse, plate_index: int) -> BatchSheetWellOut:
         plate_number=plate_index,
         cell_ref=cell.code if cell else "?",
         use_number=_use_number(cell_use),
+        cell_max_uses=cell.max_uses if cell else CELL_MAX_USES,
+        cell_type=cell.cell_type if cell else CELL_TYPE_SPRQ_NX,
         run_time_hours=cell_use.run_time_hours,
         cell_window_deadline=deadline,
         window_breached=cell.window_breached if cell else False,
@@ -106,5 +99,6 @@ def _well_out(cell_use: CellUse, plate_index: int) -> BatchSheetWellOut:
         actual_oplc=sample.actual_oplc if sample else None,
         cleaned_complex_volume=sample.cleaned_complex_volume if sample else None,
         loading_buffer_volume=sample.loading_buffer_volume if sample else None,
+        library_pool_volume_used=sample.library_pool_volume_used if sample else None,
         notes=cell_use.notes,
     )

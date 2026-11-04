@@ -1,5 +1,6 @@
 import { Badge } from "@/components/ui/Badge";
 import type { BadgeTone } from "@/components/ui/Badge";
+import { formatDateTime } from "@/utils/calendarDates";
 import { COMPLEX_REPEAT_WINDOW_DAYS, complexDaysLeft } from "@/utils/qcDisposition";
 
 /** Blue while there's comfortable time, amber in the last two weeks, red in the last week and
@@ -25,13 +26,13 @@ export function ComplexCountdownChip({
 }) {
   const daysLeft = complexDaysLeft(qcDisposition, qcDispositionAt);
   if (daysLeft == null || !qcDispositionAt) return null;
-  const qcDate = new Date(qcDispositionAt).toLocaleDateString();
   const text = daysLeft >= 0 ? `Complex ${daysLeft}d left` : `Complex ${-daysLeft}d over`;
   return (
-    <span
-      title={`Repeat from complex: QC recorded ${qcDate}. Leftover complex is best used within ${COMPLEX_REPEAT_WINDOW_DAYS} days — this is a reminder only; nothing changes when it runs out.`}
+    <Badge
+      tone={tone(daysLeft)}
+      title={`Repeat from complex: QC recorded ${formatDateTime(qcDispositionAt)}. Leftover complex is best used within ${COMPLEX_REPEAT_WINDOW_DAYS} days — this is a reminder only; nothing changes when it runs out.`}
     >
-      <Badge tone={tone(daysLeft)}>⌛ {text}</Badge>
-    </span>
+      ⌛ {text}
+    </Badge>
   );
 }

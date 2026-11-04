@@ -6,7 +6,7 @@
  * acquisition round with its own acquire_date). A reuse run reads as one run whose Plate 2
  * acquires a later day. */
 
-import type { CycleStatus } from "./common";
+import type { CellType, CycleStatus } from "./common";
 
 export type MaxUses = 1 | 2 | 3;
 export type RunTimeHours = 12 | 24 | 30;
@@ -48,10 +48,12 @@ export interface StageOut {
   cell_home_well: string | null;
   /** 1-based position of this cell_use among its cell's loads - drives the Use 1/2/3 colour. */
   use_number: number;
-  /** The physical cell's own use cap (usually 3; lower only if QC reduced it). With use_number
+  /** The physical cell's own use cap (3 for SPRQ-Nx, 1 for single-use SPRQ). With use_number
    * this gives the cell's remaining uses (cell_max_uses - use_number) shown on the Revio-screen
    * panel's "Remaining SMRT Cell uses" boxes. */
   cell_max_uses: number;
+  /** SPRQ-Nx, or single-use SPRQ - which shows in the SPRQ colour instead of Use 1/2/3. */
+  cell_type: CellType;
   /** This well's own movie / run time (h). Per-cell: set from the Run Design dial on
    * placement/auto-schedule, editable per-cell in the slot-detail popover. Different wells of
    * one run may differ; PlateOut.movie_hours is the longest of its plate's wells. */
@@ -145,8 +147,11 @@ export interface RunOut {
   /** Optional lab-assigned label (e.g. "TRACTION-RUN-1234") set when the run is locked
    * (Confirm loaded) - overrides "#<run_id>" everywhere a run is displayed. */
   run_name: string | null;
-  /** Derived run-level status: "running"/"completed" once its plates are, else "planned". */
+  /** Derived run-level status: "running"/"completed" once its plates are, else "planned". A
+   * running run reads "completed" once its last cell has finished PPA (by time). */
   status: CycleStatus;
+  /** The run's cell type - one type across both plates, chosen on the load-time dial. */
+  cell_type: CellType;
   /** The instrument is held until the last plate's acquisition finishes + buffer - when it
    * becomes available to *start* another run (loading the next run's cells is never blocked). */
   lock_until: string; // ISO datetime
@@ -161,4 +166,46 @@ export interface RunOut {
   starts_later_than_requested: boolean;
   /** 1-2 plates. Plate 1 first; a second plate is a fresh parallel tray or a reuse. */
   plates: PlateOut[];
+}
+
+/** One loaded well of a Run history row: the cell use, its cell and its sample. */
+export interface RunHistoryWellOut {
+  cell_use_id: number;
+  plate_index: number;
+  well: string;
+  /** The use's own status: planned / started / completed / aborted / failed / cancelled. */
+  status: string;
+  /** Which use of its cell this is (1-3; always 1 for a single-use SPRQ cell). */
+  use_number: number;
+  cell_id: number;
+  cell_code: string;
+  cell_max_uses: number;
+  tray_id: number | null;
+  sample_id: number | null;
+  sample_pool_id: string | null;
+  barcodes: string[];
+  started_at: string | null;
+  completed_at: string | null;
+}
+
+/** One row of the Run history page (GET /api/cycles/history): a run's summary plus each loaded
+ * well - lighter than RunOut (no lock / clash / duplicate fields). */
+export interface RunHistoryRowOut {
+  run_id: number;
+  run_name: string | null;
+  load_date: string;
+  instrument_serial: string;
+  /** Same derivation as RunOut.status. */
+  status: CycleStatus;
+  cell_type: CellType;
+  plate_count: number;
+  /** The longest plate's movie (h); null for a run with nothing loaded. */
+  movie_hours: number | null;
+  /** Plate 1's real confirm-load time once `loaded`, else its planned start. */
+  loaded_at: string | null;
+  loaded: boolean;
+  wells: RunHistoryWellOut[];
+  /** The wells a search matched (Pool ID, barcode, cell, tray) - empty when the run matched on its
+   * own name, id, instrument or date, or there was no search. */
+  matched_use_ids: number[];
 }

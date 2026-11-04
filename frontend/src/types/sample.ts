@@ -13,6 +13,9 @@ export interface SampleOut {
    * (Control Dilution 3 is a fixed 1 µL printed on the batch sheet, so it isn't stored.) */
   cleaned_complex_volume: number | null;
   loading_buffer_volume: number | null;
+  /** Volume of library pool used (µL), the per-well volume Traction asks for. Import-only:
+   * read-only in RunNx, so it's absent from SampleCreate/SampleUpdate. */
+  library_pool_volume_used: number | null;
   adaptive_loading: string | null;
   full_resolution_base_q: string | null;
   priority: string | null;
@@ -26,7 +29,7 @@ export interface SampleOut {
   insert_size_bp: number | null;
   status: SampleStatus;
   /** QC disposition tag ("repeatable_complex"/"repeatable"/"recoverable") when a Cell QC action
-   * returned this sample to the backlog - groups it into the Backlog's "Recoverable Samples"
+   * returned this sample to the backlog - groups it into the Backlog's "Recoverable samples"
    * section. See utils/qcDisposition.ts for the human-readable labels. */
   qc_disposition: string | null;
   /** When that Cell QC was recorded (ISO) - starts the "Repeatable — from complex" 30-day
@@ -70,6 +73,9 @@ export interface SampleCellUseOut {
   cycle_id: number;
   run_name: string | null;
   run_batch_id: number;
+  /** The run's load date (YYYY-MM-DD) and instrument. */
+  load_date: string | null;
+  instrument_serial: string | null;
   /** Which plate (1 or 2) of the run this use was scheduled on, inferred from the schedule. */
   plate_number: number | null;
   cell_id: number;

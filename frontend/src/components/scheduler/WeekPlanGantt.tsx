@@ -5,7 +5,7 @@ import type { RunOut } from "@/types/schedule";
 import { shortWeekdayUTC } from "@/utils/calendarDates";
 import { cellPositionLabel } from "@/utils/plateWell";
 import { computeTimeline, PPA_H, PPA_SERVERS, PREP_H, type StageTiming } from "@/utils/stageTimings";
-import { classForUseIndex } from "@/utils/useIndexClass";
+import { classForCell } from "@/utils/useIndexClass";
 
 import {
   buildWeekDayMarks,
@@ -53,7 +53,7 @@ function WeekPlanGanttRow({
 }) {
   const s = t.stage;
   const cell = cellPositionLabel(s.tray_position, s.cell_home_well ?? s.well);
-  const useClass = classForUseIndex(s.use_number);
+  const useClass = classForCell(s.use_number, s.cell_type);
   const clip = (startMs: number, endMs: number) => clipToWeek(startMs, endMs, weekStartMs, weekEndMs);
 
   const prepPending = t.prepStartMs - t.prepPendingStartMs > EPSILON_MS ? clip(t.prepPendingStartMs, t.prepStartMs) : null;

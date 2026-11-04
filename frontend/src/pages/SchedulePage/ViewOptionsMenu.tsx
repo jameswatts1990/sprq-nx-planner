@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
+import { EyeIcon } from "@/components/shared/icons";
 import { Button } from "@/components/ui/Button";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 
@@ -9,6 +10,9 @@ export type GridDensity = "comfortable" | "compact";
 /** Where the Backlog tray sits relative to the grid: pinned across the top (default), or a
  * docked one-card-wide side drawer on the left / right that pushes the grid aside. */
 export type BacklogPosition = "top" | "left" | "right";
+/** Instrument column width: full (name, serial, cell map) or slim (just the sideways Revio
+ * number + Recalculate, giving the day columns the width). */
+export type InstrumentColumn = "full" | "slim";
 
 export interface ViewOptionsMenuProps {
   /** Whether barcode chips are currently shown on the grid's sample cards. */
@@ -26,10 +30,13 @@ export interface ViewOptionsMenuProps {
   /** Where the Backlog tray sits - top (default), left, or right. */
   backlogPosition: BacklogPosition;
   onChangeBacklogPosition: (position: BacklogPosition) => void;
+  /** Instrument column - full (default) or slim. */
+  instrumentColumn: InstrumentColumn;
+  onChangeInstrumentColumn: (column: InstrumentColumn) => void;
 }
 
 /**
- * The Schedule toolbar's far-right "View options" button: a small drop-down of grid
+ * The Schedule toolbar's far-right "View options" eye button: a small drop-down of grid
  * display toggles that don't change the plan, only how it's drawn - barcodes, note markers,
  * the use-number watermark, and card density. It's a menu (not a lone button) so further
  * display toggles can slot in beside these without re-cluttering the toolbar.
@@ -48,6 +55,8 @@ export function ViewOptionsMenu({
   onChangeDensity,
   backlogPosition,
   onChangeBacklogPosition,
+  instrumentColumn,
+  onChangeInstrumentColumn,
 }: ViewOptionsMenuProps) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -68,17 +77,24 @@ export function ViewOptionsMenu({
     };
   }, [open]);
 
+  // Detail the grid is currently hiding - named in the eye's tooltip, since an icon-only trigger
+  // otherwise gives no hint why barcodes or note markers have gone missing.
+  const hidden = [!showBarcodes && "barcodes", !showNotes && "sample notes"].filter(Boolean).join(" and ");
+  const label = hidden ? `View options (${hidden} hidden)` : "View options";
+
   return (
     <div className={styles.wrap} ref={wrapRef}>
       <Button
-        size="sm"
         variant="ghost"
+        icon
+        className={styles.trigger}
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="true"
         aria-expanded={open}
-        title="Choose what's shown on the grid"
+        aria-label={label}
+        title={hidden ? `${label} - choose what's shown on the grid` : "View options - choose what's shown on the grid"}
       >
-        View options ▾
+        <EyeIcon />
       </Button>
       {open && (
         <div className={styles.panel} role="menu">
@@ -109,7 +125,7 @@ export function ViewOptionsMenu({
             />
           </div>
           <p className={styles.hint}>
-            Show a small ✎ marker on cards that carry a note — hover it to read the note. Day-note banners always show.
+            Show a small note icon on cards that carry a note — hover it to read the note. Day-note banners always show.
           </p>
 
           <div className={styles.row}>
@@ -156,6 +172,23 @@ export function ViewOptionsMenu({
           <p className={styles.hint}>
             Pin the backlog across the top, or dock it as a one-card-wide panel on the left or right that pushes the
             grid aside. The side panel collapses with its ‹ / › toggle.
+          </p>
+
+          <div className={styles.row}>
+            <span className={styles.label}>Instrument column</span>
+            <SegmentedControl
+              ariaLabel="Choose a full or slim instrument column"
+              value={instrumentColumn}
+              onChange={(v) => onChangeInstrumentColumn(v as InstrumentColumn)}
+              options={[
+                { value: "full", label: "Full" },
+                { value: "slim", label: "Slim" },
+              ]}
+            />
+          </div>
+          <p className={styles.hint}>
+            Slim shrinks the instrument column to just the Revio number (turned sideways) and its ↻ Recalculate button,
+            hiding the cell map so the days get more width.
           </p>
         </div>
       )}

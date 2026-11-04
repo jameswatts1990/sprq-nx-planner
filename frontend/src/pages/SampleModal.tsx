@@ -1,11 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
-import { ApiError } from "@/api/client";
+import { ApiError, errorMessage } from "@/api/client";
 import { importsApi } from "@/api/imports";
 import { samplesApi } from "@/api/samples";
 import { settingsApi } from "@/api/settings";
 import { Button } from "@/components/ui/Button";
+import { UnitLabel } from "@/components/shared/UnitLabel";
 import { Modal, ModalActions } from "@/components/ui/Modal";
 import { Note } from "@/components/ui/Note";
 import type { ImportField } from "@/types/importing";
@@ -272,15 +273,14 @@ export function SampleModal({
     const isLoadingBuffer = f.key === K_LOADING_BUFFER;
     return (
       <label key={f.key} className={styles.field}>
-        <span className={styles.label}>
-          {f.label}
+        <span className="fieldLabel">
+          <UnitLabel text={f.label} />
           {f.required && <span className={styles.req}> *</span>}
           {locked && <span className={styles.lock}> · locked</span>}
         </span>
         {FIELD_HINTS[f.key] && <span className={styles.sublabel}>{FIELD_HINTS[f.key]}</span>}
         {f.kind === "boolean" ? (
           <select
-            className={styles.input}
             value={values[f.key] ?? ""}
             disabled={locked}
             onChange={(e) => set(f.key, e.target.value)}
@@ -291,7 +291,6 @@ export function SampleModal({
           </select>
         ) : f.kind === "select" ? (
           <select
-            className={styles.input}
             value={values[f.key] ?? ""}
             disabled={locked}
             onChange={(e) => set(f.key, e.target.value)}
@@ -305,7 +304,6 @@ export function SampleModal({
           </select>
         ) : (
           <input
-            className={styles.input}
             value={values[f.key] ?? ""}
             placeholder={f.example}
             inputMode={f.kind === "number" ? "decimal" : undefined}
@@ -390,11 +388,7 @@ export function SampleModal({
       ? null
       : clientError ??
     (mutation.isError
-      ? mutation.error instanceof ApiError
-        ? mutation.error.message
-        : isEdit
-          ? "Could not save the sample."
-          : "Could not add the sample."
+      ? errorMessage(mutation.error, isEdit ? "Couldn't save the sample." : "Couldn't add the sample.")
       : null);
 
   return (

@@ -1,6 +1,6 @@
 import { type KeyboardEvent, useState } from "react";
 
-import { ApiError } from "@/api/client";
+import { errorMessage } from "@/api/client";
 
 import { Button } from "./Button";
 import styles from "./InlineEditField.module.css";
@@ -59,7 +59,7 @@ export function InlineEditField({
       await onSave(trimmed);
       setEditing(false);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Couldn't save.");
+      setError(errorMessage(e, "Couldn't save the change."));
     } finally {
       setPending(false);
     }
@@ -72,7 +72,7 @@ export function InlineEditField({
 
   return (
     <div className={styles.field}>
-      <span className={styles.label}>{label}</span>
+      <span className="detailLabel">{label}</span>
       {editing ? (
         <>
           <input

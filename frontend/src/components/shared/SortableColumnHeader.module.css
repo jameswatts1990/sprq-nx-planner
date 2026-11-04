@@ -14,7 +14,7 @@
   color: var(--ink);
 }
 .sortHeader:focus-visible {
-  outline: 2px solid var(--accent, var(--ink));
+  outline: 2px solid var(--magenta-deep);
   outline-offset: 2px;
   border-radius: var(--r-sm);
 }

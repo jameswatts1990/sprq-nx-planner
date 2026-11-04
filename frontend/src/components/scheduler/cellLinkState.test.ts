@@ -14,6 +14,7 @@ function baseStage(overrides: Partial<StageOut> = {}): StageOut {
     cell_home_well: "A01",
     use_number: 1,
     cell_max_uses: 3,
+    cell_type: "sprq_nx",
     run_time_hours: 24,
     sample_id: 1,
     sample_pool_id: "SAMPLE-1",

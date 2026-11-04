@@ -1,25 +1,60 @@
 import { SchedulerSlotView } from "@/components/scheduler/SchedulerSlotView";
 import { Badge } from "@/components/ui/Badge";
+import { RunWellStrip } from "@/pages/HistoryRunsPage/RunWellStrip";
+import { SampleRunChips } from "@/pages/HistorySamplesPage/SampleRunChips";
 import { CYCLE_STATUS_TONE } from "@/utils/cycleStatus";
 
 import styles from "../HelpPage.module.css";
-import { STAGE_EXAMPLE_SOURCE } from "./helpFixtures";
+import { EXAMPLE_RUN_WELLS, EXAMPLE_SAMPLE_USES, STAGE_EXAMPLE_SOURCE } from "./helpFixtures";
 
 export function HistorySection() {
   return (
     <div className={styles.copy}>
+      <p>
+        <b>Runs</b> and <b>Samples</b> (both under the <b>History ▾</b> menu) work just like <b>Cells</b>: a search
+        box and filters across the top, <b>Rows</b> per page on the right, one row per run or sample with its contents shown as coloured chips,
+        and rows that expand in place. Your search, filters, sort and page are kept in the page address, so{" "}
+        <b>Back</b> from a run, cell or sample returns you to exactly the same list — and you can bookmark or share a
+        filtered view.
+      </p>
+
       <p className={styles.subheading}>History → Runs</p>
       <p>
-        <b>What it&apos;s for:</b> a searchable record of every sequencing run (past, active, and planned). Filter
-        by status, instrument, and a date range, or type in the search box to match by id, run name, instrument,
-        status, or date. Long histories are shown a page at a time — choose how many rows per page and use the
-        <b> Previous</b>/<b>Next</b> buttons below the table to move through them.
+        <b>What it&apos;s for:</b> a record of every sequencing run — past, active and planned — with how each well
+        went at a glance. It opens with the newest load date first.
       </p>
       <p>
-        <b>Columns:</b> Run (its name if one was given when it was locked via <b>Confirm loaded</b>, otherwise its
-        number, shown as <b>#45</b>; links to detail), Load date, Instrument, Status badge, number of Plates (1 or 2), Movie length
-        in hours (its longest plate), number of Cells in the run, and <b>Loaded at</b> — the real time entered at{" "}
-        <b>Confirm loaded</b> once the run has started, or its still-planned start time before then.
+        <b>Columns:</b> <b>Run</b> (its name if one was given at <b>Confirm loaded</b>, otherwise its number, shown
+        as <b>#45</b>; click it to open the run), <b>Load date</b>, <b>Instrument</b>, <b>Chemistry</b>, its{" "}
+        <b>Status</b>, a chip for each of its <b>Wells</b>, the <b>Movie</b> length (its longest plate) and{" "}
+        <b>Loaded at</b> — the real time entered at <b>Confirm loaded</b>, or its start time marked{" "}
+        <b>planned</b> while it hasn&apos;t been loaded yet.
+      </p>
+      <div className={styles.legendGrid}>
+        <div className={styles.legendRow}>
+          <RunWellStrip wells={EXAMPLE_RUN_WELLS} />
+          <span>
+            <b>The well chips.</b> One group per plate (<b>P1</b>, <b>P2</b>) with a chip per well A–D, coloured like
+            that well&apos;s use-status badge: green completed, blue running, grey planned, amber aborted, orange
+            failed, and red <b>blocked</b> (a later use lost because its cell was stopped). A dashed chip is a well
+            with nothing loaded. Hover a chip for the sample, the cell and which use of it this was; click it to open
+            the cell.
+          </span>
+        </div>
+      </div>
+      <p>
+        <b>Click a row</b> (or its <b>▸</b>) to expand it: each well with its cell (tagged <b>[1]</b>/<b>[2]</b>/
+        <b>[3]</b> for which use of the cell it was), its sample, barcodes, use status and start / complete times,
+        linking to the cell and the sample.
+      </p>
+      <p>
+        <b>Search</b> matches the run itself — its name, number (<b>#45</b>), instrument or load date — or anything
+        on its wells: a Pool ID, Sanger ID or Plate ID, a barcode, a cell code, or a tray (<b>T12</b>). The wells
+        that matched are ringed in the chips and highlighted when the row is expanded; a search with a single hit
+        opens that run straight away. The dropdowns filter by <b>status</b>, <b>chemistry</b> and{" "}
+        <b>instrument</b>, and <b>Loaded between</b> limits it to a load-date range (<b>Any date</b> clears it).{" "}
+        <b>Click a column heading</b> (Run, Load date, Instrument) to sort by it; click again to flip the direction
+        (▲/▼).
       </p>
       <div className={styles.legendGrid}>
         <div className={styles.legendRow}>
@@ -38,7 +73,7 @@ export function HistorySection() {
           <span className={styles.legendSwatchLabel}>
             <Badge tone={CYCLE_STATUS_TONE.completed}>completed</Badge>
           </span>
-          <span>The run has finished.</span>
+          <span>The run has finished — every cell is through sequencing and analysis. A loaded run turns completed automatically once its scheduled time is up.</span>
         </div>
         <div className={styles.legendRow}>
           <span className={styles.legendSwatchLabel}>
@@ -48,7 +83,10 @@ export function HistorySection() {
         </div>
       </div>
       <p>
-        <b>Run detail page</b> shows the run&apos;s instrument, load date, when it loads (its cells then prep before sequencing),
+        <b>Run detail page</b> is titled with the run&apos;s name (or its number, e.g. <b>Run #45</b>). The{" "}
+        <b>◂</b> link above the title returns you to wherever you opened the run from — Run history (with your
+        search and filters intact), a cell, a sample or the Cells tab; a direct link falls back to{" "}
+        <b>◂ Run history</b>. It shows the run&apos;s instrument, load date, when it loads (its cells then prep before sequencing),
         status, and whether it&apos;s <b>Active now</b>, then a tray block per plate laid out just like the weekly
         schedule. Each plate&apos;s header carries an <b>→ acquire-day</b> tag next to its title when the plate
         sequences on a different day from loading (a reuse Plate 2 — you can tell it&apos;s a reuse because its cells&apos;
@@ -67,56 +105,69 @@ export function HistorySection() {
         cell&apos;s run time or switch a reuse to a fresh cell, exactly as on the schedule.
       </p>
       <p>
-        <b>Cancel run</b> is available only while a run is still <i>planned</i>; once it&apos;s running/loaded it
+        <b>Cancel run</b> (top right) is available only while a run is still <i>planned</i>; once it&apos;s running/loaded it
         can&apos;t be cancelled from here.
       </p>
 
       <p className={styles.subheading}>History → Samples</p>
       <p>
-        <b>What it&apos;s for:</b> by default, every sample that has finished, either <b>completed</b> (green) or{" "}
-        <b>failed</b> (red). Search by Pool ID, Sanger ID, barcode, or Plate ID. Each row shows the sample&apos;s{" "}
-        <b>Pool ID</b> (click it to open its full detail page), status, barcodes, Plate ID, Target OPLC,
-        Actual OPLC, priority, and last-updated time. A <b>1/3</b> badge by a Pool ID marks a duplicate — the
-        same sample run across multiple cells (counted across every status, including completed). Click <i>any</i>{" "}
-        column header to sort the list by that field (click again to reverse); it starts with the most recently
-        updated first, and long lists are paged with the same <b>Previous</b>/<b>Next</b> control. Click a row to
-        expand it and see that sample&apos;s individual cell uses — the run (links to the run), which plate (1 or 2)
-        it ran on, the cell (links to the cell) and well, the use status as a colour-coded badge, start/complete
-        times, and notes. That inner cell-uses table has clickable, sortable headers too.
+        <b>What it&apos;s for:</b> every sample RunNx knows about, whatever its status — Backlog, Scheduled, In
+        progress, Completed, Failed or Cancelled — and where each one is now. It opens with the most recently updated
+        first. This is the fastest way to find out where a specific sample actually is: paste its Pool ID and its row
+        shows its current status and every run it has been on.
       </p>
       <p>
-        <b>Search everywhere (the failsafe):</b> typing or pasting anything into the search box switches the list to
-        search <i>every</i> status at once — Backlog, Scheduled, In progress, Completed, Failed, and Cancelled —
-        not just finished samples. This is the fastest way to find out where a specific sample actually is right
-        now: paste its Pool ID and every matching row shows up with its current status badge. A row still in
-        the <b>Backlog</b> badge means it hasn&apos;t been scheduled yet (expanding it says so plainly, rather than
-        looking like an error); a <b>Scheduled</b>/<b>In progress</b> row&apos;s expanded cell-uses table links
-        straight to the run and cell it&apos;s sitting on. Clear the search box to go back to the completed/failed
-        history view.
+        <b>Columns:</b> <b>Pool ID</b> (click it to open the sample&apos;s own page), <b>Status</b>, a chip for each
+        of its <b>Runs</b>, its <b>Barcodes</b>, <b>Plate ID</b>, <b>Target OPLC</b>, <b>Actual OPLC</b>,{" "}
+        <b>Priority</b> and when it was last <b>Updated</b>. A <b>1/3</b> badge by a Pool ID marks a duplicate — the
+        same sample run across multiple cells (counted across every status, including completed).
+      </p>
+      <div className={styles.legendGrid}>
+        <div className={styles.legendRow}>
+          <SampleRunChips uses={EXAMPLE_SAMPLE_USES} />
+          <span>
+            <b>The run chips.</b> One chip per time the sample was placed on a cell: the run and the well (<b>P2</b>{" "}
+            when it was on Plate 2), coloured like that use&apos;s status badge — here it was aborted on run #412, then
+            re-run to completion. Hover a chip for the instrument, load date and cell; click it to open the run. A
+            sample still waiting in the Backlog reads <b>Not placed yet</b>.
+          </span>
+        </div>
+      </div>
+      <p>
+        <b>Click a row</b> (or its <b>▸</b>) to expand it: every cell use with its run, load date, instrument,
+        plate, cell and well, use status, start / complete times and notes, linking to the run and the cell.
+      </p>
+      <p>
+        <b>Search</b> matches Pool IDs, Sanger IDs, Plate IDs, barcodes and priorities; a search with a single hit
+        opens that sample straight away. The <b>status</b> dropdown narrows the list to one status — or{" "}
+        <b>Finished (completed or failed)</b> — and the <b>priority</b> dropdown to one priority.{" "}
+        <b>Click a column heading</b> to sort by it; click again to flip the direction (▲/▼).
       </p>
 
       <p className={styles.subheading}>Sample detail page</p>
       <p>
         <b>What it&apos;s for:</b> a single sample (pool) on its own page, reached by clicking a <b>Pool ID</b>{" "}
-        anywhere in the app — a cell card, a cell&apos;s use history, or a row in the Samples list above. It shows
-        the sample&apos;s full metadata (Plate ID, priority, Target OPLC, Actual OPLC, movie time, loading
-        options, barcodes, Sanger IDs, created/updated times) and a <b>Cell uses</b> table of every cell it has been
+        anywhere in the app — an expanded tray on the Cells tab, a cell&apos;s use history, or a row in the Samples list above. It&apos;s
+        titled with the sample&apos;s Pool ID and its status badge, and shows the sample&apos;s full metadata (Plate ID,
+        priority, Target OPLC, Actual OPLC, the loading volumes including the read-only <b>Library pool vol used</b>{" "}
+        from import, movie time, loading options, barcodes, Sanger IDs, created/updated times) and a <b>Cell uses</b>{" "}
+        table of every cell it has been
         placed on — the run (links to the run), plate, cell (links to the cell), well, use status, start/complete
         times, and notes. This page works for a sample of any status, so it&apos;s the durable place a Pool ID
         always links to.
       </p>
       <p>
-        <b>Back:</b> the link at the top left returns you to wherever you opened the sample from — the Backlog,
+        <b>Back:</b> the <b>◂</b> link above the title returns you to wherever you opened the sample from — the Backlog,
         Schedule, a cell, a run, or the Samples list — rather than always to one fixed place. Opening the page directly (a
         shared link or a browser refresh) falls back to the Samples list.
       </p>
       <p>
-        <b>View on Traction:</b> a <b>View on Traction</b> button next to the status badge opens the sample in
+        <b>View on Traction:</b> a <b>View on Traction</b> button at the top right of the page opens the sample in
         Traction — the pools view for a pool, the libraries view for a single — so you can check its remaining
         library material without leaving your place. It only appears when the sample has a Pool ID to link to.
       </p>
       <p>
-        <b>Edit:</b> an <b>Edit</b> button next to the status badge opens the same form used elsewhere. A backlog
+        <b>Edit:</b> an <b>Edit</b> button at the top right of the page opens the same form used elsewhere. A backlog
         sample is fully editable (everything but its Pool ID, which is fixed for life); a sample already placed on
         the grid (scheduled or in progress) lets you adjust only its loading parameters, since its barcodes and
         identity are locked once placed. Finished samples (completed, failed, cancelled) are read-only history, so no

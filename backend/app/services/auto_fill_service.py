@@ -15,6 +15,7 @@ from app.engine.cell_window import window_allows
 from app.engine.constants import (
     CELL_LIFETIME_H,
     CELL_MAX_USES,
+    CELL_TYPE_SPRQ,
     CELLS_PER_TRAY,
     DAY_START_HOUR,
     WELLS,
@@ -946,21 +947,35 @@ def recalculate_instrument(db: Session, *, instrument_serial: str, actor: str | 
     Since this can now genuinely move a sample onto a day it wasn't on before (not just a
     different cell/tray), day_changed_sample_ids on the returned result flags exactly which
     samples that happened to - surfaced separately from an ordinary cell/tray reassignment
-    because a day change has real lab-operational impact a cell swap doesn't."""
+    because a day change has real lab-operational impact a cell swap doesn't.
+
+    Single-use SPRQ runs are left exactly as they are: SPRQ is the lab's deliberate per-run
+    choice and the engine only plans SPRQ-Nx (see engine_bridge.load_prior_cells). Their days
+    stay occupied, so auto_fill() skips them, and they don't count toward the extension
+    below."""
     instrument = db.scalar(select(Instrument).where(Instrument.serial_number == instrument_serial))
     if instrument is None:
         raise PlacementError(400, f"Unknown instrument serial '{instrument_serial}'.")
 
-    planned_cycles = (
+    all_planned_cycles = (
         db.scalars(
             select(Cycle)
             .join(Cycle.run_batch)
             .where(RunBatch.instrument_id == instrument.id, Cycle.status == "planned")
-            .options(selectinload(Cycle.run_batch), selectinload(Cycle.cell_uses))
+            .options(selectinload(Cycle.run_batch), selectinload(Cycle.cell_uses).selectinload(CellUse.cell))
         )
         .unique()
         .all()
     )
+    # A run is one cell type across both plates, so keying SPRQ by run keeps both plates together.
+    sprq_run_ids = {
+        c.run_batch_id
+        for c in all_planned_cycles
+        for cu in c.cell_uses
+        if cu.status != "cancelled" and cu.cell is not None and cu.cell.cell_type == CELL_TYPE_SPRQ
+    }
+    sprq_days = {c.run_batch.load_date for c in all_planned_cycles if c.run_batch_id in sprq_run_ids}
+    planned_cycles = [c for c in all_planned_cycles if c.run_batch_id not in sprq_run_ids]
 
     live_uses = [cu for c in planned_cycles for cu in c.cell_uses if cu.status != "cancelled"]
     if not live_uses:
@@ -985,7 +1000,7 @@ def recalculate_instrument(db: Session, *, instrument_serial: str, actor: str | 
     cursor = extended_dates[-1]
     while len(extended_dates) < CELL_MAX_USES:
         cursor += timedelta(days=1)
-        if cursor.weekday() < 5:
+        if cursor.weekday() < 5 and cursor not in sprq_days:
             extended_dates.append(cursor)
 
     remove_samples(db, cell_use_ids, actor)

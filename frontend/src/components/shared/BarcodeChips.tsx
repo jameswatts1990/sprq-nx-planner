@@ -6,7 +6,8 @@ const MAX_SHOWN = 4;
 
 export interface BarcodeChipsProps {
   barcodes: string[];
-  /** Color-codes the chips per use-index (magenta/blue/teal), default "u1". */
+  /** Color-codes the chips per use-index (magenta/blue/teal, or indigo for a single-use SPRQ
+   * cell), default "u1". */
   variant?: UseClass;
   /** Every code on one line that runs off the end with "…" instead of wrapping or folding into
    * "+N" (the full list is in the row's tooltip). Used by the dense backlog cards. */

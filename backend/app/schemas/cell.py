@@ -2,6 +2,8 @@ from datetime import date, datetime
 
 from pydantic import BaseModel
 
+from app.schemas.common import CellType
+
 
 class CellUseHistoryOut(BaseModel):
     id: int
@@ -78,10 +80,14 @@ class CellUseSummaryOut(BaseModel):
 class CellOut(BaseModel):
     id: int
     code: str
+    cell_type: CellType  # "sprq_nx" (up to 3 uses) or "sprq" (single use)
     max_uses: int
     status: str
     uses_consumed: int
     uses_remaining: int
+    # Active uses acquiring after the as_of instant - booked, but not yet counted in uses_consumed
+    # by the projection. Always 0 without as_of (every scheduled use already counts).
+    uses_scheduled_later: int = 0
     burned_barcodes: list[str]
     window_hours_elapsed: float | None
     window_breached: bool
@@ -132,6 +138,30 @@ class CellOut(BaseModel):
 
 class CellDetailOut(CellOut):
     use_history: list[CellUseHistoryOut] = []
+
+
+class CellTrayRowOut(BaseModel):
+    """One row of the Cells page: a physical tray with ALL its cells (position order), even when
+    the filter matched only some of them, plus the tray-level figures the row shows and sorts on.
+    A cell with no tray (bootstrap/legacy) gets a row of its own with tray_id None."""
+
+    tray_id: int | None
+    cell_type: CellType
+    instrument_serial: str | None
+    # Earliest first use across the tray's cells (actual start once loaded, else planned start).
+    first_use_at: datetime | None
+    last_run_date: date | None
+    # Soonest-closing 108h window among the tray's open cells: hours left at the as_of instant,
+    # and the deadline itself (that cell's first use + 108h). None when no open cell is racing it.
+    expires_in_hours: float | None
+    expires_at: datetime | None
+    # Uses still free to book across the tray's open cells (not spent, not already booked later).
+    uses_left: int
+    reuse_disabled: bool
+    cells: list[CellOut]
+    # The cells that actually matched the filters/search - lets the row point at which cell a
+    # search hit (e.g. the one that ran a Pool ID).
+    matched_cell_ids: list[int]
 
 
 class CellBootstrapRequest(BaseModel):

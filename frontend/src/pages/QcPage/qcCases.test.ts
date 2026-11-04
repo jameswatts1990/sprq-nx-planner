@@ -13,6 +13,7 @@ const CASE: PacbioCaseOut = {
   run_name: "TRACTION-RUN-2568",
   pool_id: "TRAC-2-22952",
   expected_acquisitions: 3,
+  cell_type: "sprq_nx",
   created_by: "unknown",
   created_at: "2026-09-01T09:00:00Z",
   internal_report_id: "26_NC_S_004",
@@ -58,5 +59,16 @@ describe("qcCaseCsvRow", () => {
     expect(col("Trays credited")).toBe("0.75");
     expect(col("Next step")).toBe("Mark received in lab");
     expect(col("Credit confirmed")).toBe("2026-09-10");
+    expect(col("Cell type")).toBe("SPRQ-Nx");
+  });
+
+  it("counts a single-use SPRQ credit as 1 cell per acquisition", () => {
+    const sprq: QcCase = { kind: "no_cell", pacbioCase: { ...CASE, cell_type: "sprq", credit_acquisitions: 2 } };
+    const row = qcCaseCsvRow(sprq, Date.parse("2026-09-20T12:00:00Z"));
+    const col = (h: string) => row[QC_CSV_HEADERS.indexOf(h)];
+    expect(col("Cell type")).toBe("SPRQ");
+    expect(col("Acquisitions credited")).toBe("2");
+    expect(col("Cells credited")).toBe("2");
+    expect(col("Trays credited")).toBe("0.5");
   });
 });

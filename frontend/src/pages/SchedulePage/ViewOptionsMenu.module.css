@@ -2,6 +2,19 @@
   position: relative;
   display: inline-flex;
 }
+/* Rests in grey beside the toolbar's other icon action (Export), darkening on hover and staying
+   lit while its menu is open. */
+.trigger {
+  color: var(--grey);
+}
+.trigger:hover,
+.trigger[aria-expanded="true"] {
+  color: var(--ink);
+}
+.trigger[aria-expanded="true"] {
+  background: var(--card);
+  border-color: var(--line-hover);
+}
 /* Drops from the button's right edge so the panel stays inside the viewport when the
    button sits at the far-right of the toolbar. Sits above the pinned grid rows that
    scroll beneath the sticky head. */

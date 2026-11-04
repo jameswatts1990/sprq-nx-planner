@@ -1,70 +1,124 @@
-import { CellStatusCard } from "@/components/cells/CellStatusCard";
+import { CellTypeBadge } from "@/components/cells/CellTypeBadge";
+import { TrayCellStrip } from "@/components/cells/TrayCellStrip";
 
 import styles from "../HelpPage.module.css";
-import { EXAMPLE_CELL_UNREPORTED } from "./helpFixtures";
+import { EXAMPLE_TRAY_STRIP } from "./helpFixtures";
 
 export function CellsSection() {
   return (
     <div className={styles.copy}>
       <p>
-        <b>What this tab is for:</b> browsing every physical SMRT cell the system knows about and its current
-        state.
+        <b>What this page is for</b> (<b>History → Cells</b>): browsing every physical SMRT cell tray the system knows
+        about — one row per tray, with each of its cells&apos; state at a glance — and drilling into any cell, sample or
+        run it touched.
+      </p>
+
+      <p className={styles.subheading}>The tray list</p>
+      <p>
+        Each row is one physical tray: its <b>Tray</b> id (click it to open that tray on its own page), its{" "}
+        <b>Chemistry</b> (SPRQ-Nx, or single-use <CellTypeBadge cellType="sprq" />), the <b>Instrument</b> it&apos;s on,
+        a chip for each of its <b>Cells</b>, its <b>Uses left</b> — uses on its open cells that are still free to book,
+        out of the tray&apos;s total —
+        its <b>First use</b>, its <b>Last run</b> date, when it <b>Expires</b>, and any <b>Flags</b>. A cell
+        registered with <b>Register in-progress cell</b> has no tray, so it gets a row of its own marked{" "}
+        <b>No tray</b>.
+      </p>
+      <div className={styles.legendGrid}>
+        <div className={styles.legendRow}>
+          <TrayCellStrip cells={EXAMPLE_TRAY_STRIP} />
+          <span>
+            <b>The cell chips.</b> One chip per tray position (1–4), coloured like the cell&apos;s status badge — here
+            cell 1 is open, cell 2 was stopped by Cell QC, cell 3 is exhausted and cell 4 is unused with its first use
+            booked. Each pip is one use: filled in its use-status colour once spent (completed, running, aborted,
+            failed…), grey while booked for later, an open ring while still free to book, and a dash for capacity the
+            cell will never use (stopped, retired, discarded or window closed). Hover a chip for the cell&apos;s full
+            story; click it to open the cell.
+          </span>
+        </div>
+      </div>
+      <p>
+        <b>Expires</b> is when the tray&apos;s soonest 108-hour window closes — the latest its next reuse can start —
+        with the hours left underneath, in amber once 18 hours or fewer remain. It reads <b>Not started</b> until the
+        tray&apos;s first cell is used, <b>Window closed</b> once a window has run out, and — for single-use SPRQ trays,
+        which are never reused — a dash. <b>Flags</b> call out anything that needs a second look:{" "}
+        <b>Unreported</b> / <b>Awaiting credit</b> (a cell has an open PacBio credit case — see below),{" "}
+        <b>Reuse skipped</b> (a planned disposal) and <b>Discarded</b> (thrown away before all its uses were spent —
+        not shown when Auto Schedule disposes a tray whose uses are all spent or booked).
+      </p>
+      <p>
+        <b>Click a row</b> (or its <b>▸</b>) to expand it. The expanded tray lists each cell with its status, uses
+        spent, hours left on its own window, every <b>sample &amp; run</b> it carried — tagged <b>[1]</b>/<b>[2]</b>/
+        <b>[3]</b> for which use, with the use&apos;s status and links to the sample and the run — and its burned
+        barcodes. Underneath are the tray-wide actions (below). Several rows can be open at once.
+      </p>
+
+      <p className={styles.subheading}>Search, filters &amp; sorting</p>
+      <p>
+        The <b>Search</b> box matches <i>any</i> id associated with a cell — its own code, its tray (type <b>T123</b>{" "}
+        or just <b>123</b>), a Pool ID, Sanger ID or Plate ID, a barcode, a run name or run number (<b>#45</b>), or the
+        instrument it ran on — and lists the trays holding those cells. The matching cell is ringed in its tray&apos;s
+        chips and highlighted when the row is expanded; a search with a single hit opens that tray straight away.
+      </p>
+      <p>
+        The <b>status</b> dropdown shows trays with at least one cell in that state — <b>Open</b> (the default),
+        Exhausted, Window expired, Retired or Stopped, or <b>Any status</b> — always with <i>all</i> of each
+        tray&apos;s cells, so you see the whole tray. Its <b>PacBio credit</b> options, <b>QC: Unreported</b> and{" "}
+        <b>QC: Awaiting credit</b>, cut across status to find trays with a cell at that stage of the credit workflow.
+        The <b>chemistry</b> and <b>instrument</b> dropdowns narrow it further.
+      </p>
+      <p>
+        <b>Click a column heading</b> (Tray, Instrument, Uses left, First use, Last run, Expires) to sort by it; click
+        it again to flip the direction (▲/▼). The list opens sorted by <b>Expires</b>, soonest first, so the trays to
+        reuse before they run out are on top; trays with nothing to sort on (e.g. no window yet) always sit at the
+        bottom. <b>Rows</b> sets how many trays a page shows, with <b>Previous</b> / <b>Next</b> under the list. Your
+        search, filters, sort and page are kept in the page address, so <b>Back</b> from a cell, sample or tray returns
+        you to exactly this list — and you can bookmark or share a filtered view.
       </p>
 
       <p className={styles.subheading}>Now vs End of week</p>
       <p>
-        A big <b>Showing data as of</b> toggle at the very top switches every time-based figure on the page between{" "}
-        <b>Now</b> and <b>End of week</b> (this week&apos;s Friday). It changes how each cell reads: a cell whose next
-        uses are still <i>scheduled</i> for later this week shows those uses as not-yet-spent under <b>Now</b>, but
-        counted under <b>End of week</b> — so a cell can read &quot;1 / 3 · Open&quot; now and &quot;3 / 3 ·
-        Exhausted&quot; by Friday. The 108-hour window and status badges shift the same way, letting you see at a glance
-        which cells will be spent or window-expired by the end of the week. It&apos;s a view only — nothing is changed on
-        the cell; the Schedule grid remains the place placements actually happen.
-      </p>
-
-      <p className={styles.subheading}>Search, filters, sort &amp; grouping</p>
-      <p>
-        The big <b>Search</b> box at the top matches <i>any</i> id associated with a cell — its own code, its tray
-        (type <b>T123</b> or just <b>123</b>), a Pool ID, Sanger ID or Plate ID, a barcode, a run name or run number (<b>#45</b>), or the
-        instrument it ran on — so whatever id you have to hand finds the cell that touched it.
-      </p>
-      <p>
-        The chips (All, Open, Exhausted, Window expired, Retired, Stopped, Unreported, Awaiting credit) filter the
-        list; the instrument dropdown narrows to one instrument. The page opens on <b>Open</b> cells by default.{" "}
-        <b>Unreported</b> and <b>Awaiting credit</b> cut across the ordinary status filters - they show cells with a QC
-        issue (see below) at a particular stage of the PacBio credit workflow, regardless of their Open/Exhausted/etc.
-        status.
-      </p>
-      <p>
-        <b>Sort</b> orders the cells by cell code, last run date, instrument, window remaining, or date created; the{" "}
-        <b>▲/▼</b> button next to it flips the direction. <b>Group</b> arranges them into labelled sections — by{" "}
-        <b>Tray</b> (the default, so a physical tray&apos;s four cells sit together in position order, its header
-        linking to that tray&apos;s filtered view and flagging its soonest window expiry), by <b>Instrument</b>, by <b>Status</b>, or{" "}
-        <b>No grouping</b> for one flat grid. When grouped by tray, each tray&apos;s four cells are framed together as
-        the <b>physical tray</b> they&apos;re loaded on, with any unloaded position shown as an empty well. An{" "}
-        <b>Expand all</b> toggle opens every card&apos;s details at once; otherwise a card reveals its details when you
-        hover or keyboard-focus it.
+        The <b>Showing data as of</b> switch above the list flips every time-based figure on the page between{" "}
+        <b>Now</b> and <b>End of week</b> (this week&apos;s Friday). A cell whose next uses are still <i>scheduled</i>{" "}
+        for later this week shows them as booked (grey pips) under <b>Now</b>, but spent under <b>End of week</b> — so
+        a cell can read 1 / 3 and open now, yet 3 / 3 and exhausted by Friday. Windows and the status filter shift the
+        same way, letting you see which trays will be spent or expired by the end of the week. <b>Uses left</b> only
+        ever counts uses still free to book, so a booked use never reads as free in either view. It&apos;s a view only
+        — nothing changes on the cells; the Schedule grid is where placements happen.
       </p>
 
       <p className={styles.subheading}>Trays</p>
       <p>
-        A physical SPRQ-Nx SMRT Cell tray holds 4 cells. There isn&apos;t a separate tray screen — clicking a{" "}
-        <b>tray id</b> anywhere in the app (a cell card, a cell&apos;s detail page, a seal popover, or the Schedule
-        grid&apos;s instrument cell map) opens this same <b>Cells</b> tab <i>filtered to that one tray</i>. That view
-        shows the tray&apos;s instrument, how many of its cells are present, its soonest window expiry, and the tray&apos;s
-        cells as the usual cell cards — plus a <b>Discard all cells</b> button. Use the <b>All cells</b> link to
-        return to the full list. (This physical &quot;tray&quot; is a different thing from the
-        Schedule grid&apos;s &quot;Plate 1&quot;/&quot;Plate 2&quot; loading positions within a run - see the Schedule
-        section.)
+        A physical SMRT Cell tray holds 4 cells — multi-use <b>SPRQ-Nx</b> (up to 3 uses each), or single-use{" "}
+        <b>SPRQ</b>, whose cells and tray carry an indigo <CellTypeBadge cellType="sprq" /> badge and run once each (the
+        type is set per run on the Schedule&apos;s load-time dial). Clicking a <b>tray id</b> anywhere in the app (a
+        tray row, a cell&apos;s detail page, a seal popover, the QC worklist, or the Schedule grid&apos;s instrument
+        cell map) opens that tray on its own page — the same row, already expanded. Its <b>◂</b> link returns to where
+        you came from. (This physical &quot;tray&quot; is a different thing from the Schedule grid&apos;s &quot;Plate
+        1&quot;/&quot;Plate 2&quot; loading positions within a run - see the Schedule section.)
       </p>
       <p>
-        <b>Discard all cells:</b> the tray view carries a <b>Discard all cells</b> button that force-closes
-        every cell still physically in that tray, cancelling
-        any not-yet-run placements for those cells (their samples return to the backlog) and marking every cell
-        exhausted regardless of how many uses it has left. It&apos;s only offered while at least one cell in the tray
-        is still open. Use it when a tray is being pulled from the instrument for good and its remaining capacity
-        won&apos;t be used. This cannot be undone.
+        <b>Tray actions</b> sit under an expanded tray:
       </p>
+      <ul>
+        <li>
+          <b>Skip reuse</b> — if you already know you&apos;ll bin a part-used tray but haven&apos;t physically pulled it
+          yet, this flags it so Auto Schedule stops reusing it and opens fresh cells instead (the same switch as the
+          Schedule&apos;s <b>Autoschedule</b> panel&apos;s <b>Reuse this week</b> list). The row then shows a{" "}
+          <b>Reuse skipped</b> flag. It&apos;s a reversible <i>plan</i> only — no cell status changes and nothing is
+          thrown away; <b>Allow reuse again</b> clears it.
+        </li>
+        <li>
+          <b>Discard all cells</b> — force-closes every cell still physically in the tray, cancelling any not-yet-run
+          placements for those cells (their samples return to the backlog) and marking every cell exhausted
+          regardless of how many uses it has left. Offered while at least one cell in the tray is still open. Use it
+          when a tray is being pulled from the instrument for good and its remaining capacity won&apos;t be used.
+        </li>
+        <li>
+          <b>Restore tray</b> — offered when a discard threw away unused uses, it brings the tray back into service. The cancelled placements stay in the backlog
+          to re-place; a tray swapped out with the grid&apos;s <b>⏏</b> button gets its later uses moved back unless
+          they&apos;ve since been <b>Confirm loaded</b>.
+        </li>
+      </ul>
       <p>
         <b>Auto Schedule disposes whole trays too:</b> a tray of 4 is one physical object — it&apos;s thrown away as
         a unit, never one cell at a time. So when you auto-schedule, a tray is disposed automatically only once{" "}
@@ -79,54 +133,14 @@ export function CellsSection() {
         a single cell leaves service on its own — while its tray-mates stay usable — is a <b>QC Stop</b> (a
         hardware-fault action; see <b>Cell QC</b> below), and even then the cell is marked Stopped, not thrown away.
       </p>
-      <p>
-        <b>Reuse skipped (planning a disposal):</b> if you already know you&apos;ll bin a part-used tray but haven&apos;t
-        physically pulled it yet, you can flag it from the Schedule tab&apos;s <b>Autoschedule</b> panel (its{" "}
-        <b>Reuse this week</b> list) so Auto Schedule stops reusing it and opens fresh cells instead. A tray flagged that
-        way shows a <b>Reuse skipped</b> badge here. It&apos;s a reversible <i>plan</i> only — no cell status changes and
-        nothing is thrown away until you actually <b>Discard all cells</b>; clearing the flag lets the tray be reused
-        again.
-      </p>
 
-      <p className={styles.subheading}>Cell cards &amp; the 108-hour window</p>
+      <p className={styles.subheading}>The 108-hour window</p>
       <p>
-        <b>At a glance, each cell card shows three things:</b> a <b>108-hour window ring</b> on the left whose centre
-        reads the <b>hours left</b> before the cell&apos;s reuse window closes — the ring fills as time passes and shifts
-        green → amber (under ~a day left) → red (over); the <b>cell code</b> and <b>status badge</b> with an{" "}
-        <b>n / 3 uses</b> count in the middle (e.g. <b>C02-T123</b> — cells are <i>numbered</i> 1–4 by their fixed tray
-        position, and <b>T123</b> is that tray&apos;s id; click the code for the cell&apos;s full detail); and a
-        colour-coded <b>foil stub</b> on the right edge naming the physical cell (<b>▣1</b>–<b>▣4</b>) and its current
-        use number, tinted magenta / blue / teal for use 1 / 2 / 3. Terminally done cells (exhausted, retired, stopped)
-        show a neutral ring with no countdown.
+        A multi-use cell has <b>108 hours</b> from its first use to the start of its last reuse. Each cell&apos;s
+        window is its own, so a tray&apos;s <b>Expires</b> follows whichever open cell runs out first; the expanded row
+        shows every cell&apos;s hours left (hover for hours used). Exhausted, retired and stopped cells no longer count
+        down, and a single-use <b>SPRQ</b> cell has no window at all since it&apos;s never reused.
       </p>
-      <p>
-        <b>Hover a card</b> (or flip <b>Expand all</b>) to open its details: which instrument and well it&apos;s in, its{" "}
-        <b>tray</b>, its burned barcodes, a <b>QC badge</b> (Unreported / Awaiting credit) when the cell has an open
-        PacBio-credit case, a <b>Cell life</b> timeline plotting when each use broke out across the 108-hour window, and
-        a <b>Samples &amp; runs</b> list <i>grouped by run</i> — each run name heads its own line with the sample(s) it
-        carried beneath, each tagged <b>[1]</b>/<b>[2]</b>/<b>[3]</b> for which use it was, its use status (so you can
-        tell an already-run use from one still <i>scheduled</i>), and its <b>Pool ID</b>.
-      </p>
-      <p>
-        <b>Everything on the card links through:</b> the cell code to its detail page, the instrument to that
-        instrument&apos;s cells, the tray to <b>that tray&apos;s cells</b> (this tab filtered to the tray), each Pool ID
-        to that <b>sample&apos;s page</b>{" "}
-        (its full metadata and every cell/run it has touched), and each run to its <b>run page</b> — so you can hop
-        straight from a cell to any sample or run associated with it and back.
-      </p>
-      <div className={styles.legendGrid}>
-        <div className={styles.legendRow}>
-          <div className={styles.ghostExampleSwatch}>
-            <CellStatusCard cell={EXAMPLE_CELL_UNREPORTED} />
-          </div>
-          <span>
-            <b>The 108-hour window</b> is the lifetime a multi-use cell has from its first use to the start of its
-            third use. The window <b>ring</b> reads the hours left in that budget and turns amber as it runs low, red
-            once breached; exhausted, retired, and stopped cells show a neutral ring with no countdown. Hover the
-            example card to open its details.
-          </span>
-        </div>
-      </div>
       <p>
         <b>Register in-progress cell</b> (button, top right) is a one-off setup action for cells that were already
         running on an instrument <i>before this system went live</i> — it is <b>not</b> part of normal weekly work,
@@ -136,30 +150,34 @@ export function CellsSection() {
       </p>
 
       <p className={styles.subheading}>Cell detail page</p>
-      <p>Opened from a card, it shows:</p>
+      <p>
+        Opened from a cell chip or cell code, it&apos;s titled with the cell&apos;s code and its status badge (plus
+        the <CellTypeBadge cellType="sprq" /> badge for a single-use cell); the <b>◂</b> link above the title returns
+        to the Cells list — to the same search, filters and page when you came from there. Below that it shows:
+      </p>
       <ul>
         <li>
           <b>Uses</b> spent / total and remaining; <b>Current location</b> (instrument · well); <b>First use
           started</b> and <b>Created</b> timestamps; and the cell&apos;s <b>Burned barcodes</b>. While the cell is
-          still tracking its window (not yet Exhausted, Retired, or Stopped), the same 108-hour window meter as the
-          cards list replaces the plain numbers, showing elapsed hours toward the limit; otherwise plain{" "}
+          still tracking its window (not yet Exhausted, Retired, or Stopped), a 108-hour window meter replaces the
+          plain numbers, showing elapsed hours toward the limit; otherwise plain{" "}
           <b>Window elapsed</b> and <b>Window breached</b> values are shown instead. A <b>stopped</b> or{" "}
           <b>retired</b> cell also shows a note with the reason it was taken out of service and the date it happened.
         </li>
         <li>
-          <b>Cell QC</b> opens the quality-control dialog for the cell, with three actions (each takes an optional
+          <b>Cell QC…</b> opens the quality-control dialog for the cell, with three actions (each takes an optional
           reason note):
           <ul>
             <li>
-              <b>Fail Cell</b> — the current run produced no usable data, but the cell is physically fine and keeps
+              <b>Fail cell</b> — the current run produced no usable data, but the cell is physically fine and keeps
               its other scheduled uses. Only that one sample is affected.
             </li>
             <li>
-              <b>Fail and Stop Cell</b> — the run failed <i>and</i> the cell is out of service (e.g. visibly damaged);
+              <b>Fail and stop cell</b> — the run failed <i>and</i> the cell is out of service (e.g. visibly damaged);
               its later scheduled uses can no longer run on it.
             </li>
             <li>
-              <b>Retire Cell</b> — take the cell out of service <i>without</i> failing the current run; its later
+              <b>Retire cell</b> — take the cell out of service <i>without</i> failing the current run; its later
               scheduled uses can no longer run on it.
             </li>
           </ul>
@@ -188,7 +206,7 @@ export function CellsSection() {
             </li>
           </ul>
           Complex, Library and Instrument all go back to the Backlog above High priority, in its{" "}
-          <b>Recoverable Samples</b> section. Samples that simply ran on a <i>different</i> cell than planned are
+          <b>Recoverable samples</b> section. Samples that simply ran on a <i>different</i> cell than planned are
           flagged for review — with a warning if the shift created a barcode clash — and left as they are unless you
           choose to route them too.
         </li>

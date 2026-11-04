@@ -1,3 +1,4 @@
+import type { CellType } from "./common";
 import type { CreditCaseState } from "./credit";
 
 /** A PacBio credit case logged WITHOUT a RunNx cell (backend models/pacbio_case.py). It runs
@@ -14,6 +15,9 @@ export interface PacbioCaseOut extends CreditCaseState {
   pool_id: string | null;
   /** The lab's own estimate of acquisitions to claim (a cell's case computes this). */
   expected_acquisitions: number | null;
+  /** Which kind of cell the case is about - a cell's case reads it off the cell. Decides how
+   * credited acquisitions convert to cells (SPRQ-Nx 3 per cell, single-use SPRQ 1). */
+  cell_type: CellType;
   created_by: string | null;
   created_at: string;
 }
@@ -27,6 +31,7 @@ export interface PacbioCaseDetailsIn {
   run_name: string | null;
   pool_id: string | null;
   expected_acquisitions: number | null;
+  cell_type: CellType;
 }
 
 /** Backfilling an already-progressed case: any stage the lab already has is stamped up front, in

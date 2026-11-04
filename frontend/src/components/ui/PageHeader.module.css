@@ -1,0 +1,55 @@
+.header {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-bottom: 18px;
+}
+.titles {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.back {
+  width: fit-content;
+  margin-bottom: 2px;
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: var(--grey);
+  text-decoration: none;
+}
+.back:hover {
+  color: var(--ink);
+}
+.back:focus-visible {
+  outline: 2px solid var(--magenta-deep);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+.title {
+  font-size: var(--fs-display);
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+.intro {
+  margin: 0;
+  max-width: 80ch;
+  font-size: var(--fs-lg);
+  color: var(--grey);
+}
+.actions {
+  margin-left: auto;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+}
+/* A back link or a button means nothing on paper (the Batch Sheet prints its title). */
+@media print {
+  .back,
+  .actions {
+    display: none;
+  }
+}

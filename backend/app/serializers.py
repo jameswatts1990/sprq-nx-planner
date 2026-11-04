@@ -48,6 +48,7 @@ def sample_out(
         actual_oplc=sample.actual_oplc,
         cleaned_complex_volume=sample.cleaned_complex_volume,
         loading_buffer_volume=sample.loading_buffer_volume,
+        library_pool_volume_used=sample.library_pool_volume_used,
         adaptive_loading=sample.adaptive_loading,
         full_resolution_base_q=sample.full_resolution_base_q,
         priority=sample.priority,
@@ -66,11 +67,8 @@ def sample_out(
     )
 
 
-def sample_detail_out(sample: Sample, db: Session | None = None) -> SampleDetailOut:
-    dup_index, dup_total = (None, None)
-    if db is not None:
-        dup_index, dup_total = duplicate_marker(sample, duplicate_groups(db, {sample.pool_id}))
-    base = sample_out(sample, duplicate_index=dup_index, duplicate_total=dup_total)
+def sample_cell_uses_out(sample: Sample) -> list[SampleCellUseOut]:
+    """Every cell use a sample has had, oldest first, with the run, plate, cell and instrument."""
     cell_uses: list[SampleCellUseOut] = []
     for cu in sorted(sample.cell_uses, key=lambda x: x.id):
         run_batch = cu.cycle.run_batch if cu.cycle else None
@@ -80,6 +78,8 @@ def sample_detail_out(sample: Sample, db: Session | None = None) -> SampleDetail
                 cycle_id=cu.cycle_id,
                 run_name=run_batch.run_name if run_batch else None,
                 run_batch_id=run_batch.id if run_batch else -1,
+                load_date=run_batch.load_date if run_batch else None,
+                instrument_serial=run_batch.instrument.serial_number if run_batch and run_batch.instrument else None,
                 plate_number=cu.cycle.plate_index if cu.cycle else None,
                 cell_id=cu.cell_id,
                 cell_code=cu.cell.code if cu.cell else "",
@@ -90,4 +90,19 @@ def sample_detail_out(sample: Sample, db: Session | None = None) -> SampleDetail
                 outcome_notes=cu.outcome_notes,
             )
         )
-    return SampleDetailOut(**base.model_dump(), cell_uses=cell_uses)
+    return cell_uses
+
+
+def sample_detail_out(
+    sample: Sample,
+    db: Session | None = None,
+    *,
+    groups: dict[str, list[int]] | None = None,
+) -> SampleDetailOut:
+    """A sample with its cell uses. Pass `groups` (duplicate_groups for a whole page) to stamp the
+    duplicate marker without a query per sample; otherwise `db` looks this one up."""
+    if groups is None and db is not None:
+        groups = duplicate_groups(db, {sample.pool_id})
+    dup_index, dup_total = duplicate_marker(sample, groups) if groups is not None else (None, None)
+    base = sample_out(sample, duplicate_index=dup_index, duplicate_total=dup_total)
+    return SampleDetailOut(**base.model_dump(), cell_uses=sample_cell_uses_out(sample))

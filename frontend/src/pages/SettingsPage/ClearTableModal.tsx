@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { ApiError } from "@/api/client";
+import { errorMessage } from "@/api/client";
 import { Button } from "@/components/ui/Button";
 import { Modal, ModalActions } from "@/components/ui/Modal";
 import { Note } from "@/components/ui/Note";
@@ -43,7 +43,7 @@ export function ClearTableModal({ table, rowCount, pending, error, onCancel, onC
 
       {error !== null && error !== undefined && (
         <Note tone="bad" icon="!">
-          {error instanceof ApiError ? error.message : "Failed to clear table."}
+          {errorMessage(error, "Couldn't clear the table.")}
         </Note>
       )}
 

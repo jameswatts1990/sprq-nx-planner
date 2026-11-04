@@ -1,5 +1,6 @@
 import { SchedulerSlotView } from "@/components/scheduler/SchedulerSlotView";
-import { CellStatusCard } from "@/components/cells/CellStatusCard";
+import { CellTypeBadge } from "@/components/cells/CellTypeBadge";
+import { TrayCellStrip } from "@/components/cells/TrayCellStrip";
 import { TraySiblingList } from "@/components/cells/TraySiblingList";
 import { WindowMeter } from "@/components/cells/WindowMeter";
 import {
@@ -11,7 +12,7 @@ import { DuplicateBadge } from "@/components/shared/DuplicateBadge";
 import { InsertSizeFlag } from "@/components/shared/InsertSizeFlag";
 import { MovieTimeFlag } from "@/components/shared/MovieTimeFlag";
 import { UseLegend } from "@/components/shared/SectionHeading";
-import { Badge } from "@/components/ui/Badge";
+import { Badge, type BadgeTone } from "@/components/ui/Badge";
 import { Note, type NoteTone } from "@/components/ui/Note";
 import { CELL_STATUSES, CELL_USE_STATUSES, CYCLE_STATUSES, SAMPLE_STATUSES } from "@/types/common";
 import type { CellStatus, CellUseStatus, CycleStatus, SampleStatus } from "@/types/common";
@@ -27,8 +28,8 @@ import { USE_STATUS_TONE } from "@/utils/useStatusTone";
 
 import styles from "../HelpPage.module.css";
 import {
-  EXAMPLE_CELL_UNREPORTED,
   EXAMPLE_TRAY_SIBLINGS,
+  EXAMPLE_TRAY_STRIP,
   STAGE_EXAMPLE_ABORTED,
   STAGE_EXAMPLE_BARCODE_CLASH,
   STAGE_EXAMPLE_CANCELLED,
@@ -41,6 +42,17 @@ import {
   STAGE_EXAMPLE_WINDOW_NEAR_DEADLINE,
 } from "./helpFixtures";
 
+/** The one rule every status badge follows (runs, cell uses, samples, cells, instruments) -
+ * rendered with the live Badge tones so the swatches can never drift from the app. */
+const STATUS_COLOUR_RULE: { tone: BadgeTone; label: string; text: string }[] = [
+  { tone: "default", label: "Waiting / done", text: "Not started yet, or finished with nothing wrong (e.g. Planned, Backlog, Exhausted)." },
+  { tone: "info", label: "Active", text: "Happening right now (e.g. a Running run, an In progress sample)." },
+  { tone: "success", label: "Done / available", text: "Finished successfully, or ready to use (e.g. Completed, Open, Ready)." },
+  { tone: "warning", label: "Run problem / at risk", text: "An instrument or run problem rather than a cell fault, or something about to run out (e.g. Aborted, a window closing soon)." },
+  { tone: "orange", label: "Cell failure", text: "The cell itself is the likely cause (e.g. a Failed use or sample)." },
+  { tone: "danger", label: "Lost", text: "Capacity or a placement that can no longer be used (e.g. Window expired, Stopped, Blocked)." },
+];
+
 const CELL_STATUS_MEANING: Record<CellStatus, string> = {
   open: "Has uses remaining and its window is still valid; available to schedule.",
   exhausted: "All of the cell's uses are spent.",
@@ -52,7 +64,7 @@ const CELL_STATUS_MEANING: Record<CellStatus, string> = {
 const CYCLE_STATUS_MEANING: Record<CycleStatus, string> = {
   planned: "Scheduled but not yet loaded; still editable.",
   running: "Confirmed loaded / currently sequencing.",
-  completed: "The run has finished.",
+  completed: "The run has finished — every cell is through sequencing and analysis. A loaded run turns completed automatically once its scheduled time is up.",
   aborted: "The run was stopped or cancelled.",
 };
 
@@ -106,11 +118,11 @@ const COMPLEX_COUNTDOWN_EXAMPLES: { daysAgo: number; meaning: string }[] = [
 const PRIORITY_EXAMPLES: { label: string; meaning: string }[] = [
   {
     label: "Recoverable (0)",
-    meaning: "Rank 0 - returned to the backlog by a Cell QC action as Recoverable - from instrument (the run's data can still be recovered from the instrument); shown in the Recoverable Samples section, above High.",
+    meaning: "Rank 0 - returned to the backlog by a Cell QC action as Recoverable - from instrument (the run's data can still be recovered from the instrument); shown in the Recoverable samples section, above High.",
   },
   {
     label: "Repeatable (0)",
-    meaning: "Rank 0 - returned to the backlog by a Cell QC action to be repeated, either from the leftover cleaned complex or from library material in Traction; shown in the Recoverable Samples section, above High.",
+    meaning: "Rank 0 - returned to the backlog by a Cell QC action to be repeated, either from the leftover cleaned complex or from library material in Traction; shown in the Recoverable samples section, above High.",
   },
   {
     label: "Aborted (0)",
@@ -128,7 +140,7 @@ const NOTE_EXAMPLES: { tone: NoteTone; icon: string; label: string; text: string
   { tone: "bad", icon: "!", label: "Error (red)", text: "An action failed and needs attention." },
 ];
 
-/** Renders the *real* Badge/Note/UseLegend/CellStatusCard/WindowMeter/TraySiblingList
+/** Renders the *real* Badge/Note/UseLegend/TrayCellStrip/WindowMeter/TraySiblingList
  * components sourced from the same shared tone maps every other page uses
  * (utils/cellStatus.ts, utils/cycleStatus.ts, utils/useStatusTone.ts) - never hardcode or
  * re-describe a colour in prose here, so this legend can't visually drift from the live
@@ -140,6 +152,18 @@ export function LegendSection() {
         These are the actual colours and labels used across the app. They update automatically if the app&apos;s
         styling changes, so what you see here always matches the real screens.
       </p>
+
+      <p className={styles.subheading}>One colour rule for every status</p>
+      <div className={styles.legendGrid}>
+        {STATUS_COLOUR_RULE.map((r) => (
+          <div className={styles.legendRow} key={r.tone}>
+            <span className={styles.legendSwatchLabel}>
+              <Badge tone={r.tone}>{r.label}</Badge>
+            </span>
+            <span>{r.text}</span>
+          </div>
+        ))}
+      </div>
 
       <p className={styles.subheading}>Cell status (Cells, Cell detail)</p>
       <div className={styles.legendGrid}>
@@ -264,7 +288,7 @@ export function LegendSection() {
           <DuplicateBadge index={2} total={3} selfReuse />
         </span>
         <span>
-          On the weekly schedule only: the ↻ means this copy is sharing a physical cell with an
+          On the weekly schedule only: the ⇆ means this copy is sharing a physical cell with an
           earlier copy of the same Pool ID. That&apos;s allowed and expected - it&apos;s the
           same underlying sample either way, so there&apos;s no risk of one sample&apos;s reads
           being mixed up with another&apos;s. Opening the slot shows the same explanation.
@@ -297,7 +321,7 @@ export function LegendSection() {
         </div>
       </div>
 
-      <p className={styles.subheading}>Movie time flag (Backlog, Schedule)</p>
+      <p className={styles.subheading}>Movie time &amp; non-default settings flag (Backlog, Schedule, Batch Sheet)</p>
       <div className={styles.legendGrid}>
         <div className={styles.legendRow}>
           <span className={styles.legendSwatchLabel}>
@@ -315,12 +339,36 @@ export function LegendSection() {
           </span>
           <span>The same flag for a 30&nbsp;h movie. A default-length movie shows no flag.</span>
         </div>
+        <div className={styles.legendRow}>
+          <span className={styles.legendSwatchLabel}>
+            <Badge tone="ink">Kinetics True</Badge>
+          </span>
+          <span>
+            On the <b>Batch Sheet</b>, the same dark chip marks any well setting that differs from{" "}
+            <b>Settings → Sample defaults</b>, which you&apos;ll need to change in that well&apos;s Traction form.
+            Hover it to see the default.
+          </span>
+        </div>
       </div>
 
       <p className={styles.subheading}>Use colours (schedule barcode chips)</p>
       <div className={styles.legendRow}>
         <UseLegend />
-        <span>Which acquisition of a cell a barcode belongs to.</span>
+        <span>
+          Which acquisition of a cell a card, seal or barcode belongs to — or indigo for a single-use SPRQ cell, which
+          only ever runs once.
+        </span>
+      </div>
+
+      <p className={styles.subheading}>Cell type (Schedule, Cells)</p>
+      <div className={styles.legendRow}>
+        <span className={styles.legendSwatchLabel}>
+          <CellTypeBadge cellType="sprq" />
+        </span>
+        <span>
+          A run, tray or cell on single-use <b>SPRQ</b> cells (chosen on the load-time dial when the run was started).
+          Multi-use SPRQ-Nx — the everyday type — carries no badge.
+        </span>
       </div>
 
       <p className={styles.subheading}>Slot shading (Weekly schedule)</p>
@@ -419,29 +467,33 @@ export function LegendSection() {
         </div>
       </div>
 
-      <p className={styles.subheading}>Cell card, tray, and window meter (Cells, Cell detail)</p>
+      <p className={styles.subheading}>Tray cell chips, tray list, and window meter (Cells, Cell detail)</p>
       <div className={styles.legendGrid}>
         <div className={styles.legendRow}>
-          <div className={styles.ghostExampleSwatch}>
-            <CellStatusCard cell={EXAMPLE_CELL_UNREPORTED} />
-          </div>
+          <TrayCellStrip cells={EXAMPLE_TRAY_STRIP} />
           <span>
-            A cell card: code, status badge, uses spent, current instrument/well, burned barcodes, a QC flag if one
-            applies, and its 108-hour window meter.
+            A tray&apos;s cell chips on the Cells tab: one chip per tray position (1–4), coloured like that cell&apos;s{" "}
+            <b>Cell status</b> badge above. Each pip is one use - filled in the colour of its <b>Use status</b> badge
+            once spent, grey while booked for later, an open ring while still free to book, and a dash for capacity the
+            cell will never use (stopped, retired, discarded or window closed). A ring around a chip marks the cell a search matched. Hover
+            a chip for its full story; click it to open the cell.
           </span>
         </div>
         <div className={styles.legendRow}>
           <div className={styles.ghostExampleSwatch}>
             <WindowMeter windowHours={112} />
           </div>
-          <span>The same window meter once its 108-hour budget is breached - the fill turns red past the limit.</span>
+          <span>
+            A cell&apos;s 108-hour window meter (Cell detail, Schedule popovers) once its budget is breached - the fill
+            turns red past the limit.
+          </span>
         </div>
         <div className={styles.legendRow}>
           <TraySiblingList cells={EXAMPLE_TRAY_SIBLINGS} />
           <span>
             A physical tray&apos;s four sibling cells, the compact list shown in the Schedule grid&apos;s cell popover -
             each keeps its own independent status, since one cell&apos;s history can diverge from its tray-mates. (On the
-            Cells tab and a cell&apos;s detail page a tray&apos;s cells are shown as the full cell cards above instead.)
+            Cells tab a tray&apos;s cells are the chips above instead.)
           </span>
         </div>
       </div>

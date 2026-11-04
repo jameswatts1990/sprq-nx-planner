@@ -14,6 +14,13 @@ export class ApiError extends Error {
   }
 }
 
+/** The one way to turn a failed mutation/query error into user-facing text: the server's own
+ * message when it sent one (an ApiError), else the caller's fallback. Fallbacks follow the
+ * app's error voice - "Couldn't <do the thing>." plus what to do next where it isn't obvious. */
+export function errorMessage(err: unknown, fallback: string): string {
+  return err instanceof ApiError ? err.message : fallback;
+}
+
 function extractDetail(body: unknown): string | undefined {
   if (body && typeof body === "object" && "detail" in body) {
     const detail = (body as { detail: unknown }).detail;

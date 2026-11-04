@@ -18,8 +18,9 @@ export function BacklogSection() {
   return (
     <div className={styles.copy}>
       <p>
-        <b>What this tab is for:</b> every sample that has been imported but not yet placed on the schedule. The
-        count in the header is the total waiting.
+        <b>What this tab is for:</b> every sample that has been imported but not yet placed on the schedule, in the
+        main <b>Samples to schedule</b> list. The count under the page title is the total waiting — while you search
+        or filter by priority, it counts just the matching samples.
       </p>
 
       <p className={styles.subheading}>Filters &amp; search</p>
@@ -65,11 +66,11 @@ export function BacklogSection() {
           </div>
         ))}
       </div>
-      <p className={styles.subheading}>Recoverable Samples (above the backlog)</p>
+      <p className={styles.subheading}>Recoverable samples (above the backlog)</p>
       <p>
         When a <b>Cell QC</b> action (see the Schedule and Cells tabs&apos; help) takes a cell out of service, the
         samples on its later uses shift onto the tray&apos;s other cells and the tail may drop off. Every affected sample
-        gets one of four outcomes; the three that can still be run come back here into a <b>Recoverable Samples</b>{" "}
+        gets one of four outcomes; the three that can still be run come back here into a <b>Recoverable samples</b>{" "}
         section shown <i>above</i> the main backlog, bumped above High priority so they&apos;re rescheduled first:
       </p>
       <ul>
@@ -106,27 +107,27 @@ export function BacklogSection() {
       </p>
       <p>
         <b>Aborted</b> is a legacy top-priority label: if any sample carries it, a red{" "}
-        <Badge tone="danger">⚠ N aborted</Badge> badge appears next to the sample count here and in the Schedule
-        tab&apos;s Backlog panel header so it&apos;s never missed.
+        <Badge tone="danger">⚠ N aborted</Badge> badge appears in the <b>Samples to schedule</b> list&apos;s header
+        here and in the Schedule tab&apos;s Backlog panel header so it&apos;s never missed.
       </p>
       <p>
         Whenever any backlog sample is rated <b>High</b> priority or above (Aborted / Recoverable / Repeatable all
         rank above High), an amber{" "}
-        <Badge tone="warning">⚠ N high priority+ unscheduled</Badge> badge appears next to the sample count here and
-        in the Schedule tab&apos;s Backlog panel header — a reminder that urgent samples are still waiting to be
+        <Badge tone="warning">⚠ N high priority+ unscheduled</Badge> badge appears in the Schedule tab&apos;s
+        Backlog panel header — a reminder that urgent samples are still waiting to be
         placed, even while the panel is collapsed.
       </p>
 
       <p className={styles.subheading}>Actions</p>
       <p>
-        <b>+ Add sample</b> (top-right of the toolbar) opens a form to add one sample to the backlog by hand — handy
+        <b>+ Add sample</b> (top right of the page) opens a form to add one sample to the backlog by hand — handy
         when a sample isn&apos;t in a file to import. The form is grouped into three shaded sections —{" "}
         <b>Sample ID &amp; Priority</b>, <b>Complex Details</b>, and <b>Run Settings</b> — to keep entry scannable.
         The <b>Pool ID</b> (a unique identifier such as a Pool ID) and at least one{" "}
         <b>barcode</b> are required (enter several barcodes separated by commas or spaces); every other field is
         optional. The
         three True/False settings (Adaptive Loading, Full-Resolution Base Q, Include Base Kinetics) and Priority
-        (Standard / Medium / High) are chosen from a dropdown, and start on the defaults set in the Admin tab&apos;s{" "}
+        (Standard / Medium / High) are chosen from a dropdown, and start on the defaults set in the Settings tab&apos;s{" "}
         <b>Sample defaults</b> panel — change any of them before saving. The new sample lands in the backlog exactly
         like an imported one. If the Pool ID has been seen before (any status, including completed), the form
         doesn&apos;t reject it — it tells you how many times it&apos;s been seen and offers <b>Add anyway</b> to create
@@ -174,7 +175,7 @@ export function BacklogSection() {
         priority filter (searching is done with the Schedule toolbar&apos;s <b>Find</b> box), listing every backlog
         sample in one scrolling list rather than page by page. Sorting there is a compact dropdown (Created, Pool ID,
         Barcode, or Priority) plus a direction button rather than clickable column headers, since that panel is a
-        card list, not a table. Each card shows the sample&apos;s full Pool ID, its <b>movie time</b> (e.g. ⏱ 24 h),
+        card list, not a table. Each card shows the sample&apos;s full Pool ID, its <b>movie time</b> (e.g. ⏱ 24 h, or a solid dark <b>12h</b>/<b>30h</b> flag when it isn&apos;t the default),
         a coloured <b>priority</b> badge and any small-insert <b>&lt;5kb</b> flag, plus a one-line barcode row while
         the Schedule&apos;s <b>View options → Barcodes</b> is on, with a coloured left edge matching its priority. Drag a card onto a slot to
         schedule it, or <b>click</b> it to open that sample&apos;s detail page (the ✎ button in the card&apos;s corner

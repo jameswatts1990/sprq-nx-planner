@@ -1,0 +1,43 @@
+/* Inside a tray chip (the shared StatusChip): the cell's tray position and a pip per use. */
+.pos {
+  min-width: 7px;
+  text-align: center;
+}
+.pips {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.pip {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  box-sizing: border-box;
+}
+/* Still available to use. */
+.pipFree {
+  border: 1.5px solid currentColor;
+  opacity: 0.55;
+}
+/* Capacity the cell will never use (discarded, stopped, retired, window closed). */
+.pipLost {
+  height: 2px;
+  border-radius: 1px;
+  background: currentColor;
+  opacity: 0.45;
+}
+.pipPlanned {
+  background: var(--faint);
+}
+.pipStarted {
+  background: var(--blue);
+}
+.pipCompleted {
+  background: var(--green-deep);
+}
+.pipAborted {
+  background: var(--amber);
+}
+.pipFailed {
+  background: var(--orange);
+}

@@ -3,15 +3,18 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent } from "react";
 import { Link } from "react-router-dom";
 
-import { ApiError } from "@/api/client";
+import { errorMessage } from "@/api/client";
 import { importsApi, importTemplateUrl } from "@/api/imports";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { Note } from "@/components/ui/Note";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { StatTile, StatTiles } from "@/components/shared/StatTile";
+import { UnitLabel } from "@/components/shared/UnitLabel";
 import type { ImportField, ImportPreviewResult, ImportResult, SchedulerPool } from "@/types/importing";
+import { formatDateTime } from "@/utils/calendarDates";
 import { readSpreadsheetFile } from "@/utils/readSpreadsheetFile";
 import { toCsv } from "@/utils/toCsv";
 
@@ -57,7 +60,7 @@ function formatWhen(iso: string): string {
   if (hrs < 24) return `${hrs} hour${hrs === 1 ? "" : "s"} ago`;
   const days = Math.round(hrs / 24);
   if (days < 7) return `${days} day${days === 1 ? "" : "s"} ago`;
-  return new Date(then).toLocaleDateString();
+  return formatDateTime(new Date(then).toISOString());
 }
 
 export function ImportPage() {
@@ -253,10 +256,19 @@ export function ImportPage() {
       </div>
     ) : null;
 
+  // Every step (paste/upload, review, result) opens with the same header.
+  const header = (
+    <PageHeader
+      title="Import samples"
+      intro="Load a batch of samples and their barcodes — they land in the Backlog, ready to schedule."
+    />
+  );
+
   if (importMutation.isSuccess) {
     const result = importMutation.data;
     return (
       <div className={styles.page}>
+        {header}
         <ImportResultPanel result={result} />
         <div className={styles.actions}>
           <Button
@@ -320,6 +332,7 @@ export function ImportPage() {
 
     return (
       <div className={styles.page}>
+        {header}
         <Card>
           <CardHeader badge={`${preview.row_count} row${preview.row_count === 1 ? "" : "s"}`}>
             <h2>Review columns</h2>
@@ -340,9 +353,9 @@ export function ImportPage() {
                 // the auto-guess landed via a looser alias, so it's worth a human glance.
                 const nonExact = mappedCol ? normalizeHeader(mappedCol.name) !== normalizeHeader(f.label) : false;
                 return (
-                  <div key={f.key} className={styles.mapRow}>
-                    <label className={styles.mapLabel} htmlFor={`map-${f.key}`}>
-                      {f.label}
+                  <div key={f.key}>
+                    <label className="fieldLabel" htmlFor={`map-${f.key}`}>
+                      <UnitLabel text={f.label} />
                       {f.required && <span className={styles.req}> *</span>}
                     </label>
                     <div className={styles.selectWrap}>
@@ -435,12 +448,14 @@ export function ImportPage() {
 
             {mappedFields.length > 0 && preview.sample_rows.length > 0 && (
               <div className={styles.previewWrap}>
-                <table className={styles.table}>
+                <table className={`table ${styles.previewTable}`}>
                   <thead>
                     <tr>
                       {showPoolStatus && <th>Cell</th>}
                       {mappedFields.map((f) => (
-                        <th key={f.key}>{f.label}</th>
+                        <th key={f.key}>
+                          <UnitLabel text={f.label} />
+                        </th>
                       ))}
                     </tr>
                   </thead>
@@ -476,7 +491,7 @@ export function ImportPage() {
             {importMutation.isError && (
               <div className={styles.error}>
                 <Note tone="bad" icon="!">
-                  {importMutation.error instanceof ApiError ? importMutation.error.message : "Import failed."}
+                  {errorMessage(importMutation.error, "Couldn't import the samples.")}
                 </Note>
               </div>
             )}
@@ -509,6 +524,7 @@ export function ImportPage() {
 
   return (
     <div className={styles.page}>
+      {header}
       {justUndone && text.length === 0 && (
         <Note tone="good" icon="✓">
           Import undone — removed <b>{justUndone.count}</b> sample{justUndone.count === 1 ? "" : "s"}
@@ -543,143 +559,206 @@ export function ImportPage() {
         </div>
       )}
 
-      <Card>
-        <CardHeader badge="paste or upload CSV">
-          <h2>Samples &amp; barcodes</h2>
-        </CardHeader>
-        <CardBody>
-          <textarea
-            spellCheck={false}
-            placeholder={
-              "Paste CSV here — any columns. You'll match them to fields on the next step.\n" +
-              "Pool ID,Plate ID,Sanger Sample IDs,Barcodes,Target OPLC,...\n" +
-              'BNCH-1597,TRAC-2-25402,...,"bc2021, bc2066",268.0,...\n\n' +
-              "…or a simple two-column list (untick “First row is a header”):\n" +
-              "TRAC-2-25402, bc2021 bc2066"
-            }
-            value={text}
-            onChange={(e) => {
-              setText(e.target.value);
-              if (schedulerPools) clearSchedulerContext();
-            }}
-          />
-          <div className={styles.inputRow}>
-            <div className={styles.splitButton} ref={uploadMenuRef}>
-              <label className={`btn sm ${styles.splitMain}`} style={{ cursor: "pointer" }}>
-                Upload CSV
-                <input ref={fileInputRef} type="file" accept=".csv,.tsv,.txt" hidden onChange={handleFileChange} />
+      <div className={styles.inputLayout}>
+        <Card>
+          <CardHeader badge="paste or upload CSV">
+            <h2>Samples &amp; barcodes</h2>
+          </CardHeader>
+          <CardBody>
+            <textarea
+              className={styles.csvInput}
+              spellCheck={false}
+              placeholder={
+                "Paste CSV here — any columns. You'll match them to fields on the next step.\n" +
+                "Pool ID,Plate ID,Sanger Sample IDs,Barcodes,Target OPLC,...\n" +
+                'BNCH-1597,TRAC-2-25402,...,"bc2021, bc2066",268.0,...\n\n' +
+                "…or a simple two-column list (untick “First row is a header”):\n" +
+                "TRAC-2-25402, bc2021 bc2066"
+              }
+              value={text}
+              onChange={(e) => {
+                setText(e.target.value);
+                if (schedulerPools) clearSchedulerContext();
+              }}
+            />
+            <div className={styles.inputRow}>
+              <div className={styles.splitButton} ref={uploadMenuRef}>
+                <label className={`btn sm ${styles.splitMain}`} style={{ cursor: "pointer" }}>
+                  Upload CSV
+                  <input ref={fileInputRef} type="file" accept=".csv,.tsv,.txt" hidden onChange={handleFileChange} />
+                </label>
+                <button
+                  type="button"
+                  className={`btn sm ${styles.splitCaret}`}
+                  aria-haspopup="menu"
+                  aria-expanded={uploadMenuOpen}
+                  aria-label="More upload options"
+                  onClick={() => setUploadMenuOpen((open) => !open)}
+                >
+                  <span aria-hidden>▾</span>
+                </button>
+                {uploadMenuOpen && (
+                  <div className={styles.uploadMenu} role="menu">
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className={styles.uploadMenuItem}
+                      onClick={() => {
+                        setUploadMenuOpen(false);
+                        schedulerInputRef.current?.click();
+                      }}
+                    >
+                      <span className={styles.uploadMenuItemTitle}>Upload from scheduler…</span>
+                      <span className={styles.uploadMenuItemHint}>
+                        Your scheduling sheet (.csv or .xlsx) — rows are pooled by Pool ID automatically
+                      </span>
+                    </button>
+                  </div>
+                )}
+              </div>
+              <Button size="sm" variant="ghost" onClick={downloadTemplate}>
+                Download template
+              </Button>
+              <Button size="sm" variant="ghost" onClick={handleClear}>
+                Clear
+              </Button>
+              <label className={styles.headerToggle}>
+                <input type="checkbox" checked={hasHeader} onChange={(e) => setHasHeader(e.target.checked)} />
+                First row is a header
               </label>
-              <button
-                type="button"
-                className={`btn sm ${styles.splitCaret}`}
-                aria-haspopup="menu"
-                aria-expanded={uploadMenuOpen}
-                aria-label="More upload options"
-                onClick={() => setUploadMenuOpen((open) => !open)}
-              >
-                <span aria-hidden>▾</span>
-              </button>
-              {uploadMenuOpen && (
-                <div className={styles.uploadMenu} role="menu">
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className={styles.uploadMenuItem}
-                    onClick={() => {
-                      setUploadMenuOpen(false);
-                      schedulerInputRef.current?.click();
-                    }}
-                  >
-                    <span className={styles.uploadMenuItemTitle}>Upload from scheduler…</span>
-                    <span className={styles.uploadMenuItemHint}>
-                      Your scheduling sheet (.csv or .xlsx) — rows are pooled by Pool ID automatically
-                    </span>
-                  </button>
-                </div>
+              <input
+                ref={schedulerInputRef}
+                type="file"
+                accept=".csv,.tsv,.txt,.xlsx"
+                hidden
+                onChange={handleSchedulerFile}
+              />
+            </div>
+            <div className={styles.parseStatus}>
+              {schedulerMutation.isPending ? (
+                <span>Converting scheduler sheet…</span>
+              ) : text.length === 0 ? (
+                <span>No samples loaded yet.</span>
+              ) : (
+                <span>
+                  <b>{lineCount}</b> line{lineCount === 1 ? "" : "s"} — you&apos;ll review the column mapping next.
+                </span>
               )}
             </div>
-            <Button size="sm" variant="ghost" onClick={downloadTemplate}>
-              Download template
-            </Button>
-            <Button size="sm" variant="ghost" onClick={handleClear}>
-              Clear
-            </Button>
-            <label className={styles.headerToggle}>
-              <input type="checkbox" checked={hasHeader} onChange={(e) => setHasHeader(e.target.checked)} />
-              First row is a header
-            </label>
-            <input
-              ref={schedulerInputRef}
-              type="file"
-              accept=".csv,.tsv,.txt,.xlsx"
-              hidden
-              onChange={handleSchedulerFile}
-            />
-          </div>
-          <div className={styles.parseStatus}>
-            {schedulerMutation.isPending ? (
-              <span>Converting scheduler sheet…</span>
-            ) : text.length === 0 ? (
-              <span>No samples loaded yet.</span>
-            ) : (
-              <span>
-                <b>{lineCount}</b> line{lineCount === 1 ? "" : "s"} — you&apos;ll review the column mapping next.
-              </span>
+
+            {schedulerNotes}
+
+            {readError && (
+              <div className={styles.error}>
+                <Note tone="bad" icon="!">
+                  {readError}
+                </Note>
+              </div>
             )}
-          </div>
+            {schedulerMutation.isError && (
+              <div className={styles.error}>
+                <Note tone="bad" icon="!">
+                  {errorMessage(schedulerMutation.error, "Couldn't convert that scheduler sheet.")}
+                </Note>
+              </div>
+            )}
+            {previewMutation.isError && (
+              <div className={styles.error}>
+                <Note tone="bad" icon="!">
+                  {errorMessage(previewMutation.error, "Couldn't read that file.")}
+                </Note>
+              </div>
+            )}
 
-          {schedulerNotes}
+            <div className={styles.actions}>
+              <Button
+                variant="primary"
+                onClick={() => previewMutation.mutate({})}
+                disabled={
+                  text.trim().length === 0 ||
+                  previewMutation.isPending ||
+                  schedulerMutation.isPending ||
+                  fieldsQuery.isLoading
+                }
+              >
+                {previewMutation.isPending ? "Reading…" : "Continue to mapping"}
+              </Button>
+              <label className={styles.filenameField}>
+                Filename (optional)
+                <input
+                  type="text"
+                  value={filename}
+                  onChange={(e) => setFilename(e.target.value)}
+                  placeholder="e.g. batch-2026-07.csv"
+                />
+              </label>
+            </div>
+          </CardBody>
+        </Card>
 
-          {readError && (
-            <div className={styles.error}>
-              <Note tone="bad" icon="!">
-                {readError}
-              </Note>
-            </div>
-          )}
-          {schedulerMutation.isError && (
-            <div className={styles.error}>
-              <Note tone="bad" icon="!">
-                {schedulerMutation.error instanceof ApiError
-                  ? schedulerMutation.error.message
-                  : "Couldn't convert that scheduler sheet."}
-              </Note>
-            </div>
-          )}
-          {previewMutation.isError && (
-            <div className={styles.error}>
-              <Note tone="bad" icon="!">
-                {previewMutation.error instanceof ApiError ? previewMutation.error.message : "Could not read that file."}
-              </Note>
-            </div>
-          )}
-
-          <div className={styles.actions}>
-            <Button
-              variant="primary"
-              onClick={() => previewMutation.mutate({})}
-              disabled={
-                text.trim().length === 0 ||
-                previewMutation.isPending ||
-                schedulerMutation.isPending ||
-                fieldsQuery.isLoading
-              }
-            >
-              {previewMutation.isPending ? "Reading…" : "Continue to mapping"}
-            </Button>
-            <label className={styles.filenameField}>
-              Filename (optional)
-              <input
-                type="text"
-                value={filename}
-                onChange={(e) => setFilename(e.target.value)}
-                placeholder="e.g. batch-2026-07.csv"
-              />
-            </label>
-          </div>
-        </CardBody>
-      </Card>
+        <ImportGuide />
+      </div>
     </div>
+  );
+}
+
+/** Benchling's "Load a Sequencer" task list, filtered to the open tasks the lab imports from. */
+const BENCHLING_LOAD_SEQUENCER_URL =
+  "https://tol-sanger.benchling.com/workflows?filter=view%3APROCESSES%3Btypes%3AIS_ONE_OF%3Aprocess_task%3Bschema%3AIS_ONE_OF%3Aprstsch_U6TZuZV0aV%3BtaskStatus%3AIS_ONE_OF%3Awfts_yBA66UOx%3BarchivePurposes%3AIS_ONE_OF%3ANOT_ARCHIVED%3BisAssociatedWithUnsubmittedRequestV2Submission%3AIS_FALSE%3BProcessesIsSystemDataFilter%3AIS_FALSE&offset=0&limit=100&sorts=starred%3A0%3Bcreated_at%3A1&q=&v=2";
+
+/** The lab's sequencing tracker Google Sheet (the "Upload from scheduler…" source). */
+const SEQUENCING_TRACKER_SHEET_URL =
+  "https://docs.google.com/spreadsheets/d/1jJTmEi6MZJklSjcZeCjZndTMWs1f9r8vqw-WB5xlLgk/edit?gid=868375595#gid=868375595";
+
+/** Where each source file comes from, in the sidebar beside the paste/upload card on the input step. */
+function ImportGuide() {
+  return (
+    <Card>
+      <CardHeader>
+        <h2>Import guide</h2>
+      </CardHeader>
+      <CardBody>
+        <div className={styles.sources}>
+          <div>
+            <p className={styles.subheading}>Benchling</p>
+            <ol className={styles.sourceSteps}>
+              <li>
+                Open the{" "}
+                <a className="link" href={BENCHLING_LOAD_SEQUENCER_URL} target="_blank" rel="noreferrer">
+                  Load a Sequencer task ↗
+                </a>{" "}
+                in Benchling.
+              </li>
+              <li>
+                Look for the <b>Pending</b> samples and export them as a CSV.
+              </li>
+              <li>
+                Upload it with <b>Upload CSV</b> (or paste it in) and import it into RunNx.
+              </li>
+              <li>
+                After importing, change those samples&apos; status to <b>Planned</b> in Benchling.
+              </li>
+            </ol>
+          </div>
+          <div>
+            <p className={styles.subheading}>Google Sheet</p>
+            <ol className={styles.sourceSteps}>
+              <li>
+                Open the{" "}
+                <a className="link" href={SEQUENCING_TRACKER_SHEET_URL} target="_blank" rel="noreferrer">
+                  sequencing tracker sheet ↗
+                </a>{" "}
+                and download it as a <b>.csv</b> or <b>.xlsx</b> (File → Download).
+              </li>
+              <li>
+                Click the <b>▾</b> beside <b>Upload CSV</b>, choose <b>Upload from scheduler…</b> and pick the file.
+                Rows are pooled by Pool ID automatically.
+              </li>
+            </ol>
+          </div>
+        </div>
+      </CardBody>
+    </Card>
   );
 }
 
@@ -722,6 +801,7 @@ function UndoImportControl({
         <ConfirmModal
           title="Undo this import?"
           confirmLabel="Undo import"
+          confirmVariant="danger"
           pendingLabel="Undoing…"
           pending={undoMutation.isPending}
           onCancel={() => {
@@ -729,13 +809,7 @@ function UndoImportControl({
             setOpen(false);
           }}
           onConfirm={() => undoMutation.mutate()}
-          error={
-            undoMutation.isError
-              ? undoMutation.error instanceof ApiError
-                ? undoMutation.error.message
-                : "Couldn't undo the import."
-              : undefined
-          }
+          error={undoMutation.isError ? errorMessage(undoMutation.error, "Couldn't undo the import.") : undefined}
         >
           <p>
             This removes the <b>{count}</b> sample{count === 1 ? "" : "s"} added by this import
@@ -785,7 +859,7 @@ function ImportResultPanel({ result }: { result: ImportResult }) {
         {result.skipped.length > 0 && (
           <>
             <p className={styles.subheading}>Skipped rows (fix and re-import)</p>
-            <table className={styles.rejectedTable}>
+            <table className="table">
               <thead>
                 <tr>
                   <th>Sample</th>
@@ -815,7 +889,7 @@ function ImportResultPanel({ result }: { result: ImportResult }) {
               </Note>
             </div>
             <p className={styles.subheading}>Duplicated Pool IDs</p>
-            <table className={styles.rejectedTable}>
+            <table className="table">
               <thead>
                 <tr>
                   <th>Pool ID</th>
@@ -839,7 +913,7 @@ function ImportResultPanel({ result }: { result: ImportResult }) {
         {result.rejected.length > 0 && (
           <>
             <p className={styles.subheading}>Rejected rows</p>
-            <table className={styles.rejectedTable}>
+            <table className="table">
               <thead>
                 <tr>
                   <th>Pool ID</th>

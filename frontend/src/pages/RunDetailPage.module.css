@@ -4,33 +4,22 @@
   flex-direction: column;
   gap: 6px;
 }
-.status {
-  color: var(--grey);
-  font-size: var(--fs-lg);
-  padding: 24px 4px;
-  text-align: center;
+/* The run's facts read as the PageHeader's subtitle line: the header drops its bottom margin so
+   only the flex gap sits between them, as with PageHeader's own intro. */
+.page > :first-child:has(+ .metaRow) {
+  margin-bottom: 0;
 }
 .metaRow {
   display: flex;
   align-items: center;
   gap: 14px;
   flex-wrap: wrap;
-  margin: 4px 0 18px;
+  margin: 0 0 18px;
   font-size: var(--fs-md);
   color: var(--grey);
 }
 .metaRow b {
   color: var(--ink);
-}
-.meta {
-  color: var(--grey);
-  font-weight: 400;
-}
-.cancelRow {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-left: auto;
 }
 
 /* Two plate trays side-by-side on a wide screen, stacking on a narrow one - so the run reads

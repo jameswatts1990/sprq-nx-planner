@@ -1,0 +1,98 @@
+/* The list pages (Cells, Run history, Samples) share one layout so they read as a family: a
+   search + filter toolbar, a sub-bar (page-specific control on the left, Rows on the right), then
+   a table whose rows expand in place. */
+.page {
+  padding-top: 22px;
+}
+.toolbar {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.search {
+  flex: 1;
+  min-width: 240px;
+}
+.subbar {
+  display: flex;
+  align-items: center;
+  gap: 12px 20px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.pushRight {
+  margin-left: auto;
+}
+.controlLabel {
+  font-size: var(--fs-xs);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--grey);
+  font-weight: 700;
+}
+
+/* The table scrolls sideways on a narrow window rather than squashing its chips. */
+.tableWrap {
+  overflow-x: auto;
+}
+.table {
+  transition: opacity 0.15s ease;
+}
+/* Rows stay readable while the next page / filter loads over them. */
+.updating {
+  opacity: 0.55;
+}
+.row {
+  cursor: pointer;
+}
+.row > td {
+  vertical-align: middle;
+}
+.toggleCell {
+  width: 22px;
+}
+.toggle {
+  display: inline-flex;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+.mono {
+  font-family: var(--mono);
+}
+.nowrap {
+  white-space: nowrap;
+}
+.faint {
+  color: var(--faint);
+}
+.flags {
+  display: inline-flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+/* An expanded row: a grey well around its inner table (tbody td beats the shared .table td
+   padding). */
+tbody td.detailCell {
+  background: var(--line-soft);
+  padding: 12px 16px;
+  cursor: default;
+}
+.innerTable {
+  background: var(--card);
+  border-radius: var(--r-sm);
+  overflow: hidden;
+}
+/* The inner-table row a search matched. */
+.matchedRow > td {
+  background: var(--magenta-tint);
+}

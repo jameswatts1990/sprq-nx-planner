@@ -29,15 +29,6 @@
 }
 .search {
   width: 100%;
-  font-family: var(--sans);
-  font-size: var(--fs-base);
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  padding: 8px 10px;
-}
-.search:focus-visible {
-  outline: 2px solid var(--magenta-deep);
-  outline-offset: 1px;
 }
 .searchNav {
   display: flex;
@@ -53,14 +44,6 @@
 .searchNavBtns {
   display: flex;
   gap: 4px;
-}
-/* Structure/border/hover/focus come from the shared `btn icon sm` variant (base.css); only
-   the understated grey glyph colour is component-specific. */
-.searchNavBtn {
-  color: var(--grey);
-}
-.searchNavBtn:hover {
-  color: var(--ink);
 }
 
 .toc {
@@ -124,27 +107,15 @@
 .content {
   min-width: 0;
 }
-.contentHead {
-  margin-bottom: 4px;
-}
-.title {
-  font-size: var(--fs-display);
-  margin: 0 0 6px;
-}
-.intro {
-  font-size: var(--fs-lg);
-  color: var(--grey);
-  margin: 0;
-  max-width: 80ch;
-}
 .section {
   scroll-margin-top: calc(var(--topbar-h, 64px) + 16px);
   padding: 26px 0;
   border-top: 1px solid var(--line);
 }
+/* The first section's title lines up with the top of the sidebar's search box. */
 .section:first-of-type {
   border-top: none;
-  padding-top: 14px;
+  padding-top: 0;
 }
 .sectionTitle {
   font-size: var(--fs-heading);

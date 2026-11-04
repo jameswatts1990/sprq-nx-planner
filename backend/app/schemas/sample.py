@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -77,6 +77,8 @@ class SampleOut(BaseModel):
     actual_oplc: float | None
     cleaned_complex_volume: float | None
     loading_buffer_volume: float | None
+    # Import-only (read-only): output here, deliberately absent from SampleCreate/SampleUpdate.
+    library_pool_volume_used: float | None
     adaptive_loading: str | None
     full_resolution_base_q: str | None
     priority: str | None
@@ -107,6 +109,8 @@ class SampleCellUseOut(BaseModel):
     cycle_id: int
     run_name: str | None
     run_batch_id: int
+    load_date: date | None
+    instrument_serial: str | None
     # Which plate (1 or 2) of the run this use was scheduled on - the plate's positional
     # index, inferred from the schedule, not a separate physical plate identifier.
     plate_number: int | None

@@ -44,23 +44,23 @@ export function chartPalette(): ChartPalette {
   };
 }
 
-/** Cell-lifecycle status -> a distinct hue. Semantically aligned with the app's tone map
- * (open = good/green, window_expired = waste/red) but kept distinguishable, since the
- * shared tone map collapses several terminal states onto one "danger" red that a chart
- * legend couldn't tell apart. */
+/** Cell-lifecycle status -> a hue. Matches the badge tone map (utils/cellStatus.ts) wherever it
+ * can; the one deliberate split is stopped (orange), which the badge map merges with
+ * window_expired (red) - a chart legend has to tell the two apart. Never contradict a badge. */
 export function cellStatusColor(p: ChartPalette): Record<string, string> {
   return {
     open: p.green,
     exhausted: p.faint,
     window_expired: p.red,
-    retired: p.purple,
+    retired: p.amber,
     stopped: p.orange,
   };
 }
 
-/** CellUse verdict -> hue: completed good, failed bad, aborted (instrument, not cell) a warning. */
+/** CellUse verdict -> hue, matching the badge map (utils/useStatusTone.ts): completed green,
+ * failed orange (a cell-quality failure), aborted amber (an instrument/run problem). */
 export function outcomeColor(p: ChartPalette): Record<string, string> {
-  return { completed: p.green, failed: p.red, aborted: p.amber };
+  return { completed: p.green, failed: p.orange, aborted: p.amber };
 }
 
 /** The Use 1/2/3 swatch order, matching SectionHeading's UseLegend exactly. */

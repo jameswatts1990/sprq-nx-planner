@@ -1,4 +1,12 @@
+/* Wide enough that a full ID plus the match counter and ↑ ↓ ✕ stay visible together (~50
+   characters before any of those show), shrinking only on a narrow screen. A definite width, not
+   flex-grow, so the box is the same size whichever side the Backlog is docked. */
 .wrap {
+  flex: 0 1 auto;
+  width: 440px;
+  min-width: 240px;
+  /* The toolbar's shared control height (SchedulePage .toolbar). */
+  height: var(--toolbar-control-h);
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -7,25 +15,36 @@
   border-radius: var(--r-sm);
   padding: 2px 6px;
 }
+/* The wrapper draws the field (icon + input + counter + nav share one box), so it takes the
+   form-control hover/focus look that the borderless inner input gives up. */
+.wrap:hover {
+  border-color: var(--line-hover);
+}
 .wrap:focus-within {
   border-color: var(--magenta);
+  box-shadow: 0 0 0 3px var(--magenta-tint);
 }
 .icon {
-  font-size: var(--fs-lg);
+  display: inline-flex;
+  margin-left: 2px;
+  font-size: var(--fs-xl);
   color: var(--grey);
-  line-height: 1;
 }
+/* Borderless inside .wrap, which draws the box and its focus ring. Takes whatever width the
+   counter and ↑ ↓ ✕ (which never shrink) leave over. */
 .input {
-  font-family: var(--sans);
-  font-size: var(--fs-base);
-  font-weight: 600;
-  color: var(--ink);
   background: transparent;
   border: none;
-  outline: none;
   padding: 5px 2px;
-  width: 190px;
-  min-width: 120px;
+  flex: 1 1 0;
+  min-width: 0;
+}
+/* The app draws its own ✕ (Clear search, in .nav) - drop the browser's duplicate. */
+.input::-webkit-search-cancel-button {
+  display: none;
+}
+.input:focus {
+  box-shadow: none;
 }
 .counter {
   font-size: var(--fs-md);
@@ -35,12 +54,15 @@
   padding: 0 4px;
   min-width: 44px;
   text-align: center;
+  flex: none;
 }
 .counterEmpty {
   color: var(--grey);
 }
+/* ↑ / ↓ / ✕ - the same ghost icon buttons as the Help search's match stepper. */
 .nav {
+  flex: none;
   display: inline-flex;
   align-items: center;
-  gap: 0;
+  gap: 4px;
 }

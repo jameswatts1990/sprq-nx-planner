@@ -1,4 +1,6 @@
-export type UseClass = "u1" | "u2" | "u3";
+import type { CellType } from "@/types/common";
+
+export type UseClass = "u1" | "u2" | "u3" | "sprq";
 
 /**
  * Maps a 1-based use number to the u1/u2/u3 color class used throughout the app
@@ -10,4 +12,10 @@ export type UseClass = "u1" | "u2" | "u3";
 export function classForUseIndex(oneBasedUseNumber: number): UseClass {
   const clamped = Math.min(3, Math.max(1, oneBasedUseNumber));
   return `u${clamped}` as UseClass;
+}
+
+/** The colour class for one use of a cell: a single-use SPRQ cell always reads in its own SPRQ
+ * colour (it's only ever Use 1 of 1); a SPRQ-Nx cell takes its Use 1/2/3 colour. */
+export function classForCell(oneBasedUseNumber: number, cellType: CellType | undefined): UseClass {
+  return cellType === "sprq" ? "sprq" : classForUseIndex(oneBasedUseNumber);
 }

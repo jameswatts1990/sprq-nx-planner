@@ -1,0 +1,40 @@
+/* Follows SlotDetailPopover.module.css's fieldset/label choice-list convention. */
+.field {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 14px;
+}
+.choices {
+  border: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+/* Drop the UA legend inset so it lines up with the field label above. */
+.choices legend {
+  padding: 0;
+}
+.choice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 8px 10px;
+}
+.choice[data-disabled="true"] {
+  opacity: 0.5;
+}
+.choiceMain {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+.meta {
+  font-size: var(--fs-sm);
+  color: var(--grey);
+}

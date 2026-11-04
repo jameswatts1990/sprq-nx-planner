@@ -54,18 +54,33 @@
 }
 .nav {
   display: flex;
+  align-items: center;
   gap: 4px;
   flex-wrap: wrap;
   border-left: 1px solid var(--line);
   padding-left: 18px;
 }
+/* Icon + label; the 1em stroke icons (shared/icons.tsx) are sized up a touch from the text and
+   take its colour, so they grey/darken/turn magenta with the link. Also worn by the History
+   <button>, hence the UA button resets (border, background, font, cursor). */
 .navLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: inherit;
   font-size: var(--fs-base);
   font-weight: 700;
+  line-height: inherit;
   color: var(--grey);
   text-decoration: none;
   padding: 8px 12px;
+  border: 0;
   border-radius: var(--r-sm);
+  background: transparent;
+  cursor: pointer;
+}
+.navLink svg {
+  font-size: 15px;
 }
 .navLink:hover {
   background: var(--line-soft);
@@ -75,30 +90,143 @@
   color: var(--magenta);
   background: var(--magenta-tint);
 }
-/* Pushed to the far right of the nav strip; deliberately low-contrast so the
-   build version is available at a glance without competing with the nav. */
-.version {
+/* History drop-down (AppShell HistoryMenu): the trigger stays lit while open, and on any of its
+   pages (.navLinkActive). */
+.menuWrap {
+  position: relative;
+  display: inline-flex;
+}
+.menuTrigger[aria-expanded="true"]:not(.navLinkActive) {
+  background: var(--line-soft);
+  color: var(--ink);
+}
+.chevron {
+  display: inline-flex;
+  margin-left: -3px;
+  opacity: 0.7;
+  transition: transform 0.15s ease;
+}
+.chevron svg {
+  font-size: 13px;
+}
+.menuTrigger[aria-expanded="true"] .chevron {
+  transform: rotate(180deg);
+}
+/* Same card chrome as the app's other drop-downs (Schedule View options). */
+.menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 1;
+  min-width: 280px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  box-shadow: var(--shadow);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.menuItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 7px;
+  color: var(--ink);
+  text-decoration: none;
+}
+.menuItem:hover {
+  background: var(--line-soft);
+}
+.menuItemActive,
+.menuItemActive:hover {
+  background: var(--magenta-tint);
+}
+.menuIcon {
+  display: inline-flex;
+  padding-top: 1px;
+  font-size: 16px;
+  color: var(--grey);
+}
+.menuText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.menuLabel {
+  font-size: var(--fs-base);
+  font-weight: 700;
+}
+.menuHint {
+  font-size: var(--fs-sm);
+  color: var(--grey);
+}
+.menuItemActive .menuIcon,
+.menuItemActive .menuLabel {
+  color: var(--magenta);
+}
+/* Stats / Settings / Help as icon-only links plus the build version, pushed to the far right
+   and drawn as one bordered unit (the same treatment as the Schedule's ‹ week › control). */
+.utility {
   margin-left: auto;
   display: inline-flex;
-  align-items: baseline;
-  gap: 6px;
+  align-items: stretch;
+  gap: 2px;
+  padding: 2px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+}
+.utilityLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 7px;
+  font-size: 17px;
   color: var(--grey);
-  opacity: 0.6;
+  transition: background-color 0.14s ease, color 0.14s ease;
+}
+.utilityLink:hover {
+  background: var(--line-soft);
+  color: var(--ink);
+}
+.utilityLinkActive,
+.utilityLinkActive:hover {
+  color: var(--magenta);
+  background: var(--magenta-tint);
+}
+/* Deliberately low-contrast so the build version is available at a glance without competing
+   with the nav; a divider sets it apart from the icons. */
+.version {
+  display: inline-flex;
+  flex-direction: column;
+  justify-content: center;
+  margin: 4px 0 4px 4px;
+  padding: 0 8px 0 10px;
+  border-left: 1px solid var(--line);
+  color: var(--grey);
   letter-spacing: 0.01em;
+  line-height: 1.2;
   white-space: nowrap;
   text-decoration: none;
+}
+.versionNumber,
+.versionDate {
+  opacity: 0.65;
   transition: opacity 0.15s ease;
 }
-
-.version:hover {
-  opacity: 0.9;
+.version:hover .versionNumber,
+.version:hover .versionDate {
+  opacity: 1;
 }
-
 .versionNumber {
   font-size: var(--fs-sm);
   font-weight: 600;
 }
-
 .versionDate {
   font-size: 10px;
   font-weight: 500;

@@ -1,14 +1,22 @@
 from datetime import date, datetime
+from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
-from app.api.deps import ActorDep, SessionDep
+from app.api.deps import ActorDep, SessionDep, pagination
 from app.models.instrument import Instrument
 from app.models.schedule import CYCLE_STATUSES, RunBatch
-from app.schemas.run import RunOut
-from app.services.placement_service import PlacementError, cancel_run, reschedule_run, update_run_load_time
+from app.schemas.common import CellType, Page
+from app.schemas.run import RunHistoryRowOut, RunOut
+from app.services.placement_service import (
+    PlacementError,
+    cancel_run,
+    reschedule_run,
+    update_run_load_time,
+)
+from app.services.run_history_rows import list_history_rows
 from app.services.run_serializer import RUN_LOAD_OPTIONS, run_out
 from app.services.run_service import update_run_status
 
@@ -49,10 +57,46 @@ def list_runs(
 
     runs = list(db.scalars(stmt).unique().all())
     out = [run_out(db, rb) for rb in runs]
-    # `status` filters on the derived run-level status (see run_serializer._run_status).
+    # `status` filters on the derived run-level status (see run_serializer.run_status - incl. a running run past its acquisition end reading "completed").
     if status:
         out = [r for r in out if r.status == status]
     return out
+
+
+@router.get("/history", response_model=Page[RunHistoryRowOut])
+def list_run_history(
+    db: SessionDep,
+    page_info: Annotated[tuple[int, int], Depends(pagination)],
+    status: str | None = None,
+    instrument_serial: str | None = None,
+    cell_type: CellType | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    q: str | None = None,
+    sort_by: str = "load_date",
+    sort_dir: str = "desc",
+) -> Page[RunHistoryRowOut]:
+    """The Run history page: one summary row per run with its wells, searched, filtered, sorted
+    and paged server-side (see services/run_history_rows). Registered before /{run_id} so
+    "history" isn't parsed as a run id."""
+    page, page_size = page_info
+    try:
+        rows, total = list_history_rows(
+            db,
+            status=status,
+            instrument_serial=instrument_serial,
+            cell_type=cell_type,
+            date_from=date_from,
+            date_to=date_to,
+            q=q,
+            sort_by=sort_by,
+            sort_dir=sort_dir,
+            page=page,
+            page_size=page_size,
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return Page[RunHistoryRowOut](items=rows, total=total)
 
 
 @router.get("/{run_id}", response_model=RunOut)
