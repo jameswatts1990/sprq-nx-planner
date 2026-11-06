@@ -99,6 +99,18 @@ export function SettingsSection() {
           off-line snapshot of the whole database. It reads the tables exactly as shown here (no filtering) and changes
           nothing; disabled while the tables are still loading or when the database is empty.
         </dd>
+        <dt>MLWH connection</dt>
+        <dd>
+          Checks that RunNx can reach the <b>Multi-LIMS Warehouse (MLWH)</b> — Sanger&apos;s central LIMS database.
+          Enter the host, port, user, database and password, then click <b>Test connection</b> (or press Enter). The
+          test runs from the RunNx server, not your computer, so it shows whether the <i>server</i> can get through.
+          It only reads, and changes nothing in either database. The status light shows the result: <b>grey</b>{" "}
+          before the first test (pulsing while checking), <b>green</b> when connected, <b>amber</b> when it connects
+          but the login can&apos;t see any tables (usually missing read access), and <b>red</b> when it can&apos;t
+          connect, with the database&apos;s own reason (for example a wrong password or an unreachable host). When
+          connected, every table the login can see is listed as proof, with approximate row counts. The host, port,
+          user and database are remembered in this browser after a successful test; the password is never saved.
+        </dd>
         <dt>Clear backlog</dt>
         <dd>
           Permanently deletes every sample currently in the backlog (and its barcodes) in one step. Scheduled,

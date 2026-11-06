@@ -1,4 +1,4 @@
-"""Dev-only raw database inspection/mutation tools.
+"""Dev-only raw database inspection/mutation tools, plus a read-only MLWH connection probe.
 
 Not gated by environment - remove or gate this router explicitly before a
 real production launch (see CLAUDE.md "Help Tab Maintenance" /
@@ -7,25 +7,30 @@ RunNx Admin notes).
 
 import json
 from datetime import date, datetime
+from time import perf_counter
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, HTTPException, Query, Response
 from fastapi.encoders import jsonable_encoder
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, SecretStr
 from sqlalchemy import (
     JSON,
+    URL,
     Column,
     String,
     Table,
     cast,
+    create_engine,
     delete,
     func,
     or_,
     select,
+    text,
     update,
 )
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.pool import NullPool
 
 from app import models  # noqa: F401  ensures every model is registered on Base.metadata
 from app.api.deps import SessionDep
@@ -138,6 +143,28 @@ class ClearResult(BaseModel):
 
 class ClearBacklogResult(BaseModel):
     deleted: int
+
+
+class MlwhProbeRequest(BaseModel):
+    host: str = Field(min_length=1)
+    port: int = Field(3306, ge=1, le=65535)
+    user: str = Field(min_length=1)
+    database: str = Field(min_length=1)
+    password: SecretStr = SecretStr("")  # SecretStr keeps it out of reprs/tracebacks
+
+
+class MlwhTable(BaseModel):
+    name: str
+    approx_rows: int | None  # InnoDB's cached estimate (NULL for views), not an exact COUNT(*)
+
+
+class MlwhProbeResult(BaseModel):
+    ok: bool
+    target: str  # user@host:port/database - never includes the password
+    elapsed_ms: int | None = None  # connect + both queries
+    server_version: str | None = None
+    tables: list[MlwhTable] = []
+    error: str | None = None
 
 
 def _get_table(table_name: str) -> Table:
@@ -386,3 +413,52 @@ def clear_table(table_name: str, db: SessionDep) -> ClearResult:
         db.rollback()
         raise HTTPException(409, f"Cannot clear table: {exc.orig}") from exc
     return ClearResult(table=table_name, deleted=result.rowcount)
+
+
+@router.post("/mlwh-probe")
+def probe_mlwh(payload: MlwhProbeRequest) -> MlwhProbeResult:
+    """Read-only connection check against Sanger's Multi-LIMS Warehouse (MySQL), using details
+    typed into the dev tools - nothing is configured or stored server-side, so it proves the
+    *server's* route to MLWH. Lists the tables the login can see as proof the connection works.
+    Always a 200: an unreachable MLWH is a result to show, not an API failure. A throwaway
+    NullPool engine with short timeouts, so a firewalled host fails in ~5s instead of hanging."""
+    password = payload.password.get_secret_value()
+    target = f"{payload.user}@{payload.host}:{payload.port}/{payload.database}"
+    url = URL.create(
+        "mysql+pymysql",
+        username=payload.user,
+        password=password,
+        host=payload.host,
+        port=payload.port,
+        database=payload.database,
+    )
+    engine = None
+    started = perf_counter()
+    try:
+        engine = create_engine(url, poolclass=NullPool, connect_args={"connect_timeout": 5, "read_timeout": 10})
+        with engine.connect() as conn:
+            server_version = conn.execute(text("SELECT VERSION()")).scalar_one()
+            # Positional unpacking: MySQL 8 returns these information_schema columns upper-cased.
+            rows = conn.execute(
+                text(
+                    "SELECT table_name, table_rows FROM information_schema.tables"
+                    " WHERE table_schema = DATABASE() ORDER BY table_name"
+                )
+            ).all()
+    except Exception as exc:  # noqa: BLE001 - any failure (DNS, auth, driver) is a result to show
+        # The driver's own message ("Access denied...", "Can't connect...") is already actionable;
+        # SQLAlchemy's wrapper only adds noise. Scrubbed in case anything ever echoes the password.
+        error = str(exc.orig if isinstance(exc, DBAPIError) else exc)
+        if password:
+            error = error.replace(password, "***")
+        return MlwhProbeResult(ok=False, target=target, error=error)
+    finally:
+        if engine is not None:
+            engine.dispose()
+    return MlwhProbeResult(
+        ok=True,
+        target=target,
+        elapsed_ms=round((perf_counter() - started) * 1000),
+        server_version=server_version,
+        tables=[MlwhTable(name=name, approx_rows=approx_rows) for name, approx_rows in rows],
+    )

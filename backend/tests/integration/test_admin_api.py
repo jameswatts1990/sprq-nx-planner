@@ -311,3 +311,24 @@ def test_deleting_a_sample_still_in_use_is_blocked_not_orphaned(client):
 
     resp = client.delete(f"/api/admin/tables/samples/rows/{sample_id}")
     assert resp.status_code == 409
+
+
+_MLWH_PROBE = {"host": "127.0.0.1", "port": 1, "user": "probe", "database": "mlwarehouse", "password": "s3cret"}
+
+
+def test_mlwh_probe_unreachable_is_a_result_and_never_echoes_the_password(client):
+    # Port 1 on loopback is closed, so this fails fast without any real MySQL - and the failure
+    # comes back as a 200 result to show, not an API error.
+    resp = client.post("/api/admin/mlwh-probe", json=_MLWH_PROBE)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["ok"] is False
+    assert body["error"]
+    assert body["target"] == "probe@127.0.0.1:1/mlwarehouse"
+    assert body["tables"] == []
+    assert "s3cret" not in resp.text
+
+
+def test_mlwh_probe_rejects_missing_or_invalid_details(client):
+    assert client.post("/api/admin/mlwh-probe", json={**_MLWH_PROBE, "host": ""}).status_code == 422
+    assert client.post("/api/admin/mlwh-probe", json={**_MLWH_PROBE, "port": 70000}).status_code == 422
