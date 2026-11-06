@@ -785,9 +785,10 @@ export function SchedulePage() {
                         >
                           Clear
                         </Button>
+                        {/* Danger-tonal, not primary: the Schedule's one primary is Autoschedule. */}
                         <Button
                           size="sm"
-                          variant="primary"
+                          variant="danger"
                           onClick={() => actions.removeSlots.mutate()}
                           disabled={actions.removeSlots.isPending}
                         >

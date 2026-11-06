@@ -12,11 +12,11 @@ import { Badge } from "@/components/ui/Badge";
 import type { CellType } from "@/types/common";
 import type { RunHistoryRowOut, RunHistoryWellOut } from "@/types/schedule";
 import { formatDateTime, formatDateUTC, parseDateOnly } from "@/utils/calendarDates";
-import { CYCLE_STATUS_TONE } from "@/utils/cycleStatus";
+import { CYCLE_STATUS_TONE, RUN_STATUS_LABEL } from "@/utils/cycleStatus";
 import type { SortDir } from "@/utils/listView";
 import { runLabel } from "@/utils/runLabel";
 import type { SampleDetailLocationState } from "@/utils/sampleBackNav";
-import { USE_STATUS_TONE } from "@/utils/useStatusTone";
+import { cellUseStatusLabel, USE_STATUS_TONE } from "@/utils/useStatusTone";
 
 import styles from "./RunHistoryTable.module.css";
 import { RunWellStrip } from "./RunWellStrip";
@@ -111,7 +111,7 @@ const RunRow = memo(function RunRow({ row, expanded, onToggle, highlightMatches,
         <td className={list.mono}>{row.instrument_serial}</td>
         <td>{row.cell_type === "sprq" ? <CellTypeBadge cellType="sprq" /> : "SPRQ-Nx"}</td>
         <td>
-          <Badge tone={CYCLE_STATUS_TONE[row.status]}>{row.status}</Badge>
+          <Badge tone={CYCLE_STATUS_TONE[row.status]}>{RUN_STATUS_LABEL[row.status]}</Badge>
         </td>
         <td>
           <RunWellStrip wells={row.wells} matchedIds={matched} linkState={linkState} />
@@ -198,7 +198,7 @@ function RunWells({
             </td>
             <td>{w.barcodes.length > 0 ? <BarcodeChips barcodes={w.barcodes} /> : "—"}</td>
             <td>
-              <Badge tone={USE_STATUS_TONE[w.status] ?? "default"}>{w.status}</Badge>
+              <Badge tone={USE_STATUS_TONE[w.status] ?? "default"}>{cellUseStatusLabel(w.status)}</Badge>
             </td>
             <td className={list.nowrap}>{w.started_at ? formatDateTime(w.started_at) : "—"}</td>
             <td className={list.nowrap}>{w.completed_at ? formatDateTime(w.completed_at) : "—"}</td>

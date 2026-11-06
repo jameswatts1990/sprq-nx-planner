@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { chipClass, chipStyles } from "@/components/shared/statusChip";
 import type { RunHistoryWellOut } from "@/types/schedule";
 import type { SampleDetailLocationState } from "@/utils/sampleBackNav";
-import { USE_STATUS_TONE } from "@/utils/useStatusTone";
+import { cellUseStatusLabel, USE_STATUS_TONE } from "@/utils/useStatusTone";
 
 import styles from "./RunWellStrip.module.css";
 
@@ -11,7 +11,7 @@ const WELL_LETTERS = ["A", "B", "C", "D"];
 
 /** A cancelled use is the "Blocked" marker a stopped cell leaves on its later wells. */
 function wellStatusText(status: string): string {
-  return status === "cancelled" ? "blocked (cancelled)" : status;
+  return cellUseStatusLabel(status).toLowerCase();
 }
 
 /** The full sentence a well chip's tooltip and screen-reader label carry. */

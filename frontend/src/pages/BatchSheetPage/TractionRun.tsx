@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from "react";
 
 import type { SampleDefaults } from "@/api/settings";
+import { ConfirmLoadedModal } from "@/components/scheduler/ConfirmLoadedModal";
 import { CellTypeBadge } from "@/components/cells/CellTypeBadge";
 import { MovieTimeFlag } from "@/components/shared/MovieTimeFlag";
 import { Badge } from "@/components/ui/Badge";
@@ -11,9 +12,9 @@ import { useMovieRules } from "@/hooks/useMovieRules";
 import type { BatchSheetPlateOut, BatchSheetRunOut, BatchSheetWellOut } from "@/types/batchSheet";
 import { tractionWellFromSlot } from "@/utils/plateWell";
 import { runLabel } from "@/utils/runLabel";
+import { runStatusLabel } from "@/utils/cycleStatus";
 
 import { DilutionVolumes } from "./DilutionVolumes";
-import { LoadRunModal } from "./LoadRunModal";
 import { formatFullDate, plateHeading } from "./PrintedRun";
 import { platePositions, runAdaptiveLoading, runReminders, wellSettingDiffs } from "./tractionEntry";
 import styles from "./TractionRun.module.css";
@@ -248,9 +249,9 @@ function RunControls({ run, nav, onLoad }: { run: BatchSheetRunOut; nav: RunNav;
         variant="primary"
         onClick={onLoad}
         disabled={!planned}
-        title={planned ? "Confirm this run has loaded and lock it" : `This run is ${run.status}`}
+        title={planned ? "Confirm this run has loaded and lock it" : `This run is ${runStatusLabel(run.status).toLowerCase()}`}
       >
-        {planned ? "Load" : run.status === "running" ? "✓ Loaded" : run.status}
+        {planned ? "Load" : run.status === "running" ? "✓ Loaded" : runStatusLabel(run.status)}
       </Button>
       <Button
         size="sm"
@@ -299,7 +300,7 @@ export function TractionRun({ run, defaults, nav }: { run: BatchSheetRunOut; def
           )}
           <span className={styles.muted}> · Run {runLabel(run)}</span> <CellTypeBadge cellType={run.cell_type} />
           <span className={styles.meta}>Load day: {formatFullDate(run.load_date)}</span>
-          <span className={styles.meta}>Status: {run.status}</span>
+          <span className={styles.meta}>Status: {runStatusLabel(run.status)}</span>
         </h2>
         <RunControls run={run} nav={nav} onLoad={() => setLoading(true)} />
       </div>
@@ -349,8 +350,12 @@ export function TractionRun({ run, defaults, nav }: { run: BatchSheetRunOut; def
         ))}
       </div>
       {loading && (
-        <LoadRunModal
-          run={run}
+        <ConfirmLoadedModal
+          runId={run.run_id}
+          loadDate={run.load_date}
+          // Same rule as the grid: the instrument's name, or "Revio <serial>" when it has none.
+          instrumentLabel={run.instrument_name !== run.instrument_serial ? run.instrument_name : `Revio ${run.instrument_serial}`}
+          runName={run.run_name}
           uncheckedPreflight={PREFLIGHT_CHECKS.filter((c) => !preflight.has(c))}
           onClose={() => setLoading(false)}
         />

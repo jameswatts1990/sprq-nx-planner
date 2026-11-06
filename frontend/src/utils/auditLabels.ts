@@ -1,6 +1,7 @@
 import type { AuditLogOut } from "@/types/audit";
 import { formatDateUTC, parseDateOnly } from "@/utils/calendarDates";
 import { SAMPLE_STATUS_LABEL } from "@/utils/sampleStatus";
+import { cellUseStatusLabel } from "@/utils/useStatusTone";
 
 /** Plain-language names for the audit trail (History → Activity): what each action is called,
  * the groups the Activity filter offers, and a one-line summary of what a row changed. The
@@ -242,7 +243,7 @@ export function describeAuditDetails(row: Pick<AuditLogOut, "action" | "details_
     case "update_cell_use_run_time":
       return [`Movie time: ${value("from")}h → ${value("to")}h`];
     case "update_cell_use_status":
-      return [`Status: ${value("status")}`, ...(d.notes ? [`Note: ${value("notes")}`] : [])];
+      return [`Status: ${cellUseStatusLabel(String(d.status))}`, ...(d.notes ? [`Note: ${value("notes")}`] : [])];
     case "reschedule_run":
       return [`New load date: ${value("new_load_date")}`];
     case "cancel_run":

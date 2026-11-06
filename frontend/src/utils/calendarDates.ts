@@ -100,7 +100,7 @@ export function formatDateRangeUTC(from: Date, to: Date): string {
 }
 
 /**
- * Formats an ISO datetime as "HH:MM, D Mon" in the viewer's LOCAL timezone - used for lock_until
+ * Formats an ISO datetime as "D Mon, HH:MM" in the viewer's LOCAL timezone - used for lock_until
  * and other turnaround displays. The lab works on the instrument's own (local) wall clock, and
  * the physical Revio's lock countdown is local, so a "locked until" time must read against that
  * clock, not UTC - otherwise, in British Summer Time, the grid reads an hour behind both the
@@ -113,7 +113,8 @@ export function formatShortDateTimeLocal(isoDateTime: string): string {
   const hh = String(d.getHours()).padStart(2, "0");
   const mm = String(d.getMinutes()).padStart(2, "0");
   const date = d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
-  return `${hh}:${mm}, ${date}`;
+  // Date first, like every other date-time in the app (formatDateTime).
+  return `${date}, ${hh}:${mm}`;
 }
 
 /** Formats an ISO datetime as "28 Oct 2026, 09:14" in the viewer's LOCAL timezone - the app's

@@ -15,7 +15,7 @@ import {
 
 const NOW = new Date("2026-11-10T09:00:00Z");
 const LOCK = "2026-11-10T14:00:00Z";
-const lockText = `${formatTimeLocal(LOCK)} ${new Date(LOCK).toLocaleDateString("en-GB", { weekday: "short" })}`;
+const lockText = `${new Date(LOCK).toLocaleDateString("en-GB", { weekday: "short" })} ${formatTimeLocal(LOCK)}`;
 
 function run(overrides: Partial<RunOut> = {}): RunOut {
   return { run_id: 12, run_name: null, load_date: "2026-11-09", status: "running", lock_until: LOCK, plates: [], ...overrides } as RunOut;

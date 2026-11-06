@@ -145,7 +145,7 @@ export const SchedulerGridRow = memo(function SchedulerGridRow({
           <SchedulerDayCell
             key={date}
             instrumentSerial={serial}
-            instrumentLabel={`Revio ${name || serial}`}
+            instrumentLabel={name || `Revio ${serial}`}
             downFrom={downFrom}
             downNote={downNote}
             loadDate={date}

@@ -5,7 +5,7 @@ import type { SampleCellUseOut } from "@/types/sample";
 import { formatDateUTC, parseDateOnly } from "@/utils/calendarDates";
 import { runLabel } from "@/utils/runLabel";
 import type { SampleDetailLocationState } from "@/utils/sampleBackNav";
-import { USE_STATUS_TONE } from "@/utils/useStatusTone";
+import { cellUseStatusLabel, USE_STATUS_TONE } from "@/utils/useStatusTone";
 
 import styles from "./SampleRunChips.module.css";
 
@@ -19,7 +19,7 @@ export function describeSampleUse(use: SampleCellUseOut): string {
     `Run ${run}${where ? ` ${where}` : ""}`,
     `${use.plate_number ? `Plate ${use.plate_number} ` : ""}well ${use.well}`,
     `cell ${use.cell_code}`,
-    use.status === "cancelled" ? "blocked (cancelled)" : use.status,
+    cellUseStatusLabel(use.status).toLowerCase(),
   ].join(" · ");
 }
 

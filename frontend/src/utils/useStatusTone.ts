@@ -18,3 +18,19 @@ export const USE_STATUS_TONE: Record<string, BadgeTone> = {
   aborted: "warning",
   cancelled: "danger",
 };
+
+/** How a cell use's status reads everywhere it's shown. A cancelled use is a later use lost when
+ * its cell was stopped or discarded - the grid and Help call that "Blocked". Keyed by string for
+ * the same reason as USE_STATUS_TONE; `cellUseStatusLabel` falls back to the raw value. */
+export const CELL_USE_STATUS_LABEL: Record<string, string> = {
+  planned: "Planned",
+  started: "Started",
+  completed: "Completed",
+  failed: "Failed",
+  aborted: "Aborted",
+  cancelled: "Blocked",
+};
+
+export function cellUseStatusLabel(status: string): string {
+  return CELL_USE_STATUS_LABEL[status] ?? status;
+}

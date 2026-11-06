@@ -21,7 +21,7 @@ import { resolveSampleBackNav } from "@/utils/sampleBackNav";
 import { runLabel } from "@/utils/runLabel";
 import { SAMPLE_STATUS_LABEL, SAMPLE_STATUS_TONE } from "@/utils/sampleStatus";
 import { tractionUrl } from "@/utils/traction";
-import { USE_STATUS_TONE } from "@/utils/useStatusTone";
+import { cellUseStatusLabel, USE_STATUS_TONE } from "@/utils/useStatusTone";
 
 import { SampleModal } from "./SampleModal";
 import styles from "./SampleDetailPage.module.css";
@@ -271,7 +271,7 @@ export function SampleDetailPage() {
                       </td>
                       <td className={styles.mono}>{plateWellFromPlate(u.plate_number, u.well, { qualified: true })}</td>
                       <td>
-                        <Badge tone={USE_STATUS_TONE[u.status] ?? "default"}>{u.status}</Badge>
+                        <Badge tone={USE_STATUS_TONE[u.status] ?? "default"}>{cellUseStatusLabel(u.status)}</Badge>
                       </td>
                       <td>{u.started_at ? formatDateTime(u.started_at) : "—"}</td>
                       <td>{u.completed_at ? formatDateTime(u.completed_at) : "—"}</td>

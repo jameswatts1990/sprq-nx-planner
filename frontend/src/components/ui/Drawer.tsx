@@ -1,6 +1,7 @@
 import { useRef } from "react";
 import type { ReactNode } from "react";
 
+import { Button } from "./Button";
 import styles from "./Drawer.module.css";
 import { useDialogA11y } from "./useDialogA11y";
 
@@ -43,9 +44,9 @@ export function Drawer({ onClose, title, subtitle, side = "left", width = 380, c
             </h2>
             {subtitle !== undefined && <div className={styles.subtitle}>{subtitle}</div>}
           </div>
-          <button type="button" className={`btn ghost icon ${styles.close}`} onClick={onClose} aria-label="Close">
+          <Button variant="ghost" icon className={styles.close} onClick={onClose} aria-label="Close">
             ✕
-          </button>
+          </Button>
         </div>
         <div className={styles.body}>{children}</div>
       </div>

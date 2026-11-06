@@ -20,7 +20,7 @@ import type { SortDir } from "@/utils/listView";
 import { formatHoursLeft, windowHoursRemaining } from "@/utils/openTrays";
 import { runLabel } from "@/utils/runLabel";
 import type { SampleDetailLocationState } from "@/utils/sampleBackNav";
-import { USE_STATUS_TONE } from "@/utils/useStatusTone";
+import { cellUseStatusLabel, USE_STATUS_TONE } from "@/utils/useStatusTone";
 import { EXPIRY_WARN_HOURS } from "@/utils/windowFade";
 
 import styles from "./TrayTable.module.css";
@@ -308,7 +308,7 @@ function TrayCells({
                   uses.map((use, i) => (
                     <div key={use.id} className={styles.useLine}>
                       <UseBox use={i + 1} cellType={cell.cell_type} />
-                      <Badge tone={USE_STATUS_TONE[use.status] ?? "default"}>{use.status}</Badge>
+                      <Badge tone={USE_STATUS_TONE[use.status] ?? "default"}>{cellUseStatusLabel(use.status)}</Badge>
                       {use.sample_id !== null && use.sample_pool_id !== null ? (
                         <Link to={`/samples/${use.sample_id}`} state={linkState} className="link">
                           {use.sample_pool_id}

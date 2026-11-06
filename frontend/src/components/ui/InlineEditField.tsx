@@ -103,9 +103,9 @@ export function InlineEditField({
       ) : (
         <>
           <span className={value ? styles.value : styles.empty}>{value || emptyText}</span>
-          <button type="button" className={styles.edit} onClick={start} aria-label={`Edit ${label.toLowerCase()}`}>
+          <Button variant="ghost" size="sm" icon className={styles.edit} onClick={start} aria-label={`Edit ${label.toLowerCase()}`}>
             ✎
-          </button>
+          </Button>
         </>
       )}
     </div>

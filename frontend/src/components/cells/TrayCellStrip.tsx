@@ -5,6 +5,7 @@ import type { CellOut } from "@/types/cell";
 import { CELL_STATUS_LABEL, CELL_STATUS_TONE, discardedWithUsesLeft } from "@/utils/cellStatus";
 import { formatHoursLeft, windowHoursRemaining } from "@/utils/openTrays";
 import type { SampleDetailLocationState } from "@/utils/sampleBackNav";
+import { cellUseStatusLabel } from "@/utils/useStatusTone";
 
 import styles from "./TrayCellStrip.module.css";
 
@@ -27,7 +28,7 @@ export function describeCell(cell: CellOut): string {
   ];
   if (cell.uses_scheduled_later > 0) parts.push(`${cell.uses_scheduled_later} more booked later`);
   const uses = cell.uses.filter((u) => u.status !== "cancelled");
-  if (uses.length > 0) parts.push(uses.map((u, i) => `use ${i + 1} ${u.status}`).join(", "));
+  if (uses.length > 0) parts.push(uses.map((u, i) => `use ${i + 1} ${cellUseStatusLabel(u.status).toLowerCase()}`).join(", "));
   const left = windowHoursRemaining(cell);
   if (left !== null) parts.push(`${formatHoursLeft(left)} on its 108-hour window`);
   if (discardedWithUsesLeft(cell)) parts.push("discarded");

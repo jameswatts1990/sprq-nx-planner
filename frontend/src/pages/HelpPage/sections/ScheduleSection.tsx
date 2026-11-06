@@ -1003,7 +1003,7 @@ export function ScheduleSection() {
           <i>backlog</i> sample there:
           <ul>
             <li>
-              a loaded run — <i>Revio 84047 is locked until 14:00 Tue (run loaded)</i>, or, once that lock has passed,
+              a loaded run — <i>Revio 84047 is locked until Tue 14:00 (run loaded)</i>, or, once that lock has passed,
               how to unload it;
             </li>
             <li>
@@ -1025,15 +1025,15 @@ export function ScheduleSection() {
           <b>Confirm loaded</b> appears once a run has at least one sample; press it when the cells are physically
           loaded on the instrument. There is <b>one Confirm loaded per run</b> — it locks the <i>whole</i> run,{" "}
           <b>both plates</b> at once (a reuse run&apos;s Plate 2 is loaded in the same session, so it locks with
-          Plate 1), marking it <b>RUNNING</b> so it can no longer be edited by accident. A small dialog lets you
-          give the run a name (e.g. your lab&apos;s own run id, such as Sanger&apos;s <b>TRACTION-RUN-1234</b>{" "}
-          format) — optional, and it overrides the plain run number everywhere this run is shown afterward (Run
-          detail, History, Cells use history). Leave it blank to keep the plain number. <b>Unloading</b> never clears a
-          name once it&apos;s set; re-confirming lets you change it. The same dialog also lets you <b>amend the load
-          time</b> — the <b>Revio Loaded at:</b> field prefills with the current time, since that&apos;s normally the
-          moment the cells go on the instrument and start prepping; if you&apos;re confirming after the fact and the
-          cells actually went on at a different time, type the real one as <b>hh:mm</b> and the run&apos;s schedule
-          (and any reuse plate chained off it) shifts to match.
+          Plate 1), marking it <b>RUNNING</b> so it can no longer be edited by accident. Its dialog — the same one
+          the Batch Sheet&apos;s <b>Load</b> opens — asks for <b>Your name</b> (filled in from the name in the top
+          bar, and recorded as who loaded it), an optional <b>Traction run name</b> (e.g. Sanger&apos;s{" "}
+          <b>TRACTION-RUN-1234</b> format), which then replaces the plain run number everywhere this run is shown (Run
+          detail, History, Cells use history) — leave it blank to keep the number; <b>Unloading</b> never clears a
+          name, and re-confirming lets you change it — and <b>Revio loaded at</b>, which starts at the current time,
+          since that&apos;s normally the moment the cells go on the instrument and start prepping. If you&apos;re
+          confirming after the fact, type the real time as <b>hh:mm</b> or click an hour on the dial, and the
+          run&apos;s schedule (and any reuse plate chained off it) shifts to match.
         </li>
         <li>
           A locked run carries its status tag — <b>RUNNING</b>, <b>COMPLETED</b> or <b>ABORTED</b>, in the same colours as on

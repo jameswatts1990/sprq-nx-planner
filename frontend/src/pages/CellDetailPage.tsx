@@ -22,7 +22,7 @@ import { cellFailureAt } from "@/utils/creditCase";
 import { plateWellFromPlate, plateWellFromWell } from "@/utils/plateWell";
 import { runLabel } from "@/utils/runLabel";
 import { resolveBackNav, useSampleBackNav } from "@/utils/sampleBackNav";
-import { USE_STATUS_TONE } from "@/utils/useStatusTone";
+import { cellUseStatusLabel, USE_STATUS_TONE } from "@/utils/useStatusTone";
 
 import styles from "./CellDetailPage.module.css";
 
@@ -214,7 +214,7 @@ export function CellDetailPage() {
                     <td className={styles.mono}>{plateWellFromPlate(u.plate_index, u.well, { qualified: true })}</td>
                     <td>
                       <div style={{ display: "flex", gap: 4, alignItems: "center", flexWrap: "wrap" }}>
-                        <Badge tone={USE_STATUS_TONE[u.status] ?? "default"}>{u.status}</Badge>
+                        <Badge tone={USE_STATUS_TONE[u.status] ?? "default"}>{cellUseStatusLabel(u.status)}</Badge>
                         {u.reassigned && <Badge tone="info">reassigned</Badge>}
                         {u.barcode_clash && <Badge tone="danger">clash</Badge>}
                       </div>

@@ -622,7 +622,6 @@ export function BacklogPage() {
                           <div className={styles.rowActions}>
                             <Button
                               size="sm"
-                              variant="primary"
                               onClick={() => setConfirmSent(t)}
                               disabled={resupplySentMutation.isPending}
                             >

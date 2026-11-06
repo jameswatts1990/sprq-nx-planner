@@ -251,27 +251,29 @@ function SlotDetailBody({
       title={
         nav.hasPrev || nav.hasNext ? (
           <span className={styles.titleNav}>
-            <button
-              type="button"
-              className={`btn icon sm ${styles.navBtn}`}
+            <Button
+              icon
+              size="sm"
+              className={styles.navBtn}
               onClick={nav.onPrev}
               disabled={!nav.hasPrev}
               aria-label="Previous cell in this run"
               title="Previous cell in this run"
             >
               <span aria-hidden="true">‹</span>
-            </button>
+            </Button>
             <span className={styles.titleId}>{stage.sample_pool_id ?? "Placement"}</span>
-            <button
-              type="button"
-              className={`btn icon sm ${styles.navBtn}`}
+            <Button
+              icon
+              size="sm"
+              className={styles.navBtn}
               onClick={nav.onNext}
               disabled={!nav.hasNext}
               aria-label="Next cell in this run"
               title="Next cell in this run"
             >
               <span aria-hidden="true">›</span>
-            </button>
+            </Button>
           </span>
         ) : (
           (stage.sample_pool_id ?? "Placement")
@@ -353,16 +355,17 @@ function SlotDetailBody({
               <b className={styles.value}>{stage.sample_pool_id ?? "—"}</b>
             )}
             {sampleEditable && (
-              <button
-                type="button"
-                className={`btn icon sm ${styles.sampleEditIconBtn}`}
+              <Button
+                icon
+                size="sm"
+                className={styles.sampleEditIconBtn}
                 onClick={() => setEditingSample(true)}
                 disabled={editingSample && sampleQuery.isLoading}
                 title="Edit this sample's loading parameters"
                 aria-label="Edit sample loading parameters"
               >
                 <span aria-hidden="true">✎</span>
-              </button>
+              </Button>
             )}
           </span>
         </div>

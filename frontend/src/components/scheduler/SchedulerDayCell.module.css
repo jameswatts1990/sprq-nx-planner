@@ -321,23 +321,13 @@
   color: var(--faint);
 }
 
-/* Fields inside the Confirm-Revio-loaded and Reschedule modals - run name, the amendable load
-   time, the new load day. Label/input look comes from the global fieldLabel + form-control base. */
+/* The Reschedule modal's new-load-day field. Label/input look comes from the global fieldLabel +
+   form-control base. */
 .loadModalField {
   margin-bottom: 14px;
 }
 .loadModalInput {
   width: 100%;
-}
-/* Two classes so the red stays over the form-control hover/focus border. */
-.loadModalInput.loadModalInputInvalid {
-  border-color: var(--red);
-}
-.loadModalHint {
-  display: block;
-  margin-top: 6px;
-  font-size: var(--fs-xs);
-  color: var(--red);
 }
 
 /* ── Compact density ─────────────────────────────────────────────────────────────

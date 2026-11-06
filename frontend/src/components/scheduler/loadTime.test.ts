@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { formatLoadTime, isValidLoadTime, parseLoadTime } from "./loadTime";
+import { formatLoadTime, parseLoadTime } from "./loadTime";
 
-describe("Confirm-Revio-loaded time field", () => {
+describe("Confirm loaded time field", () => {
   it("formats a run's planned start as hh:mm on the local (lab) wall clock", () => {
     // Derive the expectation from local getters so this holds regardless of the runner's TZ:
     // the field prefills with what the operator would read off the instrument's own clock.
@@ -19,13 +19,11 @@ describe("Confirm-Revio-loaded time field", () => {
     expect(parseLoadTime("23:59")).toEqual({ hour: 23, minute: 59 });
     expect(parseLoadTime("00:00")).toEqual({ hour: 0, minute: 0 });
     expect(parseLoadTime("  14:30  ")).toEqual({ hour: 14, minute: 30 });
-    expect(isValidLoadTime("14:30")).toBe(true);
   });
 
   it("rejects out-of-range or malformed times", () => {
     for (const bad of ["25:99", "24:00", "12:60", "9:5", "1200", "12:5", "", "ab:cd", "12:", ":30"]) {
       expect(parseLoadTime(bad)).toBeNull();
-      expect(isValidLoadTime(bad)).toBe(false);
     }
   });
 });

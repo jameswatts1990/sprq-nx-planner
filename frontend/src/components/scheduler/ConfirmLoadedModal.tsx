@@ -8,29 +8,39 @@ import { formatLoadTime, parseLoadTime } from "@/components/scheduler/loadTime";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { Note } from "@/components/ui/Note";
 import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
-import type { BatchSheetRunOut } from "@/types/batchSheet";
 import { localWallTimeToUtcParts } from "@/utils/calendarDates";
 import { getOperatorName, setOperatorName } from "@/utils/operatorName";
 
-import styles from "./LoadRunModal.module.css";
+import styles from "./ConfirmLoadedModal.module.css";
 
-/** The Batch Sheet's "Load" action: the same lock as the schedule grid's Confirm loaded
- * (status -> running, optional Traction run name, real load time), plus the loader's name,
- * sent as the audit-log actor and prefilled from the navbar's operator name. The time defaults to now; the dial sets a whole hour in one
- * click and the text field takes any hh:mm. An unfinished pre-flight checklist is flagged,
- * never blocking - the checklist is a memory aid, not a gate. */
-export function LoadRunModal({
-  run,
-  uncheckedPreflight,
-  onClose,
-}: {
-  run: BatchSheetRunOut;
-  uncheckedPreflight: string[];
+export interface ConfirmLoadedModalProps {
+  runId: number;
+  /** The run's load day (YYYY-MM-DD) - the typed time is on this day's local wall clock. */
+  loadDate: string;
+  /** "Revio <name or serial>", for the title. */
+  instrumentLabel: string;
+  /** The run's current Traction run name, to edit. */
+  runName: string | null;
+  /** Batch Sheet pre-flight items still unticked - listed as a reminder, never a block. */
+  uncheckedPreflight?: string[];
   onClose: () => void;
-}) {
+}
+
+/** The one "Confirm loaded" dialog, opened from the schedule grid and from the Batch Sheet: locks
+ * the whole run (status -> running) with who loaded it (prefilled from the navbar's operator name,
+ * sent as the audit actor), an optional Traction run name and the real load time. The time starts
+ * at now - pressing the button IS the load - and the dial sets a whole hour in one click. */
+export function ConfirmLoadedModal({
+  runId,
+  loadDate,
+  instrumentLabel,
+  runName: initialRunName,
+  uncheckedPreflight = [],
+  onClose,
+}: ConfirmLoadedModalProps) {
   const queryClient = useQueryClient();
   const [loadedBy, setLoadedBy] = useState(getOperatorName);
-  const [runName, setRunName] = useState(run.run_name ?? "");
+  const [runName, setRunName] = useState(initialRunName ?? "");
   const [loadTime, setLoadTime] = useState(() => formatLoadTime(new Date()));
   // The hour under the pointer while it's over the dial; otherwise the dial follows the field.
   const [hoverHour, setHoverHour] = useState<number | null>(null);
@@ -43,8 +53,8 @@ export function LoadRunModal({
     mutationFn: () => {
       if (!parsed) throw new Error("Enter a valid load time.");
       // Typed on the lab's local wall clock; the backend stores UTC (see localWallTimeToUtcParts).
-      const utc = localWallTimeToUtcParts(run.load_date, parsed.hour, parsed.minute);
-      return cyclesApi.updateStatus(run.run_id, {
+      const utc = localWallTimeToUtcParts(loadDate, parsed.hour, parsed.minute);
+      return cyclesApi.updateStatus(runId, {
         status: "running",
         actor: loadedBy.trim(),
         run_name: runName,
@@ -56,6 +66,7 @@ export function LoadRunModal({
       // A browser with no name yet adopts the loader's, so the navbar chip and every later change
       // are signed with it too. An existing name is left alone (a colleague loading at your desk).
       if (!getOperatorName()) setOperatorName(loadedBy);
+      // Loading anchors each cell's 108h clock, so the tray panel and cells change too.
       invalidateScheduleRelated(queryClient);
       void queryClient.invalidateQueries({ queryKey: ["batch-sheet"] });
       onClose();
@@ -64,7 +75,7 @@ export function LoadRunModal({
 
   return (
     <ConfirmModal
-      title={`Confirm ${run.instrument_name} loaded?`}
+      title={`Confirm ${instrumentLabel} loaded?`}
       confirmLabel="Confirm loaded"
       pendingLabel="Confirming…"
       pending={mutation.isPending}
@@ -74,7 +85,8 @@ export function LoadRunModal({
       onConfirm={() => mutation.mutate()}
     >
       <p className={styles.intro}>
-        This locks the whole run, both plates, exactly like <b>Confirm loaded</b> on the schedule.
+        This locks the whole run — both plates — so it can no longer be edited by accident, and starts its cells&apos;
+        108-hour clocks from the time below.
       </p>
       {uncheckedPreflight.length > 0 && (
         <Note tone="warn" icon="!">
@@ -82,11 +94,11 @@ export function LoadRunModal({
         </Note>
       )}
       <div className={styles.field}>
-        <label className="fieldLabel" htmlFor="load-run-by">
+        <label className="fieldLabel" htmlFor="confirm-loaded-by">
           Your name
         </label>
         <input
-          id="load-run-by"
+          id="confirm-loaded-by"
           type="text"
           className={styles.input}
           value={loadedBy}
@@ -96,11 +108,11 @@ export function LoadRunModal({
         />
       </div>
       <div className={styles.field}>
-        <label className="fieldLabel" htmlFor="load-run-name">
+        <label className="fieldLabel" htmlFor="confirm-run-name">
           Traction run name (optional)
         </label>
         <input
-          id="load-run-name"
+          id="confirm-run-name"
           type="text"
           className={styles.input}
           value={runName}
@@ -110,11 +122,11 @@ export function LoadRunModal({
         />
       </div>
       <div className={styles.field}>
-        <label className="fieldLabel" htmlFor="load-run-time">
+        <label className="fieldLabel" htmlFor="confirm-load-time">
           Revio loaded at
         </label>
         <input
-          id="load-run-time"
+          id="confirm-load-time"
           type="text"
           inputMode="numeric"
           className={`${styles.input} ${timeValid ? "" : styles.invalid}`}

@@ -20,11 +20,11 @@ import { CELL_QC_FLAG_LABEL, CELL_QC_FLAG_TONE } from "@/utils/cellQcFlag";
 import type { CellQcFlag } from "@/utils/cellQcFlag";
 import { CELL_STATUS_LABEL, CELL_STATUS_TONE } from "@/utils/cellStatus";
 import { CREDIT_OVERDUE_DAYS, NO_CELL_BADGE, OVERDUE_BADGE } from "@/utils/creditCase";
-import { CYCLE_STATUS_TONE } from "@/utils/cycleStatus";
+import { CYCLE_STATUS_TONE, RUN_STATUS_LABEL } from "@/utils/cycleStatus";
 import { priorityTone } from "@/utils/priority";
 import { COMPLEX_REPEAT_WINDOW_DAYS } from "@/utils/qcDisposition";
 import { SAMPLE_STATUS_LABEL, SAMPLE_STATUS_TONE } from "@/utils/sampleStatus";
-import { USE_STATUS_TONE } from "@/utils/useStatusTone";
+import { CELL_USE_STATUS_LABEL, USE_STATUS_TONE } from "@/utils/useStatusTone";
 
 import styles from "../HelpPage.module.css";
 import {
@@ -286,7 +286,7 @@ export function LegendSection() {
         {CYCLE_STATUSES.map((s) => (
           <div className={styles.legendRow} key={s}>
             <span className={styles.legendSwatchLabel}>
-              <Badge tone={CYCLE_STATUS_TONE[s]}>{s}</Badge>
+              <Badge tone={CYCLE_STATUS_TONE[s]}>{RUN_STATUS_LABEL[s]}</Badge>
             </span>
             <span>{CYCLE_STATUS_MEANING[s]}</span>
           </div>
@@ -298,7 +298,7 @@ export function LegendSection() {
         {CELL_USE_STATUSES.map((s) => (
           <div className={styles.legendRow} key={s}>
             <span className={styles.legendSwatchLabel}>
-              <Badge tone={USE_STATUS_TONE[s]}>{s}</Badge>
+              <Badge tone={USE_STATUS_TONE[s]}>{CELL_USE_STATUS_LABEL[s]}</Badge>
             </span>
             <span>{USE_STATUS_MEANING[s]}</span>
           </div>

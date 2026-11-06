@@ -3,6 +3,7 @@ import type { BatchSheetPlateOut, BatchSheetRunOut, BatchSheetWellOut } from "@/
 import { formatShortDateTimeLocal, formatShortDateUTC, parseDateOnly, shortWeekdayUTC } from "@/utils/calendarDates";
 import { plateWellFromSlot } from "@/utils/plateWell";
 import { runLabel } from "@/utils/runLabel";
+import { runStatusLabel } from "@/utils/cycleStatus";
 
 import styles from "./BatchSheetPage.module.css";
 
@@ -255,7 +256,7 @@ export function PrintedRun({ run, defaults }: { run: BatchSheetRunOut; defaults?
             <span>Plates: {run.plates.length}</span>
             <span>Cells: {run.cell_type === "sprq" ? "SPRQ (single use)" : "SPRQ-Nx"}</span>
             <span>Movie time (longest): {longestMovie}h</span>
-            <span>Status: {run.status}</span>
+            <span>Status: {runStatusLabel(run.status)}</span>
           </div>
         </div>
         {/* Sign-off box (top-right of each run's page) for the tech to date and initial. */}

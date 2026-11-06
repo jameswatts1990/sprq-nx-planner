@@ -1,6 +1,7 @@
 import type { RunOut } from "@/types/schedule";
 import { formatShortDateUTC, formatTimeLocal, parseDateOnly, shortWeekdayUTC } from "@/utils/calendarDates";
 import { runLabel } from "@/utils/runLabel";
+import { RUN_STATUS_LABEL } from "@/utils/cycleStatus";
 
 import type { Continuation } from "./groupCyclesByInstrumentAndDay";
 
@@ -24,9 +25,9 @@ export function blockAttrs(marker: BlockMarker | null): Record<string, string> {
   return marker ? { [BLOCK_REASON_ATTR]: marker.reason, [BLOCK_DETAIL_ATTR]: marker.detail } : {};
 }
 
-/** "14:00 Tue" on the lab's (local) clock - when a lock releases. */
-function timeAndWeekdayLocal(iso: string): string {
-  return `${formatTimeLocal(iso)} ${new Date(iso).toLocaleDateString("en-GB", { weekday: "short" })}`;
+/** "Tue 14:00" on the lab's (local) clock - when a lock releases. Day first, like every date-time. */
+function weekdayAndTimeLocal(iso: string): string {
+  return `${new Date(iso).toLocaleDateString("en-GB", { weekday: "short" })} ${formatTimeLocal(iso)}`;
 }
 
 function longWeekday(isoDate: string): string {
@@ -46,13 +47,13 @@ export function downBlock(instrumentLabel: string, downFrom: string, note: strin
 /** A day whose own run is no longer planned (loaded, or finished). */
 export function lockedRunBlock(instrumentLabel: string, run: RunOut, now: Date = new Date()): BlockMarker {
   if (run.status !== "running") {
-    return { reason: "locked", detail: `Run ${runLabel(run)} has finished (${run.status}) — it can't take samples.` };
+    return { reason: "locked", detail: `Run ${runLabel(run)} has finished (${RUN_STATUS_LABEL[run.status].toLowerCase()}) — it can't take samples.` };
   }
   return {
     reason: "locked",
     detail:
       new Date(run.lock_until) > now
-        ? `${instrumentLabel} is locked until ${timeAndWeekdayLocal(run.lock_until)} (run loaded).`
+        ? `${instrumentLabel} is locked until ${weekdayAndTimeLocal(run.lock_until)} (run loaded).`
         : `Run ${runLabel(run)} is loaded — unload it (its RUNNING tag) to change it.`,
   };
 }
@@ -64,7 +65,7 @@ export function continuationBlock(instrumentLabel: string, loadDate: string, con
     reason: "continuation",
     detail: continuation.acquiresToday
       ? `${shortWeekdayUTC(parseDateOnly(loadDate))} is taken by ${owner} (Plate 2 acquiring).`
-      : `${instrumentLabel} is locked until ${timeAndWeekdayLocal(continuation.run.lock_until)} (${owner} loading).`,
+      : `${instrumentLabel} is locked until ${weekdayAndTimeLocal(continuation.run.lock_until)} (${owner} loading).`,
   };
 }
 

@@ -13,7 +13,7 @@ import type { SortDir } from "@/utils/listView";
 import { runLabel } from "@/utils/runLabel";
 import type { SampleDetailLocationState } from "@/utils/sampleBackNav";
 import { SAMPLE_STATUS_LABEL, SAMPLE_STATUS_TONE } from "@/utils/sampleStatus";
-import { USE_STATUS_TONE } from "@/utils/useStatusTone";
+import { cellUseStatusLabel, USE_STATUS_TONE } from "@/utils/useStatusTone";
 
 import type { SampleListSortKey } from "./samplesView";
 import { SampleRunChips } from "./SampleRunChips";
@@ -166,7 +166,7 @@ function SampleUses({ uses, linkState }: { uses: SampleCellUseOut[]; linkState: 
             </td>
             <td className={list.mono}>{u.well}</td>
             <td>
-              <Badge tone={USE_STATUS_TONE[u.status] ?? "default"}>{u.status}</Badge>
+              <Badge tone={USE_STATUS_TONE[u.status] ?? "default"}>{cellUseStatusLabel(u.status)}</Badge>
             </td>
             <td className={list.nowrap}>{u.started_at ? formatDateTime(u.started_at) : "—"}</td>
             <td className={list.nowrap}>{u.completed_at ? formatDateTime(u.completed_at) : "—"}</td>

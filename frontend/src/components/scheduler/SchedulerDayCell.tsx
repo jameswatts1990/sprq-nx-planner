@@ -10,18 +10,18 @@ import { CellTypeBadge } from "@/components/cells/CellTypeBadge";
 import { TraySiblingList } from "@/components/cells/TraySiblingList";
 import { LockChip } from "@/components/shared/LockChip";
 import { RescheduleIcon } from "@/components/shared/RescheduleIcon";
-import { formatLoadTime, isValidLoadTime, parseLoadTime } from "@/components/scheduler/loadTime";
 import { Button } from "@/components/ui/Button";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { Note } from "@/components/ui/Note";
 import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
 import type { RunOut, StageOut } from "@/types/schedule";
 import type { ScheduleNoteOut } from "@/types/scheduleNote";
-import { formatShortDateTimeLocal, formatShortDateUTC, formatTimeLocal, localWallTimeToUtcParts, parseDateOnly, shortWeekdayUTC } from "@/utils/calendarDates";
-import { CYCLE_STATUS_TONE } from "@/utils/cycleStatus";
+import { formatShortDateTimeLocal, formatShortDateUTC, formatTimeLocal, parseDateOnly, shortWeekdayUTC } from "@/utils/calendarDates";
+import { CYCLE_STATUS_TONE, RUN_STATUS_LABEL } from "@/utils/cycleStatus";
 import { runLabel } from "@/utils/runLabel";
 
 import { blockAttrs, continuationBlock, downBlock, lockedRunBlock, WEEKEND_BLOCK } from "./blockedDrop";
+import { ConfirmLoadedModal } from "./ConfirmLoadedModal";
 import { noteCellDropId, noteDragId, PLATE_INDICES, slotKey } from "./gridKeys";
 import { allStages, padStages, type Continuation } from "./groupCyclesByInstrumentAndDay";
 import { SchedulerSlot } from "./SchedulerSlot";
@@ -31,7 +31,7 @@ import type { SlotSelection } from "./useSlotSelection";
 
 export interface SchedulerDayCellProps {
   instrumentSerial: string;
-  /** "Revio <name or serial>" - names the instrument when a drop here is refused. */
+  /** The instrument's name, or "Revio <serial>" - in a refused-drop message and the Confirm loaded title. */
   instrumentLabel: string;
   /** The instrument's maintenance-down date and note, quoted when a drop on a `down` day is refused. */
   downFrom?: string | null;
@@ -184,18 +184,15 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
   const queryClient = useQueryClient();
 
   const statusMutation = useMutation({
-    mutationFn: (req: { status: "running" | "planned"; run_name?: string; start_hour?: number; start_minute?: number }) => {
+    mutationFn: (req: { status: "planned" }) => {
       if (!run) throw new Error("No run to update.");
       return cyclesApi.updateStatus(run.run_id, req);
     },
     onSuccess: () => {
-      // Confirming a run "running" anchors each cell's 108h clock (first_use_started_at),
-      // and Unlock recomputes it - both change the ["cells"]-fed tray panel (deadline dates,
-      // tray founding, window shading), not just the run itself.
-      // So invalidate the whole schedule-related set, not only ["cycles"], the same way the
-      // rotate mutation below does.
+      // Unlock recomputes each cell's 108h clock (first_use_started_at), which changes the
+      // ["cells"]-fed tray panel (deadline dates, tray founding, window shading), not just the run
+      // itself - so invalidate the whole schedule-related set, as the rotate mutation below does.
       invalidateScheduleRelated(queryClient);
-      setConfirmingLoad(false);
       setConfirmingUnload(false);
     },
   });
@@ -206,12 +203,6 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
 
   const [confirmingLoad, setConfirmingLoad] = useState(false);
   const [confirmingUnload, setConfirmingUnload] = useState(false);
-  const [runName, setRunName] = useState("");
-  // The load time amended in the Confirm-Revio-loaded modal, as a free-text hh:mm string
-  // (prefilled from Plate 1's current planned start when the modal opens). Sent with the lock
-  // so the operator can correct the real load time as they confirm - see cyclesApi.updateStatus
-  // / update_run_load_time.
-  const [loadTime, setLoadTime] = useState("12:00");
 
   // The plate the "Clear plate" (✕) button is confirming - its plate index (1 or 2, for the
   // modal wording) and the planned placements to return to the backlog. Null when no confirm
@@ -410,7 +401,7 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
                     data-tone={CYCLE_STATUS_TONE[run.status]}
                     title={run.run_name ? `Run name: ${run.run_name}` : undefined}
                   >
-                    {run.status.toUpperCase()}
+                    {RUN_STATUS_LABEL[run.status].toUpperCase()}
                   </span>
                 )}
                 <LockChip title={lockedUntil(run.lock_until)} />
@@ -422,19 +413,9 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
                     size="sm"
                     className={styles.confirmBtn}
                     disabled={statusMutation.isPending}
-                    onClick={() => {
-                      setRunName(run.run_name ?? "");
-                      // Default to right now, not the plan: pressing this button IS the physical
-                      // load event, and the cells start prepping immediately (see
-                      // cell_timing.run_is_acquiring) - defaulting to the earlier planned time let
-                      // an on-time-or-early load silently record a future load time, so the
-                      // Instruments page kept reading idle until that planned hour arrived. Still
-                      // freely editable for a genuine backdate (confirming after the fact).
-                      setLoadTime(formatLoadTime(new Date()));
-                      setConfirmingLoad(true);
-                    }}
+                    onClick={() => setConfirmingLoad(true)}
                   >
-                    {statusMutation.isPending ? "Confirming…" : "Confirm loaded"}
+                    Confirm loaded
                   </Button>
                   <button
                     type="button"
@@ -569,66 +550,16 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
         })}
       </div>
 
-      {confirmingLoad && (
-        <ConfirmModal
-          title="Confirm Revio Loaded?"
-          confirmLabel="Confirm loaded"
-          pendingLabel="Confirming…"
-          pending={statusMutation.isPending}
-          confirmDisabled={!isValidLoadTime(loadTime)}
-          error={statusMutation.isError ? errorMessage(statusMutation.error, "Couldn't mark the run as loaded.") : null}
-          onCancel={() => setConfirmingLoad(false)}
-          onConfirm={() => {
-            const parsed = parseLoadTime(loadTime);
-            if (!parsed) return;
-            // The operator types the load time on the lab's local wall clock; convert to the UTC
-            // hour/minute the backend stores (see localWallTimeToUtcParts).
-            const utc = localWallTimeToUtcParts(loadDate, parsed.hour, parsed.minute);
-            statusMutation.mutate({
-              status: "running",
-              run_name: runName,
-              start_hour: utc.hour,
-              start_minute: utc.minute,
-            });
-          }}
-        >
-          <p>
-            This locks the whole run — both plates — so it can no longer be edited by accident. Give it a name (e.g.
-            your lab&apos;s TRACTION run id) if you&apos;d like it shown instead of the run number everywhere this run
-            appears.
-          </p>
-          <div className={styles.loadModalField}>
-            <label className="fieldLabel" htmlFor="confirm-run-name">
-              Run name (optional)
-            </label>
-            <input
-              id="confirm-run-name"
-              type="text"
-              className={styles.loadModalInput}
-              value={runName}
-              onChange={(e) => setRunName(e.target.value)}
-              placeholder="e.g. TRACTION-RUN-1234"
-            />
-          </div>
-          <div className={styles.loadModalField}>
-            <label className="fieldLabel" htmlFor="confirm-load-time">
-              Revio Loaded at:
-            </label>
-            <input
-              id="confirm-load-time"
-              type="text"
-              inputMode="numeric"
-              className={`${styles.loadModalInput} ${isValidLoadTime(loadTime) ? "" : styles.loadModalInputInvalid}`}
-              value={loadTime}
-              onChange={(e) => setLoadTime(e.target.value)}
-              placeholder="hh:mm"
-              aria-invalid={!isValidLoadTime(loadTime)}
-            />
-            {!isValidLoadTime(loadTime) && (
-              <span className={styles.loadModalHint}>Enter a 24-hour time as hh:mm (e.g. 14:30).</span>
-            )}
-          </div>
-        </ConfirmModal>
+      {confirmingLoad && run && (
+        // Defaults its time to right now, not the plan: pressing Confirm loaded IS the physical
+        // load, and the cells start prepping immediately (see cell_timing.run_is_acquiring).
+        <ConfirmLoadedModal
+          runId={run.run_id}
+          loadDate={loadDate}
+          instrumentLabel={instrumentLabel}
+          runName={run.run_name}
+          onClose={() => setConfirmingLoad(false)}
+        />
       )}
 
       {confirmingUnload && run && (

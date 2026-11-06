@@ -587,16 +587,16 @@ export function ImportPage() {
                   Upload CSV
                   <input ref={fileInputRef} type="file" accept=".csv,.tsv,.txt" hidden onChange={handleFileChange} />
                 </label>
-                <button
-                  type="button"
-                  className={`btn sm ${styles.splitCaret}`}
+                <Button
+                  size="sm"
+                  className={styles.splitCaret}
                   aria-haspopup="menu"
                   aria-expanded={uploadMenuOpen}
                   aria-label="More upload options"
                   onClick={() => setUploadMenuOpen((open) => !open)}
                 >
                   <span aria-hidden>▾</span>
-                </button>
+                </Button>
                 {uploadMenuOpen && (
                   <div className={styles.uploadMenu} role="menu">
                     <button

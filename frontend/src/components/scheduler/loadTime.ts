@@ -1,5 +1,5 @@
-/** Helpers for the free-text "Revio Loaded at:" time field in the Confirm-Revio-loaded
- * modal. The operator types the real load time as hh:mm (24-hour) on the lab's own (local) wall
+/** Helpers for the free-text "Revio loaded at" time field in the Confirm loaded dialog
+ * (ConfirmLoadedModal). The operator types the real load time as hh:mm (24-hour) on the lab's own (local) wall
  * clock; we validate it before letting the run lock, and parse it into the hour/minute the
  * caller converts to UTC (localWallTimeToUtcParts) before sending - the backend clock is UTC,
  * the lab clock is local. */
@@ -14,10 +14,6 @@ export function formatLoadTime(date: Date): string {
   const hh = String(date.getHours()).padStart(2, "0");
   const mm = String(date.getMinutes()).padStart(2, "0");
   return `${hh}:${mm}`;
-}
-
-export function isValidLoadTime(value: string): boolean {
-  return parseLoadTime(value) !== null;
 }
 
 /** Parse an hh:mm string into { hour, minute }, or null if it isn't a valid 24-hour time. */

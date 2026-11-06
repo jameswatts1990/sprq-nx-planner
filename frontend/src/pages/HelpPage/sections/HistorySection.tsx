@@ -2,7 +2,7 @@ import { SchedulerSlotView } from "@/components/scheduler/SchedulerSlotView";
 import { Badge } from "@/components/ui/Badge";
 import { RunWellStrip } from "@/pages/HistoryRunsPage/RunWellStrip";
 import { SampleRunChips } from "@/pages/HistorySamplesPage/SampleRunChips";
-import { CYCLE_STATUS_TONE } from "@/utils/cycleStatus";
+import { CYCLE_STATUS_TONE, RUN_STATUS_LABEL } from "@/utils/cycleStatus";
 
 import styles from "../HelpPage.module.css";
 import { EXAMPLE_RUN_WELLS, EXAMPLE_SAMPLE_USES, STAGE_EXAMPLE_SOURCE } from "./helpFixtures";
@@ -59,25 +59,25 @@ export function HistorySection() {
       <div className={styles.legendGrid}>
         <div className={styles.legendRow}>
           <span className={styles.legendSwatchLabel}>
-            <Badge tone={CYCLE_STATUS_TONE.planned}>planned</Badge>
+            <Badge tone={CYCLE_STATUS_TONE.planned}>{RUN_STATUS_LABEL.planned}</Badge>
           </span>
           <span>Scheduled but not yet loaded.</span>
         </div>
         <div className={styles.legendRow}>
           <span className={styles.legendSwatchLabel}>
-            <Badge tone={CYCLE_STATUS_TONE.running}>running</Badge>
+            <Badge tone={CYCLE_STATUS_TONE.running}>{RUN_STATUS_LABEL.running}</Badge>
           </span>
           <span>Confirmed loaded / currently sequencing.</span>
         </div>
         <div className={styles.legendRow}>
           <span className={styles.legendSwatchLabel}>
-            <Badge tone={CYCLE_STATUS_TONE.completed}>completed</Badge>
+            <Badge tone={CYCLE_STATUS_TONE.completed}>{RUN_STATUS_LABEL.completed}</Badge>
           </span>
           <span>The run has finished — every cell is through sequencing and analysis. A loaded run turns completed automatically once its scheduled time is up.</span>
         </div>
         <div className={styles.legendRow}>
           <span className={styles.legendSwatchLabel}>
-            <Badge tone={CYCLE_STATUS_TONE.aborted}>aborted</Badge>
+            <Badge tone={CYCLE_STATUS_TONE.aborted}>{RUN_STATUS_LABEL.aborted}</Badge>
           </span>
           <span>The run was stopped or cancelled.</span>
         </div>

@@ -9,6 +9,7 @@ import { sampleDragId } from "@/components/scheduler/gridKeys";
 import type { SampleDragData } from "@/components/scheduler/useSchedulerDnd";
 import { Badge } from "@/components/ui/Badge";
 import type { BadgeTone } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
 import { useMovieRules } from "@/hooks/useMovieRules";
 import type { SampleOut } from "@/types/sample";
 import { priorityLabel, priorityShortLabel, priorityTone } from "@/utils/priority";
@@ -94,9 +95,10 @@ export function DraggableSampleCard({
       {...listeners}
       {...attributes}
     >
-      <button
-        type="button"
-        className={`btn icon sm ${styles.editBtn}`}
+      <Button
+        icon
+        size="sm"
+        className={styles.editBtn}
         aria-label={`Edit sample ${sample.pool_id}`}
         title={`Edit ${sample.pool_id}`}
         onPointerDown={(e) => e.stopPropagation()}
@@ -106,7 +108,7 @@ export function DraggableSampleCard({
         }}
       >
         <span aria-hidden="true">✎</span>
-      </button>
+      </Button>
       {/* Fixed rows (user-specified): 1 = the full Pool ID (never truncated - schedulers read
           the whole TRAC id), duplicate badge, movie time; 2 = priority | fragment size, nothing
           else (no Plate ID); 3 = the barcodes on one line ending in "…", only while the View

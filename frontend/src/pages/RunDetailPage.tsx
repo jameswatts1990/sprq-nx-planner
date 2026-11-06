@@ -26,7 +26,7 @@ import {
   parseDateOnly,
   shortWeekdayUTC,
 } from "@/utils/calendarDates";
-import { CYCLE_STATUS_TONE } from "@/utils/cycleStatus";
+import { CYCLE_STATUS_TONE, RUN_STATUS_LABEL } from "@/utils/cycleStatus";
 import { runLabel } from "@/utils/runLabel";
 import { resolveBackNav } from "@/utils/sampleBackNav";
 
@@ -155,7 +155,7 @@ export function RunDetailPage() {
           Cells <b>{run.cell_type === "sprq" ? "SPRQ (single use)" : "SPRQ-Nx"}</b>
         </span>
         <span>
-          Status <Badge tone={CYCLE_STATUS_TONE[run.status]}>{run.status}</Badge>
+          Status <Badge tone={CYCLE_STATUS_TONE[run.status]}>{RUN_STATUS_LABEL[run.status]}</Badge>
         </span>
         <span>
           Active now <b>{run.is_locked ? "Yes" : "No"}</b>

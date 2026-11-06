@@ -11,3 +11,16 @@ export const CYCLE_STATUS_TONE: Record<CycleStatus, BadgeTone> = {
   // use aborted (useStatusTone.ts's severity scale), not red.
   aborted: "warning",
 };
+
+/** How a run's status reads everywhere it's shown (badges, the grid's lock tag, the Batch Sheet). */
+export const RUN_STATUS_LABEL: Record<CycleStatus, string> = {
+  planned: "Planned",
+  running: "Running",
+  completed: "Completed",
+  aborted: "Aborted",
+};
+
+/** RUN_STATUS_LABEL for a status that arrives as a plain string (the Batch Sheet's runs). */
+export function runStatusLabel(status: string): string {
+  return RUN_STATUS_LABEL[status as CycleStatus] ?? status;
+}

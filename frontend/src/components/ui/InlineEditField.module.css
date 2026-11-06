@@ -16,21 +16,13 @@
   font-size: var(--fs-base);
   color: var(--faint);
 }
+/* Structure, hover and focus come from Button (ghost icon sm); only the understated colour is ours. */
 .edit {
-  appearance: none;
-  border: none;
-  background: none;
-  padding: 2px 4px;
-  cursor: pointer;
   color: var(--grey);
-  font-size: var(--fs-base);
-  line-height: 1;
-  border-radius: var(--r-sm);
+  border-color: transparent;
 }
-.edit:hover,
-.edit:focus-visible {
+.edit:hover {
   color: var(--ink);
-  background: var(--bg);
 }
 .input {
   width: 160px;
