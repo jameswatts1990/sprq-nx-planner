@@ -10,7 +10,12 @@ cell_service (derive_cell_state / current_location / the QC-credit predicates) r
 than re-derived here.
 
 Scoping rules (mirrored in the Help copy):
-- Time-series + throughput respect date_from/date_to (by run_date) and instrument_serial.
+- Throughput, plate fill, failures and the movie mix count *runs* (RunBatch) by their load date
+  within date_from/date_to and instrument_serial, using the derived run status
+  (run_serializer.run_status): nothing in the lab workflow marks a run completed, so a running run
+  whose last cell is through analysis reads completed. Planned runs are only counted (planned_runs);
+  every other figure is over runs that were loaded. A two-plate run is one run; a reuse Plate 2
+  acquiring days later stays in its run's load period.
 - Reuse depth / window waste count cells that *finished* (terminal, won't gain more uses)
   with their last use inside the range - "of the cells we got through this period, how
   deep did reuse go".
@@ -19,6 +24,7 @@ Scoping rules (mirrored in the Help copy):
   predates the window.
 - The credit funnel counts every PacBio credit case: cells' own cases plus cases logged
   without a cell (PacbioCase), the latter scoped to an instrument by the one entered on it.
+- Every series is bucketed by week (Monday), month or quarter (first day) - see _bucket.
 """
 from __future__ import annotations
 
@@ -41,18 +47,19 @@ from app.schemas.stats import (
     DepthSlice,
     FailureRatePoint,
     FailureStats,
+    GroupBy,
     HeadlineStats,
     ImportVolumePoint,
     InstrumentThroughput,
     InventoryStats,
     MovieHoursSlice,
     OutcomeSlice,
+    PeriodPoint,
+    PlateFillPoint,
     ReuseStats,
     StatsResponse,
     StatusSlice,
     ThroughputStats,
-    WeekPoint,
-    WellFillPoint,
     WindowWaste,
 )
 from app.services.cell_service import (
@@ -64,22 +71,21 @@ from app.services.cell_service import (
     needs_qc_report,
 )
 from app.services import credit_service
-from app.timeutil import ensure_aware
+from app.services.run_history_rows import STATUS_OPTIONS, live_plates
+from app.services.run_serializer import run_status
+from app.timeutil import ensure_aware, utcnow
 
-WELLS_PER_PLATE = CELLS_PER_TRAY  # well capacity per plate (a cycle is one plate / one tray now)
-# CellUse statuses that represent a run that actually happened and got a verdict.
-VERDICT_STATUSES = ("completed", "failed", "aborted")
-# CellUse statuses that represent a sample that has actually gone on the instrument -
-# the failure-rate denominator. Includes in-progress ("started") runs, so a failure isn't
-# counted against a shrunken pool while its sibling successes are still mid-run (a completed
-# verdict only lands when the whole run is marked complete). Excludes still-"planned" (not yet
-# loaded) and "cancelled" (a Stop-cell marker, never a real sequencing event).
-SEQUENCED_STATUSES = ("started", "completed", "failed", "aborted")
+WELLS_PER_PLATE = CELLS_PER_TRAY  # a plate (Cycle) is one tray: 4 wells
+WELL_OUTCOMES = ("completed", "failed", "aborted")
 TERMINAL_CELL_STATUSES = ("exhausted", "window_expired", "retired", "stopped")
 
 
-def _monday(d: date) -> date:
-    """The Monday of d's week - the bucket key for every weekly series."""
+def _bucket(d: date, group_by: GroupBy) -> date:
+    """The first day of d's week (Monday), month or quarter - the key every series groups by."""
+    if group_by == "month":
+        return d.replace(day=1)
+    if group_by == "quarter":
+        return date(d.year, 3 * ((d.month - 1) // 3) + 1, 1)
     return d - timedelta(days=d.weekday())
 
 
@@ -97,37 +103,42 @@ def _pct(part: int, whole: int) -> float:
     return round(100 * part / whole, 1) if whole else 0.0
 
 
+def _well_outcome(cell_use: CellUse, status: str) -> str | None:
+    """A loaded well's outcome: its own failed / aborted verdict, else completed once its run reads
+    completed (wells are never marked completed in the lab workflow either), else none yet."""
+    if cell_use.status in ("failed", "aborted"):
+        return cell_use.status
+    return "completed" if status == "completed" else None
+
+
 def compute_stats(
     db: Session,
     date_from: date | None = None,
     date_to: date | None = None,
     instrument_serial: str | None = None,
+    group_by: GroupBy = "week",
 ) -> StatsResponse:
     instruments = list(db.scalars(select(Instrument).order_by(Instrument.serial_number)).all())
 
-    throughput, runs_completed, samples_completed, headline_bits = _throughput_and_failures(
-        db, date_from, date_to, instrument_serial, instruments
+    throughput, failures, run_headline, plate_fill = _run_figures(
+        db, date_from, date_to, instrument_serial, instruments, group_by
     )
-    failures = headline_bits["failures"]
-
-    reuse, reuse_headline = _reuse_and_inventory_cells(db, date_from, date_to, instrument_serial)
-    reuse.well_fill = headline_bits["well_fill"]
-    inventory = _inventory(db, reuse_headline["cell_status"])
+    reuse, reuse_headline = _reuse_and_inventory_cells(db, date_from, date_to, instrument_serial, group_by)
+    reuse.plate_fill = plate_fill
+    inventory = _inventory(db, reuse_headline["cell_status"], group_by)
     credit = _credit_funnel(db, instrument_serial)
     failures.credit_funnel = credit
 
     headline = HeadlineStats(
-        runs_completed=runs_completed,
-        samples_completed=samples_completed,
+        **run_headline,
         avg_uses_per_cell=reuse_headline["avg_uses"],
         pct_reaching_use3=reuse_headline["pct_use3"],
-        failure_rate=headline_bits["failure_rate"],
-        well_fill_pct=headline_bits["well_fill_pct"],
         cells_awaiting_credit=credit.awaiting,
         credits_received=credit.received,
     )
 
     return StatsResponse(
+        group_by=group_by,
         headline=headline,
         throughput=throughput,
         reuse=reuse,
@@ -136,103 +147,103 @@ def compute_stats(
     )
 
 
-def _throughput_and_failures(db, date_from, date_to, instrument_serial, instruments):
-    cyc_stmt = (
-        select(Cycle)
-        .join(Cycle.run_batch)
-        .options(
-            selectinload(Cycle.run_batch).selectinload(RunBatch.instrument),
-            selectinload(Cycle.cell_uses),
-        )
-    )
+def _run_figures(db, date_from, date_to, instrument_serial, instruments, group_by):
+    """Throughput, plate fill, failures and the movie mix, from the runs loading in range."""
+    stmt = select(RunBatch).options(*STATUS_OPTIONS, selectinload(RunBatch.instrument))
     if date_from:
-        cyc_stmt = cyc_stmt.where(Cycle.acquire_date >= date_from)
+        stmt = stmt.where(RunBatch.load_date >= date_from)
     if date_to:
-        cyc_stmt = cyc_stmt.where(Cycle.acquire_date <= date_to)
+        stmt = stmt.where(RunBatch.load_date <= date_to)
     if instrument_serial:
-        cyc_stmt = cyc_stmt.join(RunBatch.instrument).where(Instrument.serial_number == instrument_serial)
-    cycles = list(db.scalars(cyc_stmt).unique().all())
+        stmt = stmt.join(RunBatch.instrument).where(Instrument.serial_number == instrument_serial)
+    runs = list(db.scalars(stmt).unique().all())
 
-    weekly_runs: dict[date, int] = defaultdict(int)
-    weekly_samples: dict[date, int] = defaultdict(int)
-    weekly_fill: dict[date, list[int]] = defaultdict(lambda: [0, 0])  # [filled, capacity]
-    weekly_failed: dict[date, int] = defaultdict(int)
-    weekly_sequenced: dict[date, int] = defaultdict(int)
+    completed: dict[date, int] = defaultdict(int)
+    planned: dict[date, int] = defaultdict(int)
+    sequenced: dict[date, int] = defaultdict(int)
+    fill: dict[date, list[int]] = defaultdict(lambda: [0, 0])  # [wells used, 4 x plates loaded]
+    failed: dict[date, int] = defaultdict(int)
+    loaded_wells: dict[date, int] = defaultdict(int)
     movie_mix: dict[int, int] = defaultdict(int)
-    per_instr: dict[str, list[int]] = defaultdict(lambda: [0, 0])  # serial -> [runs, cell_uses]
+    per_instr: dict[str, list[int]] = defaultdict(lambda: [0, 0])  # serial -> [runs completed, samples sequenced]
     outcomes: dict[str, int] = defaultdict(int)
-    runs_completed = 0
-    samples_completed = 0
 
-    for cyc in cycles:
-        week = _monday(cyc.acquire_date)
-        serial = cyc.run_batch.instrument.serial_number if cyc.run_batch.instrument else "?"
-        active = [cu for cu in cyc.cell_uses if cu.status != "cancelled"]
+    now = utcnow()
+    for rb in runs:
+        plates = live_plates(rb)
+        if not plates:
+            continue
+        status = run_status(rb, plates, now)
+        period = _bucket(rb.load_date, group_by)
+        if status == "planned":
+            planned[period] += 1
+            continue
 
-        weekly_runs[week] += 1
-        weekly_samples[week] += len(active)
-        weekly_fill[week][0] += len(active)
-        weekly_fill[week][1] += WELLS_PER_PLATE
-        movie_mix[cyc.movie_hours] += 1
-        per_instr[serial][0] += 1
-        per_instr[serial][1] += len(active)
-        if cyc.status == "completed":
-            runs_completed += 1
-
-        for cu in cyc.cell_uses:
-            if cu.status in SEQUENCED_STATUSES:
-                weekly_sequenced[week] += 1
-            if cu.status in VERDICT_STATUSES:
-                outcomes[cu.status] += 1
-                if cu.status == "completed":
-                    samples_completed += 1
+        serial = rb.instrument.serial_number if rb.instrument else "?"
+        run_sequenced = 0
+        for plate in plates:
+            wells = [cu for cu in plate.cell_uses if cu.status != "cancelled"]
+            if not wells:
+                continue  # a plate holding only a stopped cell's Blocked marker loaded nothing
+            fill[period][0] += len(wells)
+            fill[period][1] += WELLS_PER_PLATE
+            for cu in wells:
+                loaded_wells[period] += 1
+                movie_mix[cu.run_time_hours or plate.movie_hours] += 1
                 if cu.status == "failed":
-                    weekly_failed[week] += 1
-
-    total_sequenced = sum(weekly_sequenced.values())
-    total_filled = sum(v[0] for v in weekly_fill.values())
-    total_capacity = sum(v[1] for v in weekly_fill.values())
+                    failed[period] += 1
+                outcome = _well_outcome(cu, status)
+                if outcome:
+                    outcomes[outcome] += 1
+                if outcome == "completed":
+                    run_sequenced += 1
+        if status == "completed":
+            completed[period] += 1
+            sequenced[period] += run_sequenced
+            per_instr[serial][0] += 1
+            per_instr[serial][1] += run_sequenced
 
     throughput = ThroughputStats(
         series=[
-            WeekPoint(week=w, runs=weekly_runs[w], samples=weekly_samples[w])
-            for w in sorted(set(weekly_runs) | set(weekly_samples))
+            PeriodPoint(
+                period=p,
+                runs_completed=completed[p],
+                samples_sequenced=sequenced[p],
+                planned_runs=planned[p],
+            )
+            for p in sorted(set(completed) | set(planned) | set(loaded_wells))
         ],
         per_instrument=[
             InstrumentThroughput(
                 serial=ins.serial_number,
                 name=ins.name,
-                runs=per_instr[ins.serial_number][0],
-                cell_uses=per_instr[ins.serial_number][1],
+                runs_completed=per_instr[ins.serial_number][0],
+                samples_sequenced=per_instr[ins.serial_number][1],
             )
             for ins in instruments
             if not instrument_serial or ins.serial_number == instrument_serial
         ],
         movie_hours_mix=[MovieHoursSlice(movie_hours=h, count=movie_mix[h]) for h in sorted(movie_mix)],
     )
-
     failures = FailureStats(
-        outcomes=[OutcomeSlice(status=s, count=outcomes.get(s, 0)) for s in VERDICT_STATUSES],
+        outcomes=[OutcomeSlice(status=s, count=outcomes.get(s, 0)) for s in WELL_OUTCOMES],
         failure_rate_trend=[
-            FailureRatePoint(week=w, failed=weekly_failed[w], total=weekly_sequenced[w])
-            for w in sorted(weekly_sequenced)
+            FailureRatePoint(period=p, failed=failed[p], total=loaded_wells[p]) for p in sorted(loaded_wells)
         ],
         credit_funnel=CreditFunnel(needs_report=0, reported=0, awaiting=0, received=0),  # filled later
     )
-
-    headline_bits = {
-        "failures": failures,
-        "failure_rate": _pct(outcomes.get("failed", 0), total_sequenced),
-        "well_fill_pct": _pct(total_filled, total_capacity),
-        "well_fill": [
-            WellFillPoint(week=w, filled=weekly_fill[w][0], capacity=weekly_fill[w][1])
-            for w in sorted(weekly_fill)
-        ],
+    run_headline = {
+        "runs_completed": sum(completed.values()),
+        "samples_sequenced": sum(sequenced.values()),
+        "planned_runs": sum(planned.values()),
+        "failure_rate": _pct(sum(failed.values()), sum(loaded_wells.values())),
+        "plate_fill_pct": _pct(sum(v[0] for v in fill.values()), sum(v[1] for v in fill.values())),
     }
-    return throughput, runs_completed, samples_completed, headline_bits
+    plate_fill = [PlateFillPoint(period=p, filled=fill[p][0], capacity=fill[p][1]) for p in sorted(fill)]
+    return throughput, failures, run_headline, plate_fill
 
 
-def _reuse_and_inventory_cells(db, date_from, date_to, instrument_serial):
+def _reuse_and_inventory_cells(db, date_from, date_to, instrument_serial, group_by):
     cells = list(
         db.scalars(
             select(Cell).options(
@@ -248,7 +259,7 @@ def _reuse_and_inventory_cells(db, date_from, date_to, instrument_serial):
     )
 
     depth: dict[int, int] = defaultdict(int)  # uses (1..3) -> terminal cell count
-    weekly_uses: dict[date, list[int]] = defaultdict(lambda: [0, 0])  # week -> [sum_uses, cell_count]
+    period_uses: dict[date, list[int]] = defaultdict(lambda: [0, 0])  # period -> [sum_uses, cell_count]
     full_3 = 0
     expired_early = 0
     terminal_used = 0  # terminal cells in range with >=1 use (denominator for avg / pct)
@@ -273,9 +284,9 @@ def _reuse_and_inventory_cells(db, date_from, date_to, instrument_serial):
             continue
 
         depth[min(3, uses_consumed)] += 1
-        week = _monday(last_rd)
-        weekly_uses[week][0] += uses_consumed
-        weekly_uses[week][1] += 1
+        period = _bucket(last_rd, group_by)
+        period_uses[period][0] += uses_consumed
+        period_uses[period][1] += 1
         terminal_used += 1
         uses_sum += uses_consumed
         if uses_consumed >= 3:
@@ -286,10 +297,10 @@ def _reuse_and_inventory_cells(db, date_from, date_to, instrument_serial):
     reuse = ReuseStats(
         depth_distribution=[DepthSlice(uses=u, cells=depth.get(u, 0)) for u in (1, 2, 3)],
         avg_uses_trend=[
-            AvgUsesPoint(week=w, avg_uses=round(weekly_uses[w][0] / weekly_uses[w][1], 2))
-            for w in sorted(weekly_uses)
+            AvgUsesPoint(period=p, avg_uses=round(period_uses[p][0] / period_uses[p][1], 2))
+            for p in sorted(period_uses)
         ],
-        well_fill=[],  # set from the throughput pass's weekly_fill in compute_stats
+        plate_fill=[],  # set from _run_figures in compute_stats
         window_waste=WindowWaste(full_3_uses=full_3, expired_early=expired_early),
     )
     reuse_headline = {
@@ -302,21 +313,21 @@ def _reuse_and_inventory_cells(db, date_from, date_to, instrument_serial):
     return reuse, reuse_headline
 
 
-def _inventory(db, cell_status_slices):
+def _inventory(db, cell_status_slices, group_by):
     sample_rows = dict(db.execute(select(Sample.status, func.count()).group_by(Sample.status)).all())
     # Only the two columns the chart needs - never each batch's whole pasted file (raw_text).
-    weekly_import: dict[date, int] = defaultdict(int)
+    period_import: dict[date, int] = defaultdict(int)
     for created_at, imported_count in db.execute(select(ImportBatch.created_at, ImportBatch.imported_count)):
         if created_at is None:
             continue
-        weekly_import[_monday(ensure_aware(created_at).date())] += imported_count or 0
+        period_import[_bucket(ensure_aware(created_at).date(), group_by)] += imported_count or 0
 
     return InventoryStats(
         cell_status=cell_status_slices,
         sample_funnel=[
             StatusSlice(status=s, count=sample_rows.get(s, 0)) for s in SAMPLE_STATUSES if sample_rows.get(s, 0)
         ],
-        import_volume=[ImportVolumePoint(week=w, imported=weekly_import[w]) for w in sorted(weekly_import)],
+        import_volume=[ImportVolumePoint(period=p, imported=period_import[p]) for p in sorted(period_import)],
     )
 
 

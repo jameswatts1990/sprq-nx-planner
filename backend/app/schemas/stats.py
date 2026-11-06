@@ -8,33 +8,42 @@ Note on scoping (kept consistent with the Help copy): the time-series and throug
 figures respect the date-range/instrument filters; the "now" snapshots - cell status,
 sample funnel, and the PacBio credit funnel - describe current outstanding state and are
 not date-filtered (a credit still owed doesn't stop mattering because it fell outside the
-window)."""
+window).
+
+Runs are counted by their derived status (run_serializer.run_status - a running run whose last
+cell is through analysis reads completed, since nothing in the lab workflow marks a run
+completed) and bucketed by their load date; every series point's `period` is the first day of
+its week (Monday), month or quarter, per the request's group_by."""
 from datetime import date
+from typing import Literal
 
 from pydantic import BaseModel
 
+GroupBy = Literal["week", "month", "quarter"]
+
 
 # --- Throughput & run rate ---
-class WeekPoint(BaseModel):
-    week: date  # Monday of the ISO week the figures fall in
-    runs: int
-    samples: int
+class PeriodPoint(BaseModel):
+    period: date
+    runs_completed: int
+    samples_sequenced: int  # wells on completed runs that didn't fail or abort
+    planned_runs: int  # runs loading in the period that are still planned (not confirmed loaded)
 
 
 class InstrumentThroughput(BaseModel):
     serial: str
     name: str | None
-    runs: int
-    cell_uses: int
+    runs_completed: int
+    samples_sequenced: int
 
 
 class MovieHoursSlice(BaseModel):
     movie_hours: int
-    count: int
+    count: int  # wells loaded with this movie time
 
 
 class ThroughputStats(BaseModel):
-    series: list[WeekPoint]
+    series: list[PeriodPoint]
     per_instrument: list[InstrumentThroughput]
     movie_hours_mix: list[MovieHoursSlice]
 
@@ -46,14 +55,14 @@ class DepthSlice(BaseModel):
 
 
 class AvgUsesPoint(BaseModel):
-    week: date
+    period: date
     avg_uses: float
 
 
-class WellFillPoint(BaseModel):
-    week: date
-    filled: int
-    capacity: int  # runs that week * 8 wells
+class PlateFillPoint(BaseModel):
+    period: date
+    filled: int  # wells used on loaded runs
+    capacity: int  # 4 wells x plates loaded (a run of 1 plate holds 4, of 2 plates 8)
 
 
 class WindowWaste(BaseModel):
@@ -64,20 +73,20 @@ class WindowWaste(BaseModel):
 class ReuseStats(BaseModel):
     depth_distribution: list[DepthSlice]
     avg_uses_trend: list[AvgUsesPoint]
-    well_fill: list[WellFillPoint]
+    plate_fill: list[PlateFillPoint]
     window_waste: WindowWaste
 
 
 # --- Failures & credits ---
 class OutcomeSlice(BaseModel):
     status: str  # completed | failed | aborted
-    count: int
+    count: int  # wells on loaded runs with that outcome
 
 
 class FailureRatePoint(BaseModel):
-    week: date
+    period: date
     failed: int
-    total: int  # samples sequenced that week: started + completed + failed + aborted
+    total: int  # wells loaded in the period (on runs no longer planned)
 
 
 class CreditFunnel(BaseModel):
@@ -101,7 +110,7 @@ class StatusSlice(BaseModel):
 
 
 class ImportVolumePoint(BaseModel):
-    week: date
+    period: date
     imported: int
 
 
@@ -114,16 +123,18 @@ class InventoryStats(BaseModel):
 # --- Headline KPI tiles ---
 class HeadlineStats(BaseModel):
     runs_completed: int
-    samples_completed: int
+    samples_sequenced: int
+    planned_runs: int
     avg_uses_per_cell: float
     pct_reaching_use3: float  # 0-100
-    failure_rate: float  # 0-100
-    well_fill_pct: float  # 0-100
+    failure_rate: float  # 0-100, failed of wells loaded
+    plate_fill_pct: float  # 0-100, wells used of 4 per plate loaded
     cells_awaiting_credit: int
     credits_received: int
 
 
 class StatsResponse(BaseModel):
+    group_by: GroupBy
     headline: HeadlineStats
     throughput: ThroughputStats
     reuse: ReuseStats

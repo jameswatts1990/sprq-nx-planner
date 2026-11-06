@@ -25,8 +25,8 @@ SORT_DIRS = ("asc", "desc")
 
 # run_status reads each plate's wells' cells and those cells' whole use lists with their plates -
 # the timing model behind a running run reading completed once its last cell is through PPA.
-# _use_number walks the same lists.
-_STATUS_OPTIONS = [
+# _use_number walks the same lists. Shared with stats_service, which counts runs by this status.
+STATUS_OPTIONS = [
     selectinload(RunBatch.cycles)
     .selectinload(Cycle.cell_uses)
     .selectinload(CellUse.cell)
@@ -34,7 +34,7 @@ _STATUS_OPTIONS = [
     .selectinload(CellUse.cycle),
 ]
 _ROW_OPTIONS = [
-    *_STATUS_OPTIONS,
+    *STATUS_OPTIONS,
     selectinload(RunBatch.instrument),
     selectinload(RunBatch.cycles).selectinload(Cycle.cell_uses).selectinload(CellUse.sample),
     selectinload(RunBatch.cycles).selectinload(Cycle.cell_uses).selectinload(CellUse.barcodes),
@@ -155,7 +155,9 @@ def _order_by(sort_by: str, sort_dir: str) -> list:
     return order
 
 
-def _live_plates(run_batch: RunBatch) -> list[Cycle]:
+def live_plates(run_batch: RunBatch) -> list[Cycle]:
+    """The run's plates holding any well, in plate order - what run_status and run_out read (an
+    orphaned empty plate is ignored)."""
     return sorted((c for c in run_batch.cycles if c.cell_uses), key=lambda c: c.plate_index)
 
 
@@ -188,7 +190,7 @@ def _well(cell_use: CellUse, plate_index: int) -> RunHistoryWellOut:
 
 
 def run_history_row(run_batch: RunBatch, matched_use_ids: set[int], now: datetime) -> RunHistoryRowOut:
-    plates = _live_plates(run_batch)
+    plates = live_plates(run_batch)
     plate1 = plates[0] if plates else None
     wells = [_well(cu, p.plate_index) for p in plates for cu in sorted(p.cell_uses, key=lambda u: (u.well, u.id))]
     return RunHistoryRowOut(
@@ -255,8 +257,8 @@ def list_history_rows(
     start = (page - 1) * page_size
     if status in ("running", "completed"):
         ids = list(db.scalars(stmt))
-        runs = _load(db, ids, _STATUS_OPTIONS)
-        ids = [i for i in ids if run_status(runs[i], _live_plates(runs[i]), now) == status]
+        runs = _load(db, ids, STATUS_OPTIONS)
+        ids = [i for i in ids if run_status(runs[i], live_plates(runs[i]), now) == status]
         total = len(ids)
         page_ids = ids[start : start + page_size]
     else:
