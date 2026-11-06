@@ -40,6 +40,8 @@ def client(db_session):
         yield db_session
 
     app.dependency_overrides[get_db] = _override_get_db
-    with TestClient(app) as c:
+    # Every API write must carry the cross-site guard header, as the frontend's client.ts does
+    # (see main.block_cross_site_writes; test_cross_site_guard.py covers the header-less case).
+    with TestClient(app, headers={"X-RunNx": "1"}) as c:
         yield c
     app.dependency_overrides.clear()

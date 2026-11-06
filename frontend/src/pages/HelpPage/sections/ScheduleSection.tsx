@@ -88,9 +88,11 @@ export function ScheduleSection() {
       <p>
         The <b>search box</b> in the toolbar (just right of the week) finds a sample or run anywhere — it
         looks across both the <b>Backlog</b> and everything already <b>planned on the grid</b> at once. Type a{" "}
-        <b>Pool ID</b>, a <b>Sanger ID</b>, a <b>Plate ID</b>, a <b>barcode</b>, a <b>run name</b>, or a bare <b>run number</b> (e.g. <i>123</i> or{" "}
-        <i>#123</i>): the Backlog tray narrows to the matching samples as you type, and a counter shows how many
-        appearances were found.
+        <b>Pool ID</b>, a <b>Sanger ID</b>, a <b>Plate ID</b>, a <b>barcode</b>, a <b>cell code</b> (e.g. <i>C01-T12</i>),
+        a <b>tray</b> (e.g. <i>T12</i> — every use of its cells), a <b>run name</b>, or a <b>run number</b> (e.g.{" "}
+        <i>123</i> or <i>#123</i> — that exact run): the Backlog tray narrows to the matching samples as you type,
+        and a counter shows how many appearances were found. A very broad search (one that matches dozens of grid
+        cards) covers the 50 latest-loading ones — type more of the ID to narrow it.
       </p>
       <p>
         Press <b>Enter</b> (or the <b>↓</b> button) to jump to the next appearance and <b>Shift+Enter</b> (or <b>↑</b>)

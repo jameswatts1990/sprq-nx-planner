@@ -199,13 +199,25 @@ def run_status(run_batch: RunBatch, cycles: list[Cycle], now: datetime) -> str:
     return "planned"
 
 
-def run_out(db: Session, run_batch: RunBatch, *, with_effective_start: bool = False) -> RunOut:
+def run_pool_ids(run_batch: RunBatch) -> set[str]:
+    """Pool IDs of every sample placed in the run - the keys run_out's duplicate markers need."""
+    return {cu.sample.pool_id for c in run_batch.cycles for cu in c.cell_uses if cu.sample is not None}
+
+
+def run_out(
+    db: Session,
+    run_batch: RunBatch,
+    *,
+    with_effective_start: bool = False,
+    dup_groups: dict[str, list[int]] | None = None,
+) -> RunOut:
     """Serialize a run. Pass ``with_effective_start=True`` on placement/move/auto-fill responses to
     attach the lane-model effective start (when the run's cells really break out given the machine's
     other resident runs) - kept OFF the grid feed by default, as it needs a per-run resident-set
     query we don't want to fire for every grid row. Same flag also gates each stage's
     ``reuse_not_ready_hours`` (StageOut) - a non-first use's prior-use timing isn't in the grid
-    feed's eager-load set either, same per-row-query concern."""
+    feed's eager-load set either, same per-row-query concern. A caller serializing many runs passes
+    ``dup_groups`` (one duplicate_groups query over all their run_pool_ids) to avoid a query per run."""
     instrument = run_batch.instrument
     serial = instrument.serial_number if instrument else "?"
     # Drop any orphaned EMPTY cycle (no cell_uses at all): nothing is loaded, so it must not
@@ -221,13 +233,8 @@ def run_out(db: Session, run_batch: RunBatch, *, with_effective_start: bool = Fa
     # Duplicate-marker groups for every sample placed in this run, in one query (see
     # serializers.duplicate_groups) — spans ALL statuses so "1/3" stays stable as siblings
     # get scheduled off the backlog or complete.
-    ext_ids = {
-        cu.sample.pool_id
-        for c in cycles
-        for cu in c.cell_uses
-        if cu.sample is not None
-    }
-    dup_groups = duplicate_groups(db, ext_ids)
+    if dup_groups is None:
+        dup_groups = duplicate_groups(db, run_pool_ids(run_batch))
 
     plates = [_plate_out(run_batch, c, dup_groups, with_reuse_timing=with_effective_start) for c in cycles]
     now = utcnow()

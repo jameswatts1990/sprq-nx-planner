@@ -1,5 +1,6 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.api import (
     admin,
@@ -22,6 +23,29 @@ from app.api import (
 from app.config import settings
 
 app = FastAPI(title="RunNx", version="0.1.0")
+
+SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
+CROSS_SITE_HEADER = "X-RunNx"
+
+
+@app.middleware("http")
+async def block_cross_site_writes(request: Request, call_next):
+    """The app has no auth, so any page a lab user visits could otherwise fire a form POST at the
+    API from their browser. A custom header can't be set cross-site without a CORS preflight
+    (which no foreign origin passes), so every /api write must carry it; the frontend's
+    api/client.ts request() always sends it. Reads stay open - downloads are plain <a> links.
+    Declared before CORSMiddleware so CORS wraps it (a 403 still carries CORS headers)."""
+    if (
+        request.method not in SAFE_METHODS
+        and request.url.path.startswith("/api/")
+        and request.headers.get(CROSS_SITE_HEADER) != "1"
+    ):
+        return JSONResponse(
+            status_code=403,
+            content={"detail": f"Request blocked: missing {CROSS_SITE_HEADER} header (cross-site protection)"},
+        )
+    return await call_next(request)
+
 
 if settings.cors_origin_list:
     app.add_middleware(

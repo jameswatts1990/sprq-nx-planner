@@ -209,3 +209,13 @@ export interface RunHistoryRowOut {
    * own name, id, instrument or date, or there was no search. */
   matched_use_ids: number[];
 }
+
+/** One grid slot the Schedule header search matched (GET /api/cycles/search). */
+export interface ScheduleSearchHit {
+  run_id: number;
+  run_name: string | null;
+  load_date: string;
+  instrument_serial: string;
+  slot_index: SlotIndex;
+  sample_pool_id: string | null;
+}

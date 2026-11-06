@@ -1,7 +1,10 @@
-from fastapi import APIRouter, HTTPException, Response
-from sqlalchemy import select
+from typing import Annotated
 
-from app.api.deps import ActorDep, SessionDep
+from fastapi import APIRouter, Depends, HTTPException, Response
+from sqlalchemy import func, select
+from sqlalchemy.orm import defer
+
+from app.api.deps import ActorDep, SessionDep, pagination
 from app.engine.scheduler_import import SchedulerFormatError
 from app.models.importing import ImportBatch
 from app.schemas.importing import (
@@ -71,12 +74,18 @@ def download_template() -> Response:
 
 
 @router.get("")
-def list_imports(db: SessionDep, page: int = 1, page_size: int = 50) -> dict:
-    stmt = select(ImportBatch).order_by(ImportBatch.created_at.desc())
-    all_batches = list(db.scalars(stmt).all())
-    total_count = len(all_batches)
-    start = (page - 1) * page_size
-    page_batches = all_batches[start : start + page_size]
+def list_imports(db: SessionDep, page_info: Annotated[tuple[int, int], Depends(pagination)]) -> dict:
+    """Import batches newest first, paged in SQL. The pasted file itself (raw_text, up to a whole
+    spreadsheet per batch) is never loaded here - only GET /{import_batch_id} returns it."""
+    page, page_size = page_info
+    total_count = db.scalar(select(func.count()).select_from(ImportBatch)) or 0
+    page_batches = db.scalars(
+        select(ImportBatch)
+        .options(defer(ImportBatch.raw_text))
+        .order_by(ImportBatch.created_at.desc(), ImportBatch.id.desc())
+        .limit(page_size)
+        .offset((page - 1) * page_size)
+    )
     return {
         "items": [
             {

@@ -304,12 +304,12 @@ def _reuse_and_inventory_cells(db, date_from, date_to, instrument_serial):
 
 def _inventory(db, cell_status_slices):
     sample_rows = dict(db.execute(select(Sample.status, func.count()).group_by(Sample.status)).all())
-    imports = list(db.scalars(select(ImportBatch)).all())
+    # Only the two columns the chart needs - never each batch's whole pasted file (raw_text).
     weekly_import: dict[date, int] = defaultdict(int)
-    for imp in imports:
-        if imp.created_at is None:
+    for created_at, imported_count in db.execute(select(ImportBatch.created_at, ImportBatch.imported_count)):
+        if created_at is None:
             continue
-        weekly_import[_monday(ensure_aware(imp.created_at).date())] += imp.imported_count or 0
+        weekly_import[_monday(ensure_aware(created_at).date())] += imported_count or 0
 
     return InventoryStats(
         cell_status=cell_status_slices,

@@ -2,7 +2,7 @@
 
 Tracks samples, SMRT cells, and sequencing runs for the Revio SPRQ-Nx multi-use workflow: import completed samples from Benchling/Google Sheets exports, schedule them onto cells/instruments without barcode clashes, and track real-world outcomes through to history.
 
-See `docs/revio-nx-planner.html` for the original planning-only prototype this replaces (kept as the ground-truth reference the engine and design system were ported from). Scheduling rules are documented in `docs/pacbio-sprq-nx-scheduling-reference.md`, which maps this app's constraints onto the vendor's PacBio Revio/SPRQ-Nx documentation.
+The scheduling rules follow the vendor's PacBio Revio/SPRQ-Nx documentation. The maintainers' reference notes (the scheduling reference that maps this app's constraints onto that documentation, the original planning prototype, and deployment and dev notes) are kept in a separate private repository, not in this one.
 
 ## Stack
 

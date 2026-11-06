@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
@@ -9,15 +9,16 @@ from app.api.deps import ActorDep, SessionDep, pagination
 from app.models.instrument import Instrument
 from app.models.schedule import CYCLE_STATUSES, RunBatch
 from app.schemas.common import CellType, Page
-from app.schemas.run import RunHistoryRowOut, RunOut
+from app.schemas.run import RunHistoryRowOut, RunOut, ScheduleSearchHitOut
+from app.serializers import duplicate_groups
 from app.services.placement_service import (
     PlacementError,
     cancel_run,
     reschedule_run,
     update_run_load_time,
 )
-from app.services.run_history_rows import list_history_rows
-from app.services.run_serializer import RUN_LOAD_OPTIONS, run_out
+from app.services.run_history_rows import list_history_rows, schedule_search
+from app.services.run_serializer import RUN_LOAD_OPTIONS, run_out, run_pool_ids
 from app.services.run_service import update_run_status
 
 # Path kept as /api/cycles for continuity, but each item is now a *run* (RunBatch): one
@@ -56,7 +57,9 @@ def list_runs(
         stmt = stmt.where(RunBatch.load_date <= date_to)
 
     runs = list(db.scalars(stmt).unique().all())
-    out = [run_out(db, rb) for rb in runs]
+    # One duplicate-marker query for the whole range, not one per run.
+    dup_groups = duplicate_groups(db, set().union(*(run_pool_ids(rb) for rb in runs)))
+    out = [run_out(db, rb, dup_groups=dup_groups) for rb in runs]
     # `status` filters on the derived run-level status (see run_serializer.run_status - incl. a running run past its acquisition end reading "completed").
     if status:
         out = [r for r in out if r.status == status]
@@ -97,6 +100,20 @@ def list_run_history(
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
     return Page[RunHistoryRowOut](items=rows, total=total)
+
+
+@router.get("/search", response_model=list[ScheduleSearchHitOut])
+def search_schedule(
+    db: SessionDep,
+    q: str = "",
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+) -> list[ScheduleSearchHitOut]:
+    """The Schedule header search: the grid slots matching a Pool / Plate / Sanger ID, barcode,
+    cell code, "T12" tray, or a run's name / "#id", across every week (see
+    run_history_rows.schedule_search). Registered before /{run_id} so "search" isn't parsed as a
+    run id."""
+    term = q.strip()
+    return schedule_search(db, term, limit) if term else []
 
 
 @router.get("/{run_id}", response_model=RunOut)

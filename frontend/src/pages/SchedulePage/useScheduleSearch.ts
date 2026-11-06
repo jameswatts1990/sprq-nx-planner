@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { cyclesApi } from "@/api/cycles";
 import { samplesApi } from "@/api/samples";
 import { slotKey } from "@/components/scheduler/gridKeys";
-import type { RunOut, SlotIndex, StageOut } from "@/types/schedule";
+import type { SlotIndex } from "@/types/schedule";
 import type { SampleOut } from "@/types/sample";
 import { runLabel } from "@/utils/runLabel";
 import { useDebouncedValue } from "@/utils/useDebouncedValue";
@@ -34,21 +34,9 @@ export type SearchMatch = PlacementMatch | BacklogMatch;
  * always a handful of samples, so this only bites on a very broad query. */
 const BACKLOG_MATCH_LIMIT = 200;
 
-/** A run matches when the query is found in its name, or (for an all-digits query, optionally
- * "#"-prefixed) in its run id - so both a lab run name and a bare run number are searchable. */
-function runMatches(run: RunOut, ql: string, qDigits: string): boolean {
-  if (run.run_name && run.run_name.toLowerCase().includes(ql)) return true;
-  if (qDigits && String(run.run_id).includes(qDigits)) return true;
-  return false;
-}
-
-/** A placed well matches on any of its sample's ids (Pool ID, Plate ID, Sanger IDs) or
- * barcodes - the same ids the backlog's own text search covers (backend sample_id_matches), so
- * the two halves of the unified search feel like one search. */
-function stageMatches(stage: StageOut, ql: string): boolean {
-  const ids = [stage.sample_pool_id, stage.sample_plate_id, ...stage.sample_sanger_ids, ...stage.barcodes];
-  return ids.some((id) => id != null && id.toLowerCase().includes(ql));
-}
+/** Cap on how many grid placements the cycle covers (the latest-loading ones) - a sample or run
+ * search hits a handful of slots, so this only bites on a very broad query. */
+const PLACEMENT_MATCH_LIMIT = 50;
 
 export interface ScheduleSearch {
   /** Raw, un-debounced text bound to the header search input. */
@@ -91,15 +79,14 @@ export function useScheduleSearch(): ScheduleSearch {
   const q = useDebouncedValue(query, 300);
   const trimmed = q.trim();
   const searchActive = trimmed.length > 0;
-  const ql = trimmed.toLowerCase();
-  const qDigits = /^#?\d+$/.test(trimmed) ? trimmed.replace(/^#/, "") : "";
 
-  // Every run across the whole timeline (no date bounds) - the basis for finding placements
-  // outside the visible week. Gated on an active search. The ["cycles"] prefix means every
-  // schedule mutation's invalidateScheduleRelated refreshes it too.
-  const allRunsQuery = useQuery({
-    queryKey: ["cycles", "search-all"],
-    queryFn: () => cyclesApi.list({}),
+  // The grid slots matching the query across the whole timeline, searched server-side (Pool /
+  // Plate / Sanger IDs and barcodes - the same ids the backlog half matches - plus cell codes,
+  // trays and run name / "#id"), so a match in a week the grid isn't showing is still found.
+  // The ["cycles"] prefix means every schedule mutation's invalidateScheduleRelated refreshes it.
+  const placementQuery = useQuery({
+    queryKey: ["cycles", "search", trimmed],
+    queryFn: () => cyclesApi.search(trimmed, PLACEMENT_MATCH_LIMIT),
     enabled: searchActive,
     staleTime: 30_000,
   });
@@ -119,35 +106,19 @@ export function useScheduleSearch(): ScheduleSearch {
 
   const matches = useMemo<SearchMatch[]>(() => {
     if (!searchActive) return [];
-    const placements: PlacementMatch[] = [];
-    const seen = new Set<string>();
-    for (const run of allRunsQuery.data ?? []) {
-      const runHit = runMatches(run, ql, qDigits);
-      for (const plate of run.plates) {
-        for (const stage of plate.stages) {
-          if (!(runHit || stageMatches(stage, ql))) continue;
-          const sk = slotKey(run.instrument_serial, run.load_date, stage.slot_index);
-          if (seen.has(sk)) continue;
-          seen.add(sk);
-          placements.push({
-            kind: "placement",
-            key: sk,
-            loadDate: run.load_date,
-            instrumentSerial: run.instrument_serial,
-            slotIndex: stage.slot_index,
-            slotKey: sk,
-            label: `${runLabel(run)} · ${stage.sample_pool_id ?? "—"}`,
-          });
-        }
-      }
-    }
-    // Chronological, then by instrument, then plate order - the order a scheduler reads the grid.
-    placements.sort(
-      (a, b) =>
-        a.loadDate.localeCompare(b.loadDate) ||
-        a.instrumentSerial.localeCompare(b.instrumentSerial) ||
-        a.slotIndex - b.slotIndex,
-    );
+    // Already one per slot, in the order a scheduler reads the grid (date, instrument, slot).
+    const placements: PlacementMatch[] = (placementQuery.data ?? []).map((hit) => {
+      const sk = slotKey(hit.instrument_serial, hit.load_date, hit.slot_index);
+      return {
+        kind: "placement",
+        key: sk,
+        loadDate: hit.load_date,
+        instrumentSerial: hit.instrument_serial,
+        slotIndex: hit.slot_index,
+        slotKey: sk,
+        label: `${runLabel(hit)} · ${hit.sample_pool_id ?? "—"}`,
+      };
+    });
     const backlog: SearchMatch[] = backlogItemsRaw.map((s) => ({
       kind: "backlog",
       key: `b${s.id}`,
@@ -156,7 +127,7 @@ export function useScheduleSearch(): ScheduleSearch {
       label: s.pool_id,
     }));
     return [...placements, ...backlog];
-  }, [searchActive, allRunsQuery.data, backlogItemsRaw, ql, qDigits]);
+  }, [searchActive, placementQuery.data, backlogItemsRaw]);
 
   const count = matches.length;
   const [activeIndex, setActiveIndex] = useState(-1);

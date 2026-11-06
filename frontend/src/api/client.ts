@@ -34,6 +34,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
     headers: {
       "Content-Type": "application/json",
+      // Cross-site write guard: the backend 403s any /api write without it (main.py
+      // block_cross_site_writes). Sent on reads too, so no call site has to think about it.
+      "X-RunNx": "1",
       ...(init?.headers ?? {}),
     },
   });

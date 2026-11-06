@@ -199,6 +199,18 @@ class RunHistoryRowOut(BaseModel):
     matched_use_ids: list[int]
 
 
+class ScheduleSearchHitOut(BaseModel):
+    """One grid slot the Schedule header search matched (services/run_history_rows.schedule_search)
+    - enough for the search bar to jump to its week and ring the slot."""
+
+    run_id: int
+    run_name: str | None
+    load_date: date
+    instrument_serial: str
+    slot_index: int  # 0-7, as StageOut.slot_index
+    sample_pool_id: str | None
+
+
 class WindowFlagOut(BaseModel):
     cell_ref: str
     span_hours: float
