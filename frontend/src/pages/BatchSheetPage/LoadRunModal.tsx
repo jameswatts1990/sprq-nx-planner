@@ -10,31 +10,13 @@ import { Note } from "@/components/ui/Note";
 import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
 import type { BatchSheetRunOut } from "@/types/batchSheet";
 import { localWallTimeToUtcParts } from "@/utils/calendarDates";
+import { getOperatorName, setOperatorName } from "@/utils/operatorName";
 
 import styles from "./LoadRunModal.module.css";
 
-/** The loader's name, remembered per browser so whoever loads most days types it once. */
-const LOADED_BY_STORAGE_KEY = "runnx.batchSheet.loadedBy";
-
-function readLoadedBy(): string {
-  try {
-    return localStorage.getItem(LOADED_BY_STORAGE_KEY) ?? "";
-  } catch {
-    return "";
-  }
-}
-
-function rememberLoadedBy(name: string) {
-  try {
-    localStorage.setItem(LOADED_BY_STORAGE_KEY, name);
-  } catch {
-    // Storage blocked: the name just isn't prefilled next time.
-  }
-}
-
 /** The Batch Sheet's "Load" action: the same lock as the schedule grid's Confirm loaded
  * (status -> running, optional Traction run name, real load time), plus the loader's name,
- * sent as the audit-log actor. The time defaults to now; the dial sets a whole hour in one
+ * sent as the audit-log actor and prefilled from the navbar's operator name. The time defaults to now; the dial sets a whole hour in one
  * click and the text field takes any hh:mm. An unfinished pre-flight checklist is flagged,
  * never blocking - the checklist is a memory aid, not a gate. */
 export function LoadRunModal({
@@ -47,7 +29,7 @@ export function LoadRunModal({
   onClose: () => void;
 }) {
   const queryClient = useQueryClient();
-  const [loadedBy, setLoadedBy] = useState(readLoadedBy);
+  const [loadedBy, setLoadedBy] = useState(getOperatorName);
   const [runName, setRunName] = useState(run.run_name ?? "");
   const [loadTime, setLoadTime] = useState(() => formatLoadTime(new Date()));
   // The hour under the pointer while it's over the dial; otherwise the dial follows the field.
@@ -71,7 +53,9 @@ export function LoadRunModal({
       });
     },
     onSuccess: () => {
-      rememberLoadedBy(loadedBy.trim());
+      // A browser with no name yet adopts the loader's, so the navbar chip and every later change
+      // are signed with it too. An existing name is left alone (a colleague loading at your desk).
+      if (!getOperatorName()) setOperatorName(loadedBy);
       invalidateScheduleRelated(queryClient);
       void queryClient.invalidateQueries({ queryKey: ["batch-sheet"] });
       onClose();

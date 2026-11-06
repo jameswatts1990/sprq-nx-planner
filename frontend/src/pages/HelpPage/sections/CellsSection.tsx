@@ -289,7 +289,7 @@ export function CellsSection() {
         (whoever is chasing it, as a Sanger ID or a name) and each value already saved: the case number, report ID and
         acquisitions credited. Click <b>✎</b> beside any of them to fix it in place — correcting a value never changes
         the date that step was done. The owner also shows on the QC worklist and fills the <b>Reported by (Sanger
-        ID)</b> column of <b>Generate report</b>; your browser offers the last owner you saved as a suggestion.
+        ID)</b> column of <b>Generate report</b>; your name from the top bar is offered as a suggestion.
       </p>
       <p>
         A credit that isn&apos;t tied to a cell RunNx tracks is logged on the <b>QC</b> tab with{" "}

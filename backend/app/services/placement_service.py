@@ -1228,6 +1228,7 @@ def _remove_one(db: Session, cell_use_id: int, actor: str | None = None) -> None
 
     cell = cell_use.cell
     cycle_id = cycle.id
+    sample_id = cell_use.sample_id
 
     # Lock the cycle row so concurrent removals of sibling stages on the same plate serialize
     # here instead of racing on the "any stages left?" count. No-op on SQLite (dev), which
@@ -1258,7 +1259,14 @@ def _remove_one(db: Session, cell_use_id: int, actor: str | None = None) -> None
             action="remove_sample",
             entity_type="cell_use",
             entity_id=cell_use_id,
-            details_json={"cycle_id": cycle_id, "plate_deleted": plate_deleted},
+            # sample_id / cell_id: the Activity page still finds this row under the sample and
+            # the cell once the cell_use itself is gone (audit_feed.related_clause).
+            details_json={
+                "cycle_id": cycle_id,
+                "sample_id": sample_id,
+                "cell_id": cell.id if cell is not None else None,
+                "plate_deleted": plate_deleted,
+            },
         )
     )
 

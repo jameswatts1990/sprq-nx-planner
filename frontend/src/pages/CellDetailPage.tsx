@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Note } from "@/components/ui/Note";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { ViewActivityLink } from "@/pages/HistoryActivityPage/ViewActivityLink";
 import { formatDateTime } from "@/utils/calendarDates";
 import { CELL_STATUS_LABEL, CELL_STATUS_TONE } from "@/utils/cellStatus";
 import { cellFailureAt } from "@/utils/creditCase";
@@ -267,6 +268,7 @@ export function CellDetailPage() {
           </>
         }
         back={back}
+        actions={<ViewActivityLink kind="cell" id={cell.id} label={cell.code} />}
       />
       {creditCard}
       {mainCard}

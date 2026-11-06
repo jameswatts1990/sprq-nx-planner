@@ -5,6 +5,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { BacklogPage } from "@/pages/BacklogPage";
 import { CellDetailPage } from "@/pages/CellDetailPage";
 import { CellsPage } from "@/pages/CellsPage/CellsPage";
+import { HistoryActivityPage } from "@/pages/HistoryActivityPage/HistoryActivityPage";
 import { HistoryRunsPage } from "@/pages/HistoryRunsPage/HistoryRunsPage";
 import { HistorySamplesPage } from "@/pages/HistorySamplesPage/HistorySamplesPage";
 import { InstrumentsPage } from "@/pages/InstrumentsPage";
@@ -64,6 +65,7 @@ export default function App() {
           <Route path="/history/runs" element={<HistoryRunsPage />} />
           <Route path="/history/runs/:runId" element={<RunDetailPage />} />
           <Route path="/history/samples" element={<HistorySamplesPage />} />
+          <Route path="/history/activity" element={<HistoryActivityPage />} />
           <Route path="/samples/:sampleId" element={<SampleDetailPage />} />
           <Route path="/stats" element={<StatsPage />} />
           <Route path="/settings" element={<SettingsPage />} />

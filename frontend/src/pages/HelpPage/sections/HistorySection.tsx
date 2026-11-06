@@ -11,7 +11,7 @@ export function HistorySection() {
   return (
     <div className={styles.copy}>
       <p>
-        <b>Runs</b> and <b>Samples</b> (both under the <b>History ▾</b> menu) work just like <b>Cells</b>: a search
+        <b>Runs</b>, <b>Samples</b> and <b>Activity</b> (all under the <b>History ▾</b> menu) work just like <b>Cells</b>: a search
         box and filters across the top, <b>Rows</b> per page on the right, one row per run or sample with its contents shown as coloured chips,
         and rows that expand in place. Your search, filters, sort and page are kept in the page address, so{" "}
         <b>Back</b> from a run, cell or sample returns you to exactly the same list — and you can bookmark or share a
@@ -180,6 +180,32 @@ export function HistorySection() {
         the grid (scheduled or in progress) lets you adjust only its loading parameters, since its barcodes and
         identity are locked once placed. Finished samples (completed, failed, cancelled) are read-only history, so no
         Edit button is shown.
+      </p>
+
+      <p className={styles.subheading}>History → Activity</p>
+      <p>
+        <b>What it&apos;s for:</b> who changed what, and when. Every change made in RunNx — placing, moving or
+        removing a sample, Autoschedule, confirming a run loaded or unlocking it, editing a sample or a note, an
+        import, cell QC, a credit-case step, an instrument or a setting — is listed here, newest first.
+      </p>
+      <p>
+        <b>Columns:</b> <b>When</b>, <b>Who</b> (the name set in the top bar — see Getting started; <i>Unknown</i>{" "}
+        for a change made before a name was set), <b>What</b> was done, what it was <b>About</b> (links to the
+        sample, run, cell, tray or instrument; a placement links all three of its sample, run and cell) and the{" "}
+        <b>Details</b> it recorded. An edit shows each field it changed as <b>before → after</b>, e.g.{" "}
+        <i>Priority: Standard (3) → High (1)</i>; saving a form without changing anything isn&apos;t recorded. Something
+        since deleted (a sample removed by Undo import, a cancelled run) is named but no longer linked.
+      </p>
+      <p>
+        <b>Filters:</b> the <b>search box</b> matches names, Pool IDs, notes, reasons, case numbers and anything else
+        a change recorded; the dropdowns narrow it to one <b>kind of change</b> (Schedule, Runs loaded &amp; outcomes,
+        Samples &amp; imports, Cells, trays &amp; QC, PacBio credits, Instruments, Settings) or to <b>who</b> made
+        it, and <b>Changed between</b> limits it to a date range.
+      </p>
+      <p>
+        <b>View activity</b> at the top right of a run, sample or cell page opens this list for just that run,
+        sample or cell — including everything placed on it, even a placement that&apos;s since been removed. A
+        highlighted line at the top says what it&apos;s showing; <b>Show all activity</b> lifts it.
       </p>
     </div>
   );

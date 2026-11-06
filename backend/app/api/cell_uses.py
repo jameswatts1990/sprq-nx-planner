@@ -7,9 +7,9 @@ from pydantic import BaseModel
 from sqlalchemy.orm import selectinload
 
 from app.api.deps import ActorDep, SessionDep
-from app.models.audit import AuditLog
 from app.models.schedule import CELL_USE_STATUSES, CellUse, RunBatch
 from app.schemas.run import MoveSampleRequest, PlaceSampleRequest, RunOut
+from app.services.audit_util import diff, log_action
 from app.services.placement_service import (
     PlacementError,
     move_sample,
@@ -161,9 +161,10 @@ def patch_cell_use_notes(cell_use_id: int, req: CellUseNotesUpdate, db: SessionD
     cu = db.get(CellUse, cell_use_id, options=_OPTIONS)
     if cu is None:
         raise HTTPException(404, "Cell use not found")
-    trimmed = (req.notes or "").strip()
-    cu.notes = trimmed or None
-    db.add(AuditLog(actor=actor, action="update_cell_use_notes", entity_type="cell_use", entity_id=cu.id, details_json={}))
+    before = cu.notes
+    cu.notes = (req.notes or "").strip() or None
+    if cu.notes != before:
+        log_action(db, actor, "update_cell_use_notes", "cell_use", cu.id, diff({"notes": before}, {"notes": cu.notes}))
     db.commit()
     db.refresh(cu)
     return _cell_use_dict(cu)

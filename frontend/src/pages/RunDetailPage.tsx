@@ -17,6 +17,7 @@ import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { Note } from "@/components/ui/Note";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
+import { ViewActivityLink } from "@/pages/HistoryActivityPage/ViewActivityLink";
 import type { PlateOut, RunOut, StageOut } from "@/types/schedule";
 import {
   formatShortDateTimeLocal,
@@ -122,11 +123,14 @@ export function RunDetailPage() {
         title={run.run_name ?? `Run #${run.run_id}`}
         back={back}
         actions={
-          canCancel ? (
-            <Button variant="ghost" onClick={() => setConfirmingCancel(true)} disabled={cancelMutation.isPending}>
-              Cancel run
-            </Button>
-          ) : undefined
+          <>
+            <ViewActivityLink kind="run" id={run.run_id} label={run.run_name ?? `Run #${run.run_id}`} />
+            {canCancel && (
+              <Button variant="ghost" onClick={() => setConfirmingCancel(true)} disabled={cancelMutation.isPending}>
+                Cancel run
+              </Button>
+            )}
+          </>
         }
       />
       <div className={styles.metaRow}>

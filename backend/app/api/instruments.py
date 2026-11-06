@@ -2,7 +2,6 @@ from fastapi import APIRouter, HTTPException, Response
 from sqlalchemy import func, select
 
 from app.api.deps import ActorDep, SessionDep
-from app.models.audit import AuditLog
 from app.models.cell_tray import CellTray
 from app.models.instrument import Instrument
 from app.models.schedule import RunBatch
@@ -13,10 +12,22 @@ from app.schemas.instrument import (
     InstrumentStatsOut,
     InstrumentUpdate,
 )
+from app.services.audit_util import diff, log_action
 from app.services.instrument_serializer import serialize_instrument
 from app.services.instrument_stats import instrument_stats
 
 router = APIRouter(prefix="/api/instruments", tags=["instruments"])
+
+
+def _audit_snapshot(instrument: Instrument) -> dict:
+    """The fields the Instruments page edits, as the audit trail records them."""
+    return {
+        "serial_number": instrument.serial_number,
+        "name": instrument.name,
+        "location": instrument.location,
+        "asset_number": instrument.asset_number,
+        "active": instrument.active,
+    }
 
 
 @router.get("", response_model=list[InstrumentOut])
@@ -33,7 +44,7 @@ def list_instrument_stats(db: SessionDep) -> list[InstrumentStatsOut]:
 
 
 @router.post("", response_model=InstrumentOut, status_code=201)
-def create_instrument(req: InstrumentCreate, db: SessionDep) -> InstrumentOut:
+def create_instrument(req: InstrumentCreate, db: SessionDep, actor: ActorDep) -> InstrumentOut:
     existing = db.scalar(select(Instrument).where(Instrument.serial_number == req.serial_number))
     if existing is not None:
         raise HTTPException(409, f"Instrument '{req.serial_number}' already exists")
@@ -45,16 +56,19 @@ def create_instrument(req: InstrumentCreate, db: SessionDep) -> InstrumentOut:
         active=req.active,
     )
     db.add(instrument)
+    db.flush()
+    log_action(db, actor, "instrument_create", "instrument", instrument.id, _audit_snapshot(instrument))
     db.commit()
     db.refresh(instrument)
     return serialize_instrument(db, instrument)
 
 
 @router.patch("/{instrument_id}", response_model=InstrumentOut)
-def update_instrument(instrument_id: int, req: InstrumentUpdate, db: SessionDep) -> InstrumentOut:
+def update_instrument(instrument_id: int, req: InstrumentUpdate, db: SessionDep, actor: ActorDep) -> InstrumentOut:
     instrument = db.get(Instrument, instrument_id)
     if instrument is None:
         raise HTTPException(404, "Instrument not found")
+    before = _audit_snapshot(instrument)
     if req.name is not None:
         # Normalize blank/whitespace to NULL so a name can be cleared back to "show the serial"
         # (an empty string would otherwise linger as a falsy-but-set name).
@@ -65,6 +79,9 @@ def update_instrument(instrument_id: int, req: InstrumentUpdate, db: SessionDep)
         instrument.asset_number = req.asset_number.strip() or None
     if req.active is not None:
         instrument.active = req.active
+    changes = diff(before, _audit_snapshot(instrument))
+    if changes:
+        log_action(db, actor, "instrument_update", "instrument", instrument.id, changes)
     db.commit()
     db.refresh(instrument)
     return serialize_instrument(db, instrument)
@@ -83,15 +100,7 @@ def mark_instrument_down(
         raise HTTPException(404, "Instrument not found")
     instrument.down_from = req.down_from
     instrument.down_note = req.note
-    db.add(
-        AuditLog(
-            actor=actor,
-            action="instrument_down",
-            entity_type="instrument",
-            entity_id=instrument.id,
-            details_json={"down_from": req.down_from.isoformat(), "note": req.note},
-        )
-    )
+    log_action(db, actor, "instrument_down", "instrument", instrument.id, {"down_from": req.down_from.isoformat(), "note": req.note})
     db.commit()
     db.refresh(instrument)
     return serialize_instrument(db, instrument)
@@ -106,15 +115,7 @@ def mark_instrument_online(instrument_id: int, db: SessionDep, actor: ActorDep) 
         raise HTTPException(404, "Instrument not found")
     instrument.down_from = None
     instrument.down_note = None
-    db.add(
-        AuditLog(
-            actor=actor,
-            action="instrument_online",
-            entity_type="instrument",
-            entity_id=instrument.id,
-            details_json={},
-        )
-    )
+    log_action(db, actor, "instrument_online", "instrument", instrument.id, {})
     db.commit()
     db.refresh(instrument)
     return serialize_instrument(db, instrument)
@@ -141,15 +142,7 @@ def delete_instrument(instrument_id: int, db: SessionDep, actor: ActorDep) -> Re
             "mark it inactive instead of deleting.",
         )
 
-    db.add(
-        AuditLog(
-            actor=actor,
-            action="instrument_delete",
-            entity_type="instrument",
-            entity_id=instrument.id,
-            details_json={"serial_number": instrument.serial_number},
-        )
-    )
+    log_action(db, actor, "instrument_delete", "instrument", instrument.id, {"serial_number": instrument.serial_number})
     db.delete(instrument)
     db.commit()
     return Response(status_code=204)

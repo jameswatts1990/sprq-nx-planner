@@ -2,6 +2,7 @@ import { useEffect, useId, useLayoutEffect, useRef, useState, type ComponentType
 import { NavLink, useLocation } from "react-router-dom";
 
 import {
+  ActivityIcon,
   CalendarIcon,
   CellTrayIcon,
   ChartIcon,
@@ -19,6 +20,7 @@ import {
 import { formatDateTime } from "@/utils/calendarDates";
 
 import styles from "./AppShell.module.css";
+import { OperatorNameChip } from "./OperatorNameChip";
 
 // Render the commit ISO timestamp in the app's date + time format (blank if it won't parse).
 function formatCommitDate(iso: string): string {
@@ -47,6 +49,7 @@ const HISTORY_ITEMS: (NavItem & { hint: string })[] = [
   { to: "/cells", label: "Cells", Icon: CellTrayIcon, hint: "Every cell tray, its uses and time left" },
   { to: "/history/runs", label: "Runs", Icon: RunIcon, hint: "Every run, past, active and planned" },
   { to: "/history/samples", label: "Samples", Icon: SampleIcon, hint: "Every sample, wherever it is now" },
+  { to: "/history/activity", label: "Activity", Icon: ActivityIcon, hint: "Who changed what, and when" },
 ];
 // Routes that light the History trigger: its pages plus their detail pages (/cells/:id,
 // /trays/:id, /history/runs/:id, /samples/:id).
@@ -169,6 +172,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             ))}
             <HistoryMenu />
           </nav>
+          <OperatorNameChip />
           <div className={styles.utility}>
             {UTILITY_ITEMS.map(({ to, label, Icon, title }) => (
               <NavLink

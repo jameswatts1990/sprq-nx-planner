@@ -220,3 +220,22 @@ export function HelpIcon() {
     </StrokeIcon>
   );
 }
+
+/** Head and shoulders - the operator name chip in the nav. */
+export function UserIcon() {
+  return (
+    <StrokeIcon>
+      <circle cx="12" cy="8" r="4" />
+      <path d="M4 21a8 8 0 0 1 16 0" />
+    </StrokeIcon>
+  );
+}
+
+/** Pulse line - the Activity (audit trail) page. */
+export function ActivityIcon() {
+  return (
+    <StrokeIcon>
+      <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+    </StrokeIcon>
+  );
+}

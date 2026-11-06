@@ -8,7 +8,6 @@ from datetime import date
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from app.models.audit import AuditLog
 from app.models.instrument import Instrument
 from app.models.schedule_note import ScheduleNote
 from app.schemas.schedule_note import (
@@ -17,6 +16,7 @@ from app.schemas.schedule_note import (
     ScheduleNoteOut,
     ScheduleNoteUpdate,
 )
+from app.services.audit_util import diff, log_action
 
 ENTITY_TYPE = "schedule_note"
 # Long enough for a real instruction, short enough to stay a banner rather than a document.
@@ -73,14 +73,8 @@ def _snapshot(note: ScheduleNote) -> dict:
     }
 
 
-def _diff(before: dict, after: dict) -> dict:
-    return {k: {"from": before[k], "to": after[k]} for k in before if before[k] != after[k]}
-
-
 def _commit(db: Session, note: ScheduleNote, action: str, details: dict, actor: str | None) -> ScheduleNoteOut:
-    db.add(
-        AuditLog(actor=actor or "unknown", action=action, entity_type=ENTITY_TYPE, entity_id=note.id, details_json=details)
-    )
+    log_action(db, actor, action, ENTITY_TYPE, note.id, details)
     db.commit()
     db.refresh(note)
     return serialize_note(note)
@@ -97,7 +91,7 @@ def create_note(db: Session, req: ScheduleNoteCreate, actor: str | None) -> Sche
 def update_note(db: Session, note: ScheduleNote, req: ScheduleNoteUpdate, actor: str | None) -> ScheduleNoteOut:
     before = _snapshot(note)
     _apply(db, note, req)
-    return _commit(db, note, "update_schedule_note", _diff(before, _snapshot(note)), actor)
+    return _commit(db, note, "update_schedule_note", diff(before, _snapshot(note)), actor)
 
 
 def move_note(db: Session, note: ScheduleNote, req: ScheduleNoteMove, actor: str | None) -> ScheduleNoteOut:
@@ -114,19 +108,11 @@ def move_note(db: Session, note: ScheduleNote, req: ScheduleNoteMove, actor: str
         instruments.append(target)
     note.instruments = instruments
     note.note_date = req.note_date
-    return _commit(db, note, "move_schedule_note", _diff(before, _snapshot(note)), actor)
+    return _commit(db, note, "move_schedule_note", diff(before, _snapshot(note)), actor)
 
 
 def delete_note(db: Session, note: ScheduleNote, actor: str | None) -> None:
     """Hard delete - the audit entry keeps the full note, since nothing else holds it."""
-    db.add(
-        AuditLog(
-            actor=actor or "unknown",
-            action="delete_schedule_note",
-            entity_type=ENTITY_TYPE,
-            entity_id=note.id,
-            details_json=_snapshot(note),
-        )
-    )
+    log_action(db, actor, "delete_schedule_note", ENTITY_TYPE, note.id, _snapshot(note))
     db.delete(note)
     db.commit()

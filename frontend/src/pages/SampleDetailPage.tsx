@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Note } from "@/components/ui/Note";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { ViewActivityLink } from "@/pages/HistoryActivityPage/ViewActivityLink";
 import { formatDateTime } from "@/utils/calendarDates";
 import { plateWellFromPlate } from "@/utils/plateWell";
 import { resolveSampleBackNav } from "@/utils/sampleBackNav";
@@ -119,23 +120,22 @@ export function SampleDetailPage() {
           </>
         }
         actions={
-          tracHref || canEdit ? (
-            <>
-              {tracHref && (
-                // Open the library/pool in Traction (the LIMS holding its material). Pools link to
-                // Traction's pools view, singles to libraries — see utils/traction. Rendered as an
-                // anchor styled like a ghost button so middle-click / open-in-new-tab work.
-                <a className="btn ghost" href={tracHref} target="_blank" rel="noreferrer">
-                  View on Traction ↗
-                </a>
-              )}
-              {canEdit && (
-                <Button variant="ghost" onClick={() => setEditing(true)}>
-                  Edit
-                </Button>
-              )}
-            </>
-          ) : undefined
+          <>
+            <ViewActivityLink kind="sample" id={sample.id} label={sample.pool_id} />
+            {tracHref && (
+              // Open the library/pool in Traction (the LIMS holding its material). Pools link to
+              // Traction's pools view, singles to libraries — see utils/traction. Rendered as an
+              // anchor styled like a ghost button so middle-click / open-in-new-tab work.
+              <a className="btn ghost" href={tracHref} target="_blank" rel="noreferrer">
+                View on Traction ↗
+              </a>
+            )}
+            {canEdit && (
+              <Button variant="ghost" onClick={() => setEditing(true)}>
+                Edit
+              </Button>
+            )}
+          </>
         }
       />
 

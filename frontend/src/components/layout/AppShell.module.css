@@ -167,10 +167,65 @@
 .menuItemActive .menuLabel {
   color: var(--magenta);
 }
-/* Stats / Settings / Help as icon-only links plus the build version, pushed to the far right
-   and drawn as one bordered unit (the same treatment as the Schedule's ‹ week › control). */
-.utility {
+/* The operator name chip (OperatorNameChip): who every change is signed as. It and the utility
+   group sit together at the far right; amber until a name is set, so an unsigned browser is
+   obvious at a glance. Same height as the bordered utility group beside it. */
+.operator {
   margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 220px;
+  height: 38px;
+  padding: 0 12px;
+  font-family: inherit;
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: var(--ink);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  transition: background-color 0.14s ease, border-color 0.14s ease;
+}
+.operator svg {
+  font-size: 15px;
+  color: var(--grey);
+}
+.operator:hover {
+  background: var(--line-soft);
+}
+.operator:focus-visible {
+  outline: 2px solid var(--magenta-deep);
+  outline-offset: 2px;
+}
+.operatorUnset,
+.operatorUnset:hover {
+  color: var(--amber-deep);
+  background: var(--amber-tint);
+  border-color: var(--amber-border);
+}
+.operatorUnset:hover {
+  border-color: var(--amber);
+}
+.operatorUnset svg {
+  color: currentColor;
+}
+.operatorName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.operatorHelp {
+  margin: 0 0 14px;
+  color: var(--grey);
+}
+.operatorInput {
+  width: 100%;
+}
+/* Stats / Settings / Help as icon-only links plus the build version, at the far right beside the
+   name chip and drawn as one bordered unit (the same treatment as the Schedule's ‹ week › control). */
+.utility {
   display: inline-flex;
   align-items: stretch;
   gap: 2px;

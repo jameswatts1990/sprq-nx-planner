@@ -37,6 +37,7 @@ from app.schemas.importing import (
     UndoImportResult,
 )
 from app.serializers import sample_out
+from app.services.audit_util import log_action
 from app.services.sample_service import create_backlog_sample
 
 
@@ -49,7 +50,7 @@ class UndoBatchNotFoundError(Exception):
     """Raised when the import batch to undo doesn't exist. The API layer maps it to a 404."""
 
 
-def import_samples(db: Session, req: ImportRequest) -> ImportResult:
+def import_samples(db: Session, req: ImportRequest, actor: str | None = None) -> ImportResult:
     all_rows = parse_csv(req.raw_text)
 
     if req.column_map:
@@ -70,7 +71,7 @@ def import_samples(db: Session, req: ImportRequest) -> ImportResult:
     skipped_count = len(normalized.skipped)
 
     batch = ImportBatch(
-        created_by=req.actor or "unknown",
+        created_by=actor or req.actor or "unknown",
         source_filename=req.filename,
         raw_text=req.raw_text,
         header_detected=header_detected,
@@ -136,6 +137,19 @@ def import_samples(db: Session, req: ImportRequest) -> ImportResult:
 
     batch.imported_count = len(created)
     batch.duplicate_count = len(duplicates)
+    log_action(
+        db,
+        batch.created_by,
+        "import_samples",
+        "import_batch",
+        batch.id,
+        {
+            "source_filename": batch.source_filename,
+            "imported_count": batch.imported_count,
+            "skipped_count": batch.skipped_count,
+            "duplicate_count": batch.duplicate_count,
+        },
+    )
 
     db.commit()
     for s in created:
@@ -383,14 +397,7 @@ def undo_import(db: Session, import_batch_id: int, actor: str | None = None) -> 
         db.delete(sample)  # cascades the sample's barcode rows
     db.flush()
     db.delete(batch)
-    db.add(
-        AuditLog(
-            actor=actor or "unknown",
-            action="undo_import",
-            entity_type="import_batch",
-            entity_id=import_batch_id,
-            details_json={"removed_count": removed, "source_filename": source_filename},
-        )
-    )
+    details = {"removed_count": removed, "source_filename": source_filename}
+    log_action(db, actor, "undo_import", "import_batch", import_batch_id, details)
     db.commit()
     return UndoImportResult(import_batch_id=import_batch_id, removed_count=removed)

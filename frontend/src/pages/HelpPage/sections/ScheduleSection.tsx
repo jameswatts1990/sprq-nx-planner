@@ -346,8 +346,8 @@ export function ScheduleSection() {
       </p>
       <p>
         <b>Load</b> confirms the instrument has loaded, straight from the sheet. It does exactly what{" "}
-        <b>Confirm loaded</b> on the schedule does: it locks the whole run (both plates). Enter <b>your name</b> (it
-        is remembered on this computer for next time, and recorded against the action), the <b>Traction run name</b>{" "}
+        <b>Confirm loaded</b> on the schedule does: it locks the whole run (both plates). Check <b>your name</b> (filled in
+        from the name in the top bar, and recorded against the action), the <b>Traction run name</b>{" "}
         (optional) and the time the Revio was loaded. The time starts at <i>now</i>; type any hh:mm, or click an hour
         on the dial to set it in one click. If the pre-flight checklist isn&apos;t fully ticked, the dialog lists
         what&apos;s left as a reminder, but it doesn&apos;t stop you. Once loaded, the button reads <b>✓ Loaded</b>.

@@ -12,7 +12,7 @@ import { invalidateCreditCases } from "@/lib/invalidateCreditCases";
 import type { CellType } from "@/types/common";
 import type { PacbioCaseDetailsIn, PacbioCaseOut } from "@/types/pacbioCase";
 import { DEFAULT_CELL_TYPE } from "@/utils/cellType";
-import { readRememberedOwner, rememberOwner } from "@/utils/rememberedOwner";
+import { getOperatorName } from "@/utils/operatorName";
 
 import styles from "./QcPage.module.css";
 
@@ -56,7 +56,7 @@ export function PacbioCaseModal({ existing, onClose, onSaved }: PacbioCaseModalP
   const [poolId, setPoolId] = useState(existing?.pool_id ?? "");
   const [cellType, setCellType] = useState<CellType>(existing?.cell_type ?? DEFAULT_CELL_TYPE);
   const [expected, setExpected] = useState(existing?.expected_acquisitions?.toString() ?? "");
-  const [owner, setOwner] = useState(() => (existing ? "" : readRememberedOwner()));
+  const [owner, setOwner] = useState(() => (existing ? "" : getOperatorName()));
   const [caseNumber, setCaseNumber] = useState("");
   const [reportId, setReportId] = useState("");
   const [credited, setCredited] = useState("");
@@ -103,7 +103,6 @@ export function PacbioCaseModal({ existing, onClose, onSaved }: PacbioCaseModalP
       });
     },
     onSuccess: (saved) => {
-      rememberOwner(saved.credit_owner);
       invalidateCreditCases(queryClient);
       onSaved(saved);
     },

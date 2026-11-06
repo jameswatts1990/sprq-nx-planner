@@ -32,8 +32,8 @@ import {
   DEFAULT_CREDIT_EMAIL,
   renderCreditEmail,
 } from "@/utils/creditEmail";
+import { getOperatorName } from "@/utils/operatorName";
 import { plateWellFromPlate } from "@/utils/plateWell";
-import { readRememberedOwner, rememberOwner } from "@/utils/rememberedOwner";
 import { runLabel } from "@/utils/runLabel";
 import { csvSafe, downloadCsv } from "@/utils/toCsv";
 
@@ -487,12 +487,11 @@ function CreditStageActions({
             label="Owner"
             value={credit.credit_owner}
             emptyText="No owner"
-            suggestion={readRememberedOwner()}
+            suggestion={getOperatorName()}
             maxLength={120}
             allowEmpty
             onSave={async (owner) => {
               await ops.setCreditOwner(owner || null);
-              rememberOwner(owner || null);
               onChanged();
             }}
           />

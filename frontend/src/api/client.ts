@@ -3,6 +3,8 @@
  * are always relative paths (/api/...), proxied same-origin by nginx in prod and by
  * the Vite dev server locally - see vite.config.ts. */
 
+import { getOperatorName } from "@/utils/operatorName";
+
 export class ApiError extends Error {
   status: number;
   body: unknown;
@@ -30,6 +32,7 @@ function extractDetail(body: unknown): string | undefined {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const operator = getOperatorName();
   const res = await fetch(path, {
     ...init,
     headers: {
@@ -37,6 +40,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       // Cross-site write guard: the backend 403s any /api write without it (main.py
       // block_cross_site_writes). Sent on reads too, so no call site has to think about it.
       "X-RunNx": "1",
+      // Who is making the change, for the audit trail (deps.get_actor). URI-encoded because
+      // HTTP headers only carry ASCII and names don't.
+      ...(operator ? { "X-RunNx-Actor": encodeURIComponent(operator) } : {}),
       ...(init?.headers ?? {}),
     },
   });

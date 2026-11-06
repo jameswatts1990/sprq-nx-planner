@@ -15,6 +15,27 @@ def clean_notes(notes: str | None) -> str | None:
     return (notes or "").strip() or None
 
 
+def audit_snapshot(sample: Sample) -> dict:
+    """A sample's editable fields as the audit trail records them, for a before→after diff
+    (audit_util.diff). Barcodes are listed in their stored order."""
+    return {
+        "barcodes": [b.barcode for b in sorted(sample.barcodes, key=lambda b: b.position)],
+        "sanger_ids": list(sample.sanger_ids or []),
+        "plate_id": sample.plate_id,
+        "target_oplc": sample.target_oplc,
+        "actual_oplc": sample.actual_oplc,
+        "cleaned_complex_volume": sample.cleaned_complex_volume,
+        "loading_buffer_volume": sample.loading_buffer_volume,
+        "adaptive_loading": sample.adaptive_loading,
+        "full_resolution_base_q": sample.full_resolution_base_q,
+        "priority": sample.priority,
+        "base_kinetics": sample.base_kinetics,
+        "movie_time_hours": sample.movie_time_hours,
+        "insert_size_bp": sample.insert_size_bp,
+        "notes": sample.notes,
+    }
+
+
 def existing_samples_with_id(db: Session, pool_id: str) -> list[Sample]:
     """Every sample that already carries this Pool ID, oldest first — across ALL statuses
     (including completed/cancelled). Duplicates are intentionally allowed (the same sample can be

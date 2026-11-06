@@ -114,8 +114,8 @@ export function QcSection() {
         Each case can have an <b>owner</b> — whoever is chasing it, as a Sanger ID or a name. Set it with the{" "}
         <b>✎</b> next to <b>Owner</b> in the expanded tracker (or on the form when you add a case without a cell). It
         shows on the row, and fills the <b>Reported by (Sanger ID)</b> column of the generated issue report. Your
-        browser remembers the last owner you saved and offers it next time, but it&apos;s never filled in on a case
-        until you save it.
+        name from the top bar is offered as the owner (and pre-filled on the add-a-case form), but it&apos;s never
+        set on a case until you save it.
       </p>
 
       <p className={styles.subheading}>Cases without a cell</p>

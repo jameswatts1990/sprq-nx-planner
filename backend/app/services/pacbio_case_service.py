@@ -6,11 +6,11 @@ from __future__ import annotations
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from app.models.audit import AuditLog
 from app.models.instrument import Instrument
 from app.models.pacbio_case import PacbioCase
 from app.schemas.pacbio_case import PacbioCaseCreate, PacbioCaseDetailsIn, PacbioCaseOut
 from app.services import credit_service
+from app.services.audit_util import diff, log_action
 
 ENTITY_TYPE = "pacbio_case"
 
@@ -89,9 +89,7 @@ def _snapshot(case: PacbioCase) -> dict:
 
 
 def _commit(db: Session, case: PacbioCase, action: str, details: dict, actor: str | None) -> PacbioCaseOut:
-    db.add(
-        AuditLog(actor=actor or "unknown", action=action, entity_type=ENTITY_TYPE, entity_id=case.id, details_json=details)
-    )
+    log_action(db, actor, action, ENTITY_TYPE, case.id, details)
     db.commit()
     db.refresh(case)
     return serialize_case(case)
@@ -128,24 +126,14 @@ def create_case(db: Session, req: PacbioCaseCreate, actor: str | None) -> Pacbio
 def update_case(db: Session, case: PacbioCase, req: PacbioCaseDetailsIn, actor: str | None) -> PacbioCaseOut:
     before = _snapshot(case)
     _apply_details(db, case, req)
-    after = _snapshot(case)
-    changed = {k: {"from": before[k], "to": after[k]} for k in _DETAIL_FIELDS if before[k] != after[k]}
-    return _commit(db, case, "update_pacbio_case", changed, actor)
+    return _commit(db, case, "update_pacbio_case", diff(before, _snapshot(case)), actor)
 
 
 def delete_case(db: Session, case: PacbioCase, actor: str | None) -> None:
     """Hard delete (a case logged by mistake). The audit entry keeps the full record, since -
     unlike a cell's case, which Undo QC unwinds - nothing else holds it."""
     out = serialize_case(case)
-    db.add(
-        AuditLog(
-            actor=actor or "unknown",
-            action="delete_pacbio_case",
-            entity_type=ENTITY_TYPE,
-            entity_id=case.id,
-            details_json=out.model_dump(mode="json"),
-        )
-    )
+    log_action(db, actor, "delete_pacbio_case", ENTITY_TYPE, case.id, out.model_dump(mode="json"))
     db.delete(case)
     db.commit()
 

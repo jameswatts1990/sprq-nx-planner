@@ -1,0 +1,12 @@
+/* "Showing activity for sample X" - the scope a detail page's View activity link set. */
+.scope {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--magenta-border);
+  border-radius: var(--r-sm);
+  background: var(--magenta-tint);
+}

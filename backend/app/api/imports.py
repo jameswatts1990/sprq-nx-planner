@@ -34,8 +34,8 @@ router = APIRouter(prefix="/api/imports", tags=["imports"])
 
 
 @router.post("", response_model=ImportResult)
-def create_import(req: ImportRequest, db: SessionDep) -> ImportResult:
-    return import_samples(db, req)
+def create_import(req: ImportRequest, db: SessionDep, actor: ActorDep) -> ImportResult:
+    return import_samples(db, req, req.actor or actor)
 
 
 @router.post("/preview", response_model=ImportPreviewResult)

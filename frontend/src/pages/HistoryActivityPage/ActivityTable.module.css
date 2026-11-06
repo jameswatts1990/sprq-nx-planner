@@ -1,0 +1,16 @@
+.action {
+  font-weight: 700;
+  white-space: nowrap;
+}
+/* A placement links its sample, run and cell side by side. */
+.about {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+}
+.details {
+  max-width: 48ch;
+  font-size: var(--fs-sm);
+  color: var(--grey);
+  overflow-wrap: anywhere;
+}

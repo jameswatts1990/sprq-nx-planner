@@ -7,7 +7,6 @@ from sqlalchemy.orm import selectinload
 from app.api.deps import ActorDep, SessionDep, pagination
 from app.engine.csv_parse import split_barcodes
 from app.engine.packing import pool_id_sort_key, priority_rank
-from app.models.audit import AuditLog
 from app.models.sample import SAMPLE_STATUSES, Sample, SampleBarcode, sample_id_matches
 from app.models.schedule import CellUse, Cycle, RunBatch
 from app.schemas.common import Page
@@ -24,7 +23,9 @@ from app.serializers import (
     sample_detail_out,
     sample_out,
 )
+from app.services.audit_util import diff, log_action
 from app.services.sample_service import (
+    audit_snapshot,
     clean_notes,
     create_backlog_sample,
     existing_samples_with_id,
@@ -270,7 +271,7 @@ def create_sample(
         insert_size_bp=req.insert_size_bp,
         notes=req.notes,
     )
-    db.add(AuditLog(actor=actor, action="create_sample", entity_type="sample", entity_id=sample.id, details_json={}))
+    log_action(db, actor, "create_sample", "sample", sample.id, {"pool_id": sample.pool_id})
     db.commit()
     db.refresh(sample)
     return sample_out(sample)
@@ -330,6 +331,7 @@ def update_sample(sample_id: int, req: SampleUpdate, db: SessionDep, actor: Acto
     if sample.status in _LOCKED_EDIT_STATUSES:
         raise HTTPException(409, f"A {sample.status} sample can no longer be edited")
 
+    before = audit_snapshot(sample)
     if sample.status == "backlog":
         barcodes = split_barcodes(" ".join(req.barcodes))
         if not barcodes:
@@ -365,7 +367,11 @@ def update_sample(sample_id: int, req: SampleUpdate, db: SessionDep, actor: Acto
         )
     if "notes" in req.model_fields_set:
         sample.notes = clean_notes(req.notes)
-    db.add(AuditLog(actor=actor, action="update_sample", entity_type="sample", entity_id=sample.id, details_json={}))
+    # Keep the action name: import undo (import_service._blocking_count) treats an update_sample
+    # row as "this imported sample was edited".
+    changes = diff(before, audit_snapshot(sample))
+    if changes:
+        log_action(db, actor, "update_sample", "sample", sample.id, changes)
     db.commit()
     db.refresh(sample)
     return sample_out(sample)
@@ -379,8 +385,10 @@ def update_sample_notes(sample_id: int, req: SampleNotesUpdate, db: SessionDep, 
     sample = db.get(Sample, sample_id, options=[selectinload(Sample.barcodes)])
     if sample is None:
         raise HTTPException(404, "Sample not found")
+    before = sample.notes
     sample.notes = clean_notes(req.notes)
-    db.add(AuditLog(actor=actor, action="update_sample_notes", entity_type="sample", entity_id=sample.id, details_json={}))
+    if sample.notes != before:
+        log_action(db, actor, "update_sample_notes", "sample", sample.id, diff({"notes": before}, {"notes": sample.notes}))
     db.commit()
     db.refresh(sample)
     return sample_out(sample)
@@ -394,7 +402,7 @@ def cancel_sample(sample_id: int, db: SessionDep, actor: ActorDep) -> SampleOut:
     if sample.status != "backlog":
         raise HTTPException(409, f"Only backlog samples can be cancelled (current status: {sample.status})")
     sample.status = "cancelled"
-    db.add(AuditLog(actor=actor, action="cancel_sample", entity_type="sample", entity_id=sample.id, details_json={}))
+    log_action(db, actor, "cancel_sample", "sample", sample.id, {"status": {"from": "backlog", "to": "cancelled"}})
     db.commit()
     db.refresh(sample)
     return sample_out(sample)
@@ -408,7 +416,7 @@ def requeue_sample(sample_id: int, db: SessionDep, actor: ActorDep) -> SampleOut
     if sample.status != "failed":
         raise HTTPException(409, f"Only failed samples can be requeued (current status: {sample.status})")
     sample.status = "backlog"
-    db.add(AuditLog(actor=actor, action="requeue_sample", entity_type="sample", entity_id=sample.id, details_json={}))
+    log_action(db, actor, "requeue_sample", "sample", sample.id, {"status": {"from": "failed", "to": "backlog"}})
     db.commit()
     db.refresh(sample)
     return sample_out(sample)

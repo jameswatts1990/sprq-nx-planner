@@ -32,10 +32,20 @@ export function GettingStartedSection() {
         <li>
           <b>History ▾</b> opens a short menu of the records: <b>Cells</b> shows every physical SMRT cell tray, how
           many of its uses are spent, and how much of its 108-hour lifetime window is left; <b>Runs</b> is the record
-          of past, active and planned runs, with how each well went; and <b>Samples</b> lists every sample — wherever
-          it is now, and every run it has been on. History stays highlighted while you&apos;re on any of them.
+          of past, active and planned runs, with how each well went; <b>Samples</b> lists every sample — wherever
+          it is now, and every run it has been on; and <b>Activity</b> shows who changed what, and when. History
+          stays highlighted while you&apos;re on any of them.
         </li>
       </ol>
+
+      <p className={styles.subheading}>Set your name</p>
+      <p>
+        The chip just left of the icons at the top right shows your name. Until you set one it reads{" "}
+        <b>Set your name</b> in amber — click it, type your name and <b>Save</b>. Every change you make is then
+        signed with it in <b>History → Activity</b>, and it fills in <b>Your name</b> when you confirm a run loaded
+        and the owner of a new credit case. It&apos;s remembered in this browser only, so set it once on each computer
+        you use (and change it if you&apos;re working at someone else&apos;s).
+      </p>
 
       <p className={styles.subheading}>Nothing is final until a run is loaded</p>
       <p>
