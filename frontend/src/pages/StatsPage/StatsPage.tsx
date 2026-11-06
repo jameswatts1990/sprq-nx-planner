@@ -1,74 +1,136 @@
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 
 import { errorMessage } from "@/api/client";
 import { instrumentsApi } from "@/api/instruments";
 import { statsApi } from "@/api/stats";
 import { SectionHeading } from "@/components/shared/SectionHeading";
 import { StatTile, StatTiles } from "@/components/shared/StatTile";
+import { Button } from "@/components/ui/Button";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Note } from "@/components/ui/Note";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { SegmentedControl } from "@/components/ui/SegmentedControl";
-import type { StatsResponse } from "@/types/stats";
+import type { GroupBy, StatsResponse } from "@/types/stats";
+import { formatDateTime } from "@/utils/calendarDates";
+import { downloadCsv } from "@/utils/toCsv";
 
 import { CategoryBars, ChartBlock, Donut, TimeBar, TimeLine } from "./charts/primitives";
 import { cellStatusColor, chartPalette, outcomeColor, useDepthColor } from "./charts/palette";
+import {
+  GROUP_BY_OPTIONS,
+  RANGE_PRESETS,
+  rangeLabel,
+  readStatsView,
+  resolveRange,
+  statsCsv,
+  statsCsvFilename,
+  writeStatsView,
+  type RangePreset,
+  type StatsView,
+} from "./statsView";
 import styles from "./StatsPage.module.css";
 
-type RangeKey = "30" | "90" | "all";
-
-const RANGE_OPTIONS = [
-  { value: "30" as const, label: "30 days" },
-  { value: "90" as const, label: "90 days" },
-  { value: "all" as const, label: "All time" },
-];
-
-function rangeFrom(range: RangeKey): string | undefined {
-  if (range === "all") return undefined;
-  const d = new Date();
-  d.setDate(d.getDate() - Number(range));
-  return d.toISOString().slice(0, 10);
-}
+const PERIOD_NOUN: Record<GroupBy, string> = { week: "week", month: "month", quarter: "quarter" };
 
 function prettyStatus(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1).replace(/_/g, " ");
 }
 
 export function StatsPage() {
-  const [range, setRange] = useState<RangeKey>("90");
-  const [instrumentSerial, setInstrumentSerial] = useState("");
+  const [params, setParams] = useSearchParams();
+  const view = readStatsView(params);
+  const update = (patch: Partial<StatsView>) => setParams((prev) => writeStatsView(prev, patch), { replace: true });
+  const range = resolveRange(view);
 
   const instrumentsQuery = useQuery({
     queryKey: ["instruments", true],
     queryFn: () => instrumentsApi.list(true),
   });
 
-  const dateFrom = rangeFrom(range);
   const query = useQuery({
-    queryKey: ["stats", { dateFrom, instrumentSerial }],
-    queryFn: () => statsApi.get({ date_from: dateFrom, instrument_serial: instrumentSerial || undefined }),
+    queryKey: ["stats", { from: range.from, to: range.to, instrument: view.instrument, group: view.group }],
+    queryFn: () =>
+      statsApi.get({
+        date_from: range.from,
+        date_to: range.to,
+        instrument_serial: view.instrument || undefined,
+        group_by: view.group,
+      }),
   });
+
+  const instrument = (instrumentsQuery.data ?? []).find((i) => i.serial_number === view.instrument);
+  const instrumentLabel = !view.instrument
+    ? "All instruments"
+    : instrument?.name
+      ? `${instrument.name} (${view.instrument})`
+      : `Revio ${view.instrument}`;
+
+  function exportCsv() {
+    if (query.data) downloadCsv(statsCsvFilename(range, view), statsCsv(query.data));
+  }
 
   return (
     <div className={styles.page}>
       <PageHeader
         title="Stats"
         intro="Read-only charts and headline numbers built from everything else in the app."
+        actions={
+          <>
+            <Button onClick={exportCsv} disabled={!query.data} title="Download this report's figures, one row per period">
+              Export CSV
+            </Button>
+            <Button onClick={() => window.print()} disabled={!query.data} title="Print this report on A4 (portrait)">
+              Print
+            </Button>
+          </>
+        }
       />
       <Card>
         <CardBody>
           <div className={styles.toolbar}>
-            <SegmentedControl
-              ariaLabel="Time range"
-              options={RANGE_OPTIONS}
-              value={range}
-              onChange={(v) => setRange(v)}
-            />
             <select
-              value={instrumentSerial}
-              onChange={(e) => setInstrumentSerial(e.target.value)}
+              aria-label="Time range"
+              value={view.range}
+              onChange={(e) => {
+                const next = e.target.value as RangePreset;
+                // A custom range starts from the one on screen, so it can be nudged rather than typed afresh.
+                update(next === "custom" ? { range: next, from: range.from ?? "", to: range.to ?? "" } : { range: next, from: "", to: "" });
+              }}
             >
+              {RANGE_PRESETS.map((p) => (
+                <option key={p.value} value={p.value}>
+                  {p.label}
+                </option>
+              ))}
+            </select>
+            {view.range === "custom" && (
+              <span className={styles.customRange}>
+                <input
+                  type="date"
+                  aria-label="From"
+                  value={view.from}
+                  max={view.to || undefined}
+                  onChange={(e) => update({ from: e.target.value })}
+                />
+                to
+                <input
+                  type="date"
+                  aria-label="To"
+                  value={view.to}
+                  min={view.from || undefined}
+                  onChange={(e) => update({ to: e.target.value })}
+                />
+              </span>
+            )}
+            <select aria-label="Group by" value={view.group} onChange={(e) => update({ group: e.target.value as GroupBy })}>
+              {GROUP_BY_OPTIONS.map((g) => (
+                <option key={g.value} value={g.value}>
+                  {g.label}
+                </option>
+              ))}
+            </select>
+            <select aria-label="Instrument" value={view.instrument} onChange={(e) => update({ instrument: e.target.value })}>
               <option value="">All instruments</option>
               {(instrumentsQuery.data ?? []).map((i) => (
                 <option key={i.id} value={i.serial_number}>
@@ -76,10 +138,14 @@ export function StatsPage() {
                 </option>
               ))}
             </select>
-            <span className={styles.rangeNote}>
-              Trends cover the selected range; cell, sample &amp; credit totals show current state.
-            </span>
           </div>
+          <p className={styles.reportLine}>
+            <b>{rangeLabel(range)}</b> · by {PERIOD_NOUN[view.group]} · {instrumentLabel}
+            <span className={styles.printOnly}> · printed {formatDateTime(new Date().toISOString())}</span>
+            <span className={styles.scopeNote}>
+              Trends cover this range (runs by load date); cell, sample &amp; credit totals show current state.
+            </span>
+          </p>
 
           {query.isLoading && <div className="status">Loading stats…</div>}
           {query.isError && (
@@ -100,12 +166,33 @@ function Headline({ data }: { data: StatsResponse }) {
   const h = data.headline;
   return (
     <StatTiles>
-      <StatTile label="Runs completed" value={h.runs_completed} />
-      <StatTile label="Samples completed" value={h.samples_completed} />
+      <StatTile
+        label="Runs completed"
+        value={h.runs_completed}
+        hint="through analysis"
+        title="Runs loaded in this range whose last cell has finished sequencing and analysis. A two-plate run counts once."
+      />
+      <StatTile
+        label="Samples sequenced"
+        value={h.samples_sequenced}
+        hint="on completed runs"
+        title="Wells on completed runs that weren't marked Failed or Aborted."
+      />
+      <StatTile
+        label="Planned runs"
+        value={h.planned_runs}
+        hint="not yet loaded"
+        title="Runs in this range still waiting for Confirm loaded - not counted in any other figure."
+      />
       <StatTile label="Avg uses / cell" value={h.avg_uses_per_cell.toFixed(2)} hint="of 3 max · SPRQ-Nx only" />
       <StatTile label="Reaching Use 3" value={`${h.pct_reaching_use3}%`} />
-      <StatTile label="Failure rate" value={`${h.failure_rate}%`} hint="of samples sequenced" />
-      <StatTile label="Well fill" value={`${h.well_fill_pct}%`} hint="of 8 wells/run" />
+      <StatTile label="Failure rate" value={`${h.failure_rate}%`} hint="of wells loaded" />
+      <StatTile
+        label="Plate fill"
+        value={`${h.plate_fill_pct}%`}
+        hint="of 4 wells per plate"
+        title="Wells used out of 4 per plate loaded (a one-plate run holds 4, a two-plate run 8)."
+      />
       <StatTile label="Awaiting credit" value={h.cells_awaiting_credit} />
       <StatTile label="Credits received" value={h.credits_received} />
     </StatTiles>
@@ -117,6 +204,8 @@ function StatsCharts({ data }: { data: StatsResponse }) {
   const useColors = useDepthColor(p);
   const statusColors = cellStatusColor(p);
   const outColors = outcomeColor(p);
+  const group = data.group_by;
+  const per = PERIOD_NOUN[group];
 
   const t = data.throughput;
   const r = data.reuse;
@@ -127,18 +216,18 @@ function StatsCharts({ data }: { data: StatsResponse }) {
     () => t.movie_hours_mix.map((m) => ({ label: `${m.movie_hours} h`, count: m.count })),
     [t.movie_hours_mix],
   );
-  const perInstrument = useMemo(() => t.per_instrument.map((i) => ({ ...i, runs: i.runs })), [t.per_instrument]);
   const depth = useMemo(
     () => r.depth_distribution.map((d) => ({ label: `Use ${d.uses}`, cells: d.cells })),
     [r.depth_distribution],
   );
-  const wellFill = useMemo(
-    () => r.well_fill.map((w) => ({ week: w.week, pct: w.capacity ? Math.round((100 * w.filled) / w.capacity) : 0 })),
-    [r.well_fill],
+  const plateFill = useMemo(
+    () =>
+      r.plate_fill.map((w) => ({ period: w.period, pct: w.capacity ? Math.round((100 * w.filled) / w.capacity) : 0 })),
+    [r.plate_fill],
   );
   const failTrend = useMemo(
     () =>
-      f.failure_rate_trend.map((x) => ({ week: x.week, pct: x.total ? Math.round((100 * x.failed) / x.total) : 0 })),
+      f.failure_rate_trend.map((x) => ({ period: x.period, pct: x.total ? Math.round((100 * x.failed) / x.total) : 0 })),
     [f.failure_rate_trend],
   );
   const outcomes = useMemo(
@@ -172,27 +261,31 @@ function StatsCharts({ data }: { data: StatsResponse }) {
 
   return (
     <>
-      <Card>
+      <Card className={styles.section}>
         <CardBody>
           <SectionHeading title="Throughput & run rate" />
           <div className={styles.grid}>
-            <ChartBlock title="Samples per week" subtitle="loaded cell-uses" isEmpty={!t.series.length}>
-              <TimeBar data={t.series} valueKey="samples" name="Samples" color={p.magenta} />
+            <ChartBlock
+              title={`Samples sequenced per ${per}`}
+              subtitle="wells on completed runs"
+              isEmpty={!t.series.some((s) => s.samples_sequenced)}
+            >
+              <TimeBar data={t.series} valueKey="samples_sequenced" name="Samples sequenced" color={p.magenta} group={group} />
             </ChartBlock>
-            <ChartBlock title="Runs per week" isEmpty={!t.series.length}>
-              <TimeLine data={t.series} valueKey="runs" name="Runs" color={p.blue} />
+            <ChartBlock title={`Runs completed per ${per}`} isEmpty={!t.series.some((s) => s.runs_completed)}>
+              <TimeLine data={t.series} valueKey="runs_completed" name="Runs completed" color={p.blue} group={group} />
             </ChartBlock>
-            <ChartBlock title="Runs per instrument" isEmpty={!perInstrument.some((i) => i.runs)}>
-              <CategoryBars data={perInstrument} categoryKey="serial" valueKey="runs" color={p.blue} />
+            <ChartBlock title="Runs completed per instrument" isEmpty={!t.per_instrument.some((i) => i.runs_completed)}>
+              <CategoryBars data={t.per_instrument} categoryKey="serial" valueKey="runs_completed" color={p.blue} />
             </ChartBlock>
-            <ChartBlock title="Movie-hours mix" isEmpty={!movieMix.length}>
+            <ChartBlock title="Movie-time mix" subtitle="wells loaded" isEmpty={!movieMix.length}>
               <Donut data={movieMix} nameKey="label" valueKey="count" colors={[p.magenta, p.blue, p.teal, p.purple]} />
             </ChartBlock>
           </div>
         </CardBody>
       </Card>
 
-      <Card>
+      <Card className={styles.section}>
         <CardBody>
           <SectionHeading title="Reuse & utilisation" />
           <div className={styles.grid}>
@@ -213,20 +306,20 @@ function StatsCharts({ data }: { data: StatsResponse }) {
               <CategoryBars data={waste} categoryKey="label" valueKey="count" color={p.green} colorFor={(e) => String(e.color)} />
             </ChartBlock>
             <ChartBlock title="Avg uses per cell" isEmpty={!r.avg_uses_trend.length}>
-              <TimeLine data={r.avg_uses_trend} valueKey="avg_uses" name="Avg uses" color={p.teal} />
+              <TimeLine data={r.avg_uses_trend} valueKey="avg_uses" name="Avg uses" color={p.teal} group={group} />
             </ChartBlock>
-            <ChartBlock title="Well fill %" subtitle="wells used of 8/run" isEmpty={!wellFill.length}>
-              <TimeLine data={wellFill} valueKey="pct" name="Well fill" color={p.blue} percent />
+            <ChartBlock title="Plate fill %" subtitle="wells used of 4 per plate loaded" isEmpty={!plateFill.length}>
+              <TimeLine data={plateFill} valueKey="pct" name="Plate fill" color={p.blue} group={group} percent />
             </ChartBlock>
           </div>
         </CardBody>
       </Card>
 
-      <Card>
+      <Card className={styles.section}>
         <CardBody>
           <SectionHeading title="Failures & credits" />
           <div className={styles.grid}>
-            <ChartBlock title="Run outcomes" subtitle="cell-uses with a verdict" isEmpty={!outcomes.some((o) => o.count)}>
+            <ChartBlock title="Run outcomes" subtitle="wells on loaded runs" isEmpty={!outcomes.some((o) => o.count)}>
               <CategoryBars
                 data={outcomes}
                 categoryKey="label"
@@ -236,8 +329,8 @@ function StatsCharts({ data }: { data: StatsResponse }) {
                 height={180}
               />
             </ChartBlock>
-            <ChartBlock title="Failure rate %" subtitle="failed of samples sequenced" isEmpty={!failTrend.length}>
-              <TimeLine data={failTrend} valueKey="pct" name="Failure rate" color={p.red} percent />
+            <ChartBlock title="Failure rate %" subtitle="failed of wells loaded" isEmpty={!failTrend.length}>
+              <TimeLine data={failTrend} valueKey="pct" name="Failure rate" color={p.red} group={group} percent />
             </ChartBlock>
             <ChartBlock
               title="PacBio credit funnel"
@@ -250,7 +343,7 @@ function StatsCharts({ data }: { data: StatsResponse }) {
         </CardBody>
       </Card>
 
-      <Card>
+      <Card className={styles.section}>
         <CardBody>
           <SectionHeading title="Inventory & backlog" />
           <div className={styles.grid}>
@@ -265,8 +358,8 @@ function StatsCharts({ data }: { data: StatsResponse }) {
             <ChartBlock title="Samples by status" isEmpty={!sampleFunnel.some((s) => s.count)}>
               <CategoryBars data={sampleFunnel} categoryKey="label" valueKey="count" color={p.purple} />
             </ChartBlock>
-            <ChartBlock title="Samples imported per week" isEmpty={!inv.import_volume.length}>
-              <TimeBar data={inv.import_volume} valueKey="imported" name="Imported" color={p.teal} />
+            <ChartBlock title={`Samples imported per ${per}`} isEmpty={!inv.import_volume.length}>
+              <TimeBar data={inv.import_volume} valueKey="imported" name="Imported" color={p.teal} group={group} />
             </ChartBlock>
           </div>
         </CardBody>

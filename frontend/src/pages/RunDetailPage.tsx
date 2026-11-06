@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { useLocation, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 
 import { errorMessage } from "@/api/client";
 import { cyclesApi } from "@/api/cycles";
@@ -13,6 +13,7 @@ import { SlotDetailPopover } from "@/components/scheduler/SlotDetailPopover";
 import { SectionHeading, UseLegend } from "@/components/shared/SectionHeading";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { Note } from "@/components/ui/Note";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
@@ -25,6 +26,7 @@ import {
   shortWeekdayUTC,
 } from "@/utils/calendarDates";
 import { CYCLE_STATUS_TONE } from "@/utils/cycleStatus";
+import { runLabel } from "@/utils/runLabel";
 import { resolveBackNav } from "@/utils/sampleBackNav";
 
 import styles from "./RunDetailPage.module.css";
@@ -50,6 +52,7 @@ export function RunDetailPage() {
   const id = Number(runId);
   const idIsValid = Number.isFinite(id);
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   // Back to wherever the run was opened from (Run history with its filters, a cell, a sample);
   // a direct link falls back to Run history.
   const back = resolveBackNav(useLocation().state, { to: "/history/runs", label: "Run history" });
@@ -57,6 +60,7 @@ export function RunDetailPage() {
   const [detail, setDetail] = useState<StageTarget | null>(null);
   const [cellInfo, setCellInfo] = useState<StageTarget | null>(null);
   const [qcTarget, setQcTarget] = useState<QcTarget | null>(null);
+  const [confirmingCancel, setConfirmingCancel] = useState(false);
 
   const query = useQuery({
     queryKey: ["cycle", id],
@@ -68,6 +72,8 @@ export function RunDetailPage() {
     mutationFn: () => cyclesApi.cancel(id),
     onSuccess: () => {
       invalidateScheduleRelated(queryClient);
+      // The run is deleted, so this page has nothing left to show.
+      navigate(back.to);
     },
   });
 
@@ -104,6 +110,10 @@ export function RunDetailPage() {
 
   const slots = padStages(run);
   const canCancel = run.status === "planned";
+  const stages = run.plates.flatMap((p) => p.stages);
+  // What Cancel run returns to the backlog; a stopped cell's Blocked marker is kept (cancel_run).
+  const returning = stages.filter((s) => s.cell_use_status !== "cancelled" && s.sample_id != null).length;
+  const keepsMarkers = stages.some((s) => s.cell_use_status === "cancelled");
   const plate1 = run.plates.find((p) => p.plate_index === 1) ?? run.plates[0];
 
   return (
@@ -113,8 +123,8 @@ export function RunDetailPage() {
         back={back}
         actions={
           canCancel ? (
-            <Button variant="ghost" onClick={() => cancelMutation.mutate()} disabled={cancelMutation.isPending}>
-              {cancelMutation.isPending ? "Cancelling…" : "Cancel run"}
+            <Button variant="ghost" onClick={() => setConfirmingCancel(true)} disabled={cancelMutation.isPending}>
+              Cancel run
             </Button>
           ) : undefined
         }
@@ -148,10 +158,26 @@ export function RunDetailPage() {
         </span>
       </div>
 
-      {cancelMutation.isError && (
-        <Note tone="bad" icon="!">
-          {errorMessage(cancelMutation.error, "Couldn't cancel the run.")}
-        </Note>
+      {confirmingCancel && (
+        <ConfirmModal
+          title={`Cancel run ${runLabel(run)}?`}
+          confirmLabel="Cancel run"
+          cancelLabel="Keep run"
+          confirmVariant="danger"
+          pendingLabel="Cancelling…"
+          pending={cancelMutation.isPending}
+          error={cancelMutation.isError ? errorMessage(cancelMutation.error, "Couldn't cancel the run.") : null}
+          onCancel={() => setConfirmingCancel(false)}
+          onConfirm={() => cancelMutation.mutate()}
+        >
+          <p>
+            <b>
+              {returning} sample{returning === 1 ? "" : "s"}
+            </b>{" "}
+            return{returning === 1 ? "s" : ""} to the backlog; the run is deleted.
+            {keepsMarkers && " Its Blocked markers (stopped cells) are kept."}
+          </p>
+        </ConfirmModal>
       )}
 
       <SectionHeading title="Run plates" legend={<UseLegend />} />

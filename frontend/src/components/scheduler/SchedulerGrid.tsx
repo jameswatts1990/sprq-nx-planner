@@ -25,9 +25,9 @@ const EMPTY_NOTES_BY_DATE: Map<string, ScheduleNoteOut[]> = new Map();
 
 export interface SchedulerGridProps {
   instrumentSerials: string[];
-  /** Per-instrument display name + maintenance-down date, keyed by serial. Drives the row's
-   * name/serial label and the greyed, non-selectable down day-columns. */
-  instrumentMeta: Map<string, { name: string | null; downFrom: string | null }>;
+  /** Per-instrument display name + maintenance-down date and note, keyed by serial. Drives the
+   * row's name/serial label and the greyed, non-selectable down day-columns. */
+  instrumentMeta: Map<string, { name: string | null; downFrom: string | null; downNote: string | null }>;
   /** The 5 weekday (Mon-Fri) YYYY-MM-DD strings for the current window. */
   days: string[];
   /** Runs pre-grouped by (instrument_serial, load_date) - computed once in SchedulePage
@@ -239,6 +239,7 @@ export function SchedulerGrid({
               serial={serial}
               name={instrumentMeta.get(serial)?.name ?? null}
               downFrom={instrumentMeta.get(serial)?.downFrom ?? null}
+              downNote={instrumentMeta.get(serial)?.downNote ?? null}
               rowIndex={rowIndex}
               days={days}
               cyclesByDate={grouped.get(serial) ?? EMPTY_CYCLES_BY_DATE}

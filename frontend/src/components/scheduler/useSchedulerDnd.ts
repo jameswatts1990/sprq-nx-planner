@@ -14,6 +14,7 @@ import type { SlotIndex } from "@/types/schedule";
 import type { ScheduleNoteOut } from "@/types/scheduleNote";
 import type { DragSampleRef } from "@/types/schedulerGrid";
 
+import { blockedDropMessageAt, GENERIC_BLOCKED_DROP } from "./blockedDrop";
 import { gridCoordinateGetter } from "./gridKeyboardCoordinates";
 
 /** Payload attached to an empty slot's useDroppable. A grid slot is a plate LOADING position,
@@ -89,19 +90,24 @@ const collisionDetection: CollisionDetection = (args) => {
   });
 };
 
+/** Where a pointer drag was let go: the drag's own activatorEvent (its starting clientX/Y) plus
+ * dnd-kit's accumulated `delta` - the standard way to recover a drop's true final position, since
+ * `active.rect.current.translated` is not reliably up to date by the time onDragEnd fires. Null
+ * for a keyboard drag (its activatorEvent carries no pointer coordinates). */
+function dropPoint(event: DragEndEvent): { x: number; y: number } | null {
+  const activator = event.activatorEvent;
+  if (!(activator instanceof MouseEvent)) return null;
+  return { x: activator.clientX + event.delta.x, y: activator.clientY + event.delta.y };
+}
+
 /** Whether a drag ended within the grid's own bounds even though it didn't land on any
- * registered droppable - the pointer's final position (the drag's own activatorEvent, its
- * starting clientX/Y, plus dnd-kit's own accumulated `delta` - the standard way to recover a
- * drop's true final position, since `active.rect.current.translated` is not reliably
- * up to date by the time onDragEnd fires) overlaps the grid container. Distinguishes "aimed at
- * the grid but hit a non-interactive area" (a locked run, a weekend/down/no-run day - none
- * of which register a droppable, see SchedulerSlot/
- * SchedulerDayCell) from "genuinely dragged off the grid entirely" - only the latter should
- * ever mean "remove this placement" (see onDragEnd below). Returns false (never "within the
- * grid") when the container is unavailable or the drag was keyboard-activated (its
- * activatorEvent carries no pointer coordinates), so an unresolvable case falls back to the
- * pre-existing "outside the grid" behaviour rather than silently blocking a real off-grid
- * removal. */
+ * registered droppable. Distinguishes "aimed at the grid but hit a non-interactive area" (a
+ * locked run, a weekend/down/no-run day - none of which register a droppable, see
+ * SchedulerSlot/SchedulerDayCell) from "genuinely dragged off the grid entirely" - only the
+ * latter should ever mean "remove this placement" (see onDragEnd below). Returns false (never
+ * "within the grid") when the container is unavailable or the drag was keyboard-activated, so an
+ * unresolvable case falls back to the pre-existing "outside the grid" behaviour rather than
+ * silently blocking a real off-grid removal. */
 function isWithinGrid(event: DragEndEvent, gridAreaRef: RefObject<HTMLElement | null> | undefined): boolean {
   // gridAreaRef itself is a `display: contents` wrapper (SchedulePage's .gridArea - deliberately
   // boxless so it can scope the barcode/notes/density toggles without affecting layout), so its
@@ -110,12 +116,9 @@ function isWithinGrid(event: DragEndEvent, gridAreaRef: RefObject<HTMLElement | 
   // grid, so measure that instead.
   const scrollEl = gridAreaRef?.current?.querySelector<HTMLElement>('[class*="gridScroll"]');
   const container = scrollEl?.getBoundingClientRect();
-  if (!container) return false;
-  const activator = event.activatorEvent;
-  if (!(activator instanceof MouseEvent)) return false; // keyboard drag - no pointer coordinates to recover
-  const cx = activator.clientX + event.delta.x;
-  const cy = activator.clientY + event.delta.y;
-  return cx >= container.left && cx <= container.right && cy >= container.top && cy <= container.bottom;
+  const point = dropPoint(event);
+  if (!container || !point) return false;
+  return point.x >= container.left && point.x <= container.right && point.y >= container.top && point.y <= container.bottom;
 }
 
 export interface SchedulerDnd {
@@ -158,8 +161,8 @@ export interface SchedulerDnd {
  * @param onDropBlocked Called with a human-readable reason whenever a drop is rejected without
  * ever reaching the backend: a backlog sample dropped onto an already-occupied slot (nothing to
  * swap with), or any drop that lands within the grid's own bounds but not on a registered
- * droppable (a locked run, a weekend/down/no-run day - see
- * isWithinGrid). Every one of these used to be a silent no-op (or, for an already-placed
+ * droppable (a locked run, a weekend/down/no-run day - see isWithinGrid), naming the specific
+ * reason stamped on the area hit (blockedDrop.ts). Every one of these used to be a silent no-op (or, for an already-placed
  * sample, silently deleted it via onRemoveOutside - see the docstring there) with no visible
  * cause; this is the single channel that now surfaces one.
  * @param gridAreaRef The grid's own scroll/layout container, so a rejected drop landing inside
@@ -233,9 +236,11 @@ export function useSchedulerDnd(
         // the grid's own bounds, it landed on a non-interactive area that never registers a
         // droppable at all (a locked run, a weekend/down/no-run day) - that's a rejected
         // drop, never a removal, and must not fall through to the "dragged off the grid
-        // entirely" meaning below (which deletes a placed sample).
+        // entirely" meaning below (which deletes a placed sample). Say which area it hit and
+        // why, from the reason the day cell stamped on it (see blockedDrop.ts).
         if (activeData && isWithinGrid(event, gridAreaRef)) {
-          onDropBlocked("Can't drop here - this day/slot is locked or not open for scheduling.");
+          const point = dropPoint(event);
+          onDropBlocked((point && blockedDropMessageAt(point.x, point.y)) ?? GENERIC_BLOCKED_DROP);
           return;
         }
         // Genuinely outside the whole grid: a backlog sample was never placed, so there's
@@ -250,7 +255,7 @@ export function useSchedulerDnd(
         // Only a filled-slot drag (an already-placed sample) can land here as a swap - a
         // backlog sample dropped onto an already-occupied slot has nothing to swap with.
         if (activeData.kind !== "filledSlot") {
-          onDropBlocked("That slot already holds a sample - drop elsewhere, or drag it off to swap.");
+          onDropBlocked("That slot already holds a sample — drop on an empty slot.");
           return;
         }
         if (activeData.cell_use_id === overData.cell_use_id) return; // dropped back onto its own slot

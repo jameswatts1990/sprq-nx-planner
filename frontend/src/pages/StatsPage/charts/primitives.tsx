@@ -15,6 +15,9 @@ import {
   YAxis,
 } from "recharts";
 
+import type { GroupBy } from "@/types/stats";
+
+import { formatPeriod } from "../statsView";
 import { chartPalette } from "./palette";
 import styles from "./charts.module.css";
 
@@ -65,31 +68,35 @@ const axisTick = () => {
   return { fill: p.grey, fontSize: 11 };
 };
 
-function fmtWeek(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleDateString(undefined, { day: "numeric", month: "short" });
-}
-
-/** Vertical bars over weeks - a single magnitude-over-time series. */
+/** Vertical bars over periods (weeks / months / quarters, per `group`) - a single
+ * magnitude-over-time series. */
 export function TimeBar<T extends object>({
   data,
   valueKey,
   name,
   color,
+  group,
 }: {
   data: T[];
   valueKey: string;
   name: string;
   color: string;
+  group: GroupBy;
 }) {
   const p = chartPalette();
   return (
     <ResponsiveContainer width="100%" height={HEIGHT}>
       <BarChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: -12 }}>
         <CartesianGrid stroke={p.line} vertical={false} />
-        <XAxis dataKey="week" tickFormatter={fmtWeek} tick={axisTick()} tickLine={false} axisLine={{ stroke: p.line }} />
+        <XAxis
+          dataKey="period"
+          tickFormatter={(iso: string) => formatPeriod(iso, group)}
+          tick={axisTick()}
+          tickLine={false}
+          axisLine={{ stroke: p.line }}
+        />
         <YAxis allowDecimals={false} tick={axisTick()} tickLine={false} axisLine={false} width={36} />
-        <Tooltip {...tooltipProps()} labelFormatter={(l) => fmtWeek(String(l))} />
+        <Tooltip {...tooltipProps()} labelFormatter={(l) => formatPeriod(String(l), group, true)} />
         <Bar dataKey={valueKey} name={name} fill={color} radius={[4, 4, 0, 0]} maxBarSize={44} />
       </BarChart>
     </ResponsiveContainer>
@@ -102,12 +109,14 @@ export function TimeLine<T extends object>({
   valueKey,
   name,
   color,
+  group,
   percent,
 }: {
   data: T[];
   valueKey: string;
   name: string;
   color: string;
+  group: GroupBy;
   percent?: boolean;
 }) {
   const p = chartPalette();
@@ -115,7 +124,13 @@ export function TimeLine<T extends object>({
     <ResponsiveContainer width="100%" height={HEIGHT}>
       <LineChart data={data} margin={{ top: 8, right: 12, bottom: 0, left: -12 }}>
         <CartesianGrid stroke={p.line} vertical={false} />
-        <XAxis dataKey="week" tickFormatter={fmtWeek} tick={axisTick()} tickLine={false} axisLine={{ stroke: p.line }} />
+        <XAxis
+          dataKey="period"
+          tickFormatter={(iso: string) => formatPeriod(iso, group)}
+          tick={axisTick()}
+          tickLine={false}
+          axisLine={{ stroke: p.line }}
+        />
         <YAxis
           allowDecimals={!percent}
           domain={percent ? [0, 100] : undefined}
@@ -127,7 +142,7 @@ export function TimeLine<T extends object>({
         />
         <Tooltip
           {...tooltipProps()}
-          labelFormatter={(l) => fmtWeek(String(l))}
+          labelFormatter={(l) => formatPeriod(String(l), group, true)}
           formatter={(val) => [percent ? `${val}%` : val, name]}
         />
         <Line type="monotone" dataKey={valueKey} name={name} stroke={color} strokeWidth={2} dot={{ r: 3 }} />

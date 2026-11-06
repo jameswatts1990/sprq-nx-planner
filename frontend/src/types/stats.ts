@@ -1,28 +1,35 @@
-/** Mirrors backend/app/schemas/stats.py (StatsResponse). Weeks are ISO date strings
- * (Monday of the week). See that file / stats_service.py for the scoping rules: the
- * time-series respect the date/instrument filters; cell/sample/credit figures are
- * current "now" snapshots. */
+/** Mirrors backend/app/schemas/stats.py (StatsResponse). Each series point's `period` is the ISO
+ * date its week (Monday), month or quarter starts, per `group_by`. See that file /
+ * stats_service.py for the scoping rules: the time-series respect the date/instrument filters and
+ * count runs by their derived status and load date; cell/sample/credit figures are current "now"
+ * snapshots. */
 
-export interface WeekPoint {
-  week: string;
-  runs: number;
-  samples: number;
+export type GroupBy = "week" | "month" | "quarter";
+
+export interface PeriodPoint {
+  period: string;
+  runs_completed: number;
+  /** Wells on completed runs that didn't fail or abort. */
+  samples_sequenced: number;
+  /** Runs loading in the period that are still planned. */
+  planned_runs: number;
 }
 
 export interface InstrumentThroughput {
   serial: string;
   name: string | null;
-  runs: number;
-  cell_uses: number;
+  runs_completed: number;
+  samples_sequenced: number;
 }
 
 export interface MovieHoursSlice {
   movie_hours: number;
+  /** Wells loaded with this movie time. */
   count: number;
 }
 
 export interface ThroughputStats {
-  series: WeekPoint[];
+  series: PeriodPoint[];
   per_instrument: InstrumentThroughput[];
   movie_hours_mix: MovieHoursSlice[];
 }
@@ -33,13 +40,14 @@ export interface DepthSlice {
 }
 
 export interface AvgUsesPoint {
-  week: string;
+  period: string;
   avg_uses: number;
 }
 
-export interface WellFillPoint {
-  week: string;
+export interface PlateFillPoint {
+  period: string;
   filled: number;
+  /** 4 wells x plates loaded. */
   capacity: number;
 }
 
@@ -51,7 +59,7 @@ export interface WindowWaste {
 export interface ReuseStats {
   depth_distribution: DepthSlice[];
   avg_uses_trend: AvgUsesPoint[];
-  well_fill: WellFillPoint[];
+  plate_fill: PlateFillPoint[];
   window_waste: WindowWaste;
 }
 
@@ -61,8 +69,9 @@ export interface OutcomeSlice {
 }
 
 export interface FailureRatePoint {
-  week: string;
+  period: string;
   failed: number;
+  /** Wells loaded in the period. */
   total: number;
 }
 
@@ -85,7 +94,7 @@ export interface StatusSlice {
 }
 
 export interface ImportVolumePoint {
-  week: string;
+  period: string;
   imported: number;
 }
 
@@ -97,16 +106,20 @@ export interface InventoryStats {
 
 export interface HeadlineStats {
   runs_completed: number;
-  samples_completed: number;
+  samples_sequenced: number;
+  planned_runs: number;
   avg_uses_per_cell: number;
   pct_reaching_use3: number;
+  /** Failed of wells loaded, 0-100. */
   failure_rate: number;
-  well_fill_pct: number;
+  /** Wells used of 4 per plate loaded, 0-100. */
+  plate_fill_pct: number;
   cells_awaiting_credit: number;
   credits_received: number;
 }
 
 export interface StatsResponse {
+  group_by: GroupBy;
   headline: HeadlineStats;
   throughput: ThroughputStats;
   reuse: ReuseStats;

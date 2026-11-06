@@ -1,7 +1,8 @@
 from collections import Counter
 from datetime import datetime
+from typing import Annotated
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from sqlalchemy import or_, select
 from sqlalchemy.orm import selectinload
 
@@ -60,6 +61,9 @@ from app.services.qc_service import commit_qc, preview_qc, undo_qc
 from app.services.settings_service import get_repeat_safe_min_ul, get_repeat_total_complex_ul
 
 QC_STATUSES = ("unreported", "awaiting_credit", "in_workflow")
+# The list endpoints still serialize every match before slicing a page, so a page can't be
+# unbounded; 1000 is what api/cells.ts listAll pages by.
+MAX_CELL_PAGE_SIZE = 1000
 
 router = APIRouter(prefix="/api/cells", tags=["cells"])
 
@@ -172,8 +176,8 @@ def list_cells(
     tray_id: int | None = None,
     cell_type: CellType | None = None,
     as_of: datetime | None = None,
-    page: int = 1,
-    page_size: int = 50,
+    page: Annotated[int, Query(ge=1)] = 1,
+    page_size: Annotated[int, Query(ge=1, le=MAX_CELL_PAGE_SIZE)] = 50,
 ) -> Page[CellOut]:
     serialized = _matching_cells(
         db,
@@ -207,8 +211,8 @@ def list_cell_trays(
     as_of: datetime | None = None,
     sort_by: str = "expiry",
     sort_dir: str = "asc",
-    page: int = 1,
-    page_size: int = 50,
+    page: Annotated[int, Query(ge=1)] = 1,
+    page_size: Annotated[int, Query(ge=1, le=MAX_CELL_PAGE_SIZE)] = 50,
 ) -> Page[CellTrayRowOut]:
     """The Cells page list: the same filters as list_cells, but one row per physical tray that
     has at least one matching cell - carrying ALL of that tray's cells, so a row always shows

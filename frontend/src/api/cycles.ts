@@ -1,6 +1,6 @@
 import { api, buildQuery } from "./client";
 import type { CellType, CycleStatus, Page } from "@/types/common";
-import type { RunHistoryRowOut, RunOut } from "@/types/schedule";
+import type { RunHistoryRowOut, RunOut, ScheduleSearchHit } from "@/types/schedule";
 
 export interface CycleStatusUpdate {
   status: CycleStatus;
@@ -47,6 +47,9 @@ export const cyclesApi = {
   /** The Run history page's rows - searched, filtered, sorted and paged server-side. */
   listHistory: (params: ListRunHistoryParams = {}) =>
     api.get<Page<RunHistoryRowOut>>(`/api/cycles/history${buildQuery(params)}`),
+  /** The Schedule header search: every grid slot, across all weeks, matching a Pool / Plate /
+   * Sanger ID, barcode, cell code, "T12" tray or a run's name / "#id" - in grid reading order. */
+  search: (q: string, limit = 50) => api.get<ScheduleSearchHit[]>(`/api/cycles/search${buildQuery({ q, limit })}`),
   get: (id: number) => api.get<RunOut>(`/api/cycles/${id}`),
   /** PATCH /api/cycles/{run_id} {status} -> updated RunOut. Operates on the whole run (one
    * Confirm-loaded locks every plate). Used for Confirm-loaded (status:"running") and

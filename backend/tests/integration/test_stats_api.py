@@ -1,7 +1,7 @@
 """End-to-end shape + filter behaviour for GET /api/stats. The aggregation math is
 covered in tests/unit/test_stats_service.py; here we just confirm the endpoint wires up,
 returns the four groups, and honours the date/instrument filters."""
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 
 def _past_weekday() -> str:
@@ -20,7 +20,8 @@ def test_stats_empty_db_returns_all_groups(client):
     r = client.get("/api/stats")
     assert r.status_code == 200, r.text
     body = r.json()
-    assert set(body) == {"headline", "throughput", "reuse", "failures", "inventory"}
+    assert set(body) == {"group_by", "headline", "throughput", "reuse", "failures", "inventory"}
+    assert body["group_by"] == "week"
     assert body["headline"]["runs_completed"] == 0
     assert body["throughput"]["series"] == []
     # all four instruments still listed (zeroed), so the per-instrument chart isn't blank
@@ -54,8 +55,8 @@ def test_stats_reflects_a_completed_run(client):
 
     body = client.get("/api/stats").json()
     assert body["headline"]["runs_completed"] == 1
-    assert body["headline"]["samples_completed"] == 1
-    assert body["throughput"]["series"][0]["runs"] == 1
+    assert body["headline"]["samples_sequenced"] == 1
+    assert body["throughput"]["series"][0]["runs_completed"] == 1
     assert {o["status"]: o["count"] for o in body["failures"]["outcomes"]}["completed"] == 1
 
     # instrument filter: nothing on 84098
@@ -66,3 +67,39 @@ def test_stats_reflects_a_completed_run(client):
     future = (date.today() + timedelta(days=30)).isoformat()
     later = client.get("/api/stats", params={"date_from": future}).json()
     assert later["throughput"]["series"] == []
+
+def test_a_loaded_run_counts_as_completed_once_it_has_run_its_course(client):
+    """The lab only ever presses Confirm loaded - nothing marks a run completed - so a run loaded
+    a week ago must count as completed without the PATCH to "completed" the test above makes."""
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nS1,bc1"})
+    week_ago = date.today() - timedelta(days=7)
+    while week_ago.weekday() >= 5:
+        week_ago -= timedelta(days=1)
+    r1 = client.post(
+        "/api/cell-uses",
+        json={
+            "sample_id": _sid(client, "S1"),
+            "instrument_serial": "84047",
+            "load_date": week_ago.isoformat(),
+            "slot_index": 0,
+            "cell_choice": {"mode": "new"},
+            "run_time_hours": 24,
+        },
+    )
+    assert r1.status_code == 201, r1.text
+    loaded_at = datetime.combine(week_ago, datetime.min.time()).replace(hour=10).isoformat() + "Z"
+    lock = client.patch(f"/api/cycles/{r1.json()['run_id']}", json={"status": "running", "at": loaded_at})
+    assert lock.status_code == 200, lock.text
+
+    body = client.get("/api/stats").json()
+    assert body["headline"]["runs_completed"] == 1
+    assert body["headline"]["samples_sequenced"] == 1
+    assert body["headline"]["planned_runs"] == 0
+    assert body["throughput"]["series"][0]["runs_completed"] == 1
+    assert {o["status"]: o["count"] for o in body["failures"]["outcomes"]}["completed"] == 1
+
+
+def test_group_by_month_and_validation(client):
+    body = client.get("/api/stats", params={"group_by": "month"}).json()
+    assert body["group_by"] == "month"
+    assert client.get("/api/stats", params={"group_by": "fortnight"}).status_code == 422

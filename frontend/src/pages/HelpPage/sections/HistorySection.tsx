@@ -106,7 +106,8 @@ export function HistorySection() {
       </p>
       <p>
         <b>Cancel run</b> (top right) is available only while a run is still <i>planned</i>; once it&apos;s running/loaded it
-        can&apos;t be cancelled from here.
+        can&apos;t be cancelled from here. It asks first, saying how many samples go back to the backlog; the run is then
+        deleted (a stopped cell&apos;s <b>Blocked</b> marker is kept) and you&apos;re taken back to where you came from.
       </p>
 
       <p className={styles.subheading}>History → Samples</p>

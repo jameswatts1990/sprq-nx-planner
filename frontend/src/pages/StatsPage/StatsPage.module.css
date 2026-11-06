@@ -13,11 +13,29 @@
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
-.rangeNote {
+.customRange {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--fs-sm);
+  color: var(--grey);
+}
+/* What the report covers - on screen and at the top of the printout. */
+.reportLine {
+  font-size: var(--fs-base);
+  color: var(--ink);
+  margin: 0 0 16px;
+}
+.scopeNote {
+  display: block;
   font-size: var(--fs-sm);
   color: var(--faint);
+  margin-top: 2px;
+}
+.printOnly {
+  display: none;
 }
 /* Two charts per row on wide screens, one when it gets tight - each block can shrink
    (min-width:0 in charts.module.css) so recharts' ResponsiveContainer never overflows. */
@@ -25,4 +43,36 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
   gap: 28px 32px;
+}
+
+/* An A4 portrait management report. A *named* page, so it never fights the Batch Sheet's global
+   landscape @page (both stylesheets can be loaded at once). */
+@page statsReport {
+  size: A4 portrait;
+  margin: 12mm;
+}
+
+@media print {
+  .page {
+    page: statsReport;
+    padding-top: 0;
+    gap: 10px;
+  }
+  .toolbar {
+    display: none;
+  }
+  .printOnly {
+    display: inline;
+  }
+  .reportLine {
+    margin-bottom: 10px;
+  }
+  .grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 12px 18px;
+  }
+  /* Keep each section's charts together on one sheet. */
+  .section {
+    break-inside: avoid;
+  }
 }

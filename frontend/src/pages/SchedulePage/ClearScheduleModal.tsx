@@ -37,7 +37,7 @@ export function ClearScheduleModal({ weekLabel, count, pending, error, onCancel,
           Cancel
         </Button>
         <Button variant="danger" onClick={onConfirm} disabled={pending || count === 0}>
-          {pending ? "Clearing…" : `Delete ${count} sample${count === 1 ? "" : "s"}`}
+          {pending ? "Returning…" : `Return ${count} sample${count === 1 ? "" : "s"} to backlog`}
         </Button>
       </ModalActions>
     </Modal>

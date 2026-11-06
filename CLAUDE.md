@@ -41,6 +41,8 @@ Pushing a tag builds the frontend and backend container images and publishes the
 
 Native dev on local disk (`c:\Users\jw24\dev\sprq-nx-planner`): `npm run dev` (frontend, port 5173) + `uvicorn --reload` (backend, port 8000) against SQLite `backend/dev.db`. No Docker here. Use the `py` launcher or `backend/.venv/Scripts/python.exe` — **never bare `python`** (it resolves to a broken Windows Store stub). Process-hygiene, PATH, and Alembic-on-`dev.db` gotchas: read `docs/dev-notes.md` when a dev-env issue bites.
 
+`docs/` is its own **private git repo**, gitignored here: on a new machine clone it into `docs/`, and commit edits to anything under `docs/` (roadmap, Help map, scheduling reference) in that repo, never in RunNx.
+
 ## Deployment
 
 Deployed on a Hetzner VM (`37.27.2.77`, `http://37.27.2.77:8080/`), checked out at `/opt/sprq-nx-planner`, run via the root `docker-compose.yml` (nginx + FastAPI + Postgres — Postgres in prod, not SQLite). Redeploy after pushing: `cd /opt/sprq-nx-planner && git pull && docker compose up -d --build`. The frontend is on **8080** deliberately (the VM shares host port 80 with an unrelated service) — check `ss -tlnp` before ever changing published ports. Full runbook + gotchas: `docs/deployment-notes.md`.
