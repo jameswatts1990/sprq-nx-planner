@@ -45,6 +45,8 @@ export const samplesApi = {
       body,
     ),
   update: (id: number, body: SampleUpdate) => api.patch<SampleOut>(`/api/samples/${id}`, body),
+  /** Set (or, with a blank value, clear) a sample's note. Works at any status, finished included. */
+  updateNotes: (id: number, notes: string) => api.patch<SampleOut>(`/api/samples/${id}/notes`, { notes }),
   listPriorities: (status?: string) =>
     api.get<string[]>(`/api/samples/priorities${buildQuery({ status })}`),
   get: (id: number) => api.get<SampleDetailOut>(`/api/samples/${id}`),

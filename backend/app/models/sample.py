@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import JSON, ColumnElement, DateTime, Float, ForeignKey, Integer, String, UniqueConstraint, cast, func, or_
+from sqlalchemy import JSON, ColumnElement, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint, cast, func, or_
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -64,6 +64,11 @@ class Sample(Base):
     # leftover-complex countdown chip on "repeatable_complex" samples (display only - nothing
     # happens on expiry). Set/cleared/undone together with qc_disposition.
     qc_disposition_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Free-text lab note about the sample itself, editable at any status (finished samples too)
+    # via PATCH /api/samples/{id}/notes - e.g. "supplier emailed, awaiting reply" on a resupply.
+    # Distinct from a placement's CellUse.notes (this sample on one cell) and a resupply
+    # request's SampleTopup.note (the Cell QC reason the request was raised with).
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

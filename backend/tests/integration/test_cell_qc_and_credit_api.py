@@ -376,7 +376,14 @@ def test_topup_request_sent_then_cancel(client):
 
     topups = client.get("/api/topups").json()
     assert len(topups) == 1 and topups[0]["request_sent_at"] is None
+    assert topups[0]["sample_notes"] is None
     tid = topups[0]["id"]
+
+    # The lost sample is "failed" (locked for edits) but its note is still editable, and the
+    # resupply list carries it.
+    notes = client.patch(f"/api/samples/{_sid(client, 'T1')}/notes", json={"notes": "Supplier emailed"})
+    assert notes.status_code == 200, notes.text
+    assert client.get("/api/topups").json()[0]["sample_notes"] == "Supplier emailed"
 
     sent = client.post(f"/api/topups/{tid}/request-sent")
     assert sent.status_code == 200, sent.text

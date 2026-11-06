@@ -8,6 +8,7 @@ import { topupsApi } from "@/api/topups";
 import { BarcodeChips } from "@/components/shared/BarcodeChips";
 import { ComplexCountdownChip } from "@/components/shared/ComplexCountdownChip";
 import { DuplicateBadge } from "@/components/shared/DuplicateBadge";
+import { SampleNoteField } from "@/components/shared/SampleNotes";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
@@ -223,6 +224,11 @@ export function SampleDetailPage() {
                 <BarcodeChips barcodes={sample.sanger_ids} />
               </div>
             )}
+            {/* Editable at any status - unlike the Edit form, which a finished sample doesn't offer. */}
+            <div className={styles.notesRow}>
+              <span className="detailLabel">Notes</span>
+              <SampleNoteField sampleId={sample.id} notes={sample.notes} />
+            </div>
           </div>
         </CardBody>
       </Card>

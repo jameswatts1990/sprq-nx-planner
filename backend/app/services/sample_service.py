@@ -10,6 +10,11 @@ from app.models.sample import Sample, SampleBarcode
 from app.services.settings_service import get_default_movie_hours, get_sample_defaults
 
 
+def clean_notes(notes: str | None) -> str | None:
+    """A sample note as stored: trimmed, with a blank/whitespace-only note stored as null."""
+    return (notes or "").strip() or None
+
+
 def existing_samples_with_id(db: Session, pool_id: str) -> list[Sample]:
     """Every sample that already carries this Pool ID, oldest first — across ALL statuses
     (including completed/cancelled). Duplicates are intentionally allowed (the same sample can be
@@ -43,6 +48,7 @@ def create_backlog_sample(
     base_kinetics: str | None = None,
     movie_time_hours: int | None = None,
     insert_size_bp: int | None = None,
+    notes: str | None = None,
     import_batch_id: int | None = None,
 ) -> Sample:
     """Insert one backlog Sample + its barcodes. Does NOT commit — the caller owns the
@@ -74,6 +80,7 @@ def create_backlog_sample(
         base_kinetics=base_kinetics if base_kinetics is not None else defaults["base_kinetics"],
         movie_time_hours=coerce_movie_hours(movie_time_hours, get_default_movie_hours(db)),
         insert_size_bp=insert_size_bp,
+        notes=clean_notes(notes),
         status="backlog",
     )
     db.add(sample)

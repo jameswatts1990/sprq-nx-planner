@@ -36,6 +36,12 @@
   gap: 10px;
   flex-wrap: wrap;
 }
+/* Label above the note - a note can run to several lines. */
+.notesRow {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
 .tableWrap {
   overflow-x: auto;
 }

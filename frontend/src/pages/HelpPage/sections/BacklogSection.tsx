@@ -106,6 +106,24 @@ export function BacklogSection() {
         header to sort this list.
       </p>
       <p>
+        Under each Pool ID here is the sample&apos;s <b>note</b> — handy for tracking the request (who you emailed,
+        when the supplier replied). Click <b>✎ Add note</b> to write one in place, or the <b>✎</b> beside an existing
+        note to change it (see <b>Sample notes</b> below).
+      </p>
+
+      <p className={styles.subheading}>Sample notes</p>
+      <p>
+        Any sample can carry a free-text <b>note</b>, whatever its status. When a sample has one, a grey note chip
+        shows under its Pool ID in these lists with the note&apos;s first words — click it (the <b>▸</b> turns down)
+        to open the full note in a row just below the sample, and click it again to close it. The <b>✎</b> beside the
+        chip edits the note right there: type, then <b>Save note</b> (or press <b>Ctrl+Enter</b>); <b>Cancel</b> or{" "}
+        <b>Esc</b> leaves it unchanged. Saving an empty note removes it. You can also write the note on the{" "}
+        <b>+ Add sample</b> / <b>Edit</b> form&apos;s <b>Sample notes</b> box, or on the sample&apos;s own page — which
+        works even for a finished (completed, failed or cancelled) sample that can no longer be edited. A sample note
+        stays with the sample wherever it runs; it is separate from the per-cell <b>placement note</b> in a Schedule
+        slot&apos;s popover.
+      </p>
+      <p>
         <b>Aborted</b> is a legacy top-priority label: if any sample carries it, a red{" "}
         <Badge tone="danger">⚠ N aborted</Badge> badge appears in the <b>Samples to schedule</b> list&apos;s header
         here and in the Schedule tab&apos;s Backlog panel header so it&apos;s never missed.
@@ -132,7 +150,8 @@ export function BacklogSection() {
         like an imported one. If the Pool ID has been seen before (any status, including completed), the form
         doesn&apos;t reject it — it tells you how many times it&apos;s been seen and offers <b>Add anyway</b> to create
         another copy (for running the same sample across multiple cells). Click Add anyway to confirm, or change the
-        Pool ID if it was a mistake.
+        Pool ID if it was a mistake. A <b>Sample notes</b> box at the bottom of the form takes an optional note (see{" "}
+        <b>Sample notes</b> above).
       </p>
       <p>
         <b>Edit</b> (on each row) opens the same form to correct a backlog sample&apos;s details — barcodes, Sanger
@@ -140,7 +159,8 @@ export function BacklogSection() {
         which pre-fill the batch sheet&apos;s dilution worksheet), and the other settings. The{" "}
         <b>Pool ID</b> is greyed out and can&apos;t be changed: it identifies the sample and is fixed once
         created. A backlog sample is fully editable; once it&apos;s scheduled you can still adjust its loading
-        parameters (including those volumes) from the Schedule slot popover, but its barcodes and identity are locked.
+        parameters (including those volumes) and its sample note from the Schedule slot popover, but its barcodes and
+        identity are locked.
         A <b>View on Traction</b> button (next to Cancel) opens the sample in Traction — the pools view for a pool
         (more than one Sanger ID) or the libraries view for a single — so you can check its material without leaving
         RunNx.

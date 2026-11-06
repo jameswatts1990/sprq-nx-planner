@@ -290,6 +290,32 @@ def test_update_terminal_sample_is_409(client):
     assert "cancelled" in resp.json()["detail"].lower()
 
 
+def test_notes_set_on_create_and_kept_by_an_edit_that_omits_them(client):
+    created = _create(client, notes="  Rush - PI waiting  ")
+    assert created["notes"] == "Rush - PI waiting"
+
+    # A PATCH without `notes` leaves the note alone; one that sends it blank clears it.
+    resp = client.patch(f"/api/samples/{created['id']}", json={"barcodes": ["bc1"], "priority": "High (1)"})
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["notes"] == "Rush - PI waiting"
+    resp = client.patch(f"/api/samples/{created['id']}", json={"barcodes": ["bc1"], "notes": "   "})
+    assert resp.json()["notes"] is None
+
+
+def test_notes_endpoint_edits_a_finished_sample(client):
+    """Notes stay editable after the sample can no longer be edited (here: cancelled)."""
+    created = _create(client)
+    assert client.post(f"/api/samples/{created['id']}/cancel").status_code == 200
+
+    resp = client.patch(f"/api/samples/{created['id']}/notes", json={"notes": " Emailed supplier \n"})
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["notes"] == "Emailed supplier"
+    assert client.get(f"/api/samples/{created['id']}").json()["notes"] == "Emailed supplier"
+
+    assert client.patch(f"/api/samples/{created['id']}/notes", json={"notes": ""}).json()["notes"] is None
+    assert client.patch("/api/samples/999999/notes", json={"notes": "x"}).status_code == 404
+
+
 def _next_monday_iso() -> str:
     from datetime import date, timedelta
 

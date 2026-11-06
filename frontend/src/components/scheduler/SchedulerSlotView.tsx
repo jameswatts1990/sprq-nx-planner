@@ -3,6 +3,7 @@ import type { CSSProperties, HTMLAttributes, MouseEvent } from "react";
 
 import { BarcodeChips } from "@/components/shared/BarcodeChips";
 import { DuplicateBadge } from "@/components/shared/DuplicateBadge";
+import { NoteIcon } from "@/components/shared/icons";
 import { InsertSizeFlag } from "@/components/shared/InsertSizeFlag";
 import { MovieTimeFlag } from "@/components/shared/MovieTimeFlag";
 import { useInsertSizeThreshold } from "@/hooks/useInsertSizeThreshold";
@@ -347,22 +348,7 @@ export const SchedulerSlotView = memo(
                 title={stage!.notes}
                 aria-label={`Note: ${stage!.notes}`}
               >
-                {/* A note page (folded corner, two text lines) - not ✎, which means Edit. */}
-                <svg
-                  width="1em"
-                  height="1em"
-                  viewBox="0 0 12 12"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.2"
-                  strokeLinejoin="round"
-                  strokeLinecap="round"
-                  aria-hidden="true"
-                >
-                  <path d="M2.5 1.5h5l2.5 2.5v6.5h-7.5z" />
-                  <path d="M7.5 1.5v2.5h2.5" />
-                  <path d="M4.25 6.5h3.5M4.25 8.5h2.5" />
-                </svg>
+                <NoteIcon />
               </span>
             )}
             <InsertSizeFlag sizeBp={stage!.insert_size_bp} compact />

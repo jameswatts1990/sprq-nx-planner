@@ -1,0 +1,106 @@
+/* A sample's note (see SampleNotes.tsx): the chip + ✎ under a Pool ID, the note row below the
+   sample, and the in-place editor. */
+.controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  max-width: 100%;
+}
+/* Prose, not a code, so sans (unlike the mono status chips) - but the same 24px height and
+   radius so it sits alongside them. */
+.chip {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  max-width: 260px;
+  min-width: 0;
+  padding: 0 8px 0 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--line-soft);
+  color: var(--grey);
+  font-family: var(--sans);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+.chip:hover,
+.chip[aria-expanded="true"] {
+  border-color: var(--line-hover);
+  color: var(--ink);
+}
+.chip:focus-visible {
+  outline: 2px solid var(--magenta-border);
+  outline-offset: 1px;
+}
+.preview {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.add {
+  appearance: none;
+  border: none;
+  background: none;
+  padding: 2px 0;
+  color: var(--grey);
+  font-family: var(--sans);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+.add:hover,
+.add:focus-visible {
+  color: var(--ink);
+  text-decoration: underline;
+}
+
+/* The note itself: kept as typed (line breaks and all), in a soft box, at a readable width. */
+.text {
+  margin: 0;
+  max-width: 80ch;
+  padding: 8px 12px;
+  border-radius: var(--r-sm);
+  background: var(--line-soft);
+  color: var(--ink);
+  font-size: var(--fs-base);
+  font-weight: 400;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.field {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.empty {
+  color: var(--faint);
+  font-size: var(--fs-base);
+  padding: 6px 0;
+}
+
+.editor {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 80ch;
+}
+.textarea {
+  width: 100%;
+  min-height: 64px;
+}
+.editorActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.hint {
+  margin-right: auto;
+  font-size: var(--fs-xs);
+  color: var(--faint);
+}

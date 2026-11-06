@@ -35,6 +35,9 @@ class _SampleFieldsBase(BaseModel):
     # Library insert / fragment size (bp). Optional whole number; a null means "not recorded"
     # and never counts as small-insert for the scheduling rule / card flag.
     insert_size_bp: int | None = None
+    # Free-text note about the sample. Optional on create; on update it's applied only when the
+    # request actually carries it (see update_sample), so a caller that omits it never wipes it.
+    notes: str | None = None
 
     @field_validator(*_BOOL_FIELDS, mode="before")
     @classmethod
@@ -68,6 +71,11 @@ class SampleUpdate(_SampleFieldsBase):
     Pool ID, which identifies the sample and is intentionally not editable."""
 
 
+class SampleNotesUpdate(BaseModel):
+    # Empty/whitespace-only clears the note back to null; anything else is stored trimmed.
+    notes: str | None = None
+
+
 class SampleOut(BaseModel):
     id: int
     pool_id: str
@@ -92,6 +100,7 @@ class SampleOut(BaseModel):
     qc_disposition: str | None = None
     # When that QC action was recorded - the start of the from-complex 30-day countdown chip.
     qc_disposition_at: datetime | None = None
+    notes: str | None = None
     barcodes: list[str]
     import_batch_id: int | None
     created_at: datetime
