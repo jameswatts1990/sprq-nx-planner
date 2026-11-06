@@ -43,7 +43,7 @@ export function CellsSection() {
         which are never reused — a dash. <b>Flags</b> call out anything that needs a second look:{" "}
         <b>Unreported</b> / <b>Awaiting credit</b> (a cell has an open PacBio credit case — see below),{" "}
         <b>Reuse skipped</b> (a planned disposal) and <b>Discarded</b> (thrown away before all its uses were spent —
-        not shown when Auto Schedule disposes a tray whose uses are all spent or booked).
+        not shown when Autoschedule disposes a tray whose uses are all spent or booked).
       </p>
       <p>
         <b>Click a row</b> (or its <b>▸</b>) to expand it. The expanded tray lists each cell with its status, uses
@@ -102,7 +102,7 @@ export function CellsSection() {
       <ul>
         <li>
           <b>Skip reuse</b> — if you already know you&apos;ll bin a part-used tray but haven&apos;t physically pulled it
-          yet, this flags it so Auto Schedule stops reusing it and opens fresh cells instead (the same switch as the
+          yet, this flags it so Autoschedule stops reusing it and opens fresh cells instead (the same switch as the
           Schedule&apos;s <b>Autoschedule</b> panel&apos;s <b>Reuse this week</b> list). The row then shows a{" "}
           <b>Reuse skipped</b> flag. It&apos;s a reversible <i>plan</i> only — no cell status changes and nothing is
           thrown away; <b>Allow reuse again</b> clears it.
@@ -120,8 +120,8 @@ export function CellsSection() {
         </li>
       </ul>
       <p>
-        <b>Auto Schedule disposes whole trays too:</b> a tray of 4 is one physical object — it&apos;s thrown away as
-        a unit, never one cell at a time. So when you auto-schedule, a tray is disposed automatically only once{" "}
+        <b>Autoschedule disposes whole trays too:</b> a tray of 4 is one physical object — it&apos;s thrown away as
+        a unit, never one cell at a time. So when you Autoschedule, a tray is disposed automatically only once{" "}
         <b>every</b> cell in it has been used to your <b>Max uses per cell</b> setting; all 4 cells then show as{" "}
         <b>Exhausted</b> together, exactly like a manual discard, and are never offered for reuse again. A tray still
         holding an unused or below-target cell is left alone (every cell stays open) until a later run finishes it.
@@ -292,7 +292,7 @@ export function CellsSection() {
         ID)</b> column of <b>Generate report</b>; your name from the top bar is offered as a suggestion.
       </p>
       <p>
-        A credit that isn&apos;t tied to a cell RunNx tracks is logged on the <b>QC</b> tab with{" "}
+        A credit that isn&apos;t tied to a cell RunNx tracks is logged on the <b>QC &amp; credits</b> tab with{" "}
         <b>+ Add case without a cell</b> instead — see the QC section.
       </p>
     </div>

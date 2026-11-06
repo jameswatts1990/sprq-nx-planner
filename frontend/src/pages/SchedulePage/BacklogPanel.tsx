@@ -159,7 +159,7 @@ export function BacklogPanel({
   const listLoading = searching ? searchLoading : browseQuery.isLoading;
   const listError = searching ? null : browseQuery.error;
 
-  const autoscheduleTitle = "Autoschedule — set the run design and auto-fill selected cells from the backlog";
+  const autoscheduleTitle = "Autoschedule — set the run design and fill the selected day slots from the backlog";
   // Labelled in the roomy top header; a square pink ✦ icon in the narrow side header.
   const autoscheduleButton =
     onOpenAutoschedule &&

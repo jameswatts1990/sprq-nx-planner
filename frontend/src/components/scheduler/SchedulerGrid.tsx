@@ -215,7 +215,7 @@ export function SchedulerGrid({
               onKeyDown={onSelectAllKeyDown}
               role="button"
               tabIndex={0}
-              title="Select every open cell for every instrument and day"
+              title="Select every open day slot for every instrument and day"
             >
               <div className={styles.ml}>Instrument</div>
             </th>

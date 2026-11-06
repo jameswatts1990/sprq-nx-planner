@@ -328,7 +328,7 @@ function SlotDetailBody({
       {smallOnReuse && (
         <Note tone="warn" icon="!">
           {smallInsertReuseWarning(insertThreshold)} This is a small-insert library (
-          {stage.insert_size_bp?.toLocaleString()} bp) on <b>Use {stage.use_number}</b> of its cell — Auto Schedule
+          {stage.insert_size_bp?.toLocaleString()} bp) on <b>Use {stage.use_number}</b> of its cell — Autoschedule
           keeps small inserts on a first use.
         </Note>
       )}

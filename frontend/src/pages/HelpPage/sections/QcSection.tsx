@@ -8,7 +8,7 @@ export function QcSection() {
   return (
     <div className={styles.copy}>
       <p>
-        <b>What this tab is for:</b> the one home for every <b>PacBio credit case</b> — the cells that have{" "}
+        <b>What the QC &amp; credits tab is for:</b> the one home for every <b>PacBio credit case</b> — the cells that have{" "}
         <b>failed</b> or been <b>stopped</b> and are now chasing a credit back from PacBio, plus any case you log by
         hand that isn&apos;t linked to a cell. Instead of opening cells one at a time, it lists every open case together,
         shows how far each has got, and lets you take the next step right from the list.

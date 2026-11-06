@@ -39,7 +39,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/import", label: "Import", Icon: UploadIcon },
   { to: "/backlog", label: "Backlog", Icon: InboxIcon },
   { to: "/schedule", label: "Schedule", Icon: CalendarIcon },
-  { to: "/qc", label: "QC", Icon: ShieldCheckIcon },
+  { to: "/qc", label: "QC & credits", Icon: ShieldCheckIcon },
   { to: "/instruments", label: "Instruments", Icon: InstrumentIcon },
 ];
 

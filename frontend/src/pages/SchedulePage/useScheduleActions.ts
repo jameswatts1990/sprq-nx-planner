@@ -357,7 +357,7 @@ export function useScheduleActions({
       if (res.unplaced_sample_ids.length > 0) {
         parts.push(unplacedNote(res.unplaced_sample_ids.length, res.unplaced_pool_ids));
       }
-      if (res.skipped_cells.length > 0) parts.push(`${res.skipped_cells.length} cell(s) skipped`);
+      if (res.skipped_cells.length > 0) parts.push(`${res.skipped_cells.length} day slot(s) skipped`);
       if (res.window_flags.length > 0) parts.push(`${res.window_flags.length} window flag(s)`);
       // Advisory only, never blocks a placement - a distinct clock from window_flags' 108h
       // lifetime check (see docs/pacbio-sprq-nx-scheduling-reference.md's "Deliberate
@@ -388,7 +388,7 @@ export function useScheduleActions({
       setRunDesignNote({
         tone: "bad",
         icon: "!",
-        text: errorMessage(err, "Couldn't run Auto Schedule."),
+        text: errorMessage(err, "Couldn't run Autoschedule."),
       });
     },
   });

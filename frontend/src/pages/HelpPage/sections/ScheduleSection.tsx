@@ -20,7 +20,7 @@ import {
 } from "./helpFixtures";
 
 /** The real, live Autoschedule controls - the same RunDesignFields the Schedule page's
- * Autoschedule drawer renders - wired to local state instead of the actual auto-fill/clear
+ * Autoschedule drawer renders - wired to local state instead of the actual Autoschedule/clear
  * mutations, purely for illustration (see CLAUDE.md's Help Tab Maintenance section). Shown
  * in a plain Card here rather than the drawer, which needs the Schedule page to open it. */
 function RunDesignExample() {
@@ -125,7 +125,7 @@ export function ScheduleSection() {
           the note moves to that day; drop it on another instrument&apos;s row and it moves off the row you picked it up
           from and onto that one. A note on several instruments is still one note, so moving it to a new day moves it
           on <b>all</b> of them (its other banners fade while you drag to show this); its other instruments stay as
-          they are. Let go anywhere that isn&apos;t a day cell and the note simply stays where it was — dragging
+          they are. Let go anywhere that isn&apos;t a day slot and the note simply stays where it was — dragging
           never deletes a note.
         </li>
         <li>
@@ -254,7 +254,7 @@ export function ScheduleSection() {
       <p>
         The small <b>↻</b> button next to an instrument&apos;s REVIO number <b>re-derives every one of that
         instrument&apos;s not-yet-loaded placements from scratch</b>, reuse-before-new, exactly as if you&apos;d cleared
-        them and let Auto Schedule place them again under today&apos;s rules. It&apos;s for the rare case where a
+        them and let Autoschedule place them again under today&apos;s rules. It&apos;s for the rare case where a
         schedule was worked out under a rule that&apos;s since been corrected, and needs re-packing to actually
         benefit from the fix — day-to-day scheduling never needs it. A confirmation dialog explains what it will do
         before anything changes; <b>confirmed/loaded runs and single-use SPRQ runs are always left exactly as they
@@ -262,7 +262,7 @@ export function ScheduleSection() {
         every planned run on that instrument, not just the week you happen to be viewing. To actually reuse a cell
         instead of opening a new tray, it can push a sample onto a <b>later day it wasn&apos;t on before</b> — never
         earlier, and never touching a different instrument — whenever that lets fewer physical cells be used. In{" "}
-        <b>2 plates per run</b> mode that later use often shows up as <b>Plate 2 of the very same run</b> its first
+        <b>8 samples per day</b> mode that later use often shows up as <b>Plate 2 of the very same run</b> its first
         use is in (see <i>Runs, plates &amp; wells</i> below), not a whole separate run card. Afterwards a note —
         shown directly on the schedule page, next to the weekly grid — reports how many samples were placed, how
         many (if any) moved to a different day, and how many, if any, couldn&apos;t be placed at all, naming their
@@ -405,13 +405,13 @@ export function ScheduleSection() {
         not in a pool) exports as a single row with <b>Portion of SMRT Cell</b> = <b>100%</b>, since it takes the whole cell.
       </p>
 
-      <p className={styles.subheading}>Autoschedule (run design &amp; auto-fill)</p>
+      <p className={styles.subheading}>Autoschedule (run design)</p>
       <p>
         The pink <b>✦ Autoschedule</b> button in the <b>Backlog</b> panel header (just a pink <b>✦</b> square when
         the backlog is docked to the side) opens the <b>Autoschedule</b>{" "}
-        panel — a pop-out from the left edge — which sets the parameters used for both single placements and auto-fill.
+        panel — a pop-out from the left edge — which sets the parameters used for both single placements and Autoschedule.
         Close it with the <b>✕</b>, the <b>Esc</b> key, or by clicking outside it; your grid selection stays put while
-        it&apos;s open. Auto Schedule always plans multi-use <b>SPRQ-Nx</b> cells — single-use SPRQ runs are only ever
+        it&apos;s open. Autoschedule always plans multi-use <b>SPRQ-Nx</b> cells — single-use SPRQ runs are only ever
         set up by hand (see <i>Single-use SPRQ cells</i>). The same controls are shown live below:
       </p>
       <dl className={styles.terms}>
@@ -420,7 +420,7 @@ export function ScheduleSection() {
           The <b>total</b> number of times each SMRT cell may be used — first run plus reuses (so 2× means one
           initial run and one reuse). A cell physically supports up to 3 acquisitions. This is always honored in
           full — it&apos;s only reduced automatically if you select fewer days than the chosen use count, since a
-          cell can&apos;t be reused twice on the same day. When auto-scheduling, this acts as a lifetime cap on the
+          cell can&apos;t be reused twice on the same day. When Autoscheduling, this acts as a lifetime cap on the
           whole physical tray: a tray of 4 loads and is thrown away as one unit, so once <b>every</b> cell in a tray
           has been used the chosen number of times, the whole tray is <b>disposed</b> together (all 4 cells marked
           Exhausted, never offered for reuse again). A tray still holding an unused or below-target cell stays on the
@@ -429,9 +429,9 @@ export function ScheduleSection() {
         </dd>
         <dt>Movie times (12 / 24 / 30 h)</dt>
         <dd>
-          Tick which sample <b>movie lengths</b> Auto Schedule should include — only <b>24 h</b> is ticked by default.
+          Tick which sample <b>movie lengths</b> Autoschedule should include — only <b>24 h</b> is ticked by default.
           A movie length is a <b>per-sample</b> setting (12/24/30 h, set on the backlog or on import, defaulting to
-          24 h); Auto Schedule only pulls backlog samples whose length you&apos;ve ticked and leaves the rest in the
+          24 h); Autoschedule only pulls backlog samples whose length you&apos;ve ticked and leaves the rest in the
           backlog (they aren&apos;t counted as &quot;unplaced&quot;). Each cell it places runs for its <b>own</b> movie
           time, so a run can mix lengths — its overall duration, and how long the instrument stays reserved, follows
           its longest cell. Two placement rules apply: <b>12 h</b> samples can load only on <b>cell 1</b> (the A-column
@@ -442,13 +442,13 @@ export function ScheduleSection() {
           weekly grid, a cell running a movie time other than the default (normally 24&nbsp;h) carries a solid dark{" "}
           <b>12h</b> or <b>30h</b> flag on its cell line, next to any <b>&lt;5kb</b> flag, so short and long runs stand
           out at a glance. The flag follows that cell&apos;s own run time, so changing it in the slot popover updates
-          the flag. Hover it to see which cell Auto Schedule loads that length on.
+          the flag. Hover it to see which cell Autoschedule loads that length on.
         </dd>
         <dt>Insert size (small-insert rule)</dt>
         <dd>
           A sample&apos;s <b>insert / fragment size</b> can carry a <b>[&lt;5kb]</b> flag when it&apos;s at or below the
           small-insert threshold (<b>Admin → Scheduling</b>, default 5&nbsp;kb). Small inserts lose yield when a SMRT
-          cell is re-used, so Auto Schedule <b>only ever puts a small-insert sample on a cell&apos;s first use</b> —
+          cell is re-used, so Autoschedule <b>only ever puts a small-insert sample on a cell&apos;s first use</b> —
           never a 2nd or 3rd use. If no fresh first use is left, it&apos;s reported <b>unplaced</b> rather than forced
           onto a reuse. Placing one by hand is still allowed, but shows a warning:{" "}
           <i>&quot;Samples &lt;5kb have shown reduced performance of re-uses.&quot;</i> On the weekly schedule grid, a
@@ -457,7 +457,7 @@ export function ScheduleSection() {
           stripe across its top edge, so the at-risk reuse reads at a glance without hunting for the small tag text
           (see the Legend tab).
           <br />
-          When it has to decide what to place first, Auto Schedule works in this order: <b>Priority</b> (High → Medium →
+          When it has to decide what to place first, Autoschedule works in this order: <b>Priority</b> (High → Medium →
           Standard), then <b>movie length</b> (12 h and 30 h samples, each tied to one cell position, go ahead of
           flexible 24 h ones), then <b>Pool ID</b> order.
         </dd>
@@ -466,7 +466,7 @@ export function ScheduleSection() {
           When a newly-created run <b>loads</b> — when the operator racks its plates. The cells then prep for about
           4 hours before the movie (sequencing) starts, so the load time is when you rack the run, not when the movie
           begins. Click <b>Loads HH:00</b> to open a quick radial dial and pick any hour from{" "}
-          <b>08:00 to 20:00</b>. Auto Schedule gives every run it creates this time, and it&apos;s the starting point
+          <b>08:00 to 20:00</b>. Autoschedule gives every run it creates this time, and it&apos;s the starting point
           the dial shows when you drag a sample by hand (see below). A cell&apos;s reuse follows automatically — it
           starts once the previous movie finishes and the cells are washed — so a later load time, or a longer movie,
           pushes the reuse&apos;s start later too. If the instrument is already busy when you load, your chosen time is
@@ -486,26 +486,26 @@ export function ScheduleSection() {
           the usual Pool ID ordering — the point is to honour exactly the order you gave — and otherwise fills
           trays the same way <b>Fastest</b> does.
         </dd>
-        <dt>Plates per run (1 plate / 2 plates)</dt>
+        <dt>Samples per day (4 — Plate 1 only / 8 — both plates)</dt>
         <dd>
-          How many samples auto-fill schedules per day. <b>1 plate</b> (up to 4 samples) fills a single plate — its
+          How many samples Autoschedule puts on each run (one per day per instrument). <b>4 — Plate 1 only</b> fills a single plate — its
           samples can open a fresh tray <b>or reuse an existing one from either carousel position</b>, the reused
           cells loading into the Plate-1 wells (the sample card shows Plate 1, while the cell&apos;s own tray still
           appears in its physical position on the instrument overview). A cell reused a later day shows up as its
-          own <b>separate run</b> that day, reading its next use number, since a 1-plate run never opens a Plate 2
-          at all. <b>2 plates</b> (default, up to 8 samples) can load both tray positions in a day, and in this mode
+          own <b>separate run</b> that day, reading its next use number, since a Plate-1-only run never opens a Plate 2
+          at all. <b>8 — both plates</b> (the default) can load both tray positions in a day, and in this mode
           a reused cell&apos;s <b>next use bundles into the SAME run as its first</b>, as Plate 2 — e.g. cell 1
           loads Monday as Use 1 (Plate 1), then reuses the same day&apos;s
           run as Plate 2 (Use 2), sequencing Tuesday once the instrument gets to it. A third use (or a day where
           Plate 2 is already a genuinely different, fresh second tray loaded that same day) starts its own separate
-          run instead, since a run holds at most 2 plates. This only limits what auto-fill proposes; dragging a
+          run instead, since a run holds at most 2 plates. This only limits what Autoschedule proposes; dragging a
           sample onto Plate 2 by hand is unaffected.
         </dd>
         <dt>Reuse this week (skip a tray you plan to dispose)</dt>
         <dd>
-          A list of the <b>part-used trays</b> Auto Schedule would otherwise reuse this week — each with a{" "}
+          A list of the <b>part-used trays</b> Autoschedule would otherwise reuse this week — each with a{" "}
           <b>Skip reuse</b> tickbox. Tick a tray when you <b>plan to throw it away</b> rather than run its last
-          use(s): Auto Schedule (and Recalculate) then stop offering that whole tray and open <b>fresh cells</b>{" "}
+          use(s): Autoschedule (and Recalculate) then stop offering that whole tray and open <b>fresh cells</b>{" "}
           instead. This is what to use when, say, a weekend run left a cell on its 2nd of 3 uses but you&apos;d
           rather bin the tray than schedule that 3rd use — <b>you no longer have to load a sample and rotate/discard
           a filled tray first</b>. It&apos;s a <b>planning</b> flag, fully <b>reversible</b>: untick it to let the
@@ -582,19 +582,20 @@ export function ScheduleSection() {
           stands, it&apos;s just flagged so you can double-check the timing before confirming that run is loaded.
         </li>
         <li>
-          <b>Auto-fill:</b> click empty day cells to select them (Shift-click to select a rectangle, Ctrl/Cmd-click
-          to toggle individual cells), then press <b>Auto schedule (N selected)</b>. The planner fills those cells
+          <b>Autoschedule:</b> click empty <b>day slots</b> (an instrument on a day) to select them (Shift-click to
+          select a rectangle, Ctrl/Cmd-click to toggle individual day slots), then press{" "}
+          <b>Autoschedule (N selected)</b>. It fills those day slots
           from the backlog using your Run design settings. Click an instrument&apos;s row header to select every
           open day that week for that instrument, or a day&apos;s column header to select every open instrument on
           that day — handy for scheduling a whole week for one machine, or one day across all machines, in a single
           click. Clicking the same header again clears that selection. <b>Ctrl/Cmd-click</b> a row or column header
           to add it to whatever&apos;s already selected instead of replacing it — build up several days and/or
           several instruments together this way. The <b>Instrument</b> header in the grid&apos;s top-left corner
-          selects every open cell across every instrument and day in the current view in one click.
+          selects every open day slot across every instrument and day in the current view in one click.
         </li>
       </ol>
       <p>
-        <b>Which backlog samples get picked first:</b> when auto-fill has more backlog samples than it has room
+        <b>Which backlog samples get picked first:</b> when Autoschedule has more backlog samples than it has room
         for, it always fills higher-<b>Priority</b> samples first (the same rank shown on the Backlog tab&apos;s
         Priority badge — e.g. High before Standard). Among samples with the same priority, it then works through
         them in <b>External ID</b> order — so a sequential batch (e.g. samples numbered one after another) tends to
@@ -611,7 +612,7 @@ export function ScheduleSection() {
         in that slot, the drop simply routes to the next usable cell in the tray. A cell only counts as usable for that
         day if it isn&apos;t already running that day and taking the sample wouldn&apos;t break its 108-hour window —
         including dropping onto an <i>earlier</i> day than a tray&apos;s booked runs, which would push those runs out
-        of the window. <b>Auto Schedule</b> follows exactly the same rules. Only when no cell in the tray is usable
+        of the window. <b>Autoschedule</b> follows exactly the same rules. Only when no cell in the tray is usable
         does a fresh tray of 4 open, into a bay whose old tray has finished its last run. The card stays in the slot
         you dropped on; its <b>stub</b> tells you
         which cell it actually landed on (e.g. <i>▣2</i>). No <i>cell</i> picker ever interrupts the drop — the
@@ -629,16 +630,16 @@ export function ScheduleSection() {
         changes is the well a card sits in: RunNx re-numbers the underlying cells to keep them in order, but it never
         moves your sample to a different well behind your back. A drop always lands on whichever cell the tray would
         naturally give that slot, even if that cell already burned this exact barcode with a <i>different</i> sample —
-        the placement still succeeds and the card gets the hazard-striped <b>⚠ Clash</b> marking (see the Colour &amp;
-        Status Legend), with the slot detail explaining why. Which cell a drop gets doesn&apos;t depend on the well you
+        the placement still succeeds and the card gets the hazard-striped <b>⚠ Clash</b> marking (see the Glossary &amp;
+        Legend), with the slot detail explaining why. Which cell a drop gets doesn&apos;t depend on the well you
         aim at, so there&apos;s no warning while you drag — the clash shows on the card the moment it lands. If a clash
         shouldn&apos;t happen, move one of the two samples to a different slot, day, or plate. This is
         true on <b>every</b> manual action — a plain drop, naming a specific cell yourself (the cell stub&apos;s
         &quot;choose a specific cell&quot; override), or swapping two placed samples: none of them is ever blocked for
         a clash, they warn and let you decide. A <b>duplicate</b> sample (same Pool ID as an earlier copy) is the
         one case that was never really a clash: it&apos;s allowed to reuse a cell that earlier copy already used, since
-        it&apos;s the same underlying sample either way — see the ⇆ badge under <i>Duplicate samples</i> in the Colour
-        &amp; Status Legend.
+        it&apos;s the same underlying sample either way — see the ⇆ badge under <i>Duplicate samples</i> in the Glossary
+        &amp; Legend.
       </p>
       <p>
         <b>Dropping onto a day the tray has already expired loads a fresh one — automatically.</b> A cell can only be
@@ -677,7 +678,7 @@ export function ScheduleSection() {
           no reuse-by on the batch sheet.
         </li>
         <li>
-          <b>Auto Schedule and Recalculate only plan SPRQ-Nx.</b> They never use SPRQ cells and never move or re-plan
+          <b>Autoschedule and Recalculate only plan SPRQ-Nx.</b> They never use SPRQ cells and never move or re-plan
           a SPRQ run; a day that already holds a SPRQ run is skipped like any other occupied day.
         </li>
         <li>
@@ -772,7 +773,7 @@ export function ScheduleSection() {
         another cell for you (and naming that cell yourself is refused with a note saying why).
       </p>
       <p>
-        <b>Auto-schedule result</b> summarises the outcome, e.g. &quot;12 placed · 3 unplaced (TRAC-2-26296,
+        <b>The Autoschedule result</b> summarises the outcome, e.g. &quot;12 placed · 3 unplaced (TRAC-2-26296,
         TRAC-2-26301, TRAC-2-26305) · 1 cell(s) skipped · 2 window flag(s) · 1 reuse-timing flag(s) · 1 barcode
         conflict(s) · 4 cell(s) disposed&quot; — any unplaced samples are named by Pool ID (up to the first
         three, then &quot;and N more&quot;) so you know exactly which ones are still sitting in the Backlog, rather
@@ -795,7 +796,7 @@ export function ScheduleSection() {
           confirming that run is loaded.
         </Note>
         <Note tone="bad" icon="!">
-          The auto-fill failed.
+          Autoschedule failed.
         </Note>
       </div>
 
@@ -905,7 +906,7 @@ export function ScheduleSection() {
       <p>
         <b>QC claim progress:</b> once a cell has a PacBio credit claim (it failed a run or was stopped), its cell
         popover shows a <b>QC claim</b> row under Status — the same five-dot progress strip and stage badge as the{" "}
-        <b>QC</b> tab (Needs report → Awaiting PacBio credit → Confirmed → Received), which use raised it, the PacBio
+        <b>QC &amp; credits</b> tab (Needs report → Awaiting PacBio credit → Confirmed → Received), which use raised it, the PacBio
         case number, the next step, and how long it&apos;s been open (or a red <b>Overdue</b> badge once a step has
         stalled for over 30 days). The slot popover shows the same row, but only on the sample whose run raised the
         claim. It&apos;s read-only here: <b>Credit tracker →</b> opens the cell&apos;s page, where the full tracker
@@ -1117,9 +1118,9 @@ export function ScheduleSection() {
           there&apos;s no separate &quot;reuse&quot; label because the cell stub already goes from <b>Use 1</b> to{" "}
           <b>Use 2</b>, which says the same thing — and the whole thing is still one run you loaded once — you don&apos;t reload anything for
           Plate 2. This is what a hand drop that reuses a cell already loaded in that day&apos;s run produces, and
-          — in <b>2 plates per run</b> mode — what Auto Schedule and Recalculate now produce too, whenever reusing
+          — in <b>8 samples per day</b> mode — what Autoschedule and Recalculate now produce too, whenever reusing
           a cell means fewer physical trays overall: the grid shows one run you loaded once, and the cell stub
-          (Use 1 / Use 2) tells you what the machine is actually doing with it. In <b>1 plate per run</b> mode a
+          (Use 1 / Use 2) tells you what the machine is actually doing with it. In <b>4 samples per day</b> mode a
           reused cell always becomes its own separate run on the reuse day instead, since a 1-plate run never opens
           a Plate 2 to bundle into.
         </li>
@@ -1141,7 +1142,7 @@ export function ScheduleSection() {
         108-hour deadline), across all four of the tray&apos;s cells, and only opening a fresh tray of 4 once none has
         capacity left. You see which cell you got — and its use number — from the holographic seal on the loaded card
         afterward (see &quot;The holographic cell seal&quot; above). The Use 1 / Use 2 / Use 3 colours (magenta / blue /
-        teal) show which use of a cell each barcode chip belongs to — see the Colour &amp; Status Legend section.
+        teal) show which use of a cell each barcode chip belongs to — see the Glossary &amp; Legend section.
       </p>
       <p>
         The grid&apos;s <b>&quot;Plate 1&quot;/&quot;Plate 2&quot;</b> are <i>loading positions</i> within a run — a

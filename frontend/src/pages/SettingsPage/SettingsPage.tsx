@@ -32,7 +32,7 @@ const SECTIONS: Section[] = [
   {
     key: "movie",
     title: "Movie scheduling",
-    keywords: "movie time length default 12 24 30 cell position rule auto schedule carousel",
+    keywords: "movie time length default 12 24 30 cell position rule autoschedule auto schedule carousel",
     Component: MovieSchedulingPanel,
   },
   {

@@ -89,7 +89,7 @@ export function BacklogSection() {
         <Badge tone="danger">red</Badge> with {COMPLEX_COUNTDOWN_RED_DAYS} or fewer (then reads &quot;… d over&quot; once
         it passes zero). It is a warning only — nothing is blocked or changed when it runs out. The same chip shows on
         the Schedule tab&apos;s Backlog cards and on the sample&apos;s page. Rescuing a sample is no different from
-        scheduling any other backlog sample: drag it (or place it via Auto Schedule) onto a cell. A{" "}
+        scheduling any other backlog sample: drag it (or place it via Autoschedule) onto a slot. A{" "}
         <Badge tone="info">N recoverable</Badge> count appears in the header while any are waiting. Its column headers
         are clickable to sort, just like the main backlog (it starts sorted by priority).
       </p>

@@ -87,7 +87,7 @@ export function ImportPage() {
   const fields = useMemo<ImportField[]>(() => fieldsQuery.data ?? [], [fieldsQuery.data]);
 
   // The most recent import + whether it can still be undone — drives the persistent
-  // "Undo last import" banner on the input screen (so undo survives navigating away).
+  // "Undo import" banner on the input screen (so undo survives navigating away).
   const latestQuery = useQuery({ queryKey: ["import-latest"], queryFn: () => importsApi.latest() });
 
   const previewMutation = useMutation({
@@ -884,7 +884,7 @@ function ImportResultPanel({ result }: { result: ImportResult }) {
               <Note tone="warn" icon="!">
                 Some Pool IDs appear more than once (in this file, or already in the system
                 including completed samples). Each copy was still imported — the same sample can be
-                run across multiple cells. If this wasn&apos;t intended, use <b>Undo last import</b>{" "}
+                run across multiple cells. If this wasn&apos;t intended, use <b>Undo import</b>{" "}
                 below and re-import.
               </Note>
             </div>

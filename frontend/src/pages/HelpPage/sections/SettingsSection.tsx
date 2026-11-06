@@ -7,7 +7,7 @@ export function SettingsSection() {
     <div className={styles.copy}>
       <p>
         <b>What this tab is for:</b> configure how this copy of the app behaves — the loading options given to new
-        samples, the scheduling rules Auto Schedule follows, and the credit email — and see the fixed instrument facts
+        samples, the scheduling rules Autoschedule follows, and the credit email — and see the fixed instrument facts
         the app enforces. A left-hand list switches between sections; the search box filters it. The raw database tools
         (for development use only) are tucked away behind <b>Show developer tools</b> at the bottom of the list.
       </p>
@@ -24,7 +24,7 @@ export function SettingsSection() {
       <p className={styles.subheading}>Scheduling</p>
       <p>
         Global rules. The <b>insert-size re-use threshold</b> (in base pairs, default 5000): a library whose insert
-        size is at or below this is treated as <b>small-insert</b> — it carries a <b>[&lt;5kb]</b> flag, Auto Schedule
+        size is at or below this is treated as <b>small-insert</b> — it carries a <b>[&lt;5kb]</b> flag, Autoschedule
         keeps it on a SMRT cell&apos;s first use, and a warning shows if it&apos;s placed by hand on a re-use. The{" "}
         <b>default run start hour</b>: the time of day a run loads by default, which pre-fills the load-time dial on the
         Schedule grid. Two <b>cleaned complex</b> volumes drive the Cell QC repeat-from-complex decision: the total{" "}
@@ -39,8 +39,8 @@ export function SettingsSection() {
         Controls the movie (acquisition) lengths. The available lengths — <b>12 / 24 / 30 h</b> — are fixed instrument
         options and can&apos;t be changed here (see <b>Instrument &amp; scheduling facts</b>). What you can set is which
         length is the <b>default</b> for a sample that doesn&apos;t specify one, and, per length, which <b>carousel
-        cell</b> Auto Schedule confines it to (for example 12 h on cell 1, 30 h on cell 4, 24 h any cell). These steer
-        Auto Schedule only — a manual drag-and-drop always places a sample wherever you drop it. Press <b>Save</b> to
+        cell</b> Autoschedule confines it to (for example 12 h on cell 1, 30 h on cell 4, 24 h any cell). These steer
+        Autoschedule only — a manual drag-and-drop always places a sample wherever you drop it. Press <b>Save</b> to
         apply; existing schedules are unaffected until re-run. The default also decides which lengths get the dark{" "}
         <b>12h</b>/<b>30h</b> movie-time flag on Backlog and Schedule cards: any length other than the default is
         flagged.
@@ -53,7 +53,7 @@ export function SettingsSection() {
         <b>Save email template</b>. To drop in a value that changes per case — the sample name, run, and so on — click
         one of the <b>Insert variable</b> chips and it&apos;s added where your cursor is. Each variable (in angle
         brackets, e.g. <code>&lt;sample name&gt;</code>) is replaced with the real value from the failing cell — or, for a
-        case logged without a cell, from what was typed in on the QC tab — when the email is generated. The <b>Preview</b> underneath shows the whole email filled in with example values and lists
+        case logged without a cell, from what was typed in on the QC &amp; credits tab — when the email is generated. The <b>Preview</b> underneath shows the whole email filled in with example values and lists
         what each variable stands for.
       </p>
       <p>

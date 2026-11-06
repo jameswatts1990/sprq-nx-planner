@@ -56,9 +56,9 @@ const OBJECTIVE_OPTIONS = [
   { value: "fewest" as Objective, label: "Efficient", hint: "reuse cells, limit expiry" },
   { value: "order" as Objective, label: "By order", hint: "upload / CSV sequence" },
 ];
-const PLATES_PER_RUN_OPTIONS = [
-  { value: 4 as CellsPerDay, label: "1 plate", hint: "up to 4 samples/day" },
-  { value: 8 as CellsPerDay, label: "2 plates", hint: "up to 8 samples/day" },
+const SAMPLES_PER_DAY_OPTIONS = [
+  { value: 4 as CellsPerDay, label: "4 — Plate 1 only", hint: "one sample plate per run" },
+  { value: 8 as CellsPerDay, label: "8 — both plates", hint: "two sample plates per run" },
 ];
 
 /** Human label for a stored objective value - shared so summaries elsewhere never print
@@ -72,7 +72,7 @@ export function runDesignSummary(runDesign: RunDesignState): string {
   const movies = runDesign.movie_times.length ? `${runDesign.movie_times.join("/")} h` : "no movie times";
   return `${runDesign.max_uses}× · ${movies} · loads ${fmtLoadHour(runDesign.load_hour)} · ${objectiveLabel(
     runDesign.objective,
-  )} · ${runDesign.cells_per_day === 8 ? "2 plates" : "1 plate"}`;
+  )} · ${runDesign.cells_per_day} per day`;
 }
 
 /** The Autoschedule dials that feed both single placements (place mutation) and batch
@@ -95,7 +95,7 @@ export function RunDesignFields({
     <>
       <div className={styles.field}>
         <div className="fieldLabel">
-          Max uses per cell <span className={styles.hint}>auto-fill target depth</span>
+          Max uses per cell <span className={styles.hint}>Autoschedule target depth</span>
         </div>
         <SegmentedControl
           ariaLabel="Max uses per cell"
@@ -126,7 +126,7 @@ export function RunDesignFields({
           })}
         </div>
         <p className={styles.movieNote}>
-          Auto Schedule only pulls backlog samples whose movie time is ticked, and runs each cell for its own length.{" "}
+          Autoschedule only pulls backlog samples whose movie time is ticked, and runs each cell for its own length.{" "}
           <b>12 h</b> samples load only on <b>cell 1</b> and <b>30 h</b> only on <b>cell 4</b>; <b>24 h</b> can use any
           cell.
         </p>
@@ -158,11 +158,11 @@ export function RunDesignFields({
 
       <div className={styles.field}>
         <div className="fieldLabel">
-          Plates per run <span className={styles.hint}>cap on samples scheduled per day (4 or 8)</span>
+          Samples per day <span className={styles.hint}>how many wells each run fills</span>
         </div>
         <SegmentedControl
-          ariaLabel="Plates per run"
-          options={PLATES_PER_RUN_OPTIONS}
+          ariaLabel="Samples per day"
+          options={SAMPLES_PER_DAY_OPTIONS}
           value={runDesign.cells_per_day}
           onChange={(v) => onChange({ ...runDesign, cells_per_day: v })}
           fullWidth
@@ -177,15 +177,15 @@ export function RunDesignFields({
           onClick={onAutoSchedule}
           disabled={selectedCount === 0 || autoFilling || runDesign.movie_times.length === 0}
         >
-          {autoFilling ? "Auto scheduling…" : `Auto schedule (${selectedCount} selected)`}
+          {autoFilling ? "Autoscheduling…" : `Autoschedule (${selectedCount} selected)`}
         </Button>
         <Button onClick={onRequestClearSchedule} disabled={weekPlannedCount === 0}>
           {`Clear schedule (${weekPlannedCount} planned)`}
         </Button>
         <span className={styles.autoHint}>
-          Select empty cells in the grid, then auto-fill from the backlog. Clear schedule wipes this week&apos;s planned
-          runs.
-          {runDesign.movie_times.length === 0 && " Tick at least one movie time to enable Auto schedule."}
+          Select empty day slots in the grid, then Autoschedule fills them from the backlog. Clear schedule returns this
+          week&apos;s planned samples to the backlog.
+          {runDesign.movie_times.length === 0 && " Tick at least one movie time to enable Autoschedule."}
         </span>
       </div>
 
@@ -200,7 +200,7 @@ export function RunDesignFields({
       {pickingLoadTime && (
         <LoadTimePicker
           value={runDesign.load_hour}
-          subtitle="The load time Auto Schedule uses, and the default for a manual drop."
+          subtitle="The load time Autoschedule uses, and the default for a manual drop."
           onCancel={() => setPickingLoadTime(false)}
           onPick={(hour) => {
             onChange({ ...runDesign, load_hour: hour });

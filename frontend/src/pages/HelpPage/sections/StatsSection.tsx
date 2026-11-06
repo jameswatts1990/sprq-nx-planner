@@ -63,7 +63,7 @@ export function StatsSection() {
         </li>
         <li>
           <b>Awaiting credit / Credits received</b> — PacBio credit cases reported but still waiting for the credit,
-          and credits that have landed. Counts cases logged on the QC tab without a cell too.
+          and credits that have landed. Counts cases logged on the QC &amp; credits tab without a cell too.
         </li>
       </ul>
 
@@ -88,7 +88,7 @@ export function StatsSection() {
         sequencing has no outcome yet unless it was marked failed). <b>Failure rate %</b> tracks the failed share of
         wells loaded period by period. The <b>PacBio credit funnel</b> shows where every credit case is in the
         replacement process: needing a report → reported → awaiting credit → received. It covers failed/stopped cells
-        and the cases logged on the QC tab without a cell; with an instrument picked, a case without a cell counts only
+        and the cases logged on the QC &amp; credits tab without a cell; with an instrument picked, a case without a cell counts only
         if that instrument was entered on it.
       </p>
 

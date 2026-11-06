@@ -12,7 +12,7 @@ export function MovieTimeFlag({ hours, compact = false }: { hours?: number | nul
   const position = cellPosition[String(hours)];
   const title =
     `${hours} h movie (the default is ${defaultHours} h).` +
-    (position != null ? ` Auto Schedule loads ${hours} h samples on cell ${position + 1}.` : "");
+    (position != null ? ` Autoschedule loads ${hours} h samples on cell ${position + 1}.` : "");
   return (
     <Badge tone="ink" compact={compact} title={title}>
       {hours}h

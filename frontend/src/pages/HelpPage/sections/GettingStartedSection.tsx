@@ -17,11 +17,11 @@ export function GettingStartedSection() {
           They land in the <b>Backlog</b> — everything imported but not yet scheduled.
         </li>
         <li>
-          On the <b>Schedule</b> you drag backlog samples onto instrument/day slots, or select empty days and let
-          the planner auto-fill them.
+          On the <b>Schedule</b> you drag backlog samples onto the grid, or select empty day slots (an instrument on
+          a day) and let <b>Autoschedule</b> fill them.
         </li>
         <li>
-          <b>QC</b> gathers every PacBio credit case — each cell chasing a credit after a failure or stop, plus any
+          <b>QC &amp; credits</b> gathers every PacBio credit case — each cell chasing a credit after a failure or stop, plus any
           case you log there without a cell — grouped by stage, so you can action each one (report to PacBio, log the
           internal report, confirm and receive the credit) from one place.
         </li>

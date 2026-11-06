@@ -148,6 +148,76 @@ const NOTE_EXAMPLES: { tone: NoteTone; icon: string; label: string; text: string
 export function LegendSection() {
   return (
     <div className={styles.copy}>
+      <p className={styles.subheading}>Glossary — the words RunNx uses</p>
+      <dl className={styles.terms}>
+        <dt>SMRT cell (cell)</dt>
+        <dd>
+          The physical consumable a sample is sequenced on. A <b>SPRQ-Nx</b> cell can be used up to 3 times; a{" "}
+          <b>SPRQ</b> cell once. &quot;Cell&quot; in RunNx always means this physical cell — never a box on the grid.
+        </dd>
+        <dt>Tray</dt>
+        <dd>
+          The pack of 4 cells loaded into one of an instrument&apos;s two carousel bays. It&apos;s thrown away as a
+          whole, never one cell at a time.
+        </dd>
+        <dt>Use (Use 1 / 2 / 3)</dt>
+        <dd>One sequencing of a cell. Each reuse is the cell&apos;s next use.</dd>
+        <dt>108-hour window</dt>
+        <dd>
+          A SPRQ-Nx cell&apos;s lifetime, counted from its first use. Every reuse has to start inside it.
+        </dd>
+        <dt>Run</dt>
+        <dd>
+          One load of one instrument on one day — a run design in SMRT Link. It holds one or two plates.
+        </dd>
+        <dt>Plate (Plate 1 / Plate 2) and well</dt>
+        <dd>
+          A run&apos;s sample plates. Each plate has up to 4 <b>wells</b> (A–D), one sample per well. Plate 2 is
+          either a second tray loaded the same day, or a reuse of Plate 1&apos;s cells that sequences later.
+        </dd>
+        <dt>Day slot</dt>
+        <dd>
+          One instrument on one day on the Schedule grid. Select empty day slots, then <b>Autoschedule</b> fills
+          them.
+        </dd>
+        <dt>Slot</dt>
+        <dd>
+          One loading position inside a day slot — where a sample card sits (a plate&apos;s well). RunNx picks the
+          cell for it; a slot never runs out, only a cell does.
+        </dd>
+        <dt>Backlog</dt>
+        <dd>Samples imported but not yet placed on the schedule.</dd>
+        <dt>Autoschedule</dt>
+        <dd>
+          Fills the selected day slots from the backlog, using the run design settings in its panel (movie times,
+          load time, samples per day…).
+        </dd>
+        <dt>Samples per day</dt>
+        <dd>
+          How many samples Autoschedule puts on each run: <b>4</b> fills Plate 1 only, <b>8</b> uses both plates.
+        </dd>
+        <dt>Confirm loaded</dt>
+        <dd>
+          Marks a run as physically loaded on the instrument. It locks the run (it becomes <b>Running</b>) and records
+          the real load time; <b>Unload</b> reverses it.
+        </dd>
+        <dt>Blocked</dt>
+        <dd>
+          A later use that was lost because its cell was stopped. It stays on the grid, in red, until you clear it.
+        </dd>
+        <dt>Pool ID and Plate ID</dt>
+        <dd>
+          A sample&apos;s identifiers: the <b>Pool ID</b> is its Traction pool or library, the <b>Plate ID</b> the
+          plate it came from.
+        </dd>
+        <dt>PacBio credit case</dt>
+        <dd>
+          A failed or stopped cell (or one logged by hand) that PacBio should credit back. Tracked on the{" "}
+          <b>QC &amp; credits</b> tab.
+        </dd>
+      </dl>
+
+      <p className={styles.subheading}>Colours and statuses</p>
       <p>
         These are the actual colours and labels used across the app. They update automatically if the app&apos;s
         styling changes, so what you see here always matches the real screens.
@@ -196,7 +266,7 @@ export function LegendSection() {
             <Badge tone={NO_CELL_BADGE.tone}>{NO_CELL_BADGE.label}</Badge>
           </span>
           <span>
-            A PacBio credit case logged by hand on the QC tab, not linked to any cell - it never changes a cell, a sample
+            A PacBio credit case logged by hand on the QC &amp; credits tab, not linked to any cell - it never changes a cell, a sample
             or the schedule.
           </span>
         </div>
@@ -303,7 +373,7 @@ export function LegendSection() {
           </span>
           <span>
             The sample&apos;s insert / fragment size is at or below the small-insert threshold (set in Admin →
-            Scheduling, default 5&nbsp;kb). Small inserts lose yield when a SMRT cell is re-used, so Auto Schedule
+            Scheduling, default 5&nbsp;kb). Small inserts lose yield when a SMRT cell is re-used, so Autoschedule
             keeps them on a cell&apos;s first use, and a warning shows if one is placed manually on a 2nd/3rd use. The
             tag text tracks the configured threshold.
           </span>
@@ -330,7 +400,7 @@ export function LegendSection() {
           <span>
             The sample (or, on the schedule, that one cell) runs a movie time other than the default set in{" "}
             <b>Settings → Movie scheduling</b> (normally 24&nbsp;h), so short and long runs stand out at a glance. Hover
-            it to see which cell Auto Schedule loads that length on. It&apos;s information only - nothing is blocked.
+            it to see which cell Autoschedule loads that length on. It&apos;s information only - nothing is blocked.
           </span>
         </div>
         <div className={styles.legendRow}>

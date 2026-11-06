@@ -84,7 +84,7 @@ export function SchedulingPanel() {
       </CardHeader>
       <CardBody className={styles.body}>
         <p className={styles.helper}>
-          Global rules Auto Schedule and manual placement follow. Existing schedules are unaffected until re-run.
+          Global rules Autoschedule and manual placement follow. Existing schedules are unaffected until re-run.
         </p>
 
         {query.isError && (

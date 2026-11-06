@@ -70,8 +70,8 @@ export function MovieSchedulingPanel() {
       <CardBody className={styles.body}>
         <p className={styles.helper}>
           The available movie lengths ({movieLengths.join(" / ") || "—"} h) are fixed. Choose which one is the default
-          for samples with no movie time set, and which carousel cell Auto Schedule confines each length to. These steer
-          Auto Schedule only — a manual drag-and-drop always places a sample wherever you drop it.
+          for samples with no movie time set, and which carousel cell Autoschedule confines each length to. These steer
+          Autoschedule only — a manual drag-and-drop always places a sample wherever you drop it.
         </p>
 
         {query.isError && (
@@ -87,7 +87,7 @@ export function MovieSchedulingPanel() {
                 <tr>
                   <th>Movie length</th>
                   <th className={movieStyles.centerCol}>Default</th>
-                  <th>Cell rule (Auto Schedule)</th>
+                  <th>Cell rule (Autoschedule)</th>
                 </tr>
               </thead>
               <tbody>

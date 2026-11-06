@@ -767,7 +767,7 @@ export function SchedulePage() {
                   <div className={styles.toolbarEnd}>
                     {selectedCells.length > 0 && (
                       <div className={styles.selectionInfo}>
-                        <span>{selectedCells.length} cell(s) selected</span>
+                        <span>{selectedCells.length} day slot(s) selected</span>
                         <Button size="sm" variant="ghost" onClick={selection.clear}>
                           Clear
                         </Button>

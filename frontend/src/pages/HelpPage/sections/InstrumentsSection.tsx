@@ -30,7 +30,7 @@ export function InstrumentsSection() {
       <p>
         <b>Mark down</b> takes an instrument out of service from a date you choose (with an optional reason). From
         that date the instrument&apos;s row in the Schedule greys out and takes <b>no new runs</b> — neither by
-        dragging a sample onto it nor via Auto Schedule — until you bring it back. Days <em>before</em> the down
+        dragging a sample onto it nor via Autoschedule — until you bring it back. Days <em>before</em> the down
         date, and any run already scheduled, are left untouched. <b>Bring online</b> clears the flag and the
         instrument is immediately available again. This is different from Retire: a down instrument is temporarily
         out but still shown; a retired one is hidden entirely.

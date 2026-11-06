@@ -226,7 +226,7 @@ export function useSchedulerDnd(
           onMoveNote(note, from, overData.instrument_serial, overData.date);
         } else if (isWithinGrid(event, gridAreaRef)) {
           // The instrument column or the day-header row - the only in-grid spots with no cell.
-          onDropBlocked("To move a note, drop it onto an instrument's day cell.");
+          onDropBlocked("To move a note, drop it onto an instrument's day slot.");
         }
         return;
       }
