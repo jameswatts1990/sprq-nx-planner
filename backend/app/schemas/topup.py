@@ -13,7 +13,10 @@ class SampleTopupOut(BaseModel):
     created_at: datetime
     # Null until "Request Sent" stamps the date the resupply request went to the submitter.
     request_sent_at: date | None
+    # The Cell QC reason the request was raised with (fixed at creation).
     note: str | None
+    # The sample's own free-text note (Sample.notes) - editable, shown under the Pool ID.
+    sample_notes: str | None
     created_by: str | None
     # Provenance: which run/cell the loss came from (for the list UI). All nullable - a
     # resupply request outlives the acquisition it came from.

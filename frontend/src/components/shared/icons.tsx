@@ -87,6 +87,17 @@ export function ClipboardListIcon() {
   );
 }
 
+/** A note page (folded corner, two text lines) - "has a note". Not ✎, which means Edit. */
+export function NoteIcon() {
+  return (
+    <StrokeIcon>
+      <path d="M5 3h10l5 5v13H5z" />
+      <path d="M15 3v5h5" />
+      <path d="M8.5 13h7M8.5 17h5" />
+    </StrokeIcon>
+  );
+}
+
 export function ChevronDownIcon() {
   return (
     <StrokeIcon>

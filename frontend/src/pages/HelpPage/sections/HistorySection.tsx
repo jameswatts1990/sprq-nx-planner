@@ -157,6 +157,13 @@ export function HistorySection() {
         always links to.
       </p>
       <p>
+        <b>Notes:</b> the sample&apos;s own free-text note sits at the bottom of its details. Click{" "}
+        <b>✎ Add note</b> (or <b>✎ Edit note</b>) to write or change it in place, then <b>Save note</b> (or press{" "}
+        <b>Ctrl+Enter</b>); saving an empty note removes it. Unlike the <b>Edit</b> button, this works for a sample of
+        any status — a failed sample awaiting resupply, or a completed one. The same note shows under the Pool ID on
+        the Backlog tab.
+      </p>
+      <p>
         <b>Back:</b> the <b>◂</b> link above the title returns you to wherever you opened the sample from — the Backlog,
         Schedule, a cell, a run, or the Samples list — rather than always to one fixed place. Opening the page directly (a
         shared link or a browser refresh) falls back to the Samples list.

@@ -37,6 +37,10 @@
   display: flex;
   flex-direction: column;
 }
+.notes {
+  width: 100%;
+  min-height: 64px;
+}
 /* The off-target loading-buffer warning spans the whole row rather than squeezing into the
    one narrow column its field sits in. */
 .rowWarn {

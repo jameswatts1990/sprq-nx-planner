@@ -110,6 +110,7 @@ function valuesFromSample(sample: SampleOut): Record<string, string> {
     base_kinetics: sample.base_kinetics ?? "",
     movie_time_hours: sample.movie_time_hours != null ? String(sample.movie_time_hours) : "",
     insert_size_bp: sample.insert_size_bp != null ? String(sample.insert_size_bp) : "",
+    notes: sample.notes ?? "",
   };
 }
 
@@ -364,6 +365,7 @@ export function SampleModal({
       base_kinetics: str("base_kinetics"),
       movie_time_hours: num("movie_time_hours"),
       insert_size_bp: num("insert_size_bp"),
+      notes: str("notes"),
     };
 
     if (isEdit) {
@@ -451,6 +453,24 @@ export function SampleModal({
             </section>
           );
         })}
+        {/* Not an import field, so outside SECTIONS. Editable in every mode, scheduled included. */}
+        <section className={styles.section}>
+          <h3 className={styles.sectionHeader}>Sample notes</h3>
+          <div className={styles.field}>
+            <textarea
+              className={styles.notes}
+              rows={3}
+              value={values.notes ?? ""}
+              onChange={(e) => set("notes", e.target.value)}
+              placeholder="Anything the lab should know about this sample (optional)…"
+              aria-label="Sample notes"
+            />
+            <span className={styles.hint}>
+              Stays with the sample wherever it runs
+              {isRestricted ? " — a note for this one cell goes in the slot’s own Notes box." : "."}
+            </span>
+          </div>
+        </section>
       </div>
 
       {errorMsg && (

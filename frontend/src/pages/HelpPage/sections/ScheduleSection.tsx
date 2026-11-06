@@ -844,7 +844,8 @@ export function ScheduleSection() {
         sample&apos;s loading parameters (<b>Target OPLC</b>, <b>Actual OPLC</b>, the complex-loading volumes{" "}
         <b>Cleaned Complex</b> and <b>Loading Buffer</b> that pre-fill the batch
         sheet&apos;s dilution worksheet, <b>Adaptive Loading</b>, <b>Full-Resolution Base Q</b>, <b>Priority</b> and{" "}
-        <b>Include Base Kinetics</b>) without going back to the Backlog. Once a sample is placed on the grid its{" "}
+        <b>Include Base Kinetics</b>), plus its <b>Sample notes</b>, without going back to the Backlog. Once a sample is
+        placed on the grid its{" "}
         <b>barcodes</b>, Sanger IDs and parent are locked —
         they&apos;re already burned onto the cell — so only those loading settings can change here. The ✎ is hidden
         once the sample&apos;s use is locked (completed, failed, or a cancelled &quot;Blocked&quot; slot), since its
@@ -873,8 +874,9 @@ export function ScheduleSection() {
         records what the instrument actually ran).
       </p>
       <p>
-        <b>Sample notes:</b> the same popover has a <b>Notes</b> box for a free-text note about this sample on this
-        cell — anything worth flagging to whoever loads it (a handling reminder, a query, a re-run reason). Type a
+        <b>Placement notes:</b> the same popover has a <b>Notes</b> box for a free-text note about this sample on this
+        cell — anything worth flagging to whoever loads it (a handling reminder, a query, a re-run reason). (A note
+        about the sample itself, which follows it to every cell, is the <b>Sample notes</b> box on the ✎ edit form.) Type a
         note and click <b>Save note</b>; it stays visible whenever you reopen that slot and remains editable at any
         time, including after the run is locked (unlike the placement itself, which locks once loaded). The note also
         shows on that well&apos;s card on the Batch Sheet and prints in the paper sheet&apos;s <b>Notes</b> column. It is tied to this one placement, so a

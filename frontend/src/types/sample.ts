@@ -35,6 +35,8 @@ export interface SampleOut {
   /** When that Cell QC was recorded (ISO) - starts the "Repeatable — from complex" 30-day
    * countdown chip. Null when untagged or tagged before this was recorded. */
   qc_disposition_at?: string | null;
+  /** Free-text lab note about the sample - editable at any status via samplesApi.updateNotes. */
+  notes: string | null;
   barcodes: string[];
   import_batch_id: number | null;
   created_at: string;
@@ -62,6 +64,8 @@ export interface SampleCreate {
   base_kinetics?: string | null;
   movie_time_hours?: number | null;
   insert_size_bp?: number | null;
+  /** Omit on an edit to leave the saved note as it is; blank clears it. */
+  notes?: string | null;
 }
 
 /** Edit-a-backlog-sample payload: same editable fields as create, minus the Pool ID

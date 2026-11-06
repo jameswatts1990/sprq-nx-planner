@@ -11,7 +11,10 @@ export interface SampleTopupOut {
   priority: string | null;
   created_at: string;
   request_sent_at: string | null;
+  /** The Cell QC reason the request was raised with (fixed). */
   note: string | null;
+  /** The sample's own free-text note (SampleOut.notes) - editable, shown under the Pool ID. */
+  sample_notes: string | null;
   created_by: string | null;
   /** Provenance: the run/cell/well the loss came from (all nullable). */
   source_run_name: string | null;

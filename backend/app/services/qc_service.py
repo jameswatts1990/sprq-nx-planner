@@ -626,6 +626,7 @@ def _topup_out(topup: SampleTopup) -> SampleTopupOut:
         created_at=topup.created_at,
         request_sent_at=topup.request_sent_at,
         note=topup.note,
+        sample_notes=sample.notes if sample else None,
         created_by=topup.created_by,
         source_run_name=source[0],
         source_cell_code=source[1],

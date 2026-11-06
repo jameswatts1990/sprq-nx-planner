@@ -29,6 +29,26 @@
   flex: 1 1 260px;
   max-width: 420px;
 }
+/* A Pool ID with its note chip underneath. */
+.idCell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+/* A sample's open note: a row of its own directly under the sample, read as part of it - no
+   rule between the two, and no row hover on the note (equal specificity to the base .table rules,
+   so this module, loaded after base.css, wins). */
+.withNoteRow > td {
+  border-bottom: none;
+}
+tbody tr.noteRow:hover {
+  background: transparent;
+}
+.noteRow > td {
+  padding-top: 0;
+  padding-bottom: 12px;
+}
 .rowActions {
   display: flex;
   gap: 4px;

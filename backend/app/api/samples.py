@@ -11,7 +11,13 @@ from app.models.audit import AuditLog
 from app.models.sample import SAMPLE_STATUSES, Sample, SampleBarcode, sample_id_matches
 from app.models.schedule import CellUse, Cycle, RunBatch
 from app.schemas.common import Page
-from app.schemas.sample import SampleCreate, SampleDetailOut, SampleOut, SampleUpdate
+from app.schemas.sample import (
+    SampleCreate,
+    SampleDetailOut,
+    SampleNotesUpdate,
+    SampleOut,
+    SampleUpdate,
+)
 from app.serializers import (
     duplicate_groups,
     duplicate_marker,
@@ -19,6 +25,7 @@ from app.serializers import (
     sample_out,
 )
 from app.services.sample_service import (
+    clean_notes,
     create_backlog_sample,
     existing_samples_with_id,
     update_backlog_sample,
@@ -261,6 +268,7 @@ def create_sample(
         base_kinetics=req.base_kinetics,
         movie_time_hours=req.movie_time_hours,
         insert_size_bp=req.insert_size_bp,
+        notes=req.notes,
     )
     db.add(AuditLog(actor=actor, action="create_sample", entity_type="sample", entity_id=sample.id, details_json={}))
     db.commit()
@@ -355,7 +363,24 @@ def update_sample(sample_id: int, req: SampleUpdate, db: SessionDep, actor: Acto
             priority=req.priority,
             base_kinetics=req.base_kinetics,
         )
+    if "notes" in req.model_fields_set:
+        sample.notes = clean_notes(req.notes)
     db.add(AuditLog(actor=actor, action="update_sample", entity_type="sample", entity_id=sample.id, details_json={}))
+    db.commit()
+    db.refresh(sample)
+    return sample_out(sample)
+
+
+@router.patch("/{sample_id}/notes", response_model=SampleOut)
+def update_sample_notes(sample_id: int, req: SampleNotesUpdate, db: SessionDep, actor: ActorDep) -> SampleOut:
+    """Set/clear a sample's free-text note. Deliberately allowed at ANY status - unlike
+    update_sample, which locks finished samples - so a note can still be added to a failed
+    sample awaiting resupply, or a completed one. Blank input clears the note."""
+    sample = db.get(Sample, sample_id, options=[selectinload(Sample.barcodes)])
+    if sample is None:
+        raise HTTPException(404, "Sample not found")
+    sample.notes = clean_notes(req.notes)
+    db.add(AuditLog(actor=actor, action="update_sample_notes", entity_type="sample", entity_id=sample.id, details_json={}))
     db.commit()
     db.refresh(sample)
     return sample_out(sample)

@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createColumnHelper, flexRender, getCoreRowModel, useReactTable } from "@tanstack/react-table";
 import type { Table } from "@tanstack/react-table";
-import { useCallback, useMemo, useState } from "react";
+import { Fragment, useCallback, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 
@@ -13,6 +13,7 @@ import { BarcodeChips } from "@/components/shared/BarcodeChips";
 import { ComplexCountdownChip } from "@/components/shared/ComplexCountdownChip";
 import { DuplicateBadge } from "@/components/shared/DuplicateBadge";
 import { Pagination } from "@/components/shared/Pagination";
+import { SampleNoteControls, SampleNotePanel, useNoteRows } from "@/components/shared/SampleNotes";
 import { SortableColumnHeader } from "@/components/shared/SortableColumnHeader";
 import { UnitLabel } from "@/components/shared/UnitLabel";
 import { Badge } from "@/components/ui/Badge";
@@ -79,6 +80,8 @@ interface SampleColumnDeps {
    * renderer; the Recoverable table passes a client-sort one, so each table sorts itself. */
   renderHeader: (label: string, field: SampleSortBy) => ReactNode;
   backNav: ReturnType<typeof useSampleBackNav>;
+  /** Shared by both tables - a sample is only ever in one of them. */
+  noteRows: ReturnType<typeof useNoteRows>;
   onEdit: (sample: SampleOut) => void;
   onCancel: (id: number) => void;
   cancelPending: boolean;
@@ -86,21 +89,30 @@ interface SampleColumnDeps {
 
 /** The backlog sample table columns, parameterised by the header renderer so the main and
  * Recoverable tables can share cell markup while driving their own independent sort state. */
-function buildSampleColumns({ renderHeader, backNav, onEdit, onCancel, cancelPending }: SampleColumnDeps) {
+function buildSampleColumns({ renderHeader, backNav, noteRows, onEdit, onCancel, cancelPending }: SampleColumnDeps) {
   return [
     columnHelper.accessor("pool_id", {
       header: () => renderHeader("Pool ID", "pool_id"),
-      cell: (info) => (
-        <span className={styles.badgeGroup}>
-          <Link to={`/samples/${info.row.original.id}`} state={backNav} className="link">
-            {info.getValue()}
-          </Link>
-          <DuplicateBadge
-            index={info.row.original.duplicate_index}
-            total={info.row.original.duplicate_total}
-          />
-        </span>
-      ),
+      cell: (info) => {
+        const s = info.row.original;
+        return (
+          <div className={styles.idCell}>
+            <span className={styles.badgeGroup}>
+              <Link to={`/samples/${s.id}`} state={backNav} className="link">
+                {info.getValue()}
+              </Link>
+              <DuplicateBadge index={s.duplicate_index} total={s.duplicate_total} />
+            </span>
+            {/* No "Add note" on every row - the row's Edit form has a Sample notes box. */}
+            <SampleNoteControls
+              notes={s.notes}
+              state={noteRows.stateOf(s.id)}
+              onToggle={() => noteRows.toggle(s.id)}
+              onEdit={() => noteRows.edit(s.id)}
+            />
+          </div>
+        );
+      },
     }),
     columnHelper.accessor("barcodes", {
       header: () => renderHeader("Barcodes", "barcode"),
@@ -182,8 +194,9 @@ function buildSampleColumns({ renderHeader, backNav, onEdit, onCancel, cancelPen
   ];
 }
 
-/** Shared table markup for a react-table instance of backlog samples. */
-function SampleTableView({ table }: { table: Table<SampleOut> }) {
+/** Shared table markup for a react-table instance of backlog samples, with a sample's note row
+ * under it while its note chip is open. */
+function SampleTableView({ table, noteRows }: { table: Table<SampleOut>; noteRows: ReturnType<typeof useNoteRows> }) {
   return (
     <div className={styles.tableScroll}>
       <table className="table">
@@ -199,15 +212,34 @@ function SampleTableView({ table }: { table: Table<SampleOut> }) {
           ))}
         </thead>
         <tbody>
-          {table.getRowModel().rows.map((row) => (
-            <tr key={row.id}>
-              {row.getVisibleCells().map((cell) => (
-                <td key={cell.id} className={cell.column.id === "actions" ? styles.actionsCol : undefined}>
-                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                </td>
-              ))}
-            </tr>
-          ))}
+          {table.getRowModel().rows.map((row) => {
+            const s = row.original;
+            const note = noteRows.stateOf(s.id);
+            const showNote = note.editing || (note.open && !!s.notes);
+            return (
+              <Fragment key={row.id}>
+                <tr className={showNote ? styles.withNoteRow : undefined}>
+                  {row.getVisibleCells().map((cell) => (
+                    <td key={cell.id} className={cell.column.id === "actions" ? styles.actionsCol : undefined}>
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </td>
+                  ))}
+                </tr>
+                {showNote && (
+                  <tr className={styles.noteRow}>
+                    <td colSpan={row.getVisibleCells().length}>
+                      <SampleNotePanel
+                        sampleId={s.id}
+                        notes={s.notes}
+                        editing={note.editing}
+                        onDone={(saved) => noteRows.done(s.id, saved)}
+                      />
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -227,6 +259,9 @@ export function BacklogPage() {
   const [addOpen, setAddOpen] = useState(false);
   const [editSample, setEditSample] = useState<SampleOut | null>(null);
   const [confirmSent, setConfirmSent] = useState<SampleTopupOut | null>(null);
+  // Which notes are open / being edited: backlog samples by sample id, resupply rows by request id.
+  const sampleNotes = useNoteRows();
+  const resupplyNotes = useNoteRows();
   const q = useDebouncedValue(qInput, 350);
   const queryClient = useQueryClient();
 
@@ -340,22 +375,24 @@ export function BacklogPage() {
       buildSampleColumns({
         renderHeader: sortableHeader,
         backNav,
+        noteRows: sampleNotes,
         onEdit: setEditSample,
         onCancel: cancelSample,
         cancelPending,
       }),
-    [sortableHeader, cancelSample, cancelPending, backNav],
+    [sortableHeader, cancelSample, cancelPending, backNav, sampleNotes],
   );
   const recoverableColumns = useMemo(
     () =>
       buildSampleColumns({
         renderHeader: recoverableHeader,
         backNav,
+        noteRows: sampleNotes,
         onEdit: setEditSample,
         onCancel: cancelSample,
         cancelPending,
       }),
-    [recoverableHeader, cancelSample, cancelPending, backNav],
+    [recoverableHeader, cancelSample, cancelPending, backNav, sampleNotes],
   );
 
   const items = query.data?.items ?? [];
@@ -399,7 +436,7 @@ export function BacklogPage() {
               what that outcome means; a ⌛ chip counts down the 30 days to use leftover complex. Reschedule them from
               the grid like any backlog sample.
             </p>
-            <SampleTableView table={recoverableTable} />
+            <SampleTableView table={recoverableTable} noteRows={sampleNotes} />
           </CardBody>
         </Card>
       )}
@@ -470,7 +507,7 @@ export function BacklogPage() {
 
           {!query.isLoading && !query.isError && items.length > 0 && (
             <>
-              <SampleTableView table={table} />
+              <SampleTableView table={table} noteRows={sampleNotes} />
               <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
             </>
           )}
@@ -549,44 +586,71 @@ export function BacklogPage() {
                 </tr>
               </thead>
               <tbody>
-                {resupplySort.sorted.map((t) => (
-                  <tr key={t.id}>
-                    <td>
-                      <Link to={`/samples/${t.sample_id}`} state={backNav} className="link">
-                        <b>{t.pool_id ?? `Sample ${t.sample_id}`}</b>
-                      </Link>
-                    </td>
-                    <td>{t.sanger_ids.length ? t.sanger_ids.join(", ") : "—"}</td>
-                    <td>
-                      <BarcodeChips barcodes={t.barcodes} />
-                    </td>
-                    <td>
-                      {t.source_run_name ?? "—"}
-                      {t.source_cell_code ? ` · ${t.source_cell_code}` : ""}
-                    </td>
-                    <td>{formatDateTime(t.created_at)}</td>
-                    <td>
-                      <div className={styles.rowActions}>
-                        <Button
-                          size="sm"
-                          variant="primary"
-                          onClick={() => setConfirmSent(t)}
-                          disabled={resupplySentMutation.isPending}
-                        >
-                          Request sent
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => resupplyCancelMutation.mutate(t.id)}
-                          disabled={resupplyCancelMutation.isPending}
-                        >
-                          Cancel
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {resupplySort.sorted.map((t) => {
+                  const note = resupplyNotes.stateOf(t.id);
+                  const showNote = note.editing || (note.open && !!t.sample_notes);
+                  return (
+                    <Fragment key={t.id}>
+                      <tr className={showNote ? styles.withNoteRow : undefined}>
+                        <td>
+                          <div className={styles.idCell}>
+                            <Link to={`/samples/${t.sample_id}`} state={backNav} className="link">
+                              <b>{t.pool_id ?? `Sample ${t.sample_id}`}</b>
+                            </Link>
+                            <SampleNoteControls
+                              notes={t.sample_notes}
+                              state={note}
+                              onToggle={() => resupplyNotes.toggle(t.id)}
+                              onEdit={() => resupplyNotes.edit(t.id)}
+                              allowAdd
+                            />
+                          </div>
+                        </td>
+                        <td>{t.sanger_ids.length ? t.sanger_ids.join(", ") : "—"}</td>
+                        <td>
+                          <BarcodeChips barcodes={t.barcodes} />
+                        </td>
+                        <td>
+                          {t.source_run_name ?? "—"}
+                          {t.source_cell_code ? ` · ${t.source_cell_code}` : ""}
+                        </td>
+                        <td>{formatDateTime(t.created_at)}</td>
+                        <td>
+                          <div className={styles.rowActions}>
+                            <Button
+                              size="sm"
+                              variant="primary"
+                              onClick={() => setConfirmSent(t)}
+                              disabled={resupplySentMutation.isPending}
+                            >
+                              Request sent
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => resupplyCancelMutation.mutate(t.id)}
+                              disabled={resupplyCancelMutation.isPending}
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                      {showNote && (
+                        <tr className={styles.noteRow}>
+                          <td colSpan={6}>
+                            <SampleNotePanel
+                              sampleId={t.sample_id}
+                              notes={t.sample_notes}
+                              editing={note.editing}
+                              onDone={(saved) => resupplyNotes.done(t.id, saved)}
+                            />
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </CardBody>
