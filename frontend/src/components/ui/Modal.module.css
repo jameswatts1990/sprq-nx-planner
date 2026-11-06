@@ -6,7 +6,6 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 100;
   padding: 20px;
 }
 .modal {
@@ -21,6 +20,10 @@
   font-size: var(--fs-xl);
   max-height: 90vh;
   overflow-y: auto;
+}
+/* The box takes focus when the dialog has no field to start in; it isn't a control, so no ring. */
+.modal:focus {
+  outline: none;
 }
 /* Fills the overlay's available space instead of the centered/capped box. 40px = 2 x .overlay's
    own 20px padding, so the modal fills the viewport right up to that padding on every side. */

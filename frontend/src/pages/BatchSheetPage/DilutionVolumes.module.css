@@ -50,7 +50,7 @@
   stroke-linejoin: round;
 }
 .vessel[data-empty="true"] .outline {
-  stroke: var(--faint);
+  stroke: var(--faint-mark);
   stroke-dasharray: 3 2.5;
 }
 /* The complex is the sample, so it takes the app's one accent; the buffer is a plain grey reagent. */

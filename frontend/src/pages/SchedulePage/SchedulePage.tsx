@@ -621,13 +621,14 @@ export function SchedulePage() {
   ]);
 
   // Delete/Backspace removes the selected samples from the schedule, as long as focus
-  // isn't in a text field (so it doesn't hijack editing elsewhere on the page).
+  // isn't in a text field or a dialog (so it doesn't hijack editing elsewhere on the page).
   useEffect(() => {
     if (!slotSelection.hasSelection) return;
     function onKeyDown(e: KeyboardEvent) {
       if (e.key !== "Delete" && e.key !== "Backspace") return;
       const target = e.target as HTMLElement | null;
       if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) return;
+      if (target?.closest("[role='dialog']")) return;
       e.preventDefault();
       actions.removeSlots.mutate();
     }

@@ -1,11 +1,12 @@
-import { useEffect } from "react";
+import { useRef } from "react";
 import type { ReactNode } from "react";
 
 import { Button } from "./Button";
 import styles from "./Modal.module.css";
+import { useDialogA11y } from "./useDialogA11y";
 
 export interface ModalProps {
-  /** Fired by the overlay click, the Escape key, or the title row's ✕ close button. */
+  /** Fired by an overlay click, the Escape key, or the title row's ✕ close button. */
   onClose: () => void;
   /** Optional heading rendered at the top of the modal body, with a ✕ close button beside it
    * (the same ghost icon button as Drawer). Omit it and the modal has no title row and no ✕ -
@@ -22,28 +23,31 @@ export interface ModalProps {
   fullScreen?: boolean;
 }
 
-/** Generic centered modal dialog, generalized from CellsPage's inline overlay/modal
- * markup: div.overlay[role=dialog][aria-modal] + inner div.modal (stopPropagation),
- * Escape-to-close. Consumers lay out their own body/footer inside. */
+/** Generic centered modal dialog: div.overlay + the dialog box (role=dialog, named by its title),
+ * with focus, Esc and overlay behaviour from useDialogA11y. The box stops click propagation, so a
+ * modal opened from inside a clickable card never re-triggers the card. Consumers lay out their
+ * own body/footer inside. */
 export function Modal({ onClose, title, titleExtra, children, maxWidth, fullScreen }: ModalProps) {
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  const boxRef = useRef<HTMLDivElement>(null);
+  const { titleId, overlayProps, boxProps } = useDialogA11y(boxRef, onClose);
 
   return (
-    <div className={styles.overlay} role="dialog" aria-modal="true" onClick={onClose}>
+    <div className={styles.overlay} {...overlayProps}>
       <div
+        ref={boxRef}
+        {...boxProps}
+        aria-labelledby={title !== undefined ? titleId : undefined}
         className={fullScreen ? `${styles.modal} ${styles.fullScreen}` : styles.modal}
         style={!fullScreen && maxWidth ? { maxWidth } : undefined}
         onClick={(e) => e.stopPropagation()}
       >
         {(title !== undefined || titleExtra !== undefined) && (
           <div className={styles.titleRow}>
-            {title !== undefined && <h2 className={styles.title}>{title}</h2>}
+            {title !== undefined && (
+              <h2 id={titleId} className={styles.title}>
+                {title}
+              </h2>
+            )}
             <div className={styles.titleExtra}>
               {titleExtra}
               {title !== undefined && (

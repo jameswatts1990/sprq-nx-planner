@@ -14,7 +14,7 @@
   white-space: nowrap;
   text-overflow: ellipsis;
   font-family: var(--mono);
-  font-size: 9.5px;
+  font-size: 10px;
   font-weight: 700;
   line-height: 16px;
   color: var(--magenta-deep);
@@ -25,7 +25,7 @@
 }
 .bc {
   font-family: var(--mono);
-  font-size: 9.5px;
+  font-size: 10px;
   font-weight: 700;
   padding: 1px 5px;
   border-radius: 4px;

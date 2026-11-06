@@ -67,7 +67,11 @@ export function InlineEditField({
 
   function onKeyDown(e: KeyboardEvent<HTMLInputElement>) {
     if (e.key === "Enter") void save();
-    if (e.key === "Escape") setEditing(false);
+    if (e.key === "Escape") {
+      // Handled here: a dialog around the field stays open (useDialogA11y skips a handled Esc).
+      e.preventDefault();
+      setEditing(false);
+    }
   }
 
   return (

@@ -254,8 +254,8 @@
   color: var(--magenta);
   background: var(--magenta-tint);
 }
-/* Deliberately low-contrast so the build version is available at a glance without competing
-   with the nav; a divider sets it apart from the icons. */
+/* Grey and small so the build version is available at a glance without competing with the nav;
+   a divider sets it apart from the icons. */
 .version {
   display: inline-flex;
   flex-direction: column;
@@ -269,14 +269,8 @@
   white-space: nowrap;
   text-decoration: none;
 }
-.versionNumber,
-.versionDate {
-  opacity: 0.65;
-  transition: opacity 0.15s ease;
-}
-.version:hover .versionNumber,
-.version:hover .versionDate {
-  opacity: 1;
+.version:hover {
+  color: var(--ink);
 }
 .versionNumber {
   font-size: var(--fs-sm);

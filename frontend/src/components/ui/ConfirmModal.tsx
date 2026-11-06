@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { type ReactNode, useId } from "react";
 
 import { Button } from "./Button";
 import { Modal, ModalActions } from "./Modal";
@@ -66,14 +66,18 @@ export function ConfirmModal({
   onCancel,
   onConfirm,
 }: ConfirmModalProps) {
+  const fieldId = useId();
   return (
     <Modal onClose={pending ? () => {} : onCancel} title={title}>
       {children}
 
       {input && (
         <div className={styles.field}>
-          <label className="fieldLabel">{input.label}</label>
+          <label className="fieldLabel" htmlFor={`${fieldId}-input`}>
+            {input.label}
+          </label>
           <input
+            id={`${fieldId}-input`}
             type="text"
             value={input.value}
             onChange={(e) => input.onChange(e.target.value)}
@@ -84,8 +88,11 @@ export function ConfirmModal({
 
       {textarea && (
         <div className={styles.field}>
-          <label className="fieldLabel">{textarea.label}</label>
+          <label className="fieldLabel" htmlFor={`${fieldId}-textarea`}>
+            {textarea.label}
+          </label>
           <textarea
+            id={`${fieldId}-textarea`}
             value={textarea.value}
             onChange={(e) => textarea.onChange(e.target.value)}
             placeholder={textarea.placeholder}

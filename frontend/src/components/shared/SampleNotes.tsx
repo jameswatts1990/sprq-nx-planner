@@ -160,7 +160,11 @@ function SampleNoteEditor({
       e.preventDefault();
       save();
     }
-    if (e.key === "Escape") onDone();
+    if (e.key === "Escape") {
+      // Handled here: a dialog around the note stays open (useDialogA11y skips a handled Esc).
+      e.preventDefault();
+      onDone();
+    }
   }
   // Focus once on open with the caret after the existing text, ready to add to it.
   const focusAtEnd = useCallback((el: HTMLTextAreaElement | null) => {

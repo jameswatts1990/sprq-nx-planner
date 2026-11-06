@@ -4,7 +4,6 @@
   /* Lighter than Modal's scrim: the drawer's controls act on the grid selection behind
      it, so the grid stays legible while the panel is open. */
   background: rgba(20, 20, 30, 0.25);
-  z-index: 100;
   display: flex;
 }
 .panel {
@@ -16,6 +15,10 @@
   flex-direction: column;
   overflow: hidden;
   animation: drawer-in 0.16s ease-out;
+}
+/* The panel takes focus when it has no field to start in; it isn't a control, so no ring. */
+.panel:focus {
+  outline: none;
 }
 .left {
   margin-right: auto;

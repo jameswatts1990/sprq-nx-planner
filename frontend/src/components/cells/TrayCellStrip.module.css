@@ -27,7 +27,7 @@
   opacity: 0.45;
 }
 .pipPlanned {
-  background: var(--faint);
+  background: var(--faint-mark);
 }
 .pipStarted {
   background: var(--blue);

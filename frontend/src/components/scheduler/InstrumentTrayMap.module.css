@@ -15,7 +15,7 @@
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  font-size: 8.5px;
+  font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.02em;
   text-transform: uppercase;
@@ -33,7 +33,7 @@
 }
 .nowSpinner {
   display: inline-flex;
-  font-size: 9px;
+  font-size: 10px;
   animation: trayNowSpin 0.9s linear infinite;
 }
 @keyframes trayNowSpin {
@@ -63,11 +63,11 @@
   border: 1px solid var(--tray-card-border);
   border-radius: var(--r-sm);
   background: var(--tray-card-bg);
-  padding: 4px 4px 5px;
+  padding: 4px 3px 5px;
 }
 .trayHeader {
   display: block;
-  font-size: 8.5px;
+  font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.02em;
   font-family: var(--mono);
@@ -109,7 +109,7 @@
   border: 1px solid var(--line);
   border-radius: 6px;
   background: var(--card);
-  padding: 2px 4px 3px;
+  padding: 2px 3px 3px;
   text-decoration: none;
   color: inherit;
   cursor: pointer;
@@ -124,7 +124,7 @@
 .letter {
   grid-row: 1;
   grid-column: 1;
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 800;
   font-family: var(--mono);
   color: var(--grey);
@@ -147,17 +147,19 @@
   color: var(--ink);
 }
 /* Expiry line: a coloured status icon + the precise 108h date + a live countdown, so the state
-   reads at a glance from both colour and icon. */
+   reads at a glance from both colour and icon. The UI font with tabular digits (not mono) keeps
+   the rows aligned while fitting "15/11 24h" in the narrow cell at a readable 10px. */
 .exp {
   grid-row: 2;
   grid-column: 1 / span 2;
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 1px;
   min-width: 0;
-  font-size: 8.5px;
+  font-size: 10px;
   font-weight: 700;
-  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
   color: var(--faint);
   white-space: nowrap;
 }
@@ -176,7 +178,6 @@
 .expCount {
   flex: none;
   margin-left: auto;
-  padding-left: 3px;
   font-weight: 700;
   color: var(--faint);
 }
@@ -260,7 +261,7 @@
   min-height: 54px;
 }
 .emptyLabel {
-  font-size: 8.5px;
+  font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.02em;
   text-transform: uppercase;

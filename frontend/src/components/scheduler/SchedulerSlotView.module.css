@@ -257,7 +257,7 @@
   justify-content: center;
   padding-bottom: 3px;
   font-family: var(--mono);
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.08em;
   line-height: 1;
@@ -316,7 +316,7 @@
   border: 1px solid rgba(255, 255, 255, 0.9);
   border-radius: 3px;
   background: rgba(0, 0, 0, 0.22);
-  font-size: 9px;
+  font-size: 10px;
   line-height: 1;
 }
 /* Each plane drifts by EXACTLY one of its own gradient periods along its own axis, so
@@ -457,7 +457,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 2px 3px;
-  font-size: 9.5px;
+  font-size: 10px;
   line-height: 1.3;
   font-weight: 700;
   font-family: var(--mono);
@@ -600,7 +600,7 @@
   --qc-ring: 0 0 0 2px var(--red);
 }
 .qcAlertLabel {
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.03em;
   text-transform: uppercase;
@@ -613,7 +613,7 @@
   --qc-ring: 0 0 0 2px var(--amber);
 }
 .qcAlertLabelWarn {
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.03em;
   text-transform: uppercase;
@@ -628,7 +628,7 @@
   --qc-ring: 0 0 0 2px var(--orange);
 }
 .qcAlertLabelFailed {
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.03em;
   text-transform: uppercase;
@@ -654,7 +654,7 @@
   cursor: default;
 }
 .qcAlertLabelCancelled {
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.03em;
   text-transform: uppercase;
@@ -690,7 +690,7 @@
   }
 }
 .qcAlertLabelClash {
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.03em;
   text-transform: uppercase;
@@ -743,7 +743,7 @@
   background: repeating-linear-gradient(90deg, var(--red) 0 6px, transparent 6px 11px);
 }
 .windowExceededLabel {
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.03em;
   text-transform: uppercase;
@@ -806,7 +806,7 @@
   font-size: 10.5px;
 }
 :global([data-density="compact"]) .cellref {
-  font-size: 9px;
+  font-size: 10px;
 }
 :global([data-density="compact"]) .hasStub {
   padding-right: 24px;

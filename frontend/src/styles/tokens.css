@@ -23,7 +23,11 @@
   --purple: #7a1fa2;
   --ink: #26262b;
   --grey: #6c6c74;
-  --faint: #9a9aa2;
+  /* Secondary text (placeholders, "—", hints). At least 4.5:1 on both the card and the page
+     background (WCAG AA), so it reads a shade lighter than --grey rather than washed out. */
+  --faint: #6f6f77;
+  /* Decorative marks only - gantt hairlines, a vessel outline, an empty-chip dot - never text. */
+  --faint-mark: #9a9aa2;
   --line: #e6e8ec;
   --line-soft: #eff1f4;
   /* De-facto hover border used across buttons, cards, and popovers (was hardcoded
