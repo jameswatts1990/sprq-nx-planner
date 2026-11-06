@@ -54,4 +54,37 @@ describe("operatorName", () => {
     setOperatorName("Zoë O'Brien");
     expect(localStorage.getItem("runnx.operator")).toBe("Zoë O'Brien");
   });
+
+  it("remembers every name picked in this browser, once each, and keeps them after signing out", async () => {
+    const { getOperatorNames, setOperatorName } = await load();
+    expect(getOperatorNames()).toEqual([]);
+    setOperatorName("Ade");
+    setOperatorName(" Bea ");
+    setOperatorName("Ade");
+    setOperatorName("");
+    expect(getOperatorNames()).toEqual(["Ade", "Bea"]);
+    expect((await load()).getOperatorNames()).toEqual(["Ade", "Bea"]);
+  });
+
+  it("starts the list with the name a browser already had", async () => {
+    localStorage.setItem("runnx.operator", "Ade");
+    expect((await load()).getOperatorNames()).toEqual(["Ade"]);
+  });
+
+  it("forgets a name, signing out when it's the current one", async () => {
+    const { forgetOperatorName, getOperatorName, getOperatorNames, setOperatorName } = await load();
+    setOperatorName("Ade");
+    setOperatorName("Bea");
+    forgetOperatorName("Ade");
+    expect([getOperatorName(), getOperatorNames()]).toEqual(["Bea", ["Bea"]]);
+    forgetOperatorName("Bea");
+    expect([getOperatorName(), getOperatorNames()]).toEqual(["", []]);
+    expect((await load()).getOperatorNames()).toEqual([]);
+  });
+
+  it("ignores an unreadable list", async () => {
+    localStorage.setItem("runnx.operators", "{not json");
+    localStorage.setItem("runnx.operator", "Ade");
+    expect((await load()).getOperatorNames()).toEqual(["Ade"]);
+  });
 });

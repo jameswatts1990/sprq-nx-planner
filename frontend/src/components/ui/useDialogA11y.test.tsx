@@ -142,4 +142,19 @@ describe("Modal + useDialogA11y", () => {
     expect(document.activeElement).toBe(opener);
     opener.remove();
   });
+
+  it("gives focus back to its opener even when a field inside took focus with autoFocus", () => {
+    const opener = document.createElement("button");
+    document.body.appendChild(opener);
+    opener.focus();
+    render(
+      <Modal title="Your name" onClose={() => {}}>
+        <input aria-label="Name" autoFocus />
+      </Modal>,
+    );
+    expect(document.activeElement?.getAttribute("aria-label")).toBe("Name");
+    render(null);
+    expect(document.activeElement).toBe(opener);
+    opener.remove();
+  });
 });

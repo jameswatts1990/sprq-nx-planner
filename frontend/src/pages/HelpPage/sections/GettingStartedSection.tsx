@@ -43,8 +43,14 @@ export function GettingStartedSection() {
         The chip just left of the icons at the top right shows your name. Until you set one it reads{" "}
         <b>Set your name</b> in amber — click it, type your name and <b>Save</b>. Every change you make is then
         signed with it in <b>History → Activity</b>, and it fills in <b>Your name</b> when you confirm a run loaded
-        and the owner of a new credit case. It&apos;s remembered in this browser only, so set it once on each computer
-        you use (and change it if you&apos;re working at someone else&apos;s).
+        and the owner of a new credit case.
+      </p>
+      <p>
+        Names are remembered on each computer separately. On your own computer the chip just shows your name. On a
+        shared computer it keeps everyone who has used it: click the chip and pick your name from the list, or choose{" "}
+        <b>Someone else…</b> to add yours the first time. When you leave, <b>Sign out</b> leaves the computer unsigned
+        (the chip turns amber again) so the next person is asked for their name — yours stays in the list. The{" "}
+        <b>×</b> beside a name removes it from this computer&apos;s list, for someone who no longer uses it.
       </p>
 
       <p className={styles.subheading}>Nothing is final until a run is loaded</p>

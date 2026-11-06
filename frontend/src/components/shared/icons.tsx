@@ -231,6 +231,43 @@ export function UserIcon() {
   );
 }
 
+/** Tick - the chosen name in the nav's name menu. */
+export function CheckIcon() {
+  return (
+    <StrokeIcon>
+      <path d="M20 6L9 17l-5-5" />
+    </StrokeIcon>
+  );
+}
+
+/** Plus - the name menu's "Someone else…" (add a name). */
+export function PlusIcon() {
+  return (
+    <StrokeIcon>
+      <path d="M12 5v14M5 12h14" />
+    </StrokeIcon>
+  );
+}
+
+/** Cross - the name menu's × that removes a name from this computer's list. */
+export function CrossIcon() {
+  return (
+    <StrokeIcon>
+      <path d="M18 6L6 18M6 6l12 12" />
+    </StrokeIcon>
+  );
+}
+
+/** Door with an arrow out - the name menu's "Sign out". */
+export function SignOutIcon() {
+  return (
+    <StrokeIcon>
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+      <path d="M16 17l5-5-5-5M21 12H9" />
+    </StrokeIcon>
+  );
+}
+
 /** Pulse line - the Activity (audit trail) page. */
 export function ActivityIcon() {
   return (

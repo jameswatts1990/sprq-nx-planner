@@ -54,7 +54,7 @@ export function KeyboardShortcutsSection() {
         <dt>Esc</dt>
         <dd>
           Close the dialog on top — a picker opened from the Autoschedule panel closes on its own, leaving the panel
-          open. Also closes the History, View options and upload menus.
+          open. Also closes the History, your-name, View options and upload menus.
         </dd>
         <dt>Tab / Shift+Tab</dt>
         <dd>Move between a dialog&apos;s fields and buttons; it stays inside the dialog until you close it.</dd>

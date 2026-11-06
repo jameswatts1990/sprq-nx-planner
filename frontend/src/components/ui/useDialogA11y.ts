@@ -42,6 +42,9 @@ function topDialog(target: EventTarget | null): HTMLElement | undefined {
 export function useDialogA11y(boxRef: RefObject<HTMLElement | null>, onClose: () => void) {
   const titleId = useId();
   const [zIndex] = useState(() => BASE_Z_INDEX + openDialogs.length);
+  // What to give focus back to on close. Read while rendering: a field rendered with autoFocus
+  // takes focus during the commit, before the effect below runs.
+  const [opener] = useState(() => (document.activeElement instanceof HTMLElement ? document.activeElement : null));
   const onCloseRef = useRef(onClose);
   useEffect(() => {
     onCloseRef.current = onClose;
@@ -51,7 +54,6 @@ export function useDialogA11y(boxRef: RefObject<HTMLElement | null>, onClose: ()
     const box = boxRef.current;
     if (!box) return;
     openDialogs.push(box);
-    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     // A field rendered with autoFocus has already taken focus by now; otherwise pick one.
     if (!box.contains(document.activeElement)) {
       const firstField = box.querySelector<HTMLElement>(
@@ -92,7 +94,7 @@ export function useDialogA11y(boxRef: RefObject<HTMLElement | null>, onClose: ()
       openDialogs.splice(openDialogs.indexOf(box), 1);
       if (opener?.isConnected) opener.focus();
     };
-  }, [boxRef]);
+  }, [boxRef, opener]);
 
   const pressStartedOnOverlay = useRef(false);
   const overlayProps = {

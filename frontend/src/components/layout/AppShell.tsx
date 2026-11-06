@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState, type ComponentType, type ReactNode } from "react";
+import { useId, useLayoutEffect, useRef, useState, type ComponentType, type ReactNode } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 
 import {
@@ -17,6 +17,7 @@ import {
   ShieldCheckIcon,
   UploadIcon,
 } from "@/components/shared/icons";
+import { useMenuDismiss } from "@/components/ui/useMenuDismiss";
 import { formatDateTime } from "@/utils/calendarDates";
 
 import styles from "./AppShell.module.css";
@@ -72,24 +73,7 @@ function HistoryMenu() {
   const menuId = useId();
   const { pathname } = useLocation();
   const active = HISTORY_ROUTES.some((route) => pathname === route || pathname.startsWith(`${route}/`));
-
-  useEffect(() => {
-    if (!open) return;
-    function onMouseDown(e: MouseEvent) {
-      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
-    }
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key !== "Escape") return;
-      setOpen(false);
-      triggerRef.current?.focus();
-    }
-    window.addEventListener("mousedown", onMouseDown);
-    window.addEventListener("keydown", onKeyDown);
-    return () => {
-      window.removeEventListener("mousedown", onMouseDown);
-      window.removeEventListener("keydown", onKeyDown);
-    };
-  }, [open]);
+  useMenuDismiss(open, setOpen, wrapRef, triggerRef);
 
   return (
     <div className={styles.menuWrap} ref={wrapRef}>

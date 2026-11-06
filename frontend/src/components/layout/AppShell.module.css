@@ -140,6 +140,24 @@
 .menuItem:hover {
   background: var(--line-soft);
 }
+/* A menu item that's a <button> (the name menu) rather than a link: drop the UA button chrome. */
+.menuButton {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.menuButton:focus-visible {
+  outline: 2px solid var(--magenta-deep);
+  outline-offset: -2px;
+}
+.menuDivider {
+  height: 1px;
+  margin: 4px 2px;
+  background: var(--line);
+}
 .menuItemActive,
 .menuItemActive:hover {
   background: var(--magenta-tint);
@@ -167,11 +185,14 @@
 .menuItemActive .menuLabel {
   color: var(--magenta);
 }
-/* The operator name chip (OperatorNameChip): who every change is signed as. It and the utility
-   group sit together at the far right; amber until a name is set, so an unsigned browser is
-   obvious at a glance. Same height as the bordered utility group beside it. */
-.operator {
+/* The operator name chip (OperatorNameChip): who every change is signed as, opening a drop-down
+   of the names used on this computer. It and the utility group sit together at the far right; amber until a name
+   is set, so an unsigned browser is obvious at a glance. Same height as the bordered utility
+   group beside it. */
+.operatorWrap {
   margin-left: auto;
+}
+.operator {
   display: inline-flex;
   align-items: center;
   gap: 7px;
@@ -211,10 +232,108 @@
 .operatorUnset svg {
   color: currentColor;
 }
+.operator[aria-expanded="true"]:not(.operatorUnset) {
+  background: var(--line-soft);
+}
+.operator .chevron svg {
+  font-size: 13px;
+  color: currentColor;
+}
+.operator[aria-expanded="true"] .chevron {
+  transform: rotate(180deg);
+}
 .operatorName {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+/* The drop-down opens leftwards from the chip's right edge - the chip sits at the far right. */
+.operatorMenu {
+  left: auto;
+  right: 0;
+  width: 300px;
+}
+.operatorCaption {
+  margin: 4px 10px 4px;
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: var(--grey);
+}
+/* A busy shared computer's list scrolls rather than running off the screen. */
+.operatorList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: min(50vh, 360px);
+  overflow-y: auto;
+}
+/* A name row: the wide button picks the name, the × at the end removes it from the list. The row
+   carries the hover / current highlight so both read as one item. */
+.operatorRow {
+  display: flex;
+  align-items: center;
+  border-radius: 7px;
+}
+.operatorRow:hover {
+  background: var(--line-soft);
+}
+.operatorRowActive,
+.operatorRowActive:hover {
+  background: var(--magenta-tint);
+}
+.operatorChoose {
+  flex: 1;
+  width: auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 7px;
+  color: var(--ink);
+}
+.operatorForget {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  margin-right: 4px;
+  padding: 0;
+  font-size: 14px;
+  color: var(--faint);
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.operatorForget:hover {
+  color: var(--ink);
+  background: var(--line);
+}
+.operatorForget:focus-visible {
+  outline: 2px solid var(--magenta-deep);
+  outline-offset: -2px;
+}
+/* The leading tick / plus / sign-out column, so names and actions line up whatever is ticked. */
+.operatorMark {
+  flex: none;
+  display: inline-flex;
+  justify-content: center;
+  width: 16px;
+  padding-top: 2px;
+  font-size: 15px;
+  color: var(--grey);
+}
+/* Name rows are one line, centred; the two-line actions keep their icon on the first line. */
+.operatorList .operatorMark {
+  padding-top: 0;
+}
+.operatorRowActive .operatorMark,
+.operatorRowActive .operatorName {
+  color: var(--magenta);
 }
 .operatorHelp {
   margin: 0 0 14px;
