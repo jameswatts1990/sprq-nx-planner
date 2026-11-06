@@ -12,6 +12,9 @@ dependencies = [
   "psycopg[binary]>=3.2",
   "pydantic>=2.9",
   "pydantic-settings>=2.5",
+  # MLWH (Sanger's MySQL warehouse) connection probe. [rsa] pulls in cryptography, which MySQL 8's
+  # default caching_sha2_password auth needs on non-TLS connections.
+  "pymysql[rsa]>=1.1",
 ]
 
 [project.optional-dependencies]

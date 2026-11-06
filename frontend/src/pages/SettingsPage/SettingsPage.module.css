@@ -106,6 +106,129 @@
   color: var(--grey);
   margin: 0;
 }
+
+/* MLWH probe card: the .actions card look, but stacked (header, form, result) because the
+   table list needs the full width. */
+.probe {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+/* The card's gap already spaces its last child - drop the Note's own trailing margin. */
+.probe > :last-child {
+  margin-bottom: 0;
+}
+.probeHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.probeForm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px 12px;
+}
+.probeField {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 140px;
+  min-width: 0;
+}
+.probeField input {
+  width: 100%;
+}
+.probeFieldWide {
+  flex: 2 1 220px;
+}
+.probeFieldNarrow {
+  flex: 0 0 90px;
+}
+/* Status light - the Instruments page's live-dot look. Only "checking" moves (motion = working). */
+.statusLight {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--fs-md);
+  font-weight: 700;
+  color: var(--ink);
+  white-space: nowrap;
+}
+.statusDot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: none;
+  background: var(--grey);
+}
+.statusLight[data-state="ok"] .statusDot {
+  background: var(--green);
+}
+.statusLight[data-state="warn"] .statusDot {
+  background: var(--amber);
+}
+.statusLight[data-state="bad"] .statusDot {
+  background: var(--red);
+}
+.statusLight[data-state="checking"] .statusDot {
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--grey) 50%, transparent);
+  animation: statusPulse 1.8s ease-out infinite;
+}
+@keyframes statusPulse {
+  70% {
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--grey) 0%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--grey) 0%, transparent);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .statusLight[data-state="checking"] .statusDot {
+    animation: none;
+  }
+}
+.probeSummary {
+  font-size: var(--fs-md);
+  color: var(--grey);
+  margin: 0;
+}
+.probeTables {
+  list-style: none;
+  margin: 0;
+  padding: 8px 12px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 3px 20px;
+  max-height: 260px;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+}
+.probeTables li {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  font-size: var(--fs-md);
+}
+/* A raw database identifier, shown exactly as stored (same treatment as .editLabel). */
+.probeTableName {
+  font-family: var(--mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.probeTableRows {
+  color: var(--grey);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
 .layout {
   display: grid;
   /* minmax(0, …) so a wide table scrolls inside the rows panel instead of stretching it off-page. */
