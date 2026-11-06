@@ -90,7 +90,8 @@ export function ImportSection() {
       </p>
       <p>
         A few fields — the complex-loading volumes (<i>cleaned-complex</i> and <i>loading-buffer</i>) — are optional
-        and used only on the batch sheet&apos;s loading-dilution worksheet. You can map them here, and you can also
+        and used only on the batch sheet (each well&apos;s card on screen, and the printed loading-dilution
+        worksheet). You can map them here, and you can also
         fill them in (or correct them) later on the manual <i>Add / Edit sample</i> form. Leave them unmapped if your
         file doesn&apos;t have them.
       </p>

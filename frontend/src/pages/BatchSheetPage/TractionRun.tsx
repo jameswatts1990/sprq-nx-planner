@@ -12,6 +12,7 @@ import type { BatchSheetPlateOut, BatchSheetRunOut, BatchSheetWellOut } from "@/
 import { tractionWellFromSlot } from "@/utils/plateWell";
 import { runLabel } from "@/utils/runLabel";
 
+import { DilutionVolumes } from "./DilutionVolumes";
 import { LoadRunModal } from "./LoadRunModal";
 import { formatFullDate, plateHeading } from "./PrintedRun";
 import { platePositions, runAdaptiveLoading, runReminders, wellSettingDiffs } from "./tractionEntry";
@@ -121,43 +122,46 @@ function WellCard({
           </span>
         )}
       </div>
-      <dl className={styles.wellFields}>
-        <Field label="Barcode">
-          {well.sample_pool_id ? <CopyValue value={well.sample_pool_id} label="Pool ID" onCopied={onCopied} /> : "—"}
-        </Field>
-        <Field label="Library Concentration (pM)">
-          {well.actual_oplc != null ? (
-            <CopyValue value={String(well.actual_oplc)} label="library concentration" />
-          ) : (
-            <span className={styles.muted}>Not recorded. Enter it in Traction</span>
-          )}
-        </Field>
-        <Field label="Volume of Library Pool Used (uL)">
-          {well.library_pool_volume_used != null ? (
-            <CopyValue value={String(well.library_pool_volume_used)} label="library pool volume" />
-          ) : (
-            <span className={styles.muted}>Not recorded. Enter it in Traction</span>
-          )}
-        </Field>
-        <Field label="Settings">
-          {allDefault ? (
-            <span className={styles.muted}>Defaults</span>
-          ) : (
-            <span className={styles.chips}>
-              <MovieTimeFlag hours={well.run_time_hours} />
-              {diffs.map((d) => (
-                <Badge
-                  key={d.field}
-                  tone={d.value.toLowerCase() === "true" ? "magenta" : "ink"}
-                  title={`${d.field}: ${d.value} (the default is ${d.defaultValue})`}
-                >
-                  {d.short} {d.value}
-                </Badge>
-              ))}
-            </span>
-          )}
-        </Field>
-      </dl>
+      <div className={styles.wellBody}>
+        <dl className={styles.wellFields}>
+          <Field label="Barcode">
+            {well.sample_pool_id ? <CopyValue value={well.sample_pool_id} label="Pool ID" onCopied={onCopied} /> : "—"}
+          </Field>
+          <Field label="Library Concentration (pM)">
+            {well.actual_oplc != null ? (
+              <CopyValue value={String(well.actual_oplc)} label="library concentration" />
+            ) : (
+              <span className={styles.muted}>Not recorded. Enter it in Traction</span>
+            )}
+          </Field>
+          <Field label="Volume of Library Pool Used (uL)">
+            {well.library_pool_volume_used != null ? (
+              <CopyValue value={String(well.library_pool_volume_used)} label="library pool volume" />
+            ) : (
+              <span className={styles.muted}>Not recorded. Enter it in Traction</span>
+            )}
+          </Field>
+          <Field label="Settings">
+            {allDefault ? (
+              <span className={styles.muted}>Defaults</span>
+            ) : (
+              <span className={styles.chips}>
+                <MovieTimeFlag hours={well.run_time_hours} />
+                {diffs.map((d) => (
+                  <Badge
+                    key={d.field}
+                    tone={d.value.toLowerCase() === "true" ? "magenta" : "ink"}
+                    title={`${d.field}: ${d.value} (the default is ${d.defaultValue})`}
+                  >
+                    {d.short} {d.value}
+                  </Badge>
+                ))}
+              </span>
+            )}
+          </Field>
+        </dl>
+        <DilutionVolumes well={well} />
+      </div>
       {well.notes && <div className={styles.notes}>{well.notes}</div>}
     </div>
   );

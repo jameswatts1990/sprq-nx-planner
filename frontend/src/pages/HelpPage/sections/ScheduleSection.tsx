@@ -334,6 +334,15 @@ export function ScheduleSection() {
         on the cell shows at the bottom of the card.
       </p>
       <p>
+        To the right of the fields, two tiles show the well&apos;s <b>final loading dilution</b> volumes for the bench:{" "}
+        <b>Complex</b> (the cleaned complex volume) in a test tube with pink liquid, and <b>Buffer</b> (the loading
+        buffer volume) in a grey vial. Hover a tile to see its full name. These aren&apos;t Traction fields, so
+        there&apos;s nothing to copy. The fuller vessel holds the larger of the two volumes, as a quick check, but
+        always pipette from the number. A dashed, empty tile says <i>Not recorded</i>: add the volume by editing the
+        sample, or work it out at the bench (the printed sheet leaves a box to write it in). On a narrow screen the
+        tiles move below the fields.
+      </p>
+      <p>
         <b>Load</b> confirms the instrument has loaded, straight from the sheet. It does exactly what{" "}
         <b>Confirm loaded</b> on the schedule does: it locks the whole run (both plates). Enter <b>your name</b> (it
         is remembered on this computer for next time, and recorded against the action), the <b>Traction run name</b>{" "}

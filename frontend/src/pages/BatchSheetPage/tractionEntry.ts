@@ -79,6 +79,14 @@ export function wellIsNonDefault(
   return well.run_time_hours !== defaultHours || wellSettingDiffs(well, defaults).length > 0;
 }
 
+/** How full to draw a dilution vessel (0-1 of its body), comparing the well's two volumes: the
+ * larger near the top, the smaller in proportion, never below a visible sliver. A glance check
+ * only; the number is what gets pipetted. */
+export function liquidLevel(value: number, other: number | null): number {
+  const larger = Math.max(value, other ?? 0);
+  return larger > 0 ? 0.2 + 0.66 * (value / larger) : 0.2;
+}
+
 export type RunAdaptiveLoading =
   | { kind: "unknown" }
   | { kind: "uniform"; value: string }

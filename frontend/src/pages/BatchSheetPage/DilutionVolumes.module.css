@@ -1,0 +1,81 @@
+.volumes {
+  flex: none;
+  display: flex;
+  gap: 6px;
+}
+.tile {
+  width: 64px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 6px 3px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--card);
+  text-align: center;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+/* Hover hints at the full-name tooltip. Border and shadow only: a scale() would blur the text. */
+.tile:hover {
+  border-color: var(--line-hover);
+  box-shadow: var(--shadow);
+}
+.tile[data-missing="true"] {
+  border-style: dashed;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tile {
+    transition: none;
+  }
+}
+.name {
+  padding-bottom: 5px;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  line-height: 1.15;
+}
+.vessel {
+  display: block;
+  width: 40px;
+  height: 53px;
+}
+/* Flat line drawing in the app's icon grey, like its other stroke icons. */
+.outline {
+  fill: none;
+  stroke: var(--grey);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+.vessel[data-empty="true"] .outline {
+  stroke: var(--faint);
+  stroke-dasharray: 3 2.5;
+}
+/* The complex is the sample, so it takes the app's one accent; the buffer is a plain grey reagent. */
+.complexLiquid {
+  fill: var(--magenta-border);
+}
+.bufferLiquid {
+  fill: var(--line-hover);
+}
+.value {
+  font-family: var(--mono);
+  font-size: var(--fs-2xl);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+.unit {
+  margin-left: 2px;
+  font-family: var(--sans);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--grey);
+}
+.missing {
+  font-size: var(--fs-xs);
+  line-height: 1.2;
+  color: var(--grey);
+}
