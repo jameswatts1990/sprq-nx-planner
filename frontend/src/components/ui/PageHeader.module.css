@@ -27,10 +27,37 @@
   outline-offset: 2px;
   border-radius: 3px;
 }
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
 .title {
   font-size: var(--fs-display);
   line-height: 1.25;
   overflow-wrap: anywhere;
+}
+/* The page's "?" Help link: a quiet round icon beside the title. */
+.help {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  font-size: 18px;
+  color: var(--grey);
+  text-decoration: none;
+}
+.help:hover {
+  color: var(--magenta-deep);
+  background: var(--magenta-tint);
+}
+.help:focus-visible {
+  outline: 2px solid var(--magenta-deep);
+  outline-offset: 2px;
 }
 .intro {
   margin: 0;
@@ -49,6 +76,7 @@
 /* A back link or a button means nothing on paper (the Batch Sheet prints its title). */
 @media print {
   .back,
+  .help,
   .actions {
     display: none;
   }

@@ -65,6 +65,7 @@ export function BatchSheetPage() {
           the Print button on paper. */}
       <div className={styles.sheetTitle}>
         <PageHeader
+          help="batch-sheet"
           title={query.data ? `Batch Sheet — loaded ${formatFullDate(query.data.load_date)}` : "Batch Sheet"}
           back={{ to: "/schedule", label: "Schedule" }}
           actions={

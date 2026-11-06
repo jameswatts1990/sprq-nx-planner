@@ -54,6 +54,7 @@ export function HistorySamplesPage() {
   return (
     <div className={list.page}>
       <PageHeader
+        help="history"
         title="Samples"
         intro="Every sample, whatever its status — where it is now and every run it has been on."
       />

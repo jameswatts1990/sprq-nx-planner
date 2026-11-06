@@ -60,6 +60,7 @@ export function HistoryActivityPage() {
   return (
     <div className={list.page}>
       <PageHeader
+        help="activity"
         title="Activity"
         intro="Who changed what, and when — every schedule, run, sample, cell, credit, instrument and settings change, newest first."
       />

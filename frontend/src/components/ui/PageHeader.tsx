@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 
+import { HelpIcon } from "@/components/shared/icons";
+
 import styles from "./PageHeader.module.css";
 
 export interface PageHeaderProps {
@@ -13,12 +15,15 @@ export interface PageHeaderProps {
   /** Back link above the title, rendered as "◂ <label>" - the one back-link pattern for
    * every detail page. */
   back?: { to: string; label: string };
+  /** The Help section that explains this page (a HelpPage SECTIONS key, or an id inside one):
+   * renders a "?" beside the title linking to /help#<help>. */
+  help?: string;
 }
 
 /** The one way every page opens: an h1 on the type scale's display step, an optional intro
  * line and an optional actions slot. The Schedule page is the deliberate exception - it keeps
- * its dense SectionHeading so the grid starts as high as possible. */
-export function PageHeader({ title, intro, actions, back }: PageHeaderProps) {
+ * its dense SectionHeading so the grid starts as high as possible (its "?" sits in its toolbar). */
+export function PageHeader({ title, intro, actions, back, help }: PageHeaderProps) {
   return (
     <div className={styles.header}>
       <div className={styles.titles}>
@@ -27,7 +32,19 @@ export function PageHeader({ title, intro, actions, back }: PageHeaderProps) {
             ◂ {back.label}
           </Link>
         )}
-        <h1 className={styles.title}>{title}</h1>
+        <div className={styles.titleRow}>
+          <h1 className={styles.title}>{title}</h1>
+          {help && (
+            <Link
+              to={`/help#${help}`}
+              className={styles.help}
+              aria-label="Help for this page"
+              title="How this page works (opens Help)"
+            >
+              <HelpIcon />
+            </Link>
+          )}
+        </div>
         {intro !== undefined && <p className={styles.intro}>{intro}</p>}
       </div>
       {actions !== undefined && <div className={styles.actions}>{actions}</div>}

@@ -120,6 +120,7 @@ export function RunDetailPage() {
   return (
     <div className={styles.page}>
       <PageHeader
+        help="history"
         title={run.run_name ?? `Run #${run.run_id}`}
         back={back}
         actions={

@@ -1,6 +1,7 @@
 import { DndContext, DragOverlay } from "@dnd-kit/core";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 
 import { errorMessage } from "@/api/client";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
@@ -29,7 +30,7 @@ import { useGridSelection } from "@/components/scheduler/useGridSelection";
 import { useSchedulerDnd } from "@/components/scheduler/useSchedulerDnd";
 import { useSlotSelection } from "@/components/scheduler/useSlotSelection";
 import { computeTrayEvictionDates, computeTrayFoundingDates } from "@/components/scheduler/waitingCells";
-import { ClipboardListIcon, DownloadIcon } from "@/components/shared/icons";
+import { ClipboardListIcon, DownloadIcon, HelpIcon } from "@/components/shared/icons";
 import { SectionHeading, UseLegend } from "@/components/shared/SectionHeading";
 import { Button } from "@/components/ui/Button";
 import { Note } from "@/components/ui/Note";
@@ -830,6 +831,15 @@ export function SchedulePage() {
                       instrumentColumn={instrumentColumn}
                       onChangeInstrumentColumn={handleChangeInstrumentColumn}
                     />
+                    {/* The Schedule has no PageHeader, so its Help link lives here (see PageHeader's `help`). */}
+                    <Link
+                      to="/help#schedule"
+                      className={`btn ghost icon ${styles.toolIcon}`}
+                      aria-label="Help for the Schedule"
+                      title="How the Schedule works (opens Help)"
+                    >
+                      <HelpIcon />
+                    </Link>
                   </div>
                 </div>
                 {!backlogOnSide && (

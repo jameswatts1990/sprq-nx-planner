@@ -259,6 +259,7 @@ export function ImportPage() {
   // Every step (paste/upload, review, result) opens with the same header.
   const header = (
     <PageHeader
+      help="import"
       title="Import samples"
       intro="Load a batch of samples and their barcodes — they land in the Backlog, ready to schedule."
     />

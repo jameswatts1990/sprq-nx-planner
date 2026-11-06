@@ -79,7 +79,7 @@ export function SettingsPage() {
 
   return (
     <div className={styles.page}>
-      <PageHeader title="Settings" intro="Configure how this instance schedules runs, defaults new samples, and more." />
+      <PageHeader help="settings" title="Settings" intro="Configure how this instance schedules runs, defaults new samples, and more." />
       <div className={styles.shell}>
         <aside className={styles.sidebar}>
           <input

@@ -113,6 +113,7 @@ function TrayList() {
   return (
     <div className={list.page}>
       <PageHeader
+        help="cells"
         title="Cells"
         intro="Every physical SMRT cell tray: each cell's state at a glance, and what ran on it."
         actions={
@@ -263,7 +264,7 @@ function SingleTray({ trayId }: { trayId: number }) {
 
   return (
     <div className={list.page}>
-      <PageHeader title={<span className={list.mono}>Tray {trayId}</span>} back={back} />
+      <PageHeader help="cells" title={<span className={list.mono}>Tray {trayId}</span>} back={back} />
       <Card>
         <CardBody>
           <div className={list.subbar}>

@@ -261,6 +261,7 @@ export function CellDetailPage() {
   return (
     <div className={styles.page}>
       <PageHeader
+        help="cells"
         title={
           <>
             <span className={styles.mono}>{cell.code}</span> <CellTypeBadge cellType={cell.cell_type} />{" "}

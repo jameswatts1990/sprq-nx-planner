@@ -419,6 +419,7 @@ export function BacklogPage() {
   return (
     <div className={styles.page}>
       <PageHeader
+        help="backlog"
         title="Backlog"
         intro={backlogSummary}
         actions={

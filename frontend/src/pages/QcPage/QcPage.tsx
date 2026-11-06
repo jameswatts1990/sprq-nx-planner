@@ -211,6 +211,7 @@ export function QcPage() {
   return (
     <div className={styles.page}>
       <PageHeader
+        help="qc"
         title="QC & PacBio credits"
         intro="Failed or stopped cells, plus cases logged by hand, chasing a credit back from PacBio."
         actions={

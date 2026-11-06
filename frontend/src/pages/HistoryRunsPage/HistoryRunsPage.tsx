@@ -58,6 +58,7 @@ export function HistoryRunsPage() {
   return (
     <div className={list.page}>
       <PageHeader
+        help="history"
         title="Run history"
         intro="Every sequencing run — past, active and planned — with how each well went at a glance."
       />

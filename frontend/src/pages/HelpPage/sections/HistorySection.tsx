@@ -182,7 +182,9 @@ export function HistorySection() {
         Edit button is shown.
       </p>
 
-      <p className={styles.subheading}>History → Activity</p>
+      <p className={styles.subheading} id="activity">
+        History → Activity
+      </p>
       <p>
         <b>What it&apos;s for:</b> who changed what, and when. Every change made in RunNx — placing, moving or
         removing a sample, Autoschedule, confirming a run loaded or unlocking it, editing a sample or a note, an

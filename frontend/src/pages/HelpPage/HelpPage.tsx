@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 
 import { Button } from "@/components/ui/Button";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -7,29 +8,35 @@ import { useDebouncedValue } from "@/utils/useDebouncedValue";
 import styles from "./HelpPage.module.css";
 import { useHelpSearch } from "./useHelpSearch";
 import { BacklogSection } from "./sections/BacklogSection";
+import { BatchSheetSection } from "./sections/BatchSheetSection";
 import { CellsSection } from "./sections/CellsSection";
 import { GettingStartedSection } from "./sections/GettingStartedSection";
 import { HistorySection } from "./sections/HistorySection";
 import { ImportSection } from "./sections/ImportSection";
 import { InstrumentsSection } from "./sections/InstrumentsSection";
+import { KeyboardShortcutsSection } from "./sections/KeyboardShortcutsSection";
 import { LegendSection } from "./sections/LegendSection";
 import { QcSection } from "./sections/QcSection";
 import { ScheduleSection } from "./sections/ScheduleSection";
 import { SettingsSection } from "./sections/SettingsSection";
 import { StatsSection } from "./sections/StatsSection";
 
+/** Each section's `key` is also its element id, so /help#<key> links straight to it (PageHeader's
+ * `help` prop, the Schedule toolbar's ?). Keep keys stable - pages link to them. */
 const SECTIONS = [
-  { key: "gettingStarted", title: "Getting started", Component: GettingStartedSection },
+  { key: "getting-started", title: "Getting started", Component: GettingStartedSection },
   { key: "import", title: "Import", Component: ImportSection },
   { key: "backlog", title: "Backlog", Component: BacklogSection },
   { key: "schedule", title: "Schedule", Component: ScheduleSection },
+  { key: "batch-sheet", title: "Batch Sheet", Component: BatchSheetSection },
   { key: "cells", title: "Cells", Component: CellsSection },
   { key: "qc", title: "QC & credits", Component: QcSection },
   { key: "instruments", title: "Instruments", Component: InstrumentsSection },
   { key: "history", title: "History: Runs, Samples & Activity", Component: HistorySection },
   { key: "stats", title: "Stats", Component: StatsSection },
   { key: "settings", title: "Settings", Component: SettingsSection },
-  { key: "legend", title: "Glossary & Legend", Component: LegendSection },
+  { key: "keyboard-shortcuts", title: "Keyboard shortcuts", Component: KeyboardShortcutsSection },
+  { key: "glossary", title: "Glossary & Legend", Component: LegendSection },
 ] as const;
 
 /** Living documentation of every screen in the app, for non-technical lab users.
@@ -80,11 +87,28 @@ export function HelpPage() {
     return () => observer.disconnect();
   }, []);
 
+  // /help#<id> - a page's "?" link, a shared link or a TOC click - lands on that section, or on any
+  // id inside one (e.g. #activity). Straight there on arrival; smoothly for a TOC click.
+  const { hash } = useLocation();
+  const navigate = useNavigate();
+  const arrived = useRef(false);
+  useEffect(() => {
+    const target = hash ? document.getElementById(decodeURIComponent(hash.slice(1))) : null;
+    if (target && contentRef.current?.contains(target)) {
+      target.scrollIntoView({ behavior: arrived.current ? "smooth" : "auto", block: "start" });
+      const section = target.closest<HTMLElement>("[data-help-section]")?.dataset.helpSection;
+      if (section) setActiveSection(section);
+    }
+    arrived.current = true;
+  }, [hash]);
+
   const scrollToSection = (key: string) => {
-    contentRef.current
-      ?.querySelector(`[data-help-section="${key}"]`)
-      ?.scrollIntoView({ behavior: "smooth", block: "start" });
-    setActiveSection(key);
+    if (hash === `#${key}`) {
+      document.getElementById(key)?.scrollIntoView({ behavior: "smooth", block: "start" });
+      setActiveSection(key);
+    } else {
+      navigate({ hash: key }, { replace: true });
+    }
   };
 
   return (
@@ -167,7 +191,7 @@ export function HelpPage() {
 
         <div className={styles.content} ref={contentRef}>
           {SECTIONS.map(({ key, title, Component }) => (
-            <section key={key} className={styles.section} data-help-section={key}>
+            <section key={key} id={key} className={styles.section} data-help-section={key}>
               <h2 className={styles.sectionTitle}>{title}</h2>
               <Component />
             </section>

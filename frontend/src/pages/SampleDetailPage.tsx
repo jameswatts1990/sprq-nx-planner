@@ -112,6 +112,7 @@ export function SampleDetailPage() {
   return (
     <div className={styles.page}>
       <PageHeader
+        help="history"
         back={backNav}
         title={
           <>

@@ -73,6 +73,7 @@ export function StatsPage() {
   return (
     <div className={styles.page}>
       <PageHeader
+        help="stats"
         title="Stats"
         intro="Read-only charts and headline numbers built from everything else in the app."
         actions={

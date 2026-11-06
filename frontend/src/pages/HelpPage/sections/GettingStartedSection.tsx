@@ -64,6 +64,12 @@ export function GettingStartedSection() {
         <b>↓</b> steps to the next match, <b>Shift+Enter</b> or <b>↑</b> to the previous). Beside them is the
         app&apos;s version number and build date — click it to see what changed.
       </p>
+      <p>
+        <b>Help for the page you&apos;re on:</b> every page has a round <b>?</b> beside its title (on the Schedule,
+        at the right end of its toolbar) that opens Help straight at that page&apos;s section. The{" "}
+        <b>Keyboard shortcuts</b> section lists every key and Ctrl/Shift-click the app understands, and the{" "}
+        <b>Glossary</b> explains the words RunNx uses (slot, day slot, use, plate…).
+      </p>
     </div>
   );
 }

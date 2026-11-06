@@ -107,8 +107,11 @@
 .content {
   min-width: 0;
 }
-.section {
+.section,
+.copy [id] {
   scroll-margin-top: calc(var(--topbar-h, 64px) + 16px);
+}
+.section {
   padding: 26px 0;
   border-top: 1px solid var(--line);
 }

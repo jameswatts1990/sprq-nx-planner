@@ -113,6 +113,7 @@ export function InstrumentsPage() {
   return (
     <div className={styles.page}>
       <PageHeader
+        help="instruments"
         title="Instruments"
         intro="The Revios runs are scheduled onto — add, rename, mark down, retire or delete one."
         actions={
