@@ -3,7 +3,14 @@ import { describe, expect, it } from "vitest";
 import type { SampleDefaults } from "@/api/settings";
 import type { BatchSheetPlateOut, BatchSheetRunOut, BatchSheetWellOut } from "@/types/batchSheet";
 
-import { platePositions, runAdaptiveLoading, runReminders, wellIsNonDefault, wellSettingDiffs } from "./tractionEntry";
+import {
+  liquidLevel,
+  platePositions,
+  runAdaptiveLoading,
+  runReminders,
+  wellIsNonDefault,
+  wellSettingDiffs,
+} from "./tractionEntry";
 
 const DEFAULTS: SampleDefaults = {
   adaptive_loading: "True",
@@ -146,5 +153,22 @@ describe("runReminders", () => {
     const [reminder] = runReminders(r, DEFAULTS, 24);
     expect(reminder.tone).toBe("info");
     expect(reminder.text).toContain("Set Use Adaptive Loading to False in Well Defaults");
+  });
+});
+
+describe("liquidLevel", () => {
+  it("draws the larger volume near the top and the smaller in proportion", () => {
+    expect(liquidLevel(24, 12)).toBeCloseTo(0.86);
+    expect(liquidLevel(12, 24)).toBeCloseTo(0.53);
+  });
+
+  it("draws a volume with no partner, or equal partners, as the larger", () => {
+    expect(liquidLevel(11.4, null)).toBeCloseTo(0.86);
+    expect(liquidLevel(20, 20)).toBeCloseTo(0.86);
+  });
+
+  it("keeps a visible sliver for a tiny or zero volume", () => {
+    expect(liquidLevel(0.1, 30)).toBeGreaterThan(0.2);
+    expect(liquidLevel(0, 0)).toBe(0.2);
   });
 });

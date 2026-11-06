@@ -87,7 +87,18 @@
   max-width: 640px;
   font-size: var(--fs-base);
 }
+/* A well's Traction fields with its dilution volumes beside them; the volumes drop below when
+   the card is too narrow for both. */
+.wellBody {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 10px 14px;
+}
 .wellFields {
+  flex: 1 1 336px;
+  /* Labels wrap past 160px so the volumes still fit beside the fields in a half-width plate. */
+  grid-template-columns: fit-content(160px) minmax(0, 1fr);
   font-size: var(--fs-sm);
 }
 .fieldLabel {

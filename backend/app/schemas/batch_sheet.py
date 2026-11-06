@@ -32,7 +32,8 @@ class BatchSheetWellOut(BaseModel):
     full_resolution_base_q: str | None
     target_oplc: float | None
     actual_oplc: float | None  # the achieved on-plate loading concentration, if recorded
-    # Complex-loading dilution volumes for the SOP 7.3 worksheet (optional, from import).
+    # Complex-loading dilution volumes for the SOP 7.3 worksheet and the on-screen well cards
+    # (optional, from import or the sample edit form).
     # Control Dilution 3 is a fixed 1 µL, printed by the batch sheet, so it isn't carried here.
     cleaned_complex_volume: float | None
     loading_buffer_volume: float | None
