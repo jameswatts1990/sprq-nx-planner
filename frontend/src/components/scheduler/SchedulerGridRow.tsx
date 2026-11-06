@@ -21,6 +21,8 @@ export interface SchedulerGridRowProps {
   /** ISO date (YYYY-MM-DD) the instrument went down for maintenance, or null when online.
    * Day-columns on/after this are greyed and non-selectable (see SchedulerDayCell's `down`). */
   downFrom: string | null;
+  /** Why it's down (Instruments page), quoted when a drop onto a down day is refused. */
+  downNote: string | null;
   rowIndex: number;
   days: string[];
   cyclesByDate: Map<string, RunOut>;
@@ -50,6 +52,7 @@ export const SchedulerGridRow = memo(function SchedulerGridRow({
   serial,
   name,
   downFrom,
+  downNote,
   rowIndex,
   days,
   cyclesByDate,
@@ -142,6 +145,9 @@ export const SchedulerGridRow = memo(function SchedulerGridRow({
           <SchedulerDayCell
             key={date}
             instrumentSerial={serial}
+            instrumentLabel={`Revio ${name || serial}`}
+            downFrom={downFrom}
+            downNote={downNote}
             loadDate={date}
             rowIndex={rowIndex}
             colIndex={colIndex}

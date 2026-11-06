@@ -101,7 +101,8 @@ export function BacklogSection() {
         the date the request was raised. Once you&apos;ve emailed the supplier asking them to resend sample, click{" "}
         <b>Request sent</b> and confirm in the pop-up: it records today&apos;s date and the request <b>leaves this
         list</b>. Sent requests stay visible in a <b>Resupply requests</b> card on the sample&apos;s own page (with the
-        date raised and the date sent). <b>Cancel</b> removes a request that isn&apos;t needed. This is separate from the
+        date raised and the date sent). <b>Cancel</b> deletes a request that isn&apos;t needed, after a confirmation (the
+        sample itself isn&apos;t changed). This is separate from the
         cell-level PacBio credit workflow (which recovers the wasted <i>cell</i>, not the sample). Click any column
         header to sort this list.
       </p>
@@ -187,8 +188,10 @@ export function BacklogSection() {
       </p>
       <p>
         <b>Cancel</b> (on each row) removes a sample from the backlog when you never intend to sequence it. Use it
-        to clear out mistakes or withdrawn samples; it does not delete sequencing history. If a cancel fails, a red
-        note explains why.
+        to clear out mistakes or withdrawn samples; it does not delete sequencing history. A confirmation comes first,
+        because it&apos;s one-way: a cancelled sample can&apos;t be put back in the backlog (only a <b>Failed</b> sample
+        can be requeued). It stays listed under <b>History → Samples</b>; to run it after all, import it again. If a
+        cancel fails, a red note explains why.
       </p>
       <p>
         The same backlog also appears as draggable cards inside the Schedule tab&apos;s Backlog panel, with the same

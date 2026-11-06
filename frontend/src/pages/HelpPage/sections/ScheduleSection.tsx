@@ -760,8 +760,8 @@ export function ScheduleSection() {
         <b>swaps the two</b> — they trade places (each keeping its own movie time), and a swap preview highlights the
         target as you hover. Dropping a{" "}
         <i>backlog</i> sample onto an occupied slot, by contrast, is <b>rejected</b> — it never overwrites what&apos;s
-        there: hovering shows a dashed red outline instead of the swap preview, and letting go shows a short note
-        explaining the slot is already taken rather than silently doing nothing.
+        there: hovering shows a dashed red outline instead of the swap preview, and letting go shows the note{" "}
+        <i>That slot already holds a sample — drop on an empty slot</i> rather than silently doing nothing.
       </p>
       <p>
         <b>No manual action is ever blocked by a barcode clash</b> — a plain place, a move, a swap, and naming a
@@ -989,7 +989,7 @@ export function ScheduleSection() {
         <li>
           <b>Clear schedule (N planned)</b> wipes every <i>planned</i> placement in the current week view and
           returns those samples to the backlog. A confirmation dialog first states exactly how many samples will be
-          removed and warns it can&apos;t be undone. Confirmed/loaded runs are never touched, so the number cleared
+          removed and warns it can&apos;t be undone; its button reads <b>Return N samples to backlog</b>. Confirmed/loaded runs are never touched, so the number cleared
           can be lower than the total on screen.
         </li>
         <li>
@@ -997,8 +997,24 @@ export function ScheduleSection() {
           schedule the same way — while you&apos;re holding it, the slot it came from shows its empty <b>+</b>{" "}
           placeholder as a preview of that removal. Dropping it onto a locked run, or any other
           non-droppable spot <i>inside</i> the grid never removes it by mistake — only letting go genuinely outside
-          the whole grid does that. Landing on one of those non-droppable spots instead shows a short note saying the
-          drop couldn&apos;t land there, and the sample stays exactly where it was.
+          the whole grid does that. Landing on one of those non-droppable spots instead shows a note above the grid
+          saying exactly why, and the sample stays exactly where it was. The same note appears when you drop a{" "}
+          <i>backlog</i> sample there:
+          <ul>
+            <li>
+              a loaded run — <i>Revio 84047 is locked until 14:00 Tue (run loaded)</i>, or, once that lock has passed,
+              how to unload it;
+            </li>
+            <li>
+              a day an earlier run still occupies — <i>Wed is taken by Monday&apos;s run (Plate 2 acquiring)</i>, or{" "}
+              <i>… locked until … (Monday&apos;s run loading)</i> while its cells are still prepping;
+            </li>
+            <li>
+              a down instrument — <i>Revio 84093 is down from 12 Nov: …</i>, quoting the note from the Instruments
+              page;
+            </li>
+            <li>a finished (completed or aborted) run, which can&apos;t take samples.</li>
+          </ul>
         </li>
       </ul>
 
@@ -1023,7 +1039,9 @@ export function ScheduleSection() {
           Run detail and History. A running run switches to <b>COMPLETED</b> on its own once its last cell has finished
           sequencing and analysis (the same end time the Instruments page uses), so you never have to mark it done.
           While it&apos;s running, hover or focus <b>RUNNING</b> and it turns magenta and swaps to{" "}
-          <b>UNLOAD</b>; click it to return the run to planned so you can edit it again.
+          <b>UNLOAD</b>; click it and confirm <b>Unlock run</b> to return the run to planned so you can edit it again.
+          Unlocking clears its recorded load time — its cells&apos; 108-hour clocks go back to estimates until you{" "}
+          <b>Confirm loaded</b> again — but keeps the run name.
         </li>
         <li>
           The <b>⏏</b> (eject) button in a tray&apos;s top-right corner is <b>Discard current tray</b> — use it when you

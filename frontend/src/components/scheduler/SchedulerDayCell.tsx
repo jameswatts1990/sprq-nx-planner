@@ -21,6 +21,7 @@ import { formatShortDateTimeLocal, formatShortDateUTC, formatTimeLocal, localWal
 import { CYCLE_STATUS_TONE } from "@/utils/cycleStatus";
 import { runLabel } from "@/utils/runLabel";
 
+import { blockAttrs, continuationBlock, downBlock, lockedRunBlock, WEEKEND_BLOCK } from "./blockedDrop";
 import { noteCellDropId, noteDragId, PLATE_INDICES, slotKey } from "./gridKeys";
 import { allStages, padStages, type Continuation } from "./groupCyclesByInstrumentAndDay";
 import { SchedulerSlot } from "./SchedulerSlot";
@@ -30,6 +31,11 @@ import type { SlotSelection } from "./useSlotSelection";
 
 export interface SchedulerDayCellProps {
   instrumentSerial: string;
+  /** "Revio <name or serial>" - names the instrument when a drop here is refused. */
+  instrumentLabel: string;
+  /** The instrument's maintenance-down date and note, quoted when a drop on a `down` day is refused. */
+  downFrom?: string | null;
+  downNote?: string | null;
   loadDate: string;
   rowIndex: number;
   colIndex: number;
@@ -155,6 +161,9 @@ function NoteDropZone({ instrumentSerial, date }: { instrumentSerial: string; da
 export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerDayCellProps) {
   const {
     instrumentSerial,
+    instrumentLabel,
+    downFrom,
+    downNote,
     loadDate,
     rowIndex,
     colIndex,
@@ -187,6 +196,7 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
       // rotate mutation below does.
       invalidateScheduleRelated(queryClient);
       setConfirmingLoad(false);
+      setConfirmingUnload(false);
     },
   });
 
@@ -195,6 +205,7 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
   const [hoveringRunningPill, setHoveringRunningPill] = useState(false);
 
   const [confirmingLoad, setConfirmingLoad] = useState(false);
+  const [confirmingUnload, setConfirmingUnload] = useState(false);
   const [runName, setRunName] = useState("");
   // The load time amended in the Confirm-Revio-loaded modal, as a free-text hh:mm string
   // (prefilled from Plate 1's current planned start when the modal opens). Sent with the lock
@@ -268,6 +279,7 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
         aria-hidden="true"
         data-row={rowIndex}
         data-col={colIndex}
+        {...blockAttrs(WEEKEND_BLOCK)}
       />
     );
   }
@@ -283,6 +295,7 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
         title="Instrument down for maintenance — no new runs can be scheduled here."
         data-row={rowIndex}
         data-col={colIndex}
+        {...blockAttrs(downFrom ? downBlock(instrumentLabel, downFrom, downNote ?? null) : null)}
       >
         {notes && <DayNoteBanners notes={notes} instrumentSerial={instrumentSerial} onEdit={onEditNote} />}
         <span className={styles.downLabel}>Down</span>
@@ -298,6 +311,14 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
   // no run row of its own yet (see isCellOpen, which gates
   // selectability the same way).
   const locked = (run !== undefined && run.status !== "planned") || (run === undefined && continuation !== undefined);
+  // Why a drop on this locked day is refused, read back at drop time (see blockedDrop.ts).
+  const blockMarker = !locked
+    ? null
+    : run
+      ? lockedRunBlock(instrumentLabel, run)
+      : continuation
+        ? continuationBlock(instrumentLabel, loadDate, continuation)
+        : null;
   const filledCount = run ? allStages(run).length : 0;
   const slots = padStages(run);
 
@@ -333,6 +354,7 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
       aria-pressed={selectable ? selected : undefined}
       data-row={rowIndex}
       data-col={colIndex}
+      {...blockAttrs(blockMarker)}
     >
       {notes && <DayNoteBanners notes={notes} instrumentSerial={instrumentSerial} onEdit={onEditNote} />}
 
@@ -374,7 +396,7 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
                     data-tone={CYCLE_STATUS_TONE[run.status]}
                     title={run.run_name ? `Run name: ${run.run_name} — click to unload and edit` : "Click to unload and edit"}
                     disabled={statusMutation.isPending}
-                    onClick={() => statusMutation.mutate({ status: "planned" })}
+                    onClick={() => setConfirmingUnload(true)}
                     onMouseEnter={() => setHoveringRunningPill(true)}
                     onMouseLeave={() => setHoveringRunningPill(false)}
                     onFocus={() => setHoveringRunningPill(true)}
@@ -609,6 +631,23 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
         </ConfirmModal>
       )}
 
+      {confirmingUnload && run && (
+        <ConfirmModal
+          title={`Unlock run ${runLabel(run)}?`}
+          confirmLabel="Unlock run"
+          pendingLabel="Unlocking…"
+          pending={statusMutation.isPending}
+          error={statusMutation.isError ? errorMessage(statusMutation.error, "Couldn't unlock the run.") : null}
+          onCancel={() => setConfirmingUnload(false)}
+          onConfirm={() => statusMutation.mutate({ status: "planned" })}
+        >
+          <p>
+            It becomes editable and its recorded load time is cleared — its cells&apos; 108h clocks go back to
+            estimates until you <b>Confirm loaded</b> again. The run name is kept.
+          </p>
+        </ConfirmModal>
+      )}
+
       {reschedulingTo != null && run && (
         <ConfirmModal
           title="Reschedule this run?"
@@ -656,7 +695,8 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
           <p>
             This plate keeps its current cells and use number — the tray is discarded <b>after</b> it has loaded. Any{" "}
             <b>later</b> reuse of these cells moves onto a fresh tray, restarting at Use 1; earlier uses are untouched.
-            The current cells are marked discarded so nothing new reuses them. This cannot be undone.
+            The current cells are marked discarded so nothing new reuses them. You can bring it back with{" "}
+            <b>Restore tray</b> on the Cells page.
           </p>
           {trayCellsQuery.data && trayCellsQuery.data.items.length > 0 && (
             <>

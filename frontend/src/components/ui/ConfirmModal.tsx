@@ -29,6 +29,9 @@ export interface ConfirmModalProps {
   /** Optional labeled textarea (e.g. a reason/notes field); omitted for warning-only confirms. */
   textarea?: ConfirmModalTextareaProps;
   confirmLabel: string;
+  /** The dismiss button's label. Override when the action itself is a "Cancel …" (e.g. "Keep run"
+   * beside "Cancel run"), so the two buttons can't be mistaken for each other. */
+  cancelLabel?: string;
   /** "danger" for an irreversible discard/delete/clear, so it reads as destructive (red) rather
    * than the everyday magenta primary action. Reversible actions stay "primary". */
   confirmVariant?: "primary" | "danger";
@@ -54,6 +57,7 @@ export function ConfirmModal({
   input,
   textarea,
   confirmLabel,
+  cancelLabel = "Cancel",
   confirmVariant = "primary",
   pendingLabel,
   pending,
@@ -97,7 +101,7 @@ export function ConfirmModal({
 
       <ModalActions>
         <Button variant="ghost" onClick={onCancel} disabled={pending}>
-          Cancel
+          {cancelLabel}
         </Button>
         <Button variant={confirmVariant} onClick={onConfirm} disabled={pending || confirmDisabled}>
           {pending ? pendingLabel : confirmLabel}

@@ -83,7 +83,8 @@ interface SampleColumnDeps {
   /** Shared by both tables - a sample is only ever in one of them. */
   noteRows: ReturnType<typeof useNoteRows>;
   onEdit: (sample: SampleOut) => void;
-  onCancel: (id: number) => void;
+  /** Opens the Cancel-sample confirmation for this row. */
+  onCancel: (sample: SampleOut) => void;
   cancelPending: boolean;
 }
 
@@ -185,7 +186,7 @@ function buildSampleColumns({ renderHeader, backNav, noteRows, onEdit, onCancel,
           <Button size="sm" variant="ghost" onClick={() => onEdit(info.row.original)}>
             Edit
           </Button>
-          <Button size="sm" variant="ghost" onClick={() => onCancel(info.row.original.id)} disabled={cancelPending}>
+          <Button size="sm" variant="ghost" onClick={() => onCancel(info.row.original)} disabled={cancelPending}>
             Cancel
           </Button>
         </div>
@@ -262,6 +263,8 @@ export function BacklogPage() {
   // Which notes are open / being edited: backlog samples by sample id, resupply rows by request id.
   const sampleNotes = useNoteRows();
   const resupplyNotes = useNoteRows();
+  const [confirmCancel, setConfirmCancel] = useState<SampleOut | null>(null);
+  const [confirmCancelResupply, setConfirmCancelResupply] = useState<SampleTopupOut | null>(null);
   const q = useDebouncedValue(qInput, 350);
   const queryClient = useQueryClient();
 
@@ -367,7 +370,7 @@ export function BacklogPage() {
   // The resupply list is fully loaded too, so it sorts client-side like the Recoverable band.
   const resupplySort = useClientSort(resupplies, RESUPPLY_SORT_ACCESSORS, { by: "container", dir: "asc" });
 
-  const { mutate: cancelSample, isPending: cancelPending } = cancelMutation;
+  const cancelPending = cancelMutation.isPending;
   const backNav = useSampleBackNav();
 
   const columns = useMemo(
@@ -377,10 +380,10 @@ export function BacklogPage() {
         backNav,
         noteRows: sampleNotes,
         onEdit: setEditSample,
-        onCancel: cancelSample,
+        onCancel: setConfirmCancel,
         cancelPending,
       }),
-    [sortableHeader, cancelSample, cancelPending, backNav, sampleNotes],
+    [sortableHeader, cancelPending, backNav, sampleNotes],
   );
   const recoverableColumns = useMemo(
     () =>
@@ -389,10 +392,10 @@ export function BacklogPage() {
         backNav,
         noteRows: sampleNotes,
         onEdit: setEditSample,
-        onCancel: cancelSample,
+        onCancel: setConfirmCancel,
         cancelPending,
       }),
-    [recoverableHeader, cancelSample, cancelPending, backNav, sampleNotes],
+    [recoverableHeader, cancelPending, backNav, sampleNotes],
   );
 
   const items = query.data?.items ?? [];
@@ -628,7 +631,7 @@ export function BacklogPage() {
                             <Button
                               size="sm"
                               variant="ghost"
-                              onClick={() => resupplyCancelMutation.mutate(t.id)}
+                              onClick={() => setConfirmCancelResupply(t)}
                               disabled={resupplyCancelMutation.isPending}
                             >
                               Cancel
@@ -672,6 +675,51 @@ export function BacklogPage() {
           </p>
           <p className={styles.sectionHint}>
             This records today&apos;s date and removes it from this list — it stays visible on the sample&apos;s page.
+          </p>
+        </ConfirmModal>
+      )}
+
+      {confirmCancel && (
+        <ConfirmModal
+          title={`Cancel ${confirmCancel.pool_id}?`}
+          confirmLabel="Cancel sample"
+          cancelLabel="Keep sample"
+          confirmVariant="danger"
+          pendingLabel="Cancelling…"
+          pending={cancelMutation.isPending}
+          error={cancelMutation.isError ? errorMessage(cancelMutation.error, "Couldn't cancel the sample.") : null}
+          onCancel={() => setConfirmCancel(null)}
+          onConfirm={() => cancelMutation.mutate(confirmCancel.id, { onSuccess: () => setConfirmCancel(null) })}
+        >
+          <p>
+            It leaves the backlog for good — a cancelled sample can&apos;t be put back (only a <b>Failed</b> sample
+            can be requeued). It stays listed under <b>History → Samples</b>; to run it after all, import it again.
+          </p>
+        </ConfirmModal>
+      )}
+
+      {confirmCancelResupply && (
+        <ConfirmModal
+          title="Cancel this resupply request?"
+          confirmLabel="Cancel request"
+          cancelLabel="Keep request"
+          confirmVariant="danger"
+          pendingLabel="Cancelling…"
+          pending={resupplyCancelMutation.isPending}
+          error={
+            resupplyCancelMutation.isError
+              ? errorMessage(resupplyCancelMutation.error, "Couldn't cancel the resupply request.")
+              : null
+          }
+          onCancel={() => setConfirmCancelResupply(null)}
+          onConfirm={() =>
+            resupplyCancelMutation.mutate(confirmCancelResupply.id, { onSuccess: () => setConfirmCancelResupply(null) })
+          }
+        >
+          <p>
+            The request for{" "}
+            <b>{confirmCancelResupply.pool_id ?? `Sample ${confirmCancelResupply.sample_id}`}</b> is deleted — only
+            do this if fresh sample isn&apos;t needed. The sample itself isn&apos;t changed.
           </p>
         </ConfirmModal>
       )}
