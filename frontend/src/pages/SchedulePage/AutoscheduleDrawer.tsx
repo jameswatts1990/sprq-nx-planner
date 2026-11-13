@@ -1,5 +1,5 @@
 import { Drawer } from "@/components/ui/Drawer";
-import type { CellOut } from "@/types/cell";
+import type { ScheduleTrayCellOut } from "@/types/cell";
 
 import { AutoscheduleReuseTrays } from "./AutoscheduleReuseTrays";
 import { RunDesignFields, runDesignSummary } from "./RunDesignFields";
@@ -7,9 +7,9 @@ import type { RunDesignFieldsProps } from "./RunDesignFields";
 
 export interface AutoscheduleDrawerProps extends RunDesignFieldsProps {
   onClose: () => void;
-  /** Every open cell (SchedulePage's open-cells query), grouped into the reuse-candidate
-   * tray list with its per-tray "Skip reuse" toggle. */
-  reuseCandidateCells: CellOut[];
+  /** Every open tray cell (the open subset of SchedulePage's schedule-trays query), grouped
+   * into the reuse-candidate tray list with its per-tray "Skip reuse" toggle. */
+  reuseCandidateCells: ScheduleTrayCellOut[];
 }
 
 /** The Autoschedule side pop-out: the Run Design dials in a left-docked drawer, opened

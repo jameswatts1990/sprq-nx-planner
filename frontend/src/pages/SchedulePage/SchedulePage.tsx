@@ -319,27 +319,19 @@ export function SchedulePage() {
     [],
   );
 
-  // Every cell on every instrument, fetched in three status slices that together make the full
-  // tray-linked cell universe (allTrayCells below) behind the left-column tray panel and the tray
-  // founding/eviction maps. Open cells also feed the Autoschedule drawer's reuse-candidate trays.
+  // Every cell of each physical tray that can still be on an instrument from the viewed week's
+  // first day on (whole trays, any status - see backend services/schedule_trays.py): the
+  // universe behind the left-column tray panel and the tray founding/eviction maps. A since-
+  // terminal or QC-stopped sibling still anchors its tray's founding date and residency and shows
+  // in its tile (stopped = red, 0 uses left); a fully-spent tray stays in its slot, depleted,
+  // until a successor evicts it. Trays evicted before the week aren't sent - they can't be
+  // resident in it. Kept on screen while the next week loads so the panel doesn't blank.
   // No dedicated invalidation needed: every mutation that can change a cell's state (place/
   // remove/move/retire/QC) already invalidates the ["cells"] query-key prefix.
-  const openCellsQuery = useQuery({
-    queryKey: ["cells", "open-tray-cells"],
-    queryFn: () => cellsApi.listAll({ status: "open" }),
-  });
-  // QC-stopped cells: shown red (0 uses left) in their tray's panel tile, and still anchor their
-  // tray's founding date / residency. A stopped cell never marks a plate slot - it simply isn't
-  // offered again, and a drop resolves to another cell server-side (derive_best_cell).
-  const stoppedCellsQuery = useQuery({
-    queryKey: ["cells", "stopped-tray-cells"],
-    queryFn: () => cellsApi.listAll({ status: "stopped" }),
-  });
-  // Cells spent by ordinary attrition (used up / window expired / retired): a fully-spent tray
-  // stays in its tray-panel slot, depleted, until a successor tray evicts it.
-  const terminalCellsQuery = useQuery({
-    queryKey: ["cells", "terminal-tray-cells"],
-    queryFn: () => cellsApi.listAll({ status: "exhausted,window_expired,retired" }),
+  const trayCellsQuery = useQuery({
+    queryKey: ["cells", "schedule-trays", win.dateFrom],
+    queryFn: () => cellsApi.scheduleTrays(win.dateFrom),
+    placeholderData: (prev) => prev,
   });
 
   const instrumentSerials = useMemo(
@@ -361,12 +353,10 @@ export function SchedulePage() {
   );
   const runs = useMemo(() => cyclesQuery.data ?? [], [cyclesQuery.data]);
   const grouped = useMemo(() => groupCyclesByInstrumentAndDay(runs), [runs]);
-  // The full tray-linked cell universe (open + terminal + stopped): a since-terminal or stopped
-  // sibling still anchors its tray's founding date and residency, and still shows in the tray panel.
-  const allTrayCells = useMemo(
-    () => [...(openCellsQuery.data ?? []), ...(terminalCellsQuery.data ?? []), ...(stoppedCellsQuery.data ?? [])],
-    [openCellsQuery.data, terminalCellsQuery.data, stoppedCellsQuery.data],
-  );
+  const allTrayCells = useMemo(() => trayCellsQuery.data ?? [], [trayCellsQuery.data]);
+  // The Autoschedule drawer's reuse candidates: every open tray cell (open cells' trays are
+  // always sent, whatever the week).
+  const openTrayCells = useMemo(() => allTrayCells.filter((c) => c.status === "open"), [allTrayCells]);
   // A tray's founding cell may itself have since gone terminal or been stopped, and its first-use
   // date must still anchor the tray (see waitingCells.computeTrayFoundingDates).
   const trayFoundingDates = useMemo(() => computeTrayFoundingDates(allTrayCells), [allTrayCells]);
@@ -502,7 +492,14 @@ export function SchedulePage() {
     [slotSelection, stagesInRect],
   );
 
-  const actions = useScheduleActions({ selection, slotSelection, selectedCells, runDesign, weekPlannedStages });
+  const actions = useScheduleActions({
+    selection,
+    slotSelection,
+    selectedCells,
+    runDesign,
+    weekPlannedStages,
+    visibleRuns,
+  });
 
   // Clear both selections and any action feedback whenever the window pages.
   useEffect(() => {
@@ -1048,7 +1045,7 @@ export function SchedulePage() {
           weekPlannedCount={weekPlannedStages.length}
           onRequestClearSchedule={actions.onRequestClearSchedule}
           note={actions.runDesignNote}
-          reuseCandidateCells={openCellsQuery.data ?? []}
+          reuseCandidateCells={openTrayCells}
           onClose={() => setAutoscheduleOpen(false)}
         />
       )}

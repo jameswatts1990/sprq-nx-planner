@@ -26,11 +26,25 @@ def window_allows(
     if confirmed_anchor is not None:
         return new_start <= confirmed_anchor + _LIFETIME
     starts = list(existing_starts)
+    if starts and new_start > min(min(starts), new_start) + _LIFETIME:
+        return False
+    return window_keeps_others(starts, new_start)
+
+
+def window_keeps_others(
+    existing_starts: Iterable[datetime], new_start: datetime, confirmed_anchor: datetime | None = None
+) -> bool:
+    """Only the second half of window_allows: a use starting at `new_start` doesn't push any of
+    the cell's currently in-window uses out of the window (by becoming an earlier Use 1). The new
+    use's OWN breach is not checked - an explicit cell choice only flags that (Undo's restore
+    prefers the original cell on this rule; see placement_service.restore_placements). A
+    confirmed anchor can't move, so nothing else can be pushed out."""
+    if confirmed_anchor is not None:
+        return True
+    starts = list(existing_starts)
     if not starts:
         return True
     first = min(starts)
     new_deadline = min(first, new_start) + _LIFETIME
-    if new_start > new_deadline:
-        return False
     old_deadline = first + _LIFETIME
     return all(s <= new_deadline for s in starts if s <= old_deadline)
