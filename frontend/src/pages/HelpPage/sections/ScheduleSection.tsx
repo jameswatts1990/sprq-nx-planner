@@ -883,8 +883,9 @@ export function ScheduleSection() {
         <li>
           <b>Clear schedule (N planned)</b> wipes every <i>planned</i> placement in the current week view and
           returns those samples to the backlog. A confirmation dialog first states exactly how many samples will be
-          removed and warns it can&apos;t be undone; its button reads <b>Return N samples to backlog</b>. Confirmed/loaded runs are never touched, so the number cleared
-          can be lower than the total on screen.
+          removed; its button reads <b>Return N samples to backlog</b>. Confirmed/loaded runs are never touched, so
+          the number cleared can be lower than the total on screen. Like every removal, it can be undone straight
+          after — see <b>Undo</b> below.
         </li>
         <li>
           <b>Drag a placed sample off the grid</b> (drop it anywhere that isn&apos;t a slot) to remove it from the
@@ -909,6 +910,37 @@ export function ScheduleSection() {
             </li>
             <li>a finished (completed or aborted) run, which can&apos;t take samples.</li>
           </ul>
+        </li>
+      </ul>
+
+      <p className={styles.subheading}>Undo</p>
+      <p>
+        After you <b>place, move, swap or remove</b> samples on the grid — a drag, <b>Del</b>, <b>Remove from
+        schedule</b>, a plate&apos;s <b>✕</b> or <b>Clear schedule</b> — a dark message appears at the bottom of the
+        screen saying what happened, with an <b>Undo</b> button. It stays for 15 seconds (longer while your mouse is
+        over it); <b>✕</b> closes it. Undo reverses only your <i>last</i> edit: making another edit replaces it, and{" "}
+        <b>Autoschedule</b>, <b>Recalculate</b> or moving a day note clear it.
+      </p>
+      <ul>
+        <li>
+          <b>Undoing a removal</b> puts every sample back in the same run, plate and well, with its movie time and
+          placement note — recreating the run (at its original load time) if the removal had emptied it. All of them
+          come back or none do.
+        </li>
+        <li>
+          <b>Undoing a move</b> moves the sample back; <b>undoing a swap</b> swaps the two back;{" "}
+          <b>undoing a place</b> returns the sample to the backlog.
+        </li>
+        <li>
+          Each sample goes back onto its <b>original cell</b> whenever the scheduling rules still allow it. If they
+          don&apos;t — the cell would run twice on one day, would push another booked use past its 108-hour window,
+          or its tray was cleared away along with the samples — the sample takes the cell the instrument would reach
+          for instead, and the message names the change (e.g. <i>Restored 3 samples — 1 on a different cell (C02-T4
+          → C01-T9)</i>).
+        </li>
+        <li>
+          If the schedule has moved on since — the sample was placed somewhere else, its well has been filled, or the
+          run has been confirmed loaded — Undo does nothing and a red message says why.
         </li>
       </ul>
 
