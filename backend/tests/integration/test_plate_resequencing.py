@@ -125,3 +125,19 @@ def test_second_run_reuses_the_first_expiring_cells_in_ascending_order(client):
     by_well_cell = {s["well"]: s["cell_id"] for s in _stages(r2d.json())}
     assert by_well_cell == {"C01": cell1, "D01": cell2}  # reused the first-expiring cells
     assert _tray_positions_by_well(r2d.json()) == {"C01": 1, "D01": 2}  # ascending
+
+
+def test_a_drop_into_a_gap_left_by_a_removal_keeps_the_plate_ascending(client):
+    """Regression (found building C2's Undo): the drop's own cell, loaded before its new use was
+    inserted, kept a stale use count in _resequence_plate, so refilling a removed middle well
+    read A=1, B=3, C=2."""
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nS1,bc1\nS2,bc2\nS3,bc3"})
+    [day] = _weekdays(1)
+    for i, name in enumerate(("S1", "S2", "S3")):
+        r = _drop(client, _sid(client, name), day, i)
+        assert r.status_code == 201, r.text
+    middle = next(s for s in _stages(r.json()) if s["sample_pool_id"] == "S2")
+    assert client.delete(f"/api/cell-uses/{middle['cell_use_id']}").status_code == 204
+    again = _drop(client, _sid(client, "S2"), day, 1)
+    assert again.status_code == 201, again.text
+    assert _tray_positions_by_well(again.json()) == {"A01": 1, "B01": 2, "C01": 3}

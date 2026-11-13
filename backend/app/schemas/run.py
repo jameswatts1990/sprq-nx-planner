@@ -278,6 +278,67 @@ class MoveSampleRequest(BaseModel):
     start_hour: int = Field(default=DAY_START_HOUR, ge=0, le=23)
     start_minute: int = Field(default=0, ge=0, le=59)
     cell_choice: CellChoice | None = None
+    # Undo guards: 409 if the placement no longer holds this sample (moved/swapped/removed since,
+    # or its id reused). prefer_cell_*: Undo's "go back to the original cell" - kept only when it
+    # is still that physical cell (code matches) and every invariant allows it, else derived.
+    expected_sample_id: int | None = None
+    prefer_cell_id: int | None = None
+    prefer_cell_code: str | None = None
+
+
+class SwapCellUsesRequest(BaseModel):
+    other_cell_use_id: int
+    # Undo guards: 409 unless each side still holds the sample it held after the swap being undone.
+    expected_sample_id: int | None = None
+    expected_other_sample_id: int | None = None
+
+
+# --- Undo: restore removed placements (POST /api/cell-uses/restore) ---
+
+
+class RestoreItem(BaseModel):
+    """Everything a removed placement needs to be put back: where it was (run, plate, well),
+    which physical cell backed it, and what it carried (run time, placement note, the run's own
+    start time and name, in case the removal deleted the run). Returned by bulk-remove and sent
+    back unchanged by the client's Undo; the server re-validates all of it on restore."""
+
+    sample_id: int
+    cell_use_id: int
+    instrument_serial: str
+    load_date: date
+    acquire_date: date
+    plate_index: int
+    slot_index: int = Field(ge=0, le=7)
+    well: str
+    cell_id: int | None = None
+    cell_code: str | None = None
+    cell_type: CellType = "sprq_nx"
+    cell_tray_position: int | None = None
+    run_time_hours: int
+    notes: str | None = None
+    # The run's planned start (its first plate's, UTC) - only used if the run has to be recreated.
+    start_hour: int = Field(ge=0, le=23)
+    start_minute: int = Field(ge=0, le=59)
+    run_name: str | None = None
+
+
+class RestoreRequest(BaseModel):
+    items: list[RestoreItem] = Field(min_length=1, max_length=500)
+
+
+class RestoredPlacement(BaseModel):
+    sample_id: int
+    cell_use_id: int
+    # True when the original cell couldn't be used (gone, or an invariant now forbids it) and the
+    # sample went onto the cell the instrument would reach for instead.
+    cell_changed: bool
+    from_cell_code: str | None
+    to_cell_code: str
+
+
+class RestoreOut(BaseModel):
+    restored: list[RestoredPlacement]
+    runs: list[RunOut]
 
 
 # --- auto-fill (POST /api/auto-fill) ---
