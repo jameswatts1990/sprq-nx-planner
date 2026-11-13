@@ -1,0 +1,656 @@
+{
+  "_comment": "Golden fixture for the tray founding/eviction maps and the /api/cells/schedule-trays keep rule. Asserted by backend/tests/unit/test_schedule_trays.py and frontend/src/components/scheduler/scheduleTrays.golden.test.ts - expected values are hand-written.",
+  "date_from": "2026-03-09",
+  "cells": [
+    {
+      "id": 1,
+      "code": "C01-T1",
+      "cell_type": "sprq_nx",
+      "max_uses": 3,
+      "status": "window_expired",
+      "uses_consumed": 1,
+      "uses_remaining": 2,
+      "window_hours_elapsed": null,
+      "current_instrument_serial": "84047",
+      "current_well": "A01",
+      "first_use_started_at": "2026-02-24T08:00:00Z",
+      "first_use_planned_start_at": "2026-02-20T08:00:00Z",
+      "tray_id": 1,
+      "tray_position": 1,
+      "tray_reuse_disabled": false,
+      "uses": [
+        {
+          "status": "completed",
+          "breakout_anchor_at": "2026-02-20T08:00:00Z"
+        }
+      ],
+      "_note": "started_at beats an earlier planned start"
+    },
+    {
+      "id": 2,
+      "code": "C02-T1",
+      "cell_type": "sprq_nx",
+      "max_uses": 3,
+      "status": "exhausted",
+      "uses_consumed": 3,
+      "uses_remaining": 0,
+      "window_hours_elapsed": null,
+      "current_instrument_serial": "84047",
+      "current_well": "B01",
+      "first_use_started_at": null,
+      "first_use_planned_start_at": "2026-02-23T08:00:00Z",
+      "tray_id": 1,
+      "tray_position": 2,
+      "tray_reuse_disabled": false,
+      "uses": [
+        {
+          "status": "planned",
+          "breakout_anchor_at": "2026-02-23T08:00:00Z"
+        },
+        {
+          "status": "planned",
+          "breakout_anchor_at": "2026-02-24T08:00:00Z"
+        },
+        {
+          "status": "planned",
+          "breakout_anchor_at": "2026-02-25T08:00:00Z"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "code": "C03-T1",
+      "cell_type": "sprq_nx",
+      "max_uses": 3,
+      "status": "exhausted",
+      "uses_consumed": 3,
+      "uses_remaining": 0,
+      "window_hours_elapsed": null,
+      "current_instrument_serial": "84047",
+      "current_well": "C01",
+      "first_use_started_at": null,
+      "first_use_planned_start_at": "2026-02-24T08:00:00Z",
+      "tray_id": 1,
+      "tray_position": 3,
+      "tray_reuse_disabled": false,
+      "uses": [
+        {
+          "status": "planned",
+          "breakout_anchor_at": "2026-02-24T08:00:00Z"
+        },
+        {
+          "status": "planned",
+          "breakout_anchor_at": "2026-02-25T08:00:00Z"
+        },
+        {
+          "status": "planned",
+          "breakout_anchor_at": "2026-02-26T08:00:00Z"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "code": "C04-T1",
+      "cell_type": "sprq_nx",
+      "max_uses": 3,
+      "status": "retired",
+      "uses_consumed": 0,
+      "uses_remaining": 3,
+      "window_hours_elapsed": null,
+      "current_instrument_serial": "84047",
+      "current_well": "D01",
+      "first_use_started_at": null,
+      "first_use_planned_start_at": null,
+      "tray_id": 1,
+      "tray_position": 4,
+      "tray_reuse_disabled": false,
+      "uses": []
+    },
+    {
+      "id": 5,
+      "code": "C05-T2",
+      "cell_type": "sprq_nx",
+      "max_uses": 3,
+      "status": "exhausted",
+      "uses_consumed": 3,
+      "uses_remaining": 0,
+      "window_hours_elapsed": null,
+      "current_instrument_serial": "84047",
+      "current_well": "A01",
+      "first_use_started_at": null,
+      "first_use_planned_start_at": "2026-03-02T08:00:00Z",
+      "tray_id": 2,
+      "tray_position": 1,
+      "tray_reuse_disabled": false,
+      "uses": [
+        {
+          "status": "planned",
+          "breakout_anchor_at": "2026-03-02T08:00:00Z"
+        },
+        {
+          "status": "planned",
+          "breakout_anchor_at": "2026-03-03T08:00:00Z"
+        },
+        {
+          "status": "planned",
+          "breakout_anchor_at": "2026-03-04T08:00:00Z"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "code": "C06-T2",
+      "cell_type": "sprq_nx",
+      "max_uses": 3,
+      "status": "exhausted",
+      "uses_consumed": 3,
+      "uses_remaining": 0,
+      "window_hours_elapsed": null,
+      "current_instrument_serial": "84047",
+      "current_well": "B01",
+      "first_use_started_at": null,
+      "first_use_planned_start_at": "2026-03-03T08:00:00Z",
+      "tray_id": 2,
+      "tray_position": 2,
+      "tray_reuse_disabled": false,
+      "uses": [
+        {
+          "status": "planned",
+          "breakout_anchor_at": "2026-03-03T08:00:00Z"
+        },
+        {
+          "status": "planned",
+          "breakout_anchor_at": "2026-03-04T08:00:00Z"
+        },
+        {
+          "status": "planned",
+          "breakout_anchor_at": "2026-03-05T08:00:00Z"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "code": "C07-T2",
+      "cell_type": "sprq_nx",
+      "max_uses": 3,
+      "status": "window_expired",
+      "uses_consumed": 1,
+      "uses_remaining": 2,
+      "window_hours_elapsed": null,
+      "current_instrument_serial": "84047",
+      "current_well": "C01",
+      "first_use_started_at": null,
+      "first_use_planned_start_at": "2026-03-04T08:00:00Z",
+      "tray_id": 2,
+      "tray_position": 3,
+      "tray_reuse_disabled": false,
+      "uses": [
+        {
+          "status": "planned",
+          "breakout_anchor_at": "2026-03-04T08:00:00Z"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "code": "C08-T2",
+      "cell_type": "sprq_nx",
+      "max_uses": 3,
+      "status": "retired",
+      "uses_consumed": 0,
+      "uses_remaining": 3,
+      "window_hours_elapsed": null,
+      "current_instrument_serial": "84047",
+      "current_well": "D01",
+      "first_use_started_at": null,
+      "first_use_planned_start_at": null,
+      "tray_id": 2,
+      "tray_position": 4,
+      "tray_reuse_disabled": false,
+      "uses": []
+    },
+    {
+      "id": 9,
+      "code": "C09-T3",
+      "cell_type": "sprq_nx",
+      "max_uses": 3,
+      "status": "open",
+      "uses_consumed": 2,
+      "uses_remaining": 1,
+      "window_hours_elapsed": null,
+      "current_instrument_serial": "84047",
+      "current_well": "A01",
+      "first_use_started_at": null,
+      "first_use_planned_start_at": "2026-03-11T08:00:00Z",
+      "tray_id": 3,
+      "tray_position": 1,
+      "tray_reuse_disabled": false,
+      "uses": [
+        {
+          "status": "planned",
+          "breakout_anchor_at": "2026-03-11T08:00:00Z"
+        },
+        {
+          "status": "planned",
+          "breakout_anchor_at": "2026-03-12T08:00:00Z"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "code": "C10-T3",
+      "cell_type": "sprq_nx",
+      "max_uses": 3,
+      "status": "open",
+      "uses_consumed": 1,
+      "uses_remaining": 2,
+      "window_hours_elapsed": null,
+      "current_instrument_serial": "84047",
+      "current_well": "B01",
+      "first_use_started_at": null,
+      "first_use_planned_start_at": "2026-03-12T08:00:00Z",
+      "tray_id": 3,
+      "tray_position": 2,
+      "tray_reuse_disabled": false,
+      "uses": [
+        {
+          "status": "planned",
+          "breakout_anchor_at": "2026-03-12T08:00:00Z"
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "code": "C11-T3",
+      "cell_type": "sprq_nx",
+      "max_uses": 3,
+      "status": "open",
+      "uses_consumed": 0,
+      "uses_remaining": 3,
+      "window_hours_elapsed": null,
+      "current_instrument_serial": "84047",
+      "current_well": "C01",
+      "first_use_started_at": null,
+      "first_use_planned_start_at": null,
+      "tray_id": 3,
+      "tray_position": 3,
+      "tray_reuse_disabled": false,
+      "uses": []
+    },
+    {
+      "id": 12,
+      "code": "C12-T3",
+      "cell_type": "sprq_nx",
+      "max_uses": 3,
+      "status": "open",
+      "uses_consumed": 0,
+      "uses_remaining": 3,
+      "window_hours_elapsed": null,
+      "current_instrument_serial": "84047",
+      "current_well": "D01",
+      "first_use_started_at": null,
+      "first_use_planned_start_at": null,
+      "tray_id": 3,
+      "tray_position": 4,
+      "tray_reuse_disabled": false,
+      "uses": []
+    },
+    {
+      "id": 13,
+      "code": "C13-T4",
+      "cell_type": "sprq_nx",
+      "max_uses": 3,
+      "status": "stopped",
+      "uses_consumed": 1,
+      "uses_remaining": 2,
+      "window_hours_elapsed": null,
+      "current_instrument_serial": "84047",
+      "current_well": "A02",
+      "first_use_started_at": "2026-01-12T08:00:00Z",
+      "first_use_planned_start_at": "2026-01-12T08:00:00Z",
+      "tray_id": 4,
+      "tray_position": 1,
+      "tray_reuse_disabled": false,
+      "uses": [
+        {
+          "status": "completed",
+          "breakout_anchor_at": "2026-01-12T08:00:00Z"
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "code": "C14-T4",
+      "cell_type": "sprq_nx",
+      "max_uses": 3,
+      "status": "window_expired",
+      "uses_consumed": 1,
+      "uses_remaining": 2,
+      "window_hours_elapsed": null,
+      "current_instrument_serial": "84047",
+      "current_well": "B02",
+      "first_use_started_at": null,
+      "first_use_planned_start_at": "2026-01-13T08:00:00Z",
+      "tray_id": 4,
+      "tray_position": 2,
+      "tray_reuse_disabled": false,
+      "uses": [
+        {
+          "status": "planned",
+          "breakout_anchor_at": "2026-01-13T08:00:00Z"
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "code": "C15-T5",
+      "cell_type": "sprq_nx",
+      "max_uses": 3,
+      "status": "exhausted",
+      "uses_consumed": 3,
+      "uses_remaining": 0,
+      "window_hours_elapsed": null,
+      "current_instrument_serial": "84047",
+      "current_well": "A02",
+      "first_use_started_at": null,
+      "first_use_planned_start_at": "2026-01-19T08:00:00Z",
+      "tray_id": 5,
+      "tray_position": 1,
+      "tray_reuse_disabled": false,
+      "uses": [
+        {
+          "status": "planned",
+          "breakout_anchor_at": "2026-01-19T08:00:00Z"
+        },
+        {
+          "status": "planned",
+          "breakout_anchor_at": "2026-01-20T08:00:00Z"
+        },
+        {
+          "status": "planned",
+          "breakout_anchor_at": "2026-01-21T08:00:00Z"
+        }
+      ]
+    },
+    {
+      "id": 16,
+      "code": "C16-T5",
+      "cell_type": "sprq_nx",
+      "max_uses": 3,
+      "status": "window_expired",
+      "uses_consumed": 1,
+      "uses_remaining": 2,
+      "window_hours_elapsed": null,
+      "current_instrument_serial": "84047",
+      "current_well": "B02",
+      "first_use_started_at": null,
+      "first_use_planned_start_at": "2026-01-20T08:00:00Z",
+      "tray_id": 5,
+      "tray_position": 2,
+      "tray_reuse_disabled": false,
+      "uses": [
+        {
+          "status": "planned",
+          "breakout_anchor_at": "2026-01-20T08:00:00Z"
+        }
+      ]
+    },
+    {
+      "id": 17,
+      "code": "C17-T6",
+      "cell_type": "sprq",
+      "max_uses": 1,
+      "status": "exhausted",
+      "uses_consumed": 1,
+      "uses_remaining": 0,
+      "window_hours_elapsed": null,
+      "current_instrument_serial": "84047",
+      "current_well": "A02",
+      "first_use_started_at": null,
+      "first_use_planned_start_at": "2026-03-09T08:00:00Z",
+      "tray_id": 6,
+      "tray_position": 1,
+      "tray_reuse_disabled": false,
+      "uses": [
+        {
+          "status": "planned",
+          "breakout_anchor_at": "2026-03-09T08:00:00Z"
+        }
+      ]
+    },
+    {
+      "id": 18,
+      "code": "C18-T6",
+      "cell_type": "sprq",
+      "max_uses": 1,
+      "status": "open",
+      "uses_consumed": 0,
+      "uses_remaining": 1,
+      "window_hours_elapsed": null,
+      "current_instrument_serial": "84047",
+      "current_well": "B02",
+      "first_use_started_at": null,
+      "first_use_planned_start_at": null,
+      "tray_id": 6,
+      "tray_position": 2,
+      "tray_reuse_disabled": false,
+      "uses": []
+    },
+    {
+      "id": 19,
+      "code": "C19-T7",
+      "cell_type": "sprq_nx",
+      "max_uses": 3,
+      "status": "open",
+      "uses_consumed": 0,
+      "uses_remaining": 3,
+      "window_hours_elapsed": null,
+      "current_instrument_serial": "84098",
+      "current_well": "A01",
+      "first_use_started_at": null,
+      "first_use_planned_start_at": null,
+      "tray_id": 7,
+      "tray_position": 1,
+      "tray_reuse_disabled": false,
+      "uses": []
+    },
+    {
+      "id": 20,
+      "code": "C20-T7",
+      "cell_type": "sprq_nx",
+      "max_uses": 3,
+      "status": "open",
+      "uses_consumed": 0,
+      "uses_remaining": 3,
+      "window_hours_elapsed": null,
+      "current_instrument_serial": "84098",
+      "current_well": "B01",
+      "first_use_started_at": null,
+      "first_use_planned_start_at": null,
+      "tray_id": 7,
+      "tray_position": 2,
+      "tray_reuse_disabled": false,
+      "uses": []
+    },
+    {
+      "id": 21,
+      "code": "C21-T8",
+      "cell_type": "sprq_nx",
+      "max_uses": 3,
+      "status": "retired",
+      "uses_consumed": 0,
+      "uses_remaining": 3,
+      "window_hours_elapsed": null,
+      "current_instrument_serial": "84098",
+      "current_well": "A02",
+      "first_use_started_at": null,
+      "first_use_planned_start_at": null,
+      "tray_id": 8,
+      "tray_position": 1,
+      "tray_reuse_disabled": false,
+      "uses": []
+    },
+    {
+      "id": 22,
+      "code": "C22-T9",
+      "cell_type": "sprq_nx",
+      "max_uses": 3,
+      "status": "exhausted",
+      "uses_consumed": 3,
+      "uses_remaining": 0,
+      "window_hours_elapsed": null,
+      "current_instrument_serial": "84098",
+      "current_well": "A02",
+      "first_use_started_at": null,
+      "first_use_planned_start_at": "2026-02-02T08:00:00Z",
+      "tray_id": 9,
+      "tray_position": 1,
+      "tray_reuse_disabled": false,
+      "uses": [
+        {
+          "status": "planned",
+          "breakout_anchor_at": "2026-02-02T08:00:00Z"
+        },
+        {
+          "status": "planned",
+          "breakout_anchor_at": "2026-02-03T08:00:00Z"
+        },
+        {
+          "status": "planned",
+          "breakout_anchor_at": "2026-02-04T08:00:00Z"
+        }
+      ]
+    },
+    {
+      "id": 23,
+      "code": "C23-T10",
+      "cell_type": "sprq_nx",
+      "max_uses": 3,
+      "status": "window_expired",
+      "uses_consumed": 1,
+      "uses_remaining": 2,
+      "window_hours_elapsed": null,
+      "current_instrument_serial": "84098",
+      "current_well": "A02",
+      "first_use_started_at": null,
+      "first_use_planned_start_at": "2026-02-02T08:00:00Z",
+      "tray_id": 10,
+      "tray_position": 1,
+      "tray_reuse_disabled": false,
+      "uses": [
+        {
+          "status": "planned",
+          "breakout_anchor_at": "2026-02-02T08:00:00Z"
+        }
+      ]
+    },
+    {
+      "id": 24,
+      "code": "C24-T11",
+      "cell_type": "sprq_nx",
+      "max_uses": 3,
+      "status": "exhausted",
+      "uses_consumed": 3,
+      "uses_remaining": 0,
+      "window_hours_elapsed": null,
+      "current_instrument_serial": "84098",
+      "current_well": "A02",
+      "first_use_started_at": null,
+      "first_use_planned_start_at": "2026-02-09T08:00:00Z",
+      "tray_id": 11,
+      "tray_position": 1,
+      "tray_reuse_disabled": false,
+      "uses": [
+        {
+          "status": "planned",
+          "breakout_anchor_at": "2026-02-09T08:00:00Z"
+        },
+        {
+          "status": "planned",
+          "breakout_anchor_at": "2026-02-10T08:00:00Z"
+        },
+        {
+          "status": "planned",
+          "breakout_anchor_at": "2026-02-11T08:00:00Z"
+        }
+      ]
+    },
+    {
+      "id": 25,
+      "code": "C25-T12",
+      "cell_type": "sprq_nx",
+      "max_uses": 3,
+      "status": "window_expired",
+      "uses_consumed": 1,
+      "uses_remaining": 2,
+      "window_hours_elapsed": null,
+      "current_instrument_serial": "84093",
+      "current_well": null,
+      "first_use_started_at": null,
+      "first_use_planned_start_at": "2026-01-05T08:00:00Z",
+      "tray_id": 12,
+      "tray_position": 1,
+      "tray_reuse_disabled": false,
+      "uses": [
+        {
+          "status": "planned",
+          "breakout_anchor_at": "2026-01-05T08:00:00Z"
+        }
+      ]
+    },
+    {
+      "id": 26,
+      "code": "C26",
+      "cell_type": "sprq_nx",
+      "max_uses": 3,
+      "status": "open",
+      "uses_consumed": 1,
+      "uses_remaining": 2,
+      "window_hours_elapsed": null,
+      "current_instrument_serial": "84093",
+      "current_well": "A01",
+      "first_use_started_at": null,
+      "first_use_planned_start_at": "2026-03-10T08:00:00Z",
+      "tray_id": null,
+      "tray_position": null,
+      "tray_reuse_disabled": false,
+      "uses": [
+        {
+          "status": "planned",
+          "breakout_anchor_at": "2026-03-10T08:00:00Z"
+        }
+      ],
+      "_note": "tray-less"
+    }
+  ],
+  "expected_founding": {
+    "1": "2026-02-23",
+    "2": "2026-03-02",
+    "3": "2026-03-11",
+    "4": "2026-01-12",
+    "5": "2026-01-19",
+    "6": "2026-03-09",
+    "9": "2026-02-02",
+    "10": "2026-02-02",
+    "11": "2026-02-09",
+    "12": "2026-01-05"
+  },
+  "expected_eviction": {
+    "1": "2026-03-02",
+    "2": "2026-03-11",
+    "4": "2026-01-19",
+    "5": "2026-03-09",
+    "9": "2026-02-09",
+    "10": "2026-02-09"
+  },
+  "expected_kept_tray_ids": [
+    2,
+    3,
+    4,
+    6,
+    7,
+    8,
+    11,
+    12
+  ]
+}
