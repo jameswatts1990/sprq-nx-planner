@@ -352,3 +352,26 @@ def test_undo_a_swap_is_a_guarded_swap_back(client):
     )
     assert undo.status_code == 200, undo.text
     assert _stage_of(_run_on(client, mon), "S1")["cell_use_id"] == a["cell_use_id"]
+
+
+def test_clearing_two_instruments_restores_each_sample_to_its_own_trays_cell(client):
+    """Clear schedule deletes both instruments' trays; restoring them in their original order
+    recreates each instrument's tray in turn, so (with SQLite's id reuse, as in this test) every
+    sample is back on its old cell code instead of the two instruments' tray ids swapping."""
+    _import(client, ["A1", "A2", "B1", "B2"])
+    mon = _monday()
+    _place(client, "A1", mon, 0)
+    _place(client, "A2", mon, 1)
+    for i, name in enumerate(("B1", "B2")):
+        r = client.post(
+            "/api/cell-uses",
+            json={"sample_id": _sid(client, name), "instrument_serial": "84098", "load_date": mon.isoformat(), "slot_index": i},
+        )
+        assert r.status_code == 201, r.text
+    runs = client.get("/api/cycles", params={"date_from": mon.isoformat(), "date_to": mon.isoformat()}).json()
+    ids = [s["cell_use_id"] for r in runs for s in _stages(r)]
+    snapshot = _remove(client, *ids)
+
+    resp = _restore(client, list(reversed(snapshot)))  # order must come from the items, not the list
+    assert resp.status_code == 200, resp.text
+    assert not any(r["cell_changed"] for r in resp.json()["restored"])

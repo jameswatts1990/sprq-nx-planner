@@ -1390,7 +1390,6 @@ def _restore_item(cell_use: CellUse) -> RestoreItem | None:
         cell_id=cell.id if cell else None,
         cell_code=cell.code if cell else None,
         cell_type=cell.cell_type if cell else CELL_TYPE_SPRQ_NX,
-        cell_tray_position=cell.tray_position if cell else None,
         run_time_hours=cell_use.run_time_hours,
         notes=cell_use.notes,
         start_hour=run_start.hour,
@@ -1511,8 +1510,8 @@ def restore_placements(db: Session, items: list[RestoreItem], actor: str | None 
     deleted, ...), if a target run is no longer planned, or if a target well is now taken - the
     schedule has moved on and Undo can't know what the user wants instead.
 
-    Items go back in time order (acquire day, then plate, then the cell's tray position, then
-    slot) so a cell's Use 1 is restored before its Use 2/3 and a run's Plate 1 before its reuse
+    Items go back in time order (acquire day, then plate, then the original cell, then slot) so a
+    cell's Use 1 is restored before its Use 2/3 and a run's Plate 1 before its reuse
     Plate 2 (whose timing chains off Plate 1). Each one prefers its original cell (see
     _prefer_cell), else takes the cell the instrument would reach for - so every scheduling
     invariant holds exactly as for a fresh drop, and a deleted tray comes back as a new one. The
@@ -1561,10 +1560,9 @@ def _restore(db: Session, items: list[RestoreItem], actor: str | None) -> list[R
             )
 
     # --- writes, in time order ---
-    ordered = sorted(
-        items,
-        key=lambda i: (i.acquire_date, i.load_date, i.plate_index, i.cell_tray_position or 0, i.slot_index),
-    )
+    # Within a plate, original cell id = tray order; across instruments it recreates deleted trays
+    # in the order they were first opened (so on SQLite, which reuses ids, they get their codes back).
+    ordered = sorted(items, key=lambda i: (i.acquire_date, i.load_date, i.plate_index, i.cell_id or 0, i.slot_index))
     placed: list[tuple[RestoreItem, CellUse]] = []
     for item in ordered:
         cell_choice = (

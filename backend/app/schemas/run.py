@@ -313,7 +313,6 @@ class RestoreItem(BaseModel):
     cell_id: int | None = None
     cell_code: str | None = None
     cell_type: CellType = "sprq_nx"
-    cell_tray_position: int | None = None
     run_time_hours: int
     notes: str | None = None
     # The run's planned start (its first plate's, UTC) - only used if the run has to be recreated.
