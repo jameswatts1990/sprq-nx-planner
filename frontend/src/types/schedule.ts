@@ -129,6 +129,10 @@ export interface PlateOut {
   /** True when this plate reuses an earlier plate's cells (same tray, a later acquire_date) -
    * its wells show Use >= 2. False for Plate 1 and for a fresh parallel Plate 2. */
   is_reuse: boolean;
+  /** True when this not-yet-finished plate acquires on a day inside one of its instrument's
+   * downtime periods - a reuse Plate 2 acquiring on a down day, or a run booked before the
+   * period was added. A warning ("⚠ Down"), never a block. */
+  acquires_in_downtime?: boolean;
   /** This plate's representative run time: the longest of its wells' per-cell run_time_hours. */
   movie_hours: number;
   status: CycleStatus;

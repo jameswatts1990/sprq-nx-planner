@@ -212,6 +212,12 @@ export function LegendSection() {
         <dd>
           A later use that was lost because its cell was stopped. It stays on the grid, in red, until you clear it.
         </dd>
+        <dt>Downtime</dt>
+        <dd>
+          Days an instrument is out of service — <b>planned</b> (a booked service visit) or <b>unplanned</b> (a
+          breakdown) — set on the <b>Instruments</b> tab. No new run can load on a down day; its empty cells show{" "}
+          <b>Down</b>, and a plate already booked onto one shows <b>⚠ Down</b>.
+        </dd>
         <dt>Pool ID and Plate ID</dt>
         <dd>
           A sample&apos;s identifiers: the <b>Pool ID</b> is its Traction pool or library, the <b>Plate ID</b> the

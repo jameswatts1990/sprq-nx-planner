@@ -39,7 +39,7 @@ from app.models.instrument import Instrument
 from app.models.sample import Sample
 from app.models.schedule import CellUse, CellUseBarcode, Cycle, RunBatch
 from app.schemas.run import RestoreItem, RestoredPlacement
-from app.services import instrument_lock
+from app.services import downtime, instrument_lock
 from app.services.audit_util import log_action
 from app.services.cell_service import (
     active_uses,
@@ -268,8 +268,8 @@ def reschedule_run(db: Session, run_id: int, new_load_date: date, actor: str | N
     window is deliberately NOT auto-changed here - it comes back flagged reuse_window_exceeded so
     the user can load a fresh tray from the slot/cell popover (the "flag, don't silently swap"
     product choice). Refuses (409) if the run is already confirmed loaded (its cells are physically
-    in the instrument - unlock first), if new_load_date isn't a weekday, if the instrument is
-    maintenance-down then, if a prior run locks the instrument all day, if a run already exists
+    in the instrument - unlock first), if new_load_date isn't a weekday, if the instrument has
+    a downtime period that day, if a prior run locks the instrument all day, if a run already exists
     on (instrument, new_load_date) - merging two runs isn't modelled; clear one first - or if one
     of its cells would then run twice on one day or ahead of an already-started use. Commits."""
     run_batch = db.scalar(
@@ -294,11 +294,9 @@ def reschedule_run(db: Session, run_id: int, new_load_date: date, actor: str | N
         return run_batch  # no-op
 
     instrument = run_batch.instrument
-    if instrument.down_from is not None and new_load_date >= instrument.down_from:
-        raise PlacementError(
-            409,
-            f"Instrument {instrument.serial_number} is down for maintenance from {instrument.down_from.isoformat()}.",
-        )
+    down = downtime.down_message(instrument, new_load_date)
+    if down is not None:
+        raise PlacementError(409, down)
     clash = db.scalar(
         select(RunBatch).where(RunBatch.instrument_id == instrument.id, RunBatch.load_date == new_load_date)
     )
@@ -544,16 +542,14 @@ def get_or_create_run(
     run_batch = _load_run_batch()
 
     if run_batch is None:
-        # Gate new-run creation against a maintenance-down window: an instrument marked down
-        # from a date refuses any brand-new run on/after that date (it stays greyed in the grid
-        # too - see the frontend). Like the lock gate below, this only blocks *creating* a run;
-        # adding a plate/sample to an already-existing run is never affected.
-        if instrument.down_from is not None and load_date >= instrument.down_from:
-            raise PlacementError(
-                409,
-                f"Instrument {instrument.serial_number} is down for maintenance from "
-                f"{instrument.down_from.isoformat()}.",
-            )
+        # Gate new-run creation against a downtime period: no brand-new run may LOAD on a down
+        # day (the grid greys those days too - see the frontend). Like the lock gate below, this
+        # only blocks *creating* a run; adding a plate/sample to an existing run is never
+        # affected, and a reuse Plate 2 acquiring on a down day is only flagged
+        # (PlateOut.acquires_in_downtime) - see services/downtime.py.
+        down = downtime.down_message(instrument, load_date)
+        if down is not None:
+            raise PlacementError(409, down)
         # Gate new-run creation against a prior run's loading-lock, but DON'T silently move the
         # user's chosen load time any more. We record the time they picked; the lane-model
         # effective start (surfaced as a placement advisory - see instrument_lock.effective_run_start

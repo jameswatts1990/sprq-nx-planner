@@ -365,6 +365,47 @@ function StatsCharts({ data }: { data: StatsResponse }) {
           </div>
         </CardBody>
       </Card>
+
+      <Card className={styles.section}>
+        <CardBody>
+          <SectionHeading title="Instrument availability" />
+          <AvailabilityTable rows={data.availability} />
+        </CardBody>
+      </Card>
+    </>
+  );
+}
+
+/** Weekdays each instrument was up vs in a downtime period, over the range up to today
+ * (stats_service._availability). Planned and unplanned are split so a service-heavy month reads
+ * differently from a month of breakdowns. */
+function AvailabilityTable({ rows }: { rows: StatsResponse["availability"] }) {
+  if (rows.length === 0) return <div className="status">No instruments.</div>;
+  return (
+    <>
+      <p className={styles.tableNote}>Weekdays in the range up to today — runs only load Monday to Friday.</p>
+      <table className="table">
+        <thead>
+          <tr>
+            <th>Instrument</th>
+            <th className={styles.num}>Weekdays</th>
+            <th className={styles.num}>Planned down</th>
+            <th className={styles.num}>Unplanned down</th>
+            <th className={styles.num}>Uptime</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((a) => (
+            <tr key={a.serial}>
+              <td>{a.name ? `${a.name} (${a.serial})` : `Revio ${a.serial}`}</td>
+              <td className={styles.num}>{a.weekdays}</td>
+              <td className={styles.num}>{a.planned_down}</td>
+              <td className={styles.num}>{a.unplanned_down}</td>
+              <td className={styles.num}>{a.weekdays ? `${a.uptime_pct}%` : "—"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </>
   );
 }

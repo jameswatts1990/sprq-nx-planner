@@ -236,3 +236,31 @@ def test_series_bucket_by_week_month_or_quarter(session, group_by, expected):
     assert r.group_by == group_by
     assert {p.period: p.runs_completed for p in r.throughput.series} == expected
     assert {p.period for p in r.failures.failure_rate_trend} == set(expected)
+
+
+def test_availability_counts_down_weekdays_by_kind_up_to_today(session):
+    from app.models.instrument_downtime import InstrumentDowntime
+
+    i47 = _instr(session, "84047")
+    session.add_all(
+        [
+            # Tue-Wed of WEEK_A planned; Fri of WEEK_A through Mon of WEEK_B unplanned (weekend free).
+            InstrumentDowntime(instrument_id=i47, start_date=WEEK_A + timedelta(days=1), end_date=WEEK_A + timedelta(days=2), kind="planned"),
+            InstrumentDowntime(instrument_id=i47, start_date=WEEK_A + timedelta(days=4), end_date=WEEK_B, kind="unplanned"),
+        ]
+    )
+    session.commit()
+
+    r = compute_stats(session, date_from=WEEK_A, date_to=WEEK_B + timedelta(days=4))
+    by_serial = {a.serial: a for a in r.availability}
+    a47 = by_serial["84047"]
+    assert (a47.weekdays, a47.planned_down, a47.unplanned_down, a47.uptime_pct) == (10, 2, 2, 60.0)
+    assert (by_serial["84098"].planned_down, by_serial["84098"].uptime_pct) == (0, 100.0)
+
+    # Retrospective: a range running past today stops counting at today.
+    future = utcnow().date() + timedelta(days=60)
+    r = compute_stats(session, date_from=WEEK_A, date_to=future)
+    assert r.availability[0].weekdays == compute_stats(session, date_from=WEEK_A, date_to=utcnow().date()).availability[0].weekdays
+
+    # Instrument filter.
+    assert [a.serial for a in compute_stats(session, instrument_serial="84098").availability] == ["84098"]

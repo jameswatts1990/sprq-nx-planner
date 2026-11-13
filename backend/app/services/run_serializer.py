@@ -16,6 +16,7 @@ from app.models.cell import Cell
 from app.models.schedule import CellUse, Cycle, RunBatch
 from app.schemas.run import PlateOut, RunOut, StageOut
 from app.serializers import duplicate_groups
+from app.services import downtime
 from app.services.cell_service import (
     active_uses,
     has_barcode_clash,
@@ -166,6 +167,11 @@ def _plate_out(
         # A plate reuses Plate 1's cells iff it acquires later than the run's load day; a
         # fresh parallel Plate 2 acquires on the load day, same as Plate 1.
         is_reuse=cycle.acquire_date > run_batch.load_date,
+        acquires_in_downtime=(
+            cycle.status in ("planned", "running")
+            and run_batch.instrument is not None
+            and downtime.period_on(run_batch.instrument.downtimes, cycle.acquire_date) is not None
+        ),
         movie_hours=cycle.movie_hours,
         status=cycle.status,
         # Coerce to UTC-aware so these serialize with a 'Z' (like lock_until), consistent

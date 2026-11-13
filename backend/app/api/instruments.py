@@ -4,16 +4,22 @@ from sqlalchemy import func, select
 from app.api.deps import ActorDep, SessionDep
 from app.models.cell_tray import CellTray
 from app.models.instrument import Instrument
+from app.models.instrument_downtime import InstrumentDowntime
 from app.models.schedule import RunBatch
 from app.schemas.instrument import (
+    AffectedRunOut,
+    DowntimeEndIn,
+    DowntimeIn,
+    DowntimeWriteOut,
     InstrumentCreate,
     InstrumentMaintenanceIn,
     InstrumentOut,
     InstrumentStatsOut,
     InstrumentUpdate,
 )
+from app.services import downtime
 from app.services.audit_util import diff, log_action
-from app.services.instrument_serializer import serialize_instrument
+from app.services.instrument_serializer import serialize_downtime, serialize_instrument
 from app.services.instrument_stats import instrument_stats
 
 router = APIRouter(prefix="/api/instruments", tags=["instruments"])
@@ -87,20 +93,92 @@ def update_instrument(instrument_id: int, req: InstrumentUpdate, db: SessionDep,
     return serialize_instrument(db, instrument)
 
 
+def _get_instrument(db: SessionDep, instrument_id: int) -> Instrument:
+    instrument = db.get(Instrument, instrument_id)
+    if instrument is None:
+        raise HTTPException(404, "Instrument not found")
+    return instrument
+
+
+def _get_period(instrument: Instrument, downtime_id: int) -> InstrumentDowntime:
+    period = next((p for p in instrument.downtimes if p.id == downtime_id), None)
+    if period is None:
+        raise HTTPException(404, "Downtime not found")
+    return period
+
+
+def _write_out(
+    db: SessionDep, instrument: Instrument, period: InstrumentDowntime | None, affected: list[AffectedRunOut]
+) -> DowntimeWriteOut:
+    db.commit()
+    db.refresh(instrument)
+    return DowntimeWriteOut(
+        downtime=serialize_downtime(period) if period is not None else None,
+        instrument=serialize_instrument(db, instrument),
+        affected_runs=affected,
+    )
+
+
+@router.post("/{instrument_id}/downtimes", response_model=DowntimeWriteOut, status_code=201)
+def add_downtime(instrument_id: int, req: DowntimeIn, db: SessionDep, actor: ActorDep) -> DowntimeWriteOut:
+    """Add a downtime period. No new run can load on its days (placement_service gates, auto-fill
+    skips); runs already booked inside it are returned as affected_runs and left where they are."""
+    instrument = _get_instrument(db, instrument_id)
+    try:
+        period, affected = downtime.create(db, instrument, req, actor)
+    except downtime.DowntimeError as exc:
+        raise HTTPException(exc.status_code, exc.detail) from exc
+    return _write_out(db, instrument, period, affected)
+
+
+@router.put("/{instrument_id}/downtimes/{downtime_id}", response_model=DowntimeWriteOut)
+def update_downtime(
+    instrument_id: int, downtime_id: int, req: DowntimeIn, db: SessionDep, actor: ActorDep
+) -> DowntimeWriteOut:
+    """Replace a period's dates, kind and note (PUT: end_date null = open-ended, so a partial
+    PATCH couldn't express clearing it). Returns the runs booked inside the new dates."""
+    instrument = _get_instrument(db, instrument_id)
+    period = _get_period(instrument, downtime_id)
+    try:
+        period, affected = downtime.update(db, instrument, period, req, actor)
+    except downtime.DowntimeError as exc:
+        raise HTTPException(exc.status_code, exc.detail) from exc
+    return _write_out(db, instrument, period, affected)
+
+
+@router.post("/{instrument_id}/downtimes/{downtime_id}/end", response_model=DowntimeWriteOut)
+def end_downtime(
+    instrument_id: int, downtime_id: int, req: DowntimeEndIn, db: SessionDep, actor: ActorDep
+) -> DowntimeWriteOut:
+    """The instrument is back online from back_online_on (default today). A period that hadn't
+    started by then is removed (downtime comes back null)."""
+    instrument = _get_instrument(db, instrument_id)
+    period = _get_period(instrument, downtime_id)
+    try:
+        ended = downtime.end(db, instrument, period, req.back_online_on or downtime.today(), actor)
+    except downtime.DowntimeError as exc:
+        raise HTTPException(exc.status_code, exc.detail) from exc
+    return _write_out(db, instrument, ended, [])
+
+
+@router.delete("/{instrument_id}/downtimes/{downtime_id}", status_code=204)
+def delete_downtime(instrument_id: int, downtime_id: int, db: SessionDep, actor: ActorDep) -> Response:
+    instrument = _get_instrument(db, instrument_id)
+    downtime.delete(db, instrument, _get_period(instrument, downtime_id), actor)
+    db.commit()
+    return Response(status_code=204)
+
+
 @router.post("/{instrument_id}/maintenance", response_model=InstrumentOut)
 def mark_instrument_down(
     instrument_id: int, req: InstrumentMaintenanceIn, db: SessionDep, actor: ActorDep
 ) -> InstrumentOut:
-    """Mark an instrument down for maintenance from a date. It stays visible in the schedule
-    but is greyed from down_from onward and refuses new runs from that date (see
-    placement_service.get_or_create_run). A dedicated action, not PATCH, so the field can also
-    be cleared (via /online) - PATCH's "None means don't touch" can't express clearing."""
-    instrument = db.get(Instrument, instrument_id)
-    if instrument is None:
-        raise HTTPException(404, "Instrument not found")
-    instrument.down_from = req.down_from
-    instrument.down_note = req.note
-    log_action(db, actor, "instrument_down", "instrument", instrument.id, {"down_from": req.down_from.isoformat(), "note": req.note})
+    """Shorthand: down from a date until brought back online - an open-ended unplanned period."""
+    instrument = _get_instrument(db, instrument_id)
+    try:
+        downtime.create(db, instrument, DowntimeIn(start_date=req.down_from, note=req.note), actor)
+    except downtime.DowntimeError as exc:
+        raise HTTPException(exc.status_code, exc.detail) from exc
     db.commit()
     db.refresh(instrument)
     return serialize_instrument(db, instrument)
@@ -108,14 +186,12 @@ def mark_instrument_down(
 
 @router.post("/{instrument_id}/online", response_model=InstrumentOut)
 def mark_instrument_online(instrument_id: int, db: SessionDep, actor: ActorDep) -> InstrumentOut:
-    """Bring an instrument back online: clears the maintenance-down flag so its schedule row
-    is live again."""
-    instrument = db.get(Instrument, instrument_id)
-    if instrument is None:
-        raise HTTPException(404, "Instrument not found")
-    instrument.down_from = None
-    instrument.down_note = None
-    log_action(db, actor, "instrument_online", "instrument", instrument.id, {})
+    """Shorthand: end the period covering today - the instrument takes new runs from today."""
+    instrument = _get_instrument(db, instrument_id)
+    try:
+        downtime.bring_online(db, instrument, actor)
+    except downtime.DowntimeError as exc:
+        raise HTTPException(exc.status_code, exc.detail) from exc
     db.commit()
     db.refresh(instrument)
     return serialize_instrument(db, instrument)

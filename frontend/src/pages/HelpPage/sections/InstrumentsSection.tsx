@@ -6,7 +6,7 @@ export function InstrumentsSection() {
       <p>
         <b>What this tab is for:</b> managing the Revio/SPRQ-Nx instruments that runs are scheduled onto. Each
         instrument shows as a card with its status and a few at-a-glance figures. This is where you add a new Revio,
-        rename one, take one out of service for maintenance, or remove one added by mistake.
+        rename one, plan or record downtime (a service visit, a breakdown), or remove one added by mistake.
       </p>
 
       <p className={styles.subheading}>Adding, naming and removing instruments</p>
@@ -26,14 +26,44 @@ export function InstrumentsSection() {
         it&apos;s really only for one added by mistake) — otherwise Retire it instead.
       </p>
 
-      <p className={styles.subheading}>Down for maintenance</p>
+      <p className={styles.subheading}>Downtime</p>
       <p>
-        <b>Mark down</b> takes an instrument out of service from a date you choose (with an optional reason). From
-        that date the instrument&apos;s row in the Schedule greys out and takes <b>no new runs</b> — neither by
-        dragging a sample onto it nor via Autoschedule — until you bring it back. Days <em>before</em> the down
-        date, and any run already scheduled, are left untouched. <b>Bring online</b> clears the flag and the
-        instrument is immediately available again. This is different from Retire: a down instrument is temporarily
-        out but still shown; a retired one is hidden entirely.
+        <b>Downtime…</b> on a card lists the instrument&apos;s downtime periods and lets you add one. A period has a{" "}
+        <b>first down day</b>, an optional <b>last down day</b> (both days count as down; leave it blank when you
+        don&apos;t know yet — it stays down until you end it), a <b>kind</b> and an optional reason:
+      </p>
+      <ul>
+        <li>
+          <b>Planned</b> — booked in advance: a service visit, an upgrade, preventive maintenance.
+        </li>
+        <li>
+          <b>Unplanned</b> — a breakdown or fault.
+        </li>
+      </ul>
+      <p>
+        Both kinds work the same way in the Schedule: on a down day the instrument&apos;s empty cells grey out and take{" "}
+        <b>no new runs</b> — neither by dragging a sample there nor via Autoschedule, which skips those days. Days
+        either side are untouched, so a planned visit next Tuesday doesn&apos;t stop you booking Monday. The kind only
+        matters in Stats&apos; <b>Instrument availability</b> table, which counts planned and unplanned days
+        separately. Two periods on one instrument can&apos;t overlap — edit the existing one instead.
+      </p>
+      <p>
+        <b>Runs already booked are never moved.</b> When you save a period that covers a day an existing run loads
+        (or its Plate 2 acquires) on, the dialog lists those runs with links to them in the Schedule, where they show
+        a <b>⚠ Down</b> label. Reschedule them yourself — or change the dates if the instrument will be available
+        after all.
+      </p>
+      <p>
+        <b>End today</b> on a period that&apos;s under way records that the instrument is back: it takes new runs
+        again from today, and the period keeps its history with yesterday as its last down day. While an instrument
+        is down today its card also offers <b>Bring online</b>, which does the same. <b>Edit</b> changes a
+        period&apos;s dates, kind or reason; <b>Delete</b> removes it altogether (use it for one entered by mistake —
+        a deleted period no longer counts in Stats). Every change shows in Activity.
+      </p>
+      <p>
+        The card shows an amber note while the instrument is down, and a blue <b>Downtime ahead</b> note for the
+        next upcoming period, so a booked visit is visible before it starts. Downtime is different from Retire: a
+        down instrument is temporarily out but still shown; a retired one is hidden entirely.
       </p>
 
       <p className={styles.subheading}>The Revio screen</p>
@@ -157,8 +187,8 @@ export function InstrumentsSection() {
       <p>
         The Revio screen itself now shows each instrument&apos;s state, so the card no longer needs a separate title
         bar: a screen with stage columns means a run is <b>in progress</b>; an idle screen reads <b>&quot;Idle · no
-        cells loaded&quot;</b> when it&apos;s free, <b>&quot;Down for maintenance&quot;</b> (in amber) when it&apos;s
-        marked down, or <b>&quot;Retired&quot;</b> when it&apos;s been taken out of service (its whole card also dims).
+        cells loaded&quot;</b> when it&apos;s free, <b>&quot;Down for maintenance&quot;</b> (in amber) while a
+        downtime period covers today (a period that starts later doesn&apos;t change it), or <b>&quot;Retired&quot;</b> when it&apos;s been taken out of service (its whole card also dims).
       </p>
     </div>
   );

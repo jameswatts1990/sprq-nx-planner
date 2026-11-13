@@ -19,14 +19,12 @@ import { StatTile, StatTiles } from "@/components/shared/StatTile";
 import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
 import type { InstrumentOut, InstrumentStatsOut } from "@/types/instrument";
 import type { RunOut } from "@/types/schedule";
-import { formatShortDateTimeLocal, formatShortDateUTC, parseDateOnly } from "@/utils/calendarDates";
+import { formatShortDateTimeLocal, formatShortDateUTC, parseDateOnly, todayIsoUTC } from "@/utils/calendarDates";
+import { downtimeOn, downtimeReason, formatDowntime } from "@/utils/downtime";
 import { instrumentStatus } from "@/utils/instrumentStatus";
 
+import { InstrumentDowntimeModal } from "./InstrumentDowntimeModal";
 import styles from "./InstrumentsPage.module.css";
-
-function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
-}
 
 function shortDate(iso: string): string {
   return formatShortDateUTC(parseDateOnly(iso));
@@ -95,7 +93,8 @@ export function InstrumentsPage() {
 
   const [addOpen, setAddOpen] = useState(false);
   const [editing, setEditing] = useState<InstrumentOut | null>(null);
-  const [downing, setDowning] = useState<InstrumentOut | null>(null);
+  // By id, so the open Downtime dialog re-reads the instrument (its periods) after each save.
+  const [downtimeFor, setDowntimeFor] = useState<number | null>(null);
   const [confirming, setConfirming] = useState<{ instrument: InstrumentOut; kind: ConfirmKind } | null>(null);
   const [weekPlanFor, setWeekPlanFor] = useState<InstrumentOut | null>(null);
 
@@ -109,13 +108,14 @@ export function InstrumentsPage() {
 
   const statsById = new Map<number, InstrumentStatsOut>((statsQuery.data ?? []).map((s) => [s.id, s]));
   const instruments = instrumentsQuery.data ?? [];
+  const downtimeInstrument = instruments.find((i) => i.id === downtimeFor) ?? null;
 
   return (
     <div className={styles.page}>
       <PageHeader
         help="instruments"
         title="Instruments"
-        intro="The Revios runs are scheduled onto — add, rename, mark down, retire or delete one."
+        intro="The Revios runs are scheduled onto — add, rename, plan downtime, retire or delete one."
         actions={
           <Button variant="primary" onClick={() => setAddOpen(true)}>
             Add instrument
@@ -144,7 +144,7 @@ export function InstrumentsPage() {
               recentRuns={recentRunsBySerial.get(instrument.serial_number) ?? []}
               activeRunsUpdatedAt={activeRunsQuery.dataUpdatedAt}
               onEdit={() => setEditing(instrument)}
-              onDown={() => setDowning(instrument)}
+              onDowntime={() => setDowntimeFor(instrument.id)}
               onConfirm={(kind) => setConfirming({ instrument, kind })}
               onOpenWeekPlan={() => setWeekPlanFor(instrument)}
             />
@@ -171,14 +171,11 @@ export function InstrumentsPage() {
           }}
         />
       )}
-      {downing && (
-        <MaintenanceModal
-          instrument={downing}
-          onClose={() => setDowning(null)}
-          onDone={() => {
-            refresh();
-            setDowning(null);
-          }}
+      {downtimeInstrument && (
+        <InstrumentDowntimeModal
+          instrument={downtimeInstrument}
+          onClose={() => setDowntimeFor(null)}
+          onChanged={refresh}
         />
       )}
       {confirming && (
@@ -223,7 +220,7 @@ interface InstrumentCardProps {
    * 108h "Use within" countdown ticks down from. */
   activeRunsUpdatedAt: number;
   onEdit: () => void;
-  onDown: () => void;
+  onDowntime: () => void;
   onConfirm: (kind: ConfirmKind) => void;
   onOpenWeekPlan: () => void;
 }
@@ -235,7 +232,7 @@ function InstrumentCard({
   recentRuns,
   activeRunsUpdatedAt,
   onEdit,
-  onDown,
+  onDowntime,
   onConfirm,
   onOpenWeekPlan,
 }: InstrumentCardProps) {
@@ -248,15 +245,7 @@ function InstrumentCard({
   return (
     <Card className={instrument.active ? undefined : styles.inactive}>
       <CardBody>
-        {instrument.down_from && (
-          <div className={styles.downNote}>
-            <Note tone="warn" icon="!">
-              Down for maintenance since {shortDate(instrument.down_from)}
-              {instrument.down_note ? ` — ${instrument.down_note}` : ""}. No new runs can be scheduled on it from
-              that date until it&apos;s back online.
-            </Note>
-          </div>
-        )}
+        <DowntimeBanner instrument={instrument} />
 
         <RevioScreen
           serial={instrument.serial_number}
@@ -350,13 +339,12 @@ function InstrumentCard({
           <Button size="sm" variant="ghost" onClick={onEdit}>
             Edit
           </Button>
-          {instrument.down_from ? (
+          <Button size="sm" variant="ghost" onClick={onDowntime}>
+            Downtime…
+          </Button>
+          {instrument.down_now && (
             <Button size="sm" variant="ghost" onClick={() => onConfirm("online")}>
               Bring online
-            </Button>
-          ) : (
-            <Button size="sm" variant="ghost" onClick={onDown}>
-              Mark down
             </Button>
           )}
           {instrument.active ? (
@@ -381,6 +369,37 @@ function InstrumentCard({
       </CardBody>
     </Card>
   );
+}
+
+/** Down now (warn), else the next downtime ahead (info) - so a planned visit is visible on the card
+ * before it starts, without the instrument reading Down early. */
+function DowntimeBanner({ instrument }: { instrument: InstrumentOut }) {
+  const current = instrument.down_now ? downtimeOn(instrument.downtimes, todayIsoUTC()) : null;
+  const shown = current ?? instrument.next_downtime;
+  if (!shown) return null;
+  const why = downtimeReason(shown);
+  return (
+    <div className={styles.downNote}>
+      {current ? (
+        <Note tone="warn" icon="!">
+          Down — {formatDowntime(current)}
+          {why ? ` — ${why}` : ""}. No new runs can load{" "}
+          {current.end_date ? `until ${shortDate(nextDay(current.end_date))}` : "until it's brought back online"}.
+        </Note>
+      ) : (
+        <Note tone="info" icon="i">
+          Downtime ahead: {formatDowntime(shown)}
+          {why ? ` — ${why}` : ""}. Those days are greyed in the Schedule.
+        </Note>
+      )}
+    </div>
+  );
+}
+
+function nextDay(iso: string): string {
+  const d = parseDateOnly(iso);
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
 }
 
 // --- add / edit modals ----------------------------------------------------
@@ -509,61 +528,6 @@ function EditInstrumentModal({
   );
 }
 
-function MaintenanceModal({
-  instrument,
-  onClose,
-  onDone,
-}: {
-  instrument: InstrumentOut;
-  onClose: () => void;
-  onDone: () => void;
-}) {
-  const [downFrom, setDownFrom] = useState(todayIso());
-  const [note, setNote] = useState("");
-
-  const mutation = useMutation({
-    mutationFn: () => instrumentsApi.markDown(instrument.id, { down_from: downFrom, note: note.trim() || null }),
-    onSuccess: onDone,
-  });
-
-  function submit(e: FormEvent) {
-    e.preventDefault();
-    mutation.mutate();
-  }
-
-  return (
-    <Modal onClose={onClose} title={`Mark ${instrument.name || instrument.serial_number} down`}>
-      <p className={styles.helper}>
-        From this date the instrument greys out in the Schedule and takes no new runs, until you bring it back
-        online. Runs already scheduled before the date are unaffected.
-      </p>
-      <form onSubmit={submit}>
-        <div className={styles.field}>
-          <label className="fieldLabel">Down from</label>
-          <input type="date" value={downFrom} onChange={(e) => setDownFrom(e.target.value)} />
-        </div>
-        <div className={styles.field}>
-          <label className="fieldLabel">Reason (optional)</label>
-          <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. laser replacement" />
-        </div>
-        {mutation.isError && (
-          <Note tone="bad" icon="!">
-            {errorMessage(mutation.error, "Couldn't mark the instrument down.")}
-          </Note>
-        )}
-        <ModalActions>
-          <Button variant="ghost" type="button" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button variant="primary" type="submit" disabled={mutation.isPending || downFrom === ""}>
-            {mutation.isPending ? "Saving…" : "Mark down"}
-          </Button>
-        </ModalActions>
-      </form>
-    </Modal>
-  );
-}
-
 // --- confirm actions (online / retire / reactivate / delete) --------------
 
 type ConfirmKind = "online" | "retire" | "reactivate" | "delete";
@@ -580,7 +544,12 @@ const CONFIRM_COPY: Record<
 > = {
   online: {
     title: (i) => `Bring ${i.name || i.serial_number} back online?`,
-    body: <p>It will accept new runs again and stop being greyed out in the Schedule.</p>,
+    body: (
+      <p>
+        Ends its current downtime: it takes new runs again from today and stops being greyed in the Schedule. The
+        downtime stays in its history (and in Stats&apos; instrument availability).
+      </p>
+    ),
     confirmLabel: "Bring online",
     pendingLabel: "Updating…",
   },

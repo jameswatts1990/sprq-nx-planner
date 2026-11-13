@@ -29,6 +29,27 @@
   text-transform: uppercase;
   color: var(--grey);
 }
+/* "⚠ Down" beside a plate label / Plate-2 marker: the plate acquires on a downtime day. Orange =
+   the instrument "Down" tone (utils/instrumentStatus.ts). */
+.downWarn {
+  flex: none;
+  padding: 0 4px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--orange-deep);
+  background: var(--orange-tint);
+  cursor: help;
+}
+/* Under a plate header: a full-width line, so the narrow tray header keeps "Plate 1" on one line. */
+.downWarnBlock {
+  display: block;
+  margin: 0 0 4px;
+  text-align: center;
+}
 .emptyCell {
   background: #fdfdfe;
 }

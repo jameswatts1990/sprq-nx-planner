@@ -1,3 +1,41 @@
+export type DowntimeKind = "planned" | "unplanned";
+
+/** One out-of-service period (backend services/downtime.py). Every day start_date..end_date is
+ * down, INCLUSIVE; end_date null = open-ended, down until brought back online. Planned and
+ * unplanned gate scheduling the same way - only Stats tells them apart. */
+export interface DowntimeOut {
+  id: number;
+  start_date: string; // ISO date
+  end_date: string | null; // ISO date, the LAST down day
+  kind: DowntimeKind;
+  note: string | null;
+  created_by: string | null;
+  created_at: string; // ISO datetime
+}
+
+export interface DowntimeIn {
+  start_date: string;
+  end_date: string | null;
+  kind: DowntimeKind;
+  note: string | null;
+}
+
+/** A run with a plate acquiring inside a downtime period - listed when the period is saved,
+ * never moved. `plates` = which of its plates (1/2) acquire inside it. */
+export interface AffectedRunOut {
+  run_id: number;
+  load_date: string;
+  run_name: string | null;
+  status: string;
+  plates: number[];
+}
+
+export interface DowntimeWriteOut {
+  downtime: DowntimeOut | null; // null once an End removed a period that hadn't started
+  instrument: InstrumentOut;
+  affected_runs: AffectedRunOut[];
+}
+
 export interface InstrumentOut {
   id: number;
   serial_number: string;
@@ -7,8 +45,12 @@ export interface InstrumentOut {
   location: string | null;
   asset_number: string | null;
   active: boolean;
-  // "Down for maintenance": the date it went down (null = online). is_down is derived as
-  // down_from != null. Distinct from `active` (permanently retired / hidden from the schedule).
+  // Downtime periods, oldest first (utils/downtime.ts reads them). down_now = a period covers
+  // today; next_downtime = the first one starting after today. down_from/down_note are derived
+  // from the current period, else the next one. Distinct from `active` (permanently retired).
+  downtimes: DowntimeOut[];
+  down_now: boolean;
+  next_downtime: DowntimeOut | null;
   down_from: string | null; // ISO date
   down_note: string | null;
   is_locked: boolean;
@@ -28,11 +70,6 @@ export interface InstrumentUpdate {
   location?: string | null;
   asset_number?: string | null;
   active?: boolean | null;
-}
-
-export interface InstrumentMaintenanceIn {
-  down_from: string; // ISO date
-  note?: string | null;
 }
 
 export interface InstrumentStatsOut {

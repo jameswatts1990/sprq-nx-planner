@@ -1,7 +1,7 @@
 """Response shape for GET /api/stats - the aggregated figures behind the Stats page.
 
-Grouped to mirror the four dashboard sections (throughput, reuse, failures, inventory)
-plus a flat headline block for the KPI tiles. All aggregation lives in
+Grouped to mirror the dashboard sections (throughput, reuse, failures, inventory,
+availability) plus a flat headline block for the KPI tiles. All aggregation lives in
 services/stats_service.py; nothing here computes anything.
 
 Note on scoping (kept consistent with the Help copy): the time-series and throughput
@@ -120,6 +120,19 @@ class InventoryStats(BaseModel):
     import_volume: list[ImportVolumePoint]
 
 
+# --- Instrument availability ---
+class InstrumentAvailability(BaseModel):
+    """Weekdays in the range (up to today) an instrument was up vs in a downtime period. Weekdays
+    only - runs load Mon-Fri, so a down weekend costs no loading capacity."""
+
+    serial: str
+    name: str | None
+    weekdays: int
+    planned_down: int
+    unplanned_down: int
+    uptime_pct: float  # 0-100, (weekdays - down) of weekdays
+
+
 # --- Headline KPI tiles ---
 class HeadlineStats(BaseModel):
     runs_completed: int
@@ -140,3 +153,4 @@ class StatsResponse(BaseModel):
     reuse: ReuseStats
     failures: FailureStats
     inventory: InventoryStats
+    availability: list[InstrumentAvailability] = []

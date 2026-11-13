@@ -26,7 +26,7 @@ export const INSTRUMENT_STATUS_TONE: Record<InstrumentStatus, BadgeTone> = {
  * down instrument reads Down even if a run is still marked loaded on it. */
 export function instrumentStatus(instrument: InstrumentOut): InstrumentStatus {
   if (!instrument.active) return "inactive";
-  if (instrument.down_from) return "down";
+  if (instrument.down_now) return "down";
   if (instrument.is_locked) return "running";
   return "ready";
 }

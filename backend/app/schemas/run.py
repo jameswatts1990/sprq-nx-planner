@@ -120,6 +120,10 @@ class PlateOut(BaseModel):
     # after the on-board wash) - i.e. its wells show Use >= 2. False for Plate 1 and for a
     # fresh parallel Plate 2 (a second tray acquiring the same day as Plate 1).
     is_reuse: bool
+    # True when this not-yet-finished plate acquires on a day inside one of its instrument's
+    # downtime periods (services/downtime.py): a reuse Plate 2 whose acquire day is down, or a run
+    # booked before the period was added. A warning only - it's never blocked or moved.
+    acquires_in_downtime: bool = False
     # This plate's representative run time: the longest of its wells' per-cell run_time_hours.
     movie_hours: int
     status: str

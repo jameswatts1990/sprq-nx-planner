@@ -94,6 +94,14 @@ function placementAdvisoryText(run: RunOut, insertThreshold: number): string | n
       "A cell you're reusing here has gone past its 108-hour reuse window, so it can't start in time — open its card to load a fresh tray.",
     );
   }
+  // A plate acquiring on a day its instrument is down (a reuse Plate 2 landing on a downtime day).
+  // Allowed - only a new run LOADING on a down day is refused - but never silent (PlateOut.acquires_in_downtime).
+  const downPlates = run.plates.filter((p) => p.acquires_in_downtime).map((p) => p.plate_index);
+  if (downPlates.length > 0) {
+    parts.push(
+      `${downPlates.length > 1 ? "Both plates acquire" : `Plate ${downPlates[0]} acquires`} on a day this instrument is down (⚠ Down) — reschedule the run or check its downtime on the Instruments page.`,
+    );
+  }
   return parts.length > 0 ? parts.join(" ") : null;
 }
 

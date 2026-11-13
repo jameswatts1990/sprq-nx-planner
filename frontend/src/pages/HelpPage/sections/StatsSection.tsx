@@ -28,7 +28,8 @@ export function StatsSection() {
       </p>
       <p>
         <b>Export CSV</b> (top right) downloads the report&apos;s figures as a spreadsheet — one row per week, month
-        or quarter, then a <b>Total</b> row — named after the range and grouping. <b>Print</b> lays the report out on
+        or quarter, then a <b>Total</b> row, then (after a blank line) the instrument availability table — named after
+        the range and grouping. <b>Print</b> lays the report out on
         A4 portrait, with the range at the top and each section kept on one page.
       </p>
 
@@ -96,6 +97,16 @@ export function StatsSection() {
       <p>
         A snapshot of every cell by status, every sample by status (backlog through completed), and how many
         samples were imported each week, month or quarter.
+      </p>
+
+      <p className={styles.subheading}>Instrument availability</p>
+      <p>
+        One row per instrument: how many <b>weekdays</b> the range holds, how many of them fell in a{" "}
+        <b>planned</b> or an <b>unplanned</b> downtime period (set on the Instruments tab), and the <b>uptime</b> —
+        the share of weekdays it wasn&apos;t down. Only weekdays count, because runs only load Monday to Friday, and
+        only days <b>up to today</b>: it&apos;s a look back, so downtime booked for later shows on the Instruments tab
+        instead. With <b>All time</b> each instrument counts from its first run or downtime. Uptime shows — when the
+        range has no weekday yet.
       </p>
     </div>
   );

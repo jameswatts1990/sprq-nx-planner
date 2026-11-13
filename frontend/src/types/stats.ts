@@ -118,6 +118,18 @@ export interface HeadlineStats {
   credits_received: number;
 }
 
+/** Weekdays in the range (up to today) an instrument was up vs in a downtime period. Weekdays
+ * only - runs load Mon-Fri, so a down weekend costs no loading capacity. */
+export interface InstrumentAvailability {
+  serial: string;
+  name: string | null;
+  weekdays: number;
+  planned_down: number;
+  unplanned_down: number;
+  /** 0-100, (weekdays - down) of weekdays; 0 when the range holds no weekday yet. */
+  uptime_pct: number;
+}
+
 export interface StatsResponse {
   group_by: GroupBy;
   headline: HeadlineStats;
@@ -125,4 +137,5 @@ export interface StatsResponse {
   reuse: ReuseStats;
   failures: FailureStats;
   inventory: InventoryStats;
+  availability: InstrumentAvailability[];
 }

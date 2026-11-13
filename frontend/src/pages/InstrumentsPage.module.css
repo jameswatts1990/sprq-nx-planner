@@ -121,3 +121,88 @@
   color: var(--grey);
   margin: 0 0 16px;
 }
+
+/* Downtime dialog (InstrumentDowntimeModal): the period list, then the add/edit form. */
+.downtimeList {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  border-top: 1px solid var(--line-soft);
+}
+.downtimeRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line-soft);
+}
+.downtimeWhat {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  min-width: 0;
+}
+.downtimeSpan {
+  font-size: var(--fs-md);
+  font-weight: 700;
+  color: var(--ink);
+}
+.downtimeNote {
+  flex-basis: 100%;
+  font-size: var(--fs-sm);
+  color: var(--grey);
+}
+.downtimeActions {
+  display: flex;
+  gap: 4px;
+  flex: none;
+}
+.downtimeEmpty {
+  margin: 0 0 12px;
+  font-size: var(--fs-md);
+  color: var(--grey);
+}
+.downtimePast {
+  margin: 0 0 12px;
+  font-size: var(--fs-md);
+}
+.downtimePast summary {
+  cursor: pointer;
+  color: var(--grey);
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+.downtimeAffected {
+  margin: 0 0 12px;
+}
+.downtimeAffected ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+.downtimeForm {
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.downtimeFormTitle {
+  font-size: var(--fs-sm);
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--grey);
+  margin-bottom: 10px;
+}
+.downtimeDates {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.downtimeDates .field {
+  margin-bottom: 4px;
+}
+.fieldHint {
+  margin: 0 0 14px;
+  font-size: var(--fs-sm);
+  color: var(--grey);
+}
