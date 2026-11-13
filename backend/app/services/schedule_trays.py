@@ -9,7 +9,7 @@ tests/integration/test_schedule_trays_api.py compares every field against GET /a
 
 compute_tray_founding_dates / compute_tray_eviction_dates are Python twins of the frontend's
 components/scheduler/waitingCells.ts (computeTrayFoundingDates / computeTrayEvictionDates); the
-golden fixture tests/fixtures/schedule_trays_golden.json is asserted by both pytest and vitest, so
+golden fixture frontend/src/components/scheduler/__fixtures__/schedule_trays_golden.json is asserted by both pytest and vitest, so
 change both sides together."""
 from __future__ import annotations
 

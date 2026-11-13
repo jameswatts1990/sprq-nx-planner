@@ -12,7 +12,9 @@ from app.services.schedule_trays import (
     kept_tray_ids,
 )
 
-GOLDEN = json.loads((Path(__file__).parents[1] / "fixtures" / "schedule_trays_golden.json").read_text("utf-8"))
+# Kept in frontend/ (its image builds with only frontend/ as context); pytest runs from a full checkout.
+GOLDEN_PATH = Path(__file__).parents[3] / "frontend/src/components/scheduler/__fixtures__/schedule_trays_golden.json"
+GOLDEN = json.loads(GOLDEN_PATH.read_text("utf-8"))
 CELLS = [ScheduleTrayCellOut.model_validate(c) for c in GOLDEN["cells"]]
 
 

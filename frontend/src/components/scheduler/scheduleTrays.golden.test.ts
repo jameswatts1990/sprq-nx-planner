@@ -4,8 +4,9 @@ import type { ScheduleTrayCellOut } from "@/types/cell";
 
 // Shared with the backend's tests/unit/test_schedule_trays.py: the same hand-written expectations
 // pin this file's tray maps and their Python twins (services/schedule_trays.py), which choose the
-// trays GET /api/cells/schedule-trays sends.
-import golden from "../../../../backend/tests/fixtures/schedule_trays_golden.json";
+// trays GET /api/cells/schedule-trays sends. It lives in frontend/ because the frontend image builds
+// (tsc -b) with only frontend/ as its context; backend tests run from a full checkout.
+import golden from "./__fixtures__/schedule_trays_golden.json";
 
 import { computeInstrumentTrayMaps } from "./instrumentTrayMaps";
 import { computeTrayEvictionDates, computeTrayFoundingDates } from "./waitingCells";
