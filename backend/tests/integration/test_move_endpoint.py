@@ -524,3 +524,20 @@ def test_reschedule_past_the_108h_window_flags_the_reuse_out_of_window(client):
     # W1 (the first use) never flags - it anchors the clock.
     mon_run = client.get(f"/api/cycles/{r1.json()['run_id']}").json()
     assert _stages(mon_run)[0]["reuse_window_exceeded"] is False
+
+
+def test_move_onto_a_new_cell_keeps_the_placement_note(client):
+    """A move that hands the sample to a different cell recreates its CellUse - the placement
+    note used to be left behind on the deleted row (roadmap C2 bug fix)."""
+    client.post("/api/imports", json={"raw_text": "sample,barcodes\nA1,bc1"})
+    mon, tue = _weekdays(2)
+
+    r1 = _place(client, _sid(client, "A1"), mon, slot_index=0)
+    cell_use_id = _stages(r1.json())[0]["cell_use_id"]
+    assert client.patch(f"/api/cell-uses/{cell_use_id}/notes", json={"notes": "low yield"}).status_code == 200
+
+    moved = _move(client, cell_use_id, tue, slot_index=1, instrument="84098")  # other instrument: new cell
+    assert moved.status_code == 200, moved.text
+    stage = _stages(moved.json())[0]
+    assert stage["cell_use_id"] != cell_use_id
+    assert client.get(f"/api/cell-uses/{stage['cell_use_id']}").json()["notes"] == "low yield"

@@ -1719,6 +1719,7 @@ def _move_sample_to_new_cell(
         well=well,
         run_time_hours=int(run_time_hours),
         status="planned",
+        notes=cell_use.notes,  # the placement note travels with the sample, like its run time
     )
     db.add(new_cell_use)
     try:
