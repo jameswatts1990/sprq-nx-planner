@@ -34,6 +34,8 @@ K_LOADING_CONC = "loading_conc"
 K_CCS_KINETICS = "ccs_kinetics"
 K_STATUS = "status"
 K_PRIORITY = "priority"
+K_LIBRARY_SIZE = "library_size"
+K_RUN_COMMENTS = "run_comments"
 
 # The barcodes currently live in the column headed "Complex Batch ID" — a temporary
 # stopgap the lab uses because the sheet has no dedicated barcode column. Isolated here
@@ -63,7 +65,7 @@ TRACKER_COLUMNS: list[tuple[str, str | None]] = [
     ("User ID (Complexes)", None),
     ("Library Volume Taken for Complex (uL)", None),
     ("Library Type", None),
-    ("Library Size\n(bp)", None),
+    ("Library Size\n(bp)", K_LIBRARY_SIZE),
     ("Complex Pre Cleanup QC\n(ng/ul)", None),
     ("Complex Post Cleanup QC\n(ng/ul)", None),
     ("Complex\nRecovery\n(%)", None),
@@ -80,7 +82,7 @@ TRACKER_COLUMNS: list[tuple[str, str | None]] = [
     ("CCS Output Include Kinetics Information", K_CCS_KINETICS),
     ("CCS Output Include Low Quality Reads", None),
     ("Include 5mC Calls In CpG Motifs", None),
-    ("Run Comments", None),
+    ("Run Comments", K_RUN_COMMENTS),
     ("Well Status \n(From LangQC)", None),
     ("PacBio Case ID", None),
     ("Reason for Failure", None),

@@ -27,7 +27,9 @@ export function BacklogSection() {
       <p>
         <b>Search</b> by Pool ID, Sanger ID, barcode, Plate ID, or priority; results narrow as you type. Use the{" "}
         <b>priority dropdown</b> to narrow the list to one priority value — it only lists priorities that are
-        actually present in the backlog, so a choice never comes back empty. The <b>rows-per-page</b> control (25 /
+        actually present in the backlog, so a choice never comes back empty. The chosen priority is kept in the
+        page&apos;s address, so a link can open the Backlog already filtered — the <b>Today</b> page&apos;s High
+        priority and Aborted numbers do this — and you can bookmark it. The <b>rows-per-page</b> control (25 /
         50 / 100 / 200, defaulting to 50) sets how many samples are shown at once.
       </p>
 

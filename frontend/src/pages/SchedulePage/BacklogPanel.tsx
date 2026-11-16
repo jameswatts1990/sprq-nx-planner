@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Note } from "@/components/ui/Note";
 import type { SampleOut } from "@/types/sample";
-import { ABORTED_PRIORITY, RECOVERABLE_PRIORITY, REPEATABLE_PRIORITY } from "@/utils/priority";
+import { ABORTED_PRIORITY, HIGH_PRIORITY, RECOVERABLE_PRIORITY, REPEATABLE_PRIORITY } from "@/utils/priority";
 
 import { AddSampleCard, DraggableSampleCard } from "./BacklogCards";
 import styles from "./BacklogPanel.module.css";
@@ -42,7 +42,7 @@ export function writeBacklogOpenPref(open: boolean): void {
 /** Priority values counted as "High priority or higher" for the header alert - rank 1 (High)
  * plus every rank-0 label (Aborted/Recoverable/Repeatable all sort ahead of High, see
  * utils/priority.ts). Passed as a comma-list to the /api/samples `priority` filter. */
-const HIGH_OR_ABOVE_PRIORITIES = [RECOVERABLE_PRIORITY, REPEATABLE_PRIORITY, ABORTED_PRIORITY, "High (1)"].join(",");
+const HIGH_OR_ABOVE_PRIORITIES = [RECOVERABLE_PRIORITY, REPEATABLE_PRIORITY, ABORTED_PRIORITY, HIGH_PRIORITY].join(",");
 
 const SORT_OPTIONS: { value: SampleSortBy; label: string }[] = [
   { value: "created_at", label: "Created" },

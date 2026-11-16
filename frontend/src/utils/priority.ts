@@ -7,6 +7,9 @@ const PRIORITY_RANK_RE = /\((\d+)\)\s*$/;
  * other label under the "Label (N)" convention below. */
 export const ABORTED_PRIORITY = "Aborted (0)";
 
+/** The top lab-set priority (backend engine/constants.py PRIORITY_HIGH). */
+export const HIGH_PRIORITY = "High (1)";
+
 /** Priority labels for samples a Cell QC action returns to the backlog with a disposition
  * (see backend engine/packing.py). Rank 0, so they sort above "High (1)". The Backlog's
  * "Recoverable samples" section groups on Sample.qc_disposition, not these strings. */

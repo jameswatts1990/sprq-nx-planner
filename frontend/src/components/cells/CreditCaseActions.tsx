@@ -7,6 +7,7 @@ import { cellsApi } from "@/api/cells";
 import { instrumentsApi } from "@/api/instruments";
 import { pacbioCasesApi } from "@/api/pacbioCases";
 import { settingsApi } from "@/api/settings";
+import { CaseNumberWarning } from "@/components/shared/DuplicateWarnings";
 import { Button } from "@/components/ui/Button";
 import { Modal, ModalActions } from "@/components/ui/Modal";
 import { Note } from "@/components/ui/Note";
@@ -256,6 +257,8 @@ interface CreditStageActionsProps {
   credit: CreditCaseState;
   /** Unique per case - scopes the notes field's element id. */
   idKey: string;
+  /** This case's own cell or case id, so the case-number warning doesn't report it against itself. */
+  own: { cellId?: number; caseId?: number };
   ops: CreditCaseOps;
   /** Refreshes whichever lists show this case after a mutation. */
   onChanged: () => void;
@@ -271,6 +274,7 @@ interface CreditStageActionsProps {
 function CreditStageActions({
   credit,
   idKey,
+  own,
   ops,
   onChanged,
   reimbursement,
@@ -355,6 +359,7 @@ function CreditStageActions({
               Generate email…
             </a>
           </div>
+          <CaseNumberWarning number={caseNumber} {...own} />
         </>
       )}
 
@@ -463,6 +468,7 @@ function CreditStageActions({
               label="Case number"
               value={credit.pacbio_case_number}
               maxLength={64}
+              hint={(draft) => <CaseNumberWarning number={draft} {...own} />}
               onSave={async (n) => {
                 await ops.reportToPacbio(n);
                 onChanged();
@@ -604,6 +610,7 @@ export function CreditCaseActions({ cell, compact = false }: CreditCaseActionsPr
     <CreditStageActions
       credit={cell}
       idKey={`cell-${cell.id}`}
+      own={{ cellId: cell.id }}
       ops={ops}
       onChanged={() => invalidateCreditCases(queryClient)}
       reimbursement={
@@ -645,6 +652,7 @@ export function PacbioCaseActions({ pacbioCase, compact = false }: { pacbioCase:
     <CreditStageActions
       credit={pacbioCase}
       idKey={`case-${id}`}
+      own={{ caseId: id }}
       ops={ops}
       onChanged={() => invalidateCreditCases(queryClient)}
       reimbursement={

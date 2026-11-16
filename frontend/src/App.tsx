@@ -13,9 +13,10 @@ import { QcPage } from "@/pages/QcPage/QcPage";
 import { RunDetailPage } from "@/pages/RunDetailPage";
 import { SampleDetailPage } from "@/pages/SampleDetailPage";
 import { SchedulePage } from "@/pages/SchedulePage/SchedulePage";
+import { TodayPage } from "@/pages/TodayPage/TodayPage";
 
 // Rare / heavy routes are code-split so their large dependencies stay out of the initial
-// bundle that gates first paint of the default (Schedule) screen: StatsPage pulls in recharts,
+// bundle that gates first paint of the landing (Today) screen: StatsPage pulls in recharts,
 // ImportPage pulls in read-excel-file, and BatchSheetPage (once a day),
 // SettingsPage and HelpPage are visited rarely. The daily-workflow routes above stay eagerly imported.
 const StatsPage = lazy(() => import("@/pages/StatsPage/StatsPage").then((m) => ({ default: m.StatsPage })));
@@ -51,7 +52,8 @@ export default function App() {
     <AppShell>
       <Suspense fallback={<RouteFallback />}>
         <Routes>
-          <Route path="/" element={<Navigate to="/schedule" replace />} />
+          <Route path="/" element={<Navigate to="/today" replace />} />
+          <Route path="/today" element={<TodayPage />} />
           <Route path="/import" element={<ImportPage />} />
           <Route path="/backlog" element={<BacklogPage />} />
           <Route path="/schedule" element={<SchedulePage />} />
@@ -72,7 +74,7 @@ export default function App() {
           {/* Old bookmark: the Admin tab was renamed Settings. */}
           <Route path="/admin" element={<Navigate to="/settings" replace />} />
           <Route path="/help" element={<HelpPage />} />
-          <Route path="*" element={<Navigate to="/schedule" replace />} />
+          <Route path="*" element={<Navigate to="/today" replace />} />
         </Routes>
       </Suspense>
     </AppShell>

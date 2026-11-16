@@ -1,0 +1,72 @@
+.page {
+  padding-top: 22px;
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(380px, 100%), 1fr));
+  gap: 14px;
+  align-items: start;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.list > li + li {
+  border-top: 1px solid var(--line);
+}
+
+/* One line: what it is on the left, its state on the right; wraps on a narrow card. */
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 12px;
+  padding: 8px 0;
+}
+.list > .row:first-child,
+.instrument:first-child,
+.note:first-child {
+  padding-top: 0;
+}
+.rowMain {
+  min-width: 0;
+}
+.rowSide {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.instrument,
+.note {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 0;
+}
+.instrument > .row {
+  padding: 0;
+}
+
+.muted {
+  color: var(--grey);
+  font-size: var(--fs-sm);
+}
+.loaded {
+  color: var(--green);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+}
+.statLink {
+  color: var(--magenta);
+  text-decoration: none;
+  font-weight: 800;
+}
+.statLink:hover {
+  text-decoration: underline;
+}

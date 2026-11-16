@@ -18,16 +18,22 @@ from app.engine.import_fields import (
 from app.engine.normalize import normalize_samples, normalize_with_map
 from app.engine.scheduler_import import convert_scheduler_csv
 from app.engine.tracker_import import looks_like_tracker, normalize_tracker
+from app.engine.types import ParsedSample
 from app.models.audit import AuditLog
 from app.models.importing import ImportBatch
 from app.models.sample import Sample
 from app.schemas.importing import (
     DuplicateNote,
+    ExistingAction,
+    ExistingState,
     ImportFieldOut,
     ImportPreviewResult,
     ImportRequest,
     ImportResult,
     LatestImportOut,
+    PoolCheckItem,
+    PoolCheckRequest,
+    PoolCheckResult,
     PreviewColumn,
     RejectedRow,
     SchedulerConvertResult,
@@ -35,10 +41,15 @@ from app.schemas.importing import (
     SchedulerPoolMember,
     SkippedRowOut,
     UndoImportResult,
+    UpdatedSampleOut,
 )
 from app.serializers import sample_out
-from app.services.audit_util import log_action
-from app.services.sample_service import create_backlog_sample
+from app.services.audit_util import diff, log_action
+from app.services.sample_service import (
+    audit_snapshot,
+    create_backlog_sample,
+    update_backlog_sample,
+)
 
 
 class UndoNotAllowedError(Exception):
@@ -68,7 +79,6 @@ def import_samples(db: Session, req: ImportRequest, actor: str | None = None) ->
         header_detected = not any(w.startswith("No header row detected") for w in normalized.warnings)
 
     row_count = max(0, len(all_rows) - (1 if header_detected else 0))
-    skipped_count = len(normalized.skipped)
 
     batch = ImportBatch(
         created_by=actor or req.actor or "unknown",
@@ -76,11 +86,14 @@ def import_samples(db: Session, req: ImportRequest, actor: str | None = None) ->
         raw_text=req.raw_text,
         header_detected=header_detected,
         row_count=row_count,
-        skipped_count=skipped_count,
         warnings=normalized.warnings,
     )
     db.add(batch)
     db.flush()
+
+    # Re-classified here (not trusted from the preview) so a pool scheduled since the preview
+    # is skipped, never updated.
+    existing = classify_existing(db, [(p.id, p.parent) for p in normalized.samples])
 
     # How many copies of each Pool ID already existed BEFORE this import (any status,
     # incl. completed) — captured up front so total_seen can distinguish prior history from
@@ -98,8 +111,25 @@ def import_samples(db: Session, req: ImportRequest, actor: str | None = None) ->
     created = []
     rejected: list[RejectedRow] = []
     created_counts: dict[str, int] = {}
+    skipped = [SkippedRowOut(identifier=s.identifier, reason=s.reason) for s in normalized.skipped]
+    updated: list[UpdatedSampleOut] = []
+    updated_ids: set[int] = set()
 
     for parsed in normalized.samples:
+        match = existing[_pool_key(parsed.id, parsed.parent)]
+        action = resolve_action(match.state, req.existing.get(parsed.id))
+        if action == "skip":
+            skipped.append(SkippedRowOut(identifier=parsed.id, reason=_SKIP_REASON[match.state]))
+            continue
+        if action == "update":
+            to_update = [sid for sid in match.waiting_ids if sid not in updated_ids]
+            if not to_update:
+                skipped.append(SkippedRowOut(identifier=parsed.id, reason="Already updated from an earlier row"))
+                continue
+            for sid in to_update:
+                updated.append(_update_from_import(db, db.get(Sample, sid), parsed, batch.created_by))
+                updated_ids.add(sid)
+            continue
         sample = create_backlog_sample(
             db,
             pool_id=parsed.id,
@@ -136,6 +166,7 @@ def import_samples(db: Session, req: ImportRequest, actor: str | None = None) ->
     duplicates.sort(key=lambda d: d.pool_id)
 
     batch.imported_count = len(created)
+    batch.skipped_count = len(skipped)
     batch.duplicate_count = len(duplicates)
     log_action(
         db,
@@ -146,6 +177,7 @@ def import_samples(db: Session, req: ImportRequest, actor: str | None = None) ->
         {
             "source_filename": batch.source_filename,
             "imported_count": batch.imported_count,
+            "updated_count": len(updated),
             "skipped_count": batch.skipped_count,
             "duplicate_count": batch.duplicate_count,
         },
@@ -163,10 +195,129 @@ def import_samples(db: Session, req: ImportRequest, actor: str | None = None) ->
         duplicate_count=batch.duplicate_count,
         warnings=normalized.warnings,
         rejected=rejected,
-        skipped=[SkippedRowOut(identifier=s.identifier, reason=s.reason) for s in normalized.skipped],
+        skipped=skipped,
         duplicates=duplicates,
         samples=[sample_out(s) for s in created],
+        updated_count=len(updated),
+        updated=updated,
     )
+
+
+# --- re-import: pools already in RunNx -----------------------------------------------------
+#
+# A row matches the existing samples with the same Pool ID; Plate IDs are compared only when
+# both the row and the sample carry one. The pool's state is the most "live" of its matches:
+# any copy waiting in the backlog beats a scheduled/running one, which beats finished history.
+
+# Allowed actions per state, default first.
+_ACTIONS: dict[str, tuple[ExistingAction, ...]] = {
+    "new": ("add",),
+    "waiting": ("skip", "update", "add"),
+    "active": ("skip", "add"),
+    "finished": ("add", "skip"),
+}
+_SKIP_REASON = {
+    "waiting": "Already waiting in the backlog",
+    "active": "Already scheduled or running",
+    "finished": "Already finished, failed or cancelled",
+}
+_ACTIVE_STATUSES = ("scheduled", "in_progress")
+
+
+class ExistingPool(NamedTuple):
+    state: ExistingState
+    sample_count: int
+    waiting_ids: list[int]  # backlog copies, oldest first - what an Update rewrites
+
+
+def _pool_key(pool_id: str, plate_id: str | None) -> tuple[str, str | None]:
+    return pool_id, (plate_id or "").strip() or None
+
+
+def resolve_action(state: ExistingState, requested: ExistingAction | None) -> ExistingAction:
+    allowed = _ACTIONS[state]
+    return requested if requested in allowed else allowed[0]
+
+
+def classify_existing(
+    db: Session, keys: list[tuple[str, str | None]]
+) -> dict[tuple[str, str | None], ExistingPool]:
+    """Each (Pool ID, Plate ID) key -> what that pool already is in RunNx (one query)."""
+    wanted = {_pool_key(pid, plate) for pid, plate in keys}
+    pool_ids = {pid for pid, _ in wanted if pid}
+    by_pool: dict[str, list[tuple[int, str | None, str]]] = {}
+    if pool_ids:
+        for sid, pid, plate, status in db.execute(
+            select(Sample.id, Sample.pool_id, Sample.plate_id, Sample.status)
+            .where(Sample.pool_id.in_(pool_ids))
+            .order_by(Sample.created_at, Sample.id)
+        ).all():
+            by_pool.setdefault(pid, []).append((sid, plate, status))
+
+    out: dict[tuple[str, str | None], ExistingPool] = {}
+    for pid, plate in wanted:
+        matches = [m for m in by_pool.get(pid, []) if plate is None or not m[1] or m[1] == plate]
+        statuses = {status for _, _, status in matches}
+        if not matches:
+            state: ExistingState = "new"
+        elif "backlog" in statuses:
+            state = "waiting"
+        elif statuses & set(_ACTIVE_STATUSES):
+            state = "active"
+        else:
+            state = "finished"
+        waiting = [sid for sid, _, status in matches if status == "backlog"]
+        out[(pid, plate)] = ExistingPool(state, len(matches), waiting)
+    return out
+
+
+def check_pools(db: Session, req: PoolCheckRequest) -> PoolCheckResult:
+    """The import preview's "already in RunNx?" lookup (non-committing)."""
+    keys = [(p.pool_id.strip(), p.plate_id) for p in req.pools if p.pool_id.strip()]
+    found = classify_existing(db, keys)
+    return PoolCheckResult(
+        pools=[
+            PoolCheckItem(pool_id=pid, plate_id=plate, state=pool.state, sample_count=pool.sample_count)
+            for (pid, plate), pool in sorted(found.items(), key=lambda kv: (kv[0][0], kv[0][1] or ""))
+        ]
+    )
+
+
+def _update_from_import(db: Session, sample: Sample, parsed: ParsedSample, actor: str) -> UpdatedSampleOut:
+    """Rewrite a waiting backlog sample from an import row. The file's barcodes replace the
+    sample's; every other field changes only where the file has a value, so a sheet with blank
+    or unmapped columns never wipes what's stored. Audited as an ordinary edit (update_sample)."""
+
+    def keep(new, current):
+        return current if new is None or new == "" or new == [] else new
+
+    def snapshot() -> dict:
+        return audit_snapshot(sample) | {"library_pool_volume_used": sample.library_pool_volume_used}
+
+    before = snapshot()
+    update_backlog_sample(
+        db,
+        sample,
+        barcodes=parsed.barcodes,
+        sanger_ids=keep(parsed.sanger, list(sample.sanger_ids or [])),
+        plate_id=keep(parsed.parent, sample.plate_id),
+        target_oplc=keep(parsed.target_oplc, sample.target_oplc),
+        actual_oplc=keep(parsed.actual_oplc, sample.actual_oplc),
+        cleaned_complex_volume=keep(parsed.cleaned_complex_volume, sample.cleaned_complex_volume),
+        loading_buffer_volume=keep(parsed.loading_buffer_volume, sample.loading_buffer_volume),
+        adaptive_loading=keep(parsed.adaptive_loading, sample.adaptive_loading),
+        full_resolution_base_q=keep(parsed.full_resolution_base_q, sample.full_resolution_base_q),
+        priority=keep(parsed.priority, sample.priority),
+        base_kinetics=keep(parsed.base_kinetics, sample.base_kinetics),
+        movie_time_hours=keep(parsed.movie_time, sample.movie_time_hours),
+        insert_size_bp=keep(parsed.insert_size_bp, sample.insert_size_bp),
+    )
+    sample.library_pool_volume_used = keep(parsed.library_pool_volume_used, sample.library_pool_volume_used)
+    changes = diff(before, snapshot())
+    # Keep the action name: import undo treats an update_sample row as "this sample was edited".
+    if changes:
+        log_action(db, actor, "update_sample", "sample", sample.id, changes)
+    return UpdatedSampleOut(sample_id=sample.id, pool_id=sample.pool_id, changed_fields=list(changes))
 
 
 def preview_import(raw_text: str, has_header: bool = True) -> ImportPreviewResult:
@@ -242,6 +393,7 @@ def scheduler_convert(raw_text: str) -> SchedulerConvertResult:
                 note=p.note,
                 members=[SchedulerPoolMember(label=m.label, portion_percent=m.portion_percent) for m in p.members],
                 row=p.row,
+                duplicate_barcodes=p.duplicate_barcodes,
             )
             for p in conversion.pools
         ],
@@ -346,6 +498,9 @@ def _undo_eligibility(db: Session, batch: ImportBatch) -> _UndoEligibility:
     latest = _latest_batch(db)
     if latest is None or latest.id != batch.id:
         return _UndoEligibility(False, "A newer import exists — only the most recent import can be undone.", 0)
+    if batch.imported_count == 0:
+        # Undo only removes samples an import added; one that only updated or skipped has none.
+        return _UndoEligibility(False, "This import added no samples, so there's nothing to undo.", 0)
     blocking = _blocking_count(db, batch.id)
     if blocking > 0:
         s = "s" if blocking != 1 else ""

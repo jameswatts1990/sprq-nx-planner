@@ -1,6 +1,6 @@
 import { api, buildQuery } from "./client";
 import type { CellType, CycleStatus, Page } from "@/types/common";
-import type { RunHistoryRowOut, RunOut, ScheduleSearchHit } from "@/types/schedule";
+import type { RunHistoryRowOut, RunNameMatch, RunOut, ScheduleSearchHit } from "@/types/schedule";
 
 export interface CycleStatusUpdate {
   status: CycleStatus;
@@ -51,6 +51,10 @@ export const cyclesApi = {
    * Sanger ID, barcode, cell code, "T12" tray or a run's name / "#id" - in grid reading order. */
   search: (q: string, limit = 50) => api.get<ScheduleSearchHit[]>(`/api/cycles/search${buildQuery({ q, limit })}`),
   get: (id: number) => api.get<RunOut>(`/api/cycles/${id}`),
+  /** Other runs already carrying this Traction run name (trimmed, case-insensitive) - an inline,
+   * never-blocking warning while typing it. */
+  runNameCheck: (name: string, excludeRunId?: number) =>
+    api.get<RunNameMatch[]>(`/api/cycles/run-name-check${buildQuery({ name, exclude_run_id: excludeRunId })}`),
   /** PATCH /api/cycles/{run_id} {status} -> updated RunOut. Operates on the whole run (one
    * Confirm-loaded locks every plate). Used for Confirm-loaded (status:"running") and
    * Unlock (status:"planned"). */

@@ -3,7 +3,7 @@ import { createColumnHelper, flexRender, getCoreRowModel, useReactTable } from "
 import type { Table } from "@tanstack/react-table";
 import { Fragment, useCallback, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 
 import { errorMessage } from "@/api/client";
 import type { SampleSortBy, SampleSortDir } from "@/api/samples";
@@ -249,7 +249,20 @@ function SampleTableView({ table, noteRows }: { table: Table<SampleOut>; noteRow
 
 export function BacklogPage() {
   const [qInput, setQInput] = useState("");
-  const [priority, setPriority] = useState("");
+  // The priority filter lives in the URL (?priority=) so a link - e.g. the Today page's High /
+  // Aborted counts - opens the backlog already filtered.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const priority = searchParams.get("priority") ?? "";
+  const setPriority = (next: string) =>
+    setSearchParams(
+      (prev) => {
+        const params = new URLSearchParams(prev);
+        if (next) params.set("priority", next);
+        else params.delete("priority");
+        return params;
+      },
+      { replace: true },
+    );
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   // Defaults to priority order (High first, ascending rank - see utils/priority.ts) rather
@@ -476,7 +489,8 @@ export function BacklogPage() {
               }}
             >
               <option value="">All priorities</option>
-              {(prioritiesQuery.data ?? []).map((p) => (
+              {/* A linked-to priority stays listed (and clearable) even when no sample has it now. */}
+              {[...new Set([...(prioritiesQuery.data ?? []), ...(priority ? [priority] : [])])].map((p) => (
                 <option key={p} value={p}>
                   {p}
                 </option>

@@ -8,6 +8,30 @@ export interface ImportRequest {
   column_map?: Record<string, number>;
   /** Whether row 0 is a header (stripped) or data. Only used on the column_map path. */
   has_header?: boolean;
+  /** Pool ID -> what to do with rows whose pool is already in RunNx (missing = the state's default). */
+  existing?: Record<string, ExistingAction>;
+}
+
+/** What an incoming pool already is in RunNx: a copy waiting in the backlog, scheduled or
+ * running ("active"), only finished/failed/cancelled copies, or none ("new"). */
+export type ExistingState = "new" | "waiting" | "active" | "finished";
+/** Skip the row, update the waiting copies from it, or add it as another copy. */
+export type ExistingAction = "skip" | "update" | "add";
+
+export interface PoolCheckItem {
+  pool_id: string;
+  plate_id: string | null;
+  state: ExistingState;
+  /** Existing samples the pool matched. */
+  sample_count: number;
+}
+
+/** A backlog sample this import updated from its row. */
+export interface UpdatedSample {
+  sample_id: number;
+  pool_id: string;
+  /** Audit field keys that changed; empty when the sample already matched the file. */
+  changed_fields: string[];
 }
 
 export interface RejectedRow {
@@ -44,6 +68,8 @@ export interface ImportResult {
   /** Per-Pool ID duplicate summary (only IDs seen more than once). */
   duplicates: DuplicateNote[];
   samples: SampleOut[];
+  updated_count: number;
+  updated: UpdatedSample[];
 }
 
 /** One canonical importable field (target of the mapping UI + the add-sample form). */
@@ -104,6 +130,8 @@ export interface SchedulerPool {
   note: string | null;
   members: SchedulerPoolMember[];
   row: string[];
+  /** Barcodes listed more than once in the pool (imported once; the preview warns). */
+  duplicate_barcodes: string[];
 }
 
 export interface SchedulerConvertResult {

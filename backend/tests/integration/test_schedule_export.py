@@ -200,3 +200,42 @@ def test_export_window_excludes_out_of_range_runs(client):
     far = (date.today() + timedelta(days=37)).isoformat()
     rows = _rows(client.get("/api/schedule/export.csv", params={"date_from": future, "date_to": far}).text)
     assert len(rows) == 1
+
+
+def _export_row(client, past: str) -> list[str]:
+    rows = _rows(client.get("/api/schedule/export.csv", params={"date_from": past, "date_to": past}).text)
+    assert len(rows) == 2, rows  # header + one well
+    return rows[1]
+
+
+def test_export_writes_plate_id_and_the_cell_type_in_run_comments(client):
+    client.post("/api/imports", json={"raw_text": "Pool ID,Barcodes,Plate ID\nTRAC-2-9100,bc2001,DN123456A"})
+    past = _past_weekday()
+    _place_running(client, "TRAC-2-9100", "RUN-NX", past)
+
+    row = _export_row(client, past)
+    assert TRACKER_HEADER[4] == "Plate ID"
+    assert row[4] == "DN123456A"
+    assert TRACKER_HEADER[38] == "Run Comments"
+    assert row[38] == "SPRQ-Nx"
+
+
+def test_export_run_comments_name_a_single_use_sprq_cell(client):
+    client.post("/api/imports", json={"raw_text": "Pool ID,Barcodes\nTRAC-2-9200,bc2002"})
+    past = _past_weekday()
+    placed = client.post(
+        "/api/cell-uses",
+        json={
+            "sample_id": _sid(client, "TRAC-2-9200"),
+            "instrument_serial": "84047",
+            "load_date": past,
+            "slot_index": 0,
+            "cell_type": "sprq",
+            "run_time_hours": 24,
+        },
+    )
+    assert placed.status_code == 201, placed.text
+
+    row = _export_row(client, past)
+    assert row[4] == ""  # no Plate ID imported
+    assert row[38] == "SPRQ"

@@ -13,8 +13,19 @@ import { Note } from "@/components/ui/Note";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatTile, StatTiles } from "@/components/shared/StatTile";
 import { UnitLabel } from "@/components/shared/UnitLabel";
-import type { ImportField, ImportPreviewResult, ImportResult, SchedulerPool } from "@/types/importing";
+import type {
+  ExistingAction,
+  ExistingState,
+  ImportField,
+  ImportPreviewResult,
+  ImportResult,
+  SchedulerPool,
+} from "@/types/importing";
+import { fieldLabel } from "@/utils/auditLabels";
+import { repeatedBarcodes } from "@/utils/barcodes";
 import { formatDateTime } from "@/utils/calendarDates";
+import { actionLabel, actionsFor, importOutcome, statesByKey } from "@/utils/importExisting";
+import type { PreviewRowKey } from "@/utils/importExisting";
 import { readSpreadsheetFile } from "@/utils/readSpreadsheetFile";
 import { toCsv } from "@/utils/toCsv";
 
@@ -25,6 +36,18 @@ import styles from "./ImportPage.module.css";
 function normalizeHeader(s: string): string {
   return s.replace(/\s+/g, " ").trim().toLowerCase();
 }
+
+/** How the review table labels a pool that's already in RunNx. */
+const EXISTING_BADGE: Record<Exclude<ExistingState, "new">, { label: string; tone: "warning" | "info" | "purple"; title: string }> = {
+  waiting: { label: "Waiting", tone: "warning", title: "A copy of this pool is already waiting in the backlog." },
+  active: { label: "Scheduled", tone: "info", title: "This pool is already scheduled or running." },
+  finished: {
+    label: "Repeat",
+    tone: "purple",
+    title:
+      "Every earlier copy finished, failed or was cancelled. It imports again as a new copy, marked as a duplicate (e.g. 2/2) on the Backlog.",
+  },
+};
 
 /** Info about a just-completed undo, shown as a one-off confirmation on the input screen. */
 interface UndoneInfo {
@@ -89,6 +112,40 @@ export function ImportPage() {
   // The most recent import + whether it can still be undone — drives the persistent
   // "Undo import" banner on the input screen (so undo survives navigating away).
   const latestQuery = useQuery({ queryKey: ["import-latest"], queryFn: () => importsApi.latest() });
+
+  // Re-import: what to do with each pool already in RunNx (Pool ID -> action). Unset pools take
+  // their state's default (waiting / scheduled: skip, finished: import as a repeat).
+  const [decisions, setDecisions] = useState<Record<string, ExistingAction>>({});
+
+  // Each preview row's Pool ID / Plate ID as currently mapped - the keys the pool check looks up.
+  const previewKeys = useMemo<PreviewRowKey[]>(() => {
+    if (!preview) return [];
+    const read = (row: string[], key: string) => (columnMap[key] === undefined ? "" : (row[columnMap[key]] ?? "").trim());
+    return preview.sample_rows.map((row, i) => {
+      const pool = schedulerPools?.[i];
+      return {
+        poolId: read(row, "pool_id"),
+        plateId: read(row, "plate_id"),
+        hasBarcodes: read(row, "barcodes") !== "",
+        included: !pool || pool.status === "ok" || authorizedPools.has(i),
+      };
+    });
+  }, [preview, columnMap, schedulerPools, authorizedPools]);
+
+  const poolCheckKeys = useMemo(() => {
+    const seen = new Map<string, { pool_id: string; plate_id: string | null }>();
+    for (const k of previewKeys) {
+      if (k.poolId) seen.set(`${k.poolId}\u0000${k.plateId}`, { pool_id: k.poolId, plate_id: k.plateId || null });
+    }
+    return [...seen.values()];
+  }, [previewKeys]);
+
+  const poolCheckQuery = useQuery({
+    queryKey: ["imports", "pool-check", poolCheckKeys],
+    queryFn: () => importsApi.poolCheck(poolCheckKeys),
+    enabled: poolCheckKeys.length > 0,
+    staleTime: 0,
+  });
 
   const previewMutation = useMutation({
     // Optional overrides let the scheduler flow preview the just-converted CSV without
@@ -163,12 +220,14 @@ export function ImportPage() {
         filename: filename || null,
         has_header: hasHeader,
         column_map: columnMap,
+        existing: decisions,
       });
     },
     onSuccess: () => {
       setJustUndone(null);
       void queryClient.invalidateQueries({ queryKey: ["samples"] });
       void queryClient.invalidateQueries({ queryKey: ["import-latest"] });
+      void queryClient.invalidateQueries({ queryKey: ["imports", "pool-check"] });
     },
   });
 
@@ -215,6 +274,7 @@ export function ImportPage() {
   function resetToInput() {
     setPreview(null);
     setColumnMap({});
+    setDecisions({});
     previewMutation.reset();
     importMutation.reset();
   }
@@ -327,9 +387,43 @@ export function ImportPage() {
     const reviewPools = schedulerPools
       ? schedulerPools.map((pool, index) => ({ pool, index })).filter((x) => x.pool.status === "review")
       : [];
-    const importCount = schedulerPools
-      ? schedulerPools.filter((_, i) => poolIncluded(i)).length
-      : preview.row_count;
+
+    // Re-import: each row's state in RunNx and what committing it will do (mirrors import_samples).
+    const outcome = importOutcome(previewKeys, statesByKey(poolCheckQuery.data?.pools ?? []), decisions);
+    const matchedPools = new Map<string, ExistingState>();
+    previewKeys.forEach((key, i) => {
+      if (key.included && outcome.rows[i].state !== "new") matchedPools.set(key.poolId, outcome.rows[i].state);
+    });
+    const poolsIn = (state: ExistingState) => [...matchedPools].filter(([, s]) => s === state).map(([p]) => p);
+    const waitingPools = poolsIn("waiting");
+    const existingParts = [
+      waitingPools.length && `${waitingPools.length} waiting in the backlog (skipped unless you choose Update)`,
+      poolsIn("active").length && `${poolsIn("active").length} scheduled or running (skipped)`,
+      poolsIn("finished").length &&
+        `${poolsIn("finished").length} finished, failed or cancelled (imported again as a repeat)`,
+    ].filter(Boolean);
+    const showExisting = matchedPools.size > 0;
+
+    function decide(poolId: string, action: ExistingAction) {
+      setDecisions((prev) => ({ ...prev, [poolId]: action }));
+    }
+
+    function decideAllWaiting(action: ExistingAction) {
+      setDecisions((prev) => ({ ...prev, ...Object.fromEntries(waitingPools.map((p) => [p, action])) }));
+    }
+
+    // Barcodes a pool lists more than once: imported once, so warn rather than drop them silently.
+    // A scheduler pool reports the repeats across its member rows; a plain row's cell is checked here.
+    const repeatedByRow = preview.sample_rows.map((row, i) => [
+      ...new Set([
+        ...(schedulerPools?.[i]?.duplicate_barcodes ?? []),
+        ...(barcodeCol === undefined ? [] : repeatedBarcodes(row[barcodeCol] ?? "")),
+      ]),
+    ]);
+    const repeatedRows = repeatedByRow
+      .map((barcodes, i) => ({ barcodes, i }))
+      .filter((x) => x.barcodes.length > 0 && previewKeys[x.i]?.included);
+    const nothingToImport = outcome.create + outcome.update === 0;
 
     return (
       <div className={styles.page}>
@@ -407,6 +501,40 @@ export function ImportPage() {
                 across multiple cells; otherwise fix the file before importing.
               </Note>
             )}
+            {repeatedRows.length > 0 && (
+              <Note tone="warn" icon="!">
+                {repeatedRows.length === 1 ? "A pool lists" : `${repeatedRows.length} pools list`} a barcode more than
+                once — each barcode is imported once:{" "}
+                {repeatedRows
+                  .map(({ barcodes, i }) => `${previewKeys[i].poolId || `Row ${i + 1}`}: ${barcodes.join(", ")}`)
+                  .join(" · ")}
+                . Check the file if a different barcode was meant.
+              </Note>
+            )}
+            {poolCheckQuery.isError && (
+              <Note tone="warn" icon="!">
+                {errorMessage(poolCheckQuery.error, "Couldn't check which pools are already in RunNx.")} Importing
+                still skips any pool already waiting in the backlog or scheduled.
+              </Note>
+            )}
+            {showExisting && (
+              <div className={styles.existingNote}>
+                <Note tone="info" icon="i">
+                  <b>{matchedPools.size}</b> {matchedPools.size === 1 ? "pool is" : "pools are"} already in RunNx:{" "}
+                  {existingParts.join("; ")}. Change what happens to each in the <b>In RunNx</b> column below.
+                </Note>
+                {waitingPools.length > 0 && (
+                  <div className={styles.bulkActions}>
+                    <Button size="sm" onClick={() => decideAllWaiting("update")}>
+                      Update all waiting
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => decideAllWaiting("skip")}>
+                      Skip all waiting
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
 
             {reviewPools.length > 0 && (
               <div className={styles.reviewPools}>
@@ -453,6 +581,7 @@ export function ImportPage() {
                   <thead>
                     <tr>
                       {showPoolStatus && <th>Cell</th>}
+                      {showExisting && <th>In RunNx</th>}
                       {mappedFields.map((f) => (
                         <th key={f.key}>
                           <UnitLabel text={f.label} />
@@ -464,8 +593,10 @@ export function ImportPage() {
                     {preview.sample_rows.map((row, i) => {
                       const pool = showPoolStatus ? schedulerPools![i] : undefined;
                       const excluded = showPoolStatus ? !poolIncluded(i) : false;
+                      const rowOutcome = outcome.rows[i];
+                      const skipped = rowOutcome.action === "skip" || rowOutcome.repeatUpdate;
                       return (
-                        <tr key={i} className={excluded ? styles.rowExcluded : undefined}>
+                        <tr key={i} className={excluded || skipped ? styles.rowExcluded : undefined}>
                           {showPoolStatus && (
                             <td>
                               {pool?.status === "review" ? (
@@ -477,8 +608,30 @@ export function ImportPage() {
                               )}
                             </td>
                           )}
+                          {showExisting && (
+                            <td className={styles.existingTd}>
+                              <ExistingPoolCell
+                                poolId={previewKeys[i].poolId}
+                                state={rowOutcome.state}
+                                action={rowOutcome.action}
+                                repeatUpdate={rowOutcome.repeatUpdate}
+                                onChange={(action) => decide(previewKeys[i].poolId, action)}
+                              />
+                            </td>
+                          )}
                           {mappedFields.map((f) => (
-                            <td key={f.key}>{row[columnMap[f.key]] ?? ""}</td>
+                            <td key={f.key}>
+                              {row[columnMap[f.key]] ?? ""}
+                              {f.key === "barcodes" && repeatedByRow[i].length > 0 && (
+                                <span
+                                  className={styles.repeatFlag}
+                                  title={`Listed more than once: ${repeatedByRow[i].join(", ")} — imported once`}
+                                  aria-label="A barcode is listed more than once"
+                                >
+                                  ⚠
+                                </span>
+                              )}
+                            </td>
                           ))}
                         </tr>
                       );
@@ -487,6 +640,12 @@ export function ImportPage() {
                 </table>
                 <p className={styles.filehint}>Showing all {preview.sample_rows.length} rows.</p>
               </div>
+            )}
+
+            {nothingToImport && unmatchedRequired.length === 0 && !poolCheckQuery.isLoading && (
+              <Note tone="info" icon="i">
+                Nothing to import: every row is already in RunNx and set to <b>Skip</b>, or has no barcode.
+              </Note>
             )}
 
             {importMutation.isError && (
@@ -507,10 +666,11 @@ export function ImportPage() {
                 disabled={
                   unmatchedRequired.length > 0 ||
                   importMutation.isPending ||
-                  (!!schedulerPools && importCount === 0)
+                  poolCheckQuery.isLoading ||
+                  nothingToImport
                 }
               >
-                {importMutation.isPending ? "Importing…" : `Import ${importCount} sample${importCount === 1 ? "" : "s"}`}
+                {importMutation.isPending ? "Importing…" : importButtonLabel(outcome.create, outcome.update)}
               </Button>
             </div>
           </CardBody>
@@ -763,6 +923,57 @@ function ImportGuide() {
   );
 }
 
+function importButtonLabel(create: number, update: number): string {
+  const samples = (n: number) => `${n} sample${n === 1 ? "" : "s"}`;
+  if (update === 0) return `Import ${samples(create)}`;
+  if (create === 0) return `Update ${samples(update)}`;
+  return `Import ${samples(create)} · update ${update}`;
+}
+
+/** A review row's "In RunNx" cell: nothing to decide for a new pool; otherwise the pool's state
+ * and a Skip / Update / Import-as-a-copy choice (shared by every row with this Pool ID). */
+function ExistingPoolCell({
+  poolId,
+  state,
+  action,
+  repeatUpdate,
+  onChange,
+}: {
+  poolId: string;
+  state: ExistingState;
+  action: ExistingAction;
+  repeatUpdate: boolean;
+  onChange: (action: ExistingAction) => void;
+}) {
+  if (state === "new") return <span className={styles.newPool}>New</span>;
+  const badge = EXISTING_BADGE[state];
+  return (
+    <div className={styles.existingCell}>
+      <Badge tone={badge.tone} title={badge.title}>
+        {badge.label}
+      </Badge>
+      {repeatUpdate ? (
+        <span className={styles.newPool} title="An earlier row with this Pool ID already updates it.">
+          Skipped
+        </span>
+      ) : (
+        <select
+          className={styles.actionSelect}
+          aria-label={`What to do with ${poolId}`}
+          value={action}
+          onChange={(e) => onChange(e.target.value as ExistingAction)}
+        >
+          {actionsFor(state).map((a) => (
+            <option key={a} value={a}>
+              {actionLabel(state, a)}
+            </option>
+          ))}
+        </select>
+      )}
+    </div>
+  );
+}
+
 /** The "Undo import" trigger + its confirmation dialog, shared by the post-import result
  * panel and the persistent "last import" banner. Owns its own mutation so a 409 (a sample was
  * scheduled/edited between the status read and the click) surfaces inline in the modal, and
@@ -790,6 +1001,7 @@ function UndoImportControl({
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: ["samples"] });
       void queryClient.invalidateQueries({ queryKey: ["import-latest"] });
+      void queryClient.invalidateQueries({ queryKey: ["imports", "pool-check"] });
     },
   });
 
@@ -813,7 +1025,7 @@ function UndoImportControl({
           error={undoMutation.isError ? errorMessage(undoMutation.error, "Couldn't undo the import.") : undefined}
         >
           <p>
-            This removes the <b>{count}</b> sample{count === 1 ? "" : "s"} added by this import
+            This removes the <b>{count}</b> sample{count === 1 ? "" : "s"} this import <b>added</b>
             {filename ? (
               <>
                 {" "}
@@ -822,6 +1034,7 @@ function UndoImportControl({
             ) : null}
             . It can&apos;t be redone — you&apos;d import the file again to bring them back.
           </p>
+          <p>Samples it updated keep their new values, and rows it skipped were never touched.</p>
           <Note tone="warn" icon="!">
             Only possible while none of these samples have been scheduled or edited.
           </Note>
@@ -842,10 +1055,37 @@ function ImportResultPanel({ result }: { result: ImportResult }) {
           <StatTiles>
             <StatTile label="Rows read" value={result.row_count} />
             <StatTile label="Imported" value={result.imported_count} />
+            <StatTile label="Updated" value={result.updated_count} />
             <StatTile label="Duplicates" value={result.duplicate_count} />
             <StatTile label="Skipped" value={result.skipped_count} />
           </StatTiles>
         </div>
+
+        {result.updated.length > 0 && (
+          <>
+            <p className={styles.subheading}>Updated samples (already waiting in the backlog)</p>
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Pool ID</th>
+                  <th>Changed</th>
+                </tr>
+              </thead>
+              <tbody>
+                {result.updated.map((u) => (
+                  <tr key={u.sample_id}>
+                    <td>
+                      <Link to={`/samples/${u.sample_id}`} className="link">
+                        {u.pool_id}
+                      </Link>
+                    </td>
+                    <td>{u.changed_fields.length ? u.changed_fields.map(fieldLabel).join(", ") : "Already up to date"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
+        )}
 
         {result.warnings.length > 0 && (
           <div className={styles.notesList}>
@@ -859,7 +1099,7 @@ function ImportResultPanel({ result }: { result: ImportResult }) {
 
         {result.skipped.length > 0 && (
           <>
-            <p className={styles.subheading}>Skipped rows (fix and re-import)</p>
+            <p className={styles.subheading}>Skipped rows</p>
             <table className="table">
               <thead>
                 <tr>
@@ -933,7 +1173,10 @@ function ImportResultPanel({ result }: { result: ImportResult }) {
           </>
         )}
 
-        {result.imported_count === 0 && result.rejected.length === 0 && result.skipped.length === 0 && (
+        {result.imported_count === 0 &&
+          result.updated.length === 0 &&
+          result.rejected.length === 0 &&
+          result.skipped.length === 0 && (
           <Note tone="info" icon="i">
             No rows were imported.
           </Note>

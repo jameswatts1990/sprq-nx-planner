@@ -4,8 +4,10 @@ export function GettingStartedSection() {
   return (
     <div className={styles.copy}>
       <p>
-        RunNx Planner tracks SMRT cells and schedules them across your Revio/SPRQ-Nx instruments. A typical week
-        flows through the tabs left to right:
+        RunNx Planner tracks SMRT cells and schedules them across your Revio/SPRQ-Nx instruments. It opens on{" "}
+        <b>Today</b>, the first tab — a one-page view of what loads today, the instruments, trays about to expire,
+        urgent backlog samples, QC cases needing action and today&apos;s notes, each linking to its page (see the
+        Today section above). A typical week then flows through the other tabs left to right:
       </p>
 
       <p className={styles.subheading}>The weekly workflow</p>

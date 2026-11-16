@@ -14,6 +14,8 @@ from app.schemas.importing import (
     ImportRequest,
     ImportResult,
     LatestImportOut,
+    PoolCheckRequest,
+    PoolCheckResult,
     SchedulerConvertRequest,
     SchedulerConvertResult,
     UndoImportResult,
@@ -21,6 +23,7 @@ from app.schemas.importing import (
 from app.services.import_service import (
     UndoBatchNotFoundError,
     UndoNotAllowedError,
+    check_pools,
     import_samples,
     importable_fields,
     latest_import,
@@ -42,6 +45,14 @@ def create_import(req: ImportRequest, db: SessionDep, actor: ActorDep) -> Import
 def preview(req: ImportPreviewRequest) -> ImportPreviewResult:
     """Parse a paste/upload without committing: columns + suggested mapping + sample rows."""
     return preview_import(req.raw_text, req.has_header)
+
+
+@router.post("/pool-check", response_model=PoolCheckResult)
+def pool_check(req: PoolCheckRequest, db: SessionDep) -> PoolCheckResult:
+    """Which of these pools are already in RunNx - new / waiting / active / finished - for the
+    import preview to offer Skip / Update / Add per row. Writes nothing (a POST only because the
+    list can be long)."""
+    return check_pools(db, req)
 
 
 @router.post("/scheduler-convert", response_model=SchedulerConvertResult)

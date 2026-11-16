@@ -223,3 +223,12 @@ export interface ScheduleSearchHit {
   slot_index: SlotIndex;
   sample_pool_id: string | null;
 }
+
+/** Another run already named this (GET /api/cycles/run-name-check). */
+export interface RunNameMatch {
+  run_id: number;
+  run_name: string;
+  load_date: string;
+  instrument_serial: string;
+  instrument_name: string | null;
+}

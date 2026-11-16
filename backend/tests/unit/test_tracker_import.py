@@ -80,3 +80,22 @@ def test_normalize_tracker_maps_p1_fields_and_skips_non_backlog_and_separators()
     assert any("TRAC-2-25815" in w and "already on instrument" in w for w in result.warnings)
     assert any("TRAC-2-9999" in w and "no barcodes" in w for w in result.warnings)
     assert len(result.warnings) == 2
+
+
+def test_normalize_tracker_reads_plate_id_run_time_and_library_size():
+    from app.engine.tracker_columns import K_LIBRARY_SIZE, K_PLATE_ID, K_RUN_TIME
+
+    text = _tracker_csv(
+        [
+            {K_TRACTION_ID: "TRAC-2-1", K_BARCODES: "bc1", K_PLATE_ID: "DN1A", K_RUN_TIME: "30", K_LIBRARY_SIZE: "15000"},
+            {K_TRACTION_ID: "TRAC-2-2", K_BARCODES: "bc2", K_RUN_TIME: "18", K_LIBRARY_SIZE: "n/a"},
+        ]
+    )
+    result = normalize_tracker(text)
+    first, second = result.samples
+    assert (first.parent, first.movie_time, first.insert_size_bp) == ("DN1A", 30, 15000)
+    # 18h isn't a movie length the instrument runs -> left blank (default applies) and warned.
+    assert (second.parent, second.movie_time, second.insert_size_bp) == ("", None, None)
+    assert result.warnings == [
+        'Row "TRAC-2-2": Run Time "18" isn\'t 12, 24 or 30 — left blank, so the default movie time applies.'
+    ]

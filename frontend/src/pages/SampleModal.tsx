@@ -11,6 +11,7 @@ import { Modal, ModalActions } from "@/components/ui/Modal";
 import { Note } from "@/components/ui/Note";
 import type { ImportField } from "@/types/importing";
 import type { SampleCreate, SampleOut, SampleUpdate } from "@/types/sample";
+import { splitBarcodes } from "@/utils/barcodes";
 import { tractionUrl } from "@/utils/traction";
 
 import styles from "./SampleModal.module.css";
@@ -84,10 +85,9 @@ function isDuplicateDetail(body: unknown): body is DuplicateDetail {
   );
 }
 
-/** Split a free-text list (commas/semicolons/whitespace), trim, drop blanks, de-dupe. */
+/** Split a free-text list the way barcodes are split (commas/semicolons/slashes/whitespace), de-dupe. */
 function splitList(raw: string): string[] {
-  const parts = raw.split(/[,;/\s]+/).map((p) => p.trim()).filter(Boolean);
-  return Array.from(new Set(parts));
+  return Array.from(new Set(splitBarcodes(raw)));
 }
 
 /** Seed the form from an existing sample (edit mode). Keys mirror the importable-field

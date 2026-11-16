@@ -215,6 +215,16 @@ class ScheduleSearchHitOut(BaseModel):
     sample_pool_id: str | None
 
 
+class RunNameMatchOut(BaseModel):
+    """Another run already carrying a run name - the Confirm-loaded dialog warns (never blocks)."""
+
+    run_id: int
+    run_name: str
+    load_date: date
+    instrument_serial: str
+    instrument_name: str | None
+
+
 class WindowFlagOut(BaseModel):
     cell_ref: str
     span_hours: float

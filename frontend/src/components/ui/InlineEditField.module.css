@@ -33,3 +33,10 @@
   font-size: var(--fs-sm);
   color: var(--red);
 }
+/* Advice on its own line under the editor; takes no room while there's nothing to say. */
+.hint {
+  flex-basis: 100%;
+}
+.hint:empty {
+  display: none;
+}

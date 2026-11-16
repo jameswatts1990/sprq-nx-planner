@@ -89,3 +89,17 @@ def test_normalize_priority_coerces_to_canonical_labels():
     assert normalize_priority("") is None
     assert normalize_priority(None) is None
     assert normalize_priority("whenever") is None
+
+
+def test_normalize_with_map_warns_on_a_movie_time_outside_12_24_30():
+    from app.engine.import_fields import K_BARCODES, K_MOVIE_TIME, K_POOL_ID
+    from app.engine.normalize import normalize_with_map
+
+    result = normalize_with_map(
+        [["A", "bc1", "24"], ["B", "bc2", "36"], ["C", "bc3", ""]],
+        {K_POOL_ID: 0, K_BARCODES: 1, K_MOVIE_TIME: 2},
+    )
+    assert [s.movie_time for s in result.samples] == [24, None, None]
+    assert result.warnings == [
+        'Row "B": Movie time "36" isn\'t 12, 24 or 30 — left blank, so the default movie time applies.'
+    ]

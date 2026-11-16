@@ -88,14 +88,22 @@ def coerce_movie_hours(value: object, default_hours: int = DEFAULT_MOVIE_HOURS) 
     return n if n in MOVIE_HOURS_CHOICES else fallback
 
 
-def _parse_movie_time(raw: str | None) -> int | None:
-    """Parse a movie-time import cell to an int (12/24/30) or None when blank/unparseable -
-    None is left for the persist layer to fill with the default, so a blank column reads as
-    "use the default 24h" rather than a forced value here."""
+def parse_movie_time_field(raw: str | None) -> tuple[int | None, bool]:
+    """Parse a movie-time / Run Time import cell. Returns (hours, ok): hours is one of
+    MOVIE_HOURS_CHOICES (12/24/30) or None, and ok is False when a non-blank value isn't one of
+    them - callers warn and leave it blank, so the persist layer fills the default movie time."""
     if raw is None or not raw.strip():
-        return None
+        return None, True
     v = _js_parse_float(raw)
-    return int(round(v)) if v is not None else None
+    n = int(round(v)) if v is not None else None
+    if n in MOVIE_HOURS_CHOICES:
+        return n, True
+    return None, False
+
+
+def movie_time_warning(row_label: str, column: str, raw: str) -> str:
+    choices = ", ".join(str(h) for h in MOVIE_HOURS_CHOICES[:-1]) + f" or {MOVIE_HOURS_CHOICES[-1]}"
+    return f'Row "{row_label}": {column} "{raw.strip()}" isn\'t {choices} — left blank, so the default movie time applies.'
 
 
 def _parse_insert_size(raw: str | None) -> int | None:
@@ -177,6 +185,11 @@ def normalize_with_map(data_rows: list[list[str]], column_map: dict[str, int]) -
                 warnings.append(f'Row "{sample_id}": {label} must be True or False — left blank.')
             return value
 
+        movie_raw = cell(r, K_MOVIE_TIME)
+        movie_time, movie_ok = parse_movie_time_field(movie_raw)
+        if not movie_ok:
+            warnings.append(movie_time_warning(sample_id, "Movie time", movie_raw))
+
         sanger_raw = cell(r, K_SANGER)
         samples.append(
             ParsedSample(
@@ -195,7 +208,7 @@ def normalize_with_map(data_rows: list[list[str]], column_map: dict[str, int]) -
                 # blank value becomes "" here so the persist layer fills the configured default.
                 priority=normalize_priority(cell(r, K_PRIORITY)) or "",
                 base_kinetics=boolean(K_BASE_KINETICS, "Include Base Kinetics"),
-                movie_time=_parse_movie_time(cell(r, K_MOVIE_TIME)),
+                movie_time=movie_time,
                 insert_size_bp=_parse_insert_size(cell(r, K_INSERT_SIZE)),
                 key=f"{sample_id}#{n}",
             )

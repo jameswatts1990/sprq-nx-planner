@@ -95,14 +95,16 @@ def test_scheduler_review_pool_is_excluded_unless_authorised(client):
     backlog = client.get("/api/samples", params={"status": "backlog"}).json()["items"]
     assert {s["pool_id"] for s in backlog} == {"WHOLE"}
 
-    # Authorising the review pool imports it too (its row is included this time).
+    # Authorising the review pool imports it too (its row is included this time); WHOLE is
+    # already waiting in the backlog from the first import, so it's skipped, not doubled.
     all_rows = [p["row"] for p in body["pools"]]
     assembled_all = _assemble(body["columns"], all_rows)
     result2 = client.post(
         "/api/imports",
         json={"raw_text": assembled_all, "has_header": True, "column_map": column_map},
     ).json()
-    assert result2["imported_count"] == 2
+    assert result2["imported_count"] == 1
+    assert [s["identifier"] for s in result2["skipped"]] == ["WHOLE"]
 
 
 def test_scheduler_convert_rejects_a_non_scheduler_file_with_400(client):

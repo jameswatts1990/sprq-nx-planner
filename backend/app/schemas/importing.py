@@ -5,6 +5,14 @@ from pydantic import BaseModel
 
 from app.schemas.sample import SampleOut
 
+# What an incoming pool already is in RunNx (see import_service.classify_existing):
+# waiting = a copy sits in the backlog; active = scheduled or running; finished = every copy
+# completed, failed or cancelled; new = no copy at all.
+ExistingState = Literal["new", "waiting", "active", "finished"]
+# What to do with a row whose pool already exists: skip it, update the waiting copies from it,
+# or add it as another copy (a repeat when the earlier copies finished).
+ExistingAction = Literal["skip", "update", "add"]
+
 
 class ImportRequest(BaseModel):
     raw_text: str
@@ -15,6 +23,9 @@ class ImportRequest(BaseModel):
     column_map: dict[str, int] | None = None
     # Whether row 0 is a header (stripped) or data. Only consulted on the column_map path.
     has_header: bool = True
+    # Pool ID -> what to do with rows whose pool is already in RunNx. A missing or
+    # not-allowed choice falls back to the state's default (waiting/active: skip, finished: add).
+    existing: dict[str, ExistingAction] = {}
 
 
 class RejectedRow(BaseModel):
@@ -39,10 +50,20 @@ class SkippedRowOut(BaseModel):
     reason: str
 
 
+class UpdatedSampleOut(BaseModel):
+    """A backlog sample this import updated (it was already waiting and the row was set to Update)."""
+
+    sample_id: int
+    pool_id: str
+    # Audit field keys that changed; empty when the sample already matched the file.
+    changed_fields: list[str]
+
+
 class ImportResult(BaseModel):
     import_batch_id: int
     row_count: int
     imported_count: int
+    # Rows not imported: no barcodes, or a pool already in RunNx that was skipped.
     skipped_count: int
     # How many imported rows share a Pool ID with another sample (in this file or already
     # in the system). Duplicates are no longer rejected — this is now a "heads up" count, not a
@@ -55,6 +76,31 @@ class ImportResult(BaseModel):
     # notice + Undo recommendation. Only IDs with total_seen > 1 appear.
     duplicates: list[DuplicateNote] = []
     samples: list[SampleOut]
+    updated_count: int = 0
+    updated: list[UpdatedSampleOut] = []
+
+
+# --- re-import check: which incoming pools are already in RunNx ----------------------------
+
+
+class PoolKey(BaseModel):
+    pool_id: str
+    plate_id: str | None = None
+
+
+class PoolCheckRequest(BaseModel):
+    pools: list[PoolKey]
+
+
+class PoolCheckItem(BaseModel):
+    pool_id: str
+    plate_id: str | None
+    state: ExistingState
+    sample_count: int  # existing samples this pool matched
+
+
+class PoolCheckResult(BaseModel):
+    pools: list[PoolCheckItem]
 
 
 # --- mapping-review preview (non-committing) ---------------------------------------------
@@ -124,6 +170,8 @@ class SchedulerPool(BaseModel):
     note: str | None = None
     members: list[SchedulerPoolMember]
     row: list[str]
+    # Barcodes listed more than once in the pool (imported once; the preview warns).
+    duplicate_barcodes: list[str] = []
 
 
 class SchedulerConvertResult(BaseModel):

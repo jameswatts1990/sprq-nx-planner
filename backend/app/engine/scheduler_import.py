@@ -28,7 +28,7 @@ import json
 import re
 from dataclasses import dataclass, field
 
-from app.engine.csv_parse import parse_csv, split_barcodes
+from app.engine.csv_parse import parse_csv, repeated_barcodes, split_barcodes
 from app.engine.import_fields import K_BARCODES, K_POOL_ID, K_SANGER, suggest_column_map
 from app.engine.tracker_columns import normalize_header
 
@@ -65,6 +65,9 @@ class SchedulerPool:
     note: str | None  # why it needs review (None when ok)
     members: list[SchedulerPoolMember]
     row: list[str]  # collapsed cells, aligned to SchedulerConversion.columns
+    # Barcodes listed more than once across the pool's rows - collapsed to one in `row`, and
+    # reported so the preview can warn rather than de-duplicate silently.
+    duplicate_barcodes: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -250,6 +253,7 @@ def _finalize_pool(
         note=note,
         members=members,
         row=row_out,
+        duplicate_barcodes=repeated_barcodes([_cell(row, barcode_col) for row in rows]),
     )
 
 

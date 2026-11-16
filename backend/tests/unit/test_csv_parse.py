@@ -36,3 +36,11 @@ def test_split_barcodes_empty_or_none_returns_empty_list():
 
 def test_split_barcodes_preserves_first_occurrence_order():
     assert split_barcodes("bc3 bc1 bc2 bc1") == ["bc3", "bc1", "bc2"]
+
+
+def test_repeated_barcodes_spans_cells_and_keeps_first_seen_order():
+    from app.engine.csv_parse import repeated_barcodes
+
+    assert repeated_barcodes(["bc1; bc2", "bc2 bc3 bc1", "bc2"]) == ["bc2", "bc1"]
+    assert repeated_barcodes(["bc1, bc1"]) == ["bc1"]  # within one cell too
+    assert repeated_barcodes(["bc1", "bc2", ""]) == []

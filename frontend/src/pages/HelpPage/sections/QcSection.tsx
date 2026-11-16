@@ -104,7 +104,8 @@ export function QcSection() {
           where the case is now.
         </li>
         <li>
-          The <b>next action, inline</b>: paste the PacBio <b>case number</b>, add the <b>internal report ID</b>,
+          The <b>next action, inline</b>: paste the PacBio <b>case number</b> (an amber note warns if another case
+          already has it — a likely copy-paste slip — but you can still save), add the <b>internal report ID</b>,
           record the <b>acquisitions credited</b> (pre-filled with the expected figure — change it if PacBio credited a
           different number), or <b>Mark as received in lab</b> — done without leaving the page. The list updates itself
           and the case moves to the next group.

@@ -48,9 +48,25 @@ def parse_csv(text: str | None) -> list[list[str]]:
     return [r for r in rows if any(v.strip() != "" for v in r)]
 
 
-def split_barcodes(v: str | None) -> list[str]:
-    """Splits on comma/semicolon/slash/whitespace, trims, drops empties, dedupes preserving order."""
+def _barcode_parts(v: str | None) -> list[str]:
     if not v:
         return []
-    parts = [p.strip() for p in _BARCODE_SPLIT_RE.split(v) if p.strip()]
-    return list(dict.fromkeys(parts))
+    return [p.strip() for p in _BARCODE_SPLIT_RE.split(v) if p.strip()]
+
+
+def split_barcodes(v: str | None) -> list[str]:
+    """Splits on comma/semicolon/slash/whitespace, trims, drops empties, dedupes preserving order."""
+    return list(dict.fromkeys(_barcode_parts(v)))
+
+
+def repeated_barcodes(cells: list[str]) -> list[str]:
+    """Barcodes listed more than once across these cells (in first-seen order) - the ones
+    split_barcodes collapses to a single copy. The import preview warns about them."""
+    seen: set[str] = set()
+    repeated: list[str] = []
+    for cell in cells:
+        for bc in _barcode_parts(cell):
+            if bc in seen and bc not in repeated:
+                repeated.append(bc)
+            seen.add(bc)
+    return repeated

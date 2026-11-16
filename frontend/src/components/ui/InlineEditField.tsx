@@ -1,4 +1,4 @@
-import { type KeyboardEvent, useState } from "react";
+import { type KeyboardEvent, type ReactNode, useState } from "react";
 
 import { errorMessage } from "@/api/client";
 
@@ -20,6 +20,8 @@ export interface InlineEditFieldProps {
   allowEmpty?: boolean;
   /** Extra validation for the trimmed draft; return a message to block saving. */
   validate?: (draft: string) => string | null;
+  /** Advice under the editor for the trimmed draft (e.g. a "number already used" warning) - never blocks. */
+  hint?: (draft: string) => ReactNode;
 }
 
 /** A saved value with a ✎ to correct it in place: label + value, then input/Save/Cancel while
@@ -35,6 +37,7 @@ export function InlineEditField({
   maxLength,
   allowEmpty = false,
   validate,
+  hint,
 }: InlineEditFieldProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
@@ -99,6 +102,7 @@ export function InlineEditField({
           {(typeof invalid === "string" ? invalid : error) && (
             <span className={styles.error}>{typeof invalid === "string" ? invalid : error}</span>
           )}
+          {hint && <div className={styles.hint}>{hint(trimmed)}</div>}
         </>
       ) : (
         <>
