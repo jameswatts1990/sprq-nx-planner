@@ -14,6 +14,7 @@ export const ACTION_LABEL: Record<string, string> = {
   move_sample: "Moved sample",
   swap_samples: "Swapped samples",
   remove_sample: "Removed from schedule",
+  restore_sample: "Restored placement (Undo)",
   return_cancelled_use_to_backlog: "Returned blocked sample to backlog",
   auto_fill: "Autoschedule",
   update_cell_use_run_time: "Changed movie time",
@@ -85,6 +86,7 @@ export const ACTION_GROUPS: { value: string; label: string; actions: string[] }[
       "move_sample",
       "swap_samples",
       "remove_sample",
+      "restore_sample",
       "return_cancelled_use_to_backlog",
       "auto_fill",
       "update_cell_use_run_time",
@@ -236,6 +238,8 @@ export function describeAuditDetails(row: Pick<AuditLogOut, "action" | "details_
   switch (row.action) {
     case "place_sample":
       return [`Well ${value("well")} · ${value("instrument_serial")} · loads ${value("load_date")}`];
+    case "restore_sample":
+      return [`Well ${value("well")}${d.cell_changed ? " · on a different cell" : ""}`];
     case "move_sample":
       return [`To well ${value("well")}`];
     case "auto_fill":

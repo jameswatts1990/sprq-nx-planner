@@ -9,6 +9,7 @@ import { BrowserRouter } from "react-router-dom";
 import "./styles/base.css";
 
 import App from "./App";
+import { ToastProvider } from "./components/ui/Toast";
 import { queryClient } from "./lib/queryClient";
 
 const rootEl = document.getElementById("root");
@@ -18,7 +19,9 @@ ReactDOM.createRoot(rootEl).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
-        <App />
+        <ToastProvider>
+          <App />
+        </ToastProvider>
       </BrowserRouter>
     </QueryClientProvider>
   </React.StrictMode>,

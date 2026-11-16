@@ -11,7 +11,7 @@ from datetime import date, datetime, time, timedelta, timezone
 from sqlalchemy import ColumnElement, and_, or_, select
 from sqlalchemy.orm import Session, selectinload
 
-from app.engine.cell_window import window_allows
+from app.engine.cell_window import window_allows, window_keeps_others
 from app.engine.constants import (
     CELL_LIFETIME_H,
     CELL_MAX_USES,
@@ -204,6 +204,19 @@ def reuse_window_allows(cell: Cell, new_start: datetime, *, exclude_use_id: int 
     ]
     anchor = ensure_aware(cell.first_use_started_at) if cell.first_use_started_at else None
     return window_allows(starts, ensure_aware(new_start), anchor)
+
+
+def reuse_window_keeps_others(cell: Cell, new_start: datetime, *, exclude_use_id: int | None = None) -> bool:
+    """Whether a use of `cell` starting at `new_start` leaves every currently in-window use of
+    it inside the 108h window - without vetoing the new use's own breach (an explicit choice only
+    flags that). Undo's restore uses this to decide whether it may keep a sample's original cell."""
+    starts = [
+        ensure_aware(cu.cycle.planned_start_at)
+        for cu in active_uses(cell)
+        if cu.id != exclude_use_id and cu.cycle is not None
+    ]
+    anchor = ensure_aware(cell.first_use_started_at) if cell.first_use_started_at else None
+    return window_keeps_others(starts, ensure_aware(new_start), anchor)
 
 
 def use_sort_key(cell_use: CellUse) -> tuple[date, int]:

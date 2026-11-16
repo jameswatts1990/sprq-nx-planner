@@ -16,6 +16,7 @@ never leaves half-written rows in a shared session."""
 from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta, timezone
+from typing import Literal
 
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
@@ -37,7 +38,9 @@ from app.models.cell_tray import CellTray
 from app.models.instrument import Instrument
 from app.models.sample import Sample
 from app.models.schedule import CellUse, CellUseBarcode, Cycle, RunBatch
+from app.schemas.run import RestoreItem, RestoredPlacement
 from app.services import instrument_lock
+from app.services.audit_util import log_action
 from app.services.cell_service import (
     active_uses,
     cleanup_tray_if_fully_unused,
@@ -47,6 +50,7 @@ from app.services.cell_service import (
     open_new_tray,
     recompute_status,
     reuse_window_allows,
+    reuse_window_keeps_others,
     run_has_started,
     same_day_use,
     started_use_after,
@@ -187,6 +191,11 @@ def _resequence_plate(db: Session, cycle: Cycle) -> None:
     # cycle_id insert / reassignment whose ORM collection can still be stale (same reason
     # recompute_cycle_timing queries directly). Each cell's own uses + their cycles are eager-
     # loaded so _reuse_priority_key can derive consumed count and first-use start without N+1.
+    # populate_existing: a cell the caller already loaded this request (e.g. the drop's own
+    # cell, picked before its new use was inserted) keeps a stale cell_uses collection otherwise,
+    # under-counting its uses - a drop into a gap then read A=1, B=3, C=2. Flush first so the
+    # reload can't discard a caller's pending change (the session doesn't autoflush).
+    db.flush()
     live = list(
         db.scalars(
             select(CellUse)
@@ -196,6 +205,7 @@ def _resequence_plate(db: Session, cycle: Cycle) -> None:
                 .selectinload(Cell.cell_uses)
                 .selectinload(CellUse.cycle)
             )
+            .execution_options(populate_existing=True)
         ).all()
     )
     live = [cu for cu in live if cu.cell is not None]
@@ -495,6 +505,9 @@ def _assert_run_cell_type(existing: str | None, requested: str | None, load_date
         )
 
 
+_CONCURRENT_RUN_EDIT = "Someone else changed this run at the same moment - nothing was changed. Try again."
+
+
 def get_or_create_run(
     db: Session,
     *,
@@ -505,6 +518,7 @@ def get_or_create_run(
     run_time_hours: float,
     start_hour: int = DAY_START_HOUR,
     start_minute: int = 0,
+    on_conflict: Literal["rollback", "raise"] = "rollback",
 ) -> Cycle:
     """Get-or-create the run (RunBatch keyed (instrument, load_date)) and the specific plate
     (Cycle with this plate_index) the placement lands in. A run holds 1-2 plates.
@@ -517,7 +531,8 @@ def get_or_create_run(
     Safe against a concurrent drag into the same empty grid cell: on a losing INSERT race we
     roll back and re-SELECT the winner's row. NOTE: the rollback discards the whole pending
     transaction, so callers must invoke this before making any other DB writes they care
-    about."""
+    about - or pass on_conflict="raise" (Undo's multi-placement restore), which raises a 409
+    instead so the caller's whole transaction is abandoned rather than silently half-lost."""
 
     def _load_run_batch() -> RunBatch | None:
         return db.scalar(
@@ -558,6 +573,8 @@ def get_or_create_run(
         try:
             db.flush()
         except IntegrityError:
+            if on_conflict == "raise":
+                raise PlacementError(409, _CONCURRENT_RUN_EDIT) from None
             db.rollback()
             run_batch = _load_run_batch()
             if run_batch is None:
@@ -591,6 +608,8 @@ def get_or_create_run(
     try:
         db.flush()
     except IntegrityError:
+        if on_conflict == "raise":
+            raise PlacementError(409, _CONCURRENT_RUN_EDIT) from None
         # A concurrent drag created this same plate first - reuse the winner's row.
         db.rollback()
         run_batch = _load_run_batch()
@@ -1001,6 +1020,100 @@ def derive_best_cell(
     return {"mode": "new"}
 
 
+def _expected_plate_start(
+    db: Session,
+    *,
+    instrument_id: int,
+    load_date: date,
+    plate_index: int,
+    acquire_date: date,
+    run_time_hours: float,
+    start_hour: int,
+    start_minute: int,
+) -> datetime:
+    """Read-only twin of get_or_create_run's timing: the planned start the plate this placement
+    joins has (an existing plate) or will get (a new one), so a window check can run before any
+    write."""
+    existing = _load_existing_cycle(db, instrument_id=instrument_id, load_date=load_date, plate_index=plate_index)
+    if existing is not None:
+        return ensure_aware(existing.planned_start_at)
+    plate1 = _load_existing_cycle(db, instrument_id=instrument_id, load_date=load_date, plate_index=1)
+    if plate_index == 2 and acquire_date > load_date and plate1 is not None:
+        return reuse_plate_window(plate1.planned_start_at, plate1.movie_hours, run_time_hours)[1]
+    return planned_window(acquire_date, run_time_hours, start_hour, start_minute)[0]
+
+
+def _prefer_cell(
+    db: Session,
+    cell_choice: dict,
+    *,
+    instrument: Instrument,
+    load_date: date,
+    slot_index: int,
+    run_time_hours: float,
+    start_hour: int,
+    start_minute: int,
+    cell_type: str | None,
+    exclude_use_id: int | None = None,
+) -> dict:
+    """Resolve Undo's {"mode": "prefer", "cell_id", "cell_code"} into a concrete cell choice:
+    keep the sample's original cell only when it is still that same physical cell (the code
+    matches - SQLite reuses ids once a tray is deleted), it passes every explicit-choice guard
+    (_resolve_cell_choice: open, capacity, instrument pin, tray cohesion, run cell type, one use
+    per day, never ahead of a started use) AND it doesn't push another booked use of the cell
+    out of its 108h window (reuse_window_keeps_others - like any explicit choice, the use's own
+    breach is only flagged). Otherwise the cell is derived exactly like a plain drop."""
+    cell_id = cell_choice.get("cell_id")
+    cell = (
+        db.get(Cell, cell_id, options=[selectinload(Cell.cell_uses).selectinload(CellUse.cycle).selectinload(Cycle.run_batch)])
+        if cell_id is not None
+        else None
+    )
+    if cell is not None and cell.code == cell_choice.get("cell_code"):
+        plate_index, acquire_date = _plate_target(
+            db, cell=cell, instrument_id=instrument.id, load_date=load_date, slot_index=slot_index, exclude_use_id=exclude_use_id
+        )
+        existing = {"mode": "existing", "cell_id": cell.id}
+        try:
+            _resolve_cell_choice(  # read-only for "existing", so a refusal here is safe to catch
+                db,
+                existing,
+                instrument_id=instrument.id,
+                instrument_serial=instrument.serial_number,
+                well=WELLS[slot_index],
+                acquire_date=acquire_date,
+                load_date=load_date,
+                plate_index=plate_index,
+                exclude_use_id=exclude_use_id,
+                cell_type=cell_type,
+            )
+        except PlacementError:
+            pass
+        else:
+            start = _expected_plate_start(
+                db,
+                instrument_id=instrument.id,
+                load_date=load_date,
+                plate_index=plate_index,
+                acquire_date=acquire_date,
+                run_time_hours=run_time_hours,
+                start_hour=start_hour,
+                start_minute=start_minute,
+            )
+            if reuse_window_keeps_others(cell, start, exclude_use_id=exclude_use_id):
+                return existing
+    return derive_best_cell(
+        db,
+        instrument=instrument,
+        load_date=load_date,
+        slot_index=slot_index,
+        run_time_hours=run_time_hours,
+        start_hour=start_hour,
+        start_minute=start_minute,
+        cell_type=cell_type or CELL_TYPE_SPRQ_NX,
+    )
+
+
 def place_sample(
     db: Session,
     *,
@@ -1018,6 +1131,65 @@ def place_sample(
     """Place a backlog sample into a grid slot. `cell_type` is the SPRQ-Nx/SPRQ choice for a
     brand-new run (the load-time dial); a placement into an existing run inherits that run's
     type, and asking for the other type is refused - a run can't mix cell types."""
+    cycle, cell_use, cell = _place_one(
+        db,
+        sample_id=sample_id,
+        instrument_serial=instrument_serial,
+        load_date=load_date,
+        slot_index=slot_index,
+        cell_choice=cell_choice,
+        run_time_hours=run_time_hours,
+        start_hour=start_hour,
+        start_minute=start_minute,
+        cell_type=cell_type,
+    )
+    run_batch_id = cycle.run_batch_id
+    db.add(
+        AuditLog(
+            actor=actor or "unknown",
+            action="place_sample",
+            entity_type="cell_use",
+            entity_id=cell_use.id,
+            details_json={
+                "sample_id": sample_id,
+                "cell_id": cell.id,
+                "cell_type": cell.cell_type,
+                "cycle_id": cycle.id,
+                "plate_index": cycle.plate_index,
+                "well": cell_use.well,
+                "instrument_serial": instrument_serial,
+                "load_date": load_date.isoformat(),
+                # cycle.acquire_date: get_or_create_run recomputes a reuse Plate 2's day from
+                # Plate 1's real timing (see reuse_plate_window), not the caller's estimate.
+                "acquire_date": cycle.acquire_date.isoformat(),
+            },
+        )
+    )
+    db.commit()
+    return db.get(RunBatch, run_batch_id)
+
+
+def _place_one(
+    db: Session,
+    *,
+    sample_id: int,
+    instrument_serial: str,
+    load_date: date,
+    slot_index: int,
+    cell_choice: dict | None = None,
+    run_time_hours: float | None = None,
+    start_hour: int = DAY_START_HOUR,
+    start_minute: int = 0,
+    cell_type: str | None = None,
+    notes: str | None = None,
+    run_name: str | None = None,
+    on_conflict: Literal["rollback", "raise"] = "rollback",
+) -> tuple[Cycle, CellUse, Cell]:
+    """place_sample's placement itself, WITHOUT the audit row or commit - shared with Undo's
+    restore_placements, which puts many placements back in one transaction. `notes` / `run_name`
+    restore a removed placement's note and its (recreated) run's name; cell_choice may also be
+    {"mode": "prefer", ...} (see _prefer_cell). on_conflict="raise" turns a lost run/plate or
+    slot INSERT race into a 409 instead of a whole-session rollback (see get_or_create_run)."""
     # --- read-only validation (before any writes) ---
     if load_date.weekday() >= 5:
         raise PlacementError(400, f"{load_date.isoformat()} is a weekend - runs are weekdays only.")
@@ -1054,6 +1226,18 @@ def place_sample(
     # the same reuse-before-new rule as auto-fill (see derive_best_cell). This is the default
     # for a plain drag-drop; an explicit {"new"|"existing"} still overrides it (the stub's
     # "use a different cell" path).
+    if cell_choice is not None and cell_choice.get("mode") == "prefer":
+        cell_choice = _prefer_cell(
+            db,
+            cell_choice,
+            instrument=instrument,
+            load_date=load_date,
+            slot_index=slot_index,
+            run_time_hours=run_time_hours,
+            start_hour=start_hour,
+            start_minute=start_minute,
+            cell_type=run_type,
+        )
     if cell_choice is None or cell_choice.get("mode") == "auto":
         cell_choice = derive_best_cell(
             db,
@@ -1110,9 +1294,12 @@ def place_sample(
         run_time_hours=run_time_hours,
         start_hour=start_hour,
         start_minute=start_minute,
+        on_conflict=on_conflict,
     )
     if cycle.status != "planned":
         raise PlacementError(409, f"Run is locked (status: {cycle.status}); cannot place into it.")
+    if run_name is not None and cycle.run_batch.run_name is None:
+        cycle.run_batch.run_name = run_name
 
     if mode == "new":
         # Only guard tray cohesion when the target WELL is actually free - a same-well retry
@@ -1150,13 +1337,15 @@ def place_sample(
         well=well,
         run_time_hours=int(run_time_hours),
         status="planned",
+        notes=notes,
     )
     db.add(cell_use)
     try:
         db.flush()
     except IntegrityError:
-        db.rollback()
-        raise PlacementError(409, f"slot already occupied: well {well} is taken on this plate.")
+        if on_conflict == "rollback":
+            db.rollback()
+        raise PlacementError(409, f"slot already occupied: well {well} is taken on this plate.") from None
 
     for bc in sample_barcodes:
         db.add(CellUseBarcode(cell_use_id=cell_use.id, barcode=bc))
@@ -1174,40 +1363,47 @@ def place_sample(
     recompute_cycle_timing(db, cycle)
     db.refresh(cell, attribute_names=["cell_uses"])
     recompute_status(cell, utcnow())
+    return cycle, cell_use, cell
 
-    run_batch_id = cycle.run_batch_id
-    db.add(
-        AuditLog(
-            actor=actor or "unknown",
-            action="place_sample",
-            entity_type="cell_use",
-            entity_id=cell_use.id,
-            details_json={
-                "sample_id": sample.id,
-                "cell_id": cell.id,
-                "cell_type": cell.cell_type,
-                "cycle_id": cycle.id,
-                "plate_index": plate_index,
-                "well": well,
-                "instrument_serial": instrument_serial,
-                "load_date": load_date.isoformat(),
-                # cycle.acquire_date, not the caller-local acquire_date: get_or_create_run
-                # recomputes a reuse Plate 2's day from Plate 1's real timing (see
-                # reuse_plate_window), so the local is stale for a reuse.
-                "acquire_date": cycle.acquire_date.isoformat(),
-            },
-        )
+
+def _restore_item(cell_use: CellUse) -> RestoreItem | None:
+    """Snapshot what Undo needs to put a placement back (see restore_placements), taken before
+    _remove_one deletes it - its run, plate or tray may be deleted along with it. None for a
+    use with no sample (nothing to restore)."""
+    cycle = cell_use.cycle
+    run_batch = cycle.run_batch
+    if cell_use.sample_id is None:
+        return None
+    # The run's own start time: its first plate's (a reuse Plate 2's start is derived from it).
+    first_plate = min(run_batch.cycles, key=lambda c: c.plate_index)
+    run_start = ensure_aware(first_plate.planned_start_at)
+    cell = cell_use.cell
+    return RestoreItem(
+        sample_id=cell_use.sample_id,
+        cell_use_id=cell_use.id,
+        instrument_serial=run_batch.instrument.serial_number,
+        load_date=run_batch.load_date,
+        acquire_date=cycle.acquire_date,
+        plate_index=cycle.plate_index,
+        slot_index=WELLS.index(cell_use.well),
+        well=cell_use.well,
+        cell_id=cell.id if cell else None,
+        cell_code=cell.code if cell else None,
+        cell_type=cell.cell_type if cell else CELL_TYPE_SPRQ_NX,
+        run_time_hours=cell_use.run_time_hours,
+        notes=cell_use.notes,
+        start_hour=run_start.hour,
+        start_minute=run_start.minute,
+        run_name=run_batch.run_name,
     )
-    db.commit()
-    return db.get(RunBatch, run_batch_id)
 
 
-def _remove_one(db: Session, cell_use_id: int, actor: str | None = None) -> None:
+def _remove_one(db: Session, cell_use_id: int, actor: str | None = None) -> RestoreItem | None:
     """Delete one planned placement, return its sample to the backlog, and clean up any
     now-empty plate/run and released cell - WITHOUT committing. Shared by the single-item
     `remove_sample` and the atomic bulk `remove_samples`. Every failure path (missing,
     not-planned, cancelled marker) raises before any write, so a bulk caller can skip a bad
-    id and keep the rest of its one transaction intact."""
+    id and keep the rest of its one transaction intact. Returns the Undo snapshot."""
     cell_use = db.get(
         CellUse,
         cell_use_id,
@@ -1238,6 +1434,7 @@ def _remove_one(db: Session, cell_use_id: int, actor: str | None = None) -> None
     # lock (see remove_samples and run_serializer.run_out).
     db.execute(select(Cycle.id).where(Cycle.id == cycle_id).with_for_update())
 
+    snapshot = _restore_item(cell_use)
     if cell_use.sample is not None:
         cell_use.sample.status = "backlog"
 
@@ -1269,6 +1466,7 @@ def _remove_one(db: Session, cell_use_id: int, actor: str | None = None) -> None
             },
         )
     )
+    return snapshot
 
 
 def remove_sample(db: Session, cell_use_id: int, actor: str | None = None) -> None:
@@ -1278,7 +1476,7 @@ def remove_sample(db: Session, cell_use_id: int, actor: str | None = None) -> No
 
 def remove_samples(
     db: Session, cell_use_ids: list[int], actor: str | None = None
-) -> tuple[list[int], list[tuple[int, str]]]:
+) -> tuple[list[int], list[tuple[int, str]], list[RestoreItem]]:
     """Atomically remove many planned placements in ONE transaction - the bulk "Clear
     schedule" and multi-select "Remove from schedule" actions. Because every delete + cleanup
     runs sequentially in a single transaction, cleanup_emptied_plate always sees a consistent
@@ -1286,17 +1484,141 @@ def remove_samples(
     one-concurrent-DELETE-per-stage path, which could race that count check and strand an
     orphaned empty cycle (a stale instrument lock, reported by the lab owner). A use that
     can't be removed (missing / not planned / a cancelled Stop marker) is skipped with its
-    reason instead of aborting the batch. Returns (removed_ids, [(id, reason), ...])."""
+    reason instead of aborting the batch. Returns (removed_ids, [(id, reason), ...], the Undo
+    snapshots of what was removed - see restore_placements)."""
     removed: list[int] = []
     failures: list[tuple[int, str]] = []
+    snapshots: list[RestoreItem] = []
     for cid in cell_use_ids:
         try:
-            _remove_one(db, cid, actor)
+            snapshot = _remove_one(db, cid, actor)
             removed.append(cid)
+            if snapshot is not None:
+                snapshots.append(snapshot)
         except PlacementError as exc:
             failures.append((cid, exc.detail))
     db.commit()
-    return removed, failures
+    return removed, failures, snapshots
+
+
+def restore_placements(db: Session, items: list[RestoreItem], actor: str | None = None) -> list[RestoredPlacement]:
+    """Undo a removal: put each snapshotted placement back where it was, in ONE transaction -
+    either everything comes back or nothing does (a partial restore would leave the user unsure
+    what Undo did).
+
+    Refused up front, before any write, if any sample has since left the backlog (re-placed,
+    deleted, ...), if a target run is no longer planned, or if a target well is now taken - the
+    schedule has moved on and Undo can't know what the user wants instead.
+
+    Items go back in time order (acquire day, then plate, then the original cell, then slot) so a
+    cell's Use 1 is restored before its Use 2/3 and a run's Plate 1 before its reuse
+    Plate 2 (whose timing chains off Plate 1). Each one prefers its original cell (see
+    _prefer_cell), else takes the cell the instrument would reach for - so every scheduling
+    invariant holds exactly as for a fresh drop, and a deleted tray comes back as a new one. The
+    placement note, run time, and a recreated run's start time and name come back too. Each
+    restored placement reports whether it landed on a different cell than before (judged after
+    the plates are re-sequenced, so it's what the grid will show)."""
+    try:
+        return _restore(db, items, actor)
+    except PlacementError:
+        db.rollback()
+        raise
+
+
+def _restore(db: Session, items: list[RestoreItem], actor: str | None) -> list[RestoredPlacement]:
+    # --- up-front checks (read-only) ---
+    samples = {s.id: s for s in db.scalars(select(Sample).where(Sample.id.in_({i.sample_id for i in items})))}
+    for item in items:
+        sample = samples.get(item.sample_id)
+        if sample is None or sample.status != "backlog":
+            name = sample.pool_id if sample is not None else f"#{item.sample_id}"
+            raise PlacementError(
+                409, f"Can't undo: {name} has been scheduled or changed since it was removed. Nothing was restored."
+            )
+    if len({(i.instrument_serial, i.load_date, i.plate_index, i.well) for i in items}) != len(items):
+        raise PlacementError(400, "Two restored placements target the same well.")
+    instruments = {
+        i.serial_number: i
+        for i in db.scalars(select(Instrument).where(Instrument.serial_number.in_({i.instrument_serial for i in items})))
+    }
+    for item in items:
+        instrument = instruments.get(item.instrument_serial)
+        if instrument is None:
+            raise PlacementError(400, f"Unknown instrument serial '{item.instrument_serial}'.")
+        cycle = _load_existing_cycle(db, instrument_id=instrument.id, load_date=item.load_date, plate_index=item.plate_index)
+        if cycle is None:
+            continue
+        if cycle.status != "planned":
+            raise PlacementError(
+                409, f"Can't undo: the {item.load_date.isoformat()} run has been loaded since. Nothing was restored."
+            )
+        if any(cu.well == item.well for cu in cycle.cell_uses):
+            raise PlacementError(
+                409,
+                f"Can't undo: well {item.well} on the {item.load_date.isoformat()} run has been filled since. "
+                "Nothing was restored.",
+            )
+
+    # --- writes, in time order ---
+    # Within a plate, original cell id = tray order; across instruments it recreates deleted trays
+    # in the order they were first opened (so on SQLite, which reuses ids, they get their codes back).
+    ordered = sorted(items, key=lambda i: (i.acquire_date, i.load_date, i.plate_index, i.cell_id or 0, i.slot_index))
+    placed: list[tuple[RestoreItem, CellUse]] = []
+    for item in ordered:
+        cell_choice = (
+            {"mode": "prefer", "cell_id": item.cell_id, "cell_code": item.cell_code} if item.cell_id is not None else None
+        )
+        _cycle, cell_use, _cell = _place_one(
+            db,
+            sample_id=item.sample_id,
+            instrument_serial=item.instrument_serial,
+            load_date=item.load_date,
+            slot_index=item.slot_index,
+            cell_choice=cell_choice,
+            run_time_hours=item.run_time_hours,
+            start_hour=item.start_hour,
+            start_minute=item.start_minute,
+            cell_type=item.cell_type,
+            notes=item.notes,
+            run_name=item.run_name,
+            on_conflict="raise",
+        )
+        placed.append((item, cell_use))
+
+    # Judge "same cell?" only now: a later restore into the same plate re-sequences it, which can
+    # re-zip an earlier restored well onto another of the plate's cells.
+    db.flush()
+    restored: list[RestoredPlacement] = []
+    for item, cell_use in placed:
+        db.refresh(cell_use, attribute_names=["cell_id", "cycle_id", "well"])
+        cell = db.get(Cell, cell_use.cell_id)
+        cell_changed = cell.code != item.cell_code
+        restored.append(
+            RestoredPlacement(
+                sample_id=item.sample_id,
+                cell_use_id=cell_use.id,
+                cell_changed=cell_changed,
+                from_cell_code=item.cell_code,
+                to_cell_code=cell.code,
+            )
+        )
+        log_action(
+            db,
+            actor,
+            "restore_sample",
+            "cell_use",
+            cell_use.id,
+            {
+                "sample_id": item.sample_id,
+                "cell_id": cell.id,
+                "from_cell_id": item.cell_id,
+                "cycle_id": cell_use.cycle_id,
+                "well": cell_use.well,
+                "cell_changed": cell_changed,
+            },
+        )
+    db.commit()
+    return restored
 
 
 def return_cancelled_use_to_backlog(db: Session, cell_use_id: int, actor: str | None = None) -> int | None:
@@ -1374,9 +1696,16 @@ def move_sample(
     start_hour: int = DAY_START_HOUR,
     start_minute: int = 0,
     cell_choice: dict | None = None,
+    expected_sample_id: int | None = None,
+    prefer_cell_id: int | None = None,
+    prefer_cell_code: str | None = None,
     actor: str | None = None,
 ) -> RunBatch:
     """Move an existing placement to a different (instrument, load_date, slot).
+
+    Undo of a move is a move back: `expected_sample_id` refuses (409) if the placement no longer
+    holds the sample it moved, and `prefer_cell_id`/`prefer_cell_code` return it to its original
+    cell when that's still allowed (see _prefer_cell), else to the derived one.
 
     A grid slot is a plate LOADING position, not a cell. Moving a sample to the *same* loading
     well on a different day is a plain reschedule: the same physical cell keeps its slot, an
@@ -1421,6 +1750,8 @@ def move_sample(
         raise PlacementError(409, "Cannot move a placement from a run that is not planned.")
     if cell_use.status == "cancelled":
         raise PlacementError(409, "This placement was cancelled when its cell was stopped and can't be modified.")
+    if expected_sample_id is not None and cell_use.sample_id != expected_sample_id:
+        raise PlacementError(409, "Can't undo: this placement has changed since. Nothing was moved.")
 
     # A move preserves this well's own run time - the client sends the current Run Design
     # dial value, but that dial only sets run time for *new* placements; rescheduling an
@@ -1519,6 +1850,11 @@ def move_sample(
         reassign_to_new_cell = True
     if not reassign_to_new_cell and explicit_override:
         reassign_to_new_cell = True
+    # Undo heading back to a different original cell (outside a same-plate reorder, where
+    # re-sequencing decides the cells anyway).
+    prefer = prefer_cell_id is not None and cell_choice is None
+    if not reassign_to_new_cell and prefer and prefer_cell_id != cell.id:
+        reassign_to_new_cell = True
     if not reassign_to_new_cell:
         # A same-well move to another day keeps its cell only if that cell could legally take a
         # use there; otherwise the instrument would reach for a different cell, so derive it like
@@ -1539,7 +1875,20 @@ def move_sample(
         ):
             reassign_to_new_cell = True
 
-    if reassign_to_new_cell and cell_choice is None:
+    if reassign_to_new_cell and prefer:
+        cell_choice = _prefer_cell(
+            db,
+            {"mode": "prefer", "cell_id": prefer_cell_id, "cell_code": prefer_cell_code},
+            instrument=instrument,
+            load_date=load_date,
+            slot_index=slot_index,
+            run_time_hours=run_time_hours,
+            start_hour=start_hour,
+            start_minute=start_minute,
+            cell_type=dest_type,
+            exclude_use_id=cell_use.id,
+        )
+    elif reassign_to_new_cell and cell_choice is None:
         # No explicit target cell - derive the next-in-order cell at the destination, same as a
         # fresh drop (reuse-before-new, see derive_best_cell), so a plain drag "just works". No
         # exclusion of the moved cell any more: _resequence_plate now enforces ascending well->
@@ -1719,6 +2068,7 @@ def _move_sample_to_new_cell(
         well=well,
         run_time_hours=int(run_time_hours),
         status="planned",
+        notes=cell_use.notes,  # the placement note travels with the sample, like its run time
     )
     db.add(new_cell_use)
     try:
@@ -1768,7 +2118,15 @@ def _move_sample_to_new_cell(
     return db.get(RunBatch, dest_run_batch_id)
 
 
-def swap_samples(db: Session, *, cell_use_id_a: int, cell_use_id_b: int, actor: str | None = None) -> list[RunBatch]:
+def swap_samples(
+    db: Session,
+    *,
+    cell_use_id_a: int,
+    cell_use_id_b: int,
+    expected_sample_id_a: int | None = None,
+    expected_sample_id_b: int | None = None,
+    actor: str | None = None,
+) -> list[RunBatch]:
     """Exchange which sample is loaded onto two already-placed CellUses - dragging a placed
     sample onto a *different* occupied slot in the weekly grid. Deliberately never touches
     cycle_id/well/cell_id on either row: only sample_id, its barcode snapshot and its run time
@@ -1821,6 +2179,11 @@ def swap_samples(db: Session, *, cell_use_id_a: int, cell_use_id_b: int, actor: 
             raise PlacementError(409, f"Cell use {use.id} is not a re-plannable placement (status: {use.status}).")
         if use.sample_id is None:
             raise PlacementError(400, "Cannot swap a placement with no sample loaded.")
+    # Undo of a swap is the same swap again - only while both wells still hold what it left there.
+    if (expected_sample_id_a is not None and use_a.sample_id != expected_sample_id_a) or (
+        expected_sample_id_b is not None and use_b.sample_id != expected_sample_id_b
+    ):
+        raise PlacementError(409, "Can't undo: these placements have changed since. Nothing was swapped.")
 
     sample_a_id, sample_b_id = use_a.sample_id, use_b.sample_id
     sample_a_barcodes, sample_b_barcodes = use_a.barcode_list, use_b.barcode_list

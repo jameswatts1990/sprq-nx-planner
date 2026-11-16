@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/Button";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { Note } from "@/components/ui/Note";
 import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
+import { restoreUndo, samples, useUndoSlot } from "@/pages/SchedulePage/useUndoSlot";
 import type { RunOut, StageOut } from "@/types/schedule";
 import type { ScheduleNoteOut } from "@/types/scheduleNote";
 import { formatShortDateTimeLocal, formatShortDateUTC, formatTimeLocal, parseDateOnly, shortWeekdayUTC } from "@/utils/calendarDates";
@@ -209,10 +210,17 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
   // is open. Uses the same atomic bulk-remove as the multi-select "Remove from schedule", so
   // an emptied plate/run is fully cleaned up in one transaction (see cellUsesApi.bulkRemove).
   const [clearingPlate, setClearingPlate] = useState<{ plateIndex: number; cellUseIds: number[] } | null>(null);
+  const undoSlot = useUndoSlot();
   const clearPlateMutation = useMutation({
     mutationFn: (cellUseIds: number[]) => cellUsesApi.bulkRemove(cellUseIds),
-    onSuccess: () => {
+    onSuccess: (res) => {
       invalidateScheduleRelated(queryClient);
+      if (res.snapshot.length > 0 && clearingPlate) {
+        undoSlot.offer(
+          `Cleared Plate ${clearingPlate.plateIndex} (${samples(res.removed_count)}).`,
+          restoreUndo(res.snapshot),
+        );
+      }
       setClearingPlate(null);
     },
   });

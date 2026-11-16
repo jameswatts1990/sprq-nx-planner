@@ -1,4 +1,5 @@
 import { api } from "./client";
+import type { CellType } from "@/types/common";
 import type { RunOut, RunTimeHours } from "@/types/schedule";
 import type { MoveSampleRequest, PlaceSampleRequest } from "@/types/schedulerGrid";
 
@@ -27,6 +28,46 @@ export interface CellUseStatusUpdate {
   actor?: string;
 }
 
+/** A removed placement, as bulk-remove snapshots it for Undo. Sent back unchanged to restore;
+ * the server re-validates every field. */
+export interface RestoreItem {
+  sample_id: number;
+  cell_use_id: number;
+  instrument_serial: string;
+  load_date: string;
+  acquire_date: string;
+  plate_index: number;
+  slot_index: number;
+  well: string;
+  cell_id: number | null;
+  cell_code: string | null;
+  cell_type: CellType;
+  run_time_hours: number;
+  notes: string | null;
+  start_hour: number;
+  start_minute: number;
+  run_name: string | null;
+}
+
+export interface BulkRemoveOut {
+  removed_count: number;
+  removed_ids: number[];
+  failed: { cell_use_id: number; reason: string }[];
+  snapshot: RestoreItem[];
+}
+
+export interface RestoreOut {
+  restored: {
+    sample_id: number;
+    cell_use_id: number;
+    /** The original cell couldn't be used (gone, or a scheduling rule now forbids it). */
+    cell_changed: boolean;
+    from_cell_code: string | null;
+    to_cell_code: string;
+  }[];
+  runs: RunOut[];
+}
+
 export const cellUsesApi = {
   get: (id: number) => api.get<CellUseOut>(`/api/cell-uses/${id}`),
   updateStatus: (id: number, req: CellUseStatusUpdate) => api.patch<CellUseOut>(`/api/cell-uses/${id}`, req),
@@ -47,12 +88,13 @@ export const cellUsesApi = {
    * and multi-select "Remove from schedule" actions. Doing it server-side in one transaction
    * (rather than one concurrent DELETE per stage) can't race the empty-plate cleanup and
    * leave an orphaned cycle behind (a stale instrument lock). Ids that can't be removed are
-   * skipped and reported in `failed` rather than failing the whole batch. */
+   * skipped and reported in `failed` rather than failing the whole batch. `snapshot` is what
+   * restore() needs to Undo the removal. */
   bulkRemove: (cellUseIds: number[]) =>
-    api.post<{ removed_count: number; removed_ids: number[]; failed: { cell_use_id: number; reason: string }[] }>(
-      "/api/cell-uses/bulk-remove",
-      { cell_use_ids: cellUseIds },
-    ),
+    api.post<BulkRemoveOut>("/api/cell-uses/bulk-remove", { cell_use_ids: cellUseIds }),
+  /** Undo a removal: put a bulk-remove snapshot back, all or nothing. 409 if the schedule has
+   * moved on (a sample placed again, a well filled, a run loaded). */
+  restore: (items: RestoreItem[]) => api.post<RestoreOut>("/api/cell-uses/restore", { items }),
   /** Atomically move an existing placement to a different (instrument, day, slot). 200 ->
    * the destination RunOut. 409 on a cross-instrument move, lock, or slot clash. */
   move: (id: number, req: MoveSampleRequest) => api.post<RunOut>(`/api/cell-uses/${id}/move`, req),
@@ -64,8 +106,13 @@ export const cellUsesApi = {
   /** Exchange which sample sits on two already-placed cell uses; neither placement's
    * day/well/cell changes. 200 -> the 1-2 touched RunOuts. 409 on a lock, a
    * cancelled/non-planned use, or a cross-cell barcode clash. */
-  swap: (id: number, otherCellUseId: number) =>
-    api.post<RunOut[]>(`/api/cell-uses/${id}/swap`, { other_cell_use_id: otherCellUseId }),
+  swap: (id: number, otherCellUseId: number, expected?: { sample_id: number; other_sample_id: number }) =>
+    api.post<RunOut[]>(`/api/cell-uses/${id}/swap`, {
+      other_cell_use_id: otherCellUseId,
+      // Undo guards: 409 unless each side still holds what the swap being undone left there.
+      expected_sample_id: expected?.sample_id,
+      expected_other_sample_id: expected?.other_sample_id,
+    }),
   /** Recover a cancelled ("Blocked") slot left behind by a cell discard or Cell QC stop: delete the
    * dead placement so its well can be loaded again. 409 if the placement isn't a cancelled one. */
   returnToBacklog: (id: number) => api.post<{ sample_id: number | null }>(`/api/cell-uses/${id}/return-to-backlog`),

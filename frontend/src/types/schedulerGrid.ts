@@ -48,6 +48,12 @@ export interface MoveSampleRequest {
    * resident there - the dragged cell can't go there, so this resolves which different
    * cell the sample lands on instead. Ignored otherwise. */
   cell_choice?: CellChoice;
+  /** Undo guards: 409 unless the placement still holds this sample. */
+  expected_sample_id?: number;
+  /** Undo's "back to the original cell" - kept only while it's still that cell (code matches)
+   * and every scheduling rule allows it; otherwise the backend derives the cell. */
+  prefer_cell_id?: number;
+  prefer_cell_code?: string;
 }
 
 export interface GridCellRef {

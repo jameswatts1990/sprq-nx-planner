@@ -31,7 +31,8 @@ export function ClearScheduleModal({ weekLabel, count, pending, error, onCancel,
     >
       <p>
         This will remove all {count} planned sample{count === 1 ? "" : "s"} from <b>{weekLabel}</b> and return them to
-        the backlog. Confirmed/loaded runs are left as-is. This can&apos;t be undone.
+        the backlog. Confirmed/loaded runs are left as-is. You can Undo it from the message that appears straight
+        after.
       </p>
     </ConfirmModal>
   );

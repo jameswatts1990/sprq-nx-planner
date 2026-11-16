@@ -201,6 +201,13 @@ export function LegendSection() {
           Marks a run as physically loaded on the instrument. It locks the run (it becomes <b>Running</b>) and records
           the real load time; <b>Unload</b> reverses it.
         </dd>
+        <dt>Undo message</dt>
+        <dd>
+          The dark message at the bottom of the screen after you place, move, swap or remove samples on the Schedule.
+          Its <b>Undo</b> button reverses that last edit; it disappears on its own after a few seconds. If an Undo
+          can&apos;t be done, the message turns red and says why. Every other warning or error about the grid stays
+          pinned above it.
+        </dd>
         <dt>Blocked</dt>
         <dd>
           A later use that was lost because its cell was stopped. It stays on the grid, in red, until you clear it.

@@ -356,3 +356,52 @@ def test_undo_qc_never_double_books_a_displaced_sample_placed_again(client):
     assert displaced["cell_use_id"] in undo.json()["drifted_cell_use_ids"]
     sample = client.get(f"/api/samples/{displaced['sample_id']}").json()
     assert sample["status"] == "scheduled"
+
+
+# --- Undo's restore path (C2) obeys the same invariants ------------------------------------
+
+
+def _remove_snapshot(client, *cell_use_ids: int) -> list[dict]:
+    r = client.post("/api/cell-uses/bulk-remove", json={"cell_use_ids": list(cell_use_ids)})
+    assert r.status_code == 200, r.text
+    return r.json()["snapshot"]
+
+
+def test_restore_never_reuses_a_cell_on_a_day_it_already_runs(client, db_session):
+    _import(client, ["S1", "S2", "S3"])
+    mon = _monday()
+    _place(client, "S1", mon, 0)
+    tue = _place(client, "S2", mon + timedelta(days=1), 0).json()  # cross-run reuse of cell 1
+    snapshot = _remove_snapshot(client, _stages(tue)[0]["cell_use_id"])
+    assert _place(client, "S3", mon, 4).status_code == 201  # Plate-2 reuse takes cell 1 on Tuesday
+    resp = client.post("/api/cell-uses/restore", json={"items": snapshot})
+    assert resp.status_code == 200, resp.text
+    _no_cell_twice_a_day(db_session)
+
+
+def test_restore_never_inserts_ahead_of_a_started_use(client):
+    _import(client, ["F1", "M1"])
+    mon = _monday(2)
+    fri = _place(client, "F1", mon - timedelta(days=3), 0).json()
+    cell1 = _stages(fri)[0]["cell_id"]
+    m = _place(client, "M1", mon, 0).json()
+    snapshot = _remove_snapshot(client, _stages(fri)[0]["cell_use_id"])
+    _confirm(client, m["run_id"], mon)
+    resp = client.post("/api/cell-uses/restore", json={"items": snapshot})
+    assert resp.status_code == 200, resp.text
+    assert all(s["cell_id"] != cell1 for r in resp.json()["runs"] for s in _stages(r))
+
+
+def test_restore_never_reuses_a_later_booked_tray_out_of_window(client):
+    # Undo of an earlier removal mustn't do what an earlier drop can't: the original cell's
+    # deadline would move forward and strand next Monday's booked use.
+    _import(client, ["E1", "N1"])
+    wed = _monday() + timedelta(days=2)
+    e1 = _place(client, "E1", wed, 0).json()
+    snapshot = _remove_snapshot(client, _stages(e1)[0]["cell_use_id"])
+    # The removal deleted E1's tray; next Monday now founds a tray of its own, and the restore
+    # must not hand Wednesday a cell of it.
+    cell_next = _stages(_place(client, "N1", _monday(2), 0).json())[0]["cell_id"]
+    resp = client.post("/api/cell-uses/restore", json={"items": snapshot})
+    assert resp.status_code == 200, resp.text
+    assert all(s["cell_id"] != cell_next for r in resp.json()["runs"] for s in _stages(r))

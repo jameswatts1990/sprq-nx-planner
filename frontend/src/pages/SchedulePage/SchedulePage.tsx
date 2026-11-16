@@ -492,7 +492,14 @@ export function SchedulePage() {
     [slotSelection, stagesInRect],
   );
 
-  const actions = useScheduleActions({ selection, slotSelection, selectedCells, runDesign, weekPlannedStages });
+  const actions = useScheduleActions({
+    selection,
+    slotSelection,
+    selectedCells,
+    runDesign,
+    weekPlannedStages,
+    visibleRuns,
+  });
 
   // Clear both selections and any action feedback whenever the window pages.
   useEffect(() => {

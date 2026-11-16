@@ -4,11 +4,19 @@ from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Response
 from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.api.deps import ActorDep, SessionDep
-from app.models.schedule import CELL_USE_STATUSES, CellUse, RunBatch
-from app.schemas.run import MoveSampleRequest, PlaceSampleRequest, RunOut
+from app.models.schedule import CELL_USE_STATUSES, CellUse, Cycle, RunBatch
+from app.schemas.run import (
+    MoveSampleRequest,
+    PlaceSampleRequest,
+    RestoreOut,
+    RestoreRequest,
+    RunOut,
+    SwapCellUsesRequest,
+)
 from app.services.audit_util import diff, log_action
 from app.services.placement_service import (
     PlacementError,
@@ -16,6 +24,7 @@ from app.services.placement_service import (
     place_sample,
     remove_sample,
     remove_samples,
+    restore_placements,
     return_cancelled_use_to_backlog,
     swap_samples,
     update_cell_use_run_time,
@@ -33,10 +42,6 @@ class CellUseStatusUpdate(BaseModel):
     at: datetime | None = None
     notes: str | None = None
     actor: str | None = None
-
-
-class SwapCellUsesRequest(BaseModel):
-    other_cell_use_id: int
 
 
 class BulkRemoveRequest(BaseModel):
@@ -108,6 +113,9 @@ def move_cell_use(cell_use_id: int, req: MoveSampleRequest, db: SessionDep, acto
             start_hour=req.start_hour,
             start_minute=req.start_minute,
             cell_choice=req.cell_choice.model_dump() if req.cell_choice is not None else None,
+            expected_sample_id=req.expected_sample_id,
+            prefer_cell_id=req.prefer_cell_id,
+            prefer_cell_code=req.prefer_cell_code,
             actor=actor,
         )
     except PlacementError as exc:
@@ -119,7 +127,14 @@ def move_cell_use(cell_use_id: int, req: MoveSampleRequest, db: SessionDep, acto
 @router.post("/{cell_use_id}/swap", response_model=list[RunOut])
 def swap_cell_use(cell_use_id: int, req: SwapCellUsesRequest, db: SessionDep, actor: ActorDep) -> list[RunOut]:
     try:
-        runs = swap_samples(db, cell_use_id_a=cell_use_id, cell_use_id_b=req.other_cell_use_id, actor=actor)
+        runs = swap_samples(
+            db,
+            cell_use_id_a=cell_use_id,
+            cell_use_id_b=req.other_cell_use_id,
+            expected_sample_id_a=req.expected_sample_id,
+            expected_sample_id_b=req.expected_other_sample_id,
+            actor=actor,
+        )
     except PlacementError as exc:
         raise HTTPException(exc.status_code, exc.detail) from exc
     refreshed = [db.get(RunBatch, rb.id, options=RUN_LOAD_OPTIONS) for rb in runs]
@@ -210,13 +225,37 @@ def bulk_remove_cell_uses(req: BulkRemoveRequest, db: SessionDep, actor: ActorDe
     multi-select "Remove from schedule" actions. Unlike firing one DELETE per stage
     concurrently, this can't race the empty-plate cleanup and strand an orphaned cycle (a
     stale instrument lock). Skips any id that can't be removed rather than failing the batch;
-    the response lists what was removed and why anything was skipped."""
-    removed, failures = remove_samples(db, req.cell_use_ids, actor)
+    the response lists what was removed and why anything was skipped, plus `snapshot` - what
+    the client sends back to POST /restore to Undo the removal."""
+    removed, failures, snapshot = remove_samples(db, req.cell_use_ids, actor)
     return {
         "removed_count": len(removed),
         "removed_ids": removed,
         "failed": [{"cell_use_id": cid, "reason": reason} for cid, reason in failures],
+        "snapshot": [item.model_dump(mode="json") for item in snapshot],
     }
+
+
+@router.post("/restore", response_model=RestoreOut)
+def restore_cell_uses(req: RestoreRequest, db: SessionDep, actor: ActorDep) -> RestoreOut:
+    """Undo a removal: put bulk-remove's `snapshot` back, all or nothing (409 if the schedule
+    has moved on since - see placement_service.restore_placements)."""
+    try:
+        restored = restore_placements(db, req.items, actor)
+    except PlacementError as exc:
+        raise HTTPException(exc.status_code, exc.detail) from exc
+    run_ids = sorted(
+        {
+            rb_id
+            for (rb_id,) in db.execute(
+                select(Cycle.run_batch_id).join(CellUse, CellUse.cycle_id == Cycle.id).where(
+                    CellUse.id.in_([r.cell_use_id for r in restored])
+                )
+            )
+        }
+    )
+    runs = [run_out(db, db.get(RunBatch, rid, options=RUN_LOAD_OPTIONS)) for rid in run_ids]
+    return RestoreOut(restored=restored, runs=runs)
 
 
 @router.post("/{cell_use_id}/return-to-backlog")

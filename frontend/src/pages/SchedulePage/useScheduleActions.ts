@@ -5,6 +5,7 @@ import { errorMessage } from "@/api/client";
 import { cellUsesApi } from "@/api/cellUses";
 import { scheduleNotesApi } from "@/api/scheduleNotes";
 import { schedulerApi } from "@/api/schedulerGrid";
+import { allStages } from "@/components/scheduler/groupCyclesByInstrumentAndDay";
 import type { NoteTone } from "@/components/ui/Note";
 import type { GridSelection } from "@/components/scheduler/useGridSelection";
 import type { SlotSelection } from "@/components/scheduler/useSlotSelection";
@@ -17,6 +18,7 @@ import type { GridCellRef, RunDesignState } from "@/types/schedulerGrid";
 import { formatShortDateTimeLocal, formatTimeLocal, localWallTimeToUtcParts } from "@/utils/calendarDates";
 
 import { moveNoteLocally, sortNotes } from "./noteMove";
+import { restoreUndo, samples, useUndoSlot } from "./useUndoSlot";
 
 export interface AccordionNote {
   tone: NoteTone;
@@ -36,6 +38,18 @@ interface MoveNoteVars {
   note: ScheduleNoteOut;
   move: ScheduleNoteMove;
   toInstrumentId: number;
+}
+
+/** A run's planned start as the UTC hour/minute a move request carries - only used if undoing
+ * a move has to recreate the run the sample left. */
+function runStartUtc(run: RunOut): { start_hour: number; start_minute: number } {
+  const first = [...run.plates].sort((a, b) => a.plate_index - b.plate_index)[0];
+  const start = new Date(first.planned_start_at);
+  return { start_hour: start.getUTCHours(), start_minute: start.getUTCMinutes() };
+}
+
+function stageOf(run: RunOut, sampleId: number): StageOut | undefined {
+  return allStages(run).find((s) => s.sample_id === sampleId);
 }
 
 /** One or two advisory sentences for a just-placed/moved run, combining two independent,
@@ -103,6 +117,8 @@ export interface UseScheduleActionsArgs {
   runDesign: RunDesignState;
   /** Every planned (unlocked) stage in the visible week, for the bulk "Clear schedule". */
   weekPlannedStages: StageOut[];
+  /** The runs on screen - where a moved/swapped sample came from, so the edit can be undone. */
+  visibleRuns: RunOut[];
 }
 
 /**
@@ -121,9 +137,22 @@ export function useScheduleActions({
   selectedCells,
   runDesign,
   weekPlannedStages,
+  visibleRuns,
 }: UseScheduleActionsArgs) {
   const queryClient = useQueryClient();
   const insertThreshold = useInsertSizeThreshold();
+  // Every remove / move / swap / place offers a one-step Undo on a toast (see useUndoSlot).
+  const undoSlot = useUndoSlot();
+  const locate = useCallback(
+    (cellUseId: number): { run: RunOut; stage: StageOut } | null => {
+      for (const run of visibleRuns) {
+        const stage = allStages(run).find((s) => s.cell_use_id === cellUseId);
+        if (stage) return { run, stage };
+      }
+      return null;
+    },
+    [visibleRuns],
+  );
 
   const [runDesignNote, setRunDesignNote] = useState<AccordionNote | null>(null);
   const [removeSlotsError, setRemoveSlotsError] = useState<string | null>(null);
@@ -156,6 +185,9 @@ export function useScheduleActions({
     onSuccess: (res) => {
       invalidateScheduleRelated(queryClient);
       slotSelection.clear();
+      if (res.snapshot.length > 0) {
+        undoSlot.offer(`Removed ${samples(res.removed_count)} from the schedule.`, restoreUndo(res.snapshot));
+      }
       if (res.failed.length === 0) {
         setRemoveSlotsError(null);
       } else {
@@ -172,13 +204,18 @@ export function useScheduleActions({
 
   // Dragging a placed sample off its slot and dropping it somewhere that isn't a valid
   // grid slot (e.g. off the grid entirely) removes it from the schedule - the drag
-  // equivalent of the "Remove from schedule" action.
+  // equivalent of the "Remove from schedule" action. Bulk-remove of one, for its Undo snapshot.
   const dragRemove = useMutation({
-    mutationFn: (cellUseId: number) => cellUsesApi.remove(cellUseId),
-    onSuccess: () => {
+    mutationFn: (cellUseId: number) => cellUsesApi.bulkRemove([cellUseId]),
+    onSuccess: (res) => {
       invalidateScheduleRelated(queryClient);
-      setRemoveSlotsError(null);
       setDropBlockedMessage(null);
+      if (res.failed.length > 0) {
+        setRemoveSlotsError(`Couldn't remove the sample from the schedule. ${res.failed[0].reason}`);
+        return;
+      }
+      setRemoveSlotsError(null);
+      undoSlot.offer("Removed 1 sample from the schedule.", restoreUndo(res.snapshot));
     },
     onError: (err) => {
       setRemoveSlotsError(errorMessage(err, "Couldn't remove the sample from the schedule."));
@@ -189,11 +226,23 @@ export function useScheduleActions({
   // samples' placements - the drag-and-drop equivalent of moving each into the other's
   // slot in one step.
   const swap = useMutation({
-    mutationFn: ({ a, b }: SwapVars) => cellUsesApi.swap(a, b),
-    onSuccess: () => {
+    mutationFn: async ({ a, b }: SwapVars) => {
+      const before = { a: locate(a)?.stage, b: locate(b)?.stage };
+      await cellUsesApi.swap(a, b);
+      return before;
+    },
+    onSuccess: (before, { a, b }) => {
       invalidateScheduleRelated(queryClient);
       setRemoveSlotsError(null);
       setDropBlockedMessage(null);
+      const sampleA = before.a?.sample_id;
+      const sampleB = before.b?.sample_id;
+      if (sampleA == null || sampleB == null) return;
+      // Undo = the same swap again, only while each well still holds what this swap left there.
+      undoSlot.offer(`Swapped ${before.a?.sample_pool_id} and ${before.b?.sample_pool_id}.`, async () => {
+        await cellUsesApi.swap(a, b, { sample_id: sampleB, other_sample_id: sampleA });
+        return "Swap undone.";
+      });
     },
     onError: (err) => {
       // A swap never fails on a barcode clash any more (warn, don't block - the clash lands and
@@ -218,6 +267,7 @@ export function useScheduleActions({
     onSuccess: () => {
       setRemoveSlotsError(null);
       setDropBlockedMessage(null);
+      undoSlot.clear();
     },
     onError: (err, _vars, context) => {
       context?.previous.forEach(([key, data]) => queryClient.setQueryData(key, data));
@@ -236,9 +286,10 @@ export function useScheduleActions({
     onSuccess: (res) => {
       invalidateScheduleRelated(queryClient);
       setClearConfirmOpen(false);
-      if (res.failed.length === 0) {
-        setRunDesignNote({ tone: "good", icon: "✓", text: `${res.removed_count} sample(s) cleared from the schedule.` });
-      } else {
+      if (res.snapshot.length > 0) {
+        undoSlot.offer(`Cleared ${samples(res.removed_count)} from the schedule.`, restoreUndo(res.snapshot));
+      }
+      if (res.failed.length > 0) {
         const total = res.removed_count + res.failed.length;
         setRunDesignNote({
           tone: "warn",
@@ -286,11 +337,18 @@ export function useScheduleActions({
         start_minute: v.start_minute,
         cell_type: v.cell_type,
       }),
-    onSuccess: (run) => {
+    onSuccess: (run, v) => {
       invalidateScheduleRelated(queryClient);
       setRemoveSlotsError(null);
       setDropBlockedMessage(null);
       setPlacementAdvisory(placementAdvisoryText(run, insertThreshold));
+      const placed = stageOf(run, v.sample_id);
+      if (!placed) return;
+      undoSlot.offer(`Placed ${placed.sample_pool_id}.`, async () => {
+        const res = await cellUsesApi.bulkRemove([placed.cell_use_id]);
+        if (res.failed.length > 0) throw new Error(res.failed[0].reason);
+        return `${placed.sample_pool_id} is back in the backlog.`;
+      });
     },
     onError: (err) => {
       // A plain drop is never blocked for a barcode clash (warn, don't block); any failure here
@@ -308,18 +366,43 @@ export function useScheduleActions({
   // card's stub. run_time_hours is required by the request but ignored for a move (the moved
   // placement keeps its own).
   const move = useMutation({
-    mutationFn: (v: { cell_use_id: number; instrument_serial: string; load_date: string; slot_index: SlotIndex }) =>
-      cellUsesApi.move(v.cell_use_id, {
+    mutationFn: async (v: { cell_use_id: number; instrument_serial: string; load_date: string; slot_index: SlotIndex }) => {
+      const from = locate(v.cell_use_id);
+      const run = await cellUsesApi.move(v.cell_use_id, {
         instrument_serial: v.instrument_serial,
         load_date: v.load_date,
         slot_index: v.slot_index,
         run_time_hours: runDesign.run_time_hours,
-      }),
-    onSuccess: (run) => {
+      });
+      return { run, from };
+    },
+    onSuccess: ({ run, from }) => {
       invalidateScheduleRelated(queryClient);
       setRemoveSlotsError(null);
       setDropBlockedMessage(null);
       setPlacementAdvisory(placementAdvisoryText(run, insertThreshold));
+      const sampleId = from?.stage.sample_id;
+      const moved = sampleId != null ? stageOf(run, sampleId) : undefined;
+      if (!from || sampleId == null || !moved) return;
+      const pool = moved.sample_pool_id;
+      // Undo = move it back, to its original cell when that's still allowed (the backend
+      // re-checks every scheduling rule and derives another cell otherwise).
+      undoSlot.offer(`Moved ${pool}.`, async () => {
+        const back = await cellUsesApi.move(moved.cell_use_id, {
+          instrument_serial: from.run.instrument_serial,
+          load_date: from.run.load_date,
+          slot_index: from.stage.slot_index,
+          run_time_hours: runDesign.run_time_hours,
+          ...runStartUtc(from.run),
+          expected_sample_id: sampleId,
+          prefer_cell_id: from.stage.cell_id,
+          prefer_cell_code: from.stage.cell_ref,
+        });
+        const now = stageOf(back, sampleId);
+        return now && now.cell_id !== from.stage.cell_id
+          ? `Moved ${pool} back — on cell ${now.cell_ref}, as ${from.stage.cell_ref} can't take it now.`
+          : `Moved ${pool} back.`;
+      });
     },
     onError: (err) => {
       // A move is never blocked for a barcode clash (warn, don't block); any failure here is
@@ -352,6 +435,7 @@ export function useScheduleActions({
       }),
     onSuccess: (res) => {
       invalidateScheduleRelated(queryClient);
+      undoSlot.clear();
       selection.clear();
       const parts = [`${res.placed_sample_ids.length} placed`];
       if (res.unplaced_sample_ids.length > 0) {
@@ -402,6 +486,7 @@ export function useScheduleActions({
     mutationFn: (instrumentSerial: string) => schedulerApi.recalculate({ instrument_serial: instrumentSerial }),
     onSuccess: (res, instrumentSerial) => {
       invalidateScheduleRelated(queryClient);
+      undoSlot.clear();
       setRecalculateTarget(null);
       const parts = [`${res.placed_sample_ids.length} placed`];
       if (res.unplaced_sample_ids.length > 0) {
