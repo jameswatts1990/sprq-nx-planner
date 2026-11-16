@@ -20,10 +20,12 @@ import { QcSection } from "./sections/QcSection";
 import { ScheduleSection } from "./sections/ScheduleSection";
 import { SettingsSection } from "./sections/SettingsSection";
 import { StatsSection } from "./sections/StatsSection";
+import { TodaySection } from "./sections/TodaySection";
 
 /** Each section's `key` is also its element id, so /help#<key> links straight to it (PageHeader's
  * `help` prop, the Schedule toolbar's ?). Keep keys stable - pages link to them. */
 const SECTIONS = [
+  { key: "today", title: "Today", Component: TodaySection },
   { key: "getting-started", title: "Getting started", Component: GettingStartedSection },
   { key: "import", title: "Import", Component: ImportSection },
   { key: "backlog", title: "Backlog", Component: BacklogSection },

@@ -15,6 +15,7 @@ import {
   SampleIcon,
   SettingsIcon,
   ShieldCheckIcon,
+  SunIcon,
   UploadIcon,
 } from "@/components/shared/icons";
 import { useMenuDismiss } from "@/components/ui/useMenuDismiss";
@@ -35,9 +36,10 @@ interface NavItem {
   Icon: ComponentType;
 }
 
-// The working pages, left to right in the order a week flows through them; History follows as a
-// drop-down (HISTORY_ITEMS).
+// Today (the landing page), then the working pages left to right in the order a week flows
+// through them; History follows as a drop-down (HISTORY_ITEMS).
 const NAV_ITEMS: NavItem[] = [
+  { to: "/today", label: "Today", Icon: SunIcon },
   { to: "/import", label: "Import", Icon: UploadIcon },
   { to: "/backlog", label: "Backlog", Icon: InboxIcon },
   { to: "/schedule", label: "Schedule", Icon: CalendarIcon },
@@ -140,7 +142,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <header className={styles.topbar} ref={topbarRef}>
         <div className={styles.topbarStrip} />
         <div className={styles.topbarInner}>
-          <NavLink to="/schedule" className={styles.brand}>
+          <NavLink to="/today" className={styles.brand}>
             Run<span className={styles.brandAccent}>Nx</span>
             <span className={styles.dot} />
           </NavLink>
