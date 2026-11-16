@@ -1,4 +1,4 @@
-import type { CellOut } from "@/types/cell";
+import type { ScheduleTrayCellOut } from "@/types/cell";
 import type { CellStatus, CellType } from "@/types/common";
 import { parseDateOnly, todayIsoUTC } from "@/utils/calendarDates";
 import { CELL_LIFETIME_H, EXPIRY_WARN_HOURS } from "@/utils/windowFade";
@@ -133,14 +133,14 @@ function carouselOf(well: string | null): 0 | 1 | -1 {
 
 /** The cell's 1-based tray position as a number (1-4). Falls back to mapping its own home-well
  * letter A-D -> 1-4 when tray_position is missing (a legacy tray-less cell). */
-function cellNumberOf(cell: CellOut): number {
+function cellNumberOf(cell: ScheduleTrayCellOut): number {
   if (cell.tray_position != null && cell.tray_position >= 1 && cell.tray_position <= 4) {
     return cell.tray_position;
   }
   return cell.current_well ? cell.current_well.charCodeAt(0) - 64 : 0; // "A" (65) -> 1 .. "D" -> 4
 }
 
-function positionView(cell: CellOut, weekEndMs: number): TrayPositionView {
+function positionView(cell: ScheduleTrayCellOut, weekEndMs: number): TrayPositionView {
   const cellNumber = cellNumberOf(cell);
   // The 108h clock anchor, read exactly as the backend's reuse-window check and ⚠ Window flag
   // read it (cell_service.reuse_deadline): the confirmed first_use_started_at once loaded -
@@ -197,7 +197,7 @@ function positionView(cell: CellOut, weekEndMs: number): TrayPositionView {
  * instrument's two carousel positions it picks the physical tray resident on the week's LAST
  * visible day (its tenure [founding, eviction) spans that day) and projects each of that tray's
  * 4 cells to their scheduled-forward state (uses remaining, 108h expiry, urgency) - all read
- * straight from the already-fetched CellOut, whose totals already count planned uses.
+ * straight from the already-fetched cells, whose totals already count planned uses.
  *
  * Anchoring to the week's END (not its first day) is what makes the panel match its own caption:
  * the slot's cells are shaded, and the pill reads, "state by end of <last weekday>". When a
@@ -215,18 +215,18 @@ function positionView(cell: CellOut, weekEndMs: number): TrayPositionView {
  * it. Only a *successor* tray founded in the same carousel position (via `trayEvictionDates`)
  * evicts the depleted one from the slot.
  *
- * `allCells` should be the wide open+terminal+stopped universe (SchedulePage's three cell
- * queries), and `trayFoundingDates`/`trayEvictionDates` the same maps SchedulePage already
+ * `allCells` should be every cell of each tray that can be resident in the viewed window
+ * (SchedulePage's schedule-trays query - whole trays, any status), and `trayFoundingDates`/`trayEvictionDates` the same maps SchedulePage already
  * derives from it - reused here so residency agrees exactly with the grid's eviction logic.
  */
 export function computeInstrumentTrayMaps(
-  allCells: CellOut[],
+  allCells: ScheduleTrayCellOut[],
   days: string[],
   trayFoundingDates: Map<number, string>,
   trayEvictionDates: Map<number, string>,
 ): Map<string, InstrumentTrayMap> {
   // Bucket every tray-linked cell by instrument, then tray.
-  const byInstrument = new Map<string, Map<number, CellOut[]>>();
+  const byInstrument = new Map<string, Map<number, ScheduleTrayCellOut[]>>();
   for (const cell of allCells) {
     if (cell.tray_id === null || !cell.current_instrument_serial) continue;
     let byTray = byInstrument.get(cell.current_instrument_serial);
@@ -253,7 +253,7 @@ export function computeInstrumentTrayMaps(
 
     // Per carousel position, the tray resident on the week's LAST day (keeping the latest-founded
     // on the rare tie, so a mid-week successor beats the predecessor it evicted).
-    type TrayCand = { trayId: number; founding: string | null; siblings: CellOut[] };
+    type TrayCand = { trayId: number; founding: string | null; siblings: ScheduleTrayCellOut[] };
     const endResident: [TrayCand | null, TrayCand | null] = [null, null];
 
     for (const [trayId, siblings] of byTray) {

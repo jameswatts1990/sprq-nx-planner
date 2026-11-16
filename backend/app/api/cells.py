@@ -1,5 +1,5 @@
 from collections import Counter
-from datetime import datetime
+from datetime import date, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query
@@ -19,6 +19,7 @@ from app.schemas.cell import (
     CellOut,
     CellStopRequest,
     CellTrayRowOut,
+    ScheduleTrayCellOut,
     TrayDiscardOut,
     TrayDiscardRequest,
     TrayRestoreOut,
@@ -58,6 +59,7 @@ from app.services.cell_service import (
 )
 from app.services.cell_tray_rows import SORT_DIRS, TRAY_SORTS, group_tray_rows, sort_tray_rows
 from app.services.qc_service import commit_qc, preview_qc, undo_qc
+from app.services.schedule_trays import schedule_tray_cells
 from app.services.settings_service import get_repeat_safe_min_ul, get_repeat_total_complex_ul
 
 QC_STATUSES = ("unreported", "awaiting_credit", "in_workflow")
@@ -245,6 +247,15 @@ def list_cell_trays(
     rows = sort_tray_rows(group_tray_rows(matched, siblings), sort_by, sort_dir)
     start = (page - 1) * page_size
     return Page[CellTrayRowOut](items=rows[start : start + page_size], total=len(rows))
+
+
+@router.get("/schedule-trays", response_model=list[ScheduleTrayCellOut])
+def list_schedule_tray_cells(db: SessionDep, date_from: date) -> list[ScheduleTrayCellOut]:
+    """The Schedule page's tray panel + Autoschedule reuse list: every cell of each physical tray
+    that can still be on an instrument from `date_from` (the viewed week's first day) on - see
+    services/schedule_trays.py. Registered before /{cell_id} so "schedule-trays" isn't parsed as a
+    cell id."""
+    return schedule_tray_cells(db, date_from)
 
 
 @router.get("/{cell_id}", response_model=CellDetailOut)

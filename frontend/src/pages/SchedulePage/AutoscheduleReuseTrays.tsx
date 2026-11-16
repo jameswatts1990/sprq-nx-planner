@@ -5,7 +5,7 @@ import { cellsApi } from "@/api/cells";
 import { Badge } from "@/components/ui/Badge";
 import { Note } from "@/components/ui/Note";
 import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
-import type { CellOut } from "@/types/cell";
+import type { ScheduleTrayCellOut } from "@/types/cell";
 import { soonestTrayExpiry } from "@/utils/openTrays";
 import { EXPIRY_WARN_HOURS } from "@/utils/windowFade";
 
@@ -27,8 +27,8 @@ interface ReuseTrayRow {
  * reuse (partially-used trays with capacity left). A brand-new, never-used tray is a *fresh*
  * cell to the packer, not a reuse candidate, so it's deliberately left out - this list is
  * only about "trays I'm about to bin that autoschedule would otherwise reuse". */
-function buildReuseTrayRows(cells: CellOut[]): ReuseTrayRow[] {
-  const byTray = new Map<number, CellOut[]>();
+function buildReuseTrayRows(cells: ScheduleTrayCellOut[]): ReuseTrayRow[] {
+  const byTray = new Map<number, ScheduleTrayCellOut[]>();
   for (const cell of cells) {
     if (cell.tray_id === null || cell.uses_consumed === 0) continue;
     const list = byTray.get(cell.tray_id);
@@ -57,8 +57,9 @@ function expiryText(hours: number): string {
 }
 
 export interface AutoscheduleReuseTraysProps {
-  /** Every open cell (SchedulePage's open-cells query) - grouped into reuse-candidate trays here. */
-  cells: CellOut[];
+  /** Every open tray cell (SchedulePage's schedule-trays query, open subset) - grouped into
+   * reuse-candidate trays here. */
+  cells: ScheduleTrayCellOut[];
 }
 
 /** The Autoschedule drawer's "trays autoschedule will reuse" list. Each partially-used tray

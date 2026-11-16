@@ -5,6 +5,7 @@ import type {
   CellDiscardRequest,
   CellOut,
   CellTrayRowOut,
+  ScheduleTrayCellOut,
   TrayDiscardOut,
   TrayDiscardRequest,
   TrayRestoreOut,
@@ -46,14 +47,13 @@ export interface ListCellTraysParams extends ListCellsParams {
 }
 
 /** Follows pagination until every matching cell has been collected - for system-wide
- * reads (every open/stopped/terminal cell, for ghost rendering and the open-trays list)
- * where a fixed page_size would silently truncate to the N most-recently-created cells
+ * reads (e.g. the QC worklist's every in-workflow cell) where a fixed page_size would silently truncate to the N most-recently-created cells
  * as the total grows, dropping older still-relevant cells (e.g. an unused tray sibling)
  * with no visible sign anything was cut off. Not for CellsPage's browse UI, which keeps
  * real page/page_size controls since the user can see and page through its total. */
 async function listAll(params: Omit<ListCellsParams, "page" | "page_size"> = {}): Promise<CellOut[]> {
-  // Sized so a single request covers each status category's realistic lab-wide total (open /
-  // stopped / terminal), keeping these system-wide reads to one round-trip each. The loop
+  // Sized so a single request covers a realistic lab-wide total, keeping these system-wide reads
+  // to one round-trip each. The loop
   // below still handles the (rare) case of a category exceeding this, so nothing is ever
   // silently truncated - it just won't page for ordinary volumes.
   const page_size = 1000;
@@ -74,6 +74,10 @@ export const cellsApi = {
    * tray, sorted and paged by tray. */
   listTrays: (params: ListCellTraysParams = {}) =>
     api.get<Page<CellTrayRowOut>>(`/api/cells/trays${buildQuery(params)}`),
+  /** The Schedule page's tray panel + Autoschedule reuse list: every cell of each physical tray
+   * that can still be on an instrument from `dateFrom` (the viewed week's first day) on. */
+  scheduleTrays: (dateFrom: string) =>
+    api.get<ScheduleTrayCellOut[]>(`/api/cells/schedule-trays${buildQuery({ date_from: dateFrom })}`),
   get: (id: number) => api.get<CellDetailOut>(`/api/cells/${id}`),
   bootstrap: (req: CellBootstrapRequest) => api.post<CellDetailOut>("/api/cells/bootstrap", req),
   /** Read-only: which samples a Fail / Fail-and-Stop / Retire would affect (failed,

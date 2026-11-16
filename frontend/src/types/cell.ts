@@ -108,6 +108,38 @@ export interface CellOut extends CreditCaseState {
   uses: CellUseSummaryOut[];
 }
 
+/** One use on a ScheduleTrayCellOut - only what the tray panel's live breakout count reads. */
+export type ScheduleTrayUseOut = Pick<CellUseSummaryOut, "status" | "breakout_anchor_at">;
+
+/** The Schedule page's tray-panel feed (GET /api/cells/schedule-trays): the CellOut fields the
+ * tray maps and the Autoschedule drawer's reuse list read, for every cell of each tray that can
+ * still be on an instrument from the viewed week on. A CellOut is assignable to it. */
+export type ScheduleTrayCellOut = Pick<
+  CellOut,
+  | "id"
+  | "code"
+  | "cell_type"
+  | "max_uses"
+  | "status"
+  | "uses_consumed"
+  | "uses_remaining"
+  | "window_hours_elapsed"
+  | "current_instrument_serial"
+  | "current_well"
+  | "first_use_started_at"
+  | "first_use_planned_start_at"
+  | "tray_id"
+  | "tray_position"
+  | "tray_reuse_disabled"
+> & { uses: ScheduleTrayUseOut[] };
+
+/** What the tray founding/eviction maps read (waitingCells.ts and its backend twin,
+ * services/schedule_trays.py). */
+export type TrayCellLike = Pick<
+  ScheduleTrayCellOut,
+  "tray_id" | "first_use_started_at" | "first_use_planned_start_at" | "current_instrument_serial" | "current_well"
+>;
+
 export interface CellDetailOut extends CellOut {
   use_history: CellUseHistoryOut[];
 }

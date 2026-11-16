@@ -1,4 +1,4 @@
-import type { CellOut } from "@/types/cell";
+import type { TrayCellLike } from "@/types/cell";
 
 /**
  * Earliest calendar day (YYYY-MM-DD) any cell in each physical tray was scheduled for its own
@@ -8,8 +8,11 @@ import type { CellOut } from "@/types/cell";
  * terminal or been stopped still anchors the date. Prefers first_use_started_at (the confirmed
  * anchor) over first_use_planned_start_at - once a use is confirmed loaded its planned estimate
  * can go stale (e.g. the placement was later moved) while started_at reflects where it landed.
+ * Backend twin: services/schedule_trays.compute_tray_founding_dates (it picks which trays
+ * GET /api/cells/schedule-trays sends) - both are asserted on scheduleTrays.golden.test.ts's
+ * shared fixture, so change them together.
  */
-export function computeTrayFoundingDates(cells: CellOut[]): Map<number, string> {
+export function computeTrayFoundingDates(cells: TrayCellLike[]): Map<number, string> {
   const dates = new Map<number, string>();
   for (const cell of cells) {
     if (cell.tray_id === null) continue;
@@ -48,9 +51,10 @@ function trayPositionGroup(well: string | null): number {
  * loaded in that position) are absent from the map. `cells` should be the wider open+terminal
  * +stopped universe and `trayFoundingDates` built from that same universe, so a later tray's
  * founding is visible even when the prior tray's cells have all gone terminal/stopped.
+ * Backend twin: services/schedule_trays.compute_tray_eviction_dates (see above).
  */
 export function computeTrayEvictionDates(
-  cells: CellOut[],
+  cells: TrayCellLike[],
   trayFoundingDates: Map<number, string>,
 ): Map<number, string> {
   // Per (instrument, position group), the founding date of every tray occupying it. One

@@ -140,6 +140,38 @@ class CellDetailOut(CellOut):
     use_history: list[CellUseHistoryOut] = []
 
 
+class ScheduleTrayUseOut(BaseModel):
+    """One use on a ScheduleTrayCellOut - just what the tray panel's live breakout count reads
+    (CellUseSummaryOut.status / breakout_anchor_at)."""
+
+    status: str
+    breakout_anchor_at: datetime | None
+
+
+class ScheduleTrayCellOut(BaseModel):
+    """The Schedule page's tray-panel feed (GET /api/cells/schedule-trays): the CellOut fields the
+    tray maps (waitingCells.ts, instrumentTrayMaps.ts) and the Autoschedule drawer's reuse list
+    read, with the same values serialize_cell gives - built by services/schedule_trays.py from two
+    column queries instead of the full cell graph."""
+
+    id: int
+    code: str
+    cell_type: CellType
+    max_uses: int
+    status: str
+    uses_consumed: int
+    uses_remaining: int
+    window_hours_elapsed: float | None
+    current_instrument_serial: str | None
+    current_well: str | None
+    first_use_started_at: datetime | None
+    first_use_planned_start_at: datetime | None
+    tray_id: int | None
+    tray_position: int | None
+    tray_reuse_disabled: bool
+    uses: list[ScheduleTrayUseOut]
+
+
 class CellTrayRowOut(BaseModel):
     """One row of the Cells page: a physical tray with ALL its cells (position order), even when
     the filter matched only some of them, plus the tray-level figures the row shows and sorts on.
