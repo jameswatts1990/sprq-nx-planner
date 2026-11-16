@@ -289,8 +289,9 @@ export function ScheduleSection() {
         The <b>download</b> button (a tray with a down arrow, between <b>Batch Sheet</b> and the eye) is{" "}
         <b>Export schedule</b>: it downloads the currently-visible week as a CSV in the exact column layout of the
         sequencing tracker Google Sheet, so you can paste the rows straight in. There is one row per scheduled well;
-        the columns the planner tracks (date, run ID, instrument, Traction ID, barcodes, Sanger ID, cell location, run
-        time, target OPLC, status and priority) are filled in, and every other column in the sheet is left
+        the columns the planner tracks (date, run ID, instrument, Plate ID, Traction ID, barcodes, Sanger ID, cell
+        location, run time, target OPLC, status and priority) are filled in, <b>Run Comments</b> names the cell type
+        (<b>SPRQ-Nx</b> or <b>SPRQ</b>), and every other column in the sheet is left
         blank for you to complete. Because the blanks would overwrite existing values, use this to <b>add new rows</b>{" "}
         to the sheet rather than to paste over rows that already have complexing or charging data.
       </p>
@@ -961,7 +962,8 @@ export function ScheduleSection() {
           bar, and recorded as who loaded it), an optional <b>Traction run name</b> (e.g. Sanger&apos;s{" "}
           <b>TRACTION-RUN-1234</b> format), which then replaces the plain run number everywhere this run is shown (Run
           detail, History, Cells use history) — leave it blank to keep the number; <b>Unloading</b> never clears a
-          name, and re-confirming lets you change it — and <b>Revio loaded at</b>, which starts at the current time,
+          name, and re-confirming lets you change it. If another run already has that name, an amber note under the
+          field names it (with a link) — check for a typo, but you can still confirm — and <b>Revio loaded at</b>, which starts at the current time,
           since that&apos;s normally the moment the cells go on the instrument and start prepping. If you&apos;re
           confirming after the fact, type the real time as <b>hh:mm</b> or click an hour on the dial, and the
           run&apos;s schedule (and any reuse plate chained off it) shifts to match.

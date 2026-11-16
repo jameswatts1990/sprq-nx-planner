@@ -211,7 +211,7 @@ def test_first_nonempty_wins_for_scalars_and_sanger_combines():
             ),
             _row(
                 Portion_of_SMRT_Cell="0.5",
-                Complex_Batch_ID="bc10, bc11",  # bc10 duplicate should be deduped
+                Complex_Batch_ID="bc10, bc11",  # bc10 duplicate is imported once and reported
                 Sanger_Sample_ID="DTOLb, DTOLc",  # comma list; DTOLb duplicate deduped
                 Priority="Low",  # ignored — first non-empty priority wins
                 Target_Loading_Concentration="250",  # ignored
@@ -225,6 +225,7 @@ def test_first_nonempty_wins_for_scalars_and_sanger_combines():
     assert _cell(result, pool, "Priority") == "High"
     assert _cell(result, pool, "Target Loading Concentration (pM)") == "300"
     assert _cell(result, pool, "Complex Batch ID") == "bc10; bc11"
+    assert pool.duplicate_barcodes == ["bc10"]  # the preview warns instead of de-duping silently
     # multiple Sanger IDs are emitted as a JSON array, deduped, source order preserved
     assert json.loads(_cell(result, pool, "Sanger Sample ID")) == ["DTOLa", "DTOLb", "DTOLc"]
 

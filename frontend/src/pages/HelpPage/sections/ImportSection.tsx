@@ -67,6 +67,53 @@ export function ImportSection() {
         to return to the text without losing it.
       </p>
       <p>
+        <b>A barcode listed twice in one pool</b> (in one cell, or across a scheduler pool&apos;s rows) is imported
+        once. An amber note above the preview names the pool and the barcode, and the row&apos;s Barcodes cell carries a{" "}
+        <b>⚠</b>, so a typo where a different barcode was meant doesn&apos;t slip through. The planner doesn&apos;t
+        check a barcode&apos;s format.
+      </p>
+      <p>
+        <b>Movie time</b> (the tracker&apos;s <i>Run Time (hr)</i>) must be <b>12</b>, <b>24</b> or <b>30</b>. Any other
+        value is left blank, so the sample takes the default movie time from Settings, and the result panel lists
+        a warning naming the row.
+      </p>
+
+      <p className={styles.subheading}>Importing a file again</p>
+      <p>
+        The preview checks every <b>Pool ID</b> against what&apos;s already in RunNx (and the <b>Plate ID</b> too, when
+        both the row and the stored sample have one). When any match, a note above the preview counts them and an{" "}
+        <b>In RunNx</b> column shows each row&apos;s state with a choice beside it. Rows set to skip are faded.
+      </p>
+      <dl className={styles.terms}>
+        <dt>New</dt>
+        <dd>Not in RunNx yet: it&apos;s imported.</dd>
+        <dt>Waiting (amber)</dt>
+        <dd>
+          A copy is already waiting in the Backlog. It&apos;s <b>skipped</b> by default, so importing the same file
+          twice never doubles your backlog. Choose <b>Update</b> to rewrite the waiting copy from this row, or{" "}
+          <b>Import as a copy</b> if you really do want a second one (e.g. the same pool on two cells).{" "}
+          <b>Update all waiting</b> / <b>Skip all waiting</b> beside the note set every waiting row at once.
+        </dd>
+        <dt>Scheduled (blue)</dt>
+        <dd>
+          Already on the grid or running: <b>skipped</b> by default, so a planned or loaded sample is never changed
+          from a file. <b>Import as a copy</b> adds a separate backlog sample if you need one.
+        </dd>
+        <dt>Repeat (purple)</dt>
+        <dd>
+          Every earlier copy finished, failed or was cancelled, so it&apos;s <b>imported again</b> as a new sample and
+          marked as a duplicate (e.g. <b>2/2</b>) like any other repeat. Choose <b>Skip</b> to leave it out.
+        </dd>
+      </dl>
+      <p>
+        <b>What Update changes:</b> barcodes are replaced by the file&apos;s, and every other field changes only where
+        the file has a value, so a blank cell or an unmapped column keeps what&apos;s stored. Each change is recorded
+        on the Activity page like an edit made by hand. If the file lists the same Pool ID twice, only its first row
+        updates. A pool scheduled after you opened the preview is skipped, never updated. The <b>Import</b> button
+        counts what will happen (e.g. <i>Import 4 samples · update 2</i>); if every row is set to skip, it stays off
+        and a note says why.
+      </p>
+      <p>
         <b>Scheduler-sheet headings:</b> the tracker sheet names four fields differently, and the planner maps them
         for you — <i>Loading Conc. (pM)</i> → <b>Actual OPLC</b> (not <i>Target Loading Concentration</i> or{" "}
         <i>Max possible Loading Conc.</i>), <i>Library Size (bp)</i> → <b>Insert Size</b>,{" "}
@@ -104,22 +151,30 @@ export function ImportSection() {
 
       <p className={styles.subheading}>Result panel</p>
       <p>
-        <b>After importing, the result panel shows four numbers:</b>
+        <b>After importing, the result panel shows five numbers:</b>
       </p>
       <dl className={styles.terms}>
         <dt>Rows read</dt>
         <dd>Lines the server parsed from your input.</dd>
         <dt>Imported</dt>
         <dd>New samples added to the Backlog.</dd>
+        <dt>Updated</dt>
+        <dd>
+          Samples already waiting in the Backlog that were rewritten from the file (rows set to <b>Update</b>). The{" "}
+          <b>Updated samples</b> table lists each one, linked to its page, with the fields that changed, or{" "}
+          <i>Already up to date</i>.
+        </dd>
         <dt>Duplicates</dt>
         <dd>
-          Pool IDs that appear more than once — repeated within this file, or already in the
-          system (any status, including completed). <b>Duplicates are no longer blocked:</b> every
-          copy is imported, because the same sample is often run across multiple SMRT cells. This
-          number is a heads-up, not a drop count.
+          Pool IDs that appear more than once among the samples this import added — repeated within this file, or
+          already in the system (any status, including completed): repeats of finished pools, and copies you chose
+          to import. It&apos;s a heads-up, not a drop count.
         </dd>
         <dt>Skipped</dt>
-        <dd>Rows that parsed but weren&apos;t imported — usually because they had no barcode.</dd>
+        <dd>
+          Rows that weren&apos;t imported: no barcode, or a pool already in RunNx that was set to skip. The{" "}
+          <b>Skipped rows</b> table gives the reason for each (e.g. <i>Already waiting in the backlog</i>).
+        </dd>
       </dl>
       <p>
         Two tables make skipped and duplicate rows <b>actionable</b>: the <b>Skipped rows</b> table lists each
@@ -141,7 +196,10 @@ export function ImportSection() {
       <p className={styles.subheading}>Undo an import</p>
       <p>
         Imported the wrong file, or picked the wrong columns? You can <b>undo the most recent import</b> — it removes
-        every sample that import added and clears the batch, as if it never happened.
+        every sample that import <b>added</b> and clears the batch. It doesn&apos;t touch samples the import{" "}
+        <b>updated</b> (they keep their new values; fix them on the Backlog or import a corrected file) or rows it
+        skipped, and the confirmation says so. An import that only updated or skipped rows added nothing, so it has
+        nothing to undo.
       </p>
       <dl className={styles.terms}>
         <dt>Where to find it</dt>

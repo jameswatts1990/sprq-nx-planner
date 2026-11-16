@@ -251,8 +251,53 @@
   white-space: nowrap;
 }
 /* A review-pool row the user hasn't authorised — shown but visibly excluded from the import. */
-.rowExcluded {
+/* A row that won't be imported (un-ticked review pool, or a pool set to Skip). Faded per cell so
+   the In RunNx choice stays at full strength - the user can still switch it back. */
+.rowExcluded > td {
   opacity: 0.45;
+}
+/* Shrink-wrap the In RunNx column so the file's own columns keep the width. */
+.existingTd {
+  width: 1%;
+}
+.rowExcluded > td.existingTd {
+  opacity: 1;
+}
+
+/* Re-import: pools already in RunNx */
+.existingNote {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-bottom: 12px;
+}
+.existingNote > :first-child {
+  flex: 1 1 420px;
+}
+.bulkActions {
+  display: flex;
+  gap: 6px;
+}
+.existingCell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.actionSelect {
+  font-size: var(--fs-sm);
+  padding: 2px 6px;
+}
+.newPool {
+  color: var(--faint);
+  font-size: var(--fs-sm);
+}
+.repeatFlag {
+  margin-left: 6px;
+  color: var(--amber);
+  font-weight: 800;
+  cursor: help;
 }
 .cellOk {
   color: var(--green);

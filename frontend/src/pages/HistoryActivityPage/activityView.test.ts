@@ -74,5 +74,11 @@ describe("auditLabels", () => {
     expect(
       describeAuditDetails({ action: "import_samples", details_json: { imported_count: 12, source_filename: null } }),
     ).toEqual(["12 sample(s) from pasted text"]);
+    expect(
+      describeAuditDetails({
+        action: "import_samples",
+        details_json: { imported_count: 1, updated_count: 3, source_filename: "batch.csv" },
+      }),
+    ).toEqual(["1 sample(s) from batch.csv · 3 updated"]);
   });
 });

@@ -9,6 +9,7 @@ from app.api import (
     batch_sheet,
     cell_uses,
     cells,
+    credit,
     cycles,
     imports,
     instruments,
@@ -67,6 +68,7 @@ app.include_router(cell_uses.router)
 app.include_router(cells.router)
 app.include_router(topups.router)
 app.include_router(pacbio_cases.router)
+app.include_router(credit.router)
 app.include_router(qc.router)
 app.include_router(instruments.router)
 app.include_router(stats.router)

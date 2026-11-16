@@ -8,6 +8,7 @@ import type {
   ImportRequest,
   ImportResult,
   LatestImport,
+  PoolCheckItem,
   SchedulerConvertRequest,
   SchedulerConvertResult,
   UndoImportResult,
@@ -17,6 +18,9 @@ export const importsApi = {
   create: (req: ImportRequest) => api.post<ImportResult>("/api/imports", req),
   /** Non-committing: returns the file's columns + a suggested field->column mapping. */
   preview: (req: ImportPreviewRequest) => api.post<ImportPreviewResult>("/api/imports/preview", req),
+  /** Non-committing: which of these pools are already in RunNx (new / waiting / active / finished). */
+  poolCheck: (pools: { pool_id: string; plate_id: string | null }[]) =>
+    api.post<{ pools: PoolCheckItem[] }>("/api/imports/pool-check", { pools }),
   /** Non-committing: pool a scheduler sheet (CSV text) into the standard import CSV. */
   schedulerConvert: (req: SchedulerConvertRequest) =>
     api.post<SchedulerConvertResult>("/api/imports/scheduler-convert", req),

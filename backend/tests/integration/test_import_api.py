@@ -22,14 +22,27 @@ def test_import_example_csv_lands_in_backlog(client, example_samples_text):
     }
 
 
-def test_reimporting_same_rows_creates_copies_and_flags_them_as_duplicates(client, example_samples_text):
-    """Duplicates are a supported workflow (same sample across multiple cells), so a re-import
-    now CREATES the copies rather than rejecting them - and flags each so the user can Undo if
-    it wasn't intended."""
-    first = client.post("/api/imports", json={"raw_text": example_samples_text})
-    assert first.json()["imported_count"] == 8
+def test_reimporting_same_rows_skips_pools_waiting_in_the_backlog(client, example_samples_text):
+    """A re-import never silently doubles the backlog: a pool already waiting is skipped by
+    default, with the reason reported."""
+    assert client.post("/api/imports", json={"raw_text": example_samples_text}).json()["imported_count"] == 8
 
-    second = client.post("/api/imports", json={"raw_text": example_samples_text})
+    body = client.post("/api/imports", json={"raw_text": example_samples_text}).json()
+    assert body["imported_count"] == 0
+    assert body["skipped_count"] == 8
+    assert {s["reason"] for s in body["skipped"]} == {"Already waiting in the backlog"}
+    assert client.get("/api/samples", params={"status": "backlog"}).json()["total"] == 8
+
+
+def test_reimport_add_creates_copies_and_flags_them_as_duplicates(client, example_samples_text):
+    """Duplicates are a supported workflow (same sample across multiple cells): choosing "add"
+    for a waiting pool CREATES the copy and flags it so the user can Undo if it wasn't intended."""
+    first = client.post("/api/imports", json={"raw_text": example_samples_text})
+    ids = {s["pool_id"] for s in first.json()["samples"]}
+
+    second = client.post(
+        "/api/imports", json={"raw_text": example_samples_text, "existing": {pid: "add" for pid in ids}}
+    )
     body = second.json()
     assert body["imported_count"] == 8  # every row imported again as a copy
     assert body["duplicate_count"] == 8  # all 8 flagged as seen-before

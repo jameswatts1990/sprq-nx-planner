@@ -229,6 +229,7 @@ const FIELD_LABEL: Record<string, string> = {
   base_kinetics: "Base kinetics",
   movie_time_hours: "Movie time",
   insert_size_bp: "Insert size",
+  library_pool_volume_used: "Library volume used",
   notes: "Note",
   status: "Status",
   serial_number: "Serial",
@@ -250,6 +251,11 @@ const FIELD_LABEL: Record<string, string> = {
 function readable(code: string): string {
   const words = code.replace(/_/g, " ");
   return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+/** A field name as the forms label it (e.g. "target_oplc" -> "Target OPLC"). */
+export function fieldLabel(field: string): string {
+  return FIELD_LABEL[field] ?? readable(field);
 }
 
 const MAX_VALUE = 60;
@@ -290,7 +296,10 @@ export function describeAuditDetails(row: Pick<AuditLogOut, "action" | "details_
     case "cancel_run":
       return [`${value("reverted_sample_count")} sample(s) back to the backlog`];
     case "import_samples":
-      return [`${value("imported_count")} sample(s) from ${d.source_filename ? value("source_filename") : "pasted text"}`];
+      return [
+        `${value("imported_count")} sample(s) from ${d.source_filename ? value("source_filename") : "pasted text"}` +
+          (d.updated_count ? ` · ${value("updated_count")} updated` : ""),
+      ];
     case "undo_import":
       return [`${value("removed_count")} sample(s) removed`];
     case "instrument_down":
@@ -340,7 +349,7 @@ export function describeAuditDetails(row: Pick<AuditLogOut, "action" | "details_
         field === "status" && typeof v === "string" && v in SAMPLE_STATUS_LABEL
           ? SAMPLE_STATUS_LABEL[v as keyof typeof SAMPLE_STATUS_LABEL]
           : formatAuditValue(v);
-      return `${FIELD_LABEL[field] ?? readable(field)}: ${show(from)} → ${show(to)}`;
+      return `${fieldLabel(field)}: ${show(from)} → ${show(to)}`;
     });
   }
   // A settings save records the values it set.
@@ -350,7 +359,7 @@ export function describeAuditDetails(row: Pick<AuditLogOut, "action" | "details_
     row.action === "update_issue_report_settings" ||
     row.action === "update_qc_settings"
   ) {
-    return Object.entries(d).map(([field, v]) => `${FIELD_LABEL[field] ?? readable(field)}: ${formatAuditValue(v)}`);
+    return Object.entries(d).map(([field, v]) => `${fieldLabel(field)}: ${formatAuditValue(v)}`);
   }
   return [];
 }

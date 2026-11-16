@@ -3,13 +3,18 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.api.deps import ActorDep, SessionDep, pagination
 from app.models.instrument import Instrument
 from app.models.schedule import CYCLE_STATUSES, RunBatch
 from app.schemas.common import CellType, Page
-from app.schemas.run import RunHistoryRowOut, RunOut, ScheduleSearchHitOut
+from app.schemas.run import (
+    RunHistoryRowOut,
+    RunNameMatchOut,
+    RunOut,
+    ScheduleSearchHitOut,
+)
 from app.serializers import duplicate_groups
 from app.services.placement_service import (
     PlacementError,
@@ -114,6 +119,28 @@ def search_schedule(
     run id."""
     term = q.strip()
     return schedule_search(db, term, limit) if term else []
+
+
+@router.get("/run-name-check", response_model=list[RunNameMatchOut])
+def run_name_check(db: SessionDep, name: str = "", exclude_run_id: int | None = None) -> list[RunNameMatchOut]:
+    """Other runs already named this (trimmed, case-insensitive), newest first - an inline warning
+    while typing a Traction run name; saving still goes ahead. Registered before /{run_id}."""
+    key = name.strip().lower()
+    if not key:
+        return []
+    stmt = (
+        select(RunBatch.id, RunBatch.run_name, RunBatch.load_date, Instrument.serial_number, Instrument.name)
+        .join(RunBatch.instrument)
+        .where(func.lower(func.trim(RunBatch.run_name)) == key)
+        .order_by(RunBatch.load_date.desc(), RunBatch.id.desc())
+        .limit(5)
+    )
+    if exclude_run_id is not None:
+        stmt = stmt.where(RunBatch.id != exclude_run_id)
+    return [
+        RunNameMatchOut(run_id=rid, run_name=rname, load_date=d, instrument_serial=serial, instrument_name=iname)
+        for rid, rname, d, serial, iname in db.execute(stmt).all()
+    ]
 
 
 @router.get("/{run_id}", response_model=RunOut)

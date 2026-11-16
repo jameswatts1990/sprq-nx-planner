@@ -17,15 +17,21 @@ from app.engine.normalize import (
     NormalizeResult,
     SkippedRow,
     _parse_float_or_none,
+    _parse_insert_size,
     _parse_sanger,
+    movie_time_warning,
     parse_bool_field,
+    parse_movie_time_field,
 )
 from app.engine.constants import normalize_priority
 from app.engine.tracker_columns import (
     K_BARCODES,
     K_CCS_KINETICS,
+    K_LIBRARY_SIZE,
     K_LOADING_CONC,
+    K_PLATE_ID,
     K_PRIORITY,
+    K_RUN_TIME,
     K_SANGER,
     K_STATUS,
     K_TARGET_OPLC,
@@ -90,18 +96,27 @@ def normalize_tracker(text: str | None) -> NormalizeResult:
             skipped.append(SkippedRow(identifier=ident, reason="No barcodes"))
             continue
 
+        ident = raw_id or f"Sample {n + 1}"
+        run_time_raw = get(K_RUN_TIME)
+        movie_time, movie_ok = parse_movie_time_field(run_time_raw)
+        if not movie_ok:
+            warnings.append(movie_time_warning(ident, "Run Time", run_time_raw))
+
         sanger_raw = get(K_SANGER)
         base_kinetics, _ = parse_bool_field(get(K_CCS_KINETICS))
         samples.append(
             ParsedSample(
-                id=raw_id or f"Sample {n + 1}",
+                id=ident,
                 barcodes=barcodes,
+                parent=get(K_PLATE_ID),
                 sanger=_parse_sanger(sanger_raw) if sanger_raw else [],
                 target_oplc=_parse_float_or_none(get(K_TARGET_OPLC)),
                 # The tracker's "Loading Conc. (pM)" is the achieved (actual) loading conc.
                 actual_oplc=_parse_float_or_none(get(K_LOADING_CONC)),
                 priority=normalize_priority(get(K_PRIORITY)) or "",
                 base_kinetics=base_kinetics,
+                movie_time=movie_time,
+                insert_size_bp=_parse_insert_size(get(K_LIBRARY_SIZE)),
                 key=f"{raw_id}#{n}",
             )
         )

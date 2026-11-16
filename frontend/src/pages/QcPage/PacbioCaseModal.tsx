@@ -4,6 +4,7 @@ import { type FormEvent, useState } from "react";
 import { errorMessage } from "@/api/client";
 import { instrumentsApi } from "@/api/instruments";
 import { pacbioCasesApi } from "@/api/pacbioCases";
+import { CaseNumberWarning } from "@/components/shared/DuplicateWarnings";
 import { Button } from "@/components/ui/Button";
 import { Modal, ModalActions } from "@/components/ui/Modal";
 import { Note } from "@/components/ui/Note";
@@ -256,6 +257,7 @@ export function PacbioCaseModal({ existing, onClose, onSaved }: PacbioCaseModalP
                   placeholder="e.g. 00316913"
                   maxLength={64}
                 />
+                <CaseNumberWarning number={caseNumber} />
               </div>
               <div className={styles.field}>
                 <label className="fieldLabel" htmlFor="pc-report-id">

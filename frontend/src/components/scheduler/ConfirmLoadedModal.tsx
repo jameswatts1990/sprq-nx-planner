@@ -5,6 +5,7 @@ import { errorMessage } from "@/api/client";
 import { cyclesApi } from "@/api/cycles";
 import { clampLoadHour, fmtHour, LoadTimeDial } from "@/components/scheduler/LoadTimeDial";
 import { formatLoadTime, parseLoadTime } from "@/components/scheduler/loadTime";
+import { RunNameWarning } from "@/components/shared/DuplicateWarnings";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { Note } from "@/components/ui/Note";
 import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
@@ -120,6 +121,7 @@ export function ConfirmLoadedModal({
           placeholder="e.g. TRACTION-RUN-1234"
           autoFocus={!!loadedBy}
         />
+        <RunNameWarning name={runName} runId={runId} />
       </div>
       <div className={styles.field}>
         <label className="fieldLabel" htmlFor="confirm-load-time">
