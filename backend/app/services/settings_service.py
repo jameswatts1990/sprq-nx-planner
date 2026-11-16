@@ -374,6 +374,70 @@ def set_credit_email(db: Session, values: dict[str, str]) -> dict[str, str]:
     return get_credit_email(db)
 
 
+# --- Issue report ------------------------------------------------------------------------
+# The lab-specific values the "Generate report" issue-report row fills in (frontend
+# components/cells/CreditCaseActions.buildReportFields): the team that found the issue (also its
+# Issue Owner), the equipment owner, and the manager to notify. Stored under issue_report.*.
+# Deliberately blank by default - the repo is public, so no team or person is ever named in code;
+# the report leaves an unset column blank and says so.
+_ISSUE_REPORT_PREFIX = "issue_report."
+ISSUE_REPORT_KEYS: tuple[str, ...] = ("team", "equipment_owner", "manager")
+_ISSUE_REPORT_MAX_LEN = 120
+_ISSUE_REPORT_LABEL = {"team": "Team", "equipment_owner": "Equipment owner", "manager": "Manager"}
+
+
+def get_issue_report_settings(db: Session) -> dict[str, str]:
+    """The issue-report values, "" for any not yet set."""
+    stored = {
+        s.key[len(_ISSUE_REPORT_PREFIX):]: s.value
+        for s in db.scalars(
+            select(AppSetting).where(AppSetting.key.in_([_ISSUE_REPORT_PREFIX + k for k in ISSUE_REPORT_KEYS]))
+        )
+    }
+    return {key: stored.get(key) or "" for key in ISSUE_REPORT_KEYS}
+
+
+def set_issue_report_settings(db: Session, values: dict[str, str]) -> dict[str, str]:
+    """Upsert the given issue-report values (trimmed; blank clears). Does NOT commit."""
+    for key, raw in values.items():
+        if key not in ISSUE_REPORT_KEYS:
+            raise ValueError(f"Unknown issue-report setting '{key}'")
+        value = raw.strip()
+        if len(value) > _ISSUE_REPORT_MAX_LEN:
+            raise ValueError(f"{_ISSUE_REPORT_LABEL[key]} must be {_ISSUE_REPORT_MAX_LEN} characters or fewer")
+        _upsert(db, _ISSUE_REPORT_PREFIX + key, value)
+    db.flush()
+    return get_issue_report_settings(db)
+
+
+# --- QC & credits ------------------------------------------------------------------------
+# overdue_days - an open credit case is flagged overdue once its current stage has waited longer
+#   than this many days (QC worklist badge, the QC nav count, services/qc_summary).
+_QC_PREFIX = "qc."
+DEFAULT_QC_OVERDUE_DAYS = 30
+_QC_OVERDUE_DAYS_MAX = 365
+
+
+def get_qc_overdue_days(db: Session) -> int:
+    """The configured overdue limit in days, falling back to DEFAULT_QC_OVERDUE_DAYS for a
+    never-stored or out-of-range value."""
+    stored = db.get(AppSetting, _QC_PREFIX + "overdue_days")
+    try:
+        value = int(stored.value) if stored is not None and stored.value else DEFAULT_QC_OVERDUE_DAYS
+    except (TypeError, ValueError):
+        return DEFAULT_QC_OVERDUE_DAYS
+    return value if 1 <= value <= _QC_OVERDUE_DAYS_MAX else DEFAULT_QC_OVERDUE_DAYS
+
+
+def set_qc_overdue_days(db: Session, value: int) -> int:
+    """Store the overdue limit (a whole number of days, 1-365). Does NOT commit."""
+    if isinstance(value, bool) or not isinstance(value, int) or not (1 <= value <= _QC_OVERDUE_DAYS_MAX):
+        raise ValueError(f"Overdue limit must be a whole number of days from 1 to {_QC_OVERDUE_DAYS_MAX}")
+    _upsert(db, _QC_PREFIX + "overdue_days", str(value))
+    db.flush()
+    return get_qc_overdue_days(db)
+
+
 def _upsert(db: Session, full_key: str, value: str) -> None:
     """Insert or update one app_settings row. Does not flush/commit."""
     existing = db.get(AppSetting, full_key)

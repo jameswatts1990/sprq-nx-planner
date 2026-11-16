@@ -17,6 +17,9 @@ import type { QueryClient } from "@tanstack/react-query";
  * which rows the schedule grid renders and greys, so an instrument mutation must refresh the
  * grid's instrument axis (keyed ["instruments", true]) the same way. The Instruments-page-only
  * ["instrument-stats"] query is invalidated at that page's own call sites, not here.
+ *
+ * ["qc-summary"] (the QC nav count) because a Cell QC verdict or its undo opens or closes a
+ * cell's credit case.
  */
 export function invalidateScheduleRelated(queryClient: QueryClient) {
   void queryClient.invalidateQueries({ queryKey: ["cycles"] });
@@ -27,4 +30,5 @@ export function invalidateScheduleRelated(queryClient: QueryClient) {
   void queryClient.invalidateQueries({ queryKey: ["sample"] });
   void queryClient.invalidateQueries({ queryKey: ["instruments"] });
   void queryClient.invalidateQueries({ queryKey: ["instrument"] });
+  void queryClient.invalidateQueries({ queryKey: ["qc-summary"] });
 }

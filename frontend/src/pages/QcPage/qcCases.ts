@@ -59,8 +59,12 @@ export function qcCaseExpected(item: QcCase): number | null {
   return item.kind === "cell" ? expectedReimbursement(item.cell) : item.pacbioCase.expected_acquisitions;
 }
 
-export function qcCaseAge(item: QcCase, nowMs: number = Date.now()): CreditCaseAge | null {
-  return creditCaseAge(qcCaseCredit(item), qcCaseFailureMs(item), nowMs);
+export function qcCaseAge(
+  item: QcCase,
+  overdueDays: number | undefined,
+  nowMs: number = Date.now(),
+): CreditCaseAge | null {
+  return creditCaseAge(qcCaseCredit(item), qcCaseFailureMs(item), overdueDays, nowMs);
 }
 
 /** The run / sample / instrument a case is about - the cell's triggering use, or what was typed in. */
@@ -143,7 +147,7 @@ export const QC_CSV_HEADERS = [
 export function qcCaseCsvRow(item: QcCase, nowMs: number = Date.now()): string[] {
   const credit = qcCaseCredit(item);
   const ctx = qcCaseContext(item);
-  const age = qcCaseAge(item, nowMs);
+  const age = qcCaseAge(item, undefined, nowMs); // only days open - the export has no overdue column
   const expected = qcCaseExpected(item);
   const credited = credit.pacbio_credit_confirmed_at ? credit.credit_acquisitions : null;
   const { currentKey } = getCreditStages(credit);

@@ -54,7 +54,8 @@ export function failUseNumber<T extends { id: number; status: string }>(uses: T[
 
 /** When a cell's case "failed": the triggering use's completion (else start) time, else the stop
  * time - the Failure stage's timestamp and the report's Date of Occurrence. Reads the list view's
- * use summaries, so the QC worklist never needs a cell's detail for it. */
+ * use summaries, so the QC worklist never needs a cell's detail for it. Twin: backend
+ * services/qc_summary.cell_failure_at - keep in step. */
 export function cellFailureAt(cell: CellOut): string | null {
   const use = triggeringUse(cell.uses);
   return use?.completed_at ?? use?.started_at ?? cell.stopped_at ?? null;
@@ -153,9 +154,6 @@ export function formatQuantity(n: number): string {
   return String(Math.round(n * 100) / 100);
 }
 
-/** A case is flagged overdue once its current stage has waited longer than this. */
-export const CREDIT_OVERDUE_DAYS = 30;
-
 export const OVERDUE_BADGE: { tone: BadgeTone; label: string } = { tone: "danger", label: "Overdue" };
 
 const DAY_MS = 86_400_000;
@@ -166,16 +164,21 @@ export interface CreditCaseAge {
   /** Whole days the current stage has been waiting - since the latest completed step. */
   waitDays: number;
   overdue: boolean;
+  /** The limit `overdue` was judged against (undefined while the setting loads). */
+  overdueDays: number | undefined;
   /** The step it's waiting on, e.g. "Record credit". */
   waitingFor: string;
 }
 
 /** How long an open case has been open and stuck at its current stage; null once settled or when
  * the failure time is unknown. The wait runs from the latest completed step (or the failure),
- * so it reads correctly even for a backfilled case whose steps were recorded out of order. */
+ * so it reads correctly even for a backfilled case whose steps were recorded out of order.
+ * Overdue once the wait is past `overdueDays` (the Settings > QC & credits limit; never overdue
+ * while that is still loading). Twin: backend services/qc_summary.is_overdue - keep in step. */
 export function creditCaseAge(
   credit: CreditCaseState,
   failureMs: number | null,
+  overdueDays: number | undefined,
   nowMs: number = Date.now(),
 ): CreditCaseAge | null {
   const { currentKey } = getCreditStages(credit);
@@ -187,7 +190,8 @@ export function creditCaseAge(
   return {
     daysOpen: Math.floor((nowMs - failureMs) / DAY_MS),
     waitDays,
-    overdue: waitDays > CREDIT_OVERDUE_DAYS,
+    overdue: overdueDays !== undefined && waitDays > overdueDays,
+    overdueDays,
     waitingFor: CREDIT_NEXT_STEP_LABEL[currentKey],
   };
 }
