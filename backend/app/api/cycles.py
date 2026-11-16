@@ -164,7 +164,7 @@ def reschedule_run_endpoint(run_id: int, req: RunRescheduleRequest, db: SessionD
     another day" flow (moves both plates in one step instead of dragging every sample). A reuse
     pushed past its cell's 108h window comes back flagged reuse_window_exceeded rather than being
     silently re-trayed. See placement_service.reschedule_run for the gates (confirmed-loaded,
-    weekday, maintenance-down, whole-day lock, day-already-occupied)."""
+    weekday, downtime day, whole-day lock, day-already-occupied)."""
     try:
         reschedule_run(db, run_id, req.new_load_date, req.actor or actor)
     except PlacementError as exc:

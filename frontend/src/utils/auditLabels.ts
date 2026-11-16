@@ -67,14 +67,30 @@ export const ACTION_LABEL: Record<string, string> = {
   // Instruments
   instrument_create: "Added instrument",
   instrument_update: "Edited instrument",
+  // instrument_down / instrument_online: the pre-0.74 single "down from" flag, kept for old rows.
   instrument_down: "Marked down",
   instrument_online: "Back online",
+  instrument_downtime_add: "Added downtime",
+  instrument_downtime_update: "Edited downtime",
+  instrument_downtime_end: "Ended downtime",
+  instrument_downtime_delete: "Deleted downtime",
   instrument_delete: "Deleted instrument",
   // Settings
   update_sample_defaults: "Changed sample defaults",
   update_scheduling_settings: "Changed scheduling settings",
   update_credit_email: "Changed credit email",
 };
+
+/** "Planned · 12 Nov 2026 → 14 Nov 2026: Laser swap" (one day: just the date) from a downtime audit row's snapshot. */
+function downtimeSummary(d: Record<string, unknown>): string {
+  const kind = d.kind === "planned" ? "Planned" : "Unplanned";
+  const span = !d.end_date
+    ? `from ${formatAuditValue(d.start_date)}`
+    : d.end_date === d.start_date
+      ? formatAuditValue(d.start_date)
+      : `${formatAuditValue(d.start_date)} → ${formatAuditValue(d.end_date)}`;
+  return `${kind} · ${span}${d.note ? `: ${formatAuditValue(d.note)}` : ""}`;
+}
 
 /** The Activity page's "What" filter: each group sends its actions as one comma-separated list. */
 export const ACTION_GROUPS: { value: string; label: string; actions: string[] }[] = [
@@ -155,7 +171,17 @@ export const ACTION_GROUPS: { value: string; label: string; actions: string[] }[
   {
     value: "instruments",
     label: "Instruments",
-    actions: ["instrument_create", "instrument_update", "instrument_down", "instrument_online", "instrument_delete"],
+    actions: [
+      "instrument_create",
+      "instrument_update",
+      "instrument_downtime_add",
+      "instrument_downtime_update",
+      "instrument_downtime_end",
+      "instrument_downtime_delete",
+      "instrument_down",
+      "instrument_online",
+      "instrument_delete",
+    ],
   },
   {
     value: "settings",
@@ -179,6 +205,9 @@ export function actionLabel(row: Pick<AuditLogOut, "action" | "details_json">): 
 /** Field names as the forms label them. */
 const FIELD_LABEL: Record<string, string> = {
   barcodes: "Barcodes",
+  // Downtime periods (instrument_downtime_update) - the only rows recording these.
+  start_date: "First down day",
+  end_date: "Last down day",
   sanger_ids: "Sanger IDs",
   plate_id: "Plate ID",
   pool_id: "Pool ID",
@@ -258,6 +287,15 @@ export function describeAuditDetails(row: Pick<AuditLogOut, "action" | "details_
       return [`${value("removed_count")} sample(s) removed`];
     case "instrument_down":
       return [`From ${value("down_from")}${d.note ? `: ${value("note")}` : ""}`];
+    case "instrument_downtime_add":
+    case "instrument_downtime_delete":
+      return [downtimeSummary(d)];
+    case "instrument_downtime_end":
+      return [
+        d.removed
+          ? `${downtimeSummary(d)} · removed (it hadn't started)`
+          : `${downtimeSummary(d)} · back online ${value("back_online_on")}`,
+      ];
     case "discard_cell":
     case "rotate_tray":
       return d.reason ? [`Reason: ${value("reason")}`] : [];

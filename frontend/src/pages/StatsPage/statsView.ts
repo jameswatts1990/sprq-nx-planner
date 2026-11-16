@@ -123,7 +123,8 @@ function pct(part: number, whole: number): string {
   return whole ? (Math.round((1000 * part) / whole) / 10).toString() : "";
 }
 
-/** The report as CSV: one row per period with every trend figure, then a Total row. */
+/** The report as CSV: one row per period with every trend figure, then a Total row - then, after a
+ * blank line, the per-instrument availability block (a different shape, so its own header row). */
 export function statsCsv(data: StatsResponse): string {
   const group = data.group_by;
   const byPeriod = <T extends { period: string }>(rows: T[]) => new Map(rows.map((r) => [r.period, r]));
@@ -187,7 +188,17 @@ export function statsCsv(data: StatsResponse): string {
     String(h.avg_uses_per_cell),
     String(sum(imports, (r) => r.imported)),
   ]);
-  return toCsv(headers, rows);
+  const availability = toCsv(
+    ["Instrument", "Weekdays", "Planned down", "Unplanned down", "Uptime %"],
+    data.availability.map((a) => [
+      a.name ? `${a.name} (${a.serial})` : a.serial,
+      String(a.weekdays),
+      String(a.planned_down),
+      String(a.unplanned_down),
+      a.weekdays ? String(a.uptime_pct) : "",
+    ]),
+  );
+  return `${toCsv(headers, rows)}\r\n\r\n${availability}`;
 }
 
 /** "runnx-stats_2026-08-01_2026-10-31_by-month[_84047].csv" */

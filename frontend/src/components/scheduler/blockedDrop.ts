@@ -1,5 +1,7 @@
+import type { DowntimeOut } from "@/types/instrument";
 import type { RunOut } from "@/types/schedule";
-import { formatShortDateUTC, formatTimeLocal, parseDateOnly, shortWeekdayUTC } from "@/utils/calendarDates";
+import { downtimeReason, formatDowntimeSpan } from "@/utils/downtime";
+import { formatTimeLocal, parseDateOnly, shortWeekdayUTC } from "@/utils/calendarDates";
 import { runLabel } from "@/utils/runLabel";
 import { RUN_STATUS_LABEL } from "@/utils/cycleStatus";
 
@@ -36,11 +38,14 @@ function longWeekday(isoDate: string): string {
 
 export const WEEKEND_BLOCK: BlockMarker = { reason: "weekend", detail: "Runs can only be loaded on weekdays." };
 
-export function downBlock(instrumentLabel: string, downFrom: string, note: string | null): BlockMarker {
-  const why = note?.trim().replace(/[.\s]+$/, "");
+/** "Revio 84093 is down 12–14 Nov (planned): Laser swap." */
+export function downBlock(instrumentLabel: string, period: DowntimeOut): BlockMarker {
+  const span = formatDowntimeSpan(period);
+  const when = period.end_date === period.start_date ? `on ${span}` : span;
+  const why = downtimeReason(period);
   return {
     reason: "down",
-    detail: `${instrumentLabel} is down from ${formatShortDateUTC(parseDateOnly(downFrom))}${why ? `: ${why}` : ""}.`,
+    detail: `${instrumentLabel} is down ${when} (${period.kind})${why ? `: ${why}` : ""}.`,
   };
 }
 

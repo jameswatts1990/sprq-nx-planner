@@ -1,9 +1,11 @@
 import { memo, type KeyboardEvent, type MouseEvent } from "react";
 
 import { Button } from "@/components/ui/Button";
+import type { DowntimeOut } from "@/types/instrument";
 import type { RunOut, StageOut } from "@/types/schedule";
 import type { ScheduleNoteOut } from "@/types/scheduleNote";
 import { isWeekendUTC, parseDateOnly } from "@/utils/calendarDates";
+import { downtimeOn } from "@/utils/downtime";
 
 import { resolveCell } from "./groupCyclesByInstrumentAndDay";
 import type { GridSelection } from "./useGridSelection";
@@ -18,11 +20,9 @@ export interface SchedulerGridRowProps {
   /** Friendly instrument name shown as the row's primary label; falls back to the serial
    * when unset. The serial stays the row's identity key regardless. */
   name: string | null;
-  /** ISO date (YYYY-MM-DD) the instrument went down for maintenance, or null when online.
-   * Day-columns on/after this are greyed and non-selectable (see SchedulerDayCell's `down`). */
-  downFrom: string | null;
-  /** Why it's down (Instruments page), quoted when a drop onto a down day is refused. */
-  downNote: string | null;
+  /** The instrument's downtime periods. Days inside one are greyed and non-selectable (see
+   * SchedulerDayCell's `downtime`). */
+  downtimes: DowntimeOut[];
   rowIndex: number;
   days: string[];
   cyclesByDate: Map<string, RunOut>;
@@ -51,8 +51,7 @@ export interface SchedulerGridRowProps {
 export const SchedulerGridRow = memo(function SchedulerGridRow({
   serial,
   name,
-  downFrom,
-  downNote,
+  downtimes,
   rowIndex,
   days,
   cyclesByDate,
@@ -75,14 +74,13 @@ export const SchedulerGridRow = memo(function SchedulerGridRow({
     const weekend = isWeekendUTC(parseDateOnly(date));
     // Weekends are never open and never consult a continuation, so skip the costly scan.
     if (weekend) {
-      return { date, colIndex, weekend, run: cyclesByDate.get(date), continuation: undefined, selectable: false, down: false };
+      return { date, colIndex, weekend, run: cyclesByDate.get(date), continuation: undefined, selectable: false, downtime: null };
     }
-    // Down for maintenance from downFrom onward: the day is greyed and can't be selected or
-    // take a new run (mirrors the backend guard in placement_service.get_or_create_run). ISO
-    // date strings compare lexically, so a plain >= is the on-or-after-the-down-date test.
-    const down = downFrom !== null && date >= downFrom;
+    // Inside a downtime period: the day is greyed and can't be selected or take a new run
+    // (mirrors the backend guard in placement_service.get_or_create_run).
+    const downtime = downtimeOn(downtimes, date);
     const { run, continuation, open } = resolveCell(cyclesByDate, date);
-    return { date, colIndex, weekend, run, continuation, selectable: open && !down, down };
+    return { date, colIndex, weekend, run, continuation, selectable: open && downtime === null, downtime };
   });
   const selectableCols = dayInfos.filter((d) => d.selectable).map((d) => d.colIndex);
 
@@ -139,20 +137,18 @@ export const SchedulerGridRow = memo(function SchedulerGridRow({
         {name && <div className={styles.serialSub}>{serial}</div>}
         <InstrumentTrayMap map={trayMap} />
       </th>
-      {dayInfos.map(({ date, colIndex, weekend, run, continuation, selectable, down }) => {
+      {dayInfos.map(({ date, colIndex, weekend, run, continuation, selectable, downtime }) => {
         const selected = selectable && selection.isSelected(rowIndex, colIndex);
         return (
           <SchedulerDayCell
             key={date}
             instrumentSerial={serial}
             instrumentLabel={name || `Revio ${serial}`}
-            downFrom={downFrom}
-            downNote={downNote}
             loadDate={date}
             rowIndex={rowIndex}
             colIndex={colIndex}
             weekend={weekend}
-            down={down}
+            downtime={downtime}
             run={run}
             continuation={continuation}
             selectable={selectable}

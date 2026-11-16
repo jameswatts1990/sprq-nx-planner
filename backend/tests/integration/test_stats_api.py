@@ -20,7 +20,8 @@ def test_stats_empty_db_returns_all_groups(client):
     r = client.get("/api/stats")
     assert r.status_code == 200, r.text
     body = r.json()
-    assert set(body) == {"group_by", "headline", "throughput", "reuse", "failures", "inventory"}
+    assert set(body) == {"group_by", "headline", "throughput", "reuse", "failures", "inventory", "availability"}
+    assert [(a["planned_down"], a["unplanned_down"]) for a in body["availability"]] == [(0, 0)] * 4
     assert body["group_by"] == "week"
     assert body["headline"]["runs_completed"] == 0
     assert body["throughput"]["series"] == []

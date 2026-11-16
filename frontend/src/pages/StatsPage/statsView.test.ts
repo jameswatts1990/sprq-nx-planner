@@ -76,7 +76,7 @@ describe("labels", () => {
 });
 
 describe("statsCsv", () => {
-  it("one row per period across every series, then a Total row", () => {
+  it("one row per period across every series, a Total row, then the availability block", () => {
     const data = {
       group_by: "month",
       headline: {
@@ -116,6 +116,10 @@ describe("statsCsv", () => {
         credit_funnel: { needs_report: 0, reported: 0, awaiting: 0, received: 0 },
       },
       inventory: { cell_status: [], sample_funnel: [], import_volume: [{ period: "2026-08-01", imported: 7 }] },
+      availability: [
+        { serial: "84047", name: "Revio A", weekdays: 20, planned_down: 2, unplanned_down: 1, uptime_pct: 85 },
+        { serial: "84098", name: null, weekdays: 0, planned_down: 0, unplanned_down: 0, uptime_pct: 0 },
+      ],
     } satisfies StatsResponse;
 
     const lines = statsCsv(data).split("\r\n");
@@ -127,6 +131,10 @@ describe("statsCsv", () => {
       "September 2026,2026-09-01,1,4,0,4,4,100,4,0,0,,0",
       "October 2026,2026-10-01,2,6,2,8,12,66.7,8,1,12.5,2.5,0",
       "Total,,3,10,2,12,16,75,12,1,8.3,2.5,7",
+      "",
+      "Instrument,Weekdays,Planned down,Unplanned down,Uptime %",
+      "Revio A (84047),20,2,1,85",
+      "84098,0,0,0,",
     ]);
   });
 });

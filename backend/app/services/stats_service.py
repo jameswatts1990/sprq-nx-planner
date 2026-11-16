@@ -24,6 +24,10 @@ Scoping rules (mirrored in the Help copy):
   predates the window.
 - The credit funnel counts every PacBio credit case: cells' own cases plus cases logged
   without a cell (PacbioCase), the latter scoped to an instrument by the one entered on it.
+- Instrument availability counts weekdays from date_from (else the instrument's first run, period
+  or creation day) to date_to clipped to today - it's retrospective, so a planned period ahead
+  shows on the Instruments page, not here. Weekdays only (runs load Mon-Fri); see
+  services/downtime.down_weekdays.
 - Every series is bucketed by week (Monday), month or quarter (first day) - see _bucket.
 """
 from __future__ import annotations
@@ -50,6 +54,7 @@ from app.schemas.stats import (
     GroupBy,
     HeadlineStats,
     ImportVolumePoint,
+    InstrumentAvailability,
     InstrumentThroughput,
     InventoryStats,
     MovieHoursSlice,
@@ -70,7 +75,7 @@ from app.services.cell_service import (
     last_use_run_date,
     needs_qc_report,
 )
-from app.services import credit_service
+from app.services import credit_service, downtime
 from app.services.run_history_rows import STATUS_OPTIONS, live_plates
 from app.services.run_serializer import run_status
 from app.timeutil import ensure_aware, utcnow
@@ -144,7 +149,38 @@ def compute_stats(
         reuse=reuse,
         failures=failures,
         inventory=inventory,
+        availability=_availability(db, date_from, date_to, instrument_serial, instruments),
     )
+
+
+def _availability(db, date_from, date_to, instrument_serial, instruments) -> list[InstrumentAvailability]:
+    last = min(date_to, downtime.today()) if date_to else downtime.today()
+    first_run = dict(
+        db.execute(select(RunBatch.instrument_id, func.min(RunBatch.load_date)).group_by(RunBatch.instrument_id)).all()
+    )
+    rows = []
+    for ins in instruments:
+        if instrument_serial and ins.serial_number != instrument_serial:
+            continue
+        first = date_from
+        if first is None:
+            starts = [ins.created_at.date(), *(p.start_date for p in ins.downtimes)]
+            if ins.id in first_run:
+                starts.append(first_run[ins.id])
+            first = min(starts)
+        weekdays = downtime.weekdays_in(first, last)
+        down = downtime.down_weekdays(ins.downtimes, first, last)
+        rows.append(
+            InstrumentAvailability(
+                serial=ins.serial_number,
+                name=ins.name,
+                weekdays=weekdays,
+                planned_down=down["planned"],
+                unplanned_down=down["unplanned"],
+                uptime_pct=_pct(weekdays - down["planned"] - down["unplanned"], weekdays),
+            )
+        )
+    return rows
 
 
 def _run_figures(db, date_from, date_to, instrument_serial, instruments, group_by):

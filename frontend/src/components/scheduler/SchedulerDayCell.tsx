@@ -15,10 +15,12 @@ import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { Note } from "@/components/ui/Note";
 import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
 import { restoreUndo, samples, useUndoSlot } from "@/pages/SchedulePage/useUndoSlot";
-import type { RunOut, StageOut } from "@/types/schedule";
+import type { DowntimeOut } from "@/types/instrument";
+import type { PlateOut, RunOut, StageOut } from "@/types/schedule";
 import type { ScheduleNoteOut } from "@/types/scheduleNote";
 import { formatShortDateTimeLocal, formatShortDateUTC, formatTimeLocal, parseDateOnly, shortWeekdayUTC } from "@/utils/calendarDates";
 import { CYCLE_STATUS_TONE, RUN_STATUS_LABEL } from "@/utils/cycleStatus";
+import { downtimeReason, formatDowntime } from "@/utils/downtime";
 import { runLabel } from "@/utils/runLabel";
 
 import { blockAttrs, continuationBlock, downBlock, lockedRunBlock, WEEKEND_BLOCK } from "./blockedDrop";
@@ -34,18 +36,15 @@ export interface SchedulerDayCellProps {
   instrumentSerial: string;
   /** The instrument's name, or "Revio <serial>" - in a refused-drop message and the Confirm loaded title. */
   instrumentLabel: string;
-  /** The instrument's maintenance-down date and note, quoted when a drop on a `down` day is refused. */
-  downFrom?: string | null;
-  downNote?: string | null;
   loadDate: string;
   rowIndex: number;
   colIndex: number;
   weekend: boolean;
-  /** The instrument is down for maintenance on this day (date on/after its down_from). An
-   * empty down day renders greyed and non-interactive instead of a droppable "+"; a day that
-   * still holds a run renders it normally so it stays manageable. Mirrors the backend guard,
-   * which blocks only new-run creation, not editing an existing run. */
-  down?: boolean;
+  /** The downtime period covering this day, if any. An empty down day renders greyed and
+   * non-interactive instead of a droppable "+" (its kind, dates and note quoted when a drop is
+   * refused); a day that still holds a run renders it normally so it stays manageable. Mirrors
+   * the backend guard, which blocks only new-run creation, not editing an existing run. */
+  downtime?: DowntimeOut | null;
   run: RunOut | undefined;
   /** An earlier run on this instrument still occupying this day (its Plate 2 acquires here,
    * or its lock spans it), when this day has no run of its own - purely informational, never
@@ -134,6 +133,21 @@ function DayNoteBanner({ note, instrumentSerial, onEdit }: Omit<DayNoteBannersPr
   );
 }
 
+/** "⚠ Down": this plate acquires on a day its instrument is in a downtime period - a reuse Plate 2
+ * sequencing on a down day, or a run booked before the period was added. A warning only: the
+ * backend never blocks or moves it (services/downtime.py). */
+function DowntimeWarning({ plate, block = false }: { plate: PlateOut; block?: boolean }) {
+  const day = `${shortWeekdayUTC(parseDateOnly(plate.acquire_date))} ${formatShortDateUTC(parseDateOnly(plate.acquire_date))}`;
+  return (
+    <span
+      className={block ? `${styles.downWarn} ${styles.downWarnBlock}` : styles.downWarn}
+      title={`Plate ${plate.plate_index} acquires on ${day}, when this instrument is down (see Instruments). It hasn't been moved — reschedule the run, or change the downtime if the instrument will be available.`}
+    >
+      ⚠ Down
+    </span>
+  );
+}
+
 /** The whole weekday cell as a drop target for a dragged day note (a note belongs to the day,
  * not a slot). Its own leaf so only it - not the whole day cell - re-renders as a drag passes
  * over; it overlays the cell without catching the pointer, and a sample drag never targets it
@@ -163,13 +177,11 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
   const {
     instrumentSerial,
     instrumentLabel,
-    downFrom,
-    downNote,
     loadDate,
     rowIndex,
     colIndex,
     weekend,
-    down,
+    downtime,
     run,
     continuation,
     selectable,
@@ -287,14 +299,14 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
   // or dropped onto (the backend refuses a new run here too). A down day that still holds a
   // run or an earlier run's continuation falls through and renders normally, so an existing
   // run stays visible and manageable.
-  if (down && run === undefined && continuation === undefined) {
+  if (downtime && run === undefined && continuation === undefined) {
     return (
       <td
         className={`${styles.cell} ${styles.down}`}
-        title="Instrument down for maintenance — no new runs can be scheduled here."
+        title={`${formatDowntime(downtime)}${downtimeReason(downtime) ? ` — ${downtimeReason(downtime)}` : ""}. No new runs can be scheduled here.`}
         data-row={rowIndex}
         data-col={colIndex}
-        {...blockAttrs(downFrom ? downBlock(instrumentLabel, downFrom, downNote ?? null) : null)}
+        {...blockAttrs(downBlock(instrumentLabel, downtime))}
       >
         {notes && <DayNoteBanners notes={notes} instrumentSerial={instrumentSerial} onEdit={onEditNote} />}
         <span className={styles.downLabel}>Down</span>
@@ -453,6 +465,7 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
                 }
                 title={`No action here — the instrument runs this plate itself once Plate 1's movie finishes and the cells are washed (a reuse run's Plate 2 — the next working day for a normal-length movie, later for a very long one). Manage it from its own run on its load day. ${lockedUntil(continuation.run.lock_until)}.`}
               />
+              {continuationPlate.acquires_in_downtime && <DowntimeWarning plate={continuationPlate} />}
             </>
           ) : (
             <LockChip title={lockedUntil(continuation.run.lock_until)} />
@@ -531,6 +544,8 @@ export const SchedulerDayCell = memo(function SchedulerDayCell(props: SchedulerD
                   </div>
                 )}
               </div>
+              {/* Its own line: beside the label it squeezed "Plate 1" onto two lines in a narrow tray. */}
+              {plate?.acquires_in_downtime && <DowntimeWarning plate={plate} block />}
               {indices.map((i) => (
                 <SchedulerSlot
                   key={i}

@@ -18,6 +18,7 @@ import { smallInsertReuseWarning, useInsertSizeThreshold } from "@/hooks/useInse
 import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
 import { SampleModal } from "@/pages/SampleModal";
 import type { RunOut, RunTimeHours, StageOut } from "@/types/schedule";
+import { formatShortDateUTC, parseDateOnly, shortWeekdayUTC } from "@/utils/calendarDates";
 import { plateWellFromSlot } from "@/utils/plateWell";
 import { runLabel } from "@/utils/runLabel";
 import { useSampleBackNav } from "@/utils/sampleBackNav";
@@ -220,6 +221,7 @@ function SlotDetailBody({
   const canEditRunTime = run.status === "planned" && stage.cell_use_status === "planned";
   // See loadFreshTrayMutation: only actionable while still planned with a live sample.
   const windowExceeded = !!stage.reuse_window_exceeded && stage.cell_use_status === "planned";
+  const plate = run.plates.find((p) => p.stages.some((s) => s.cell_use_id === stage.cell_use_id));
   const canLoadFreshTray = windowExceeded && run.status === "planned" && stage.sample_id !== null;
   // The server's reason a half-done fresh-tray swap failed (empty if it sent none).
   const freshTrayReason = errorMessage(loadFreshTrayMutation.error, "");
@@ -339,6 +341,14 @@ function SlotDetailBody({
           This cell&apos;s <b>108h reuse window has closed</b> for this day, so its <b>Use {stage.use_number}</b> can no
           longer start in time.{" "}
           {canLoadFreshTray ? "Use Load fresh tray below to run it on a new tray." : "Reschedule it to an earlier day."}
+        </Note>
+      )}
+      {plate?.acquires_in_downtime && (
+        <Note tone="warn" icon="!">
+          <b>Plate {plate.plate_index}</b> acquires on{" "}
+          {shortWeekdayUTC(parseDateOnly(plate.acquire_date))} {formatShortDateUTC(parseDateOnly(plate.acquire_date))},
+          when this instrument is down. It wasn&apos;t moved — reschedule the run, or change the downtime on the
+          Instruments page if the instrument will be available.
         </Note>
       )}
       <div className={styles.details}>

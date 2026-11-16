@@ -338,15 +338,15 @@ export function SchedulePage() {
     () => (instrumentsQuery.data ?? []).map((i) => i.serial_number),
     [instrumentsQuery.data],
   );
-  // Per-instrument display name + maintenance-down date and note for the grid (label, greyed
-  // down days and why a drop there is refused), keyed by serial so the grid keeps using the
-  // serial as its row identity.
+  // Per-instrument display name + downtime periods for the grid (label, greyed down days and why
+  // a drop there is refused), keyed by serial so the grid keeps using the serial as its row
+  // identity.
   const instrumentMeta = useMemo(
     () =>
       new Map(
         (instrumentsQuery.data ?? []).map((i) => [
           i.serial_number,
-          { name: i.name, downFrom: i.down_from, downNote: i.down_note },
+          { name: i.name, downtimes: i.downtimes },
         ]),
       ),
     [instrumentsQuery.data],

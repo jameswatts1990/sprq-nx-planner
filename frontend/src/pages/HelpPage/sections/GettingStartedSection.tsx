@@ -26,8 +26,8 @@ export function GettingStartedSection() {
           internal report, confirm and receive the credit) from one place.
         </li>
         <li>
-          <b>Instruments</b> is where you add, rename or remove your Revios and mark one down for maintenance (which
-          greys it out in the Schedule) — plus at-a-glance status for each.
+          <b>Instruments</b> is where you add, rename or remove your Revios and plan or record downtime (which greys
+          those days out in the Schedule) — plus at-a-glance status for each.
         </li>
         <li>
           <b>History ▾</b> opens a short menu of the records: <b>Cells</b> shows every physical SMRT cell tray, how

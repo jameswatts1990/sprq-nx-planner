@@ -27,7 +27,9 @@ describe("ACTIVITY_VIEW", () => {
     expect(activityParams(view)).toMatchObject({
       run_id: 3,
       actor: "Ade",
-      action: "instrument_create,instrument_update,instrument_down,instrument_online,instrument_delete",
+      action:
+        "instrument_create,instrument_update,instrument_downtime_add,instrument_downtime_update,instrument_downtime_end," +
+        "instrument_downtime_delete,instrument_down,instrument_online,instrument_delete",
     });
     const cleared = writeListView(ACTIVITY_VIEW, new URLSearchParams("for=run&id=3&name=x&who=Ade"), {
       scopeKind: "",

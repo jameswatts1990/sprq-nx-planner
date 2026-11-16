@@ -76,3 +76,15 @@
     break-inside: avoid;
   }
 }
+
+/* Instrument availability: a plain table, numbers right-aligned under their headings (th./td. so it
+   outranks the global .table th's left alignment). */
+.tableNote {
+  margin: 0 0 8px;
+  font-size: var(--fs-sm);
+  color: var(--grey);
+}
+th.num,
+td.num {
+  text-align: right;
+}

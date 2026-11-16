@@ -26,9 +26,17 @@ describe("blocked-drop messages", () => {
     expect(WEEKEND_BLOCK.detail).toBe("Runs can only be loaded on weekdays.");
   });
 
-  it("down quotes the date and the note, without doubling its full stop", () => {
-    expect(downBlock("Revio 84093", "2026-11-12", "Laser swap.").detail).toBe("Revio 84093 is down from 12 Nov: Laser swap.");
-    expect(downBlock("Revio 84093", "2026-11-12", null).detail).toBe("Revio 84093 is down from 12 Nov.");
+  it("down quotes the period, its kind and its note, without doubling the note's full stop", () => {
+    const period = { id: 1, kind: "planned", created_by: null, created_at: "" } as const;
+    expect(downBlock("Revio 84093", { ...period, start_date: "2026-11-12", end_date: "2026-11-14", note: "Laser swap." }).detail).toBe(
+      "Revio 84093 is down 12–14 Nov (planned): Laser swap.",
+    );
+    expect(downBlock("Revio 84093", { ...period, start_date: "2026-11-12", end_date: "2026-11-12", note: null }).detail).toBe(
+      "Revio 84093 is down on 12 Nov (planned).",
+    );
+    expect(
+      downBlock("Revio 84093", { ...period, kind: "unplanned", start_date: "2026-11-12", end_date: null, note: null }).detail,
+    ).toBe("Revio 84093 is down from 12 Nov (unplanned).");
   });
 
   it("a loaded run names its lock while it lasts, then how to unload", () => {

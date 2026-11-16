@@ -71,10 +71,16 @@ export function ScheduleSection() {
         started at weekends.
       </p>
       <p>
-        <b>A down instrument&apos;s days are greyed out.</b> From the date you mark an instrument down for maintenance
-        (on the Instruments tab), each of its empty days shows a muted <b>Down</b> cell that can&apos;t be selected or
-        dropped onto, so no new run can be scheduled there until you bring it back online. Runs already on it, and days
-        before the down date, are left untouched.
+        <b>A down instrument&apos;s days are greyed out.</b> On each day inside one of an instrument&apos;s downtime
+        periods (set on the Instruments tab), its empty cell shows a muted <b>Down</b> cell that can&apos;t be
+        selected or dropped onto, and Autoschedule skips it — so no new run can load there. Hover it to see the
+        period and its reason. Days outside the period are untouched.
+      </p>
+      <p>
+        <b>⚠ Down on a plate</b> means that plate acquires on a down day: a run that was already booked when the
+        downtime was added, or a re-use Plate 2 whose next-day acquisition lands on one. It&apos;s a warning, not a
+        block — the app never moves the run for you. Reschedule it, or change the downtime on the Instruments tab if
+        the instrument will be available after all.
       </p>
       <p>
         <b>The day headers are colour-coded to today.</b> Days already past are shown greyed, the current day is
@@ -905,8 +911,8 @@ export function ScheduleSection() {
               <i>… locked until … (Monday&apos;s run loading)</i> while its cells are still prepping;
             </li>
             <li>
-              a down instrument — <i>Revio 84093 is down from 12 Nov: …</i>, quoting the note from the Instruments
-              page;
+              a down instrument — <i>Revio 84093 is down 12–14 Nov (planned): …</i>, quoting the downtime&apos;s
+              reason from the Instruments page;
             </li>
             <li>a finished (completed or aborted) run, which can&apos;t take samples.</li>
           </ul>

@@ -29,7 +29,7 @@ from app.models.cell import Cell
 from app.models.instrument import Instrument
 from app.models.sample import Sample
 from app.models.schedule import CellUse, CellUseBarcode, Cycle, RunBatch
-from app.services import instrument_lock
+from app.services import downtime, instrument_lock
 from app.services.cell_service import (
     mark_cell_discarded,
     open_new_tray,
@@ -192,12 +192,12 @@ def auto_fill(
     skipped: list[tuple[str, date]] = []
     for serial, run_date in requested:
         inst = instruments[serial]
-        # A maintenance-down instrument refuses new runs on/after its down date - skip the
-        # slot (same "skip, don't hard-fail the batch" UX as an already-locked day below)
+        # A down day (inside a downtime period) refuses new runs - skip the slot
+        # (same "skip, don't hard-fail the batch" UX as an already-locked day below)
         # rather than letting get_or_create_run raise mid-loop. The grid already greys these
         # days so the user shouldn't be able to select them, but auto-fill re-validates
         # server-side rather than trusting the client selection.
-        if inst.down_from is not None and run_date >= inst.down_from:
+        if downtime.is_down_on(inst, run_date):
             skipped.append((serial, run_date))
             continue
         # Checked via CellUse, not just RunBatch's existence: a RunBatch/Cycle can survive
@@ -286,7 +286,7 @@ def auto_fill(
                 continue  # weekday reuse days are offered as load slots instead; dedupe the rest
             seen_cont.add(key)
             inst = instruments[s.instrument_serial]
-            if inst.down_from is not None and cont_day >= inst.down_from:
+            if downtime.is_down_on(inst, cont_day):
                 continue
             cont_occupied = db.scalar(
                 select(CellUse.id)
@@ -941,7 +941,7 @@ def recalculate_instrument(db: Session, *, instrument_serial: str, actor: str | 
     requested (reported 2026-07-29: 8 same-day placements opened two fresh trays instead of
     reusing one tray's 4 cells twice each across two days). Extending forward is safe: a
     candidate day auto_fill() can't actually use (already occupied, instrument-locked, or
-    past a maintenance down_from) is skipped by its own pre-scan exactly as today, it just
+    inside a downtime period) is skipped by its own pre-scan exactly as today, it just
     never gets to help if never offered.
 
     Since this can now genuinely move a sample onto a day it wasn't on before (not just a

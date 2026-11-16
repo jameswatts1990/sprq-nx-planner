@@ -1,6 +1,7 @@
 import type { KeyboardEvent, MouseEvent } from "react";
 
 import { Button } from "@/components/ui/Button";
+import type { DowntimeOut } from "@/types/instrument";
 import type { RunOut, StageOut } from "@/types/schedule";
 import type { ScheduleNoteOut } from "@/types/scheduleNote";
 import {
@@ -10,6 +11,7 @@ import {
   shortWeekdayUTC,
   todayIsoUTC,
 } from "@/utils/calendarDates";
+import { isDownOn } from "@/utils/downtime";
 
 import { resolveCell } from "./groupCyclesByInstrumentAndDay";
 import { SchedulerGridRow } from "./SchedulerGridRow";
@@ -21,13 +23,14 @@ import type { SlotSelection } from "./useSlotSelection";
 // Stable empty reference for instruments with nothing to show, so the memoized
 // SchedulerGridRow doesn't see a new object identity on every render.
 const EMPTY_CYCLES_BY_DATE: Map<string, RunOut> = new Map();
+const NO_DOWNTIMES: DowntimeOut[] = [];
 const EMPTY_NOTES_BY_DATE: Map<string, ScheduleNoteOut[]> = new Map();
 
 export interface SchedulerGridProps {
   instrumentSerials: string[];
   /** Per-instrument display name + maintenance-down date and note, keyed by serial. Drives the
    * row's name/serial label and the greyed, non-selectable down day-columns. */
-  instrumentMeta: Map<string, { name: string | null; downFrom: string | null; downNote: string | null }>;
+  instrumentMeta: Map<string, { name: string | null; downtimes: DowntimeOut[] }>;
   /** The 5 weekday (Mon-Fri) YYYY-MM-DD strings for the current window. */
   days: string[];
   /** Runs pre-grouped by (instrument_serial, load_date) - computed once in SchedulePage
@@ -149,17 +152,12 @@ export function SchedulerGrid({
   onAddNote,
   onEditNote,
 }: SchedulerGridProps) {
-  function isDown(serial: string, date: string): boolean {
-    const downFrom = instrumentMeta.get(serial)?.downFrom ?? null;
-    return downFrom !== null && date >= downFrom;
-  }
-
   // Same open-cell computation SchedulerGridRow uses (via the shared resolveCell) - a day
   // with no run of its own is still closed if an earlier run's continuation still occupies it,
-  // or if the instrument is down for maintenance from this date (so the column selection
-  // helpers below never sweep a greyed down cell into a selection).
+  // or if the instrument is in a downtime period that day (so the column selection helpers below
+  // never sweep a greyed down cell into a selection).
   function isDateOpen(serial: string, date: string): boolean {
-    return !isDown(serial, date) && resolveCell(grouped.get(serial), date).open;
+    return !isDownOn(instrumentMeta.get(serial)?.downtimes, date) && resolveCell(grouped.get(serial), date).open;
   }
 
   // Select every open (non-weekend, run-free) cell in a day's column, across all
@@ -238,8 +236,7 @@ export function SchedulerGrid({
               key={serial}
               serial={serial}
               name={instrumentMeta.get(serial)?.name ?? null}
-              downFrom={instrumentMeta.get(serial)?.downFrom ?? null}
-              downNote={instrumentMeta.get(serial)?.downNote ?? null}
+              downtimes={instrumentMeta.get(serial)?.downtimes ?? NO_DOWNTIMES}
               rowIndex={rowIndex}
               days={days}
               cyclesByDate={grouped.get(serial) ?? EMPTY_CYCLES_BY_DATE}
