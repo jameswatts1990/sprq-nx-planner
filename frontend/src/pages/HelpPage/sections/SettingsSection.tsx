@@ -7,7 +7,8 @@ export function SettingsSection() {
     <div className={styles.copy}>
       <p>
         <b>What this tab is for:</b> configure how this copy of the app behaves — the loading options given to new
-        samples, the scheduling rules Autoschedule follows, and the credit email — and see the fixed instrument facts
+        samples, the scheduling rules Autoschedule follows, the credit email, the issue report and the QC overdue limit —
+        and see the fixed instrument facts
         the app enforces. A left-hand list switches between sections; the search box filters it. The raw database tools
         (for development use only) are tucked away behind <b>Show developer tools</b> at the bottom of the list.
       </p>
@@ -68,6 +69,22 @@ export function SettingsSection() {
         app&apos;s internal tray/cell identifiers, which PacBio&apos;s support desk won&apos;t recognise; leave them out
         of an email going to PacBio and identify the cell by its sample and run instead (a case without a cell has
         neither, so they show as —).
+      </p>
+
+      <p className={styles.subheading}>Issue report</p>
+      <p>
+        Fills the lab-specific columns of the row <b>Generate report ▾</b> builds on a credit case for the
+        issue-tracking sheet. <b>Team</b> fills <i>Team who identified the issue</i> and <i>Issue Owner</i>;{" "}
+        <b>Equipment owner</b> fills <i>Equipment Owner</i>; <b>Manager</b> fills the column naming who to notify.
+        They start empty: until you set them, those columns are left blank, and both this panel and the report preview
+        say which are <b>Not set</b>. Everything else in the row comes from the case itself.
+      </p>
+
+      <p className={styles.subheading}>QC &amp; credits</p>
+      <p>
+        <b>Overdue after (days)</b> — an open credit case that&apos;s made no progress at its current stage for longer
+        than this is marked <b>Overdue</b> on the QC &amp; credits tab, counts in its <b>Overdue</b> tile, and counts on
+        the tab&apos;s red number in the top bar. 30 days unless you change it; any whole number from 1 to 365.
       </p>
 
       <p className={styles.subheading}>Instrument &amp; scheduling facts</p>

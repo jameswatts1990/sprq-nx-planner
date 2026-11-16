@@ -176,14 +176,14 @@ def test_create_backfills_every_stage_the_lab_already_has(client, db_session):
         internal_report_id="26_NC_S_040",
         credit_acquisitions=3,
         credit_received=True,
-        credit_owner=" jw24 ",
+        credit_owner=" ab12 ",
     )
     assert r.status_code == 201, r.text
     case = r.json()
     assert case["pacbio_reported_at"] and case["internal_report_at"]
     assert case["pacbio_credit_confirmed_at"] and case["credit_received_at"]
     assert case["credit_acquisitions"] == 3
-    assert case["credit_owner"] == "jw24"
+    assert case["credit_owner"] == "ab12"
     assert _audit_actions(db_session, case["id"]) == ["create_pacbio_case"]
 
 

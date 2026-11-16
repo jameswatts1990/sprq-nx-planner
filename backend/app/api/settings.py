@@ -1,6 +1,5 @@
-"""App-wide settings endpoints. Currently just the sample defaults (the loading options
-pre-filled on newly created/imported samples), surfaced/edited from the Admin panel and
-read by the manual add-sample form to pre-fill its controls.
+"""App-wide settings endpoints: sample defaults, scheduling, the credit-email template, the
+issue-report values, QC settings and the read-only facts, each edited from its Settings panel.
 
 Not admin-gated: the read is needed by the ordinary add-sample form, so it lives under its
 own /api/settings router rather than under the dev-only admin router."""
@@ -30,11 +29,15 @@ from app.services.settings_service import (
     get_day_start_hour,
     get_default_movie_hours,
     get_insert_size_reuse_threshold,
+    get_issue_report_settings,
     get_movie_cell_position,
+    get_qc_overdue_days,
     get_repeat_safe_min_ul,
     get_repeat_total_complex_ul,
     get_sample_defaults,
     set_credit_email,
+    set_issue_report_settings,
+    set_qc_overdue_days,
     set_sample_defaults,
     set_scheduling_settings,
 )
@@ -209,6 +212,81 @@ def update_scheduling_settings(
     )
     db.commit()
     return _scheduling_out(db)
+
+
+class IssueReportOut(BaseModel):
+    # "" = not set; the report leaves that column blank.
+    team: str
+    equipment_owner: str
+    manager: str
+
+
+class IssueReportUpdate(BaseModel):
+    """Optional so the client can send just what changed; "" clears a value."""
+
+    team: str | None = None
+    equipment_owner: str | None = None
+    manager: str | None = None
+
+
+@router.get("/issue-report", response_model=IssueReportOut)
+def read_issue_report(db: SessionDep) -> IssueReportOut:
+    return IssueReportOut(**get_issue_report_settings(db))
+
+
+@router.put("/issue-report", response_model=IssueReportOut)
+def update_issue_report(req: IssueReportUpdate, db: SessionDep, actor: ActorDep) -> IssueReportOut:
+    values = {k: v for k, v in req.model_dump().items() if v is not None}
+    try:
+        settings = set_issue_report_settings(db, values)
+    except ValueError as err:
+        raise HTTPException(422, str(err)) from err
+    db.add(
+        AuditLog(
+            actor=actor,
+            action="update_issue_report_settings",
+            entity_type="app_setting",
+            entity_id=0,
+            details_json={k: settings[k] for k in values},
+        )
+    )
+    db.commit()
+    return IssueReportOut(**settings)
+
+
+class QcSettingsOut(BaseModel):
+    # An open credit case waiting longer than this at its current stage is overdue.
+    overdue_days: int
+
+
+class QcSettingsUpdate(BaseModel):
+    overdue_days: int | None = None
+
+
+@router.get("/qc", response_model=QcSettingsOut)
+def read_qc_settings(db: SessionDep) -> QcSettingsOut:
+    return QcSettingsOut(overdue_days=get_qc_overdue_days(db))
+
+
+@router.put("/qc", response_model=QcSettingsOut)
+def update_qc_settings(req: QcSettingsUpdate, db: SessionDep, actor: ActorDep) -> QcSettingsOut:
+    if req.overdue_days is None:
+        return QcSettingsOut(overdue_days=get_qc_overdue_days(db))
+    try:
+        overdue_days = set_qc_overdue_days(db, req.overdue_days)
+    except ValueError as err:
+        raise HTTPException(422, str(err)) from err
+    db.add(
+        AuditLog(
+            actor=actor,
+            action="update_qc_settings",
+            entity_type="app_setting",
+            entity_id=0,
+            details_json={"overdue_days": overdue_days},
+        )
+    )
+    db.commit()
+    return QcSettingsOut(overdue_days=overdue_days)
 
 
 class TimingLadderOut(BaseModel):

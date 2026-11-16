@@ -12,7 +12,6 @@ import { formatDateUTC, formatShortDateTimeLocal, parseDateOnly } from "@/utils/
 import { CELL_STATUS_LABEL, CELL_STATUS_TONE } from "@/utils/cellStatus";
 import {
   type CreditCaseAge,
-  CREDIT_OVERDUE_DAYS,
   cellFailureAt,
   OVERDUE_BADGE,
   triggeringUse,
@@ -55,7 +54,7 @@ function CaseMeta({ credit, expected, age }: { credit: CreditCaseState; expected
         (age.overdue ? (
           <Badge
             tone={OVERDUE_BADGE.tone}
-            title={`No progress for ${age.waitDays} days (next: ${age.waitingFor}) - over the ${CREDIT_OVERDUE_DAYS}-day limit, so it needs chasing. Open ${age.daysOpen} days in all.`}
+            title={`No progress for ${age.waitDays} days (next: ${age.waitingFor}) - over the ${age.overdueDays}-day limit, so it needs chasing. Open ${age.daysOpen} days in all.`}
           >
             {OVERDUE_BADGE.label} · {age.waitDays} d
           </Badge>

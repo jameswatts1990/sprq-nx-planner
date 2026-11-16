@@ -5,7 +5,6 @@ import type { PacbioCaseOut } from "@/types/pacbioCase";
 import {
   acquisitionsToCells,
   acquisitionsToTrays,
-  CREDIT_OVERDUE_DAYS,
   creditBucket,
   creditCaseAge,
   formatQuantity,
@@ -94,21 +93,29 @@ describe("creditCaseAge", () => {
 
   it("counts days open, and the wait from the latest completed step", () => {
     const reported = { ...NO_CELL_CASE, pacbio_case_number: "1", pacbio_reported_at: new Date(failed + 10 * DAY).toISOString() };
-    const age = creditCaseAge(reported, failed, failed + 25 * DAY)!;
+    const age = creditCaseAge(reported, failed, 30, failed + 25 * DAY)!;
     expect(age.daysOpen).toBe(25);
     expect(age.waitDays).toBe(15);
     expect(age.overdue).toBe(false);
     expect(age.waitingFor).toBe("Add internal report");
   });
 
-  it("flags a stage stalled past the overdue limit", () => {
-    const age = creditCaseAge(NO_CELL_CASE, failed, failed + (CREDIT_OVERDUE_DAYS + 1) * DAY)!;
+  it("flags a stage stalled past the configured overdue limit, in whole days", () => {
+    expect(creditCaseAge(NO_CELL_CASE, failed, 30, failed + 30 * DAY + DAY / 2)!.overdue).toBe(false);
+    const age = creditCaseAge(NO_CELL_CASE, failed, 30, failed + 31 * DAY)!;
     expect(age.overdue).toBe(true);
+    expect(age.overdueDays).toBe(30);
     expect(age.waitingFor).toBe("Report to PacBio");
+    // The limit is the lab's setting, not a constant.
+    expect(creditCaseAge(NO_CELL_CASE, failed, 60, failed + 31 * DAY)!.overdue).toBe(false);
+  });
+
+  it("never flags overdue while the limit is still loading", () => {
+    expect(creditCaseAge(NO_CELL_CASE, failed, undefined, failed + 400 * DAY)!.overdue).toBe(false);
   });
 
   it("is null once the credit is received", () => {
     const settled = { ...NO_CELL_CASE, pacbio_reported_at: "2026-08-02T00:00:00Z", credit_received_at: "2026-08-20T00:00:00Z", internal_report_at: "2026-08-03T00:00:00Z", pacbio_credit_confirmed_at: "2026-08-10T00:00:00Z" };
-    expect(creditCaseAge(settled, failed, failed + 90 * DAY)).toBeNull();
+    expect(creditCaseAge(settled, failed, 30, failed + 90 * DAY)).toBeNull();
   });
 });

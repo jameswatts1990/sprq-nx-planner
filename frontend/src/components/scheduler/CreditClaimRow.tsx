@@ -2,13 +2,13 @@ import { Link } from "react-router-dom";
 
 import { CreditStageStrip } from "@/components/cells/CreditStageStrip";
 import { Badge } from "@/components/ui/Badge";
+import { useOverdueDays } from "@/hooks/useOverdueDays";
 import type { CellOut } from "@/types/cell";
 import {
   cellFailureAt,
   CREDIT_BUCKET_LABEL,
   CREDIT_BUCKET_TONE,
   CREDIT_NEXT_STEP_LABEL,
-  CREDIT_OVERDUE_DAYS,
   creditBucket,
   creditCaseAge,
   failUseNumber,
@@ -42,7 +42,8 @@ export function CreditClaimRow({ cell, showTrigger = false }: { cell: CellOut; s
   const bucket = creditBucket(cell);
   const { currentKey } = getCreditStages(cell);
   const failureAt = cellFailureAt(cell);
-  const age = creditCaseAge(cell, failureAt ? Date.parse(failureAt) : null);
+  const overdueDays = useOverdueDays();
+  const age = creditCaseAge(cell, failureAt ? Date.parse(failureAt) : null, overdueDays);
   const credited = cell.pacbio_credit_confirmed_at ? cell.credit_acquisitions : null;
   const trigger = showTrigger ? triggeringUse(cell.uses) : null;
   const triggerUseNumber = showTrigger ? failUseNumber(cell.uses) : null;
@@ -69,7 +70,7 @@ export function CreditClaimRow({ cell, showTrigger = false }: { cell: CellOut; s
             (age.overdue ? (
               <Badge
                 tone={OVERDUE_BADGE.tone}
-                title={`No progress for ${age.waitDays} days - over the ${CREDIT_OVERDUE_DAYS}-day limit, so it needs chasing. Open ${age.daysOpen} days in all.`}
+                title={`No progress for ${age.waitDays} days - over the ${age.overdueDays}-day limit, so it needs chasing. Open ${age.daysOpen} days in all.`}
               >
                 {OVERDUE_BADGE.label} · {age.waitDays} d
               </Badge>

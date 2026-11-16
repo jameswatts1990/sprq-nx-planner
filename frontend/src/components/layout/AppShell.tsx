@@ -22,6 +22,7 @@ import { formatDateTime } from "@/utils/calendarDates";
 
 import styles from "./AppShell.module.css";
 import { OperatorNameChip } from "./OperatorNameChip";
+import { QcNavCount } from "./QcNavCount";
 
 // Render the commit ISO timestamp in the app's date + time format (blank if it won't parse).
 function formatCommitDate(iso: string): string {
@@ -152,6 +153,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               >
                 <Icon />
                 {label}
+                {to === "/qc" && <QcNavCount />}
               </NavLink>
             ))}
             <HistoryMenu />

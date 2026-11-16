@@ -1,4 +1,5 @@
 import { useState, type JSX } from "react";
+import { useSearchParams } from "react-router-dom";
 
 import { Button } from "@/components/ui/Button";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -6,7 +7,9 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { CreditEmailPanel } from "./CreditEmailPanel";
 import { DeveloperTools } from "./DeveloperTools";
 import { FactsPanel } from "./FactsPanel";
+import { IssueReportPanel } from "./IssueReportPanel";
 import { MovieSchedulingPanel } from "./MovieSchedulingPanel";
+import { QcSettingsPanel } from "./QcSettingsPanel";
 import { SampleDefaultsPanel } from "./SampleDefaultsPanel";
 import { SchedulingPanel } from "./SchedulingPanel";
 import styles from "./SettingsPage.module.css";
@@ -42,6 +45,18 @@ const SECTIONS: Section[] = [
     Component: CreditEmailPanel,
   },
   {
+    key: "issue-report",
+    title: "Issue report",
+    keywords: "issue report tracking sheet team owner equipment owner manager notify generate report credit",
+    Component: IssueReportPanel,
+  },
+  {
+    key: "qc",
+    title: "QC & credits",
+    keywords: "qc credit pacbio case overdue days limit chase",
+    Component: QcSettingsPanel,
+  },
+  {
     key: "facts",
     title: "Instrument & scheduling facts",
     keywords: "108 hour window max uses tray of four wells timing ladder prep ppa lanes vendor read only fixed",
@@ -59,10 +74,12 @@ const DEV_SECTION: Section = {
 };
 
 /** The Settings page: a Help-style sidebar + search beside a single active panel. Groups the
- * lab-configurable settings (sample defaults, scheduling, movie scheduling, email template) and
- * the read-only instrument facts, with the dev-only DB tools tucked behind a reveal. */
+ * lab-configurable settings (sample defaults, scheduling, movie scheduling, email template, issue
+ * report, QC) and the read-only instrument facts, with the dev-only DB tools tucked behind a
+ * reveal. `?section=<key>` opens a given panel (e.g. the issue report's "Not set" link). */
 export function SettingsPage() {
-  const [active, setActive] = useState<string>(SECTIONS[0].key);
+  const [searchParams] = useSearchParams();
+  const [active, setActive] = useState<string>(() => searchParams.get("section") ?? SECTIONS[0].key);
   const [query, setQuery] = useState("");
   const [devShown, setDevShown] = useState(false);
 

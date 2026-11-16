@@ -24,14 +24,14 @@ const CASE: PacbioCaseOut = {
   credit_acquisitions: 9,
   credit_notes: null,
   credit_received_at: null,
-  credit_owner: "jw24",
+  credit_owner: "ab12",
 };
 const item: QcCase = { kind: "no_cell", pacbioCase: CASE };
 
 describe("qcCaseMatches", () => {
   it("matches any searchable field, case-insensitively", () => {
     expect(qcCaseMatches(item, "")).toBe(true);
-    expect(qcCaseMatches(item, "JW24")).toBe(true);
+    expect(qcCaseMatches(item, "AB12")).toBe(true);
     expect(qcCaseMatches(item, "damaged")).toBe(true);
     expect(qcCaseMatches(item, "run-2568")).toBe(true);
     expect(qcCaseMatches(item, "26_nc_s")).toBe(true);
@@ -53,7 +53,7 @@ describe("qcCaseCsvRow", () => {
     const col = (h: string) => row[QC_CSV_HEADERS.indexOf(h)];
     expect(col("Kind")).toBe("No cell");
     expect(col("PacBio case number")).toBe("00316913");
-    expect(col("Owner")).toBe("jw24");
+    expect(col("Owner")).toBe("ab12");
     expect(col("Acquisitions credited")).toBe("9");
     expect(col("Cells credited")).toBe("3");
     expect(col("Trays credited")).toBe("0.75");

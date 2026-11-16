@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 
 import { errorMessage } from "@/api/client";
 import { cellsApi } from "@/api/cells";
@@ -13,7 +14,6 @@ import { InlineEditField } from "@/components/ui/InlineEditField";
 import { invalidateCreditCases } from "@/lib/invalidateCreditCases";
 import type { CellOut } from "@/types/cell";
 import type { CreditCaseState } from "@/types/credit";
-import type { InstrumentOut } from "@/types/instrument";
 import type { PacbioCaseOut } from "@/types/pacbioCase";
 import { copyText } from "@/utils/clipboard";
 import {
@@ -32,37 +32,20 @@ import {
   DEFAULT_CREDIT_EMAIL,
   renderCreditEmail,
 } from "@/utils/creditEmail";
+import {
+  buildReportFields,
+  type IssueReportContext,
+  type ReportField,
+  reportCsv,
+  reportRowTsv,
+  unsetIssueReportSettings,
+} from "@/utils/issueReport";
 import { getOperatorName } from "@/utils/operatorName";
 import { plateWellFromPlate } from "@/utils/plateWell";
 import { runLabel } from "@/utils/runLabel";
-import { csvSafe, downloadCsv } from "@/utils/toCsv";
+import { downloadCsv } from "@/utils/toCsv";
 
 import styles from "./CreditCaseActions.module.css";
-
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-/** DD-Mon-YYYY (e.g. 24-Jul-2026) for the exported "Date of Occurrence" column, matching the
- * date format the lab's issue-tracking sheet expects. */
-function formatOccurrenceDate(d: Date | null): string {
-  if (!d) return "";
-  return `${String(d.getDate()).padStart(2, "0")}-${MONTHS[d.getMonth()]}-${d.getFullYear()}`;
-}
-
-interface ReportField {
-  label: string;
-  value: string;
-}
-
-/** The case-specific inputs to the issue report - derived from a cell's triggering use, or taken
- * from what was typed in for a case logged without a cell. */
-interface IssueReportContext {
-  occurredOn: Date | null;
-  problem: string;
-  caseNumber: string | null;
-  sampleId: string;
-  instrumentSerial: string | null;
-  owner: string | null;
-}
 
 function cellReportContext(cell: CellOut): IssueReportContext {
   const use = triggeringUse(cell.uses);
@@ -101,62 +84,22 @@ function pacbioCaseReportContext(pc: PacbioCaseOut): IssueReportContext {
   };
 }
 
-/** The issue report as an ordered list of {column header, value} pairs, matching the lab's
- * central issue-tracking spreadsheet exactly. Verbatim constants (team, owner, N/A, the notified
- * manager) come straight from the lab's agreed template; the variable fields come from the case
- * context (incl. the case owner as "Reported by") and the instrument's asset/location record.
- * Columns the sheet fills itself (Study ID, Make/Model/Serial "auto fill") stay blank. */
-function buildReportFields(ctx: IssueReportContext, instrument: InstrumentOut | undefined): ReportField[] {
-  return [
-    { label: "Date of Occurrence", value: formatOccurrenceDate(ctx.occurredOn) },
-    { label: "Reported by (Sanger ID)", value: ctx.owner ?? "" },
-    { label: "Team who identified the issue", value: "Long_Read" },
-    { label: "Issue Owner", value: "Long_Read" },
-    { label: "Project / Product Line", value: "PacBio" },
-    { label: "Stage of Process Issue Identified", value: "Sequencing" },
-    { label: "Source of Issue", value: "Consumables/Reagents" },
-    { label: "Problem Statement", value: ctx.problem },
-    { label: "Vendor/RT Support Ticket", value: ctx.caseNumber ?? "" },
-    { label: "Equipment Software name (if applicable)", value: "N/A" },
-    { label: "Equipment Program (If applicable)", value: "N/A" },
-    { label: "Sample ID(s) e.g. Plate or Tube Barcode ID", value: ctx.sampleId },
-    { label: "4 digit Study ID(s)", value: "" },
-    { label: "Equipment Owner", value: "Long_Read" },
-    { label: "Equipment Asset Number", value: instrument?.asset_number ?? "" },
-    { label: "Make of Equipment (auto fill)", value: "" },
-    { label: "Model of Equipment (auto fill)", value: "" },
-    { label: "Serial number (auto fill)", value: "" },
-    { label: "Location of equipment", value: instrument?.location ?? "" },
-    {
-      label:
-        'Select appropriate manager or equivalent. Notify using the "right click and comment function" in the selected name cell',
-      value: "James Watts",
-    },
-  ];
-}
-
-/** One tab-separated row of the report values - tabs land in separate cells when pasted into a
- * spreadsheet, so it appends as a single new row under the sheet's existing column headers. */
-function reportRowTsv(fields: ReportField[]): string {
-  return fields.map((f) => csvSafe(f.value)).join("\t");
-}
-
-/** A standalone CSV (header row + value row) for download - RFC-4180 quoting so commas, quotes,
- * and newlines inside a field (e.g. the manager-notification column) survive intact. */
-function reportCsv(fields: ReportField[]): string {
-  const esc = (s: string) => `"${csvSafe(s).replace(/"/g, '""')}"`;
-  const headers = fields.map((f) => esc(f.label)).join(",");
-  const values = fields.map((f) => esc(f.value)).join(",");
-  return `${headers}\r\n${values}\r\n`;
-}
-
 type ReportResult = "copied" | "copy-failed" | "downloaded";
 
 /** The "Generate report ▾" split action: a small dropdown to either copy the report as a
  * tab-separated row (to append to the tracking sheet) or download it as a CSV file. Either action
  * opens a confirmation popup that also previews every column/value, so the lab can eyeball the
  * report and - if an insecure-context copy silently failed - select and copy the text by hand. */
-function GenerateReportMenu({ fields, filename }: { fields: ReportField[]; filename: string }) {
+function GenerateReportMenu({
+  fields,
+  filename,
+  unsetSettings,
+}: {
+  fields: ReportField[];
+  filename: string;
+  /** Settings > Issue report values that are blank, so their columns are too. */
+  unsetSettings: string[];
+}) {
   const [open, setOpen] = useState(false);
   const [result, setResult] = useState<ReportResult | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -222,6 +165,15 @@ function GenerateReportMenu({ fields, filename }: { fields: ReportField[]; filen
               instead.
             </Note>
           )}
+          {unsetSettings.length > 0 && (
+            <Note tone="warn" icon="!">
+              Not set: {unsetSettings.join(", ")} — those columns are left blank. Set them in{" "}
+              <Link to="/settings?section=issue-report" className="link">
+                Settings › Issue report
+              </Link>
+              .
+            </Note>
+          )}
           <dl className={styles.preview}>
             {fields.map((f) => (
               <div key={f.label} className={styles.previewRow}>
@@ -251,17 +203,23 @@ interface GeneratorInput {
 interface Generators {
   reportFields: ReportField[];
   reportFilename: string;
+  unsetReportSettings: string[];
   emailHref: string;
 }
 
 /** Build the Generate report / Generate email helpers for a case. Instruments carry the asset
- * number and location the report needs (a case only knows the serial); the admin-editable email
- * template falls back to the built-in default while it loads so the button always works. Both
- * queries are shared across every row (["instruments", false], ["credit-email-template"]). */
+ * number and location the report needs (a case only knows the serial); the issue-report values
+ * come from Settings; the admin-editable email template falls back to the built-in default while it
+ * loads so the button always works. The queries are shared across every row (["instruments",
+ * false], ["issue-report-settings"], ["credit-email-template"]). */
 function useCreditGenerators(input: GeneratorInput): Generators {
   const { data: instruments } = useQuery({
     queryKey: ["instruments", false],
     queryFn: () => instrumentsApi.list(false),
+  });
+  const { data: issueReport } = useQuery({
+    queryKey: ["issue-report-settings"],
+    queryFn: () => settingsApi.getIssueReport(),
   });
   const { data: emailTemplate } = useQuery({
     queryKey: ["credit-email-template"],
@@ -269,8 +227,9 @@ function useCreditGenerators(input: GeneratorInput): Generators {
   });
   const instrument = instruments?.find((i) => i.serial_number === input.report.instrumentSerial);
   return {
-    reportFields: buildReportFields(input.report, instrument),
+    reportFields: buildReportFields(input.report, instrument, issueReport),
     reportFilename: input.reportFilename,
+    unsetReportSettings: unsetIssueReportSettings(issueReport),
     emailHref: creditEmailMailto(renderCreditEmail(emailTemplate ?? DEFAULT_CREDIT_EMAIL, input.email)),
   };
 }
@@ -423,7 +382,11 @@ function CreditStageActions({
             >
               {internalReportMutation.isPending ? "Saving…" : "Add report ID"}
             </Button>
-            <GenerateReportMenu fields={generators.reportFields} filename={generators.reportFilename} />
+            <GenerateReportMenu
+              fields={generators.reportFields}
+              filename={generators.reportFilename}
+              unsetSettings={generators.unsetReportSettings}
+            />
           </div>
         </>
       )}

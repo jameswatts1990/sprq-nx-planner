@@ -79,6 +79,8 @@ export const ACTION_LABEL: Record<string, string> = {
   update_sample_defaults: "Changed sample defaults",
   update_scheduling_settings: "Changed scheduling settings",
   update_credit_email: "Changed credit email",
+  update_issue_report_settings: "Changed issue-report settings",
+  update_qc_settings: "Changed QC settings",
 };
 
 /** "Planned · 12 Nov 2026 → 14 Nov 2026: Laser swap" (one day: just the date) from a downtime audit row's snapshot. */
@@ -186,7 +188,13 @@ export const ACTION_GROUPS: { value: string; label: string; actions: string[] }[
   {
     value: "settings",
     label: "Settings",
-    actions: ["update_sample_defaults", "update_scheduling_settings", "update_credit_email"],
+    actions: [
+      "update_sample_defaults",
+      "update_scheduling_settings",
+      "update_credit_email",
+      "update_issue_report_settings",
+      "update_qc_settings",
+    ],
   },
 ];
 
@@ -336,7 +344,12 @@ export function describeAuditDetails(row: Pick<AuditLogOut, "action" | "details_
     });
   }
   // A settings save records the values it set.
-  if (row.action === "update_sample_defaults" || row.action === "update_scheduling_settings") {
+  if (
+    row.action === "update_sample_defaults" ||
+    row.action === "update_scheduling_settings" ||
+    row.action === "update_issue_report_settings" ||
+    row.action === "update_qc_settings"
+  ) {
     return Object.entries(d).map(([field, v]) => `${FIELD_LABEL[field] ?? readable(field)}: ${formatAuditValue(v)}`);
   }
   return [];

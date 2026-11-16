@@ -1,10 +1,13 @@
 import { CellTypeBadge } from "@/components/cells/CellTypeBadge";
+import { EXAMPLE_QC_SUMMARY, QcNavCountBadge } from "@/components/layout/QcNavCount";
 import { Badge } from "@/components/ui/Badge";
-import { CREDIT_OVERDUE_DAYS, NO_CELL_BADGE, OVERDUE_BADGE } from "@/utils/creditCase";
+import { useOverdueDays } from "@/hooks/useOverdueDays";
+import { NO_CELL_BADGE, OVERDUE_BADGE } from "@/utils/creditCase";
 
 import styles from "../HelpPage.module.css";
 
 export function QcSection() {
+  const overdueDays = useOverdueDays() ?? "…";
   return (
     <div className={styles.copy}>
       <p>
@@ -20,6 +23,14 @@ export function QcSection() {
         else PacBio should credit is added with <b>+ Add case without a cell</b> (see below).
       </p>
 
+      <p className={styles.subheading}>The count on the QC &amp; credits tab</p>
+      <p>
+        The <b>QC &amp; credits</b> tab in the top bar carries a red count{" "}
+        <QcNavCountBadge summary={EXAMPLE_QC_SUMMARY} /> of the cases that need you: not yet reported to PacBio, or overdue. A case that&apos;s both counts once. Cases
+        waiting on PacBio within the limit don&apos;t count. Hover it for the breakdown. It refreshes every minute and
+        straight after any change to a case, and disappears when nothing needs doing.
+      </p>
+
       <p className={styles.subheading}>The overview</p>
       <p>
         A row of total tiles under the page title counts every case, with and without a cell — it always covers everything,
@@ -29,7 +40,7 @@ export function QcSection() {
       <ul>
         <li>
           <b>Open</b> — cases not yet received. <b>Overdue</b> — open cases stuck at one stage for more than{" "}
-          {CREDIT_OVERDUE_DAYS} days (shown in red when there are any).
+          {overdueDays} days (shown in red when there are any). The limit is set in <b>Settings › QC &amp; credits</b>.
         </li>
         <li>
           <b>Needs report / Awaiting PacBio / Confirmed / Received</b> — how many cases are at each stage.
@@ -79,7 +90,7 @@ export function QcSection() {
           On the right, the case at a glance: its <b>PacBio case number</b>, the <b>acquisitions</b> (expected until
           PacBio confirm, then credited), the <b>owner</b>, how many <b>days it&apos;s been open</b>, and the failure
           date (with its time, when the run recorded one). Anything not recorded yet reads in grey (<i>No case #</i>,{" "}
-          <i>No owner</i>). A case that&apos;s made no progress for more than {CREDIT_OVERDUE_DAYS} days shows{" "}
+          <i>No owner</i>). A case that&apos;s made no progress for more than {overdueDays} days shows{" "}
           <Badge tone={OVERDUE_BADGE.tone}>{OVERDUE_BADGE.label} · 45 d</Badge> instead — hover it to see what it&apos;s
           waiting on.
         </li>
@@ -102,7 +113,9 @@ export function QcSection() {
       <p>
         Click the <b>▸</b> on the left of a row to expand the full <b>PacBio credit tracker</b> for that case — the same
         card you see on a cell&apos;s detail page, including <b>Generate email…</b> (drafts the email to PacBio) and{" "}
-        <b>Generate report ▾</b> (copies or downloads the issue-tracking row). Under the next step, a{" "}
+        <b>Generate report ▾</b> (copies or downloads the issue-tracking row). The report&apos;s team, equipment owner
+        and manager columns come from <b>Settings › Issue report</b>; any not set there are left blank, and the
+        report preview says which. Under the next step, a{" "}
         <b>Recorded</b> line shows the <b>Owner</b> and every value already saved — case number, report ID,
         acquisitions credited — each with a <b>✎</b> to correct a typo or a recount in place. Correcting a value
         doesn&apos;t change when that step happened. The step-by-step meaning of each stage is described under{" "}

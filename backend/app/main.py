@@ -13,6 +13,7 @@ from app.api import (
     imports,
     instruments,
     pacbio_cases,
+    qc,
     samples,
     schedule_export,
     schedule_notes,
@@ -66,6 +67,7 @@ app.include_router(cell_uses.router)
 app.include_router(cells.router)
 app.include_router(topups.router)
 app.include_router(pacbio_cases.router)
+app.include_router(qc.router)
 app.include_router(instruments.router)
 app.include_router(stats.router)
 app.include_router(audit.router)

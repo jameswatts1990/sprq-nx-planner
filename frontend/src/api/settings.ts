@@ -61,6 +61,22 @@ export interface SchedulingFacts {
   };
 }
 
+/** The lab-specific values the issue report fills in ("" = not set; that column is left blank).
+ * team fills "Team who identified the issue" and "Issue Owner"; manager the notify column. */
+export interface IssueReportSettings {
+  team: string;
+  equipment_owner: string;
+  manager: string;
+}
+
+export type IssueReportSettingsUpdate = Partial<IssueReportSettings>;
+
+/** QC & credits settings. An open credit case waiting longer than overdue_days at its current
+ * stage is flagged overdue. */
+export interface QcSettings {
+  overdue_days: number;
+}
+
 export const settingsApi = {
   getSampleDefaults: () => api.get<SampleDefaults>("/api/settings/sample-defaults"),
   updateSampleDefaults: (body: SampleDefaultsUpdate) =>
@@ -71,5 +87,10 @@ export const settingsApi = {
   getScheduling: () => api.get<SchedulingSettings>("/api/settings/scheduling"),
   updateScheduling: (body: SchedulingSettingsUpdate) =>
     api.put<SchedulingSettings>("/api/settings/scheduling", body),
+  getIssueReport: () => api.get<IssueReportSettings>("/api/settings/issue-report"),
+  updateIssueReport: (body: IssueReportSettingsUpdate) =>
+    api.put<IssueReportSettings>("/api/settings/issue-report", body),
+  getQc: () => api.get<QcSettings>("/api/settings/qc"),
+  updateQc: (body: QcSettings) => api.put<QcSettings>("/api/settings/qc", body),
   getFacts: () => api.get<SchedulingFacts>("/api/settings/facts"),
 };

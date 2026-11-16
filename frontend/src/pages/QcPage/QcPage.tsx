@@ -11,13 +11,13 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Note } from "@/components/ui/Note";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { useOverdueDays } from "@/hooks/useOverdueDays";
 import type { CellType } from "@/types/common";
 import type { PacbioCaseOut } from "@/types/pacbioCase";
 import {
   acquisitionsToTrays,
   CREDIT_BUCKET_LABEL,
   CREDIT_BUCKET_TONE,
-  CREDIT_OVERDUE_DAYS,
   type CreditBucket,
   creditBucket,
   formatQuantity,
@@ -65,8 +65,13 @@ function writeOverviewOpen(open: boolean): void {
   }
 }
 
-function QcCaseItem({ item, nowMs, ...expansion }: { item: QcCase; nowMs: number } & RowExpansion) {
-  const age = qcCaseAge(item, nowMs);
+function QcCaseItem({
+  item,
+  nowMs,
+  overdueDays,
+  ...expansion
+}: { item: QcCase; nowMs: number; overdueDays: number | undefined } & RowExpansion) {
+  const age = qcCaseAge(item, overdueDays, nowMs);
   return item.kind === "cell" ? (
     <CellCaseRow cell={item.cell} expected={qcCaseExpected(item)} age={age} {...expansion} />
   ) : (
@@ -88,7 +93,17 @@ function groupCases(items: QcCase[]): QcGroups {
  * per case by its cell type (SPRQ-Nx: 1 cell = 3 acquisitions; single-use SPRQ: 1 cell = 1
  * acquisition; 4 cells a tray). SPRQ and SPRQ-Nx trays are different products, so once any SPRQ
  * credit exists the trays are shown per type. */
-function OverviewStrip({ items, groups, nowMs }: { items: QcCase[]; groups: QcGroups; nowMs: number }) {
+function OverviewStrip({
+  items,
+  groups,
+  nowMs,
+  overdueDays,
+}: {
+  items: QcCase[];
+  groups: QcGroups;
+  nowMs: number;
+  overdueDays: number | undefined;
+}) {
   let overdue = 0;
   let pending = 0;
   let credited = 0;
@@ -100,7 +115,7 @@ function OverviewStrip({ items, groups, nowMs }: { items: QcCase[]; groups: QcGr
       credited += acq;
       creditedTrays[qcCaseCellType(item)] += acquisitionsToTrays(acq, qcCaseCellType(item));
     } else if (!credit.credit_received_at) pending += qcCaseExpected(item) ?? 0;
-    if (qcCaseAge(item, nowMs)?.overdue) overdue += 1;
+    if (qcCaseAge(item, overdueDays, nowMs)?.overdue) overdue += 1;
   }
   const creditedTrayText =
     creditedTrays.sprq > 0
@@ -115,7 +130,11 @@ function OverviewStrip({ items, groups, nowMs }: { items: QcCase[]; groups: QcGr
           <StatTile
             label="Overdue"
             value={overdue > 0 ? <span className={styles.alertValue}>{overdue}</span> : overdue}
-            title={`Open cases stuck at one stage for more than ${CREDIT_OVERDUE_DAYS} days`}
+            title={
+              overdueDays === undefined
+                ? "Open cases stuck at one stage past the overdue limit (Settings › QC & credits)"
+                : `Open cases stuck at one stage for more than ${overdueDays} days (Settings › QC & credits)`
+            }
           />
           <StatTile label="Needs report" value={groups.needs_report.length} />
           <StatTile label="Awaiting PacBio" value={groups.awaiting.length} />
@@ -172,6 +191,7 @@ export function QcPage() {
     };
   };
 
+  const overdueDays = useOverdueDays();
   const cellsQuery = useQuery({
     queryKey: ["cells", { qc_status: "in_workflow" }],
     queryFn: () => cellsApi.listAll({ qc_status: "in_workflow" }),
@@ -254,7 +274,7 @@ export function QcPage() {
         }
       />
 
-      {overviewOpen && loaded && <OverviewStrip items={items} groups={allGroups} nowMs={nowMs} />}
+      {overviewOpen && loaded && <OverviewStrip items={items} groups={allGroups} nowMs={nowMs} overdueDays={overdueDays} />}
 
       {justAdded && (
         <Note tone="good" icon="✓">
@@ -296,7 +316,13 @@ export function QcPage() {
             />
             <div className={styles.rows}>
               {groups[b].map((item) => (
-                <QcCaseItem key={qcCaseKey(item)} item={item} nowMs={nowMs} {...expansion(item)} />
+                <QcCaseItem
+                  key={qcCaseKey(item)}
+                  item={item}
+                  nowMs={nowMs}
+                  overdueDays={overdueDays}
+                  {...expansion(item)}
+                />
               ))}
             </div>
           </section>
@@ -320,7 +346,13 @@ export function QcPage() {
           {showReceived && (
             <div className={styles.rows}>
               {groups.received.map((item) => (
-                <QcCaseItem key={qcCaseKey(item)} item={item} nowMs={nowMs} {...expansion(item)} />
+                <QcCaseItem
+                  key={qcCaseKey(item)}
+                  item={item}
+                  nowMs={nowMs}
+                  overdueDays={overdueDays}
+                  {...expansion(item)}
+                />
               ))}
             </div>
           )}

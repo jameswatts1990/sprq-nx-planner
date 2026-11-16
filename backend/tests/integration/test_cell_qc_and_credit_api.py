@@ -580,8 +580,8 @@ def test_qc_list_carries_the_failed_use_context_and_a_case_owner(client):
     assert use["completed_at"] is not None
     assert use["outcome_notes"] == "Low P1"
 
-    owned = client.post(f"/api/cells/{cell_id}/credit-owner", json={"owner": " jw24 "})
+    owned = client.post(f"/api/cells/{cell_id}/credit-owner", json={"owner": " ab12 "})
     assert owned.status_code == 200, owned.text
-    assert owned.json()["credit_owner"] == "jw24"
+    assert owned.json()["credit_owner"] == "ab12"
     assert client.post(f"/api/cells/{cell_id}/credit-owner", json={"owner": ""}).json()["credit_owner"] is None
-    assert client.post(f"/api/cells/{sibling_id}/credit-owner", json={"owner": "jw24"}).status_code == 409
+    assert client.post(f"/api/cells/{sibling_id}/credit-owner", json={"owner": "ab12"}).status_code == 409

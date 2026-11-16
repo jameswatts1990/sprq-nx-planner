@@ -229,7 +229,7 @@ export function PacbioCaseModal({ existing, onClose, onSaved }: PacbioCaseModalP
                 type="text"
                 value={owner}
                 onChange={(e) => setOwner(e.target.value)}
-                placeholder="Sanger ID or name, e.g. jw24"
+                placeholder="Sanger ID or name, e.g. ab12"
                 maxLength={120}
               />
             </div>

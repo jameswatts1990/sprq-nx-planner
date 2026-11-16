@@ -9,17 +9,19 @@ import {
   ComplexCountdownChip,
 } from "@/components/shared/ComplexCountdownChip";
 import { DuplicateBadge } from "@/components/shared/DuplicateBadge";
+import { EXAMPLE_QC_SUMMARY, QcNavCountBadge } from "@/components/layout/QcNavCount";
 import { InsertSizeFlag } from "@/components/shared/InsertSizeFlag";
 import { MovieTimeFlag } from "@/components/shared/MovieTimeFlag";
 import { UseLegend } from "@/components/shared/SectionHeading";
 import { Badge, type BadgeTone } from "@/components/ui/Badge";
 import { Note, type NoteTone } from "@/components/ui/Note";
+import { useOverdueDays } from "@/hooks/useOverdueDays";
 import { CELL_STATUSES, CELL_USE_STATUSES, CYCLE_STATUSES, SAMPLE_STATUSES } from "@/types/common";
 import type { CellStatus, CellUseStatus, CycleStatus, SampleStatus } from "@/types/common";
 import { CELL_QC_FLAG_LABEL, CELL_QC_FLAG_TONE } from "@/utils/cellQcFlag";
 import type { CellQcFlag } from "@/utils/cellQcFlag";
 import { CELL_STATUS_LABEL, CELL_STATUS_TONE } from "@/utils/cellStatus";
-import { CREDIT_OVERDUE_DAYS, NO_CELL_BADGE, OVERDUE_BADGE } from "@/utils/creditCase";
+import { NO_CELL_BADGE, OVERDUE_BADGE } from "@/utils/creditCase";
 import { CYCLE_STATUS_TONE, RUN_STATUS_LABEL } from "@/utils/cycleStatus";
 import { priorityTone } from "@/utils/priority";
 import { COMPLEX_REPEAT_WINDOW_DAYS } from "@/utils/qcDisposition";
@@ -146,6 +148,7 @@ const NOTE_EXAMPLES: { tone: NoteTone; icon: string; label: string; text: string
  * re-describe a colour in prose here, so this legend can't visually drift from the live
  * app as those maps or tokens.css evolve. See CLAUDE.md's "Help Tab Maintenance" section. */
 export function LegendSection() {
+  const overdueDays = useOverdueDays() ?? "…";
   return (
     <div className={styles.copy}>
       <p className={styles.subheading}>Glossary — the words RunNx uses</p>
@@ -288,8 +291,18 @@ export function LegendSection() {
             <Badge tone={OVERDUE_BADGE.tone}>{OVERDUE_BADGE.label} · 45 d</Badge>
           </span>
           <span>
-            An open credit case that has made no progress for more than {CREDIT_OVERDUE_DAYS} days at its current
-            stage - it needs chasing. The number is how long it has been waiting.
+            An open credit case that has made no progress for more than {overdueDays} days at its current
+            stage (the limit in Settings › QC &amp; credits) - it needs chasing. The number is how long it has been
+            waiting.
+          </span>
+        </div>
+        <div className={styles.legendRow}>
+          <span className={styles.legendSwatchLabel}>
+            QC &amp; credits <QcNavCountBadge summary={EXAMPLE_QC_SUMMARY} />
+          </span>
+          <span>
+            On the top bar&apos;s QC &amp; credits tab: how many credit cases need you - not yet reported to PacBio, or
+            overdue. Hidden when there are none.
           </span>
         </div>
       </div>
