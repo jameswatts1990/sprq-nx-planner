@@ -2,8 +2,7 @@ import { api, buildQuery } from "./client";
 import type {
   ClearBacklogResult,
   ClearResult,
-  MlwhProbeRequest,
-  MlwhProbeResult,
+  MlwhStatus,
   RowPage,
   TableInfo,
 } from "@/types/admin";
@@ -33,5 +32,5 @@ export const adminApi = {
     api.patch<Record<string, unknown>>(`/api/admin/tables/${table}/rows/${rowId}`, { values }),
   clearTable: (table: string) => api.post<ClearResult>(`/api/admin/tables/${table}/clear`),
   clearBacklog: () => api.post<ClearBacklogResult>("/api/admin/clear-backlog"),
-  probeMlwh: (body: MlwhProbeRequest) => api.post<MlwhProbeResult>("/api/admin/mlwh-probe", body),
+  mlwhStatus: () => api.get<MlwhStatus>("/api/admin/mlwh-status"),
 };

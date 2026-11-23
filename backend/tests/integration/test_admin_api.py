@@ -1,5 +1,8 @@
 from datetime import date, timedelta
 
+import pytest
+from pydantic import SecretStr
+
 
 def _weekdays(n: int) -> list[str]:
     out: list[str] = []
@@ -313,15 +316,44 @@ def test_deleting_a_sample_still_in_use_is_blocked_not_orphaned(client):
     assert resp.status_code == 409
 
 
-_MLWH_PROBE = {"host": "127.0.0.1", "port": 1, "user": "probe", "database": "mlwarehouse", "password": "s3cret"}
+@pytest.fixture
+def mlwh_settings(monkeypatch):
+    """Point the MLWH settings at test values; rebuild the cached engine around each test."""
+    from app.config import settings
+    from app.services import mlwh
+
+    def configure(url="", password=""):
+        monkeypatch.setattr(settings, "mlwh_database_url", url)
+        monkeypatch.setattr(settings, "mlwh_password", SecretStr(password))
+        mlwh.get_engine.cache_clear()
+
+    yield configure
+    mlwh.get_engine.cache_clear()
 
 
-def test_mlwh_probe_unreachable_is_a_result_and_never_echoes_the_password(client):
+def test_mlwh_status_not_configured_is_a_normal_result(client, mlwh_settings):
+    mlwh_settings()
+    resp = client.get("/api/admin/mlwh-status")
+    assert resp.status_code == 200
+    assert resp.json() == {
+        "configured": False,
+        "ok": False,
+        "target": None,
+        "elapsed_ms": None,
+        "server_version": None,
+        "tables": [],
+        "error": None,
+    }
+
+
+def test_mlwh_status_unreachable_is_a_result_and_never_echoes_the_password(client, mlwh_settings):
     # Port 1 on loopback is closed, so this fails fast without any real MySQL - and the failure
     # comes back as a 200 result to show, not an API error.
-    resp = client.post("/api/admin/mlwh-probe", json=_MLWH_PROBE)
+    mlwh_settings("mysql+pymysql://probe@127.0.0.1:1/mlwarehouse", "s3cret")
+    resp = client.get("/api/admin/mlwh-status")
     assert resp.status_code == 200
     body = resp.json()
+    assert body["configured"] is True
     assert body["ok"] is False
     assert body["error"]
     assert body["target"] == "probe@127.0.0.1:1/mlwarehouse"
@@ -329,6 +361,26 @@ def test_mlwh_probe_unreachable_is_a_result_and_never_echoes_the_password(client
     assert "s3cret" not in resp.text
 
 
-def test_mlwh_probe_rejects_missing_or_invalid_details(client):
-    assert client.post("/api/admin/mlwh-probe", json={**_MLWH_PROBE, "host": ""}).status_code == 422
-    assert client.post("/api/admin/mlwh-probe", json={**_MLWH_PROBE, "port": 70000}).status_code == 422
+def test_mlwh_status_hides_a_password_given_in_the_url(client, mlwh_settings):
+    mlwh_settings("mysql+pymysql://probe:inurl@127.0.0.1:1/mlwarehouse")
+    resp = client.get("/api/admin/mlwh-status")
+    assert resp.json()["target"] == "probe@127.0.0.1:1/mlwarehouse"
+    assert "inurl" not in resp.text
+
+
+def test_mlwh_status_reports_an_unusable_url(client, mlwh_settings):
+    mlwh_settings("postgresql://probe@127.0.0.1/mlwarehouse")
+    body = client.get("/api/admin/mlwh-status").json()
+    assert body["configured"] is True and body["ok"] is False
+    assert "MySQL" in body["error"]
+
+
+def test_mlwh_probe_with_typed_in_details_is_gone(client):
+    resp = client.post("/api/admin/mlwh-probe", json={"host": "127.0.0.1", "user": "u", "database": "d"})
+    assert resp.status_code in (404, 405)
+
+
+def test_health_does_not_depend_on_mlwh(client, mlwh_settings):
+    mlwh_settings("mysql+pymysql://probe@127.0.0.1:1/mlwarehouse")
+    resp = client.get("/api/health")
+    assert resp.status_code == 200 and resp.json() == {"status": "ok"}

@@ -8,12 +8,12 @@ import { Button } from "@/components/ui/Button";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { Note } from "@/components/ui/Note";
 
-import { MlwhProbeCard } from "./MlwhProbeCard";
+import { MlwhStatusCard } from "./MlwhStatusCard";
 import { TableRowsPanel } from "./TableRowsPanel";
 import styles from "./SettingsPage.module.css";
 
 /** Raw database inspection/mutation tools (view tables, view/delete rows, Clear backlog), plus
- * the read-only MLWH connection probe.
+ * the read-only MLWH connection status.
  * These bypass the app's normal business-logic invariants, so they live behind the "Show
  * developer tools" reveal in the Settings sidebar rather than on the everyday path. Still
  * un-gated by environment - remove or gate before a real production launch (see CLAUDE.md). */
@@ -76,7 +76,7 @@ export function DeveloperTools() {
         </Button>
       </div>
 
-      <MlwhProbeCard />
+      <MlwhStatusCard />
 
       <div className={styles.actions}>
         <div className={styles.actionText}>

@@ -17,6 +17,11 @@ services:
         condition: service_healthy
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      # Optional read-only MLWH connection (see README "Configuration"); empty = MLWH off.
+      MLWH_DATABASE_URL: ${MLWH_DATABASE_URL:-}
+      MLWH_PASSWORD: ${MLWH_PASSWORD:-}
+      MLWH_SSL_CA: ${MLWH_SSL_CA:-}
+      MLWH_SSL_VERIFY: ${MLWH_SSL_VERIFY:-true}
 
   db:
     image: postgres:16-alpine
