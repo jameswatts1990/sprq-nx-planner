@@ -37,6 +37,14 @@ Pushing a tag builds the frontend and backend container images and publishes the
 
 **Backend deps** live in `backend/pyproject.toml` as version **ranges**; `backend/requirements.txt` (runtime) and `requirements-dev.txt` (+ dev) are the pinned, hash-verified locks that Docker and CI install — compiled from pyproject with pip-tools, resolved for **Python 3.14**. After changing a backend dependency, regenerate both with pip-tools (never by hand): install `pip-tools` and re-run the `pip-compile` command printed at the top of each file — or `make lock` from `backend/` if you have GNU make — then commit them with the pyproject edit. A stale lock fails CI on the hash check.
 
+## Database migrations
+
+Schema changes go through Alembic (`backend/alembic/versions/`). Production runs Postgres, while the integration tests build the schema from the models on SQLite, so `backend/tests/migrations` is the only place migrations actually run. CI runs it against a Postgres 18 service; locally it's skipped unless `MIGRATION_TEST_DATABASE_URL` points at a throwaway database.
+
+- `test_migrations.py` runs every migration on empty tables: one head, upgrade then `alembic check` (models must match the migrations), and each downgrade.
+- **A migration that moves or transforms existing rows needs a data test** in `test_data_migrations.py`, written with the migration: upgrade to the revision before, insert rows with raw SQL, upgrade, assert, downgrade, assert. The docstring there has the pattern.
+- `test_every_data_migration_has_a_data_test` enforces this by scanning each migration for `op.execute`, `bulk_insert` or `get_bind()`. This is a heuristic, and a known cost: a migration that runs only DDL through `op.execute` is flagged too. Add such a migration to `DATA_TEST_EXEMPT` with the reason. Don't exempt a migration that really changes rows.
+
 ## Local dev
 
 Native dev on local disk (`c:\Users\jw24\dev\sprq-nx-planner`): `npm run dev` (frontend, port 5173) + `uvicorn --reload` (backend, port 8000) against SQLite `backend/dev.db`. No Docker here. Use the `py` launcher or `backend/.venv/Scripts/python.exe` — **never bare `python`** (it resolves to a broken Windows Store stub). Process-hygiene, PATH, and Alembic-on-`dev.db` gotchas: read `docs/dev-notes.md` when a dev-env issue bites.
