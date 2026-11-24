@@ -1,7 +1,7 @@
 """Fixtures for running Alembic migrations against a real Postgres.
 
-CI sets MIGRATION_TEST_DATABASE_URL to a throwaway Postgres; without it every test here is
-skipped. Each test starts from an empty `public` schema, so never point the variable at a
+CI and the devcontainer set MIGRATION_TEST_DATABASE_URL to a throwaway Postgres; without it
+every test here is skipped. Each test starts from an empty `public` schema, so never point the variable at a
 database you want to keep.
 """
 

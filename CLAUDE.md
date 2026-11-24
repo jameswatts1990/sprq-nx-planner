@@ -39,7 +39,7 @@ Pushing a tag builds the frontend and backend container images and publishes the
 
 ## Database migrations
 
-Schema changes go through Alembic (`backend/alembic/versions/`). Production runs Postgres, while the integration tests build the schema from the models on SQLite, so `backend/tests/migrations` is the only place migrations actually run. CI runs it against a Postgres 18 service; locally it's skipped unless `MIGRATION_TEST_DATABASE_URL` points at a throwaway database.
+Schema changes go through Alembic (`backend/alembic/versions/`). Production runs Postgres, while the integration tests build the schema from the models on SQLite, so `backend/tests/migrations` is the only place migrations actually run. A bare `pytest` leaves it out so the everyday run stays fast; CI runs `pytest tests` (everything) against a throwaway Postgres 18 on every push. To run it before pushing, use `pytest tests/migrations` in the devcontainer (it has its own throwaway Postgres, `migrations-db`); elsewhere it skips unless `MIGRATION_TEST_DATABASE_URL` points at a throwaway database.
 
 - `test_migrations.py` runs every migration on empty tables: one head, upgrade then `alembic check` (models must match the migrations), and each downgrade.
 - **A migration that moves or transforms existing rows needs a data test** in `test_data_migrations.py`, written with the migration: upgrade to the revision before, insert rows with raw SQL, upgrade, assert, downgrade, assert. The docstring there has the pattern.
