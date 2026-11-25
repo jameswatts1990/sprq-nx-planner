@@ -74,7 +74,9 @@ app.include_router(instruments.router)
 app.include_router(stats.router)
 app.include_router(audit.router)
 app.include_router(settings_api.router)
-app.include_router(admin.router)
+# Every admin route answers 404 unless DEV_TOOLS_ENABLED (checked per request in admin.py);
+# keep them out of the OpenAPI schema too when the deployment starts with them off.
+app.include_router(admin.router, include_in_schema=settings.dev_tools_enabled)
 
 
 @app.get("/api/health")

@@ -78,6 +78,13 @@ export interface QcSettings {
   review_lookback_days: number;
 }
 
+/** Which optional parts of the app this deployment switches on (`GET /api/settings/features`).
+ * Read at runtime because the same images run in every deployment. `dev_tools` is the backend's
+ * DEV_TOOLS_ENABLED: Settings > Developer tools and /api/admin, off unless the deployment sets it. */
+export interface Features {
+  dev_tools: boolean;
+}
+
 export const settingsApi = {
   getSampleDefaults: () => api.get<SampleDefaults>("/api/settings/sample-defaults"),
   updateSampleDefaults: (body: SampleDefaultsUpdate) =>
@@ -94,4 +101,5 @@ export const settingsApi = {
   getQc: () => api.get<QcSettings>("/api/settings/qc"),
   updateQc: (body: Partial<QcSettings>) => api.put<QcSettings>("/api/settings/qc", body),
   getFacts: () => api.get<SchedulingFacts>("/api/settings/facts"),
+  getFeatures: () => api.get<Features>("/api/settings/features"),
 };

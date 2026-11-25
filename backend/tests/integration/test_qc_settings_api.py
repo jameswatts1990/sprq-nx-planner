@@ -1,6 +1,8 @@
 """GET/PUT /api/settings/issue-report and /api/settings/qc - the issue report's lab-specific values
 (blank until set: the repo is public, so no team or person is named in code) and the QC overdue limit."""
 
+import pytest
+
 
 def _audit_actions(client) -> list[str]:
     rows = client.get("/api/admin/tables/audit_log/rows", params={"page_size": 50}).json()["rows"]
@@ -13,6 +15,7 @@ def test_issue_report_starts_blank(client):
     assert resp.json() == {"team": "", "equipment_owner": "", "manager": ""}
 
 
+@pytest.mark.usefixtures("dev_tools_on")  # reads audit_log through /api/admin
 def test_issue_report_update_trims_merges_clears_and_audits(client):
     resp = client.put("/api/settings/issue-report", json={"team": "  Sequencing_Ops  ", "manager": "A Manager"})
     assert resp.status_code == 200, resp.text
@@ -31,6 +34,7 @@ def test_issue_report_rejects_overlong_values(client):
     assert client.get("/api/settings/issue-report").json()["team"] == ""
 
 
+@pytest.mark.usefixtures("dev_tools_on")  # reads audit_log through /api/admin
 def test_qc_overdue_days_defaults_to_30_and_updates(client):
     assert client.get("/api/settings/qc").json() == {"overdue_days": 30, "review_lookback_days": 90}
     resp = client.put("/api/settings/qc", json={"overdue_days": 45})

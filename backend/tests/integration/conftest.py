@@ -5,8 +5,22 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app import models  # noqa: F401  ensures every model is registered on Base.metadata
+from app.config import settings
 from app.db import Base, enable_sqlite_foreign_keys, get_db
 from app.main import app
+
+
+@pytest.fixture(autouse=True)
+def _dev_tools_off(monkeypatch):
+    """Every test starts with the developer tools off (the production default), whatever the
+    environment says: Compose and the devcontainer set DEV_TOOLS_ENABLED=true."""
+    monkeypatch.setattr(settings, "dev_tools_enabled", False)
+
+
+@pytest.fixture
+def dev_tools_on(monkeypatch):
+    """Switch the developer tools (/api/admin) on for one test, as DEV_TOOLS_ENABLED=true does."""
+    monkeypatch.setattr(settings, "dev_tools_enabled", True)
 
 
 @pytest.fixture

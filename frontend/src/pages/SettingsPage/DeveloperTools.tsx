@@ -15,8 +15,9 @@ import styles from "./SettingsPage.module.css";
 /** Raw database inspection/mutation tools (view tables, view/delete rows, Clear backlog), plus
  * the read-only MLWH connection status.
  * These bypass the app's normal business-logic invariants, so they live behind the "Show
- * developer tools" reveal in the Settings sidebar rather than on the everyday path. Still
- * un-gated by environment - remove or gate before a real production launch (see CLAUDE.md). */
+ * developer tools" reveal in the Settings sidebar rather than on the everyday path, and exist
+ * only where the deployment sets DEV_TOOLS_ENABLED (the backend 404s /api/admin otherwise; see
+ * CLAUDE.md). */
 export function DeveloperTools() {
   const [selectedTable, setSelectedTable] = useState<string | null>(null);
   const [clearBacklogOpen, setClearBacklogOpen] = useState(false);

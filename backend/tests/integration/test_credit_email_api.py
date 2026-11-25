@@ -1,5 +1,7 @@
 """GET/PUT /api/settings/credit-email — the editable PacBio credit-email template."""
 
+import pytest
+
 
 def test_credit_email_starts_at_built_in_defaults(client):
     resp = client.get("/api/settings/credit-email")
@@ -38,6 +40,7 @@ def test_credit_email_body_beyond_255_chars_round_trips(client):
     assert client.get("/api/settings/credit-email").json()["body"] == long_body
 
 
+@pytest.mark.usefixtures("dev_tools_on")  # reads audit_log through /api/admin
 def test_update_credit_email_writes_audit_log(client):
     client.put("/api/settings/credit-email", json={"to": "support@pacificbiosciences.com"})
     logs = client.get("/api/admin/tables/audit_log/rows", params={"page_size": 50}).json()["rows"]

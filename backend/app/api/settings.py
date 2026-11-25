@@ -11,6 +11,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from app.api.deps import ActorDep, SessionDep
+from app.config import settings as app_settings
 from app.engine.constants import (
     CELL_LIFETIME_H,
     CELL_MAX_USES,
@@ -350,3 +351,15 @@ def read_scheduling_facts() -> SchedulingFactsOut:
             lock_buffer_h=LOCK_BUFFER_HOURS,
         ),
     )
+
+
+class FeaturesOut(BaseModel):
+    """Which optional parts of the app this deployment switches on. Read by the frontend at
+    runtime: the same images run everywhere, so a build-time flag can't decide this."""
+
+    dev_tools: bool  # DEV_TOOLS_ENABLED: Settings > Developer tools and /api/admin
+
+
+@router.get("/features", response_model=FeaturesOut)
+def read_features() -> FeaturesOut:
+    return FeaturesOut(dev_tools=app_settings.dev_tools_enabled)

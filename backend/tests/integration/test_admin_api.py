@@ -3,6 +3,9 @@ from datetime import date, timedelta
 import pytest
 from pydantic import SecretStr
 
+# Every test here drives /api/admin, so the developer tools are on (test_dev_tools_gate.py covers off).
+pytestmark = pytest.mark.usefixtures("dev_tools_on")
+
 
 def _weekdays(n: int) -> list[str]:
     out: list[str] = []
