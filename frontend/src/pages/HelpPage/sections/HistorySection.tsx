@@ -195,6 +195,15 @@ export function HistorySection() {
         always links to.
       </p>
       <p>
+        <b>Sequencing history</b> (with an MLWH connection) is everything the instrument has recorded for the
+        sample — found by its Pool ID and its Sanger IDs, so it includes runs from before RunNx and the sample&apos;s
+        earlier tubes. The tiles give the <b>HiFi so far</b> and number of cells, the <b>last loading</b>{" "}
+        concentration, the <b>last share of the cell</b> it got, and the latest LangQC verdict; the table below lists
+        every loading, oldest first, each with a <b>SMRT Link ↗</b> link, and a pool&apos;s plex number opens its{" "}
+        <b>pool split</b> (see the Backlog&apos;s <b>Sequenced</b> column). The Details card shows the same highlight
+        as <b>Sequenced (MLWH)</b>.
+      </p>
+      <p>
         <b>Notes:</b> the sample&apos;s own free-text note sits at the bottom of its details. Click{" "}
         <b>✎ Add note</b> (or <b>✎ Edit note</b>) to write or change it in place, then <b>Save note</b> (or press{" "}
         <b>Ctrl+Enter</b>); saving an empty note removes it. Unlike the <b>Edit</b> button, this works for a sample of

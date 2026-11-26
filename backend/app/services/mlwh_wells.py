@@ -173,7 +173,7 @@ def _dt(value) -> datetime | None:
         return None
 
 
-def _num(value) -> float | None:
+def as_float(value) -> float | None:
     """MySQL hands DECIMAL columns back as Decimal; the API wants plain numbers."""
     if value is None:
         return None
@@ -183,14 +183,14 @@ def _num(value) -> float | None:
         return None
 
 
-def _str(value) -> str | None:
+def clean_str(value) -> str | None:
     s = str(value).strip() if value is not None else ""
     return s or None
 
 
 def p1_percent(p0, p1, p2) -> float | None:
     """P1 loading %: the share of the P0+P1+P2 partition that single-loaded."""
-    parts = [_num(v) for v in (p0, p1, p2)]
+    parts = [as_float(v) for v in (p0, p1, p2)]
     if any(v is None for v in parts) or sum(parts) <= 0:
         return None
     return round(parts[1] / sum(parts) * 100, 1)
@@ -201,29 +201,29 @@ def _well_from_row(row) -> MlwhWell:
     use_count = row["cell_use_count"]
     return MlwhWell(
         well_pk=row["well_pk"],
-        run_name=_str(row["run_name"]) or "",
+        run_name=clean_str(row["run_name"]) or "",
         plate_number=int(row["plate_number"] or 1),
-        well_label=(_str(row["well_label"]) or "").upper(),
-        instrument_name=_str(row["instrument_name"]),
-        qc_state=_str(row["qc_state"]) or "",
+        well_label=(clean_str(row["well_label"]) or "").upper(),
+        instrument_name=clean_str(row["instrument_name"]),
+        qc_state=clean_str(row["qc_state"]) or "",
         qc_date=_dt(row["qc_date"]),
         well_start=_dt(row["well_start"]),
         well_complete=_dt(row["well_complete"]),
-        run_status=_str(row["run_status"]),
-        well_status=_str(row["well_status"]),
-        smrt_cell_id=_str(row["smrt_cell_id"]),
-        cell_lot=_str(row["cell_lot"]),
+        run_status=clean_str(row["run_status"]),
+        well_status=clean_str(row["well_status"]),
+        smrt_cell_id=clean_str(row["smrt_cell_id"]),
+        cell_lot=clean_str(row["cell_lot"]),
         cell_use_count=int(use_count) if use_count is not None else None,
         is_multi_use=bool(multi) if multi is not None else None,
-        sequencing_kit=_str(row["sequencing_kit"]),
-        movie_name=_str(row["movie_name"]),
-        movie_minutes=_num(row["movie_minutes"]),
-        loading_conc=_num(row["loading_conc"]),
-        hifi_read_bases=_num(row["hifi_read_bases"]),
-        hifi_read_length_mean=_num(row["hifi_read_length_mean"]),
+        sequencing_kit=clean_str(row["sequencing_kit"]),
+        movie_name=clean_str(row["movie_name"]),
+        movie_minutes=as_float(row["movie_minutes"]),
+        loading_conc=as_float(row["loading_conc"]),
+        hifi_read_bases=as_float(row["hifi_read_bases"]),
+        hifi_read_length_mean=as_float(row["hifi_read_length_mean"]),
         p1_pct=p1_percent(row["p0_num"], row["p1_num"], row["p2_num"]),
-        sl_hostname=_str(row["sl_hostname"]),
-        sl_run_uuid=_str(row["sl_run_uuid"]),
+        sl_hostname=clean_str(row["sl_hostname"]),
+        sl_run_uuid=clean_str(row["sl_run_uuid"]),
     )
 
 
@@ -255,7 +255,7 @@ def fetch_wells(
         by_pk = {w.well_pk: w for w in wells}
         for pks in chunks(by_pk):
             for row in conn.execute(_TUBES_SQL, {"pks": pks}).mappings():
-                barcode = _str(row["tube"])
+                barcode = clean_str(row["tube"])
                 if barcode:
                     by_pk[row["well_pk"]].tubes.setdefault(barcode, set()).add(row["sample"])
     return [w for w in wells if w.run_name and w.well_label]

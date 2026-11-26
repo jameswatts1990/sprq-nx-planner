@@ -87,6 +87,8 @@ class SequencingMemberOut(BaseModel):
     pct_of_cell: float | None
     # Under 85% of an even share of the pool (the pacbio-dashboard's rule).
     below_even: bool = False
+    # One of the sample's own Sanger IDs (marks it in a pool found under another tube).
+    mine: bool = False
 
 
 class SequencingLoadingOut(BaseModel):

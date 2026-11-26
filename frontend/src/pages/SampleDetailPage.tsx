@@ -5,6 +5,7 @@ import { Link, useLocation, useParams } from "react-router-dom";
 import { errorMessage } from "@/api/client";
 import { samplesApi } from "@/api/samples";
 import { topupsApi } from "@/api/topups";
+import { SequencingHistoryPanel } from "@/components/sequencing/SequencingHistory";
 import { BarcodeChips } from "@/components/shared/BarcodeChips";
 import { ComplexCountdownChip } from "@/components/shared/ComplexCountdownChip";
 import { DuplicateBadge } from "@/components/shared/DuplicateBadge";
@@ -14,12 +15,14 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Note } from "@/components/ui/Note";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { useSequencingHistory } from "@/hooks/useSequencing";
 import { ViewActivityLink } from "@/pages/HistoryActivityPage/ViewActivityLink";
 import { formatDateTime } from "@/utils/calendarDates";
 import { plateWellFromPlate } from "@/utils/plateWell";
 import { resolveSampleBackNav } from "@/utils/sampleBackNav";
 import { runLabel } from "@/utils/runLabel";
 import { SAMPLE_STATUS_LABEL, SAMPLE_STATUS_TONE } from "@/utils/sampleStatus";
+import { summaryChipText, summaryTitle } from "@/utils/sequencing";
 import { tractionUrl } from "@/utils/traction";
 import { cellUseStatusLabel, USE_STATUS_TONE } from "@/utils/useStatusTone";
 
@@ -71,6 +74,8 @@ export function SampleDetailPage() {
     enabled: idIsValid,
   });
   const resupplies = resupplyQuery.data ?? [];
+  // MLWH sequencing history - its highlight line here, the full history in its own card below.
+  const sequenced = useSequencingHistory(idIsValid ? id : null).data;
 
   if (!idIsValid) {
     return (
@@ -204,6 +209,14 @@ export function SampleDetailPage() {
                 {sample.insert_size_bp != null ? `${sample.insert_size_bp.toLocaleString()} bp` : "—"}
               </span>
             </div>
+            {sequenced?.configured && (
+              <div>
+                <span className="detailLabel">Sequenced (MLWH)</span>
+                <span className={styles.value} title={sequenced.summary ? summaryTitle(sequenced.summary) : undefined}>
+                  {!sequenced.ok ? "—" : sequenced.summary ? summaryChipText(sequenced.summary) : "Never"}
+                </span>
+              </div>
+            )}
             <div>
               <span className="detailLabel">Created</span>
               <span className={styles.value}>{formatDateTime(sample.created_at)}</span>
@@ -283,6 +296,15 @@ export function SampleDetailPage() {
               </table>
             </div>
           )}
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <h2>Sequencing history</h2>
+        </CardHeader>
+        <CardBody>
+          <SequencingHistoryPanel sampleId={sample.id} poolId={sample.pool_id} />
         </CardBody>
       </Card>
 

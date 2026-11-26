@@ -75,6 +75,8 @@ export interface SequencingMember {
   pct_of_cell: number | null;
   /** Under 85% of an even share of the pool. */
   below_even: boolean;
+  /** One of the sample's own Sanger IDs (marks it in a pool found under another tube). */
+  mine: boolean;
 }
 
 /** One SMRT cell a library tube was loaded on. */

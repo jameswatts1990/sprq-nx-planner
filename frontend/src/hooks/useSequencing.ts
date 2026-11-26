@@ -1,4 +1,5 @@
 import { type QueryKey, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback, useMemo, useState } from "react";
 
 import { sequencingApi } from "@/api/sequencing";
 
@@ -41,6 +42,8 @@ export function useSequencingSummaries(sampleIds: number[]) {
     queryFn: () => sequencingApi.summaries(ids),
     enabled: ids.length > 0,
     staleTime: HISTORY_STALE_MS,
+    // Keep the last page's answer while the next page's loads, so the column doesn't blink out.
+    placeholderData: (previous) => previous,
   });
 }
 
@@ -63,3 +66,37 @@ export function useMlwhRefresh<T>(queryKey: QueryKey, fetchFresh: () => Promise<
     onSuccess: (fresh) => queryClient.setQueryData(queryKey, fresh),
   });
 }
+
+/** Which rows of a table have their sequencing history dropped open (by id). */
+export function useOpenRows() {
+  const [open, setOpen] = useState<ReadonlySet<number>>(() => new Set());
+  const toggle = useCallback(
+    (id: number) =>
+      setOpen((prev) => {
+        const next = new Set(prev);
+        if (!next.delete(id)) next.add(id);
+        return next;
+      }),
+    [],
+  );
+  return useMemo(() => ({ has: (id: number) => open.has(id), toggle }), [open, toggle]);
+}
+
+/** What a table's Sequenced column needs: the page's highlights, and which rows are open. Null
+ * while it isn't known whether this deployment has MLWH, or when it hasn't - the column is then
+ * left out rather than shown empty. */
+export function useSequencedColumn(sampleIds: number[], openRows: ReturnType<typeof useOpenRows>) {
+  const summaries = useSequencingSummaries(sampleIds);
+  const data = summaries.data;
+  return useMemo(() => {
+    if (!data?.configured) return null;
+    return {
+      summaries: data.samples,
+      state: (summaries.isPlaceholderData ? "loading" : data.ok ? "ok" : "error") as "loading" | "ok" | "error",
+      error: data.error,
+      openRows,
+    };
+  }, [data, summaries.isPlaceholderData, openRows]);
+}
+
+export type SequencedColumn = NonNullable<ReturnType<typeof useSequencedColumn>>;

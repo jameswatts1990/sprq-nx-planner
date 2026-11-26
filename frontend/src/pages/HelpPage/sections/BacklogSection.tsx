@@ -35,8 +35,8 @@ export function BacklogSection() {
 
       <p className={styles.subheading}>Columns &amp; sorting</p>
       <p>
-        <b>Columns:</b> Pool ID, Barcodes, Plate ID, Sanger IDs, Priority, Target OPLC, Actual OPLC, Adaptive
-        loading, Full res. base Q, Include base kinetics, and Created (when it was imported). <b>Target OPLC</b> is the
+        <b>Columns:</b> Pool ID, Barcodes, Plate ID, Sanger IDs, Priority, Sequenced, Target OPLC, Actual OPLC,
+        Adaptive loading, Full res. base Q, Include base kinetics, and Created (when it was imported). <b>Target OPLC</b> is the
         planned loading concentration; <b>Actual OPLC</b> is the concentration actually achieved on the plate. A dash
         (—) means that field is empty for the sample. Click a <b>Pool ID</b> to open that sample&apos;s detail page.
         A <b>1/3</b> badge beside a Pool ID means it&apos;s a <b>duplicate</b> — the same sample entered more than
@@ -68,6 +68,22 @@ export function BacklogSection() {
           </div>
         ))}
       </div>
+      <p className={styles.subheading}>Sequenced: what a sample has had so far</p>
+      <p>
+        The <b>Sequenced</b> column (when RunNx has an MLWH connection) sums up what the instrument has recorded for a
+        sample, found by its Pool ID and by its Sanger IDs — so a top-up that came back as a new pool still shows what
+        its samples got before: <b>2 cells · 48 Gb · last 210 pM</b> means sequenced on two SMRT cells, 48 Gb of HiFi
+        in all, last loaded at 210 pM. Hover it for the whole last loading (date, run, well, yield, its share of the
+        cell, pool size and LangQC verdict); a dash means MLWH has never seen it, and <b>?</b> means MLWH couldn&apos;t
+        be read (hover for why). Click it to drop every loading open below the row, oldest first, with each
+        one&apos;s loading, HiFi yield, <b>share of the cell</b>, plex, read length, LangQC verdict, movie and a{" "}
+        <b>SMRT Link ↗</b> link. For a pool, click its plex number to see the <b>pool split</b> — how the cell&apos;s
+        yield divided between the samples, against an even share; a sample under 85% of an even share shows in amber,
+        often the one that needs the top-up. A loading found through a Sanger ID in another tube says{" "}
+        <b>as part of</b> that tube. The same history is on the sample&apos;s own page, and the <b>Edit</b> form shows
+        the last loading under Target OPLC. It&apos;s re-read from MLWH at most every five minutes (<b>Refresh</b>{" "}
+        asks again).
+      </p>
       <p className={styles.subheading}>Recoverable samples (above the backlog)</p>
       <p>
         When a <b>Cell QC</b> action (see the Schedule and Cells tabs&apos; help) takes a cell out of service, the
@@ -99,8 +115,9 @@ export function BacklogSection() {
       <p>
         The fourth outcome, <b>Lost</b>, means {DISPOSITION_DESCRIPTION.lost.charAt(0).toLowerCase()}
         {DISPOSITION_DESCRIPTION.lost.slice(1)} The <b>Resupply requests</b> list <i>below</i> the backlog shows each
-        sample&apos;s Pool ID (click it to open the sample), Sanger IDs, barcodes, the run/cell the loss came from, and
-        the date the request was raised. Once you&apos;ve emailed the supplier asking them to resend sample, click{" "}
+        sample&apos;s Pool ID (click it to open the sample), Sanger IDs, barcodes, the run/cell the loss came from, what
+        it has been <b>Sequenced</b> on so far (click it for every loading — see above), and the date the request was
+        raised. Once you&apos;ve emailed the supplier asking them to resend sample, click{" "}
         <b>Request sent</b> and confirm in the pop-up: it records today&apos;s date and the request <b>leaves this
         list</b>. Sent requests stay visible in a <b>Resupply requests</b> card on the sample&apos;s own page (with the
         date raised and the date sent). <b>Cancel</b> deletes a request that isn&apos;t needed, after a confirmation (the
@@ -161,7 +178,9 @@ export function BacklogSection() {
         IDs, priority, Target OPLC, Actual OPLC, the complex-loading volumes (cleaned-complex and loading-buffer,
         which show on the batch sheet), and the other settings. The{" "}
         <b>Pool ID</b> is greyed out and can&apos;t be changed: it identifies the sample and is fixed once
-        created. A backlog sample is fully editable; once it&apos;s scheduled you can still adjust its loading
+        created. Under Target OPLC, a grey line recalls what the sample was <b>last loaded</b> at (from MLWH, with
+        the date, its yield and its share of the cell), and <b>Previous loadings ▸</b> lists the last few — handy when
+        a top-up needs a different loading. A backlog sample is fully editable; once it&apos;s scheduled you can still adjust its loading
         parameters (including those volumes) and its sample note from the Schedule slot popover, but its barcodes and
         identity are locked.
         A <b>View on Traction</b> button (next to Cancel) opens the sample in Traction — the pools view for a pool
