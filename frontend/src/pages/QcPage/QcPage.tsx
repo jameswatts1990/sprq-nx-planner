@@ -214,7 +214,7 @@ export function QcPage() {
   });
   const casesQuery = useQuery({ queryKey: ["pacbio-cases"], queryFn: pacbioCasesApi.list });
   // Reads MLWH, so it's cached a minute rather than refetched on every focus.
-  const reviewQuery = useQuery({ queryKey: ["qc-review"], queryFn: qcApi.review, staleTime: 60_000 });
+  const reviewQuery = useQuery({ queryKey: ["qc-review"], queryFn: () => qcApi.review(), staleTime: 60_000 });
 
   const items = useMemo<QcCase[]>(
     () => [

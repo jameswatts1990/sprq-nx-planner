@@ -11,9 +11,11 @@ import { samplesApi } from "@/api/samples";
 import { scheduleNotesApi } from "@/api/scheduleNotes";
 import { CellTypeBadge } from "@/components/cells/CellTypeBadge";
 import { StatTile, StatTiles } from "@/components/shared/StatTile";
+import { SmrtLinkLink } from "@/components/shared/SmrtLinkLink";
 import { Badge } from "@/components/ui/Badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Note } from "@/components/ui/Note";
+import { useRunSmrtLinkUrl } from "@/hooks/useSequencing";
 import type { InstrumentOut, InstrumentStatsOut } from "@/types/instrument";
 import { formatDateTime, formatShortDateTimeLocal, formatShortDateUTC, formatTimeLocal, parseDateOnly } from "@/utils/calendarDates";
 import { CYCLE_STATUS_TONE, RUN_STATUS_LABEL } from "@/utils/cycleStatus";
@@ -162,6 +164,7 @@ function InstrumentRow({
 }) {
   const status = instrumentStatus(instrument);
   const downtime = downtimeLine(instrument, today);
+  const smrtLinkUrl = useRunSmrtLinkUrl(stats?.running_run_id);
   return (
     <li className={styles.instrument}>
       <div className={styles.row}>
@@ -185,6 +188,12 @@ function InstrumentRow({
               stats.running_run_name
             )}
             {stats.free_at ? ` · frees ${formatShortDateTimeLocal(stats.free_at)}` : ""}
+            {smrtLinkUrl && (
+              <>
+                {" · "}
+                <SmrtLinkLink url={smrtLinkUrl} label="SMRT Link" />
+              </>
+            )}
           </>
         ) : (
           "Idle"
@@ -322,7 +331,7 @@ export function QcTodayCard() {
  * Reads the QC page's own key, so the two share a cache and a Confirm fail / Ignore there updates
  * this card too. MLWH unset or down reads as a line in the card, never a broken page. */
 export function QcReviewTodayCard() {
-  const reviewQuery = useQuery({ queryKey: ["qc-review"], queryFn: qcApi.review, refetchInterval: TODAY_REFRESH_MS });
+  const reviewQuery = useQuery({ queryKey: ["qc-review"], queryFn: () => qcApi.review(), refetchInterval: TODAY_REFRESH_MS });
   const review = reviewQuery.data;
   const waiting = review?.pending.length ?? 0;
   const oldest = review ? oldestReviewDays(review.pending, reviewQuery.dataUpdatedAt) : null;

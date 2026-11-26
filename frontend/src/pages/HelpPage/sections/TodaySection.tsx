@@ -24,7 +24,8 @@ export function TodaySection() {
         <dt>Instruments</dt>
         <dd>
           Each active Revio with its status (<b>Ready</b>, <b>Running</b> or <b>Down</b>, as on the Instruments tab),
-          what it&apos;s running and when it frees up (or <b>Idle</b>), and its next booked run after today. A Revio
+          what it&apos;s running and when it frees up (or <b>Idle</b>) — with a <b>SMRT Link ↗</b> link to the running
+          run once MLWH has it — and its next booked run after today. A Revio
           down today shows an amber <b>Down now</b> line with the period and reason; one with downtime coming up shows
           a blue <b>Downtime ahead</b> line instead.
         </dd>

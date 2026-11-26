@@ -1,75 +1,14 @@
 """QC Review (GET /api/qc/review, POST /api/qc/review/ignore|restore): SMRT cells the QC team
 failed in LangQC (MLWH) that RunNx has no fail mark on.
 
-MLWH is stood in for by an SQLite copy of the three tables the query reads, and the real query
-runs against it - so the SQL, its joins and its filters are exercised, not just the Python around
-them. Every column it creates is one the pacbio-dashboard already reads from the live warehouse."""
+MLWH is stood in for by an SQLite copy of its tables (the `fake_mlwh` fixture, tests/mlwh_fake.py),
+and the real query runs against it - so the SQL, its joins and its filters are exercised."""
 from datetime import date, datetime, timedelta
 
-import pytest
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine
 from sqlalchemy.pool import StaticPool
 
-from app.services import mlwh, qc_review
-
-_MLWH_DDL = [
-    """CREATE TABLE pac_bio_run_well_metrics (
-        id_pac_bio_rw_metrics_tmp INTEGER PRIMARY KEY,
-        pac_bio_run_name TEXT, plate_number INTEGER, well_label TEXT,
-        instrument_name TEXT, instrument_type TEXT,
-        qc_seq_state TEXT, qc_seq_date TEXT, well_start TEXT, well_complete TEXT, run_complete TEXT,
-        cell_id TEXT, cell_lot_number TEXT, cell_use_count INTEGER, is_cell_multi_use INTEGER,
-        sequencing_kit TEXT, movie_name TEXT, movie_minutes REAL, loading_conc REAL,
-        hifi_read_bases REAL, sl_hostname TEXT, sl_run_uuid TEXT)""",
-    """CREATE TABLE pac_bio_product_metrics (
-        id_pac_bio_pr_metrics_tmp INTEGER PRIMARY KEY, id_pac_bio_rw_metrics_tmp INTEGER, id_pac_bio_tmp INTEGER)""",
-    """CREATE TABLE pac_bio_run (
-        id_pac_bio_tmp INTEGER PRIMARY KEY, id_sample_tmp INTEGER, pac_bio_library_tube_barcode TEXT)""",
-]
-
-
-class FakeMlwh:
-    def __init__(self) -> None:
-        self.engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-        self._next = 0
-        with self.engine.begin() as conn:
-            for ddl in _MLWH_DDL:
-                conn.execute(text(ddl))
-
-    def add_well(self, *, run="TRACTION-RUN-2589", plate=1, well="A1", state="Failed, SMRT cell",
-                 qc_on: datetime | None = None, start: datetime | None = None, instrument="84047",
-                 instrument_type="Revio", libraries=("TRAC-2-100",), **extra) -> None:
-        self._next += 1
-        start = start or datetime.now() - timedelta(days=2)
-        qc_on = qc_on or start + timedelta(days=2)
-        fmt = "%Y-%m-%d %H:%M:%S"
-        row = {
-            "id_pac_bio_rw_metrics_tmp": self._next, "pac_bio_run_name": run, "plate_number": plate,
-            "well_label": well, "instrument_name": instrument, "instrument_type": instrument_type,
-            "qc_seq_state": state, "qc_seq_date": qc_on.strftime(fmt), "well_start": start.strftime(fmt),
-            "well_complete": (start + timedelta(hours=24)).strftime(fmt), "run_complete": None,
-            "cell_id": f"EA{330000 + self._next}", "cell_lot_number": "LOT1", "cell_use_count": 1,
-            "is_cell_multi_use": 1, "sequencing_kit": "Revio SPRQ-Nx", "movie_name": f"m84047_{self._next}",
-            "movie_minutes": 1440, "loading_conc": 250, "hifi_read_bases": 12.5e9,
-            "sl_hostname": "smrtlink.example.org", "sl_run_uuid": "11111111-2222",
-        } | extra
-        with self.engine.begin() as conn:
-            conn.execute(text(f"INSERT INTO pac_bio_run_well_metrics ({', '.join(row)}) VALUES "
-                              f"({', '.join(':' + k for k in row)})"), row)
-            for i, barcode in enumerate(libraries):
-                tube_id = self._next * 100 + i
-                conn.execute(text("INSERT INTO pac_bio_run VALUES (:t, :s, :b)"), {"t": tube_id, "s": tube_id, "b": barcode})
-                conn.execute(text("INSERT INTO pac_bio_product_metrics (id_pac_bio_rw_metrics_tmp, id_pac_bio_tmp) "
-                                  "VALUES (:w, :t)"), {"w": self._next, "t": tube_id})
-
-
-@pytest.fixture
-def fake_mlwh(monkeypatch):
-    fake = FakeMlwh()
-    monkeypatch.setattr(mlwh, "is_configured", lambda: True)
-    monkeypatch.setattr(qc_review, "_mlwh_engine", lambda: fake.engine)
-    yield fake
-    fake.engine.dispose()
+from app.services import mlwh, mlwh_wells
 
 
 def _past_weekday(days_back: int = 2) -> date:
@@ -131,7 +70,7 @@ def test_not_configured_is_a_state_not_an_error(client, monkeypatch):
 def test_mlwh_failure_comes_back_as_an_error_message(client, monkeypatch):
     empty = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)  # no tables: the query fails
     monkeypatch.setattr(mlwh, "is_configured", lambda: True)
-    monkeypatch.setattr(qc_review, "_mlwh_engine", lambda: empty)
+    monkeypatch.setattr(mlwh_wells, "engine", lambda: empty)
     body = _review(client)
     assert body["configured"] is True and body["ok"] is False
     assert "pac_bio_run_well_metrics" in body["error"]

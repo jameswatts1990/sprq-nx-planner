@@ -13,8 +13,10 @@ export interface QcSummary {
 
 export const qcApi = {
   summary: () => api.get<QcSummary>("/api/qc/summary"),
-  /** The QC Review queue (MLWH). Always resolves: MLWH unset or down is in the body. */
-  review: () => api.get<QcReview>("/api/qc/review"),
+  /** The QC Review queue (MLWH). Always resolves: MLWH unset or down is in the body. `refresh`
+   * (Retry) asks MLWH again instead of using RunNx's last-minute answer. */
+  review: (opts: { refresh?: boolean } = {}) =>
+    api.get<QcReview>(`/api/qc/review${opts.refresh ? "?refresh=true" : ""}`),
   ignoreReviewWell: (key: string, reason: string) =>
     api.post<QcReviewIgnore>("/api/qc/review/ignore", { key, reason }),
   restoreReviewWell: (key: string) => api.post<void>("/api/qc/review/restore", { key }),

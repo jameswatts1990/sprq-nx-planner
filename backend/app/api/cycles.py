@@ -9,6 +9,7 @@ from app.api.deps import ActorDep, SessionDep, pagination
 from app.models.instrument import Instrument
 from app.models.schedule import CYCLE_STATUSES, RunBatch
 from app.schemas.common import CellType, Page
+from app.schemas.sequencing import RunSequencingOut
 from app.schemas.run import (
     RunHistoryRowOut,
     RunNameMatchOut,
@@ -23,6 +24,7 @@ from app.services.placement_service import (
     update_run_load_time,
 )
 from app.services.run_history_rows import list_history_rows, schedule_search
+from app.services.run_sequencing import build_run_sequencing
 from app.services.run_serializer import RUN_LOAD_OPTIONS, run_out, run_pool_ids
 from app.services.run_service import update_run_status
 
@@ -149,6 +151,17 @@ def get_run(run_id: int, db: SessionDep) -> RunOut:
     if run_batch is None:
         raise HTTPException(404, "Run not found")
     return run_out(db, run_batch)
+
+
+@router.get("/{run_id}/sequencing", response_model=RunSequencingOut)
+def get_run_sequencing(run_id: int, db: SessionDep, refresh: bool = False) -> RunSequencingOut:
+    """What MLWH recorded for this run, well by well, beside the plan, with where they disagree
+    (services/run_sequencing.py). A 200 whatever MLWH's state - unset or unreachable is in the
+    body. `refresh` (the section's Refresh / Retry) asks MLWH again instead of using its cache."""
+    out = build_run_sequencing(db, run_id, refresh=refresh)
+    if out is None:
+        raise HTTPException(404, "Run not found")
+    return out
 
 
 @router.patch("/{run_id}", response_model=RunOut)

@@ -17,3 +17,10 @@
   font-size: var(--fs-xs);
   color: var(--red);
 }
+/* A neutral "why fill this in" line under an optional field - information, not an error. */
+.aside {
+  display: block;
+  margin-top: 6px;
+  font-size: var(--fs-xs);
+  color: var(--grey);
+}

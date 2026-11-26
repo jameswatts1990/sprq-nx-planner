@@ -5,11 +5,14 @@ import { Link } from "react-router-dom";
 import { errorMessage } from "@/api/client";
 import { qcApi } from "@/api/qc";
 import { CellQcModal } from "@/components/cells/CellQcModal";
+import { MlwhErrorNote } from "@/components/shared/MlwhErrorNote";
 import { SectionHeading } from "@/components/shared/SectionHeading";
+import { SmrtLinkLink } from "@/components/shared/SmrtLinkLink";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { Note } from "@/components/ui/Note";
+import { useMlwhRefresh } from "@/hooks/useSequencing";
 import type { PacbioCaseOut } from "@/types/pacbioCase";
 import type { QcReview, QcReviewWell } from "@/types/qcReview";
 import { formatDateTime, formatDateUTC, parseDateOnly } from "@/utils/calendarDates";
@@ -117,11 +120,7 @@ function WellDetails({ well }: { well: QcReviewWell }) {
           </div>
         ))}
       </dl>
-      {well.smrt_link_url && (
-        <a className="link" href={well.smrt_link_url} target="_blank" rel="noreferrer">
-          Open this run in SMRT Link ↗
-        </a>
-      )}
+      <SmrtLinkLink url={well.smrt_link_url} label="Open this run in SMRT Link" />
     </div>
   );
 }
@@ -301,6 +300,7 @@ export function QcReviewSection({
   onResolved: (text: string) => void;
 }) {
   const [ignoredOpen, setIgnoredOpen] = useState(false);
+  const retry = useMlwhRefresh(["qc-review"], () => qcApi.review({ refresh: true }));
   const data = review.data;
   const searching = query.trim() !== "";
   const pending = (data?.pending ?? []).filter((w) => reviewWellMatches(w, query));
@@ -328,13 +328,12 @@ export function QcReviewSection({
         </p>
       )}
       {data?.configured && !data.ok && (
-        <Note tone="bad" icon="!">
-          Couldn&apos;t read the QC team&apos;s verdicts from MLWH{data.error ? `: ${data.error}` : "."} The rest of this
-          page is unaffected.{" "}
-          <Button size="sm" variant="ghost" onClick={() => void review.refetch()} disabled={review.isFetching}>
-            {review.isFetching ? "Retrying…" : "Retry"}
-          </Button>
-        </Note>
+        <MlwhErrorNote
+          what="the QC team's verdicts"
+          error={data.error}
+          onRetry={() => retry.mutate()}
+          retrying={retry.isPending}
+        />
       )}
 
       {data?.ok && (
