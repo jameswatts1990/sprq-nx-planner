@@ -83,11 +83,12 @@ uvicorn app.main:app --reload
 ## Tests & CI
 
 ```
-cd backend && pytest                              # unit + integration suite
+cd backend && pytest                              # unit + integration suite (SQLite, fast)
+cd backend && pytest tests                        # + Alembic migrations on Postgres (CI, devcontainer)
 cd frontend && npm run typecheck && npm run build && npm run test
 ```
 
-`.github/workflows/ci.yml` runs both suites on every push and pull request. Integration tests use in-memory SQLite (see `tests/integration/conftest.py`), so no Postgres service is needed in CI.
+`.github/workflows/ci.yml` runs both suites on every push and pull request. Integration tests use in-memory SQLite (see `tests/integration/conftest.py`). `tests/migrations` runs every Alembic migration against a Postgres 18 service in CI: upgrade to head, a check that the models match the migrations (`alembic check`), that every downgrade runs (not that it restores the exact schema), and, for migrations that move existing rows, a data test in `test_data_migrations.py` (add one with every such migration). A bare `pytest` leaves it out; run it with `pytest tests` (everything) or `pytest tests/migrations`. The devcontainer has its own throwaway Postgres 18 for it (`migrations-db`). Elsewhere it's skipped unless `MIGRATION_TEST_DATABASE_URL` points at a throwaway Postgres database whose name ends in `_migrations`; the tests empty its `public` schema, and fail on any other name.
 
 The backend's `tests/unit` suite is a golden-fixture parity check against the original prototype's example data and default settings — see `tests/fixtures/example_samples.csv` and the "porting the algorithms" notes in the engine modules.
 

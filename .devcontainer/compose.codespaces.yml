@@ -16,3 +16,26 @@ services:
       # root), so this mounts the repo root at /workspace. ".." would resolve to
       # the repo's parent and nest the repo one level too deep.
       - .:/workspace:cached
+    # backend/tests/migrations runs only when this is set. It points at its own
+    # server below, never at `db`: the tests wipe the database's public schema.
+    environment:
+      MIGRATION_TEST_DATABASE_URL: postgresql+psycopg://runnx:runnx@migrations-db:5432/runnx_migrations
+    depends_on:
+      migrations-db:
+        condition: service_healthy
+
+  # Throwaway Postgres for the migration tests, same version as CI. Data lives
+  # in memory and is gone when the container stops.
+  migrations-db:
+    image: postgres:18-trixie
+    environment:
+      POSTGRES_USER: runnx
+      POSTGRES_PASSWORD: runnx
+      POSTGRES_DB: runnx_migrations
+    tmpfs:
+      - /var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U runnx -d runnx_migrations"]
+      interval: 5s
+      timeout: 5s
+      retries: 10

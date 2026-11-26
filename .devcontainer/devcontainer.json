@@ -10,7 +10,8 @@
   // Only bring up backend (+ its db dependency). docker-compose.yml also defines
   // the prod "frontend" nginx on 8080; letting it run shadows the dind prod
   // stack's 8080 with a frontend whose backend is asleep (sleep infinity) -> 502.
-  "runServices": ["backend", "db"],
+  // migrations-db is the throwaway Postgres for backend/tests/migrations.
+  "runServices": ["backend", "db", "migrations-db"],
   "workspaceFolder": "/workspace",
 
   // Create .env on the host before Compose parses ${POSTGRES_*}. postCreate is

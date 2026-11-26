@@ -25,7 +25,8 @@ dev = [
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
-testpaths = ["tests"]
+# A bare `pytest` runs the fast SQLite suites; `pytest tests` adds tests/migrations (Postgres).
+testpaths = ["tests/unit", "tests/integration"]
 
 [build-system]
 requires = ["setuptools>=77"] # 77+ for the SPDX `license` string
