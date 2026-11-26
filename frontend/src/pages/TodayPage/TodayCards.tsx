@@ -30,6 +30,7 @@ import {
   expiringTrays,
   instrumentLabel,
   loadedAt,
+  oldestReviewDays,
   runsLoadingToday,
   wellCount,
 } from "./todayView";
@@ -310,6 +311,60 @@ export function QcTodayCard() {
           </StatTiles>
           {summary.total_action === 0 && (
             <div className="status sm">Nothing needs a report and nothing is overdue.</div>
+          )}
+        </>
+      )}
+    </TodayCard>
+  );
+}
+
+/** QC Review's queue: SMRT cells the QC team failed in LangQC (MLWH) that RunNx hasn't failed yet.
+ * Reads the QC page's own key, so the two share a cache and a Confirm fail / Ignore there updates
+ * this card too. MLWH unset or down reads as a line in the card, never a broken page. */
+export function QcReviewTodayCard() {
+  const reviewQuery = useQuery({ queryKey: ["qc-review"], queryFn: qcApi.review, refetchInterval: TODAY_REFRESH_MS });
+  const review = reviewQuery.data;
+  const waiting = review?.pending.length ?? 0;
+  const oldest = review ? oldestReviewDays(review.pending, reviewQuery.dataUpdatedAt) : null;
+
+  return (
+    <TodayCard title="QC Review" link={{ to: "/qc", label: "QC & credits" }}>
+      <QueryStatus query={reviewQuery} what="QC Review" />
+      {review && !review.configured && (
+        <div className="status sm">Needs the MLWH connection, which this deployment doesn&apos;t have.</div>
+      )}
+      {review?.configured && !review.ok && (
+        <Note tone="bad" icon="!">
+          Couldn&apos;t read the QC team&apos;s verdicts from MLWH{review.error ? `: ${review.error}` : "."}
+        </Note>
+      )}
+      {review?.ok && (
+        <>
+          <StatTiles>
+            <StatTile
+              label="To review"
+              value={
+                waiting > 0 ? (
+                  <Link className={styles.statLink} to="/qc">
+                    {waiting}
+                  </Link>
+                ) : (
+                  0
+                )
+              }
+              title="SMRT cells the QC team failed in LangQC (SMRT cell or instrument) that RunNx hasn't failed yet"
+            />
+            <StatTile
+              label="Oldest"
+              value={oldest === null ? "—" : `${oldest} d`}
+              title="Days since LangQC signed off the oldest well still waiting"
+            />
+          </StatTiles>
+          {waiting === 0 && (
+            <div className="status sm">
+              Nothing to review: every SMRT cell the QC team failed since{" "}
+              {formatShortDateUTC(parseDateOnly(review.since))} is already in RunNx.
+            </div>
           )}
         </>
       )}

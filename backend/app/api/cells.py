@@ -315,6 +315,7 @@ def qc_commit_endpoint(cell_id: int, req: QcCommitRequest, db: SessionDep, actor
             reason=req.reason,
             dispositions=req.dispositions,
             actor=req.actor or actor,
+            source=req.source,
         )
     except ValueError as exc:
         raise HTTPException(409, str(exc)) from exc

@@ -72,9 +72,10 @@ export interface IssueReportSettings {
 export type IssueReportSettingsUpdate = Partial<IssueReportSettings>;
 
 /** QC & credits settings. An open credit case waiting longer than overdue_days at its current
- * stage is flagged overdue. */
+ * stage is flagged overdue; the QC Review queue reads MLWH back review_lookback_days. */
 export interface QcSettings {
   overdue_days: number;
+  review_lookback_days: number;
 }
 
 export const settingsApi = {
@@ -91,6 +92,6 @@ export const settingsApi = {
   updateIssueReport: (body: IssueReportSettingsUpdate) =>
     api.put<IssueReportSettings>("/api/settings/issue-report", body),
   getQc: () => api.get<QcSettings>("/api/settings/qc"),
-  updateQc: (body: QcSettings) => api.put<QcSettings>("/api/settings/qc", body),
+  updateQc: (body: Partial<QcSettings>) => api.put<QcSettings>("/api/settings/qc", body),
   getFacts: () => api.get<SchedulingFacts>("/api/settings/facts"),
 };

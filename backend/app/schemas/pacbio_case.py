@@ -29,6 +29,9 @@ class PacbioCaseCreate(PacbioCaseDetailsIn):
     credit_received: bool = False
     credit_owner: str | None = None
     credit_notes: str | None = None
+    # Logged from the QC page's QC Review queue: the MLWH well it's about
+    # (services/qc_review.well_key). Labels the case QC Review and takes the well out of the queue.
+    mlwh_well_key: str | None = None
     actor: str | None = None
 
 
@@ -58,3 +61,6 @@ class PacbioCaseOut(BaseModel):
     credit_notes: str | None
     credit_received_at: datetime | None
     credit_owner: str | None
+    # "qc_review" when logged from the QC Review queue, else null.
+    credit_source: str | None
+    mlwh_well_key: str | None

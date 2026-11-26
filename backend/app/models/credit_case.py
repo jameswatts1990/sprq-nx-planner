@@ -31,3 +31,10 @@ class CreditCaseMixin:
     # Who is chasing the case (free text - a Sanger ID or a name; the app has no auth). Shown on
     # the QC worklist and fills the issue report's "Reported by (Sanger ID)" column.
     credit_owner: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    # How the case came in: CREDIT_SOURCE_QC_REVIEW when it was raised from the QC page's QC
+    # Review queue (the QC team failed the SMRT cell in LangQC/MLWH before RunNx did -
+    # services/qc_review.py); null when the lab started it in RunNx. Drives the "QC Review" label.
+    credit_source: Mapped[str | None] = mapped_column(String(16), nullable=True)
+
+
+CREDIT_SOURCE_QC_REVIEW = "qc_review"

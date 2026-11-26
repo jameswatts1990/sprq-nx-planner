@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { errorMessage } from "@/api/client";
 import { cellsApi } from "@/api/cells";
 import { pacbioCasesApi } from "@/api/pacbioCases";
+import { qcApi } from "@/api/qc";
 import { SectionHeading } from "@/components/shared/SectionHeading";
 import { StatTile, StatTiles } from "@/components/shared/StatTile";
 import { Badge } from "@/components/ui/Badge";
@@ -27,6 +28,7 @@ import { csvSafe, downloadCsv, toCsv } from "@/utils/toCsv";
 
 import { PacbioCaseModal } from "./PacbioCaseModal";
 import { PacbioCaseRow } from "./PacbioCaseRow";
+import { QcReviewSection } from "./QcReviewSection";
 import { CellCaseRow, type RowExpansion } from "./QcCaseRow";
 import {
   QC_CSV_HEADERS,
@@ -98,11 +100,14 @@ function OverviewStrip({
   groups,
   nowMs,
   overdueDays,
+  toReview,
 }: {
   items: QcCase[];
   groups: QcGroups;
   nowMs: number;
   overdueDays: number | undefined;
+  /** Wells waiting in QC Review; null while MLWH is unavailable (unset, down or loading). */
+  toReview: number | null;
 }) {
   let overdue = 0;
   let pending = 0;
@@ -126,6 +131,15 @@ function OverviewStrip({
     <Card>
       <CardBody>
         <StatTiles>
+          <StatTile
+            label="QC Review"
+            value={toReview ?? "—"}
+            title={
+              toReview === null
+                ? "SMRT cells the QC team failed in LangQC that RunNx hasn't - unavailable without MLWH"
+                : "SMRT cells the QC team failed in LangQC that RunNx hasn't failed yet"
+            }
+          />
           <StatTile label="Open" value={open} title="Cases not yet received" />
           <StatTile
             label="Overdue"
@@ -175,6 +189,8 @@ export function QcPage() {
   const [query, setQuery] = useState("");
   const [addOpen, setAddOpen] = useState(false);
   const [justAdded, setJustAdded] = useState<PacbioCaseOut | null>(null);
+  // What the last QC Review action did, so the well vanishing from the queue is never silent.
+  const [reviewResolved, setReviewResolved] = useState<string | null>(null);
   // Which rows are expanded, by case key - kept here so a row stays open when an action moves its
   // case into another stage group (that remounts the row).
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
@@ -197,6 +213,8 @@ export function QcPage() {
     queryFn: () => cellsApi.listAll({ qc_status: "in_workflow" }),
   });
   const casesQuery = useQuery({ queryKey: ["pacbio-cases"], queryFn: pacbioCasesApi.list });
+  // Reads MLWH, so it's cached a minute rather than refetched on every focus.
+  const reviewQuery = useQuery({ queryKey: ["qc-review"], queryFn: qcApi.review, staleTime: 60_000 });
 
   const items = useMemo<QcCase[]>(
     () => [
@@ -233,7 +251,7 @@ export function QcPage() {
       <PageHeader
         help="qc"
         title="QC & PacBio credits"
-        intro="Failed or stopped cells, plus cases logged by hand, chasing a credit back from PacBio."
+        intro="SMRT cells the QC team failed that RunNx hasn't, then failed or stopped cells and cases logged by hand, chasing a credit back from PacBio."
         actions={
           <>
             <Button
@@ -264,6 +282,7 @@ export function QcPage() {
             <Button
               onClick={() => {
                 setJustAdded(null);
+                setReviewResolved(null);
                 setAddOpen(true);
               }}
               title="Log a PacBio credit case that isn't linked to any cell in RunNx"
@@ -274,7 +293,15 @@ export function QcPage() {
         }
       />
 
-      {overviewOpen && loaded && <OverviewStrip items={items} groups={allGroups} nowMs={nowMs} overdueDays={overdueDays} />}
+      {overviewOpen && loaded && (
+        <OverviewStrip
+          items={items}
+          groups={allGroups}
+          nowMs={nowMs}
+          overdueDays={overdueDays}
+          toReview={reviewQuery.data?.ok ? reviewQuery.data.pending.length : null}
+        />
+      )}
 
       {justAdded && (
         <Note tone="good" icon="✓">
@@ -282,6 +309,21 @@ export function QcPage() {
           <b>{NO_CELL_BADGE.label}</b>.
         </Note>
       )}
+
+      {reviewResolved && (
+        <Note tone="good" icon="✓">
+          {reviewResolved}
+        </Note>
+      )}
+
+      <QcReviewSection
+        review={reviewQuery}
+        query={query}
+        onResolved={(text) => {
+          setJustAdded(null);
+          setReviewResolved(text);
+        }}
+      />
 
       {loading && <div className="status">Loading QC cases…</div>}
       {cellsQuery.isError && (
@@ -364,6 +406,7 @@ export function QcPage() {
           onClose={() => setAddOpen(false)}
           onSaved={(saved) => {
             setAddOpen(false);
+            setReviewResolved(null);
             setJustAdded(saved);
           }}
         />

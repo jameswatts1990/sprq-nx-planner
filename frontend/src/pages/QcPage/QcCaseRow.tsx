@@ -14,6 +14,7 @@ import {
   type CreditCaseAge,
   cellFailureAt,
   OVERDUE_BADGE,
+  QC_REVIEW_BADGE,
   triggeringUse,
 } from "@/utils/creditCase";
 import { runLabel } from "@/utils/runLabel";
@@ -166,6 +167,11 @@ export function CellCaseRow({
             {cell.code}
           </Link>
           <Badge tone={CELL_STATUS_TONE[cell.status]}>{CELL_STATUS_LABEL[cell.status]}</Badge>
+          {cell.credit_source === "qc_review" && (
+            <Badge tone={QC_REVIEW_BADGE.tone} title={QC_REVIEW_BADGE.title}>
+              {QC_REVIEW_BADGE.label}
+            </Badge>
+          )}
           <CellTypeBadge cellType={cell.cell_type} />
           {cell.current_instrument_serial && (
             <Link

@@ -19,7 +19,9 @@ import type { QueryClient } from "@tanstack/react-query";
  * ["instrument-stats"] query is invalidated at that page's own call sites, not here.
  *
  * ["qc-summary"] (the QC nav count) because a Cell QC verdict or its undo opens or closes a
- * cell's credit case.
+ * cell's credit case, and ["qc-review"] because a Fail (or its undo) takes a well out of (or puts it
+ * back in) the QC Review queue. That one reads MLWH, but React Query only refetches it while the QC
+ * page is open.
  */
 export function invalidateScheduleRelated(queryClient: QueryClient) {
   void queryClient.invalidateQueries({ queryKey: ["cycles"] });
@@ -31,4 +33,5 @@ export function invalidateScheduleRelated(queryClient: QueryClient) {
   void queryClient.invalidateQueries({ queryKey: ["instruments"] });
   void queryClient.invalidateQueries({ queryKey: ["instrument"] });
   void queryClient.invalidateQueries({ queryKey: ["qc-summary"] });
+  void queryClient.invalidateQueries({ queryKey: ["qc-review"] });
 }

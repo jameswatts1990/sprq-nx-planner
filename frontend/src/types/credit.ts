@@ -12,7 +12,12 @@ export interface CreditCaseState {
   credit_received_at: string | null;
   /** Who is chasing the case (a Sanger ID or a name) - free text, the app has no auth. */
   credit_owner: string | null;
+  /** "qc_review" when the case was raised from the QC page's QC Review queue (the QC team failed
+   * the SMRT cell in LangQC before RunNx did); null when it was started in RunNx. */
+  credit_source: CreditSource | null;
 }
+
+export type CreditSource = "qc_review";
 
 // Stage-action request bodies - identical for /api/cells/{id}/... and /api/pacbio-cases/{id}/...
 

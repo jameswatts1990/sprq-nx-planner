@@ -118,6 +118,7 @@ function isoDay(iso: string | null): string {
 
 export const QC_CSV_HEADERS = [
   "Kind",
+  "Source",
   "Case",
   "Cell type",
   "Owner",
@@ -155,6 +156,7 @@ export function qcCaseCsvRow(item: QcCase, nowMs: number = Date.now()): string[]
   const cellType = qcCaseCellType(item);
   return [
     item.kind === "cell" ? "Cell" : "No cell",
+    credit.credit_source === "qc_review" ? "QC Review" : "RunNx",
     item.kind === "cell" ? item.cell.code : item.pacbioCase.summary,
     CELL_TYPE_LABEL[cellType],
     credit.credit_owner ?? "",

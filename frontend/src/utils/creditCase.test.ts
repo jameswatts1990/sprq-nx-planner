@@ -34,6 +34,8 @@ const NO_CELL_CASE: PacbioCaseOut = {
   credit_notes: null,
   credit_received_at: null,
   credit_owner: null,
+  credit_source: null,
+  mlwh_well_key: null,
 };
 
 describe("localDateOnly", () => {

@@ -15,6 +15,7 @@ import type { AffectedSample, Disposition, QcPreviewOut, QcVerdict } from "@/typ
 import { formatDateUTC, parseDateOnly } from "@/utils/calendarDates";
 import { CELL_STATUS_LABEL, CELL_STATUS_TONE } from "@/utils/cellStatus";
 import { canRecordQcOutcome } from "@/utils/cellUseQc";
+import { QC_REVIEW_BADGE } from "@/utils/creditCase";
 import { DISPOSITION_DESCRIPTION, DISPOSITION_HINT, DISPOSITION_LABEL, DISPOSITION_SHORT } from "@/utils/qcDisposition";
 import { tractionUrl } from "@/utils/traction";
 
@@ -50,6 +51,11 @@ export interface CellQcModalProps {
   onClose: () => void;
   /** Fired after a successful commit/undo, so an opener can also close a parent popover. */
   onApplied?: () => void;
+  /** Opened from the QC page's QC Review queue to confirm a fail the QC team recorded in LangQC:
+   * the reason starts pre-filled with it, Retire is hidden (it doesn't fail the run, so the well
+   * would stay in the queue), and a fail that opens the cell's credit case labels it QC Review.
+   * Otherwise it's the same Cell QC as one started in RunNx. */
+  qcReview?: { reason: string; summary: string };
 }
 
 /**
@@ -60,12 +66,12 @@ export interface CellQcModalProps {
  * row showing its leftover cleaned-complex volume and a Traction link). Preview is read-only and
  * commit is atomic, so closing mid-flow applies nothing.
  */
-export function CellQcModal({ cellId, cellUseId, onClose, onApplied }: CellQcModalProps) {
+export function CellQcModal({ cellId, cellUseId, onClose, onApplied, qcReview }: CellQcModalProps) {
   const queryClient = useQueryClient();
   const cellQuery = useQuery({ queryKey: ["cell", cellId], queryFn: () => cellsApi.get(cellId) });
   const cell = cellQuery.data;
 
-  const [reason, setReason] = useState("");
+  const [reason, setReason] = useState(qcReview?.reason ?? "");
   const [phase, setPhase] = useState<"choose" | "disposition">("choose");
   const [verdict, setVerdict] = useState<QcVerdict | null>(null);
   const [preview, setPreview] = useState<QcPreviewOut | null>(null);
@@ -99,6 +105,7 @@ export function CellQcModal({ cellId, cellUseId, onClose, onApplied }: CellQcMod
         cell_use_id: anchorFor(args.v),
         reason: reason.trim() || null,
         dispositions,
+        ...(qcReview ? { source: "qc_review" as const } : {}),
       });
     },
     onSuccess: () => {
@@ -252,9 +259,15 @@ export function CellQcModal({ cellId, cellUseId, onClose, onApplied }: CellQcMod
             </>
           ) : (
             <>
+              {qcReview && (
+                <Note tone="info" icon="i">
+                  <b>QC Review:</b> {qcReview.summary}. Confirming records the fail in RunNx exactly as if it had
+                  started here, and the cell&apos;s credit case is labelled <b>{QC_REVIEW_BADGE.label}</b>.
+                </Note>
+              )}
               <p className={styles.intro}>
                 {targetUse
-                  ? `Fail / Fail-and-Stop act on Use ${cell.use_history.findIndex((u) => u.id === targetUse.id) + 1} (well ${targetUse.well}). Retire takes the whole cell out of service.`
+                  ? `Fail / Fail-and-Stop act on Use ${cell.use_history.findIndex((u) => u.id === targetUse.id) + 1} (well ${targetUse.well}).${qcReview ? "" : " Retire takes the whole cell out of service."}`
                   : "This cell has no run that has started yet, so only Retire is available."}
               </p>
               <textarea
@@ -284,15 +297,17 @@ export function CellQcModal({ cellId, cellUseId, onClose, onApplied }: CellQcMod
                   <b>Fail and stop cell</b>
                   <small>Mark this run failed and stop the cell — its later scheduled uses shift or drop off.</small>
                 </button>
-                <button
-                  type="button"
-                  className={styles.verdictBtn}
-                  disabled={busy}
-                  onClick={() => previewMutation.mutate("retire")}
-                >
-                  <b>Retire cell</b>
-                  <small>Take the cell out of service. This run isn’t failed; later uses shift or drop off.</small>
-                </button>
+                {!qcReview && (
+                  <button
+                    type="button"
+                    className={styles.verdictBtn}
+                    disabled={busy}
+                    onClick={() => previewMutation.mutate("retire")}
+                  >
+                    <b>Retire cell</b>
+                    <small>Take the cell out of service. This run isn’t failed; later uses shift or drop off.</small>
+                  </button>
+                )}
               </div>
               {errorText && <Note tone="bad" icon="!">{errorText}</Note>}
               <ModalActions>

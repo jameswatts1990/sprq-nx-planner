@@ -1,4 +1,5 @@
 from datetime import date
+from typing import Literal
 
 from pydantic import BaseModel
 
@@ -84,6 +85,9 @@ class QcCommitRequest(BaseModel):
     # True (failed + displaced); a flagged/clash sample may also be included to escalate it.
     dispositions: dict[int, str] = {}
     actor: str | None = None
+    # "qc_review" when confirmed from the QC page's QC Review queue: the cell's credit case (if
+    # this opens one) is labelled QC Review. Omitted for a fail started in RunNx.
+    source: Literal["qc_review"] | None = None
 
 
 class QcCommitOut(BaseModel):

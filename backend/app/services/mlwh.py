@@ -91,6 +91,13 @@ def _scrub(message: str) -> str:
     return message.replace(password, "***") if password else message
 
 
+def error_message(exc: Exception) -> str:
+    """A failed MLWH call as a message a user can act on, never including the password. The
+    driver's own message ("Access denied...", "Can't connect...") is already actionable;
+    SQLAlchemy's wrapper only adds noise."""
+    return _scrub(str(exc.orig if isinstance(exc, DBAPIError) else exc))
+
+
 def status() -> MlwhStatus:
     """Connect with the configured details, read the server version and the tables the login
     can see. Never raises: not configured, a bad URL or an unreachable server are results."""
@@ -113,10 +120,7 @@ def status() -> MlwhStatus:
                 )
             ).all()
     except Exception as exc:  # noqa: BLE001 - any failure (DNS, TLS, auth, driver) is a result to show
-        # The driver's own message ("Access denied...", "Can't connect...") is already actionable;
-        # SQLAlchemy's wrapper only adds noise.
-        error = str(exc.orig if isinstance(exc, DBAPIError) else exc)
-        return MlwhStatus(configured=True, ok=False, target=target, error=_scrub(error))
+        return MlwhStatus(configured=True, ok=False, target=target, error=error_message(exc))
     return MlwhStatus(
         configured=True,
         ok=True,

@@ -1,5 +1,6 @@
 import type { CellTrayRowOut } from "@/types/cell";
 import type { InstrumentOut } from "@/types/instrument";
+import type { QcReviewWell } from "@/types/qcReview";
 import type { RunOut } from "@/types/schedule";
 import { parseDateOnly } from "@/utils/calendarDates";
 import { downtimeOn, downtimeReason, formatDowntime } from "@/utils/downtime";
@@ -39,6 +40,14 @@ export function loadedAt(run: RunOut): string | null {
  * already sorts by expiry). */
 export function expiringTrays(rows: CellTrayRowOut[], warnHours: number): CellTrayRowOut[] {
   return rows.filter((row) => row.expires_in_hours !== null && row.expires_in_hours <= warnHours);
+}
+
+/** Whole days since LangQC signed off the oldest well still waiting in QC Review (MLWH's own
+ * timestamp, read as recorded); null when nothing is waiting or no well has a sign-off date. */
+export function oldestReviewDays(pending: Pick<QcReviewWell, "qc_date">[], nowMs: number): number | null {
+  const signed = pending.map((w) => (w.qc_date ? Date.parse(w.qc_date) : NaN)).filter((t) => !Number.isNaN(t));
+  if (signed.length === 0) return null;
+  return Math.max(0, Math.floor((nowMs - Math.min(...signed)) / 86_400_000));
 }
 
 export function instrumentLabel(serial: string, instruments: Pick<InstrumentOut, "serial_number" | "name">[]): string {

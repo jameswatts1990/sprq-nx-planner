@@ -122,6 +122,8 @@ class CellOut(BaseModel):
     credit_notes: str | None
     credit_received_at: datetime | None
     credit_owner: str | None
+    # "qc_review" when the case was raised from the QC page's QC Review queue, else null.
+    credit_source: str | None = None
     # Physical SPRQ-Nx SMRT Cell tray (4 cells) this cell belongs to - null for cells
     # created before this feature, or via the one-off bootstrap_cell() cutover tool.
     tray_id: int | None

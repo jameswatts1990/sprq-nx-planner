@@ -2,7 +2,7 @@ import { CellTypeBadge } from "@/components/cells/CellTypeBadge";
 import { EXAMPLE_QC_SUMMARY, QcNavCountBadge } from "@/components/layout/QcNavCount";
 import { Badge } from "@/components/ui/Badge";
 import { useOverdueDays } from "@/hooks/useOverdueDays";
-import { NO_CELL_BADGE, OVERDUE_BADGE } from "@/utils/creditCase";
+import { NO_CELL_BADGE, OVERDUE_BADGE, QC_REVIEW_BADGE } from "@/utils/creditCase";
 
 import styles from "../HelpPage.module.css";
 
@@ -20,8 +20,62 @@ export function QcSection() {
         A cell lands here the moment it gets a <b>Failed</b> run or is <b>Stopped</b> in <b>Cell QC</b> (see the Cells
         section) — exactly the cells that grow a <b>PacBio credit</b> card on their own detail page. A cell that was{" "}
         <i>Retired</i> without a failed run never enters the credit workflow, so it doesn&apos;t appear here. Anything
-        else PacBio should credit is added with <b>+ Add case without a cell</b> (see below).
+        else PacBio should credit is added with <b>+ Add case without a cell</b> (see below). And at the top of the
+        page, <b>QC Review</b> brings in the cells the QC team failed after the run, which RunNx would otherwise never
+        hear about.
       </p>
+
+      <p className={styles.subheading}>QC Review: failures the QC team found</p>
+      <p>
+        After a run, the QC team give every SMRT cell a verdict in LangQC, and it&apos;s stored in MLWH (the
+        sequencing warehouse). A <b>Failed, SMRT cell</b> or <b>Failed, Instrument</b> verdict means the cell or the
+        instrument let the run down, which makes it a PacBio credit case. It happens outside RunNx, though, so unless
+        someone also failed the cell here, RunNx wouldn&apos;t know. The <b>QC Review</b> list at the top of the page
+        shows every such cell from the last <b>90 days</b> (change this in <b>Settings › QC &amp; credits</b>) that
+        RunNx hasn&apos;t failed. Each one is labelled <Badge tone={QC_REVIEW_BADGE.tone}>{QC_REVIEW_BADGE.label}</Badge>.
+        A plain <i>Failed</i> verdict means the sample missed its targets, which isn&apos;t a credit case, so it never
+        appears here.
+      </p>
+      <ul>
+        <li>
+          Each row names the <b>Traction run</b>, <b>plate and well</b>, the QC verdict, the instrument and the date QC
+          signed it off. The oldest sign-off is at the top. Under it is the RunNx cell the well was loaded as: its <b>cell code</b>, which <b>use</b> it
+          was, and the <b>sample</b>, each linking through. RunNx finds that cell by the run&apos;s Traction name, so
+          enter it at <b>Confirm loaded</b>. A run with no Traction name is matched by instrument and load day
+          instead, and flagged <Badge tone="warning">Matched by instrument &amp; date</Badge> so you check it.{" "}
+          <Badge tone="warning">Pool ID differs</Badge> means RunNx&apos;s sample in that well isn&apos;t the library
+          MLWH says was loaded. <Badge tone="orange">Not in RunNx</Badge> means RunNx has no record of the run.
+        </li>
+        <li>
+          <b>Confirm fail…</b> opens the usual <b>Cell QC</b> on that run, with the QC verdict already filled in as the
+          reason. Choose <b>Fail cell</b> or <b>Fail and stop cell</b> and decide what happens to the sample, exactly
+          as if you&apos;d started it here. The cell&apos;s credit case then joins the list below, labelled{" "}
+          <Badge tone={QC_REVIEW_BADGE.tone}>{QC_REVIEW_BADGE.label}</Badge>. <b>Undo QC</b> on the cell takes the fail
+          back and returns the well to QC Review.
+        </li>
+        <li>
+          When RunNx has no cell to fail (the run isn&apos;t in RunNx, nothing was in that well, or RunNx recorded the
+          run as completed or aborted), the button is <b>Log case…</b> instead. It opens <b>Add case without a cell</b>{" "}
+          filled in from MLWH, and the case is labelled <Badge tone={QC_REVIEW_BADGE.tone}>{QC_REVIEW_BADGE.label}</Badge>{" "}
+          too. If RunNx has the cell but can&apos;t fail it yet (its run isn&apos;t confirmed loaded, say),{" "}
+          <b>Confirm fail…</b> is greyed out and the row says why. Sort that out first, then confirm the fail.
+        </li>
+        <li>
+          <b>Ignore…</b> is for a well that shouldn&apos;t become a credit case, such as one PacBio declined or a run
+          from before RunNx. Give a reason, and the well moves to a collapsed <b>Ignored</b> list under QC Review with
+          that reason. <b>Restore</b> puts it back.
+        </li>
+        <li>
+          A well leaves the list as soon as RunNx has a fail on it, whichever way it was recorded. It comes back if that
+          fail is undone or the case is deleted. Click the <b>▸</b> on a row for the MLWH details: the SMRT cell barcode
+          and lot, which use of the cell it was, the movie, the loading, the HiFi yield and the library tubes, plus a link
+          to the run in SMRT Link.
+        </li>
+        <li>
+          QC Review needs RunNx&apos;s MLWH connection. Without one, the list says it isn&apos;t available. If MLWH
+          can&apos;t be reached, it shows the error with a <b>Retry</b>. The rest of the page works either way.
+        </li>
+      </ul>
 
       <p className={styles.subheading}>The count on the QC &amp; credits tab</p>
       <p>
@@ -39,6 +93,7 @@ export function QcSection() {
       </p>
       <ul>
         <li>
+          <b>QC Review</b> — the wells waiting in the QC Review list (a dash when MLWH isn&apos;t available).{" "}
           <b>Open</b> — cases not yet received. <b>Overdue</b> — open cases stuck at one stage for more than{" "}
           {overdueDays} days (shown in red when there are any). The limit is set in <b>Settings › QC &amp; credits</b>.
         </li>
@@ -63,11 +118,13 @@ export function QcSection() {
       <p className={styles.subheading}>Search and export</p>
       <p>
         The <b>search box</b> filters every group as you type — by PacBio case number, internal report ID, owner, cell
-        code or case summary, run, sample or instrument. A case number matches with or without PacBio&apos;s leading
+        code or case summary, run, sample or instrument. It filters QC Review too, by run, well, SMRT cell barcode or
+        library tube. A case number matches with or without PacBio&apos;s leading
         zeros (00316913 or 316913), and the <b>Received / settled</b> group opens by itself when a match is in there.{" "}
         <b>Export CSV</b> downloads the cases shown (all of them when you&apos;re not searching) as a spreadsheet: case
         number, owner, stage, dates, acquisitions expected and credited — credited also as cells and trays — plus the
-        instrument, run and sample.
+        instrument, run and sample. Its <b>Source</b> column says whether a case came from <i>QC Review</i> or was
+        started in <i>RunNx</i>.
       </p>
 
       <p className={styles.subheading}>The worklist</p>
@@ -84,7 +141,8 @@ export function QcSection() {
       <ul>
         <li>
           The <b>cell code</b> (links to the cell), its <b>status badge</b>, and the <b>instrument · well</b> and{" "}
-          <b>tray</b> it&apos;s on.
+          <b>tray</b> it&apos;s on. A case that came in through QC Review also carries{" "}
+          <Badge tone={QC_REVIEW_BADGE.tone}>{QC_REVIEW_BADGE.label}</Badge>.
         </li>
         <li>
           On the right, the case at a glance: its <b>PacBio case number</b>, the <b>acquisitions</b> (expected until

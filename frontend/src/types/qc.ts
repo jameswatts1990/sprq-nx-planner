@@ -1,4 +1,5 @@
 import type { CellOut } from "./cell";
+import type { CreditSource } from "./credit";
 
 /** The three QC verdicts the cell-info QC modal offers. */
 export type QcVerdict = "fail" | "fail_and_stop" | "retire";
@@ -63,6 +64,9 @@ export interface QcCommitRequest {
   /** sample_id -> disposition. Must cover every affected sample whose disposition_required
    * is true; a flagged/clash sample may also be included to escalate it. */
   dispositions: Record<number, Disposition>;
+  /** "qc_review" when confirmed from the QC page's QC Review queue: a fail that opens the cell's
+   * credit case labels it QC Review. Omitted for a fail started in RunNx. */
+  source?: CreditSource;
 }
 
 export interface QcCommitOut {

@@ -30,6 +30,7 @@ from app.engine.constants import (
 from app.engine.packing import RECOVERABLE_PRIORITY, REPEATABLE_PRIORITY
 from app.models.audit import AuditLog
 from app.models.cell import Cell
+from app.models.credit_case import CREDIT_SOURCE_QC_REVIEW
 from app.models.sample import Sample
 from app.models.schedule import CellUse
 from app.models.topup import SampleTopup
@@ -44,6 +45,7 @@ from app.schemas.qc import (
 from app.schemas.topup import SampleTopupOut
 from app.services.cell_service import (
     active_uses,
+    in_credit_workflow,
     recompute_status,
     run_has_started,
     serialize_cell,
@@ -316,7 +318,13 @@ def commit_qc(
     reason: str | None,
     dispositions: dict[int, str],
     actor: str | None,
+    source: str | None = None,
 ) -> QcCommitOut:
+    """`source` is CREDIT_SOURCE_QC_REVIEW when the lab confirmed a fail from the QC page's QC
+    Review queue (services/qc_review.py): a fail that opens the cell's credit case then labels it
+    QC Review. Otherwise the commit is exactly the same as one started in RunNx."""
+    if source not in (None, CREDIT_SOURCE_QC_REVIEW):
+        raise ValueError(f"Unknown QC source '{source}'.")
     trigger = _resolve_trigger(cell, verdict, cell_use_id)
     rc = _compute(cell, verdict, trigger)
     affected = _affected_from_recompute(rc)
@@ -333,6 +341,8 @@ def commit_qc(
     if extra:
         raise ValueError(f"Disposition given for sample(s) not affected: {sorted(extra)}")
 
+    # Read before step 1 marks the use failed, which itself opens the case.
+    case_already_open = in_credit_workflow(cell)
     at = utcnow()
     audit_uses: dict[str, dict] = {}
     audit_samples: dict[str, dict] = {}
@@ -382,12 +392,16 @@ def commit_qc(
             if plan.clash:
                 clash_ids.append(plan.row.id)
 
-    # 3. Cell status.
+    # 3. Cell status (and, for a fail confirmed from QC Review that opens the cell's credit case,
+    #    the case's QC Review label - a case already open keeps how it came in).
     prior_cell = {
         "prior_status": cell.status,
         "prior_stopped_at": cell.stopped_at.isoformat() if cell.stopped_at else None,
         "prior_stopped_reason": cell.stopped_reason,
+        "prior_credit_source": cell.credit_source,
     }
+    if source is not None and rc.lost_use is not None and not case_already_open:
+        cell.credit_source = source
     if verdict == "fail_and_stop":
         cell.status = "stopped"
         cell.stopped_at = at
@@ -464,6 +478,7 @@ def commit_qc(
             details_json={
                 "verdict": verdict,
                 "reason": reason,
+                "source": source,
                 "cell": prior_cell,
                 "uses": audit_uses,
                 "samples": audit_samples,
@@ -579,6 +594,9 @@ def undo_qc(db: Session, cell: Cell, actor: str | None) -> QcUndoOut:
     prior_stopped_at = details.get("cell", {}).get("prior_stopped_at")
     cell.stopped_at = ensure_aware(datetime.fromisoformat(prior_stopped_at)) if prior_stopped_at else None
     cell.stopped_reason = details.get("cell", {}).get("prior_stopped_reason")
+    # Commits from before QC Review recorded no prior source - leave the label as it is.
+    if "prior_credit_source" in details.get("cell", {}):
+        cell.credit_source = details["cell"]["prior_credit_source"]
 
     db.flush()
     recompute_status(cell, utcnow())
