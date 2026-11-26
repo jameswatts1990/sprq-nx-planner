@@ -69,7 +69,7 @@ const SECTIONS: Section[] = [
 const DEV_SECTION: Section = {
   key: "developer",
   title: "Developer tools",
-  keywords: "database tables rows clear backlog delete raw dev mlwh warehouse connection probe test mysql",
+  keywords: "database tables rows clear backlog delete raw dev mlwh warehouse connection status check mysql",
   Component: DeveloperTools,
 };
 

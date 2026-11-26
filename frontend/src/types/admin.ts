@@ -24,24 +24,18 @@ export interface ClearBacklogResult {
   deleted: number;
 }
 
-export interface MlwhProbeRequest {
-  host: string;
-  port: number;
-  user: string;
-  database: string;
-  password: string;
-}
-
 export interface MlwhTable {
   name: string;
   /** InnoDB's cached estimate (null for views), not an exact count. */
   approx_rows: number | null;
 }
 
-export interface MlwhProbeResult {
+export interface MlwhStatus {
+  /** False when the deployment sets no MLWH connection - a normal state, not an error. */
+  configured: boolean;
   ok: boolean;
   /** user@host:port/database - never includes the password. */
-  target: string;
+  target: string | null;
   /** Connect + both queries. */
   elapsed_ms: number | null;
   server_version: string | null;

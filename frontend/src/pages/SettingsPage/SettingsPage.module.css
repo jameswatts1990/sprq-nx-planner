@@ -107,7 +107,7 @@
   margin: 0;
 }
 
-/* MLWH probe card: the .actions card look, but stacked (header, form, result) because the
+/* MLWH status card: the .actions card look, but stacked (header, result) because the
    table list needs the full width. */
 .probe {
   background: var(--card);
@@ -128,26 +128,11 @@
   justify-content: space-between;
   gap: 16px;
 }
-.probeForm {
+.probeActions {
   display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 10px 12px;
-}
-.probeField {
-  display: flex;
-  flex-direction: column;
-  flex: 1 1 140px;
-  min-width: 0;
-}
-.probeField input {
-  width: 100%;
-}
-.probeFieldWide {
-  flex: 2 1 220px;
-}
-.probeFieldNarrow {
-  flex: 0 0 90px;
+  align-items: center;
+  gap: 12px;
+  flex: none;
 }
 /* Status light - the Instruments page's live-dot look. Only "checking" moves (motion = working). */
 .statusLight {

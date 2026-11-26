@@ -46,6 +46,10 @@ All configuration is via environment variables — there are no config files to 
 | `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` | Compose (`db` + `backend`) | — (set in `.env`) | Postgres credentials. The backend's `DATABASE_URL` is composed from these in `docker-compose.yml`. |
 | `DATABASE_URL` | backend | `sqlite:///./dev.db` | SQLAlchemy connection string. Compose overrides it to the `db` service; only set it directly for a non-Docker or external-database deployment. |
 | `CORS_ORIGINS` | backend | `""` (same-origin only) | Comma-separated allowed origins. Leave empty for the default nginx same-origin deployment; set it only if the frontend is served from a different origin than the API. |
+| `MLWH_DATABASE_URL` | backend | `""` (MLWH off) | Read-only connection to the Multi-LIMS Warehouse (MySQL), e.g. `mysql+pymysql://user@host:3306/database`. Empty: nothing connects to MLWH and the rest of RunNx is unaffected. Checked in **Settings → Developer tools → MLWH connection**. |
+| `MLWH_PASSWORD` | backend | `""` | The MLWH password, kept out of the URL (no URL encoding; never printed). Overrides a password in the URL. |
+| `MLWH_SSL_CA` | backend | `""` (system trust store) | Path to a CA bundle, for an MLWH server certificate from an internal CA. TLS is always on. |
+| `MLWH_SSL_VERIFY` | backend | `true` | `false` still encrypts but skips the certificate and host-name check. Only for a server whose CA isn't available. |
 
 | Port | Service | Notes |
 | --- | --- | --- |
@@ -99,6 +103,7 @@ These are known, deliberate gaps for the current internal-use stage — flagged 
 - **No authentication.** Intentional for v1 (internal-network trust only). Every mutating endpoint takes an optional `actor` field, and a single `get_actor()` dependency is the seam for adding real auth later.
 - **No TLS/HTTPS.** The app serves plain HTTP. Terminate TLS at an upstream reverse proxy and/or keep it on a trusted internal network; do not expose it directly to untrusted networks.
 - **Developer/admin tools are ungated.** The **Settings → Developer tools** section (and its `backend/app/api/admin.py` router) can inspect and mutate the database directly, bypassing all service-layer validation. It is not restricted by environment or auth. **Remove or gate it before any real production launch** (add an `environment` flag to `backend/app/config.py`, conditionally include the router in `main.py`, and conditionally render the frontend section).
+- **MLWH connection comes from configuration only.** `MLWH_DATABASE_URL` / `MLWH_PASSWORD` are read by the backend; nothing about the connection is accepted from the browser. Use a read-only login: RunNx also sets each session `READ ONLY`, and always connects over TLS.
 - **Data persistence & backup.** Postgres data lives in the `dbdata` named Docker volume. Back this volume up; removing it (`docker compose down -v`) permanently destroys all data.
 - **No live Benchling API integration.** Sample import is manual CSV paste/upload, matching the original prototype's workflow.
 

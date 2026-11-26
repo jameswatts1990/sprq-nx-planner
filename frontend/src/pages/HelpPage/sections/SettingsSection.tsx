@@ -118,15 +118,16 @@ export function SettingsSection() {
         </dd>
         <dt>MLWH connection</dt>
         <dd>
-          Checks that RunNx can reach the <b>Multi-LIMS Warehouse (MLWH)</b> — Sanger&apos;s central LIMS database.
-          Enter the host, port, user, database and password, then click <b>Test connection</b> (or press Enter). The
-          test runs from the RunNx server, not your computer, so it shows whether the <i>server</i> can get through.
-          It only reads, and changes nothing in either database. The status light shows the result: <b>grey</b>{" "}
-          before the first test (pulsing while checking), <b>green</b> when connected, <b>amber</b> when it connects
-          but the login can&apos;t see any tables (usually missing read access), and <b>red</b> when it can&apos;t
-          connect, with the database&apos;s own reason (for example a wrong password or an unreachable host). When
-          connected, every table the login can see is listed as proof, with approximate row counts. The host, port,
-          user and database are remembered in this browser after a successful test; the password is never saved.
+          Shows whether RunNx can reach the <b>Multi-LIMS Warehouse (MLWH)</b> — Sanger&apos;s central LIMS database —
+          using the connection set by whoever deploys RunNx. There is nothing to type in here: the server, login and
+          password are part of the deployment&apos;s configuration, never entered in the browser. It checks once when
+          the section opens; click <b>Check again</b> to repeat. The check runs from the RunNx server, not your
+          computer, always over an encrypted connection, and only reads. The status light shows the result:{" "}
+          <b>grey</b> when no MLWH connection is configured (RunNx works normally without one; pulsing while checking),{" "}
+          <b>green</b> when connected, <b>amber</b> when it connects but the login can&apos;t see any tables (usually
+          missing read access), and <b>red</b> when it can&apos;t connect, with the database&apos;s own reason (for
+          example a wrong password or an unreachable host). When connected, every table the login can see is listed as
+          proof, with approximate row counts.
         </dd>
         <dt>Clear backlog</dt>
         <dd>
