@@ -3,7 +3,8 @@
 test_migrations.py runs every migration on empty tables, which can't catch a wrong data copy.
 Add a test here for each migration that moves data: upgrade to the revision before it, insert
 rows with raw SQL (not the models, which follow the latest schema), upgrade, assert, then
-downgrade and assert again. Pin both revision ids so later migrations don't affect the test.
+downgrade and assert again. Pin both revision ids so later migrations don't affect the test,
+and add the migration's id to COVERED (test_migrations.py checks it).
 """
 
 from datetime import date
@@ -14,6 +15,9 @@ from sqlalchemy import inspect, text
 # d5a1c7e3f9b2 moves each instrument's down_from/down_note into instrument_downtimes.
 BEFORE_DOWNTIMES = "c3f8a1d6e2b9"
 DOWNTIMES = "d5a1c7e3f9b2"
+
+# The data migrations tested here. Only this set counts as coverage, not ids mentioned elsewhere.
+COVERED = {DOWNTIMES}
 
 
 def test_downtime_migration_moves_down_flag_into_a_period(alembic_config, engine):

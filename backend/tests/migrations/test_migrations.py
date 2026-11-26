@@ -13,14 +13,17 @@ from alembic.config import Config
 from alembic.script import ScriptDirectory
 from sqlalchemy import inspect
 
+# Only the set: importing a test function would make pytest collect it twice.
+from .test_data_migrations import COVERED
+
 MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "alembic"
-DATA_TESTS = Path(__file__).with_name("test_data_migrations.py")
 
 # A heuristic for "this migration touches rows": a migration that runs only DDL through
 # op.execute is flagged too. Accepted cost - exempt it below with a reason.
 DATA_OPERATIONS = re.compile(r"op\.execute|bulk_insert|get_bind\(\)")
 
-# Migrations that touch rows but have no test in test_data_migrations.py, each with the reason.
+# Migrations that touch rows but have no test in test_data_migrations.py (not in its COVERED),
+# each with the reason.
 # Don't add a new data migration here: write its data test instead.
 DATA_TEST_EXEMPT = {
     "c4ce50a58b19": "seeds fixed rows into an empty table; the stairway runs it both ways",
@@ -37,18 +40,17 @@ def _revisions_oldest_first(config: Config) -> list[str]:
 
 def test_every_data_migration_has_a_data_test():
     """Needs no database, so it also runs locally."""
-    data_tests = DATA_TESTS.read_text()
     missing = [
         f"{rev.revision} ({Path(rev.path).name})"
         for rev in ScriptDirectory(str(MIGRATIONS_DIR)).walk_revisions()
-        if DATA_OPERATIONS.search(Path(rev.path).read_text())
-        and rev.revision not in data_tests
+        if DATA_OPERATIONS.search(Path(rev.path).read_text(encoding="utf-8"))
+        and rev.revision not in COVERED
         and rev.revision not in DATA_TEST_EXEMPT
     ]
     assert not missing, (
         "These migrations change existing rows but have no test in test_data_migrations.py: "
-        f"{', '.join(missing)}. Add one (see that file's docstring), or, if the migration only "
-        "runs DDL through op.execute, add it to DATA_TEST_EXEMPT with the reason."
+        f"{', '.join(missing)}. Add one and list the id in its COVERED (see that file's docstring),"
+        " or, if the migration only runs DDL through op.execute, add it to DATA_TEST_EXEMPT with the reason."
     )
 
 

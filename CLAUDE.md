@@ -39,11 +39,12 @@ Pushing a tag builds the frontend and backend container images and publishes the
 
 ## Database migrations
 
-Schema changes go through Alembic (`backend/alembic/versions/`). Production runs Postgres, while the integration tests build the schema from the models on SQLite, so `backend/tests/migrations` is the only place migrations actually run. A bare `pytest` leaves it out so the everyday run stays fast; CI runs `pytest tests` (everything) against a throwaway Postgres 18 on every push. To run it before pushing, use `pytest tests/migrations` in the devcontainer (it has its own throwaway Postgres, `migrations-db`); elsewhere it skips unless `MIGRATION_TEST_DATABASE_URL` points at a throwaway database.
+Schema changes go through Alembic (`backend/alembic/versions/`). Production runs Postgres, while the integration tests build the schema from the models on SQLite, so `backend/tests/migrations` is the only place migrations actually run. A bare `pytest` leaves it out so the everyday run stays fast; CI runs `pytest tests` (everything) against a throwaway Postgres 18 on every push. To run it before pushing, use `pytest tests/migrations` in the devcontainer (it has its own throwaway Postgres, `migrations-db`); elsewhere it skips unless `MIGRATION_TEST_DATABASE_URL` points at a throwaway database whose name ends in `_migrations` (any other name fails, so a real database is never emptied).
 
-- `test_migrations.py` runs every migration on empty tables: one head, upgrade then `alembic check` (models must match the migrations), and each downgrade.
-- **A migration that moves or transforms existing rows needs a data test** in `test_data_migrations.py`, written with the migration: upgrade to the revision before, insert rows with raw SQL, upgrade, assert, downgrade, assert. The docstring there has the pattern.
-- `test_every_data_migration_has_a_data_test` enforces this by scanning each migration for `op.execute`, `bulk_insert` or `get_bind()`. This is a heuristic, and a known cost: a migration that runs only DDL through `op.execute` is flagged too. Add such a migration to `DATA_TEST_EXEMPT` with the reason. Don't exempt a migration that really changes rows.
+- **Postgres 18 is the target, but older deployments still run 16** until they're replaced. Keep migrations to features Postgres 16 has; flag anything that needs 17 or 18 (e.g. `uuidv7()`, virtual generated columns) in the PR.
+- `test_migrations.py` runs every migration on empty tables: one head, upgrade then `alembic check` (models must match the migrations), and every downgrade runs and upgrades again (it doesn't compare the schema it restores).
+- **A migration that moves or transforms existing rows needs a data test** in `test_data_migrations.py`, written with the migration: upgrade to the revision before, insert rows with raw SQL, upgrade, assert, downgrade, assert, and add its id to `COVERED`. The docstring there has the pattern.
+- `test_every_data_migration_has_a_data_test` catches most of these by scanning each migration for `op.execute`, `bulk_insert` or `get_bind()`. This is a heuristic, and a known cost: a migration that runs only DDL through `op.execute` is flagged too. Add such a migration to `DATA_TEST_EXEMPT` with the reason. Don't exempt a migration that really changes rows.
 
 ## Local dev
 
