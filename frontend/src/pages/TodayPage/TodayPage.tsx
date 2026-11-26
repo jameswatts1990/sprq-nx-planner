@@ -9,6 +9,7 @@ import {
   ExpiringTraysCard,
   InstrumentsTodayCard,
   LoadingTodayCard,
+  QcReviewTodayCard,
   QcTodayCard,
 } from "./TodayCards";
 import styles from "./TodayPage.module.css";
@@ -37,6 +38,7 @@ export function TodayPage() {
         <ExpiringTraysCard />
         <BacklogTodayCard />
         <QcTodayCard />
+        <QcReviewTodayCard />
         <DayNotesCard today={today} />
       </div>
     </div>

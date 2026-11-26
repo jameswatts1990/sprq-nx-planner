@@ -49,6 +49,7 @@ function cell(overrides: Partial<CellOut> = {}): CellOut {
     credit_notes: null,
     credit_received_at: null,
     credit_owner: null,
+    credit_source: null,
     tray_id: 1,
     tray_position: 1,
     tray_size: 4,

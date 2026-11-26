@@ -11,31 +11,49 @@ import { Note } from "@/components/ui/Note";
 import styles from "./SettingsPanel.module.css";
 
 const MAX_OVERDUE_DAYS = 365;
+const MAX_LOOKBACK_DAYS = 730;
+
+const isWholeDays = (raw: string, max: number) => {
+  const n = Number(raw);
+  return raw.trim() !== "" && Number.isInteger(n) && n >= 1 && n <= max;
+};
 
 /** Settings > QC & credits: the overdue limit for PacBio credit cases - an open case waiting longer
- * than this at its current stage gets the Overdue badge and counts on the QC nav chip. */
+ * than this at its current stage gets the Overdue badge and counts on the QC nav chip - and how far
+ * back the QC Review queue reads the QC team's LangQC verdicts from MLWH. */
 export function QcSettingsPanel() {
   const queryClient = useQueryClient();
   const query = useQuery({ queryKey: ["qc-settings"], queryFn: () => settingsApi.getQc() });
 
   const [overdueDays, setOverdueDays] = useState("");
+  const [lookbackDays, setLookbackDays] = useState("");
   useEffect(() => {
-    if (query.data) setOverdueDays(String(query.data.overdue_days));
+    if (query.data) {
+      setOverdueDays(String(query.data.overdue_days));
+      setLookbackDays(String(query.data.review_lookback_days));
+    }
   }, [query.data]);
 
   const mutation = useMutation({
     mutationFn: (body: QcSettings) => settingsApi.updateQc(body),
     onSuccess: (data) => {
       setOverdueDays(String(data.overdue_days));
+      setLookbackDays(String(data.review_lookback_days));
       queryClient.setQueryData(["qc-settings"], data);
-      // The nav count's overdue part is judged against this limit on the server.
+      // The nav count's overdue part is judged against this limit on the server, and the QC Review
+      // queue's window against the lookback.
       void queryClient.invalidateQueries({ queryKey: ["qc-summary"] });
+      void queryClient.invalidateQueries({ queryKey: ["qc-review"] });
     },
   });
 
-  const days = Number(overdueDays);
-  const valid = overdueDays.trim() !== "" && Number.isInteger(days) && days >= 1 && days <= MAX_OVERDUE_DAYS;
-  const dirty = query.data != null && valid && days !== query.data.overdue_days;
+  const overdueValid = isWholeDays(overdueDays, MAX_OVERDUE_DAYS);
+  const lookbackValid = isWholeDays(lookbackDays, MAX_LOOKBACK_DAYS);
+  const valid = overdueValid && lookbackValid;
+  const dirty =
+    query.data != null &&
+    valid &&
+    (Number(overdueDays) !== query.data.overdue_days || Number(lookbackDays) !== query.data.review_lookback_days);
 
   return (
     <Card>
@@ -83,12 +101,39 @@ export function QcSettingsPanel() {
                     />
                   </td>
                 </tr>
+                <tr>
+                  <td>
+                    <span className={styles.settingName}>QC Review looks back (days)</span>
+                    <span className={styles.settingHint}>
+                      How far back the QC Review list on the QC &amp; credits tab looks for SMRT cells the QC team failed
+                      in LangQC (by the date they signed it off). Needs the MLWH connection.
+                    </span>
+                  </td>
+                  <td>
+                    <input
+                      className={styles.select}
+                      type="number"
+                      min={1}
+                      max={MAX_LOOKBACK_DAYS}
+                      step={1}
+                      inputMode="numeric"
+                      value={lookbackDays}
+                      onChange={(e) => setLookbackDays(e.target.value)}
+                      aria-label="Days the QC Review list looks back"
+                    />
+                  </td>
+                </tr>
               </tbody>
             </table>
 
-            {!valid && overdueDays.trim() !== "" && (
+            {!overdueValid && overdueDays.trim() !== "" && (
               <Note tone="warn" icon="!">
-                Enter a whole number of days from 1 to {MAX_OVERDUE_DAYS}.
+                Overdue after: enter a whole number of days from 1 to {MAX_OVERDUE_DAYS}.
+              </Note>
+            )}
+            {!lookbackValid && lookbackDays.trim() !== "" && (
+              <Note tone="warn" icon="!">
+                QC Review looks back: enter a whole number of days from 1 to {MAX_LOOKBACK_DAYS}.
               </Note>
             )}
             {mutation.isError && (
@@ -103,7 +148,9 @@ export function QcSettingsPanel() {
                 variant="primary"
                 size="sm"
                 disabled={!dirty || mutation.isPending}
-                onClick={() => mutation.mutate({ overdue_days: days })}
+                onClick={() =>
+                  mutation.mutate({ overdue_days: Number(overdueDays), review_lookback_days: Number(lookbackDays) })
+                }
               >
                 {mutation.isPending ? "Saving…" : "Save"}
               </Button>

@@ -20,6 +20,8 @@ export interface PacbioCaseOut extends CreditCaseState {
   cell_type: CellType;
   created_by: string | null;
   created_at: string;
+  /** The MLWH well ("<run>|<plate>|<well>") it was logged from via QC Review, else null. */
+  mlwh_well_key: string | null;
 }
 
 /** The editable details. Create and edit both send the whole set (edit is a full replace, so
@@ -43,4 +45,7 @@ export interface PacbioCaseCreate extends PacbioCaseDetailsIn {
   credit_received: boolean;
   credit_owner: string | null;
   credit_notes: string | null;
+  /** Logged from the QC Review queue: the MLWH well it's about (labels the case QC Review and
+   * takes the well out of the queue). */
+  mlwh_well_key?: string | null;
 }

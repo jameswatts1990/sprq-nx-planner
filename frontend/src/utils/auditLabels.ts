@@ -64,6 +64,8 @@ export const ACTION_LABEL: Record<string, string> = {
   create_pacbio_case: "Added credit case",
   update_pacbio_case: "Edited credit case",
   delete_pacbio_case: "Deleted credit case",
+  ignore_qc_review_well: "Ignored QC Review well",
+  restore_qc_review_well: "Restored QC Review well",
   // Instruments
   instrument_create: "Added instrument",
   instrument_update: "Edited instrument",
@@ -156,6 +158,8 @@ export const ACTION_GROUPS: { value: string; label: string; actions: string[] }[
       "create_pacbio_case",
       "update_pacbio_case",
       "delete_pacbio_case",
+      "ignore_qc_review_well",
+      "restore_qc_review_well",
       "report_cell_to_pacbio",
       "report_case_to_pacbio",
       "set_cell_internal_report",
@@ -317,7 +321,13 @@ export function describeAuditDetails(row: Pick<AuditLogOut, "action" | "details_
     case "rotate_tray":
       return d.reason ? [`Reason: ${value("reason")}`] : [];
     case "qc_commit":
-      return [`Verdict: ${value("verdict")}`, ...(d.reason ? [`Reason: ${value("reason")}`] : [])];
+      return [
+        `Verdict: ${value("verdict")}${d.source === "qc_review" ? " (from QC Review)" : ""}`,
+        ...(d.reason ? [`Reason: ${value("reason")}`] : []),
+      ];
+    case "ignore_qc_review_well":
+    case "restore_qc_review_well":
+      return [`Well: ${value("well")}`, `Reason: ${value("reason")}`];
     case "report_cell_to_pacbio":
     case "report_case_to_pacbio":
       return [`Case number: ${value("case_number")}`];

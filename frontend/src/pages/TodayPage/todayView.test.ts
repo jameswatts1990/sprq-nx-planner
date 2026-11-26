@@ -10,6 +10,7 @@ import {
   formatTodayHeading,
   instrumentLabel,
   loadedAt,
+  oldestReviewDays,
   runsLoadingToday,
   wellCount,
 } from "./todayView";
@@ -110,5 +111,17 @@ describe("downtimeLine", () => {
       text: "Downtime ahead: Planned · from 20 Nov",
     });
     expect(downtimeLine({ down_now: false, downtimes: [], next_downtime: null }, "2026-11-16")).toBeNull();
+  });
+});
+
+describe("oldestReviewDays", () => {
+  const now = Date.parse("2026-11-26T12:00:00");
+  it("counts whole days since the oldest LangQC sign-off still waiting", () => {
+    const pending = [{ qc_date: "2026-11-24T09:00:00" }, { qc_date: "2026-11-14T15:00:00" }, { qc_date: null }];
+    expect(oldestReviewDays(pending, now)).toBe(11);
+  });
+  it("is null when nothing is waiting or nothing has a sign-off date", () => {
+    expect(oldestReviewDays([], now)).toBeNull();
+    expect(oldestReviewDays([{ qc_date: null }], now)).toBeNull();
   });
 });

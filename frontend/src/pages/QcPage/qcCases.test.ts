@@ -25,6 +25,8 @@ const CASE: PacbioCaseOut = {
   credit_notes: null,
   credit_received_at: null,
   credit_owner: "ab12",
+  credit_source: null,
+  mlwh_well_key: null,
 };
 const item: QcCase = { kind: "no_cell", pacbioCase: CASE };
 

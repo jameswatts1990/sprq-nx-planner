@@ -32,12 +32,14 @@ from app.services.settings_service import (
     get_issue_report_settings,
     get_movie_cell_position,
     get_qc_overdue_days,
+    get_qc_review_lookback_days,
     get_repeat_safe_min_ul,
     get_repeat_total_complex_ul,
     get_sample_defaults,
     set_credit_email,
     set_issue_report_settings,
     set_qc_overdue_days,
+    set_qc_review_lookback_days,
     set_sample_defaults,
     set_scheduling_settings,
 )
@@ -257,36 +259,49 @@ def update_issue_report(req: IssueReportUpdate, db: SessionDep, actor: ActorDep)
 class QcSettingsOut(BaseModel):
     # An open credit case waiting longer than this at its current stage is overdue.
     overdue_days: int
+    # How far back (by LangQC sign-off) the QC Review queue reads MLWH for failed SMRT cells.
+    review_lookback_days: int
 
 
 class QcSettingsUpdate(BaseModel):
     overdue_days: int | None = None
+    review_lookback_days: int | None = None
+
+
+def _qc_settings(db: SessionDep) -> QcSettingsOut:
+    return QcSettingsOut(
+        overdue_days=get_qc_overdue_days(db), review_lookback_days=get_qc_review_lookback_days(db)
+    )
 
 
 @router.get("/qc", response_model=QcSettingsOut)
 def read_qc_settings(db: SessionDep) -> QcSettingsOut:
-    return QcSettingsOut(overdue_days=get_qc_overdue_days(db))
+    return _qc_settings(db)
 
 
 @router.put("/qc", response_model=QcSettingsOut)
 def update_qc_settings(req: QcSettingsUpdate, db: SessionDep, actor: ActorDep) -> QcSettingsOut:
-    if req.overdue_days is None:
-        return QcSettingsOut(overdue_days=get_qc_overdue_days(db))
+    changed: dict[str, int] = {}
     try:
-        overdue_days = set_qc_overdue_days(db, req.overdue_days)
+        if req.overdue_days is not None:
+            changed["overdue_days"] = set_qc_overdue_days(db, req.overdue_days)
+        if req.review_lookback_days is not None:
+            changed["review_lookback_days"] = set_qc_review_lookback_days(db, req.review_lookback_days)
     except ValueError as err:
+        db.rollback()
         raise HTTPException(422, str(err)) from err
-    db.add(
-        AuditLog(
-            actor=actor,
-            action="update_qc_settings",
-            entity_type="app_setting",
-            entity_id=0,
-            details_json={"overdue_days": overdue_days},
+    if changed:
+        db.add(
+            AuditLog(
+                actor=actor,
+                action="update_qc_settings",
+                entity_type="app_setting",
+                entity_id=0,
+                details_json=changed,
+            )
         )
-    )
-    db.commit()
-    return QcSettingsOut(overdue_days=overdue_days)
+        db.commit()
+    return _qc_settings(db)
 
 
 class TimingLadderOut(BaseModel):

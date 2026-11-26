@@ -7,7 +7,7 @@ export function SettingsSection() {
     <div className={styles.copy}>
       <p>
         <b>What this tab is for:</b> configure how this copy of the app behaves — the loading options given to new
-        samples, the scheduling rules Autoschedule follows, the credit email, the issue report and the QC overdue limit —
+        samples, the scheduling rules Autoschedule follows, the credit email, the issue report and the QC &amp; credits limits —
         and see the fixed instrument facts
         the app enforces. A left-hand list switches between sections; the search box filters it. The raw database tools
         (for development use only) are tucked away behind <b>Show developer tools</b> at the bottom of the list.
@@ -85,6 +85,11 @@ export function SettingsSection() {
         <b>Overdue after (days)</b> — an open credit case that&apos;s made no progress at its current stage for longer
         than this is marked <b>Overdue</b> on the QC &amp; credits tab, counts in its <b>Overdue</b> tile, and counts on
         the tab&apos;s red number in the top bar. 30 days unless you change it; any whole number from 1 to 365.
+      </p>
+      <p>
+        <b>QC Review looks back (days)</b> — how far back the <b>QC Review</b> list on the QC &amp; credits tab looks
+        for SMRT cells the QC team failed in LangQC, counted from the day they signed the verdict off. 90 days unless
+        you change it; any whole number from 1 to 730. It needs the MLWH connection.
       </p>
 
       <p className={styles.subheading}>Instrument &amp; scheduling facts</p>

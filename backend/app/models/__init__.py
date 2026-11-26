@@ -5,6 +5,7 @@ from app.models.importing import ImportBatch
 from app.models.instrument import Instrument
 from app.models.instrument_downtime import InstrumentDowntime
 from app.models.pacbio_case import PacbioCase
+from app.models.qc_review import QcReviewIgnore
 from app.models.sample import Sample, SampleBarcode
 from app.models.schedule import CellUse, CellUseBarcode, Cycle, RunBatch
 from app.models.schedule_note import ScheduleNote
@@ -20,6 +21,7 @@ __all__ = [
     "Instrument",
     "InstrumentDowntime",
     "PacbioCase",
+    "QcReviewIgnore",
     "Sample",
     "SampleBarcode",
     "SampleTopup",

@@ -6,6 +6,7 @@ from __future__ import annotations
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
+from app.models.credit_case import CREDIT_SOURCE_QC_REVIEW
 from app.models.instrument import Instrument
 from app.models.pacbio_case import PacbioCase
 from app.schemas.pacbio_case import PacbioCaseCreate, PacbioCaseDetailsIn, PacbioCaseOut
@@ -48,6 +49,8 @@ def serialize_case(case: PacbioCase) -> PacbioCaseOut:
         credit_notes=case.credit_notes,
         credit_received_at=case.credit_received_at,
         credit_owner=case.credit_owner,
+        credit_source=case.credit_source,
+        mlwh_well_key=case.mlwh_well_key,
     )
 
 
@@ -98,6 +101,12 @@ def _commit(db: Session, case: PacbioCase, action: str, details: dict, actor: st
 def create_case(db: Session, req: PacbioCaseCreate, actor: str | None) -> PacbioCaseOut:
     case = PacbioCase(created_by=actor or "unknown")
     _apply_details(db, case, req)
+    well_key = _text(req.mlwh_well_key, 200, "MLWH well")
+    if well_key is not None:
+        if db.scalar(select(PacbioCase.id).where(PacbioCase.mlwh_well_key == well_key)) is not None:
+            raise ValueError("This well is already logged as a case - it's in the QC list below.")
+        case.mlwh_well_key = well_key
+        case.credit_source = CREDIT_SOURCE_QC_REVIEW
     # Backfill: stamp whatever stages the lab already has, in stage order, through the shared
     # rules - so the case lands at its real stage instead of being clicked through afterwards.
     if (req.pacbio_case_number or "").strip():
@@ -120,6 +129,8 @@ def create_case(db: Session, req: PacbioCaseCreate, actor: str | None) -> Pacbio
         "owner": case.credit_owner,
         "notes": case.credit_notes,
     }
+    if case.mlwh_well_key:
+        details["mlwh_well"] = case.mlwh_well_key
     return _commit(db, case, "create_pacbio_case", details, actor)
 
 

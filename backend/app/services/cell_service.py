@@ -830,6 +830,7 @@ def serialize_cell(cell: Cell, as_of: datetime | None = None) -> CellOut:
         credit_notes=cell.credit_notes,
         credit_received_at=cell.credit_received_at,
         credit_owner=cell.credit_owner,
+        credit_source=cell.credit_source,
         tray_id=cell.tray_id,
         tray_position=cell.tray_position,
         tray_size=CELLS_PER_TRAY,

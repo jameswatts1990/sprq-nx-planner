@@ -134,6 +134,15 @@ export const CREDIT_NEXT_STEP_LABEL: Record<Exclude<CreditStageKey, "failure">, 
  * legend. Orange (caution) so it reads as "this one is different" without borrowing a stage tone. */
 export const NO_CELL_BADGE: { tone: BadgeTone; label: string } = { tone: "orange", label: "No cell link" };
 
+/** The marker for a well in the QC Review queue, and for a credit case raised from it: the QC team
+ * failed the SMRT cell in LangQC (MLWH) after the run, before RunNx had a fail on it. Purple, the
+ * "came from outside RunNx" tone, so it never reads as a stage or a status. */
+export const QC_REVIEW_BADGE: { tone: BadgeTone; label: string; title: string } = {
+  tone: "purple",
+  label: "QC Review",
+  title: "Came in through QC Review: the QC team failed this SMRT cell in LangQC (MLWH) before RunNx had a fail on it",
+};
+
 /** PacBio credits acquisitions, translated to cells by the cell's type (the lab's confirmed
  * basis): a multi-use SPRQ-Nx cell is 3 acquisitions, a single-use SPRQ cell is 1 - so one SPRQ
  * acquisition is a whole cell. Either way a cell is 0.25 tray. Their FOC tracker reports the tray

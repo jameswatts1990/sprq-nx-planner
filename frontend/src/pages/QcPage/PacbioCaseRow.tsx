@@ -13,7 +13,7 @@ import { Note } from "@/components/ui/Note";
 import { invalidateCreditCases } from "@/lib/invalidateCreditCases";
 import type { PacbioCaseOut } from "@/types/pacbioCase";
 import { formatDateTime, formatDateUTC, parseDateOnly } from "@/utils/calendarDates";
-import { type CreditCaseAge, NO_CELL_BADGE } from "@/utils/creditCase";
+import { type CreditCaseAge, NO_CELL_BADGE, QC_REVIEW_BADGE } from "@/utils/creditCase";
 
 import { PacbioCaseModal } from "./PacbioCaseModal";
 import { CaseRowFrame, type RowExpansion } from "./QcCaseRow";
@@ -43,7 +43,8 @@ function CaseDetails({ pacbioCase }: { pacbioCase: PacbioCaseOut }) {
   return (
     <div className={styles.caseDetails}>
       <Note tone="warn" icon="!">
-        Not linked to a cell — logged on {formatDateTime(pacbioCase.created_at)}
+        Not linked to a cell — logged{pacbioCase.mlwh_well_key ? " from QC Review" : ""} on{" "}
+        {formatDateTime(pacbioCase.created_at)}
         {/* No auth yet, so the actor is usually the "unknown" placeholder - only name a real one. */}
         {pacbioCase.created_by && pacbioCase.created_by !== "unknown" ? ` by ${pacbioCase.created_by}` : ""}. Edit
         the details if anything was entered wrong.
@@ -107,9 +108,21 @@ export function PacbioCaseRow({
       head={
         <>
           <span className={styles.summary}>{pacbioCase.summary}</span>
-          <Badge tone={NO_CELL_BADGE.tone} title="Logged by hand on the QC page - not linked to any cell in RunNx">
+          <Badge
+            tone={NO_CELL_BADGE.tone}
+            title={
+              pacbioCase.mlwh_well_key
+                ? "Logged from QC Review - RunNx had no cell to fail for this well"
+                : "Logged by hand on the QC page - not linked to any cell in RunNx"
+            }
+          >
             {NO_CELL_BADGE.label}
           </Badge>
+          {pacbioCase.credit_source === "qc_review" && (
+            <Badge tone={QC_REVIEW_BADGE.tone} title={QC_REVIEW_BADGE.title}>
+              {QC_REVIEW_BADGE.label}
+            </Badge>
+          )}
           <CellTypeBadge cellType={pacbioCase.cell_type} />
           {pacbioCase.instrument_serial && <span className={styles.metaText}>{pacbioCase.instrument_serial}</span>}
         </>

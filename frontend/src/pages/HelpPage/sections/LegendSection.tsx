@@ -21,7 +21,7 @@ import type { CellStatus, CellUseStatus, CycleStatus, SampleStatus } from "@/typ
 import { CELL_QC_FLAG_LABEL, CELL_QC_FLAG_TONE } from "@/utils/cellQcFlag";
 import type { CellQcFlag } from "@/utils/cellQcFlag";
 import { CELL_STATUS_LABEL, CELL_STATUS_TONE } from "@/utils/cellStatus";
-import { NO_CELL_BADGE, OVERDUE_BADGE } from "@/utils/creditCase";
+import { NO_CELL_BADGE, OVERDUE_BADGE, QC_REVIEW_BADGE } from "@/utils/creditCase";
 import { CYCLE_STATUS_TONE, RUN_STATUS_LABEL } from "@/utils/cycleStatus";
 import { priorityTone } from "@/utils/priority";
 import { COMPLEX_REPEAT_WINDOW_DAYS } from "@/utils/qcDisposition";
@@ -284,6 +284,15 @@ export function LegendSection() {
           <span>
             A PacBio credit case logged by hand on the QC &amp; credits tab, not linked to any cell - it never changes a cell, a sample
             or the schedule.
+          </span>
+        </div>
+        <div className={styles.legendRow}>
+          <span className={styles.legendSwatchLabel}>
+            <Badge tone={QC_REVIEW_BADGE.tone}>{QC_REVIEW_BADGE.label}</Badge>
+          </span>
+          <span>
+            The QC team failed this SMRT cell in LangQC (a SMRT cell or instrument failure) after the run. On the QC
+            &amp; credits tab it marks a well waiting in QC Review, and a credit case that was raised from there.
           </span>
         </div>
         <div className={styles.legendRow}>

@@ -46,6 +46,13 @@ export function TodaySection() {
           The same counts as the number on the QC &amp; credits tab: cases that <b>need a report</b> to PacBio,
           cases <b>overdue</b>, and cases <b>awaiting credit</b> from PacBio.
         </dd>
+        <dt>QC Review</dt>
+        <dd>
+          How many SMRT cells the QC team failed in LangQC (a SMRT cell or instrument failure) are waiting in{" "}
+          <b>QC Review</b> on the QC &amp; credits tab because RunNx hasn&apos;t failed them yet. Click the number to
+          open it. <b>Oldest</b> is how many days ago QC signed off the longest-waiting one. It needs RunNx&apos;s MLWH
+          connection: without one the card says so, and if MLWH can&apos;t be reached it shows the error.
+        </dd>
         <dt>Day notes</dt>
         <dd>
           Today&apos;s notes from the Schedule, with the instruments each is pinned to and who wrote it.{" "}

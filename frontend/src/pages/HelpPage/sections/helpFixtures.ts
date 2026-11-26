@@ -40,6 +40,7 @@ export const EXAMPLE_CELL: CellOut = {
   credit_notes: null,
   credit_received_at: null,
   credit_owner: null,
+  credit_source: null,
   discarded_reason: null,
   discarded_at: null,
   tray_id: 7,

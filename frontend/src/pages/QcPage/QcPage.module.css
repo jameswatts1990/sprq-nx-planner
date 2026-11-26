@@ -249,3 +249,23 @@
 .formProblem {
   margin-bottom: 14px;
 }
+
+/* QC Review (MLWH intake): the one-line explainer under its heading. */
+.reviewIntro {
+  margin: 0;
+  font-size: var(--fs-md);
+  color: var(--grey);
+}
+/* Why a QC Review well can't be failed in RunNx right now, beside its actions. */
+.blocked {
+  font-size: var(--fs-sm);
+  color: var(--grey);
+  flex: 1 1 240px;
+}
+/* An ignored QC Review well's reason, who and when. */
+.ignoredNote {
+  font-size: var(--fs-sm);
+  color: var(--ink);
+  flex: 1 1 320px;
+  overflow-wrap: anywhere;
+}

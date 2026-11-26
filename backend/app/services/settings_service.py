@@ -438,6 +438,32 @@ def set_qc_overdue_days(db: Session, value: int) -> int:
     return get_qc_overdue_days(db)
 
 
+# review_lookback_days - how far back (by LangQC sign-off) the QC Review queue reads MLWH for
+#   SMRT cells the QC team failed (services/qc_review).
+DEFAULT_QC_REVIEW_LOOKBACK_DAYS = 90
+_QC_REVIEW_LOOKBACK_MAX = 730
+
+
+def get_qc_review_lookback_days(db: Session) -> int:
+    """The QC Review lookback in days, falling back to DEFAULT_QC_REVIEW_LOOKBACK_DAYS for a
+    never-stored or out-of-range value."""
+    stored = db.get(AppSetting, _QC_PREFIX + "review_lookback_days")
+    try:
+        value = int(stored.value) if stored is not None and stored.value else DEFAULT_QC_REVIEW_LOOKBACK_DAYS
+    except (TypeError, ValueError):
+        return DEFAULT_QC_REVIEW_LOOKBACK_DAYS
+    return value if 1 <= value <= _QC_REVIEW_LOOKBACK_MAX else DEFAULT_QC_REVIEW_LOOKBACK_DAYS
+
+
+def set_qc_review_lookback_days(db: Session, value: int) -> int:
+    """Store the QC Review lookback (a whole number of days, 1-730). Does NOT commit."""
+    if isinstance(value, bool) or not isinstance(value, int) or not (1 <= value <= _QC_REVIEW_LOOKBACK_MAX):
+        raise ValueError(f"QC Review lookback must be a whole number of days from 1 to {_QC_REVIEW_LOOKBACK_MAX}")
+    _upsert(db, _QC_PREFIX + "review_lookback_days", str(value))
+    db.flush()
+    return get_qc_review_lookback_days(db)
+
+
 def _upsert(db: Session, full_key: str, value: str) -> None:
     """Insert or update one app_settings row. Does not flush/commit."""
     existing = db.get(AppSetting, full_key)
