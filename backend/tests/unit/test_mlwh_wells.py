@@ -8,7 +8,14 @@ import pytest
 
 from app.models.schedule import CellUse, Cycle, RunBatch
 from app.services import mlwh_wells
-from app.services.mlwh_wells import MlwhUnavailable, fetch, p1_percent, run_key, use_at, well_key
+from app.services.mlwh_wells import (
+    MlwhUnavailable,
+    fetch,
+    p1_percent,
+    run_key,
+    use_at,
+    well_key,
+)
 
 
 @pytest.mark.parametrize(

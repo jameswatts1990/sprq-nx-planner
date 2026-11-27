@@ -16,7 +16,12 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.schedule import CellUse, Cycle, RunBatch
-from app.schemas.sequencing import MlwhWellFactsOut, RunSequencingOut, RunSequencingWellOut, SequencingFlagOut
+from app.schemas.sequencing import (
+    MlwhWellFactsOut,
+    RunSequencingOut,
+    RunSequencingWellOut,
+    SequencingFlagOut,
+)
 from app.services import mlwh, mlwh_wells
 from app.services.mlwh_wells import (
     UNNAMED_RUN_MAX_LEAD_DAYS,
@@ -105,9 +110,8 @@ def reconcile(planned: Planned | None, well: MlwhWell | None) -> list[Sequencing
                 SequencingFlagOut(
                     kind="cell_differs",
                     label="Different SMRT cell",
-                    detail=f"RunNx has one cell ({planned.cell_code or 'this cell'}) on Use {use_n} and here, "
-                    f"but SMRT Link read cell {cell_id} on Use {use_n} ({run_label}) and "
-                    f"{well.smrt_cell_id} here - check the tray.",
+                    detail=f"RunNx planned {planned.cell_code or 'one cell'} here and on Use {use_n} ({run_label}), "
+                    f"but SMRT Link read cell {well.smrt_cell_id} here and {cell_id} there - check the tray.",
                 )
             )
     return flags

@@ -5,12 +5,12 @@ from app.services.run_sequencing import Planned, reconcile
 
 
 def _well(**overrides) -> MlwhWell:
-    base = dict(
-        run_name="TRACTION-RUN-1", plate_number=1, well_label="A1", instrument_name="84047", qc_state="Passed",
-        qc_date=None, well_start=None, well_complete=None, smrt_cell_id="EA1", cell_lot="LOT1", cell_use_count=1,
-        is_multi_use=True, sequencing_kit=None, movie_name=None, movie_minutes=1440, loading_conc=250,
-        hifi_read_bases=12e9, sl_hostname=None, sl_run_uuid=None, tubes={"TRAC-2-1": {1}},
-    )
+    base = {
+        "run_name": "TRACTION-RUN-1", "plate_number": 1, "well_label": "A1", "instrument_name": "84047", "qc_state": "Passed",
+        "qc_date": None, "well_start": None, "well_complete": None, "smrt_cell_id": "EA1", "cell_lot": "LOT1", "cell_use_count": 1,
+        "is_multi_use": True, "sequencing_kit": None, "movie_name": None, "movie_minutes": 1440, "loading_conc": 250,
+        "hifi_read_bases": 12e9, "sl_hostname": None, "sl_run_uuid": None, "tubes": {"TRAC-2-1": {1}},
+    }
     return MlwhWell(**(base | overrides))
 
 

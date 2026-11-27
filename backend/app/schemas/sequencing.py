@@ -107,6 +107,10 @@ class SequencingLoadingOut(BaseModel):
     tube_hifi_gb: float | None
     cell_hifi_gb: float | None
     pct_of_cell: float | None  # the tube's share of the cell's HiFi
+    # What THIS sample got: the tube's figures for its own tube, its own members' share when the
+    # loading was found through a Sanger ID under another tube.
+    own_hifi_gb: float | None = None
+    own_pct_of_cell: float | None = None
     plex: int
     hifi_read_length_kb: float | None
     qc_state: str | None

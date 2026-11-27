@@ -4,6 +4,7 @@ import { useSearchParams } from "react-router-dom";
 
 import { errorMessage } from "@/api/client";
 import { instrumentsApi } from "@/api/instruments";
+import { sequencingApi } from "@/api/sequencing";
 import { statsApi } from "@/api/stats";
 import { SectionHeading } from "@/components/shared/SectionHeading";
 import { StatTile, StatTiles } from "@/components/shared/StatTile";
@@ -11,8 +12,10 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Note } from "@/components/ui/Note";
 import { PageHeader } from "@/components/ui/PageHeader";
+import type { SequencingStats } from "@/types/sequencing";
 import type { GroupBy, StatsResponse } from "@/types/stats";
 import { formatDateTime } from "@/utils/calendarDates";
+import { formatPct } from "@/utils/sequencing";
 import { downloadCsv } from "@/utils/toCsv";
 
 import { CategoryBars, ChartBlock, Donut, TimeBar, TimeLine } from "./charts/primitives";
@@ -57,6 +60,14 @@ export function StatsPage() {
         instrument_serial: view.instrument || undefined,
         group_by: view.group,
       }),
+  });
+
+  // Yield by Use 1/2/3 from MLWH - its own request, so the figures above never wait on MLWH.
+  const sequencingQuery = useQuery({
+    queryKey: ["stats", "sequencing", { from: range.from, to: range.to, instrument: view.instrument }],
+    queryFn: () =>
+      sequencingApi.stats({ date_from: range.from, date_to: range.to, instrument_serial: view.instrument || undefined }),
+    staleTime: 5 * 60_000,
   });
 
   const instrument = (instrumentsQuery.data ?? []).find((i) => i.serial_number === view.instrument);
@@ -158,7 +169,7 @@ export function StatsPage() {
         </CardBody>
       </Card>
 
-      {query.data && <StatsCharts data={query.data} />}
+      {query.data && <StatsCharts data={query.data} sequencing={sequencingQuery.data} />}
     </div>
   );
 }
@@ -200,7 +211,42 @@ function Headline({ data }: { data: StatsResponse }) {
   );
 }
 
-function StatsCharts({ data }: { data: StatsResponse }) {
+/** HiFi yield and P1 loading by Use 1/2/3 of a SMRT cell, from MLWH: does running a cell again cost
+ * yield? Medians per cell, for the runs in range that carry a Traction run name (the only ones
+ * MLWH can be matched by). Nothing at all without MLWH; one quiet line if it couldn't be read. */
+function UseOutcomeTiles({ sequencing }: { sequencing: SequencingStats | undefined }) {
+  if (!sequencing?.configured) return null;
+  if (!sequencing.ok) {
+    return (
+      <p className={styles.reuseNote} title={sequencing.error ?? undefined}>
+        Yield by use isn&apos;t available just now: RunNx couldn&apos;t read MLWH.
+      </p>
+    );
+  }
+  if (sequencing.runs_named === 0) return null;
+  const source = `From MLWH: the median per SMRT cell, for the ${sequencing.runs_named} of ${sequencing.runs_total} runs in range with a Traction run name`;
+  return (
+    <div className={styles.reuseTiles}>
+      <StatTiles>
+        {sequencing.by_use.map((u) => (
+          <StatTile
+            key={u.use}
+            label={`HiFi yield · Use ${u.use}`}
+            value={u.median_hifi_gb != null ? `${u.median_hifi_gb} Gb` : "—"}
+            hint={
+              u.cells
+                ? `${u.median_p1_pct != null ? `P1 ${formatPct(u.median_p1_pct)} · ` : ""}${u.cells} cell${u.cells === 1 ? "" : "s"}`
+                : "no cells yet"
+            }
+            title={source}
+          />
+        ))}
+      </StatTiles>
+    </div>
+  );
+}
+
+function StatsCharts({ data, sequencing }: { data: StatsResponse; sequencing: SequencingStats | undefined }) {
   const p = chartPalette();
   const useColors = useDepthColor(p);
   const statusColors = cellStatusColor(p);
@@ -289,6 +335,7 @@ function StatsCharts({ data }: { data: StatsResponse }) {
       <Card className={styles.section}>
         <CardBody>
           <SectionHeading title="Reuse & utilisation" />
+          <UseOutcomeTiles sequencing={sequencing} />
           <div className={styles.grid}>
             <ChartBlock
               title="Reuse depth"

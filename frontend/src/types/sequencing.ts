@@ -93,7 +93,11 @@ export interface SequencingLoading {
   loading_conc: number | null;
   tube_hifi_gb: number | null;
   cell_hifi_gb: number | null;
+  /** The tube's share of the cell's HiFi (what the pool split divides). */
   pct_of_cell: number | null;
+  /** What this sample got: its tube's figures, or its own members' share in another tube's pool. */
+  own_hifi_gb: number | null;
+  own_pct_of_cell: number | null;
   plex: number;
   hifi_read_length_kb: number | null;
   qc_state: string | null;

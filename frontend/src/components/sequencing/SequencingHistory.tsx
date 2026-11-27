@@ -92,7 +92,8 @@ function PoolSplit({ loading }: { loading: SequencingLoading }) {
           className={`${styles.member} ${m.below_even ? styles.below : ""}`}
           title={m.below_even ? "Under 85% of an even share of this pool" : undefined}
         >
-          <span className={m.mine ? styles.mine : undefined}>{m.sanger_sample_id ?? "—"}</span>
+          {/* In another tube's pool, the sample's own members stand out; in its own pool they all are. */}
+          <span className={m.mine && loading.via_other_tube ? styles.mine : undefined}>{m.sanger_sample_id ?? "—"}</span>
           <span className={styles.track}>
             {even != null && <span className={styles.evenMark} style={{ left: `${(even / max) * 100}%` }} />}
             <span className={styles.bar} style={{ width: `${Math.max(1, ((m.pct_of_cell ?? 0) / max) * 100)}%` }} />
@@ -130,8 +131,8 @@ function LoadingRow({ loading, open, onToggle }: { loading: SequencingLoading; o
           Plate {loading.plate_number} · {loading.well_label}
         </td>
         <td className={styles.nowrap}>{formatPm(loading.loading_conc) ?? "—"}</td>
-        <td className={styles.nowrap}>{formatGb(loading.tube_hifi_gb) ?? "—"}</td>
-        <td className={styles.nowrap}>{formatPct(loading.pct_of_cell) ?? "—"}</td>
+        <td className={styles.nowrap}>{formatGb(loading.own_hifi_gb) ?? "—"}</td>
+        <td className={styles.nowrap}>{formatPct(loading.own_pct_of_cell) ?? "—"}</td>
         <td className={styles.nowrap}>
           {pooled ? (
             <button type="button" className={styles.splitToggle} aria-expanded={open} onClick={onToggle}>
@@ -246,15 +247,17 @@ export function SequencingHistoryPanel({
 
   if (!s) {
     return (
-      <>
+      <div className={variant === "popdown" ? styles.popdown : undefined}>
         {toolbar}
         <div className="status sm">Never sequenced: MLWH has no loadings for this Pool ID or its Sanger IDs.</div>
-      </>
+      </div>
     );
   }
 
   return (
-    <div className={styles.panel}>
+    // In a Backlog row the pop-down sits in a cell as wide as the whole (scrolling) table; pinning
+    // it to the visible width keeps its own table and toolbar on screen.
+    <div className={variant === "popdown" ? `${styles.panel} ${styles.popdown}` : styles.panel}>
       {toolbar}
       {variant === "card" && (
         <StatTiles>
@@ -286,7 +289,7 @@ export function SequencingHistoryPanel({
               <th>Well</th>
               <th>Loading</th>
               <th>HiFi yield</th>
-              <th title="This tube's share of the cell's HiFi yield">Share of cell</th>
+              <th title="This sample's share of the cell's HiFi yield">Share of cell</th>
               <th title="Samples in the tube - click to see how the cell split between them">Plex</th>
               <th>Read length</th>
               <th>LangQC</th>
@@ -337,8 +340,8 @@ export function LastLoading({ sampleId }: { sampleId: number }) {
           {recent.map((ld) => (
             <li key={ld.key}>
               {ld.run_date ? formatShortDateUTC(parseDateOnly(ld.run_date)) : "—"} · {ld.run_name} ·{" "}
-              {formatPm(ld.loading_conc) ?? "—"} · {formatGb(ld.tube_hifi_gb) ?? "—"}
-              {ld.pct_of_cell != null && ` (${formatPct(ld.pct_of_cell)} of the cell)`}
+              {formatPm(ld.loading_conc) ?? "—"} · {formatGb(ld.own_hifi_gb) ?? "—"}
+              {ld.own_pct_of_cell != null && ` (${formatPct(ld.own_pct_of_cell)} of the cell)`}
               {ld.via_other_tube && ` · as part of ${ld.tube}`}
             </li>
           ))}

@@ -96,7 +96,7 @@ function WellRow({ row }: { row: RunSequencingWell }) {
       </td>
       <td className={styles.num}>
         {formatMovie(m?.movie_minutes) ?? "—"}
-        {row.planned_hours != null && m?.movie_minutes != null && <Sub>plan {row.planned_hours} h</Sub>}
+        {row.flags.some((f) => f.kind === "movie_differs") && <Sub>plan {row.planned_hours} h</Sub>}
       </td>
       <td className={styles.ran}>{ran ?? "—"}</td>
       <td>

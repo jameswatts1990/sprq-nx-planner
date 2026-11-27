@@ -10,7 +10,6 @@ from app.engine.packing import pool_id_sort_key, priority_rank
 from app.models.sample import SAMPLE_STATUSES, Sample, SampleBarcode, sample_id_matches
 from app.models.schedule import CellUse, Cycle, RunBatch
 from app.schemas.common import Page
-from app.schemas.sequencing import SequencingHistoryOut, SequencingSummariesOut
 from app.schemas.sample import (
     SampleCreate,
     SampleDetailOut,
@@ -18,6 +17,7 @@ from app.schemas.sample import (
     SampleOut,
     SampleUpdate,
 )
+from app.schemas.sequencing import SequencingHistoryOut, SequencingSummariesOut
 from app.serializers import (
     duplicate_groups,
     duplicate_marker,
@@ -25,7 +25,6 @@ from app.serializers import (
     sample_out,
 )
 from app.services.audit_util import diff, log_action
-from app.services.sequencing_history import build_history, build_summaries
 from app.services.sample_service import (
     audit_snapshot,
     clean_notes,
@@ -34,6 +33,7 @@ from app.services.sample_service import (
     update_backlog_sample,
     update_placed_sample_metadata,
 )
+from app.services.sequencing_history import build_history, build_summaries
 
 router = APIRouter(prefix="/api/samples", tags=["samples"])
 
@@ -300,12 +300,12 @@ def list_priorities(db: SessionDep, status: str | None = None) -> list[str]:
 
 @router.get("/sequencing-history", response_model=SequencingSummariesOut)
 def read_sequencing_summaries(
-    db: SessionDep, sample_id: Annotated[list[int], Query(max_length=200)] = []
+    db: SessionDep, sample_id: Annotated[list[int] | None, Query(max_length=200)] = None
 ) -> SequencingSummariesOut:
     """MLWH sequencing-history highlights for a page of samples (at most 200), keyed by sample id -
     no loadings, so a list stays light (services/sequencing_history.py). A 200 whatever MLWH's
     state: unset or unreachable is in the body."""
-    return build_summaries(db, sorted(set(sample_id)))
+    return build_summaries(db, sorted(set(sample_id or [])))
 
 
 @router.get("/{sample_id}/sequencing-history", response_model=SequencingHistoryOut)

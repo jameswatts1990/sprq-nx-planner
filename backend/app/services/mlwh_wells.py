@@ -31,7 +31,6 @@ from collections.abc import Callable, Hashable, Iterable
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from time import monotonic
-from typing import TypeVar
 
 from sqlalchemy import Engine, bindparam, select, text
 from sqlalchemy.orm import Session, selectinload
@@ -39,8 +38,6 @@ from sqlalchemy.orm import Session, selectinload
 from app.models.cell import Cell
 from app.models.schedule import CellUse, Cycle, RunBatch
 from app.services import mlwh
-
-T = TypeVar("T")
 
 # How long every MLWH read answers "unreachable" after a failure before trying again.
 RETRY_AFTER_S = 60
@@ -227,7 +224,7 @@ def _well_from_row(row) -> MlwhWell:
     )
 
 
-def chunks(values: Iterable[T], size: int = CHUNK) -> list[list[T]]:
+def chunks[T](values: Iterable[T], size: int = CHUNK) -> list[list[T]]:
     items = list(values)
     return [items[i : i + size] for i in range(0, len(items), size)]
 
@@ -304,7 +301,7 @@ def reset() -> None:
         _down = None
 
 
-def fetch(key: Hashable, read: Callable[[Engine], T], *, ttl: float | Callable[[T], float], refresh: bool = False) -> T:
+def fetch[T](key: Hashable, read: Callable[[Engine], T], *, ttl: float | Callable[[T], float], refresh: bool = False) -> T:
     """`read(engine)` - one MLWH read - through the cache. `ttl` is seconds, or a function of the
     result (a finished run's results can be kept longer than a running one's). Raises
     MlwhUnavailable on failure, including for RETRY_AFTER_S after any failure unless `refresh`."""
@@ -331,7 +328,7 @@ def fetch(key: Hashable, read: Callable[[Engine], T], *, ttl: float | Callable[[
 
     try:
         value = read(engine())
-    except Exception as exc:  # noqa: BLE001 - a bad URL, DNS, TLS, auth or SQL error is a state to show
+    except Exception as exc:  # any failure - a bad URL, DNS, TLS, auth or SQL error - is a state to show
         message = mlwh.error_message(exc)
         with _lock:
             _down = (monotonic() + RETRY_AFTER_S, message)

@@ -31,7 +31,13 @@ from app.schemas.sequencing import (
     SequencingSummaryOut,
 )
 from app.services import mlwh, mlwh_wells
-from app.services.mlwh_wells import MlwhWell, chunks, run_ids_by_key, run_key, smrt_link_url
+from app.services.mlwh_wells import (
+    MlwhWell,
+    chunks,
+    run_ids_by_key,
+    run_key,
+    smrt_link_url,
+)
 
 _TTL_S = 300
 # A pool member under this share of an even split is "below even".
@@ -202,6 +208,8 @@ def _loadings_for(
                     tube_hifi_gb=_gb(tube_bases),
                     cell_hifi_gb=well.hifi_yield_gb,
                     pct_of_cell=tube_pct,
+                    own_hifi_gb=_gb(own_bases),
+                    own_pct_of_cell=own_pct,
                     plex=plex,
                     hifi_read_length_kb=round(well.hifi_read_length_mean / 1000, 1)
                     if well.hifi_read_length_mean is not None

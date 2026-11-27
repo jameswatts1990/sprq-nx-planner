@@ -9,13 +9,13 @@ from app.api.deps import ActorDep, SessionDep, pagination
 from app.models.instrument import Instrument
 from app.models.schedule import CYCLE_STATUSES, RunBatch
 from app.schemas.common import CellType, Page
-from app.schemas.sequencing import RunSequencingOut
 from app.schemas.run import (
     RunHistoryRowOut,
     RunNameMatchOut,
     RunOut,
     ScheduleSearchHitOut,
 )
+from app.schemas.sequencing import RunSequencingOut
 from app.serializers import duplicate_groups
 from app.services.placement_service import (
     PlacementError,

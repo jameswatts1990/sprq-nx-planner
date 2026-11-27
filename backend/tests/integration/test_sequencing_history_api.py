@@ -66,6 +66,7 @@ def test_every_loading_of_the_tube_oldest_first_with_the_last_one_highlighted(cl
     assert [ld["run_name"] for ld in body["loadings"]] == ["TRACTION-RUN-1", "TRACTION-RUN-2"]
     first, last = body["loadings"]
     assert first["loading_conc"] == 180 and first["tube_hifi_gb"] == 10 and first["pct_of_cell"] == 100
+    assert (first["own_hifi_gb"], first["own_pct_of_cell"]) == (10, 100)  # its own tube: the same
     assert last["plex"] == 1 and last["members"] == [] and last["via_other_tube"] is False
     assert last["smrt_link_url"] == "https://smrtlink.example.org:8243/sl/runs/11111111-2222"
 
@@ -93,6 +94,9 @@ def test_a_sample_sequenced_before_under_another_tube_is_found_by_sanger_id(clie
                        members={"TRAC-2-OLD": [("S7", 25), ("S8", 75)]})
     (loading,) = _history(client, sid)["loadings"]
     assert loading["tube"] == "TRAC-2-OLD" and loading["via_other_tube"] is True
+    # The row reads what this sample got; the tube's whole figures stay for the pool split.
+    assert (loading["own_hifi_gb"], loading["own_pct_of_cell"]) == (5, 25)
+    assert (loading["tube_hifi_gb"], loading["pct_of_cell"]) == (20, 100)
     assert [(m["sanger_sample_id"], m["mine"]) for m in loading["members"]] == [("S8", False), ("S7", True)]
     # What counts for this sample is its own share of that cell, not the other tube's whole yield.
     summary = _history(client, sid)["summary"]

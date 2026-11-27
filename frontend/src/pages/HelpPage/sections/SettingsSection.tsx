@@ -133,7 +133,8 @@ export function SettingsSection() {
           missing read access), and <b>red</b> when it can&apos;t connect, with the database&apos;s own reason (for
           example a wrong password or an unreachable host). When connected, every table the login can see is listed as
           proof, with approximate row counts. The connection powers <b>QC Review</b> (QC &amp; credits), a run&apos;s{" "}
-          <b>Sequencing results</b> and its <b>SMRT Link</b> links. If MLWH stops answering, those parts say so and
+          <b>Sequencing results</b> and its <b>SMRT Link</b> links, each sample&apos;s <b>Sequencing history</b> (the
+          Backlog&apos;s Sequenced column), and the Stats tab&apos;s yield-by-use tiles. If MLWH stops answering, those parts say so and
           RunNx waits a minute before asking again (their <b>Retry</b> asks straight away); everything else is
           unaffected.
         </dd>

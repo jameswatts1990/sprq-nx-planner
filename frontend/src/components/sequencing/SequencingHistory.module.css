@@ -48,6 +48,13 @@
   gap: 10px;
   min-width: 0;
 }
+/* A Backlog row's pop-down: stuck to the left edge of the table's scroll box and no wider than the
+   screen, so it scrolls on its own instead of riding off to the right with the wide table. */
+.popdown {
+  position: sticky;
+  left: 0;
+  max-width: calc(100vw - 120px);
+}
 .toolbar {
   display: flex;
   align-items: center;
