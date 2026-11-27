@@ -33,10 +33,11 @@ def read_qc_summary(db: SessionDep) -> QcSummaryOut:
 
 
 @router.get("/review", response_model=QcReviewOut)
-def read_qc_review(db: SessionDep) -> QcReviewOut:
+def read_qc_review(db: SessionDep, refresh: bool = False) -> QcReviewOut:
     """Always a 200: MLWH unset or unreachable is reported in the body (configured / error), so
-    the page can say so without the rest of the QC page failing."""
-    return qc_review.build_review(db)
+    the page can say so without the rest of the QC page failing. `refresh` (the section's Retry)
+    asks MLWH again instead of using the last minute's answer."""
+    return qc_review.build_review(db, refresh=refresh)
 
 
 @router.post("/review/ignore", response_model=QcReviewIgnoreOut, status_code=201)

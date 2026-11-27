@@ -9,6 +9,7 @@ import { errorMessage } from "@/api/client";
 import type { SampleSortBy, SampleSortDir } from "@/api/samples";
 import { samplesApi } from "@/api/samples";
 import { topupsApi } from "@/api/topups";
+import { SequencingHistoryPanel, SequencingSummaryChip } from "@/components/sequencing/SequencingHistory";
 import { BarcodeChips } from "@/components/shared/BarcodeChips";
 import { ComplexCountdownChip } from "@/components/shared/ComplexCountdownChip";
 import { DuplicateBadge } from "@/components/shared/DuplicateBadge";
@@ -24,6 +25,7 @@ import { Note } from "@/components/ui/Note";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import type { SegmentedOption } from "@/components/ui/SegmentedControl";
+import { type SequencedColumn, useOpenRows, useSequencedColumn } from "@/hooks/useSequencing";
 import type { SampleOut } from "@/types/sample";
 import type { SampleTopupOut } from "@/types/topup";
 import { formatDateTime } from "@/utils/calendarDates";
@@ -86,11 +88,38 @@ interface SampleColumnDeps {
   /** Opens the Cancel-sample confirmation for this row. */
   onCancel: (sample: SampleOut) => void;
   cancelPending: boolean;
+  /** The Sequenced column (MLWH highlights); null leaves it out. */
+  sequencing: SequencedColumn | null;
+}
+
+/** "Sequenced": a sample's MLWH highlights (cells, HiFi so far, last loading), whose chip drops
+ * its full history open in a row below - see SampleTableView. */
+function sequencedColumn(sequencing: SequencedColumn) {
+  return columnHelper.display({
+    id: "sequenced",
+    header: () => (
+      <span title="From MLWH: SMRT cells sequenced so far, HiFi yield, and the last loading concentration">
+        Sequenced
+      </span>
+    ),
+    cell: (info) => {
+      const s = info.row.original;
+      return (
+        <SequencingSummaryChip
+          summary={sequencing.summaries[s.id]}
+          state={sequencing.state}
+          error={sequencing.error}
+          open={sequencing.openRows.has(s.id)}
+          onToggle={() => sequencing.openRows.toggle(s.id)}
+        />
+      );
+    },
+  });
 }
 
 /** The backlog sample table columns, parameterised by the header renderer so the main and
  * Recoverable tables can share cell markup while driving their own independent sort state. */
-function buildSampleColumns({ renderHeader, backNav, noteRows, onEdit, onCancel, cancelPending }: SampleColumnDeps) {
+function buildSampleColumns({ renderHeader, backNav, noteRows, onEdit, onCancel, cancelPending, sequencing }: SampleColumnDeps) {
   return [
     columnHelper.accessor("pool_id", {
       header: () => renderHeader("Pool ID", "pool_id"),
@@ -147,6 +176,7 @@ function buildSampleColumns({ renderHeader, backNav, noteRows, onEdit, onCancel,
         );
       },
     }),
+    ...(sequencing ? [sequencedColumn(sequencing)] : []),
     columnHelper.accessor("target_oplc", {
       header: () => renderHeader("Target OPLC", "target_oplc"),
       cell: (info) => info.getValue() ?? "—",
@@ -197,7 +227,15 @@ function buildSampleColumns({ renderHeader, backNav, noteRows, onEdit, onCancel,
 
 /** Shared table markup for a react-table instance of backlog samples, with a sample's note row
  * under it while its note chip is open. */
-function SampleTableView({ table, noteRows }: { table: Table<SampleOut>; noteRows: ReturnType<typeof useNoteRows> }) {
+function SampleTableView({
+  table,
+  noteRows,
+  historyRows,
+}: {
+  table: Table<SampleOut>;
+  noteRows: ReturnType<typeof useNoteRows>;
+  historyRows: ReturnType<typeof useOpenRows>;
+}) {
   return (
     <div className={styles.tableScroll}>
       <table className="table">
@@ -217,9 +255,10 @@ function SampleTableView({ table, noteRows }: { table: Table<SampleOut>; noteRow
             const s = row.original;
             const note = noteRows.stateOf(s.id);
             const showNote = note.editing || (note.open && !!s.notes);
+            const showHistory = historyRows.has(s.id);
             return (
               <Fragment key={row.id}>
-                <tr className={showNote ? styles.withNoteRow : undefined}>
+                <tr className={showNote || showHistory ? styles.withNoteRow : undefined}>
                   {row.getVisibleCells().map((cell) => (
                     <td key={cell.id} className={cell.column.id === "actions" ? styles.actionsCol : undefined}>
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -235,6 +274,13 @@ function SampleTableView({ table, noteRows }: { table: Table<SampleOut>; noteRow
                         editing={note.editing}
                         onDone={(saved) => noteRows.done(s.id, saved)}
                       />
+                    </td>
+                  </tr>
+                )}
+                {showHistory && (
+                  <tr className={styles.noteRow}>
+                    <td colSpan={row.getVisibleCells().length}>
+                      <SequencingHistoryPanel sampleId={s.id} poolId={s.pool_id} variant="popdown" />
                     </td>
                   </tr>
                 )}
@@ -276,6 +322,9 @@ export function BacklogPage() {
   // Which notes are open / being edited: backlog samples by sample id, resupply rows by request id.
   const sampleNotes = useNoteRows();
   const resupplyNotes = useNoteRows();
+  // Which rows have their MLWH sequencing history dropped open: backlog samples, resupply rows.
+  const sampleHistory = useOpenRows();
+  const resupplyHistory = useOpenRows();
   const [confirmCancel, setConfirmCancel] = useState<SampleOut | null>(null);
   const [confirmCancelResupply, setConfirmCancelResupply] = useState<SampleTopupOut | null>(null);
   const q = useDebouncedValue(qInput, 350);
@@ -386,6 +435,11 @@ export function BacklogPage() {
   const cancelPending = cancelMutation.isPending;
   const backNav = useSampleBackNav();
 
+  // Each table's Sequenced column reads the highlights for just the rows it shows (null without MLWH).
+  const mainSequencing = useSequencedColumn((query.data?.items ?? []).map((s) => s.id), sampleHistory);
+  const recoverableSequencing = useSequencedColumn(recoverableItems.map((s) => s.id), sampleHistory);
+  const resupplySequencing = useSequencedColumn(resupplies.map((t) => t.sample_id), resupplyHistory);
+
   const columns = useMemo(
     () =>
       buildSampleColumns({
@@ -395,8 +449,9 @@ export function BacklogPage() {
         onEdit: setEditSample,
         onCancel: setConfirmCancel,
         cancelPending,
+        sequencing: mainSequencing,
       }),
-    [sortableHeader, cancelPending, backNav, sampleNotes],
+    [sortableHeader, cancelPending, backNav, sampleNotes, mainSequencing],
   );
   const recoverableColumns = useMemo(
     () =>
@@ -407,8 +462,9 @@ export function BacklogPage() {
         onEdit: setEditSample,
         onCancel: setConfirmCancel,
         cancelPending,
+        sequencing: recoverableSequencing,
       }),
-    [recoverableHeader, cancelPending, backNav, sampleNotes],
+    [recoverableHeader, cancelPending, backNav, sampleNotes, recoverableSequencing],
   );
 
   const items = query.data?.items ?? [];
@@ -453,7 +509,7 @@ export function BacklogPage() {
               what that outcome means; a ⌛ chip counts down the 30 days to use leftover complex. Reschedule them from
               the grid like any backlog sample.
             </p>
-            <SampleTableView table={recoverableTable} noteRows={sampleNotes} />
+            <SampleTableView table={recoverableTable} noteRows={sampleNotes} historyRows={sampleHistory} />
           </CardBody>
         </Card>
       )}
@@ -525,7 +581,7 @@ export function BacklogPage() {
 
           {!query.isLoading && !query.isError && items.length > 0 && (
             <>
-              <SampleTableView table={table} noteRows={sampleNotes} />
+              <SampleTableView table={table} noteRows={sampleNotes} historyRows={sampleHistory} />
               <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
             </>
           )}
@@ -592,6 +648,11 @@ export function BacklogPage() {
                       onClick={() => resupplySort.toggle("from")}
                     />
                   </th>
+                  {resupplySequencing && (
+                    <th title="From MLWH: SMRT cells sequenced so far, HiFi yield, and the last loading concentration">
+                      Sequenced
+                    </th>
+                  )}
                   <th>
                     <SortableColumnHeader
                       label="Raised"
@@ -607,9 +668,11 @@ export function BacklogPage() {
                 {resupplySort.sorted.map((t) => {
                   const note = resupplyNotes.stateOf(t.id);
                   const showNote = note.editing || (note.open && !!t.sample_notes);
+                  const showHistory = !!resupplySequencing && resupplyHistory.has(t.sample_id);
+                  const columnCount = resupplySequencing ? 7 : 6;
                   return (
                     <Fragment key={t.id}>
-                      <tr className={showNote ? styles.withNoteRow : undefined}>
+                      <tr className={showNote || showHistory ? styles.withNoteRow : undefined}>
                         <td>
                           <div className={styles.idCell}>
                             <Link to={`/samples/${t.sample_id}`} state={backNav} className="link">
@@ -632,6 +695,17 @@ export function BacklogPage() {
                           {t.source_run_name ?? "—"}
                           {t.source_cell_code ? ` · ${t.source_cell_code}` : ""}
                         </td>
+                        {resupplySequencing && (
+                          <td>
+                            <SequencingSummaryChip
+                              summary={resupplySequencing.summaries[t.sample_id]}
+                              state={resupplySequencing.state}
+                              error={resupplySequencing.error}
+                              open={resupplyHistory.has(t.sample_id)}
+                              onToggle={() => resupplyHistory.toggle(t.sample_id)}
+                            />
+                          </td>
+                        )}
                         <td>{formatDateTime(t.created_at)}</td>
                         <td>
                           <div className={styles.rowActions}>
@@ -655,13 +729,20 @@ export function BacklogPage() {
                       </tr>
                       {showNote && (
                         <tr className={styles.noteRow}>
-                          <td colSpan={6}>
+                          <td colSpan={columnCount}>
                             <SampleNotePanel
                               sampleId={t.sample_id}
                               notes={t.sample_notes}
                               editing={note.editing}
                               onDone={(saved) => resupplyNotes.done(t.id, saved)}
                             />
+                          </td>
+                        </tr>
+                      )}
+                      {showHistory && (
+                        <tr className={styles.noteRow}>
+                          <td colSpan={columnCount}>
+                            <SequencingHistoryPanel sampleId={t.sample_id} poolId={t.pool_id} variant="popdown" />
                           </td>
                         </tr>
                       )}

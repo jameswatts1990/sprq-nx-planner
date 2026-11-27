@@ -6,6 +6,7 @@ import { importsApi } from "@/api/imports";
 import { samplesApi } from "@/api/samples";
 import { settingsApi } from "@/api/settings";
 import { Button } from "@/components/ui/Button";
+import { LastLoading } from "@/components/sequencing/SequencingHistory";
 import { UnitLabel } from "@/components/shared/UnitLabel";
 import { Modal, ModalActions } from "@/components/ui/Modal";
 import { Note } from "@/components/ui/Note";
@@ -432,9 +433,16 @@ export function SampleModal({
               <div className={styles.rows}>
                 {visibleRows.map((row, i) => {
                   const hasLbWarn = row.some((f) => f.key === K_LOADING_BUFFER) && lbOffTarget;
+                  // Beside the OPLC fields: what this sample was last loaded at (MLWH), for a top-up.
+                  const showLastLoading = sample != null && row.some((f) => f.key === "target_oplc");
                   return (
                     <div key={i} className={styles.row}>
                       {row.map(renderField)}
+                      {showLastLoading && (
+                        <div className={styles.rowWarn}>
+                          <LastLoading sampleId={sample.id} />
+                        </div>
+                      )}
                       {hasLbWarn && (
                         <div className={styles.rowWarn}>
                           <Note tone="warn" icon="!">

@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import Select, func, or_, select
 from sqlalchemy.orm import selectinload
 
@@ -17,6 +17,7 @@ from app.schemas.sample import (
     SampleOut,
     SampleUpdate,
 )
+from app.schemas.sequencing import SequencingHistoryOut, SequencingSummariesOut
 from app.serializers import (
     duplicate_groups,
     duplicate_marker,
@@ -32,6 +33,7 @@ from app.services.sample_service import (
     update_backlog_sample,
     update_placed_sample_metadata,
 )
+from app.services.sequencing_history import build_history, build_summaries
 
 router = APIRouter(prefix="/api/samples", tags=["samples"])
 
@@ -294,6 +296,26 @@ def list_priorities(db: SessionDep, status: str | None = None) -> list[str]:
         stmt = stmt.where(Sample.status.in_(statuses))
     values = db.scalars(stmt).all()
     return sorted(values, key=priority_rank)
+
+
+@router.get("/sequencing-history", response_model=SequencingSummariesOut)
+def read_sequencing_summaries(
+    db: SessionDep, sample_id: Annotated[list[int] | None, Query(max_length=200)] = None
+) -> SequencingSummariesOut:
+    """MLWH sequencing-history highlights for a page of samples (at most 200), keyed by sample id -
+    no loadings, so a list stays light (services/sequencing_history.py). A 200 whatever MLWH's
+    state: unset or unreachable is in the body."""
+    return build_summaries(db, sorted(set(sample_id or [])))
+
+
+@router.get("/{sample_id}/sequencing-history", response_model=SequencingHistoryOut)
+def read_sequencing_history(sample_id: int, db: SessionDep, refresh: bool = False) -> SequencingHistoryOut:
+    """Every SMRT cell this sample's tube (or one of its Sanger IDs) was loaded on, from MLWH:
+    loading, yield, share of the cell and a pool's member split. `refresh` asks MLWH again."""
+    out = build_history(db, sample_id, refresh=refresh)
+    if out is None:
+        raise HTTPException(404, "Sample not found")
+    return out
 
 
 @router.get("/{sample_id}", response_model=SampleDetailOut)

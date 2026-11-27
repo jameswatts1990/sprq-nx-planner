@@ -22,79 +22,40 @@ The query uses only columns the dashboard already reads from the live warehouse.
 """
 from __future__ import annotations
 
-import re
-from collections import defaultdict
-from dataclasses import dataclass
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 
-from sqlalchemy import Engine, select, text
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy import Engine, select
+from sqlalchemy.orm import Session
 
-from app.models.cell import Cell
 from app.models.pacbio_case import PacbioCase
 from app.models.qc_review import QcReviewIgnore
-from app.models.schedule import CellUse, Cycle, RunBatch
+from app.models.schedule import CellUse, RunBatch
 from app.schemas.qc_review import (
     QcReviewIgnoreOut,
     QcReviewMatchOut,
     QcReviewOut,
     QcReviewWellOut,
 )
-from app.services import mlwh
+from app.services import mlwh, mlwh_wells
 from app.services.audit_util import log_action
 from app.services.cell_service import run_has_started
+from app.services.mlwh_wells import MlwhWell, RunIndex, load_runs, smrt_link_url
 from app.services.run_serializer import _use_number
 from app.services.settings_service import get_qc_review_lookback_days
 from app.timeutil import utcnow
 
-# One row per SMRT-cell well LangQC marked as some kind of failure since :since (by QC sign-off,
-# falling back to the well's own end for a verdict with no date), oldest first like the rest of the
-# QC worklist. The LIKE is only a cheap
-# prefilter; is_facility_failure() decides. Library tubes come through the product-metrics
-# bridge, as in the dashboard (one pac_bio_run row per pool member, hence DISTINCT). Grouping by
-# the well's primary key is valid under ONLY_FULL_GROUP_BY (every other m.* column depends on it).
-# Patterns are bound parameters so no literal % has to survive driver paramstyle escaping.
-FLAGGED_WELLS_SQL = text(
-    """
-    SELECT
-        m.pac_bio_run_name                                     AS run_name,
-        m.plate_number                                         AS plate_number,
-        m.well_label                                           AS well_label,
-        m.instrument_name                                      AS instrument_name,
-        m.qc_seq_state                                         AS qc_state,
-        m.qc_seq_date                                          AS qc_date,
-        m.well_start                                           AS well_start,
-        m.well_complete                                        AS well_complete,
-        m.cell_id                                              AS smrt_cell_id,
-        m.cell_lot_number                                      AS cell_lot,
-        m.cell_use_count                                       AS cell_use_count,
-        m.is_cell_multi_use                                    AS is_multi_use,
-        m.sequencing_kit                                       AS sequencing_kit,
-        m.movie_name                                           AS movie_name,
-        m.movie_minutes                                        AS movie_minutes,
-        m.loading_conc                                         AS loading_conc,
-        m.hifi_read_bases                                      AS hifi_read_bases,
-        m.sl_hostname                                          AS sl_hostname,
-        m.sl_run_uuid                                          AS sl_run_uuid,
-        GROUP_CONCAT(DISTINCT r.pac_bio_library_tube_barcode)  AS library_barcodes,
-        COUNT(DISTINCT r.id_sample_tmp)                        AS sample_count
-    FROM pac_bio_run_well_metrics m
-    LEFT JOIN pac_bio_product_metrics p ON p.id_pac_bio_rw_metrics_tmp = m.id_pac_bio_rw_metrics_tmp
-    LEFT JOIN pac_bio_run r ON r.id_pac_bio_tmp = p.id_pac_bio_tmp
-    WHERE m.qc_seq_state LIKE :fail_pattern
-      AND COALESCE(m.qc_seq_date, m.well_complete, m.run_complete) >= :since
-      AND COALESCE(m.instrument_type, '') NOT LIKE :sequel_pattern
-    GROUP BY m.id_pac_bio_rw_metrics_tmp
-    ORDER BY COALESCE(m.qc_seq_date, m.well_complete, m.run_complete)
-    """
-)
+# The wells LangQC marked as some kind of failure since :since (by QC sign-off, falling back to the
+# well's own end for a verdict with no date), oldest first like the rest of the QC worklist. The
+# LIKE is only a cheap prefilter; is_facility_failure() decides. Patterns are bound parameters so no
+# literal % has to survive driver paramstyle escaping.
+_FLAGGED_WHERE = "m.qc_seq_state LIKE :fail_pattern AND COALESCE(m.qc_seq_date, m.well_complete, m.run_complete) >= :since"
+_FLAGGED_ORDER = "COALESCE(m.qc_seq_date, m.well_complete, m.run_complete)"
+# QC Review is rebuilt from MLWH at most this often; the Today page polls it every minute per tab.
+_REVIEW_TTL_S = 60
 
 # How far before the earliest flagged well's start a RunNx run is still looked at: a run is loaded
 # before its wells start (cell prep alone can take over a day), and a reuse Plate 2 later still.
 _RUN_LOAD_SLACK = timedelta(days=7)
-# Matching an unnamed RunNx run by instrument: its load day may be up to this many days before
-# the well started (cells prep for up to ~38 h after loading; a reuse Plate 2 waits for Plate 1).
-_UNNAMED_RUN_MAX_LEAD_DAYS = 3
 
 
 def is_facility_failure(qc_state: str | None) -> bool:
@@ -105,200 +66,12 @@ def is_facility_failure(qc_state: str | None) -> bool:
     return "fail" in s and any(word in s for word in ("instrument", "smrt", "cell"))
 
 
-def run_key(name: str | None) -> str | None:
-    """A Traction run name, normalised so the name the lab typed into RunNx matches MLWH's:
-    case and spacing are ignored, and "TRACTION-RUN-1234", "traction run 1234" and a bare "1234"
-    are all the same run."""
-    s = " ".join((name or "").split()).upper()
-    if not s:
-        return None
-    m = re.fullmatch(r"(?:TRACTION[-_ ]?RUN[-_ ]?)?0*(\d+)", s)
-    return f"TRACTION-RUN-{m.group(1)}" if m else s
-
-
-def well_key(run_name: str, plate_number: int, well_label: str) -> str:
-    """A well's identity across RunNx and MLWH: "<Traction run name>|<plate>|<well>". Not MLWH's
-    row id, which the warehouse documents as liable to change."""
-    return f"{run_name.strip()}|{plate_number}|{well_label.strip().upper()}"
-
-
-@dataclass
-class MlwhWell:
-    run_name: str
-    plate_number: int
-    well_label: str
-    instrument_name: str | None
-    qc_state: str
-    qc_date: datetime | None
-    well_start: datetime | None
-    well_complete: datetime | None
-    smrt_cell_id: str | None
-    cell_lot: str | None
-    cell_use_count: int | None
-    is_multi_use: bool | None
-    sequencing_kit: str | None
-    movie_name: str | None
-    movie_minutes: float | None
-    loading_conc: float | None
-    hifi_read_bases: float | None
-    sl_hostname: str | None
-    sl_run_uuid: str | None
-    library_barcodes: list[str]
-    sample_count: int
-
-    @property
-    def key(self) -> str:
-        return well_key(self.run_name, self.plate_number, self.well_label)
-
-    @property
-    def start_day(self) -> date | None:
-        moment = self.well_start or self.well_complete
-        return moment.date() if moment else None
-
-
-def _dt(value) -> datetime | None:
-    """MySQL hands back datetimes; the SQLite stand-in the tests use hands back strings."""
-    if value is None or isinstance(value, datetime):
-        return value
-    try:
-        return datetime.fromisoformat(str(value))
-    except ValueError:
-        return None
-
-
-def _num(value) -> float | None:
-    """MySQL hands DECIMAL columns back as Decimal; the API wants plain numbers."""
-    if value is None:
-        return None
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return None
-
-
-def _str(value) -> str | None:
-    s = str(value).strip() if value is not None else ""
-    return s or None
-
-
-def _well_from_row(row) -> MlwhWell:
-    barcodes = sorted({b.strip() for b in (row["library_barcodes"] or "").split(",") if b.strip()})
-    multi = row["is_multi_use"]
-    use_count = row["cell_use_count"]
-    return MlwhWell(
-        run_name=_str(row["run_name"]) or "",
-        plate_number=int(row["plate_number"] or 1),
-        well_label=(_str(row["well_label"]) or "").upper(),
-        instrument_name=_str(row["instrument_name"]),
-        qc_state=_str(row["qc_state"]) or "",
-        qc_date=_dt(row["qc_date"]),
-        well_start=_dt(row["well_start"]),
-        well_complete=_dt(row["well_complete"]),
-        smrt_cell_id=_str(row["smrt_cell_id"]),
-        cell_lot=_str(row["cell_lot"]),
-        cell_use_count=int(use_count) if use_count is not None else None,
-        is_multi_use=bool(multi) if multi is not None else None,
-        sequencing_kit=_str(row["sequencing_kit"]),
-        movie_name=_str(row["movie_name"]),
-        movie_minutes=_num(row["movie_minutes"]),
-        loading_conc=_num(row["loading_conc"]),
-        hifi_read_bases=_num(row["hifi_read_bases"]),
-        sl_hostname=_str(row["sl_hostname"]),
-        sl_run_uuid=_str(row["sl_run_uuid"]),
-        library_barcodes=barcodes,
-        sample_count=int(row["sample_count"] or 0),
-    )
-
-
 def fetch_flagged_wells(engine: Engine, since: datetime) -> list[MlwhWell]:
     """Every Revio well LangQC failed for a SMRT-cell or instrument reason since `since` (naive,
     like MLWH's own timestamps), oldest first. Raises on any MLWH failure."""
-    params = {
-        "fail_pattern": "%fail%",
-        "sequel_pattern": "Sequel%",
-        "since": since.strftime("%Y-%m-%d %H:%M:%S"),
-    }
-    with engine.connect() as conn:
-        rows = conn.execute(FLAGGED_WELLS_SQL, params).mappings().all()
-    wells = [_well_from_row(r) for r in rows]
-    return [w for w in wells if w.run_name and w.well_label and is_facility_failure(w.qc_state)]
-
-
-def _mlwh_engine() -> Engine:
-    """Seam for the tests, which stand an SQLite copy of the MLWH tables in for the warehouse."""
-    return mlwh.get_engine()
-
-
-# --- Matching MLWH wells to RunNx ---------------------------------------------------------
-
-
-def _load_runs(db: Session, wells: list[MlwhWell], fallback_from: date) -> list[RunBatch]:
-    """The RunNx runs any of `wells` could have been loaded as - every run loaded from a week
-    before the earliest well started - with everything matching and use numbering reads."""
-    days = [w.start_day for w in wells if w.start_day]
-    earliest = (min(days) if days else fallback_from) - _RUN_LOAD_SLACK
-    stmt = (
-        select(RunBatch)
-        .where(RunBatch.load_date >= earliest)
-        .options(
-            selectinload(RunBatch.instrument),
-            selectinload(RunBatch.cycles).selectinload(Cycle.cell_uses).selectinload(CellUse.sample),
-            selectinload(RunBatch.cycles)
-            .selectinload(Cycle.cell_uses)
-            .selectinload(CellUse.cell)
-            .selectinload(Cell.cell_uses)
-            .selectinload(CellUse.cycle),
-        )
-    )
-    return list(db.scalars(stmt))
-
-
-def _use_at(run: RunBatch, plate_number: int, well_label: str) -> CellUse | None:
-    """The use in this plate/well of a RunNx run. Traction's well is the RunNx well's row letter
-    on that plate (both a fresh A02 and a reuse A01 on Plate 2 are Traction's Plate 2 A1)."""
-    letter = well_label[:1].upper()
-    plate = next((c for c in run.cycles if c.plate_index == plate_number), None)
-    if plate is None or not letter:
-        return None
-    uses = [cu for cu in plate.cell_uses if cu.well[:1].upper() == letter]
-    # A cancelled use is a Stop-cell "Blocked" marker, not something that loaded.
-    return next((cu for cu in uses if cu.status != "cancelled"), None)
-
-
-class _RunIndex:
-    def __init__(self, runs: list[RunBatch]) -> None:
-        self.by_name: dict[str, list[RunBatch]] = defaultdict(list)
-        self.unnamed_by_instrument: dict[str, list[RunBatch]] = defaultdict(list)
-        for run in runs:
-            key = run_key(run.run_name)
-            if key:
-                self.by_name[key].append(run)
-            elif run.instrument is not None:
-                self.unnamed_by_instrument[run.instrument.serial_number.strip().upper()].append(run)
-
-    def match(self, well: MlwhWell) -> tuple[RunBatch, CellUse | None, str] | None:
-        """The RunNx run (and use) for a well: by Traction run name; failing that, a RunNx run
-        that has no run name, on the same instrument, loaded up to a few days before the well
-        started (the latest such run - the one on the instrument at the time)."""
-        named = self.by_name.get(run_key(well.run_name) or "", [])
-        if named:
-            for run in named:
-                use = _use_at(run, well.plate_number, well.well_label)
-                if use is not None:
-                    return run, use, "run_name"
-            return named[0], None, "run_name"
-        if not well.instrument_name or well.start_day is None:
-            return None
-        lead = timedelta(days=_UNNAMED_RUN_MAX_LEAD_DAYS)
-        candidates = [
-            run
-            for run in self.unnamed_by_instrument.get(well.instrument_name.strip().upper(), [])
-            if well.start_day - lead <= run.load_date <= well.start_day
-        ]
-        if not candidates:
-            return None
-        run = max(candidates, key=lambda r: r.load_date)
-        return run, _use_at(run, well.plate_number, well.well_label), "instrument_date"
+    params = {"fail_pattern": "%fail%", "since": since.strftime("%Y-%m-%d %H:%M:%S")}
+    wells = mlwh_wells.fetch_wells(engine, _FLAGGED_WHERE, params, order_by=_FLAGGED_ORDER)
+    return [w for w in wells if is_facility_failure(w.qc_state)]
 
 
 # Use statuses the Cell QC Fail can never act on (a finished outcome), unlike a run that just isn't
@@ -353,14 +126,6 @@ def _already_failed(use: CellUse | None) -> bool:
     return use.status == "failed" or (use.cell is not None and use.cell.status == "stopped")
 
 
-def _smrt_link_url(well: MlwhWell) -> str | None:
-    """SMRT Link's own page for the run: its server (read from MLWH - more than one is in use)
-    and its SMRT Link run uuid, which is not Traction's run uuid."""
-    if not well.sl_hostname or not well.sl_run_uuid:
-        return None
-    return f"https://{well.sl_hostname}:8243/sl/runs/{well.sl_run_uuid}"
-
-
 def _well_out(well: MlwhWell, match: QcReviewMatchOut | None, ignore: QcReviewIgnore | None) -> QcReviewWellOut:
     return QcReviewWellOut(
         key=well.key,
@@ -380,10 +145,10 @@ def _well_out(well: MlwhWell, match: QcReviewMatchOut | None, ignore: QcReviewIg
         movie_name=well.movie_name,
         movie_minutes=well.movie_minutes,
         loading_conc=well.loading_conc,
-        hifi_yield_gb=round(well.hifi_read_bases / 1e9, 2) if well.hifi_read_bases is not None else None,
+        hifi_yield_gb=well.hifi_yield_gb,
         library_barcodes=well.library_barcodes,
         sample_count=well.sample_count,
-        smrt_link_url=_smrt_link_url(well),
+        smrt_link_url=smrt_link_url(well),
         match=match,
         ignored=QcReviewIgnoreOut(reason=ignore.reason, ignored_by=ignore.ignored_by, ignored_at=ignore.ignored_at)
         if ignore
@@ -391,18 +156,26 @@ def _well_out(well: MlwhWell, match: QcReviewMatchOut | None, ignore: QcReviewIg
     )
 
 
-def build_review(db: Session, *, now: datetime | None = None) -> QcReviewOut:
+def build_review(db: Session, *, now: datetime | None = None, refresh: bool = False) -> QcReviewOut:
     """The QC Review queue as of `now`. Never raises for MLWH trouble: unset or unreachable comes
-    back as configured=False / error, so the rest of the QC page is unaffected."""
+    back as configured=False / error, so the rest of the QC page is unaffected. `refresh` skips the
+    cached MLWH read (the section's Retry)."""
     lookback = get_qc_review_lookback_days(db)
     since = (now or utcnow()) - timedelta(days=lookback)
     out = QcReviewOut(configured=mlwh.is_configured(), ok=False, lookback_days=lookback, since=since.date())
     if not out.configured:
         return out
+    db.rollback()  # hand RunNx's connection back while MLWH is asked (see mlwh_wells)
+    naive_since = since.replace(tzinfo=None)
     try:
-        wells = fetch_flagged_wells(_mlwh_engine(), since.replace(tzinfo=None))
-    except Exception as exc:  # noqa: BLE001 - a bad URL, DNS, TLS, auth or SQL error is a state to show
-        out.error = mlwh.error_message(exc)
+        wells = mlwh_wells.fetch(
+            ("qc_review", lookback),
+            lambda engine: fetch_flagged_wells(engine, naive_since),
+            ttl=_REVIEW_TTL_S,
+            refresh=refresh,
+        )
+    except mlwh_wells.MlwhUnavailable as exc:
+        out.error = str(exc)
         return out
     out.ok = True
     if not wells:
@@ -411,7 +184,8 @@ def build_review(db: Session, *, now: datetime | None = None) -> QcReviewOut:
     keys = [w.key for w in wells]
     logged = set(db.scalars(select(PacbioCase.mlwh_well_key).where(PacbioCase.mlwh_well_key.in_(keys))))
     ignores = {i.mlwh_well_key: i for i in db.scalars(select(QcReviewIgnore).where(QcReviewIgnore.mlwh_well_key.in_(keys)))}
-    index = _RunIndex(_load_runs(db, wells, since.date()))
+    days = [w.start_day for w in wells if w.start_day]
+    index = RunIndex(load_runs(db, (min(days) if days else since.date()) - _RUN_LOAD_SLACK))
 
     for well in wells:
         if well.key in logged:

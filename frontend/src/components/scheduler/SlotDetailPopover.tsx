@@ -9,12 +9,16 @@ import { samplesApi } from "@/api/samples";
 import { WindowMeter } from "@/components/cells/WindowMeter";
 import { allStages } from "@/components/scheduler/groupCyclesByInstrumentAndDay";
 import { RunStageGantt } from "@/components/scheduler/RunStageGantt";
+import { FlagBadges } from "@/components/sequencing/RunSequencingSection";
 import { BarcodeChips } from "@/components/shared/BarcodeChips";
+import { SmrtLinkLink } from "@/components/shared/SmrtLinkLink";
+import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Modal, ModalActions } from "@/components/ui/Modal";
 import { Note } from "@/components/ui/Note";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { smallInsertReuseWarning, useInsertSizeThreshold } from "@/hooks/useInsertSizeThreshold";
+import { useRunSequencing } from "@/hooks/useSequencing";
 import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
 import { SampleModal } from "@/pages/SampleModal";
 import type { RunOut, RunTimeHours, StageOut } from "@/types/schedule";
@@ -22,6 +26,7 @@ import { formatShortDateUTC, parseDateOnly, shortWeekdayUTC } from "@/utils/cale
 import { plateWellFromSlot } from "@/utils/plateWell";
 import { runLabel } from "@/utils/runLabel";
 import { useSampleBackNav } from "@/utils/sampleBackNav";
+import { formatGb, formatPct, formatPm, langQcLabel, langQcTone } from "@/utils/sequencing";
 
 import { CreditClaimRow, isCreditCaseUse } from "./CreditClaimRow";
 import styles from "./SlotDetailPopover.module.css";
@@ -39,6 +44,62 @@ export interface SlotDetailPopoverProps {
   onClose: () => void;
   /** Open the shared Cell QC modal for this slot's physical cell (anchored on this use). */
   onOpenQc: (cellId: number, cellUseId: number) => void;
+}
+
+/** What MLWH recorded for this well, as a few more detail rows: LangQC's verdict, the yield, P1
+ * and loading SMRT Link used, any disagreement with the plan, and the run in SMRT Link. Shares the
+ * run page's cached read (useRunSequencing); only asked once the run has started. Quiet by design -
+ * nothing while it loads or when this deployment has no MLWH, one muted line if MLWH is down. */
+function SequencingRows({ run, cellUseId }: { run: RunOut; cellUseId: number }) {
+  const { data } = useRunSequencing(run.run_id, run.status !== "planned");
+  if (!data?.configured) return null;
+  if (!data.ok) {
+    return (
+      <div className={styles.row}>
+        <span className="detailLabel">Sequencing</span>
+        <span className={styles.mutedValue} title={data.error ?? undefined}>
+          MLWH unreachable
+        </span>
+      </div>
+    );
+  }
+  const row = data.wells.find((w) => w.cell_use_id === cellUseId);
+  const m = row?.mlwh;
+  const figures = m ? [formatGb(m.hifi_yield_gb), m.p1_pct != null && `P1 ${formatPct(m.p1_pct)}`, formatPm(m.loading_conc)] : [];
+  return (
+    <>
+      <div className={styles.row}>
+        <span className="detailLabel">LangQC</span>
+        {m ? (
+          <Badge tone={langQcTone(m.qc_state)} title="LangQC's verdict on this well, from MLWH">
+            {langQcLabel(m.qc_state)}
+          </Badge>
+        ) : (
+          <span className={styles.mutedValue}>Not in MLWH yet</span>
+        )}
+      </div>
+      {m && (
+        <div className={styles.row}>
+          <span className="detailLabel">Sequenced</span>
+          <b className={styles.value}>{figures.filter(Boolean).join(" · ") || "—"}</b>
+        </div>
+      )}
+      {row && row.flags.length > 0 && (
+        <div className={styles.row}>
+          <span className="detailLabel">Checks</span>
+          <span className={styles.flagValue}>
+            <FlagBadges flags={row.flags} />
+          </span>
+        </div>
+      )}
+      {data.smrt_link_url && (
+        <div className={styles.row}>
+          <span className="detailLabel">SMRT Link</span>
+          <SmrtLinkLink url={data.smrt_link_url} label="Open run" />
+        </div>
+      )}
+    </>
+  );
 }
 
 /** The only sample fields still editable once a sample has been placed on the grid — its
@@ -420,6 +481,7 @@ function SlotDetailBody({
             <b className={styles.value}>{runTime} h</b>
           )}
         </div>
+        <SequencingRows run={run} cellUseId={stage.cell_use_id} />
       </div>
 
       {runTimeMutation.isError && (

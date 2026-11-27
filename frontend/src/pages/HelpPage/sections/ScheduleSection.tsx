@@ -786,6 +786,12 @@ export function ScheduleSection() {
         records what the instrument actually ran).
       </p>
       <p>
+        <b>Sequencing (MLWH):</b> once a run has started, the popover adds what the instrument recorded for this well
+        — the QC team&apos;s <b>LangQC</b> verdict, the HiFi yield, P1 loading and loading concentration, any{" "}
+        <b>Checks</b> where that disagrees with the plan, and an <b>Open run ↗</b> link to the run in SMRT Link. The same
+        figures for every well are under <b>Sequencing results</b> on the run&apos;s own page (History → Runs).
+      </p>
+      <p>
         <b>Placement notes:</b> the same popover has a <b>Notes</b> box for a free-text note about this sample on this
         cell — anything worth flagging to whoever loads it (a handling reminder, a query, a re-run reason). (A note
         about the sample itself, which follows it to every cell, is the <b>Sample notes</b> box on the ✎ edit form.) Type a

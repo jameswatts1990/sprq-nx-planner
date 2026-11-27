@@ -1,0 +1,185 @@
+/* A sample's sequencing history (SequencingHistory.tsx): the list rows' summary chip, and the
+   panel - highlights, loadings table and pool split - in a Backlog pop-down or on the sample page. */
+
+/* The same 24px chip as a sample's note chip (SampleNotes.module.css), so the two sit alike in
+   a row: prose, so sans, never ellipsised beyond its short text. */
+.chip {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 8px 0 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--line-soft);
+  color: var(--grey);
+  font-family: var(--sans);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.chip:hover,
+.chip[aria-expanded="true"] {
+  border-color: var(--line-hover);
+  color: var(--ink);
+}
+.chip:focus-visible {
+  outline: 2px solid var(--magenta-border);
+  outline-offset: 1px;
+}
+.chipText {
+  font-variant-numeric: tabular-nums;
+}
+.quiet {
+  color: var(--grey);
+  font-size: var(--fs-sm);
+}
+.quietLine {
+  margin: 0;
+  color: var(--grey);
+  font-size: var(--fs-base);
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+/* A Backlog row's pop-down: stuck to the left edge of the table's scroll box and no wider than the
+   screen, so it scrolls on its own instead of riding off to the right with the wide table. */
+.popdown {
+  position: sticky;
+  left: 0;
+  max-width: calc(100vw - 120px);
+}
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.toolbarEnd {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+.tableWrap {
+  overflow-x: auto;
+}
+.nowrap {
+  white-space: nowrap;
+}
+.sub {
+  display: block;
+  margin-top: 2px;
+  color: var(--faint);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+}
+.openRow > td {
+  border-bottom: none;
+}
+tbody tr.splitRow:hover {
+  background: transparent;
+}
+.splitRow > td {
+  padding-top: 0;
+}
+.splitToggle {
+  appearance: none;
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--link);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.splitToggle:focus-visible {
+  outline: 2px solid var(--magenta-border);
+  outline-offset: 1px;
+}
+
+/* Pool split: one line per member - id, a bar of its share of the cell against the even-share
+   tick, and its Gb · %. */
+.split {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 560px;
+  padding: 8px 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-sm);
+}
+.splitHead {
+  margin-bottom: 2px;
+  color: var(--grey);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.member {
+  display: grid;
+  grid-template-columns: minmax(90px, 160px) 1fr auto;
+  align-items: center;
+  gap: 10px;
+  font-size: var(--fs-sm);
+}
+.mine {
+  font-weight: 800;
+  color: var(--ink);
+}
+.track {
+  position: relative;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--line-soft);
+}
+.bar {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 4px;
+  background: var(--grey);
+}
+.evenMark {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--ink);
+  z-index: 1;
+}
+.memberFigures {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  color: var(--grey);
+}
+.below .bar {
+  background: var(--amber);
+}
+.below .memberFigures {
+  color: var(--amber-deep);
+  font-weight: 700;
+}
+
+/* The edit dialog's last-loading reminder (LastLoading): a quiet line under the OPLC fields. */
+.lastLoading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  color: var(--grey);
+  font-size: var(--fs-sm);
+}
+.recent {
+  flex-basis: 100%;
+  margin: 2px 0 0;
+  padding-left: 18px;
+  font-variant-numeric: tabular-nums;
+}

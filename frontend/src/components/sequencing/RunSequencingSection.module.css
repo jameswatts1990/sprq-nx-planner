@@ -1,0 +1,46 @@
+/* A run's MLWH results: the shared .table look, plus a faint second line per cell for the facts
+   that qualify the main value (planned loading, read length, SMRT cell id). */
+.tableWrap {
+  overflow-x: auto;
+}
+.legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.intro {
+  margin: 0 0 8px;
+  color: var(--grey);
+  font-size: var(--fs-base);
+}
+.muted {
+  color: var(--grey);
+  font-size: var(--fs-sm);
+}
+.mono {
+  font-family: var(--mono);
+}
+.use {
+  color: var(--grey);
+  font-size: var(--fs-sm);
+}
+.sub {
+  display: block;
+  margin-top: 2px;
+  color: var(--faint);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+}
+.num {
+  white-space: nowrap;
+}
+.ran {
+  white-space: nowrap;
+  color: var(--grey);
+  font-size: var(--fs-sm);
+}
+.flags {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}

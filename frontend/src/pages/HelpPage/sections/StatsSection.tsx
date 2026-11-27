@@ -82,6 +82,15 @@ export function StatsSection() {
         <b>Window outcome</b> compares cells that spent all 3 uses against those whose 108-hour window lapsed early
         (wasted capacity). <b>Avg uses per cell</b> and <b>Plate fill %</b> track those over time.
       </p>
+      <p>
+        With an MLWH connection, three tiles above those charts — <b>HiFi yield · Use 1</b>, <b>Use 2</b> and{" "}
+        <b>Use 3</b> — answer whether running a cell again costs yield: the median HiFi yield per SMRT cell on each
+        use, with its median <b>P1</b> loading (the share of the cell&apos;s wells that took exactly one molecule) and
+        how many cells that is. They count the wells SMRT Link recorded for the runs loading in the range, by RunNx&apos;s
+        Use number for each, leaving out wells with no yield and runs SMRT Link aborted. Only runs given a{" "}
+        <b>Traction run name</b> can be matched to MLWH — hover a tile for how many of the range&apos;s runs that is.
+        They fill in a moment after the rest of the page and print with it; they aren&apos;t in the CSV export.
+      </p>
 
       <p className={styles.subheading}>Failures &amp; credits</p>
       <p>

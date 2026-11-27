@@ -120,7 +120,13 @@ export function ConfirmLoadedModal({
           onChange={(e) => setRunName(e.target.value)}
           placeholder="e.g. TRACTION-RUN-1234"
           autoFocus={!!loadedBy}
+          aria-describedby={runName.trim() ? undefined : "confirm-run-name-why"}
         />
+        {!runName.trim() && (
+          <span id="confirm-run-name-why" className={styles.aside}>
+            Add it to match this run&apos;s results in MLWH and link it to SMRT Link.
+          </span>
+        )}
         <RunNameWarning name={runName} runId={runId} />
       </div>
       <div className={styles.field}>

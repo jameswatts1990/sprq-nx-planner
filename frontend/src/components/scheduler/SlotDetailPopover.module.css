@@ -14,6 +14,19 @@
   color: var(--ink);
   text-align: right;
 }
+/* MLWH's record of this well (SequencingRows): a quiet value when there's nothing to show yet, and
+   the plan-vs-record warning badges right-aligned like every other value. */
+.mutedValue {
+  color: var(--grey);
+  font-size: var(--fs-sm);
+  text-align: right;
+}
+.flagValue {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+}
 /* Title with prev/next cell navigation: a chevron button either side of the sample ID, so a
    scheduler can step through the run's cells without leaving the popover. */
 .titleNav {

@@ -10,12 +10,15 @@ import { PLATE_INDICES } from "@/components/scheduler/gridKeys";
 import { padStages } from "@/components/scheduler/groupCyclesByInstrumentAndDay";
 import { SchedulerSlotView } from "@/components/scheduler/SchedulerSlotView";
 import { SlotDetailPopover } from "@/components/scheduler/SlotDetailPopover";
+import { RunSequencingSection } from "@/components/sequencing/RunSequencingSection";
 import { SectionHeading, UseLegend } from "@/components/shared/SectionHeading";
+import { SmrtLinkLink } from "@/components/shared/SmrtLinkLink";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { Note } from "@/components/ui/Note";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { useRunSequencing } from "@/hooks/useSequencing";
 import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
 import { ViewActivityLink } from "@/pages/HistoryActivityPage/ViewActivityLink";
 import type { PlateOut, RunOut, StageOut } from "@/types/schedule";
@@ -68,6 +71,8 @@ export function RunDetailPage() {
     queryFn: () => cyclesApi.get(id),
     enabled: idIsValid,
   });
+  // What MLWH recorded for this run - only once it has started (a planned run isn't in MLWH).
+  const sequencing = useRunSequencing(id, idIsValid && query.data != null && query.data.status !== "planned");
 
   const cancelMutation = useMutation({
     mutationFn: () => cyclesApi.cancel(id),
@@ -126,6 +131,7 @@ export function RunDetailPage() {
         actions={
           <>
             <ViewActivityLink kind="run" id={run.run_id} label={run.run_name ?? `Run #${run.run_id}`} />
+            <SmrtLinkLink variant="button" url={sequencing.data?.smrt_link_url} />
             {canCancel && (
               <Button variant="ghost" onClick={() => setConfirmingCancel(true)} disabled={cancelMutation.isPending}>
                 Cancel run
@@ -243,6 +249,8 @@ export function RunDetailPage() {
           );
         })}
       </div>
+
+      <RunSequencingSection run={run} results={sequencing} />
 
       {detail && (
         <SlotDetailPopover

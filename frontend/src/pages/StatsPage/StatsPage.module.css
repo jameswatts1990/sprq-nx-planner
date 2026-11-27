@@ -88,3 +88,13 @@ th.num,
 td.num {
   text-align: right;
 }
+
+/* Yield by Use 1/2/3 (MLWH) - a KPI row above the Reuse & utilisation charts. */
+.reuseTiles {
+  margin-bottom: 14px;
+}
+.reuseNote {
+  margin: 0 0 12px;
+  color: var(--grey);
+  font-size: var(--fs-sm);
+}

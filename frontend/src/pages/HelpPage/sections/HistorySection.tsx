@@ -105,6 +105,43 @@ export function HistorySection() {
         cell&apos;s run time or switch a reuse to a fresh cell, exactly as on the schedule.
       </p>
       <p>
+        <b>Sequencing results</b> (below the plates, once a run has started) show what the instrument actually
+        recorded for each well, read from <b>MLWH</b>: the QC team&apos;s <b>LangQC</b> verdict (
+        <Badge tone="default">Awaiting QC</Badge> until they give one, <Badge tone="success">Passed</Badge>, an orange{" "}
+        <Badge tone="orange">Failed, SMRT cell</Badge> for a cell or instrument failure, amber for anything else wrong),
+        the <b>HiFi yield</b> and read length, <b>P1</b> loading (the share of the cell&apos;s wells that took exactly
+        one molecule), the <b>loading</b> concentration used (with the plan&apos;s OPLC under it), the <b>movie</b>{" "}
+        length, when the well ran, and the SMRT cell&apos;s own barcode and lot. RunNx matches the run by its{" "}
+        <b>Traction run name</b>; a run without one is matched by instrument and load day and says{" "}
+        <Badge tone="warning">Matched by instrument &amp; date</Badge> — check it&apos;s right. The <b>Checks</b>{" "}
+        column warns (it never blocks anything) wherever MLWH disagrees with the plan — hover a badge for the details:
+      </p>
+      <ul>
+        <li>
+          <Badge tone="warning">Pool ID differs</Badge> — a different library tube was loaded in this well.
+        </li>
+        <li>
+          <Badge tone="warning">Movie differs</Badge> — SMRT Link ran a movie more than half an hour longer or shorter
+          than the planned run time.
+        </li>
+        <li>
+          <Badge tone="warning">Use differs</Badge> — SMRT Link counted a different use of the cell than RunNx planned.
+        </li>
+        <li>
+          <Badge tone="warning">Different SMRT cell</Badge> — RunNx has one cell on two uses, but SMRT Link read two
+          different physical cells: check the tray.
+        </li>
+        <li>
+          <Badge tone="orange">Not in RunNx</Badge> — SMRT Link recorded a cell in a well RunNx had nothing planned in.
+        </li>
+      </ul>
+      <p>
+        Results are re-read from MLWH at most once a minute (every ten once a run has finished and every well has its
+        verdict); <b>Refresh</b> asks again now. <b>Open in SMRT Link ↗</b> (top right) opens the run in SMRT Link, the
+        instrument software, as soon as MLWH has it. Without an MLWH connection the section says so, and the rest of the
+        page works as normal.
+      </p>
+      <p>
         <b>Cancel run</b> (top right) is available only while a run is still <i>planned</i>; once it&apos;s running/loaded it
         can&apos;t be cancelled from here. It asks first, saying how many samples go back to the backlog; the run is then
         deleted (a stopped cell&apos;s <b>Blocked</b> marker is kept) and you&apos;re taken back to where you came from.
@@ -156,6 +193,15 @@ export function HistorySection() {
         placed on — the run (links to the run), plate, cell (links to the cell), well, use status, start/complete
         times, and notes. This page works for a sample of any status, so it&apos;s the durable place a Pool ID
         always links to.
+      </p>
+      <p>
+        <b>Sequencing history</b> (with an MLWH connection) is everything the instrument has recorded for the
+        sample — found by its Pool ID and its Sanger IDs, so it includes runs from before RunNx and the sample&apos;s
+        earlier tubes. The tiles give the <b>HiFi so far</b> and number of cells, the <b>last loading</b>{" "}
+        concentration, the <b>last share of the cell</b> it got, and the latest LangQC verdict; the table below lists
+        every loading, oldest first, each with a <b>SMRT Link ↗</b> link, and a pool&apos;s plex number opens its{" "}
+        <b>pool split</b> (see the Backlog&apos;s <b>Sequenced</b> column). The Details card shows the same highlight
+        as <b>Sequenced (MLWH)</b>.
       </p>
       <p>
         <b>Notes:</b> the sample&apos;s own free-text note sits at the bottom of its details. Click{" "}

@@ -9,6 +9,7 @@ import { RevioScreen } from "@/components/scheduler/RevioScreen";
 import { RunStageGantt } from "@/components/scheduler/RunStageGantt";
 import { WeekPlanModal } from "@/components/scheduler/WeekPlanModal";
 import { LockChip } from "@/components/shared/LockChip";
+import { SmrtLinkLink } from "@/components/shared/SmrtLinkLink";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody } from "@/components/ui/Card";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
@@ -16,6 +17,7 @@ import { Modal, ModalActions } from "@/components/ui/Modal";
 import { Note } from "@/components/ui/Note";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatTile, StatTiles } from "@/components/shared/StatTile";
+import { useRunSmrtLinkUrl } from "@/hooks/useSequencing";
 import { invalidateScheduleRelated } from "@/lib/invalidateScheduleRelated";
 import type { InstrumentOut, InstrumentStatsOut } from "@/types/instrument";
 import type { RunOut } from "@/types/schedule";
@@ -241,6 +243,8 @@ function InstrumentCard({
   // screen (like the physical display), so an idle card shows its last run rather than a blank.
   const running = activeRuns.length > 0;
   const screenRuns = running ? activeRuns : recentRuns;
+  // The running run in SMRT Link, once MLWH has it.
+  const smrtLinkUrl = useRunSmrtLinkUrl(stats?.running_run_id);
 
   return (
     <Card className={instrument.active ? undefined : styles.inactive}>
@@ -269,7 +273,23 @@ function InstrumentCard({
                 (stats?.running_run_name ?? "—")
               )
             }
-            hint={stats?.free_at ? `frees ${formatShortDateTimeLocal(stats.free_at)}` : stats?.running_run_name ? undefined : "idle"}
+            hint={
+              stats?.free_at ? (
+                <>
+                  frees {formatShortDateTimeLocal(stats.free_at)}
+                  {smrtLinkUrl && (
+                    <>
+                      {" · "}
+                      <SmrtLinkLink url={smrtLinkUrl} label="SMRT Link" />
+                    </>
+                  )}
+                </>
+              ) : stats?.running_run_name ? (
+                smrtLinkUrl && <SmrtLinkLink url={smrtLinkUrl} label="SMRT Link" />
+              ) : (
+                "idle"
+              )
+            }
           />
           <StatTile
             label="Open trays"
