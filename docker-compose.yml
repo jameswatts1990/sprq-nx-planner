@@ -22,6 +22,9 @@ services:
       MLWH_PASSWORD: ${MLWH_PASSWORD:-}
       MLWH_SSL_CA: ${MLWH_SSL_CA:-}
       MLWH_SSL_VERIFY: ${MLWH_SSL_VERIFY:-true}
+      # Settings > Developer tools and /api/admin (raw database edits; the app has no sign-in).
+      # The app defaults to off; Compose keeps them on. DEV_TOOLS_ENABLED=false in .env turns them off.
+      DEV_TOOLS_ENABLED: ${DEV_TOOLS_ENABLED:-true}
 
   db:
     image: postgres:16-alpine

@@ -5,6 +5,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     database_url: str = "sqlite:///./dev.db"
     cors_origins: str = ""  # comma-separated; empty means same-origin only (see nginx proxy design)
+    # Settings > Developer tools and every /api/admin route. Off by default: the app has no sign-in,
+    # and these tools edit the database directly. Compose and the devcontainer switch it on.
+    dev_tools_enabled: bool = False
 
     # Multi-LIMS Warehouse (MySQL), read-only. All optional: an empty URL means MLWH is off and
     # the rest of the app is unaffected (services/mlwh.py). The URL is like DATABASE_URL, e.g.

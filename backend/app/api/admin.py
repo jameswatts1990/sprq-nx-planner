@@ -1,15 +1,15 @@
 """Dev-only raw database inspection/mutation tools, plus the read-only MLWH connection status.
 
-Not gated by environment - remove or gate this router explicitly before a
-real production launch (see CLAUDE.md "Help Tab Maintenance" /
-RunNx Admin notes).
+Gated by the DEV_TOOLS_ENABLED setting (off by default): while it is off every route here
+answers 404, exactly like a path that doesn't exist. Checked per request, not at import, so
+tests can switch it. See CLAUDE.md "Settings tab & dev tools".
 """
 
 import json
 from datetime import date, datetime
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
 from sqlalchemy import (
@@ -29,6 +29,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app import models  # noqa: F401  ensures every model is registered on Base.metadata
 from app.api.deps import SessionDep
+from app.config import settings
 from app.db import Base
 from app.models.cell import Cell
 from app.models.sample import SAMPLE_TERMINAL_STATUSES, Sample
@@ -38,7 +39,16 @@ from app.services import mlwh
 from app.services.cell_service import recompute_status
 from app.timeutil import utcnow
 
-router = APIRouter(prefix="/api/admin", tags=["admin"])
+
+
+def require_dev_tools() -> None:
+    """404 (same body as an unknown path) unless DEV_TOOLS_ENABLED. Runs before the route's own
+    dependencies and body validation, so a disabled deployment reveals nothing about the routes."""
+    if not settings.dev_tools_enabled:
+        raise HTTPException(404, "Not Found")
+
+
+router = APIRouter(prefix="/api/admin", tags=["admin"], dependencies=[Depends(require_dev_tools)])
 
 # Tables whose rows disappearing (directly, or via an ON DELETE CASCADE from one of the
 # others) needs cleanup beyond what FK constraints alone provide - see _affected_cell_use_rows

@@ -1,6 +1,8 @@
+import { useQuery } from "@tanstack/react-query";
 import { useState, type JSX } from "react";
 import { useSearchParams } from "react-router-dom";
 
+import { settingsApi } from "@/api/settings";
 import { Button } from "@/components/ui/Button";
 import { PageHeader } from "@/components/ui/PageHeader";
 
@@ -13,6 +15,7 @@ import { QcSettingsPanel } from "./QcSettingsPanel";
 import { SampleDefaultsPanel } from "./SampleDefaultsPanel";
 import { SchedulingPanel } from "./SchedulingPanel";
 import styles from "./SettingsPage.module.css";
+import { visibleSections } from "./settingsSections";
 
 type Section = { key: string; title: string; keywords: string; Component: () => JSX.Element };
 
@@ -65,7 +68,7 @@ const SECTIONS: Section[] = [
 ];
 
 /** The raw-database tools, kept off the everyday path behind the sidebar's "Show developer
- * tools" reveal (see CLAUDE.md - un-gated, but out of the way). */
+ * tools" reveal, and only when the deployment enables them (DEV_TOOLS_ENABLED; see CLAUDE.md). */
 const DEV_SECTION: Section = {
   key: "developer",
   title: "Developer tools",
@@ -76,14 +79,17 @@ const DEV_SECTION: Section = {
 /** The Settings page: a Help-style sidebar + search beside a single active panel. Groups the
  * lab-configurable settings (sample defaults, scheduling, movie scheduling, email template, issue
  * report, QC) and the read-only instrument facts, with the dev-only DB tools tucked behind a
- * reveal. `?section=<key>` opens a given panel (e.g. the issue report's "Not set" link). */
+ * reveal when the deployment enables them. `?section=<key>` opens a given panel (e.g. the issue report's "Not set" link). */
 export function SettingsPage() {
   const [searchParams] = useSearchParams();
   const [active, setActive] = useState<string>(() => searchParams.get("section") ?? SECTIONS[0].key);
   const [query, setQuery] = useState("");
   const [devShown, setDevShown] = useState(false);
+  // Off until the backend says otherwise, so the reveal never flashes on a deployment without it.
+  const featuresQuery = useQuery({ queryKey: ["settings", "features"], queryFn: () => settingsApi.getFeatures() });
+  const devToolsEnabled = featuresQuery.data?.dev_tools ?? false;
 
-  const allSections = devShown ? [...SECTIONS, DEV_SECTION] : SECTIONS;
+  const allSections = visibleSections(SECTIONS, DEV_SECTION, { devToolsEnabled, devShown });
   // Fall back to the first section if the active one is no longer available (e.g. dev tools were
   // just hidden while being viewed).
   const activeSection = allSections.find((s) => s.key === active) ?? SECTIONS[0];
@@ -130,11 +136,13 @@ export function SettingsPage() {
             )}
           </nav>
 
-          <div className={styles.reveal}>
-            <Button variant="ghost" size="sm" onClick={() => setDevShown((v) => !v)} aria-expanded={devShown}>
-              {devShown ? "Hide developer tools" : "Show developer tools"}
-            </Button>
-          </div>
+          {devToolsEnabled && (
+            <div className={styles.reveal}>
+              <Button variant="ghost" size="sm" onClick={() => setDevShown((v) => !v)} aria-expanded={devShown}>
+                {devShown ? "Hide developer tools" : "Show developer tools"}
+              </Button>
+            </div>
+          )}
         </aside>
 
         <div className={styles.content}>

@@ -10,7 +10,8 @@ export function SettingsSection() {
         samples, the scheduling rules Autoschedule follows, the credit email, the issue report and the QC &amp; credits limits —
         and see the fixed instrument facts
         the app enforces. A left-hand list switches between sections; the search box filters it. The raw database tools
-        (for development use only) are tucked away behind <b>Show developer tools</b> at the bottom of the list.
+        (for development use only) are tucked away behind <b>Show developer tools</b> at the bottom of the list, on
+        copies of the app that switch them on.
       </p>
 
       <p className={styles.subheading}>Sample defaults</p>
@@ -106,8 +107,8 @@ export function SettingsSection() {
       <p>
         Click <b>Show developer tools</b> at the bottom of the section list to reveal raw database inspection and
         cleanup tools intended for development use only. These operate directly on tables and rows, bypassing the
-        app&apos;s normal scheduling rules — they are not part of the shipped/live product and are expected to be
-        removed or disabled before a real production launch.
+        app&apos;s normal scheduling rules. They are <b>off unless whoever runs this copy of the app switches them
+        on</b>: if there is no <b>Show developer tools</b> button, this copy doesn&apos;t offer them.
       </p>
       <Note tone="warn" icon="!">
         These actions bypass business logic (for example, deleting a cell&apos;s row here doesn&apos;t check whether it
